@@ -1,0 +1,10 @@
+node_modules/
+out/
+dist/
+app/.datos-dev/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+spikes/**/salida/
+.DS_Store
