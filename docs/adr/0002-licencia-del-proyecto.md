@@ -23,7 +23,9 @@ Shinobi Karaoke es software libre y gratuito (ver `00-vision-y-alcance.md`). La 
 | yt-dlp | Unlicense (sus ejecutables congelados incluyen código GPLv3+) | Sí |
 | yt-dlp-ejs, Deno | Unlicense / MIT | Sí |
 | Pesos MelBand RoFormer (Kim) | MIT declarado en Hugging Face (el repositorio GitHub no declara licencia; hay copias que la etiquetan GPL-3.0) | Sí en ambos casos |
-| Pesos UVR MDX-Net | MIT (proyecto UVR), con atribución | Sí |
+| Pesos UVR MDX-Net (`Inst_HQ_4`, perfil Rápido) | **Sin licencia declarada** en `TRvlvr/model_repo` (el código de UVR es MIT); revisado en la tarea 0005 | **Pendiente**: `preguntas/0012` (usuario) |
+| audioread (dependencia no declarada de audio-separator) | MIT | Sí |
+| imageio-ffmpeg (solo plan B, `preguntas/0009`) | BSD-2 (paquete); binario FFmpeg `--enable-gpl` | Sí (GPL compatible con GPL-3.0-or-later); acreditar FFmpeg si se activa |
 | Fuentes tipográficas incluidas | SIL Open Font License 1.1 | Sí (obra agregada; la OFL permite incluirlas con cualquier software) |
 | Datos de LRCLIB | Sin licencia declarada; **no se redistribuyen**, se consultan en tiempo de uso | N/A |
 
@@ -50,6 +52,9 @@ Reglas derivadas:
 - Positivas: el proyecto y sus derivados permanecen libres; inventario compatible sin excepciones.
 - Negativas / riesgos: cualquier contribución futura que quiera usar un modelo no comercial (p. ej. Demucs v4 si se confirma "solo investigación") queda vetada; la licencia de algunos pesos comunitarios está declarada de forma inconsistente (riesgo residual documentado en ADR 0004).
 - Impacto en UX: hace falta una sección "Acerca de / Licencias" con los avisos de terceros y créditos (UVR, autores de modelos, LRCLIB).
+
+## Revisiones
+- 2026-11-04 (tarea 0005): los pesos UVR MDX-Net no declaran licencia (se suponía MIT con atribución) → `preguntas/0012`; se añaden audioread e imageio-ffmpeg (plan B) al inventario.
 
 ## Fuentes
 - GPL-3.0: https://www.gnu.org/licenses/gpl-3.0.html ; compatibilidad de licencias (FSF): https://www.gnu.org/licenses/license-list.html

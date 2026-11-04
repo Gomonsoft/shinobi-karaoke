@@ -73,6 +73,7 @@ Las letras están protegidas por derechos de autor y LRCLIB no declara licencia 
 ## Revisiones
 - 2026-11-03: respuesta del usuario a `preguntas/0002` (solo por línea en el editor); pausas, fin automático, diff al editar el texto y precisión del toque (respuesta a `preguntas/0005` §4–§7).
 - 2026-11-04: tras `preguntas/0006`, las palabras se desplazan y se borran con su línea (ADR 0006).
+- 2026-11-04 (revisión de cierre de la Fase 1): como el validador exige inicios **estrictamente** crecientes, ids únicos y `palabras: null` en vez de lista vacía (ADR 0006), los conversores de importación (Fase 4) deben normalizar antes de validar: ordenar por inicio las líneas expandidas de LRC con varias marcas; si dos elementos quedarían con el mismo inicio (marcas repetidas, dúos), desplazar el posterior +1 ms (repetido si hace falta); generar ids nuevos únicos; convertir listas de palabras vacías en `null`. Una letra que siga sin cumplir los invariantes tras normalizar se trata como "sin sincronizar" (se conservan los textos, sin tiempos) en lugar de rechazarse.
 
 ## Fuentes
 - Documentación de la API de LRCLIB: https://lrclib.net/docs

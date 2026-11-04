@@ -5,7 +5,7 @@
 
 ## 1. Identidad "Shinobi"
 - **Sobria y oscura**: fondos casi negros con un leve tinte índigo (la noche del *shinobi*), sin texturas ni ilustraciones recargadas.
-- **Un acento rojo** ("rojo hanko", el del sello japonés) reservado a la acción principal de cada pantalla. Nunca hay dos botones primarios rojos visibles a la vez.
+- **Un acento rojo** ("rojo hanko", el del sello japonés) reservado a la acción principal de cada pantalla. Nunca hay dos botones primarios rojos visibles a la vez (con un diálogo modal abierto, el primario de la vista queda tras el `velo` y no cuenta: el del diálogo es el único activo).
 - **Oro** solo para el **foco del teclado** y el resaltado de la parte cantada en el estilo predeterminado: lo que "se ilumina".
 - **La letra es la protagonista**: en editor y reproductor la interfaz se retira (paneles en grises, controles que se ocultan).
 - Logotipo provisional: wordmark "Shinobi Karaoke" en la fuente de interfaz, peso 700, con la "i" final de *Shinobi* sustituida por un pequeño shuriken/rombo rojo (detalle gráfico opcional; sin dependencia funcional).
@@ -87,7 +87,7 @@ Tamaño mínimo de texto en la interfaz: **13 px**. Respetar el zoom de Electron
 |------------|----------------|---------|
 | **Botón primario** | Fondo `acento`, texto blanco `t-cuerpo-fuerte`, alto 36 px (grande 44), padding 0 16 px, `r-m`. Uno por vista. | normal / hover `acento-hover` / pulsado `acento-pulsado` / foco (anillo) / cargando (spinner + texto "…ando", ancho fijo) / no disponible (ver abajo) |
 | **Botón secundario** | Fondo `fondo-3`, texto `texto-1`, borde 1 px `borde-control`. | ídem, hover `#33384C` |
-| **Botón fantasma** | Sin fondo, texto `texto-2` → `texto-1` en hover. Para "Cancelar", "Volver". | ídem |
+| **Botón fantasma** | Sin fondo, texto `texto-2` → `texto-1` en hover. Para "Volver", "Borrar búsqueda", "Ver todas" y "Cancelar" fuera de diálogos. En los **diálogos**, "Cancelar" usa el **secundario** (revisión Fase 1). | ídem |
 | **Botón destructivo** | Fondo `error-tenue`, texto y borde `error`. Solo en diálogos de confirmación. | ídem |
 | **Botón icono** | 36 × 36 px (44 en reproductor), `r-m`, fondo transparente → `fondo-3` en hover. | ídem + "activo" (icono `acento-texto`) |
 | **Campo de texto** | Alto 36 px, fondo `fondo-2`, borde 1 px `borde-control`, `r-s`, etiqueta visible encima (`t-pequeno`, `texto-2`), ayuda debajo (`texto-3`). | foco (borde `foco` 2 px) / error (borde `error` + mensaje con icono debajo, `aria-describedby`) / solo lectura |
@@ -102,7 +102,7 @@ Tamaño mínimo de texto en la interfaz: **13 px**. Respetar el zoom de Electron
 | **Diálogo modal** | Ancho 480 px (máx. 90 vw), `fondo-1`, `r-l`, título `t-subtitulo`, acciones abajo a la derecha (primaria a la derecha). Atrapa el foco; Esc = acción de cancelar; devuelve el foco al disparador. | — |
 | **Aviso en línea (banner)** | Franja con icono, texto y acción opcional; fondo tenue del estado y borde izquierdo 3 px del color de estado. `role="status"` (info/éxito) o `role="alert"` (error). | info / aviso / error / éxito |
 | **Notificación flotante (toast)** | Abajo a la derecha, 360 px, `fondo-3`, desaparece a los 6 s (no si tiene acción o el ratón está encima). Máx. 3 apiladas. `aria-live="polite"`. | ídem |
-| **Menú contextual (⋯)** | `fondo-3`, ítems de 32 px, navegable con flechas, Esc cierra. Ítems destructivos en `error`. | — |
+| **Menú contextual (⋯)** | `fondo-3`, ítems de 32 px, navegable con flechas, Esc cierra. Ítems destructivos en `error`, al final y precedidos de un separador de 1 px `borde`. Se pinta por encima de todo (nunca lo recorta su contenedor) y se abre hacia arriba si no cabe debajo. Al abrirse se oculta el tooltip de su disparador. | — |
 | **Tooltip** | `fondo-3`, `t-pequeno`, aparece a los 500 ms de hover o inmediatamente con foco de teclado. | — |
 | **Indicador de actividad** | En la barra superior: botón con spinner `info` + "1 en curso" / "2 en curso · 1 en cola". Abre un panel con la lista de trabajos (ver 04). Oculto si no hay trabajos. | — |
 

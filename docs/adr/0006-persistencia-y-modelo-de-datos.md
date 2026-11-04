@@ -37,6 +37,7 @@ Directorio base de datos de la app (local, no itinerante):
 ├── runtime/                 # entorno Python gestionado por uv (ADR 0001)
 ├── modelos/                 # pesos de separación (ADR 0004)
 ├── registros/               # logs rotados de la app y del worker
+├── electron/                # perfil de Chromium (`userData`: cachés, Local Storage); no contiene datos del usuario (revisión 2026-11-04, tarea 0021)
 └── biblioteca/
     ├── .importando/         # carpetas de preparación (oculta; se ignora al escanear y se vacía al arrancar)
     │   └── <id-uuid>/
@@ -127,13 +128,13 @@ Tiempos en **milisegundos enteros**; colores en `#RRGGBB` (sRGB); fechas ISO-860
 - **Por paso** (`pasos.*.estado`): `pendiente` | `en_curso` | `completado` | `error` | `interrumpido`.
   - `en_curso` solo existe para pasos con trabajo en segundo plano (`fuente` si es YouTube, `separacion`).
   - Al arrancar la app, cualquier `en_curso` sin proceso vivo pasa a `interrumpido` (reintentable).
-  - Cancelar devuelve el paso a `pendiente`.
+  - Cancelar **por el usuario** devuelve el paso a `pendiente`. **Cerrar la app** con trabajos activos los cancela y deja el paso en `interrumpido` (mismo estado que al recuperar tras un cierre inesperado; `ux/04` §3 "Reabrir tras cierre"; revisión 2026-11-04).
   - `error` guarda `{ "codigo": "SIN_CONEXION", "mensaje": "…" }` con códigos estables para que la UX muestre textos propios.
 - **Global** (`estado`): `borrador` | `lista`.
   - Para pasar a `lista` deben cumplirse: `fuente` y `separacion` completados (existen ambas pistas), y la letra tiene al menos un elemento `tipo: "linea"` y **todos** los elementos `tipo: "linea"` tienen `inicio_ms` (las pausas no cuentan). `edicion` pasa a `completado` en ese momento.
   - Una canción `lista` **nunca vuelve sola a borrador**: volver a borrador es una acción explícita del usuario. Si una edición deja líneas sin inicio, sigue `lista` y la app deriva (no guarda) el indicador **`incompleta`**; el reproductor omite las líneas sin inicio y la UX muestra el aviso (respuesta a `preguntas/0005` §8). Si faltan las pistas, la canción se presenta como "dañada".
-- **Invariantes de la letra** (validados al leer y al escribir): `inicio_ms` crecientes entre los elementos que lo tienen; si `fin_ms` no es `null`, `inicio_ms < fin_ms ≤ inicio_ms` del siguiente elemento con inicio; una `pausa` tiene `texto: ""` y `palabras: null`; no hay dos pausas seguidas ni pausas al principio o al final; `palabras` solo puede ser no nulo si la línea tiene `inicio_ms`, con inicios de palabra crecientes, `inicio < fin` en cada una, la primera ≥ inicio de la línea y el fin de la última ≤ inicio del siguiente elemento con inicio (los conversores de la Fase 4 recortan o descartan las palabras que no lo cumplan).
-- **Edición de tiempos con palabras** (`ux/06` criterio 7d): mover el inicio de una línea desplaza sus palabras el mismo delta; borrar sus tiempos borra también los de sus palabras (`palabras: null`). Si tras mover las palabras no caben, se descartan. Funciones puras `moverInicioLinea` y `borrarTiemposLinea` en `app/src/shared/` (tarea 0006).
+- **Invariantes de la letra** (validados al leer y al escribir): `inicio_ms` **estrictamente** crecientes entre los elementos que lo tienen (dos inicios iguales son inválidos); si `fin_ms` no es `null`, `inicio_ms < fin_ms ≤ inicio_ms` del siguiente elemento con inicio; una `pausa` tiene `texto: ""` y `palabras: null`; no hay dos pausas seguidas ni pausas al principio o al final; `palabras` solo puede ser no nulo si la línea tiene `inicio_ms`, con inicios de palabra crecientes, `inicio < fin` en cada una, la primera ≥ inicio de la línea y el fin de la última ≤ inicio del siguiente elemento con inicio (los conversores de la Fase 4 recortan o descartan las palabras que no lo cumplan). Además (revisión 2026-11-04): los `id` de los elementos son únicos en la letra; `fin_ms` no nulo exige `inicio_ms`; una lista de palabras vacía es inválida (sin palabras = `null`); el fin de una palabra no se compara con el inicio de la siguiente (solapes tolerados: el resaltado usa los inicios).
+- **Edición de tiempos con palabras** (`ux/06` criterio 7d): mover el inicio de una línea desplaza sus palabras el mismo delta; borrar sus tiempos borra también los de sus palabras (`palabras: null`). Si tras mover las palabras no caben, se descartan. Funciones puras `moverInicioLinea` y `borrarTiemposLinea` en `app/src/shared/` (tarea 0006). `moverInicioLinea` lanza `RangeError` si el nuevo inicio no queda estrictamente entre los inicios vecinos (o si el id no es una línea): es un error de programación, el editor limita el valor antes de llamar; devuelve `{ letra, palabrasDescartadas, finesAutomaticos }` y también anula el fin fijado y descarta las palabras de la línea anterior si dejan de caber.
 - **Paso actual (derivado, no se guarda)**: el primer paso no `completado` en orden fuente → separación → letra → edición. Corresponde a las etiquetas orientativas de `01-pipeline.md`: `borrador:fuente`, `borrador:separando` (separación `en_curso`), `borrador:letra`, `borrador:edicion`, `lista`. Nota: letra y edición pueden avanzar mientras la separación está `en_curso` (ADR 0004/0005).
 
 ### Formato del estilo
@@ -183,8 +184,9 @@ Tiempos en **milisegundos enteros**; colores en `#RRGGBB` (sRGB); fechas ISO-860
   "estilo_predeterminado": { /* estilo, ver docs/ux/sistema-visual.md §8 */ }
 }
 ```
-- Modo efectivo de separación = `modo` si no es `automatico`; si no, el del perfil (`cuda`/`mps` → `calidad`, `cpu` → `rapido`). Se resuelve **al empezar** cada separación (respuesta a `preguntas/0005` §10).
+- Modo efectivo de separación = `modo` si no es `automatico`; si no, el del perfil (`cuda`/`mps` → `calidad`, `cpu` → `rapido`; **sin perfil detectado → `rapido`**, revisión 2026-11-04). Se resuelve **al empezar** cada separación (respuesta a `preguntas/0005` §10).
 - Campos nuevos con valor por defecto se añaden sin subir `esquema` (lectura tolerante); solo un cambio incompatible sube la versión.
+- Si `config.json` y su `.bak` son ilegibles, el archivo se aparta como `config.json.danado` (se registra como error) y se parte de los valores por defecto (revisión 2026-11-04, tarea 0008). Consecuencia: `instalacion.estado` vuelve a `pendiente`, así que el gestor de runtime (Fase 2) debe **detectar y reutilizar** un runtime y modelos ya presentes y válidos en lugar de reinstalar.
 
 ### Versionado
 Campo `esquema` en cada archivo; al leer una versión anterior, el proceso principal migra en memoria y reescribe (con `.bak`). Los tipos TypeScript del esquema viven en `app/src/shared/` y se validan al leer (p. ej. con un validador de esquemas MIT).
@@ -201,6 +203,7 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
 ## Revisiones
 - 2026-11-03 (tras `preguntas/0004` y `0005`): `fuente/mezcla.flac` permanente en lugar de `original.*` + `trabajo.wav`; carpeta de preparación `.importando/`; campo `tipo` (`linea`/`pausa`) y semántica de `fin_ms: null`; indicador derivado `incompleta`; solo fuentes incluidas en el MVP; `config.json` con `separacion` y `reproductor`.
 - 2026-11-04 (tras `preguntas/0006`): invariantes de `palabras` y regla de edición de tiempos con palabras (se mueven y se borran con su línea). No cambia el esquema (sigue en versión 1).
+- 2026-11-04 (revisión de cierre de la Fase 1; decisiones de las tareas 0006, 0008, 0009 y 0014 aceptadas): inicios estrictamente crecientes, ids únicos, lista de palabras vacía inválida; contrato de `moverInicioLinea` (`RangeError`); `config.json.danado` y valores por defecto; modo automático sin perfil → `rapido`; cierre de la app con trabajos → `interrumpido` (cancelación del usuario → `pendiente`); el paso `en_curso` → `interrumpido` al arrancar actualiza `actualizado` pero no `modificada` (no reordena la biblioteca); perfil de Chromium en `<base>/electron/` (tarea 0021). `vistaAlContinuar(cancion, { progresoVisto })`: "ya vista" es estado de sesión del renderer y no se persiste. Esquema sin cambios (versión 1).
 
 ## Fuentes
 - Electron `app.getPath` y `shell.trashItem`: https://www.electronjs.org/docs/latest/api/app , https://www.electronjs.org/docs/latest/api/shell

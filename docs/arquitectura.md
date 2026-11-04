@@ -7,9 +7,10 @@
 > [0004 Separación](adr/0004-separacion-voz-instrumental.md) ·
 > [0005 Letras y sincronía](adr/0005-letras-y-formato-de-sincronia.md) ·
 > [0006 Persistencia y modelo de datos](adr/0006-persistencia-y-modelo-de-datos.md) ·
-> [0007 Herramientas de desarrollo](adr/0007-herramientas-de-desarrollo-y-calidad.md)
+> [0007 Herramientas de desarrollo](adr/0007-herramientas-de-desarrollo-y-calidad.md) ·
+> [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md)
 >
-> Última revisión: 2026-11-03, tras las respuestas a las preguntas 0001–0005.
+> Última revisión: 2026-11-04, revisión de cierre de la Fase 1 (código de las tareas 0001–0020, salvo el spike 0005).
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -19,13 +20,15 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | Componente | Proceso | Tecnología | Responsabilidades |
 |-----------|---------|-----------|-------------------|
 | **Renderer (UI)** | Renderer de Electron (sandbox, `contextIsolation`) | React + TS | Vistas: primer arranque, biblioteca, añadir canción, progreso, letra, editor, reproductor a pantalla completa. Reproducción y render de letra sincronizada (Web Audio + DOM/CSS). No toca el disco ni la red directamente. |
-| **Preload / API IPC** | Preload | TS | Expone al renderer una API tipada mínima (`biblioteca.*`, `trabajos.*`, `letras.*`, `config.*`, `sistema.*`) y eventos (`trabajo:progreso`, `cancion:cambiada`). |
-| **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/`, CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor), reglas de estado (ADR 0006). |
+| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
+| **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/` con índice en memoria (id = nombre de carpeta), CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor, vía `main/persistencia/`), reglas de estado (ADR 0006), eventos `cancion:cambiada`. |
+| **Servicio de configuración y registro** | Main | TS | `config.json` (lectura tolerante, actualización parcial validada, suscripciones), estructura del directorio de datos y registro rotado `registros/app.log`. |
 | **Gestor de trabajos** | Main | TS | Cola de trabajos en segundo plano, lanzamiento del worker, lectura de JSON Lines, progreso/ETA, cancelación (matar árbol de procesos), recuperación de trabajos interrumpidos. |
 | **Gestor de runtime** | Main | TS + binario `uv` | Detección previa de hardware sin Python (SO/arquitectura + `nvidia-smi`) y espacio libre (`fs.statfs`); primer arranque: Python 3.12, venv, dependencias (`--torch-backend=auto`), modelo del perfil, Deno, con tamaños tomados del manifiesto de runtime; confirmación del perfil con PyTorch; descarga de modelos bajo demanda (Ajustes); actualización de yt-dlp. |
 | **Avisos del sistema** | Main | Electron `Notification`, `app.dock`, `BrowserWindow.flashFrame` | Notificación al terminar/fallar un trabajo con la ventana sin foco; alternativa sin firma en macOS (rebote + insignia del Dock). |
 | **Cliente de letras** | Main | TS (`fetch`) | LRCLIB `get` → `search`; parseo LRC / LRC mejorado / Lyricsfile YAML → formato interno; importación de `.lrc`/`.txt` (ADR 0005). |
-| **Protocolo de medios** | Main | `protocol.handle` de Electron | Esquema propio `shinobi-media://<id>/<ruta-relativa>` para servir audio y miniaturas de la biblioteca al renderer (con soporte de rangos), sin habilitar `file://`. |
+| **Protocolo de medios** | Main | `protocol.handle` de Electron | Esquema propio `shinobi-media://<id>/<ruta-relativa>` para servir audio y miniaturas de la biblioteca al renderer (lista blanca de 4 rutas, rangos, 404 sin detalle), sin habilitar `file://`. CORS limitado al origen del renderer (ADR 0008). |
+| **Protocolo de la app** | Main | `protocol.handle` | Esquema `shinobi-app://app/` que sirve el build del renderer en producción en lugar de `file://` (ADR 0008, tarea 0022). |
 | **Worker de audio** | Proceso hijo Python (uno por trabajo) | Python 3.12, yt-dlp + Deno, PyAV, pyloudnorm, audio-separator (PyTorch/ONNX Runtime), soundfile | Comandos: `info-youtube`, `descargar-youtube`, `importar-archivo` (decodificar a `fuente/mezcla.flac`, sonoridad, metadatos), `separar`, `diagnostico` (hardware/aceleración). Emite JSON Lines por stdout. Sin estado propio. |
 
 ## 3. Flujo de datos
@@ -153,23 +156,35 @@ shinobi-karaoke/
 │   │   ├── runtime-manifest.json # tamaños, URLs, SHA-256 de modelos y factores de tiempo por perfil (ADR 0004)
 │   │   └── bin/                  # binario uv por plataforma (descargado en el build)
 │   └── src/
-│       ├── shared/               # tipos y validación del esquema (cancion, estilo, config), contratos IPC, protocolo JSON Lines
+│   ├── scripts/                  # semilla.mjs (+ resolver-ts.mjs): biblioteca de desarrollo
+│   ├── e2e/                      # pruebas Playwright `_electron` (directorio de datos temporal por prueba)
+│   └── src/
+│       ├── shared/               # esquemas Zod (cancion, letra, estilo, config), migraciones, reglas derivadas, operaciones de letra,
+│       │                         # catálogo de errores, protocolo JSON Lines, fuentes incluidas, contrato IPC (ipc.ts) y canales (canales.ts), __fixtures__/
 │       ├── main/
-│       │   ├── index.ts          # ventana, ciclo de vida, protocolo shinobi-media://
+│       │   ├── index.ts          # ventana, ciclo de vida, registro de protocolos, cableado de servicios
+│       │   ├── rutas.ts          # directorio de datos (SHINOBI_DATOS o ruta por SO)
+│       │   ├── medios.ts         # protocolo shinobi-media:// (lógica pura sobre fs)
+│       │   ├── menu.ts           # menú nativo (Archivo, Edición, Ver/zoom) y menú Desarrollo
+│       │   ├── persistencia/     # escritura atómica y lectura con .bak, cola por archivo, flush
+│       │   ├── configuracion/    # config.json y estructura del directorio de datos
+│       │   ├── registro/         # registros/app.log rotado
 │       │   ├── ipc/              # handlers de la API expuesta al renderer
-│       │   ├── biblioteca/       # escaneo, lectura/escritura atómica, migraciones, reglas de estado
-│       │   ├── trabajos/         # cola, spawn del worker, parser JSON Lines, cancelación, ETA
-│       │   ├── runtime/          # primer arranque con uv, detección de hardware, actualización de yt-dlp
-│       │   └── letras/           # cliente LRCLIB, parsers LRC / LRC mejorado / Lyricsfile
+│       │   ├── biblioteca/       # escaneo, índice, operaciones de escritura, semilla
+│       │   ├── trabajos/         # gestor (colas, ETA), cliente del worker, parser JSON Lines, registro del worker
+│       │   ├── runtime/          # (Fase 2) primer arranque con uv, detección de hardware, actualización de yt-dlp
+│       │   └── letras/           # (Fase 4) cliente LRCLIB, parsers LRC / LRC mejorado / Lyricsfile
 │       ├── preload/
-│       │   └── index.ts          # contextBridge con API tipada
+│       │   └── index.ts          # contextBridge con API tipada (sin exponer ipcRenderer)
 │       └── renderer/
-│           ├── index.html
+│           ├── index.html        # CSP
 │           └── src/
-│               ├── vistas/       # PrimerArranque, Biblioteca, AnadirCancion, Letra, Editor, Reproductor
-│               ├── componentes/
-│               ├── karaoke/      # motor de reproducción (Web Audio) y render de letra (compartido editor/reproductor)
-│               └── estilos/      # tokens del sistema visual (variables CSS) y @font-face
+│               ├── vistas/       # biblioteca/ (Fase 1), Muestrario (solo dev); PrimerArranque, AnadirCancion, Letra, Editor, Reproductor
+│               ├── componentes/  # componentes base (0016), CSS Module con tokens
+│               ├── navegacion/   # estado de navegación propio, marco, atajos, indicador de actividad, arrastrar archivos
+│               ├── trabajos/     # estado de trabajos vivos (useTrabajos)
+│               ├── karaoke/      # estilo → CSS; motor de reproducción (Web Audio) y render de letra (Fase 5–6)
+│               └── estilos/      # tokens del sistema visual (variables CSS) y @font-face (las de la letra se generan desde shared/fuentes.ts)
 ├── worker/                       # worker Python
 │   ├── pyproject.toml            # dependencias: yt-dlp[default], deno, av, soundfile, pyloudnorm, audio-separator[...]
 │   ├── uv.lock
@@ -200,13 +215,14 @@ shinobi-karaoke/
   ```
   `valor: null` = progreso indeterminado. Los códigos de error forman un catálogo estable en `app/src/shared/` que la UX traduce a textos.
 - **Progreso y ETA**: el main suaviza el progreso, calcula el tiempo restante con la velocidad observada y lo emite al renderer (máx. ~4 eventos/s). También se refleja `progreso` en `cancion.json` con menos frecuencia (p. ej. cada 5 %).
-- **Cancelación**: matar el árbol de procesos (SIGTERM → SIGKILL a los 3 s; `taskkill /T /F` en Windows), borrar salidas parciales, paso → `pendiente`.
-- **Cierre de la app**: si hay trabajos, diálogo de confirmación; al reabrir, los `en_curso` pasan a `interrumpido`.
+- **Cancelación**: matar el árbol de procesos (POSIX: proceso líder de grupo, SIGTERM al grupo → SIGKILL a los 3 s; `taskkill /T /F` en Windows); la promesa rechaza con `CANCELADO` cuando el proceso ya ha muerto y entonces el llamador borra las salidas parciales (`alDescartar`); paso → `pendiente`. Cancelar un trabajo en cola no escribe nada.
+- **Cierre de la app**: si hay trabajos, diálogo de confirmación (Fase 3; `trabajos.hayPendientes()` ya existe). Al salir se cancelan todos los trabajos (sin procesos hijos vivos), sus pasos quedan `interrumpido` (no `pendiente`) y se vuelcan las escrituras pendientes, con un plazo máximo (tarea 0021). Al reabrir, cualquier `en_curso` restante pasa también a `interrumpido`.
+- **Eventos**: `trabajo:cambio` (alta, cambio de posición en cola, fin con `resultado` `completado|error|cancelado|interrumpido`) y `trabajo:progreso` (≤ 4/s por trabajo). Los `args` del trabajo no se envían al renderer.
 - **Reintentos automáticos**: separación sin memoria → un reintento con bloques menores / perfil Rápido; descarga de YouTube con error de extracción → actualizar yt-dlp y reintentar una vez; descargas de red → reintento con espera exponencial.
 - **Arranque en frío del worker**: importar PyTorch y cargar el modelo cuesta 5–20 s por trabajo de separación; se acepta en el MVP (alternativa futura: worker persistente).
 
 ### Primer arranque
-Antes de empezar (pantalla de bienvenida): detección previa de hardware sin Python (SO/arquitectura, `nvidia-smi`) → perfil provisional → tamaño de descarga y espacio requerido leídos del manifiesto; espacio libre con `fs.statfs`. Requisito provisional: CPU ≈ 3 GB, Apple Silicon ≈ 4 GB, NVIDIA ≈ 8 GB (8 GB si la detección falla); a confirmar en la tarea 0005.
+Antes de empezar (pantalla de bienvenida): detección previa de hardware sin Python (SO/arquitectura, `nvidia-smi`) → perfil provisional → tamaño de descarga y espacio requerido leídos del manifiesto; espacio libre con `fs.statfs`. Requisito: CPU ≈ 3 GB, Apple Silicon ≈ 4 GB (medido: pico ≈ 3,4 GB con Calidad y caché de uv), NVIDIA ≈ 10 GB (calculado; 10 GB si la detección falla). Tras instalar se ejecuta `uv cache clean` (tarea 0005: `prune` no libera nada).
 
 Secuencia del gestor de runtime, cada fase reanudable e idempotente (en la UI se agrupan en 3 fases visibles, `docs/ux/01-primer-arranque.md`):
 1. Detección básica de plataforma.
@@ -229,38 +245,45 @@ Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acce
 - Pantalla completa con la Fullscreen API / `BrowserWindow.setFullScreen`.
 
 ## 8. Seguridad
-- Renderer con `sandbox`, `contextIsolation`, sin `nodeIntegration`; CSP estricta; solo el protocolo `shinobi-media://` para medios, limitado a `biblioteca/`.
-- Las URLs de YouTube se validan en main antes de pasarlas al worker; argumentos siempre como JSON (nunca concatenados en un shell).
+Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md).
+- Renderer con `sandbox`, `contextIsolation`, sin `nodeIntegration`; preload que solo expone `window.shinobi` (ni `ipcRenderer` ni el objeto `event`).
+- CSP en `renderer/index.html`: `default-src 'self'`, `script-src 'self'` (sin `unsafe-eval`), `style-src 'self' 'unsafe-inline'`, `media-src`/`img-src`/`connect-src` admiten `shinobi-media:`, `object-src 'none'`, `base-uri 'none'`, `form-action 'none'`. El renderer nunca inserta HTML sin escapar.
+- Origen del renderer: `shinobi-app://app` en producción (no `file://`) y el servidor de Vite en desarrollo (tarea 0022). `shinobi-media://` solo sirve 4 rutas por canción dentro de `biblioteca/<id>/` (`realpath`, sin symlinks que escapen) y su CORS solo admite ese origen.
+- IPC: todos los argumentos se validan con Zod en main; errores como `{ codigo, mensaje }` sin detalles internos; remitente comprobado (ventana de la app y *frame* principal del origen del renderer, tarea 0021).
+- Navegación y ventanas nuevas bloqueadas en todos los `webContents`; enlaces externos solo a la lista blanca `ENLACES_PERMITIDOS` (`lrclib.net`, `github.com/Gomonsoft/shinobi-karaoke`), tanto por IPC como por navegación; sin `<webview>`; permisos de Chromium denegados salvo pantalla completa y escribir en el portapapeles; una sola instancia de la app.
+- Empaquetado con *fuses* restrictivos (ADR 0008, tarea 0025).
+- Las URLs de YouTube se validan en main antes de pasarlas al worker; argumentos siempre como JSON (nunca concatenados en un shell; `shell: false`).
 - Sin telemetría.
 
 ---
 
 ## Restricciones e implicaciones para UX
 
-> Sección pensada para el diseñador UX. Las cifras son estimaciones a validar en la primera tarea técnica; el arquitecto las actualizará.
+> Sección pensada para el diseñador UX. Cifras actualizadas con el spike 0005 (2026-11-04): **medidas** solo en un MacBook Air M1 de 8 GB; NVIDIA, Windows y Linux son **calculadas/estimadas** hasta medirlas.
 
 ### 1. Instalación y primer arranque
 - **Instalador** ~100–150 MB. **Sin firma de código en el MVP** (decisión del usuario, `preguntas/0001`): Windows (SmartScreen) y macOS (Gatekeeper) muestran avisos de "app no reconocida" que el usuario salta con la guía de instalación (`ux/01`, Parte A).
 - **Primer arranque obligatorio con conexión**: descarga de Python, dependencias y el modelo de separación.
   | Equipo | Descarga aprox. | Tiempo aprox. (conexión 50 Mbps) |
   |--------|----------------|-------------------------------|
-  | Solo CPU (Win/macOS/Linux) | ~0,5–0,8 GB | 3–8 min |
-  | Apple Silicon | ~1,3–1,7 GB | 5–12 min |
-  | NVIDIA (CUDA) | ~3–4 GB | 10–25 min |
-  Necesita: pantalla dedicada con fases (*Preparando motor de audio*, *Instalando componentes*, *Descargando modelo de separación*), progreso, tamaño, posibilidad de reintentar/reanudar, error de "sin conexión" o "sin espacio en disco" (pedir ≈ 3 GB en CPU, ≈ 4 GB en Apple Silicon, ≈ 8 GB con NVIDIA; el perfil se conoce antes de instalar). La app no es utilizable hasta completarlo.
+  | Solo CPU, modelo Rápido (Win/Linux; calculado) | ~0,4–0,5 GB | 2–5 min |
+  | Apple Silicon, modelo Calidad (medido) | ~1,2 GB | 4–8 min |
+  | NVIDIA (CUDA), modelo Calidad (calculado) | ~4–5,3 GB | 12–20 min |
+  Necesita: pantalla dedicada con fases (*Preparando motor de audio*, *Instalando componentes*, *Descargando modelo de separación*), progreso, tamaño, posibilidad de reintentar/reanudar, error de "sin conexión" o "sin espacio en disco" (pedir ≈ 3 GB en CPU, ≈ 4 GB en Apple Silicon, ≈ 10 GB con NVIDIA; el perfil se conoce antes de instalar). La app no es utilizable hasta completarlo.
 - Arranques posteriores: 1–3 s. Ocasionalmente (≤ 1 vez/semana) actualización silenciosa de yt-dlp en segundo plano.
 
 ### 2. Tiempos esperados por paso (canción de ~4 min)
 | Paso | Tiempo | ¿Asíncrono? | ¿Cancelable? |
 |------|--------|-------------|--------------|
-| Importar archivo local | 2–10 s | Sí (breve) | Sí |
+| Importar archivo local | 1–5 s (medido: < 1 s de decodificar + FLAC para 3,5 min) | Sí (breve) | Sí |
 | YouTube: obtener info (título, duración, miniatura) | 2–5 s | Sí | Sí |
 | YouTube: descarga | 5–60 s según conexión | Sí, con % | Sí |
-| Separación — GPU NVIDIA (Calidad) | ~0,5–2 min | **Sí, en segundo plano** | Sí |
-| Separación — Apple Silicon (Calidad) | ~2–6 min | Sí | Sí |
-| Separación — solo CPU (Rápido) | ~3–7 min | Sí | Sí |
-| Separación — CPU en modo Calidad (elegido en Ajustes) | ~15–40 min | Sí | Sí |
-| + carga del modelo al inicio de cada separación | 5–20 s, progreso **indeterminado** | — | Sí |
+| Separación — GPU NVIDIA (Calidad) | ~0,5–2 min (sin medir) | **Sí, en segundo plano** | Sí |
+| Separación — Apple Silicon (Calidad, en CPU) | **≈ 4,5–5 min (medido M1)** | Sí | Sí |
+| Separación — Apple Silicon (Rápido, elegido en Ajustes) | **≈ 3 min (medido M1)** | Sí | Sí |
+| Separación — solo CPU x86 (Rápido) | ~3–7 min (sin medir) | Sí | Sí |
+| Separación — CPU x86 en modo Calidad (elegido en Ajustes) | ~6–15 min (estimado) | Sí | Sí |
+| + preparación y carga del modelo al inicio de cada separación | 5–20 s, progreso **indeterminado** | — | Sí |
 | Búsqueda de letra (LRCLIB) | < 2 s (timeout 10 s) | Sí | — |
 | Sincronía manual por líneas | lo que tarde el usuario (≈ duración de la canción + ajustes) | — | — |
 | Reproducir canción lista | inmediato (decodificar FLAC < 1 s) | — | — |
@@ -317,6 +340,6 @@ Implicaciones:
 
 ### 8. Requisitos del equipo (orientativos)
 - Windows 10/11 x64, macOS 12+ (Apple Silicon recomendado; Intel soportado en modo Rápido), Linux x64 con glibc ≥ 2.28.
-- 8 GB de RAM mínimo; 3–8 GB de disco para el motor (según equipo) + ≈ 70–100 MB por canción de 4 min.
-- GPU opcional: NVIDIA con ≥ 4 GB de VRAM o Apple Silicon para el modo Calidad.
+- 8 GB de RAM mínimo; ≈ 1,3 GB (CPU/Rápido) – 2,2 GB (Apple Silicon/Calidad, medido) – ~6–8 GB (NVIDIA, estimado) de disco para el motor + ≈ 40–100 MB por canción de 4 min (medido 37–48 MB con una grabación antigua).
+- GPU opcional: NVIDIA con ≥ 4 GB de VRAM para el modo Calidad acelerado. Apple Silicon usa Calidad **en CPU** (más rápido que MPS en el M1 medido, `preguntas/0010`); pico de RAM ≈ 3,2 GB.
 - La resolución del reproductor se adapta a la pantalla; sin requisitos de GPU para el render de la letra.

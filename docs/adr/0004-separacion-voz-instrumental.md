@@ -21,7 +21,7 @@ Estado del arte (noviembre 2026):
 | Opción | Licencia (código / pesos) | Pros | Contras |
 |--------|---------------------------|------|---------|
 | A. **audio-separator + MelBand RoFormer (Kim)** | MIT / MIT declarado en Hugging Face (repo GitHub sin licencia; algunas copias dicen GPL-3.0 — ambas compatibles) | Calidad de voz de primer nivel; misma API que MDX. | Lento en CPU; checkpoint grande (~0,9 GB, a confirmar); datos de entrenamiento no documentados. |
-| B. **audio-separator + UVR MDX-Net (ONNX)** | MIT / MIT (UVR, con atribución) | Rápido en CPU; modelo pequeño (~50–70 MB); ONNX Runtime. | Calidad inferior a RoFormer (más "sangrado" de voz en el instrumental). |
+| B. **audio-separator + UVR MDX-Net (ONNX)** | MIT / **pesos sin licencia declarada** (el repo `TRvlvr/model_repo` no declara ninguna; ver `preguntas/0012`) | Rápido en CPU; modelo pequeño (~50–70 MB); ONNX Runtime. | Calidad inferior a RoFormer (más "sangrado" de voz en el instrumental). |
 | C. Demucs v4 (htdemucs / htdemucs_ft) | MIT / **dudosa (solo investigación)** | Muy conocido; ~1,5× duración en CPU. | Licencia de pesos incompatible con ADR 0002 mientras no se aclare; repo archivado; peor en voces que RoFormer. |
 | D. Spleeter | MIT / MIT | Licencia clara, rapidísimo. | Calidad baja para karaoke; TensorFlow; abandonado. |
 | E. Open-Unmix | MIT / UMX-HQ MIT, UMX-L CC BY-NC-SA | Licencia clara (UMX-HQ). | Calidad muy por debajo del estado del arte. |
@@ -34,12 +34,12 @@ Estado del arte (noviembre 2026):
 
 | Perfil | Cuándo | Modelo | Motor |
 |--------|--------|--------|-------|
-| **Calidad** | GPU NVIDIA (CUDA) o Apple Silicon (MPS) disponible | MelBand RoFormer (Kim) — salida voz + instrumental (residuo) | PyTorch |
-| **Rápido** | Solo CPU (o GPU no soportada por RoFormer, p. ej. DirectML) | UVR MDX-Net de instrumental/voz (ONNX, p. ej. `UVR-MDX-NET-Inst_HQ_*`; el fichero exacto se fija en la tarea de integración tras comprobar calidad y licencia) | ONNX Runtime |
+| **Calidad** | GPU NVIDIA (CUDA, ≥ 4 GB VRAM) o Apple Silicon (**ejecutado en CPU**, no MPS: `preguntas/0010`) | MelBand RoFormer (Kim): `vocals_mel_band_roformer.ckpt` (913 106 900 B, MIT en HF) — salida voz + instrumental (`other`) | PyTorch |
+| **Rápido** | Solo CPU (o GPU no soportada por RoFormer, p. ej. DirectML) | UVR MDX-Net `UVR-MDX-NET-Inst_HQ_4.onnx` (59 074 342 B), **provisional** hasta `preguntas/0012` (licencia de pesos no declarada) | ONNX Runtime, solo `CPUExecutionProvider` |
 
 - En el primer arranque solo se descarga el modelo del perfil detectado. El otro se descarga bajo demanda desde **Ajustes → Separación de voz** (respuesta a `preguntas/0003`): *Automático (recomendado)* / *Calidad* / *Rápido*; el modo se guarda en `config.json` (`separacion.modo`, ADR 0006) y solo cambia cuando el nuevo modelo está descargado y verificado. Cada separación usa el **modo vigente al empezar** (también las que estaban en cola); si su modelo no está disponible, usa el otro modo con modelo descargado. "Re-separar con más calidad" por canción queda fuera del MVP.
 - **Detección del perfil en dos pasos** (respuesta a `preguntas/0005` §2): (1) previa, en el proceso principal sin Python (SO/arquitectura + `nvidia-smi`), para conocer antes de instalar el tamaño de descarga y el espacio necesario; (2) confirmación con PyTorch tras instalar (`shinobi_worker diagnostico`: CUDA/MPS operativo y ≥ 4 GB de VRAM), que solo puede rebajar Calidad → Rápido.
-- **Manifiesto de runtime** (`app/resources/runtime-manifest.json`, generado en el build): por modelo, nombre de archivo, URL de origen, tamaño y SHA-256; por plataforma y perfil, tamaño de descarga de Python y dependencias; y **factores de tiempo de referencia** (min de proceso por min de audio) por perfil de hardware × modo. La UI lee de aquí tamaños y estimaciones; tras cada separación se guarda el factor medido en `config.json` y sustituye al de referencia. Tamaños aproximados: Rápido ≈ 65 MB, Calidad ≈ 0,9 GB (a confirmar en la tarea 0005).
+- **Manifiesto de runtime** (`app/resources/runtime-manifest.json`, generado en el build): por modelo, nombre de archivo, URL de origen, tamaño y SHA-256; por plataforma y perfil, tamaño de descarga de Python y dependencias; y **factores de tiempo de referencia** (min de proceso por min de audio) por perfil de hardware × modo. La UI lee de aquí tamaños y estimaciones; tras cada separación se guarda el factor medido en `config.json` y sustituye al de referencia. Tamaños medidos: Rápido 59 MB, Calidad 913 MB (+ yaml de 944 B). URLs, SHA-256 y borrador del manifiesto: tarea 0005 §4 y §9.
 - Los modelos se descargan desde su origen (release de audio-separator / UVR / Hugging Face) con **verificación SHA-256** y se guardan en el directorio de datos local de la app (`modelos/`), no en `/tmp` (valor por defecto de audio-separator).
 - Se registra en la canción qué modelo y versión produjo las pistas (ADR 0006), para poder re-separar más tarde.
 - Pistas resultantes en **FLAC** estéreo 44,1 kHz (`pistas/voz.flac`, `pistas/instrumental.flac`): sin pérdida, ~40 % más pequeñas que WAV y reproducibles por Chromium.
@@ -48,20 +48,24 @@ Estado del arte (noviembre 2026):
 ### Ejecución en segundo plano, progreso y cancelación
 - El proceso principal de Electron encola un trabajo `separar` (concurrencia **1** para trabajos pesados) y lanza `python -m shinobi_worker separar ...`.
 - **Entrada/salida**: entrada `fuente/mezcla.flac`; la mezcla **no** se borra al terminar (ADR 0003, revisión 2026-11-03).
-- **Progreso**: audio-separator usa `tqdm` internamente por bloques de audio; el worker intercepta `tqdm` (sustituyendo su salida por un emisor) y publica JSON Lines `{"tipo":"progreso","fase":"separando","valor":0.42}`. Fases: `cargando_modelo` (indeterminada, 5–20 s), `separando` (0–1), `guardando`. Con el ritmo medido se calcula un **tiempo restante estimado** en el proceso principal. Si la intercepción no fuera fiable, se usa como respaldo una estimación por tiempo (duración × factor medido del perfil) — a validar en la primera tarea.
-- **Cancelación**: el proceso principal termina el proceso hijo (y su árbol) — SIGTERM y, tras 3 s, SIGKILL / `taskkill /T /F` en Windows — y borra salidas parciales. El estado del paso vuelve a `pendiente`.
+- **Progreso**: audio-separator usa `tqdm` internamente por bloques de audio; el worker intercepta `tqdm` (sustituyendo su salida por un emisor) y publica JSON Lines `{"tipo":"progreso","fase":"separando","valor":0.42}`. Fases: `preparando` (lectura/remuestreo, 3–15 s, indeterminada), `cargando_modelo` (1–3 s con el modelo en disco; indeterminada), `separando` (0–1), `guardando` (~1 s). Medido (tarea 0005 §7): se envuelve `tqdm.std.tqdm.update`; Rápido emite una barra principal (~48 pasos/3,5 min, uno cada ~3 s; ≈ 97 % del tiempo) y una segunda de postproceso; Calidad emite ~19 pasos/3,5 min (uno cada 11–18 s), así que **el main interpola con el factor** entre eventos; las barras de descarga (`unit="iB"`) se filtran. Con el ritmo medido se calcula un **tiempo restante estimado** en el proceso principal. Validado: la intercepción es fiable; la estimación por tiempo (duración × factor) se usa para interpolar.
+- **Cancelación**: el proceso principal termina el proceso hijo (y su árbol) — SIGTERM y, tras 3 s, SIGKILL / `taskkill /T /F` en Windows — y borra salidas parciales. Medido en macOS: SIGTERM termina en < 0,1 s sin huérfanos y sin pistas parciales (se escriben al final); una descarga de modelo interrumpida deja `<modelo>.<pid>.partial`, que el main borra al cancelar y al arrancar. El estado del paso vuelve a `pendiente`.
 - **Cierre de la app durante un trabajo**: se avisa; si se confirma, se cancela. Al reabrir, un paso que quedó `en_curso` se marca como `interrumpido` y se ofrece reintentar (no se reanuda a medias).
 - **Errores**: memoria insuficiente (GPU/RAM) → reintento automático una vez con bloques más pequeños y, si persiste en GPU, en CPU con el perfil rápido; archivo de modelo corrupto → re-descarga.
 
-### Tiempos estimados (canción de 4 min)
-| Hardware | Perfil | Estimación | Fiabilidad |
-|----------|--------|-----------|------------|
-| NVIDIA reciente (≥ 6 GB VRAM) | Calidad | ~0,5–2 min | Media (benchmarks GPU públicos) |
-| Apple Silicon (M1–M4) | Calidad | ~2–6 min | Baja (sin benchmark fiable) |
-| CPU moderna (4–8 núcleos) | Rápido | ~3–7 min | Media (despliegue público: 2–5 min por 3 min de audio) |
-| CPU, forzando Calidad | Calidad | ~15–40 min | Baja (estimación) |
+### Tiempos medidos y estimados (canción de 4 min)
+Factor = minutos de proceso / minuto de audio. Medido en la tarea 0005 (MacBook Air M1, 8 GB, audio-separator 0.48.0, torch 2.15, onnxruntime 1.31; variación ±8 %).
 
-Más 5–20 s de carga de PyTorch y del modelo por trabajo. **Las cifras deben medirse en la primera tarea técnica** ([tarea 0005](../tareas/0005-spike-separacion-y-runtime.md)) y actualizar este ADR y la sección de restricciones de `arquitectura.md`.
+| Hardware | Modo | Factor | Canción de 4 min | Fiabilidad |
+|----------|------|-------:|-----------------|------------|
+| Apple Silicon M1, CPU | Calidad (automático) | **1,08–1,27** | ≈ 4,5–5 min | **Medido** (pico RAM 3,1–3,2 GB) |
+| Apple Silicon M1, CPU | Rápido | **0,70–0,79** | ≈ 3 min | **Medido** (pico RAM 1,7–2,3 GB) |
+| Apple Silicon M1, MPS / CoreML | Calidad / Rápido | 1,71 / 1,74 | ≈ 7 min | Medido; **no se usa** (`preguntas/0010`) |
+| NVIDIA reciente (≥ 6 GB VRAM) | Calidad | ~0,15–0,5 | ~0,5–2 min | Sin medir (benchmarks públicos) |
+| CPU x86 moderna (4–8 núcleos) | Rápido | ~0,75–1,75 | ~3–7 min | Sin medir |
+| CPU x86, forzando Calidad | Calidad | ~1,5–4 | ~6–15 min | Sin medir (extrapolado del M1) |
+
+Más ≈ 2 s de importar torch/audio-separator y 3–15 s de preparación por trabajo. Los factores sin medir van en el manifiesto como `null` + estimación hasta medir en NVIDIA/Windows/Linux; el factor real de cada equipo sustituye al de referencia tras la primera separación.
 
 Requisitos mínimos orientativos: 8 GB de RAM; para el perfil Calidad en GPU, ≥ 4 GB de VRAM.
 
@@ -69,6 +73,8 @@ Requisitos mínimos orientativos: 8 GB de RAM; para el perfil Calidad en GPU, �
 - Positivas: calidad estado del arte donde hay GPU; tiempos razonables sin GPU; una sola librería para ambos perfiles; licencias compatibles con GPL-3.0.
 - Negativas / riesgos:
   - **Licencias de pesos comunitarios declaradas de forma inconsistente** (MIT en Hugging Face vs. repo sin licencia; datos de entrenamiento no documentados). Mitigación: no se redistribuyen en el instalador, se descargan desde su origen, se acredita a los autores y se revisará si aparece información nueva.
+  - **Pesos del modelo Rápido sin licencia declarada** (no "MIT con atribución" como se suponía): pendiente de decisión del usuario (`preguntas/0012`); alternativa sin riesgo: Calidad en todos los equipos.
+  - Parche de un método interno de audio-separator: mitigado con versión fijada y test "sin ffmpeg en el PATH" en CI.
   - La calidad en CPU (perfil Rápido) será perceptiblemente peor: restos de voz en el instrumental.
   - Dependencia de un proyecto comunitario (audio-separator) para la API de inferencia; mitigación: el worker encapsula la llamada en una interfaz propia (`Separador`) para poder cambiar de librería.
   - Variabilidad grande de tiempos según hardware.
@@ -80,6 +86,7 @@ Requisitos mínimos orientativos: 8 GB de RAM; para el perfil Calidad en GPU, �
   - El usuario puede querer escuchar voz e instrumental para comprobar el resultado.
 
 ## Revisiones
+- 2026-11-04 (resultados del spike, [tarea 0005](../tareas/0005-spike-separacion-y-runtime.md); respuestas a `preguntas/0009` y `0010`): modelos exactos con tamaño y SHA-256; **Apple Silicon ejecuta en CPU** (MPS/CoreML más lentos en M1); tabla de tiempos con factores medidos; progreso por `tqdm` validado; ejecución **sin `ffmpeg`** con el parche de `check_ffmpeg_installed` + `use_soundfile=True` encapsulado en `Separador`, versiones fijadas (`audio-separator==0.48.0`, torch, onnxruntime, `onnx-weekly`), `audioread` declarado explícitamente, siempre `model_file_dir` y renombrado de stems (`other`/`Instrumental` → `instrumental.flac`, `vocals`/`Vocals` → `voz.flac`); `imageio-ffmpeg` como plan B. Licencia de pesos del Rápido sin declarar → `preguntas/0012` (usuario).
 - 2026-11-03: ajuste global de modo (respuestas a `preguntas/0003` y `0005` §2, §10); detección previa sin Python; manifiesto de runtime con tamaños, SHA-256 y factores de tiempo; entrada `mezcla.flac`.
 
 ## Fuentes

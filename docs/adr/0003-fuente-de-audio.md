@@ -75,6 +75,8 @@ Estado del arte relevante (noviembre 2026):
 
 ## Revisiones
 - 2026-11-03 (respuesta a `preguntas/0005` §3 y §12): la normalización genera `fuente/mezcla.flac` permanente en lugar de `trabajo.wav` temporal; el original no se conserva; la importación local se prepara en una carpeta oculta y la canción se materializa al confirmar.
+- 2026-11-04 (resultados del spike 0005): PyAV decodifica MP3, M4A y MP4 de vídeo, remuestrea a 44,1 kHz estéreo y escribe `mezcla.flac` PCM 16 con soundfile en **< 1 s** para 3,5 min (≈ 12–14 MB en la grabación de prueba); pyloudnorm mide LUFS. Separar desde `mezcla.flac` PCM 16 frente a WAV float32 da diferencias de ≈ −101 dBFS (suelo de cuantización): **confirmada la entrada FLAC 16**. La salida de audio-separator hereda el subtipo de la entrada, por eso la mezcla debe ser siempre PCM 16. El respaldo con binario ffmpeg (imageio-ffmpeg) solo se activaría por audio-separator (`preguntas/0009`), no para la fuente.
+- 2026-11-04 (revisión de cierre de la Fase 1): el protocolo de medios (tarea 0012) solo sirve `fuente/miniatura.jpg`. YouTube suele entregar miniaturas WebP: el worker las convierte a **JPEG** con PyAV (decodificar la imagen y codificar `mjpeg`), sin usar `--convert-thumbnails` de yt-dlp (que exige el binario `ffmpeg`). Si la conversión falla, la canción queda sin miniatura (no es un error del paso).
 
 ## Fuentes
 - yt-dlp (licencia, opciones, EJS): https://github.com/yt-dlp/yt-dlp
