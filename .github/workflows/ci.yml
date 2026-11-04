@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# Versión de uv fijada en un único sitio (también en app/README.md y worker/uv.lock).
+env:
+  UV_VERSION: '0.13.7'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: app (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # uv + dependencias del worker: sin esto los tests de integración con el worker
+      # real (worker.test.ts, gestor.integracion.test.ts) se omiten.
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: worker/uv.lock
+      - name: Dependencias del worker (uv sync --locked)
+        working-directory: worker
+        run: uv sync --locked
+
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm test -- --reporter=verbose
+
+      # E2E de Playwright (_electron): al menos en Linux, con pantalla virtual.
+      - name: Permitir el sandbox de Electron (Ubuntu 24.04+)
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: E2E (Playwright, xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run test:e2e
+
+  worker:
+    name: worker (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: worker/uv.lock
+
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run ruff format --check
+      - run: uv run pytest
