@@ -1,0 +1,259 @@
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import type { ApiShinobi, EventoCancionIpc, ResumenCancionIpc } from '@shared/ipc'
+import { fixtures } from './fixturesApi'
+import { Biblioteca, reiniciarFiltroDeSesion } from './Biblioteca'
+import { resumenPrueba } from './resumenPrueba'
+import { NavegacionContexto, type Vista } from '../../navegacion/estado'
+import { RETRASO_CARGA_LENTA_MS } from './useBiblioteca'
+
+beforeEach(() => reiniciarFiltroDeSesion())
+
+function montar(
+  lista: Promise<ResumenCancionIpc[]> | ResumenCancionIpc[],
+  biblioteca: Partial<ApiShinobi['biblioteca']> = {}
+) {
+  const ir = vi.fn<(v: Vista) => void>()
+  let emitir: (e: EventoCancionIpc) => void = () => undefined
+  const api = fixtures({
+    biblioteca,
+    listar: () => Promise.resolve(lista),
+    alCambiarCancion: (cb) => {
+      emitir = cb
+      return () => undefined
+    }
+  })
+  ;(window as unknown as { shinobi: ApiShinobi }).shinobi = api
+  render(
+    <NavegacionContexto.Provider value={{ vista: { tipo: 'biblioteca' }, ir }}>
+      <Biblioteca />
+    </NavegacionContexto.Provider>
+  )
+  return { ir, api, emitir: (e: EventoCancionIpc) => act(() => emitir(e)) }
+}
+
+const lista = resumenPrueba({ id: 'a', titulo: 'Bohemian Rhapsody', estado: 'lista' })
+const incompleta = resumenPrueba({
+  id: 'b',
+  titulo: 'Casi lista',
+  estado: 'lista',
+  incompleta: true,
+  lineasSinSincronizar: 1
+})
+const borrador = resumenPrueba({ id: 'c', titulo: 'La flaca' })
+const danada = resumenPrueba({
+  id: 'd',
+  titulo: 'Rota',
+  danada: true,
+  motivo: 'json',
+  pasos: null,
+  estilo: null
+})
+
+describe('estados', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('cargando: 4 esqueletos y, tras 3 s, el texto de carga', async () => {
+    vi.useFakeTimers()
+    montar(new Promise(() => undefined))
+    expect(document.querySelectorAll('[data-esqueleto]')).toHaveLength(4)
+    expect(screen.queryByText('Cargando tu biblioteca…')).toBeNull()
+    await act(async () => {
+      vi.advanceTimersByTime(RETRASO_CARGA_LENTA_MS + 10)
+    })
+    expect(screen.getByText('Cargando tu biblioteca…')).toBeInTheDocument()
+  })
+
+  it('vacía: textos, formatos y un único botón "Añadir canción" que abre la vista añadir', async () => {
+    const { ir } = montar([])
+    expect(
+      await screen.findByRole('heading', { name: 'Tu biblioteca está vacía' })
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Formatos: MP3, M4A, FLAC, WAV, OGG/)).toBeInTheDocument()
+    const botones = screen.getAllByRole('button', { name: 'Añadir canción' })
+    expect(botones).toHaveLength(1)
+    fireEvent.click(botones[0]!)
+    expect(ir).toHaveBeenCalledWith({ tipo: 'anadir' })
+  })
+
+  it('error al listar: aviso con Reintentar', async () => {
+    const api = fixtures({ listar: () => Promise.reject(new Error('x')) })
+    ;(window as unknown as { shinobi: ApiShinobi }).shinobi = api
+    render(
+      <NavegacionContexto.Provider value={{ vista: { tipo: 'biblioteca' }, ir: vi.fn() }}>
+        <Biblioteca />
+      </NavegacionContexto.Provider>
+    )
+    expect(await screen.findByText('No se pudo cargar tu biblioteca.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+  })
+})
+
+describe('tarjetas', () => {
+  it('muestra título, artista · duración, insignia y la accesibilidad bib.aria.tarjeta', async () => {
+    montar([lista, incompleta, borrador, danada])
+    const t = await screen.findByRole('article', {
+      name: 'Bohemian Rhapsody, Artista, Lista.'
+    })
+    expect(within(t).getByText('Artista · 3:55')).toBeInTheDocument()
+    expect(within(t).getByText('Lista')).toBeInTheDocument()
+    expect(
+      screen.getByRole('article', {
+        name: 'Casi lista, Artista, Lista. Falta 1 línea por sincronizar.'
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('article', { name: 'La flaca, Artista, Borrador. Falta la letra.' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('article', {
+        name: 'Canción sin nombre, Artista, Dañada. No se puede abrir esta canción.'
+      })
+    ).toBeInTheDocument()
+  })
+
+  it('Lista incompleta: insignia y Reproducir sin cambios, más la línea de aviso', async () => {
+    montar([incompleta])
+    const t = await screen.findByRole('article')
+    expect(within(t).getByText('Lista')).toBeInTheDocument()
+    expect(within(t).getByText('Falta 1 línea por sincronizar')).toBeInTheDocument()
+    expect(
+      within(t).getByRole('button', { name: 'Reproducir «Casi lista»', hidden: true })
+    ).toBeTruthy()
+  })
+
+  it('el título de la portada usa la fuente y el color del estilo', async () => {
+    const estilo = {
+      version: 1 as const,
+      fondo: { tipo: 'solido' as const, color: '#112233' },
+      letra: {
+        fuente: { familia: 'Bangers', origen: 'incluida' as const },
+        color: '#ABCDEF',
+        color_resaltado: '#FFD400'
+      }
+    }
+    montar([{ ...lista, estilo }])
+    const titulo = (await screen.findAllByText('Bohemian Rhapsody')).find((n) =>
+      n.className.includes('tituloPortada')
+    )!
+    expect(titulo).toHaveStyle({
+      fontFamily: "'Bangers', var(--fuente-interfaz)",
+      color: '#ABCDEF'
+    })
+  })
+
+  it('Lista: portada y Reproducir abren el reproductor con el id', async () => {
+    const { ir } = montar([lista])
+    const t = await screen.findByRole('article')
+    fireEvent.click(within(t).getByRole('button', { name: 'Bohemian Rhapsody', hidden: true }))
+    expect(ir).toHaveBeenLastCalledWith({ tipo: 'reproductor', id: 'a' })
+    fireEvent.click(within(t).getByRole('button', { name: 'Reproducir «Bohemian Rhapsody»' }))
+    fireEvent.click(t.querySelector('[data-boton-redondo]')!)
+    expect(ir).toHaveBeenCalledTimes(3)
+  })
+
+  it('Borrador: Continuar navega con vistaAlContinuar', async () => {
+    const { ir, api } = montar([borrador])
+    vi.spyOn(api.biblioteca, 'obtener').mockResolvedValue({
+      // Separación completada y sin letra -> vista "letra".
+      pasos: borrador.pasos,
+      letra: null,
+      pistas: null
+    } as never)
+    const t = await screen.findByRole('article')
+    await act(async () => {
+      fireEvent.click(within(t).getByRole('button', { name: 'Continuar «La flaca»', hidden: true }))
+    })
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c', paso: 'letra' })
+  })
+
+  it('Dañada: clic en la portada abre su menú ⋯ (con Mostrar en la carpeta)', async () => {
+    montar([danada])
+    const t = await screen.findByRole('article')
+    expect(within(t).queryByRole('button', { name: /^Reproducir/, hidden: true })).toBeNull()
+    fireEvent.click(
+      within(t).getByRole('button', { name: 'Abrir el menú de «Canción sin nombre»', hidden: true })
+    )
+    expect(
+      await screen.findByRole('menuitem', { name: 'Mostrar en la carpeta' })
+    ).toBeInTheDocument()
+  })
+
+  it('Intro actúa como la portada y Espacio como la acción principal', async () => {
+    const { ir } = montar([lista])
+    const t = await screen.findByRole('article')
+    t.focus()
+    fireEvent.keyDown(t, { key: 'Enter' })
+    fireEvent.keyDown(t, { key: ' ' })
+    expect(ir).toHaveBeenCalledTimes(2)
+  })
+
+  it('una sola tarjeta tiene tabindex 0 y las flechas mueven el foco', async () => {
+    montar([lista, borrador, danada])
+    const tarjetas = await screen.findAllByRole('article')
+    expect(tarjetas.map((t) => t.tabIndex)).toEqual([0, -1, -1])
+    tarjetas[0]!.focus()
+    fireEvent.keyDown(tarjetas[0]!, { key: 'ArrowRight' })
+    expect(tarjetas[1]).toHaveFocus()
+    expect(tarjetas.map((t) => t.tabIndex)).toEqual([-1, 0, -1])
+    fireEvent.keyDown(tarjetas[1]!, { key: 'End' })
+    expect(tarjetas[2]).toHaveFocus()
+  })
+})
+
+describe('en vivo', () => {
+  it('actualiza la tarjeta en su sitio sin perder el foco ni reordenar; la línea de aviso desaparece', async () => {
+    const { emitir } = montar([incompleta, borrador])
+    const tarjetas = await screen.findAllByRole('article')
+    tarjetas[0]!.focus()
+    expect(
+      screen.getByText('Falta 1 línea por sincronizar', { selector: 'span' })
+    ).toBeInTheDocument()
+
+    emitir({
+      id: 'b',
+      resumen: {
+        ...incompleta,
+        incompleta: false,
+        lineasSinSincronizar: 0,
+        modificada: '2030-01-01T00:00:00Z'
+      }
+    })
+
+    expect(screen.queryByText('Falta 1 línea por sincronizar', { selector: 'span' })).toBeNull()
+    const despues = screen.getAllByRole('article')
+    expect(despues[0]).toBe(tarjetas[0])
+    expect(despues[0]).toHaveFocus()
+    expect(despues.map((t) => t.getAttribute('data-tarjeta'))).toEqual(['b', 'c'])
+  })
+
+  it('un cambio de estado no reordena; una canción nueva se añade al final; una eliminada se quita', async () => {
+    const { emitir } = montar([lista, borrador])
+    await screen.findAllByRole('article')
+    emitir({
+      id: 'c',
+      resumen: { ...borrador, estado: 'lista', modificada: '2031-01-01T00:00:00Z' }
+    })
+    expect(screen.getAllByRole('article').map((t) => t.getAttribute('data-tarjeta'))).toEqual([
+      'a',
+      'c'
+    ])
+    emitir({ id: 'z', resumen: resumenPrueba({ id: 'z', titulo: 'Nueva' }) })
+    expect(screen.getAllByRole('article').map((t) => t.getAttribute('data-tarjeta'))).toEqual([
+      'a',
+      'c',
+      'z'
+    ])
+    emitir({ id: 'a', eliminada: true })
+    expect(screen.getAllByRole('article').map((t) => t.getAttribute('data-tarjeta'))).toEqual([
+      'c',
+      'z'
+    ])
+  })
+
+  it('al eliminar la última canción aparece el estado vacío', async () => {
+    const { emitir } = montar([lista])
+    await screen.findByRole('article')
+    emitir({ id: 'a', eliminada: true })
+    expect(screen.getByRole('heading', { name: 'Tu biblioteca está vacía' })).toBeInTheDocument()
+  })
+})

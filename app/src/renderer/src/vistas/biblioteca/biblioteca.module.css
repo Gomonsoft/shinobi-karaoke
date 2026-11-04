@@ -1,0 +1,285 @@
+/* Vista Biblioteca (docs/ux/02, sistema-visual.md). Solo tokens. */
+
+.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--e-5);
+  margin-top: var(--e-4);
+}
+
+.item {
+  display: contents;
+}
+
+/* ---------- Tarjeta ---------- */
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.portadaEnvoltorio {
+  position: relative;
+}
+
+.portada {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background-size: cover;
+  background-position: center;
+}
+
+.portadaDanada {
+  background: var(--fondo-2);
+  color: var(--error);
+}
+
+.velo {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.portadaBoton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--e-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tituloPortada {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  font-size: var(--t-titulo);
+  line-height: var(--t-titulo-lh);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.botonRedondo {
+  position: absolute;
+  right: var(--e-3);
+  bottom: var(--e-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border: 0;
+  border-radius: var(--r-pildora);
+  background: var(--acento);
+  color: var(--texto-sobre-acento);
+  opacity: 0;
+  transition: opacity var(--transicion);
+}
+.botonRedondo:hover {
+  background: var(--acento-hover);
+}
+.tarjeta:hover .botonRedondo,
+.tarjeta:focus .botonRedondo,
+.tarjeta:focus-within .botonRedondo,
+.botonRedondo:focus-visible {
+  opacity: 1;
+}
+
+.cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  flex: 1;
+  padding: var(--e-3) var(--e-4) var(--e-4);
+}
+
+.titulo {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artista {
+  margin: 0;
+  overflow: hidden;
+  color: var(--texto-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filaEstado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+}
+
+.paso {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+}
+
+.linea {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin: 0;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.linea > svg {
+  flex: none;
+}
+.linea_aviso {
+  color: var(--aviso);
+}
+.linea_error {
+  color: var(--error);
+}
+.linea_curso,
+.linea_cola {
+  color: var(--info);
+}
+
+.accion {
+  display: flex;
+  margin-top: auto;
+}
+
+/* ---------- Cargando ---------- */
+.cargando {
+  margin: var(--e-4) 0 0;
+  color: var(--texto-2);
+}
+
+.esqueleto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  padding-bottom: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+  overflow: hidden;
+}
+.esqueletoPortada {
+  aspect-ratio: 16 / 9;
+  background: var(--fondo-2);
+}
+.esqueletoLinea {
+  height: 1rem;
+  margin: 0 var(--e-4);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+}
+.esqueletoCorta {
+  width: 50%;
+}
+.brillo {
+  animation: brillo 1.6s ease-in-out infinite;
+}
+@keyframes brillo {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brillo {
+    animation: none;
+  }
+}
+
+/* ---------- Vacío ---------- */
+.vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e-4);
+  padding-top: var(--e-8);
+  text-align: center;
+}
+.vacio p {
+  max-width: 36rem;
+  margin: 0;
+  color: var(--texto-2);
+}
+.vacioIcono {
+  color: var(--texto-3);
+}
+.vacio .formatos {
+  color: var(--texto-3);
+}
+
+/* ---------- Filtros y búsqueda ---------- */
+.barraHerramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  margin-top: var(--e-4);
+}
+
+.busqueda {
+  position: relative;
+  flex: 0 1 20rem;
+  min-width: 12rem;
+}
+
+.busquedaIcono {
+  position: absolute;
+  top: 50%;
+  left: var(--e-3);
+  transform: translateY(-50%);
+  color: var(--texto-3);
+  pointer-events: none;
+}
+
+.campoBusqueda {
+  width: 100%;
+  min-height: var(--alto-boton);
+  padding: 0 var(--e-3) 0 calc(var(--e-3) + 1.5rem);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+}
+
+.campoBusqueda:focus {
+  border: 2px solid var(--foco);
+  padding-left: calc(var(--e-3) + 1.5rem - 1px);
+}
+
+.sinResultados {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e-3);
+  margin-top: var(--e-7, 3rem);
+  color: var(--texto-2);
+  text-align: center;
+}
+
+.accionesVacio {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--e-2);
+}
