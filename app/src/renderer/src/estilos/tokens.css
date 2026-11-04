@@ -1,0 +1,99 @@
+/* Tokens del sistema visual (fuente de verdad: docs/ux/sistema-visual.md §2-§4).
+   No inventar valores aquí: sincronizar con la spec y con tokens.test.ts. */
+:root {
+  color-scheme: dark;
+
+  /* §2.1 Superficies */
+  --fondo-0: #0e0f14;
+  --fondo-1: #161821;
+  --fondo-2: #1f2230;
+  --fondo-3: #292d3e;
+  --borde: #2e3244;
+  --borde-control: #717896;
+  --velo: rgba(0, 0, 0, 0.6);
+  --fondo-3-hover: #33384c; /* hover del botón secundario (§6) */
+
+  /* §2.2 Texto */
+  --texto-1: #f2f3f7;
+  --texto-2: #a9aec2;
+  --texto-3: #9197ac;
+  --texto-desactivado: rgba(145, 151, 172, 0.6);
+
+  /* §2.3 Acento y estados */
+  --texto-sobre-acento: #ffffff; /* texto blanco del botón primario (§6) */
+  --acento: #c8303b;
+  --acento-hover: #d13440;
+  --acento-pulsado: #b82a35;
+  --acento-texto: #ff6b72;
+  --foco: #ffcc4d;
+  --exito: #4ade9a;
+  --aviso: #f5b94f;
+  --error: #ff7a7a;
+  --info: #7cb8ff;
+  --exito-tenue: #12291f;
+  --aviso-tenue: #2e2410;
+  --error-tenue: #331618;
+  --info-tenue: #122238;
+
+  /* §3 Tipografía (rem; 1 rem = 16 px) */
+  --fuente-interfaz: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+  --fuente-tiempo: ui-monospace, 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  --t-display: 2rem;
+  --t-display-lh: 2.5rem;
+  --t-display-peso: 700;
+  --t-titulo: 1.5rem;
+  --t-titulo-lh: 2rem;
+  --t-titulo-peso: 700;
+  --t-subtitulo: 1.125rem;
+  --t-subtitulo-lh: 1.625rem;
+  --t-subtitulo-peso: 600;
+  --t-cuerpo: 0.9375rem;
+  --t-cuerpo-lh: 1.375rem;
+  --t-cuerpo-peso: 400;
+  --t-cuerpo-fuerte: 0.9375rem;
+  --t-cuerpo-fuerte-lh: 1.375rem;
+  --t-cuerpo-fuerte-peso: 600;
+  --t-pequeno: 0.8125rem;
+  --t-pequeno-lh: 1.125rem;
+  --t-pequeno-peso: 400;
+  --t-tiempo: 0.8125rem;
+  --t-tiempo-lh: 1.125rem;
+  --t-tiempo-peso: 400;
+
+  /* §4 Espaciado (base 4 px) */
+  --e-1: 0.25rem;
+  --e-2: 0.5rem;
+  --e-3: 0.75rem;
+  --e-4: 1rem;
+  --e-5: 1.5rem;
+  --e-6: 2rem;
+  --e-7: 3rem;
+  --e-8: 4rem;
+
+  /* §4 Radios */
+  --r-s: 0.375rem;
+  --r-m: 0.625rem;
+  --r-l: 1rem;
+  --r-pildora: 999px;
+
+  /* §4 Elevación (diálogos y menús) */
+  --elevacion: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* §4 Movimiento */
+  --duracion-corta: 120ms;
+  --duracion-larga: 200ms;
+  --transicion: 160ms ease-out;
+
+  /* §4 Márgenes de vista y objetivos de clic */
+  --margen-vista: 1.5rem;
+  --alto-boton: 2.25rem;
+  --alto-boton-grande: 2.75rem;
+  --objetivo-minimo: 2rem;
+}
+
+/* §4: 32 px de margen a partir de 1280 px de ancho */
+@media (min-width: 1280px) {
+  :root {
+    --margen-vista: 2rem;
+  }
+}

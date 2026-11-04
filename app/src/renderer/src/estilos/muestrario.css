@@ -1,0 +1,31 @@
+/* Solo para la página de desarrollo "Muestrario". */
+.muestrario {
+  display: grid;
+  gap: var(--e-6);
+  padding: var(--margen-vista);
+}
+.muestras {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--e-2);
+  margin: 0 0 var(--e-4);
+  padding: 0;
+  list-style: none;
+}
+.muestra {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+.muestra__color {
+  width: var(--objetivo-minimo);
+  height: var(--objetivo-minimo);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+}
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-3);
+}

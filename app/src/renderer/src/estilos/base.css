@@ -1,0 +1,140 @@
+/* Reset mínimo, base tipográfica y foco (docs/ux/sistema-visual.md §3, §4, §7). */
+@import './fuentes.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 1024px;
+  min-height: 100vh;
+  background: var(--fondo-0);
+  color: var(--texto-1);
+  font-family: var(--fuente-interfaz);
+  font-size: var(--t-cuerpo);
+  line-height: var(--t-cuerpo-lh);
+  font-weight: var(--t-cuerpo-peso);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+/* Clases tipográficas (§3) */
+.t-display {
+  font-size: var(--t-display);
+  line-height: var(--t-display-lh);
+  font-weight: var(--t-display-peso);
+}
+.t-titulo {
+  font-size: var(--t-titulo);
+  line-height: var(--t-titulo-lh);
+  font-weight: var(--t-titulo-peso);
+}
+.t-subtitulo {
+  font-size: var(--t-subtitulo);
+  line-height: var(--t-subtitulo-lh);
+  font-weight: var(--t-subtitulo-peso);
+}
+.t-cuerpo {
+  font-size: var(--t-cuerpo);
+  line-height: var(--t-cuerpo-lh);
+  font-weight: var(--t-cuerpo-peso);
+}
+.t-cuerpo-fuerte {
+  font-size: var(--t-cuerpo-fuerte);
+  line-height: var(--t-cuerpo-fuerte-lh);
+  font-weight: var(--t-cuerpo-fuerte-peso);
+}
+.t-pequeno {
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  font-weight: var(--t-pequeno-peso);
+}
+.t-tiempo {
+  font-size: var(--t-tiempo);
+  line-height: var(--t-tiempo-lh);
+  font-weight: var(--t-tiempo-peso);
+  font-variant-numeric: tabular-nums;
+}
+
+/* §7 Anillo de foco: solo con teclado */
+:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+/* Variante doble para fondos arbitrarios (vista previa del editor, reproductor) */
+.foco-doble:focus-visible,
+.foco-doble :focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--fondo-0);
+}
+
+/* §7 Enlace "Saltar al contenido": invisible hasta recibir foco */
+.saltar-al-contenido {
+  position: absolute;
+  top: var(--e-2);
+  left: var(--e-2);
+  z-index: 1000;
+  padding: var(--e-2) var(--e-4);
+  border-radius: var(--r-m);
+  background: var(--fondo-3);
+  color: var(--texto-1);
+  font-weight: var(--t-cuerpo-fuerte-peso);
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.saltar-al-contenido:focus {
+  transform: none;
+}
+
+/* §4 Movimiento reducido: sin transiciones de desplazamiento/escalado.
+   El barrido de la letra no usa estas reglas (es contenido). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+main {
+  padding: var(--margen-vista);
+}

@@ -1,0 +1,20 @@
+/* Atkinson Hyperlegible Next (SIL OFL 1.1), incluida en la app: sin red.
+   Archivos sin modificar en app/resources/fonts/atkinson-hyperlegible-next/.
+   Solo 400 y 600 (interfaz); el 700 y las demás familias de la letra se generan
+   desde src/shared/fuentes.ts (ver estilos/fuentesIncluidas.ts). */
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  src: url('../../../../resources/fonts/atkinson-hyperlegible-next/AtkinsonHyperlegibleNext-Regular.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-weight: 600;
+  font-style: normal;
+  font-display: block;
+  src: url('../../../../resources/fonts/atkinson-hyperlegible-next/AtkinsonHyperlegibleNext-SemiBold.woff2')
+    format('woff2');
+}
