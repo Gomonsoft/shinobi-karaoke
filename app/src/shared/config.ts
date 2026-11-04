@@ -1,0 +1,62 @@
+import { z } from 'zod'
+import { estiloPredeterminado, estiloSchema } from './estilo'
+
+export const VERSION_ESQUEMA_CONFIG = 1
+
+const faseSchema = z.enum(['pendiente', 'en_curso', 'completada', 'error'])
+const modeloSeparacion = z.enum(['calidad', 'rapido'])
+
+// Lectura tolerante (ADR 0006): los campos ausentes toman su valor por defecto.
+// `prefault({})` aplica los valores por defecto de los campos internos.
+const instalacionSchema = z
+  .object({
+    estado: z.enum(['pendiente', 'en_curso', 'completa', 'dañada']).default('pendiente'),
+    fases: z
+      .object({
+        motor: faseSchema.default('pendiente'),
+        componentes: faseSchema.default('pendiente'),
+        modelo: faseSchema.default('pendiente')
+      })
+      .prefault({}),
+    perfil_hardware: z.enum(['cpu', 'cuda', 'mps']).nullable().default(null),
+    hardware: z
+      .object({
+        gpu: z.string().nullable().default(null),
+        vram_mb: z.number().int().nonnegative().nullable().default(null)
+      })
+      .prefault({})
+  })
+  .prefault({})
+
+const separacionSchema = z
+  .object({
+    modo: z.enum(['automatico', 'calidad', 'rapido']).default('automatico'),
+    modelos_descargados: z.array(modeloSeparacion).default([]),
+    /** Minutos de proceso por minuto de audio (media móvil). */
+    factores_medidos: z.partialRecord(modeloSeparacion, z.number().positive()).default({})
+  })
+  .prefault({})
+
+const reproductorSchema = z
+  .object({
+    volumen: z.number().min(0).max(1).default(0.8),
+    silenciado: z.boolean().default(false)
+  })
+  .prefault({})
+
+export const configSchema = z.object({
+  esquema: z.literal(VERSION_ESQUEMA_CONFIG).default(VERSION_ESQUEMA_CONFIG),
+  instalacion: instalacionSchema,
+  separacion: separacionSchema,
+  reproductor: reproductorSchema,
+  aviso_youtube_aceptado: z.iso.datetime().nullable().default(null),
+  ultima_comprobacion_ytdlp: z.iso.datetime().nullable().default(null),
+  estilo_predeterminado: estiloSchema.default(() => estiloPredeterminado())
+})
+
+export type Config = z.infer<typeof configSchema>
+
+/** Configuración por defecto (la de una instalación nueva). */
+export function configPredeterminada(): Config {
+  return configSchema.parse({})
+}
