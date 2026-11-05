@@ -14,3 +14,9 @@ La primera ejecución real del workflow `runtime-real.yml` (run 41967889708) pas
 4. **Modelo descargado según el perfil**: en macOS (mps) se descargó Calidad (913 MB). Está pendiente de decidir si debe depender del modo elegido (Automático, Calidad o Rápido) y no solo del perfil.
 
 ## Respuesta
+Decisiones del usuario (2026-11-05), sobre los puntos 3 y 4:
+- **Modelo por defecto: Calidad en todos los perfiles**, también solo CPU, porque es el más conveniente. Si no está disponible (falla la descarga o no se puede usar en el equipo), se **ofrece al usuario el modelo Rápido bajo su responsabilidad**: se puede descargar y usar, avisando de que su licencia no está declarada (pregunta 0012).
+- **Espacio requerido mínimo: 4 GB** (antes 3 GB en los perfiles solo CPU; NVIDIA sigue en 10 GB).
+- Los requisitos mínimos y recomendados de hardware se publican en el README.
+
+Queda para el arquitecto: los puntos 1 y 2 y cómo trasladar estas decisiones a los ADR, al manifiesto, a la UX y a las tareas.
