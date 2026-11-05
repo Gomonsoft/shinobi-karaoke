@@ -73,10 +73,16 @@ def test_descarga_completa(falso, tmp_path):
 
 def test_progreso_creciente_con_detalle(falso, tmp_path):
     fixture(falso, duration=12, bytes_por_segundo=1000, ritmo=1.5)
+    inicio = time.monotonic()
     codigo, err, msgs = ejecutar(falso, tmp_path / "c")
+    transcurrido = time.monotonic() - inicio
     assert codigo == 0, err
     desc = [m for m in msgs if m["tipo"] == "progreso" and m.get("detalle")]
-    assert 3 <= len(desc) <= 8  # ~4 por segundo durante 1,5 s
+    # Como mucho uno cada INTERVALO_PROGRESO_S, más el primero y el final.
+    # La cota depende del tiempo real: en CI lenta la descarga simulada
+    # dura más de 1,5 s y emite más eventos sin violar el límite.
+    maximo = int(transcurrido / youtube.INTERVALO_PROGRESO_S) + 2
+    assert 3 <= len(desc) <= maximo, (len(desc), transcurrido)
     valores = [m["valor"] for m in desc]
     assert valores == sorted(valores) and valores[-1] == 1.0
     assert desc[-1]["detalle"] == {"bytes": 12000, "total": 12000}
