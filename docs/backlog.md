@@ -48,12 +48,12 @@ Hecho tras cerrar 0005: ADR 0001/0002/0003/0004 y `arquitectura.md` actualizados
 ### Correcciones de la revisión de cierre (antes de empezar la Fase 2; pueden ir en paralelo con 0005)
 | Tarea | Título | Depende de | Estado |
 |-------|--------|-----------|--------|
-| [0026](tareas/0026-menu-contextual-en-portal-y-con-volteo.md) | **Primero (bloqueante B1)**: menú ⋯ en portal, con volteo hacia arriba | 0016, 0020 | Pendiente |
-| [0027](tareas/0027-ajustes-de-biblioteca-tras-revision-visual.md) | Ajustes de la Biblioteca tras la revisión visual (I1–I4, miniatura, M1, M3) | 0019, 0020, 0026 | Pendiente |
-| [0021](tareas/0021-endurecimiento-de-electron.md) | Endurecimiento de Electron: navegación con lista blanca, permisos, instancia única, remitente IPC, cierre acotado, `userData` aparte | 0011, 0018 | Pendiente |
-| [0022](tareas/0022-renderer-en-protocolo-propio-y-cors-restringido.md) | Renderer en `shinobi-app://` y CORS exacto en `shinobi-media://` | 0012, 0021 | Pendiente |
-| [0023](tareas/0023-papelera-inyectable-en-e2e.md) | Papelera inyectable en E2E (no tocar la papelera real) | 0020 | Pendiente |
-| [0024](tareas/0024-ci-integracion-del-worker-en-los-tres-so.md) | CI: integración real con el worker en los 3 SO (`taskkill`), `format:check`, primera ejecución en GitHub | 0004, 0013, 0014 | Pendiente |
+| [0026](tareas/0026-menu-contextual-en-portal-y-con-volteo.md) | **Primero (bloqueante B1)**: menú ⋯ en portal, con volteo hacia arriba | 0016, 0020 | Hecha |
+| [0027](tareas/0027-ajustes-de-biblioteca-tras-revision-visual.md) | Ajustes de la Biblioteca tras la revisión visual (I1–I4, miniatura, M1, M3) | 0019, 0020, 0026 | Hecha |
+| [0021](tareas/0021-endurecimiento-de-electron.md) | Endurecimiento de Electron: navegación con lista blanca, permisos, instancia única, remitente IPC, cierre acotado, `userData` aparte | 0011, 0018 | Hecha |
+| [0022](tareas/0022-renderer-en-protocolo-propio-y-cors-restringido.md) | Renderer en `shinobi-app://` y CORS exacto en `shinobi-media://` | 0012, 0021 | Hecha |
+| [0023](tareas/0023-papelera-inyectable-en-e2e.md) | Papelera inyectable en E2E (no tocar la papelera real) | 0020 | Hecha |
+| [0024](tareas/0024-ci-integracion-del-worker-en-los-tres-so.md) | CI: integración real con el worker en los 3 SO (`taskkill`), `format:check`, primera ejecución en GitHub | 0004, 0013, 0014 | Hecha |
 
 ### Deuda técnica menor de la Fase 1 (sin tarea propia; se resuelve en la fase indicada)
 - Revisión visual (0015–0020): la Biblioteca está revisada (`ux/revision-fase-1/`, tareas 0026–0027); falta otra pasada de UX sobre el Muestrario (`npm run dev`) y los esqueletos de carga (Fase 1) y sobre el indicador de actividad con trabajos reales (Fase 3).
@@ -78,33 +78,33 @@ Decisiones de detalle en el nuevo [ADR 0009](adr/0009-gestor-de-runtime-y-dobles
 
 | Tarea | Título | Depende de | Paralelizable | Estado |
 |-------|--------|-----------|---------------|--------|
-| [0028](tareas/0028-worker-dependencias-y-audio-de-prueba.md) | Worker: dependencias de la Fase 2, marcadores `red`/`pesado` y audio de prueba generado | 0003, 0024 | Sí, con 0029, 0043, 0052 | Pendiente |
-| [0029](tareas/0029-contratos-compartidos-de-la-fase-2.md) | Contratos compartidos: manifiesto, resultados del worker, URL de YouTube, errores, config | 0006, 0013 | Sí, con 0028, 0043, 0052 | Pendiente |
+| [0028](tareas/0028-worker-dependencias-y-audio-de-prueba.md) | Worker: dependencias de la Fase 2, marcadores `red`/`pesado` y audio de prueba generado | 0003, 0024 | Sí, con 0029, 0043, 0052 | Hecha |
+| [0029](tareas/0029-contratos-compartidos-de-la-fase-2.md) | Contratos compartidos: manifiesto, resultados del worker, URL de YouTube, errores, config | 0006, 0013 | Sí, con 0028, 0043, 0052 | Hecha |
 | [0030](tareas/0030-manifiesto-de-runtime-y-requisitos-por-perfil.md) | Manifiesto de runtime y requisitos bloqueados por plataforma y perfil | 0028, 0029 | Sí, con 0032, 0041, 0047 | Hecha (sin `darwin-x64-cpu`, `preguntas/0015`) |
-| [0031](tareas/0031-deteccion-previa-de-hardware-y-espacio.md) | Runtime: detección previa de hardware y espacio libre | 0029, 0030 | Sí, con 0032, 0033 | Pendiente |
-| [0032](tareas/0032-worker-comando-diagnostico.md) | Worker: comando `diagnostico` | 0028, 0029 | Sí, con 0030, 0031, 0033, 0041, 0047 | Pendiente |
-| [0033](tareas/0033-descarga-y-verificacion-de-modelos.md) | Runtime: descarga reanudable de modelos con SHA-256 y limpieza de `*.partial` | 0029, 0030 | Sí, con 0031, 0032 | Pendiente |
-| [0034](tareas/0034-gestor-de-runtime-instalacion-con-uv.md) | Gestor de runtime: instalación con uv, progreso, pausa y errores | 0013, 0031, 0032, 0033 | No (núcleo del bloque) | Pendiente |
+| [0031](tareas/0031-deteccion-previa-de-hardware-y-espacio.md) | Runtime: detección previa de hardware y espacio libre | 0029, 0030 | Sí, con 0032, 0033 | Hecha |
+| [0032](tareas/0032-worker-comando-diagnostico.md) | Worker: comando `diagnostico` | 0028, 0029 | Sí, con 0030, 0031, 0033, 0041, 0047 | Hecha |
+| [0033](tareas/0033-descarga-y-verificacion-de-modelos.md) | Runtime: descarga reanudable de modelos con SHA-256 y limpieza de `*.partial` | 0029, 0030 | Sí, con 0031, 0032 | Hecha |
+| [0034](tareas/0034-gestor-de-runtime-instalacion-con-uv.md) | Gestor de runtime: instalación con uv, progreso, pausa y errores | 0013, 0031, 0032, 0033 | No (núcleo del bloque) | Hecha |
 | [0035](tareas/0035-reutilizacion-del-runtime-y-lanzador-de-produccion.md) | Runtime: comprobación al arrancar, reutilización y `resolverLanzador` en producción | 0034 | Sí, con 0036 | Hecha |
-| [0036](tareas/0036-api-ipc-del-runtime-y-solicitud-de-cierre.md) | API IPC del runtime, solicitud de cierre y menú bloqueado en el primer arranque | 0011, 0021, 0034 | Sí, con 0035 | Pendiente |
-| [0037](tareas/0037-vista-primer-arranque.md) | Vista Primer arranque B1–B5 (sustituye el marcador) | 0016, 0018, 0036, 0038 | Sí, con 0035, 0040 | Pendiente |
+| [0036](tareas/0036-api-ipc-del-runtime-y-solicitud-de-cierre.md) | API IPC del runtime, solicitud de cierre y menú bloqueado en el primer arranque | 0011, 0021, 0034 | Sí, con 0035 | Hecha |
+| [0037](tareas/0037-vista-primer-arranque.md) | Vista Primer arranque B1–B5 (sustituye el marcador) | 0016, 0018, 0036, 0038 | Sí, con 0035, 0040 | Hecha |
 | [0038](tareas/0038-dialogo-acerca-de-y-licencias.md) | Bloque "Acerca de" y diálogos de licencias (reutilizable en Ajustes) | 0011, 0016 | Sí, en cualquier momento | Hecha |
 | [0039](tareas/0039-e2e-primer-arranque-con-runtime-falso.md) | E2E del primer arranque con runtime falso (sin red) | 0035, 0037 | Sí, con 0040 | Hecha |
 | [0040](tareas/0040-ci-manual-instalacion-real-del-runtime.md) | CI manual: instalación real del runtime en los 3 SO y mediciones (**red**) | 0030, 0035 | Sí, con 0037, 0039 | En curso |
-| [0041](tareas/0041-worker-importar-archivo.md) | Worker: `importar-archivo` (PyAV → `mezcla.flac` 16 bits, sonoridad, metadatos) | 0028, 0029 | Sí, con todo el bloque de runtime y con 0047 | Pendiente |
-| [0042](tareas/0042-main-importacion-de-archivo-local.md) | Main: importación de archivo local (`.importando`, materializar) | 0010, 0011, 0013, 0041 | Sí, con 0043, 0048 | Pendiente |
-| [0043](tareas/0043-cabecera-del-espacio-de-cancion-y-stepper.md) | Cabecera del espacio de canción con stepper | 0016, 0018, 0019 | Sí, en cualquier momento | Pendiente |
-| [0044](tareas/0044-vista-anadir-cancion-archivo-local.md) | Vista Añadir canción: archivo local y arrastrar a la Biblioteca | 0042, 0043 (+ 0036 para la estimación) | Sí, con 0045 | Pendiente |
-| [0045](tareas/0045-vista-progreso-subpasos-de-fuente.md) | Vista de progreso: subpasos de la fuente | 0014, 0020, 0043 | Sí, con 0044 | Pendiente |
-| [0046](tareas/0046-e2e-importar-archivo-local.md) | E2E: importar un archivo local (elegir y arrastrar) | 0044, 0045 | Sí, con el bloque de YouTube | Pendiente |
-| [0047](tareas/0047-worker-info-youtube.md) | Worker: `info-youtube`, miniatura JPEG y adaptador `FuenteYoutube` | 0028, 0029 | Sí, con 0041 y el bloque de runtime | Pendiente |
-| [0048](tareas/0048-worker-descargar-youtube.md) | Worker: `descargar-youtube` (descarga + normalización) | 0041, 0047 | Sí, con 0042 | Pendiente |
-| [0049](tareas/0049-main-servicio-de-youtube.md) | Main: servicio de YouTube (consulta, aviso, crear, encolar, reintentar) | 0014, 0042, 0048 | Sí, con 0044, 0045 | Pendiente |
-| [0050](tareas/0050-actualizacion-de-yt-dlp.md) | Actualización de yt-dlp: semanal y reintento tras bloqueo | 0035, 0049 | Sí, con 0051 | Pendiente |
-| [0051](tareas/0051-vista-anadir-cancion-youtube.md) | Vista Añadir canción: YouTube | 0044, 0049 | Sí, con 0050 | Pendiente |
-| [0052](tareas/0052-semilla-con-miniaturas-y-e2e-de-miniatura.md) | Semilla con miniaturas y E2E de la miniatura vía `shinobi-media://` | 0009, 0012, 0019, 0022 | Sí, en cualquier momento | Pendiente |
-| [0053](tareas/0053-e2e-importar-desde-youtube-sin-red.md) | E2E: YouTube sin red (doble de yt-dlp) + prueba opcional con red | 0045, 0050, 0051, 0052 | No (cierra el bloque) | Pendiente |
-| [0054](tareas/0054-informacion-para-soporte-completa.md) | "Copiar información para soporte" con arquitectura real, yt-dlp y `sin instalar` | 0038, 0031, 0050 | Sí, con 0051/0053 | Pendiente |
+| [0041](tareas/0041-worker-importar-archivo.md) | Worker: `importar-archivo` (PyAV → `mezcla.flac` 16 bits, sonoridad, metadatos) | 0028, 0029 | Sí, con todo el bloque de runtime y con 0047 | Hecha |
+| [0042](tareas/0042-main-importacion-de-archivo-local.md) | Main: importación de archivo local (`.importando`, materializar) | 0010, 0011, 0013, 0041 | Sí, con 0043, 0048 | Hecha |
+| [0043](tareas/0043-cabecera-del-espacio-de-cancion-y-stepper.md) | Cabecera del espacio de canción con stepper | 0016, 0018, 0019 | Sí, en cualquier momento | Hecha |
+| [0044](tareas/0044-vista-anadir-cancion-archivo-local.md) | Vista Añadir canción: archivo local y arrastrar a la Biblioteca | 0042, 0043 (+ 0036 para la estimación) | Sí, con 0045 | Hecha |
+| [0045](tareas/0045-vista-progreso-subpasos-de-fuente.md) | Vista de progreso: subpasos de la fuente | 0014, 0020, 0043 | Sí, con 0044 | Hecha |
+| [0046](tareas/0046-e2e-importar-archivo-local.md) | E2E: importar un archivo local (elegir y arrastrar) | 0044, 0045 | Sí, con el bloque de YouTube | Hecha |
+| [0047](tareas/0047-worker-info-youtube.md) | Worker: `info-youtube`, miniatura JPEG y adaptador `FuenteYoutube` | 0028, 0029 | Sí, con 0041 y el bloque de runtime | Hecha |
+| [0048](tareas/0048-worker-descargar-youtube.md) | Worker: `descargar-youtube` (descarga + normalización) | 0041, 0047 | Sí, con 0042 | Hecha |
+| [0049](tareas/0049-main-servicio-de-youtube.md) | Main: servicio de YouTube (consulta, aviso, crear, encolar, reintentar) | 0014, 0042, 0048 | Sí, con 0044, 0045 | Hecha |
+| [0050](tareas/0050-actualizacion-de-yt-dlp.md) | Actualización de yt-dlp: semanal y reintento tras bloqueo | 0035, 0049 | Sí, con 0051 | Hecha |
+| [0051](tareas/0051-vista-anadir-cancion-youtube.md) | Vista Añadir canción: YouTube | 0044, 0049 | Sí, con 0050 | Hecha |
+| [0052](tareas/0052-semilla-con-miniaturas-y-e2e-de-miniatura.md) | Semilla con miniaturas y E2E de la miniatura vía `shinobi-media://` | 0009, 0012, 0019, 0022 | Sí, en cualquier momento | Hecha |
+| [0053](tareas/0053-e2e-importar-desde-youtube-sin-red.md) | E2E: YouTube sin red (doble de yt-dlp) + prueba opcional con red | 0045, 0050, 0051, 0052 | No (cierra el bloque) | Hecha |
+| [0054](tareas/0054-informacion-para-soporte-completa.md) | "Copiar información para soporte" con arquitectura real, yt-dlp y `sin instalar` | 0038, 0031, 0050 | Sí, con 0051/0053 | Hecha |
 
 Orden sugerido con dos o tres programadores: **(A) runtime** 0028/0029 → 0030 → 0031 ‖ 0032 ‖ 0033 → 0034 → 0035 ‖ 0036 → 0037 → 0039 (+ 0040); **(B) archivo local** 0041 → 0042 → 0044 ‖ 0045 → 0046 (0043 y 0038 en cualquier hueco); **(C) YouTube** 0047 → 0048 → 0049 → 0050 ‖ 0051 → 0053 (0052 en cualquier hueco; 0054 tras 0050). Los bloques B y C solo necesitan de A los contratos (0028, 0029) hasta 0050, que usa 0035.
 

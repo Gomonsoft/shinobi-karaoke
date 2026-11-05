@@ -1,5 +1,5 @@
 # 0024 — CI: integración real con el worker en los tres SO y verificación de la primera ejecución
-- Estado: Hecha (parcial: falta la primera ejecución real en GitHub)
+- Estado: Hecha
 - Paso del pipeline: — (calidad)
 - Depende de: 0004, 0013, 0014
 - ADRs: 0001, 0007
@@ -22,3 +22,6 @@ Cerrar la deuda de 0003, 0004 y 0013: hoy los tests de integración del cliente 
 - **Validación local** (uv 0.13.7 en un venv temporal fuera del repo): YAML parseado con Ruby; `uv sync --locked` ok; `format:check`, `lint`, `typecheck` ok; `npm audit --omit=dev --audit-level=high`: 0 vulnerabilidades; `npm test`: 553 pasan, 0 omitidos en worker.test.ts y gestor.integracion.test.ts (con uv en PATH).
 - **Pendiente (requiere GitHub)**: ejecución real del workflow en verde en los 3 SO (enlace aquí), comprobar el paso de AppArmor en Ubuntu y el comando PowerShell en Windows. No se pudo comprobar `actions/*` más allá de que los tags existen (`gh api`).
 - **Deuda**: si el patrón por nombre de archivo en Windows diera falsos positivos entre tests concurrentes, usar un nombre de parcial único por test.
+
+### Primera ejecución real (2026-11-04)
+Tras el push de la Fase 2 fallaron dos trabajos: macOS/worker (cota del test de progreso dependiente del tiempo, commit 6eae06a) y Windows/app (rutas por plataforma, commit 5582ca4). Tras ambos arreglos, los 6 trabajos de la CI (app y worker × Windows, macOS, Linux) pasan en GitHub.
