@@ -2,6 +2,7 @@
 
 | Documento | Contenido | Responsable |
 |-----------|-----------|-------------|
+| [plan.md](plan.md) | Qué se hace en cada fase del MVP y su estado | Arquitecto |
 | [00-vision-y-alcance.md](00-vision-y-alcance.md) | Qué es el MVP y qué no | Usuario |
 | [01-pipeline.md](01-pipeline.md) | Pasos del pipeline y decisiones pendientes | Arquitecto |
 | [02-flujo-de-agentes.md](02-flujo-de-agentes.md) | Cómo colaboran los agentes, formatos de tareas y preguntas | — |
