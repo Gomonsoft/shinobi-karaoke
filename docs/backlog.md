@@ -90,7 +90,7 @@ Decisiones de detalle en el nuevo [ADR 0009](adr/0009-gestor-de-runtime-y-dobles
 | [0037](tareas/0037-vista-primer-arranque.md) | Vista Primer arranque B1–B5 (sustituye el marcador) | 0016, 0018, 0036, 0038 | Sí, con 0035, 0040 | Hecha |
 | [0038](tareas/0038-dialogo-acerca-de-y-licencias.md) | Bloque "Acerca de" y diálogos de licencias (reutilizable en Ajustes) | 0011, 0016 | Sí, en cualquier momento | Hecha |
 | [0039](tareas/0039-e2e-primer-arranque-con-runtime-falso.md) | E2E del primer arranque con runtime falso (sin red) | 0035, 0037 | Sí, con 0040 | Hecha |
-| [0040](tareas/0040-ci-manual-instalacion-real-del-runtime.md) | CI manual: instalación real del runtime en los 3 SO y mediciones (**red**) | 0030, 0035 | Sí, con 0037, 0039 | En curso |
+| [0040](tareas/0040-ci-manual-instalacion-real-del-runtime.md) | CI manual: instalación real del runtime en los 3 SO y mediciones (**red**) | 0030, 0035 | Sí, con 0037, 0039 | Hecha |
 | [0041](tareas/0041-worker-importar-archivo.md) | Worker: `importar-archivo` (PyAV → `mezcla.flac` 16 bits, sonoridad, metadatos) | 0028, 0029 | Sí, con todo el bloque de runtime y con 0047 | Hecha |
 | [0042](tareas/0042-main-importacion-de-archivo-local.md) | Main: importación de archivo local (`.importando`, materializar) | 0010, 0011, 0013, 0041 | Sí, con 0043, 0048 | Hecha |
 | [0043](tareas/0043-cabecera-del-espacio-de-cancion-y-stepper.md) | Cabecera del espacio de canción con stepper | 0016, 0018, 0019 | Sí, en cualquier momento | Hecha |

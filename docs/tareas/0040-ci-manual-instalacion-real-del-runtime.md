@@ -1,5 +1,5 @@
 # 0040 — CI manual: instalación real del runtime en los 3 SO y mediciones (pruebas con red)
-- Estado: En curso (código y revisión de licencias hechos; falta la primera ejecución en GitHub)
+- Estado: Hecha (mediciones de separación en x86 pendientes)
 - Paso del pipeline: 0
 - Depende de: 0030, 0035
 - ADRs: 0001, 0002 (Revisiones: FFmpeg de PyAV), 0004, 0009
@@ -41,3 +41,25 @@ Comprobar con red real, fuera de la CI normal, que los requisitos bloqueados se 
 - El modelo se elige por perfil (`modeloDelPerfil`): en `cpu` es Rápido, pero en `mps`/`cuda` el gestor descarga Calidad (913 MB) aunque `separacion.modo` sea `rapido`. El JSON recoge `modelos_descargados`; en macOS (runner sin GPU real) el diagnóstico puede rebajar a `cpu`.
 - `uv sync --extra separacion` en los tres SO instala PyTorch por segunda vez (la primera la hizo el gestor en `SHINOBI_DATOS`); aceptable en un workflow manual.
 - Las acciones `upload-artifact@v7` y `setup-python@v7` son las últimas publicadas (comprobado con `gh api`); `ci.yml` usa `setup-uv@v10.3.3` y `UV_VERSION` duplicado aquí.
+
+### Primera ejecución real (2026-11-05, run 41967889708)
+Antes de pasar hubo que corregir dos cosas: la clave de Python de uv en Linux (`-gnu`, commit dd37826) y omitir en CI las pruebas `red` de YouTube cuando YouTube bloquea la IP del runner (commit eb307c1). Resultado: los 4 trabajos en verde.
+
+| | macOS arm64 (mps) | Windows x64 (cpu) | Linux x64 (cpu) |
+|---|---|---|---|
+| Modelo descargado | Calidad | Rápido | Rápido |
+| venv en disco | 1204,5 MB | 1165,0 MB | 1618,7 MB |
+| Python (uv) | 70,3 MB | 64,6 MB | 103,5 MB |
+| Modelo | 913,1 MB | 59,1 MB | 59,1 MB |
+| Caché de uv antes de `uv cache clean` | 1204,2 MB | 1163,2 MB | 1624,5 MB |
+| Datos tras limpiar la caché | 2188 MB | 1288,7 MB | 1781,3 MB |
+| Duración (motor / componentes / modelo) | 1,8 / 16,1 / 4,8 s | 2,2 / 27,2 / 0,9 s | 0,9 / 26,4 / 0,9 s |
+| `where`/`which ffmpeg` | vacío | vacío | vacío |
+
+Versiones: torch 2.15.0 (`+cpu` en Windows/Linux), onnxruntime 1.31.1, audio-separator 0.48.0, yt-dlp 2026.10.26, av 19.0.2. Licencias PyAV/FFmpeg: OK en las 6 entradas.
+
+**Observaciones para el arquitecto** (ver pregunta abierta):
+1. El campo `mb_descargados.cache_uv` mide la caché descomprimida, no los bytes transferidos por red, así que no sirve para validar `bytes_descarga` del manifiesto.
+2. `bytes_disco` de macOS (1280 MB) coincide con lo medido (1204,5 MB de venv, −6 %). Windows y Linux CPU tienen `bytes_disco: null` y ahora hay medida.
+3. Pico de disco en Linux CPU: venv + caché + Python + modelo ≈ 3,4 GB, por encima del `espacio_requerido` de 3 GB, si la caché y el venv no comparten bloques (uv usa enlaces duros en Linux; el script los mide por separado).
+4. Rendimiento de separación en x86 sin GPU: sigue sin medir (el workflow no separa audio).
