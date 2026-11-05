@@ -109,8 +109,8 @@ describe('gestor con uv falso', () => {
       ['--no-config', 'pip', 'install'],
       ['--no-config', 'cache', 'clean']
     ])
-    expect(llamadas[0]?.args[3]).toBe('cpython-3.12.16-linux-x86_64-none')
-    expect(llamadas[1]?.args[3]).toBe('cpython-3.12.16-linux-x86_64-none')
+    expect(llamadas[0]?.args[3]).toBe('cpython-3.12.16-linux-x86_64-gnu')
+    expect(llamadas[1]?.args[3]).toBe('cpython-3.12.16-linux-x86_64-gnu')
     const venv = llamadas[2]!.args
     expect(venv[3]).toBe('--python')
     expect(venv[4]).toBe(join(datos, 'runtime', 'python', 'py'))

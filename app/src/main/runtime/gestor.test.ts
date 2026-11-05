@@ -169,6 +169,7 @@ describe('peticionPython', () => {
   it('arquitectura explícita', () => {
     expect(peticionPython('3.12.16', 'macos', 'arm64')).toBe('cpython-3.12.16-macos-aarch64-none')
     expect(peticionPython('3.12.16', 'windows', 'x64')).toBe('cpython-3.12.16-windows-x86_64-none')
+    expect(peticionPython('3.12.16', 'linux', 'x64')).toBe('cpython-3.12.16-linux-x86_64-gnu')
     expect(peticionPython('3.12.16', 'otro', 'x64')).toBeNull()
   })
 })
@@ -190,7 +191,7 @@ describe('gestor de runtime', () => {
       '--no-config',
       'python',
       'install',
-      'cpython-3.12.16-linux-x86_64-none'
+      'cpython-3.12.16-linux-x86_64-gnu'
     ])
     const pip = t.llamadas[3] as string[]
     expect(pip).toContain('--require-hashes')

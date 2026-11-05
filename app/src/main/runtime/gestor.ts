@@ -209,11 +209,18 @@ export function interpreteVenv(dirRuntime: string, plataforma: NodeJS.Platform):
 const SO_UV: Record<string, string> = { macos: 'macos', windows: 'windows', linux: 'linux' }
 const ARQ_UV: Record<string, string> = { x64: 'x86_64', arm64: 'aarch64' }
 
-/** Petición de Python con arquitectura explícita: `cpython-3.12.16-macos-aarch64-none`. */
+/** Variante de libc en la clave de uv: Linux exige `gnu` (o `musl`); macOS y Windows usan `none`. */
+const LIBC_UV: Record<string, string> = { macos: 'none', windows: 'none', linux: 'gnu' }
+
+/**
+ * Petición de Python con arquitectura explícita, p. ej. `cpython-3.12.16-macos-aarch64-none`
+ * o `cpython-3.12.16-linux-x86_64-gnu` (uv no tiene descargas `linux-…-none`).
+ */
 export function peticionPython(version: string, so: string, arquitectura: string): string | null {
   const s = SO_UV[so]
   const a = ARQ_UV[arquitectura]
-  return s && a ? `cpython-${version}-${s}-${a}-none` : null
+  const libc = LIBC_UV[so]
+  return s && a && libc ? `cpython-${version}-${s}-${a}-${libc}` : null
 }
 
 export interface DependenciasGestor {
