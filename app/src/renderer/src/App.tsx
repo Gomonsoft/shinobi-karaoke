@@ -13,6 +13,10 @@ import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
 import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
 import { Biblioteca } from './vistas/biblioteca/Biblioteca'
 import { Marcador } from './vistas/Marcadores'
+import { AnadirCancion } from './vistas/anadir/AnadirCancion'
+import { ResumenFuente } from './vistas/anadir/ResumenFuente'
+import { Progreso } from './vistas/progreso/Progreso'
+import { PrimerArranque } from './vistas/primer-arranque/PrimerArranque'
 
 // El Muestrario solo existe en `npm run dev`: en producción el bloque se elimina del bundle.
 const Muestrario = import.meta.env.DEV
@@ -46,22 +50,18 @@ function Contenido({ vista }: { vista: Vista }) {
     case 'biblioteca':
       return <Biblioteca />
     case 'primer-arranque':
-      return (
-        <Marcador
-          titulo={TITULOS_VISTA['primer-arranque']}
-          conVolver={false}
-          nota="La instalación del motor llega en la Fase 2."
-          siguiente={{ etiqueta: 'Ir a la Biblioteca', vista: { tipo: 'biblioteca' } }}
-        />
-      )
+      return <PrimerArranque />
     case 'anadir':
       return (
-        <Marcador
-          titulo={TITULOS_VISTA.anadir}
-          nota={vista.archivo ? `Archivo seleccionado: ${vista.archivo}` : undefined}
+        <AnadirCancion
+          key={vista.iniciales?.cancionId ?? vista.archivo ?? 'nueva'}
+          archivo={vista.archivo}
+          iniciales={vista.iniciales}
         />
       )
     case 'cancion':
+      if (vista.paso === 'progreso') return <Progreso key={vista.id} id={vista.id} />
+      if (vista.paso === 'fuente') return <ResumenFuente key={vista.id} id={vista.id} />
       return <Marcador titulo={`${TITULOS_VISTA.cancion}: ${vista.paso}`} />
     default:
       return <Marcador titulo={TITULOS_VISTA[vista.tipo]} />

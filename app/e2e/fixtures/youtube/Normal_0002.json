@@ -1,0 +1,12 @@
+{
+  "id": "Normal_0002",
+  "_type": "video",
+  "title": "Otro Artista - Segundo tema de prueba",
+  "channel": "OtroArtistaVEVO",
+  "uploader": "OtroArtistaVEVO",
+  "duration": 35,
+  "live_status": "not_live",
+  "is_live": false,
+  "bytes_por_segundo": 200000,
+  "ritmo": 3
+}

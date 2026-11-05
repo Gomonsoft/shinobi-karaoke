@@ -204,6 +204,14 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
 - 2026-11-03 (tras `preguntas/0004` y `0005`): `fuente/mezcla.flac` permanente en lugar de `original.*` + `trabajo.wav`; carpeta de preparación `.importando/`; campo `tipo` (`linea`/`pausa`) y semántica de `fin_ms: null`; indicador derivado `incompleta`; solo fuentes incluidas en el MVP; `config.json` con `separacion` y `reproductor`.
 - 2026-11-04 (tras `preguntas/0006`): invariantes de `palabras` y regla de edición de tiempos con palabras (se mueven y se borran con su línea). No cambia el esquema (sigue en versión 1).
 - 2026-11-04 (revisión de cierre de la Fase 1; decisiones de las tareas 0006, 0008, 0009 y 0014 aceptadas): inicios estrictamente crecientes, ids únicos, lista de palabras vacía inválida; contrato de `moverInicioLinea` (`RangeError`); `config.json.danado` y valores por defecto; modo automático sin perfil → `rapido`; cierre de la app con trabajos → `interrumpido` (cancelación del usuario → `pendiente`); el paso `en_curso` → `interrumpido` al arrancar actualiza `actualizado` pero no `modificada` (no reordena la biblioteca); perfil de Chromium en `<base>/electron/` (tarea 0021). `vistaAlContinuar(cancion, { progresoVisto })`: "ya vista" es estado de sesión del renderer y no se persiste. Esquema sin cambios (versión 1).
+- 2026-11-04 (respuesta a [`preguntas/0014`](../preguntas/0014-interrupcion-de-la-actualizacion-de-yt-dlp-y-plataformas-emuladas.md) §3): **sustitución de la fuente**.
+  - Condiciones: una canción con `pasos.fuente` en `pendiente`, `error` o `interrumpido`, sin trabajo vivo y sin `fuente/mezcla.flac`.
+  - Qué cambia: la `fuente` completa (otro vídeo de YouTube, o un archivo local materializado en su carpeta).
+  - Qué se conserva: id, carpeta, estilo, metadatos editables y `letra.json`.
+  - Orden de escritura: primero la miniatura nueva (`.tmp` + `rename`), o se borra la anterior; después `cancion.json` en una sola escritura atómica.
+  - Una fuente `completado` no se sustituye.
+  - Riesgo anotado para la Fase 4: la letra conservada puede no cuadrar si la duración nueva difiere más de 2 s.
+  - Esquema sin cambios (versión 1).
 
 ## Fuentes
 - Electron `app.getPath` y `shell.trashItem`: https://www.electronjs.org/docs/latest/api/app , https://www.electronjs.org/docs/latest/api/shell

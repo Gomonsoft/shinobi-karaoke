@@ -3,7 +3,7 @@
 - Paso del pipeline: 0
 - ADRs: [0001](../adr/0001-plataforma-y-stack.md), [0004](../adr/0004-separacion-voz-instrumental.md), [0006](../adr/0006-persistencia-y-modelo-de-datos.md)
 - Restricciones: [arquitectura.md §6 Primer arranque y "Restricciones e implicaciones para UX" §1, §8](../arquitectura.md)
-- Preguntas relacionadas: [0001](../preguntas/0001-firma-de-codigo-instaladores.md) (decidida por el usuario: sin firma en el MVP), [0003](../preguntas/0003-elegir-calidad-o-rapidez-separacion.md), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (respondidas)
+- Preguntas relacionadas: [0013](../preguntas/0013-huecos-ux-de-la-fase-2.md) (respondida: B0, B6, yt-dlp automático, cifras), [0015](../preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md) y [0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md) (respondidas: macOS 14, B6b, textos de requisitos), [0016](../preguntas/0016-mac-intel-fuera-del-mvp.md) (decidida por el usuario: **Mac Intel no compatible en el MVP**, opción C), [0001](../preguntas/0001-firma-de-codigo-instaladores.md) (decidida por el usuario: sin firma en el MVP), [0003](../preguntas/0003-elegir-calidad-o-rapidez-separacion.md), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (respondidas)
 - Cifras de tamaño, espacio y tiempo: se leen del **manifiesto de runtime** (`{n}` en los textos); los valores de los ejemplos son provisionales hasta el spike ([tarea 0005](../tareas/0005-spike-separacion-y-runtime.md)).
 
 ## Objetivo
@@ -18,8 +18,11 @@ Usuario/tarea principal: abrir Shinobi Karaoke por primera vez y dejarlo listo p
 El MVP se publica con **instaladores sin firmar** (decisión del usuario en la [pregunta 0001](../preguntas/0001-firma-de-codigo-instaladores.md)). La app no puede ayudar antes de abrirse, así que la guía vive en la **página de descarga / README** del proyecto (la redacta el programador a partir de este texto; las capturas se hacen cuando exista el instalador).
 
 ### Estructura de la página "Instalar Shinobi Karaoke"
-1. Botones de descarga por SO, detectando el SO del visitante y mostrando su botón primero.
-2. Requisitos en una línea: "Windows 10/11, macOS 12 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 3 y 8 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez".
+1. Botones de descarga por SO, detectando el SO del visitante y mostrando su botón primero. El de macOS se llama **"Descargar para Mac con chip Apple"** y, debajo, siempre visible (no se oculta ni se cambia según el navegador: Safari dice "Intel" también en los Mac con chip Apple, así que no se puede detectar):
+   > Para Mac con chip Apple (M1 o posterior) y macOS 14 Sonoma o posterior. Los Mac con procesador Intel no son compatibles por ahora.
+   >
+   > **¿Qué Mac tengo?** Abre el menú Apple () → **Acerca de este Mac**. Si pone **Chip** (Apple M1, M2…), es compatible. Si pone **Procesador** (Intel…), todavía no.
+2. Requisitos en una línea: "Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 3 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez". Debajo, en texto secundario: "Los Mac con procesador Intel no son compatibles por ahora."
 3. Bloque "¿Por qué mi ordenador me avisa?":
    > Shinobi Karaoke es gratuito y lo hacen voluntarios. Todavía no pagamos el certificado que usan Windows y macOS para reconocer a los desarrolladores, así que tu sistema te mostrará un aviso la primera vez. Es normal. Te explicamos cómo continuar.
 4. Pasos por SO, cada uno con captura y el texto **exacto** del botón del sistema resaltado:
@@ -34,13 +37,15 @@ El MVP se publica con **instaladores sin firmar** (decisión del usuario en la [
 1. Abre el archivo `.dmg` y arrastra Shinobi Karaoke a **Aplicaciones**.
 2. Abre la app. Si macOS dice que no se puede abrir, pulsa **Aceptar** (o **Listo**).
 3. Ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta el mensaje sobre Shinobi Karaoke y pulsa **Abrir igualmente**. Confirma con tu contraseña.
-4. (Alternativa en macOS 12–14: clic derecho sobre la app → **Abrir** → **Abrir**.)
+4. (Alternativa solo en macOS 14 Sonoma: clic derecho sobre la app → **Abrir** → **Abrir**. En macOS 15 o posterior no existe; usa el paso 3.)
    Solo hace falta la primera vez.
 
 **Linux**
 - AppImage: dale permiso de ejecución (clic derecho → Propiedades → Permitir ejecutar como programa) y ábrela. `.deb`: ábrelo con tu instalador de software.
 
-5. Enlace "¿Sigue sin abrirse?" → sección de problemas frecuentes (enlace a issues del repositorio).
+5. Enlace "¿Sigue sin abrirse?" → sección de problemas frecuentes (enlace a issues del repositorio). Incluye, para macOS:
+   - **"macOS dice que la app no es compatible con este Mac"** (o no se abre en absoluto): tu Mac tiene procesador Intel; Shinobi Karaoke solo funciona, por ahora, en Mac con chip Apple. Puedes pedir que lo soportemos en las incidencias del proyecto.
+   - **"La app se abre pero dice «Necesitas actualizar macOS»"**: tu Mac tiene chip Apple pero una versión de macOS anterior a la 14. Actualízalo gratis (menú Apple → Ajustes del Sistema → General → Actualización de software) y vuelve a abrir la app.
 6. Si en una versión posterior al MVP se firman los instaladores de algún SO, se elimina la sección de ese SO.
 
 ---
@@ -48,7 +53,22 @@ El MVP se publica con **instaladores sin firmar** (decisión del usuario en la [
 ## Parte B — Dentro de la app
 
 ### Pantallas
-B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (error) y B5 (reanudar) son variantes de B2.
+B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (error) es variante de B2; B5 (reanudar / reparar) y B6 (equipo no compatible) son variantes de B1. B0 (comprobando la instalación) se muestra antes de la Biblioteca o de B5 solo cuando hay que verificar una instalación existente.
+
+```mermaid
+flowchart TD
+    A([Abrir la app]) --> D{Detección previa}
+    D -- Mac con versión de macOS por debajo del mínimo --> B6b[B6b Actualiza macOS]
+    D -- plataforma sin requisitos en el manifiesto --> B6[B6 No compatible]
+    D -- completa, comprobación barata OK --> BIB[Biblioteca]
+    D -- completa, comprobación barata falla --> B5R[B5 Reparar]
+    D -- no completa + marcador válido --> B0[B0 Comprobando… 3–5 s]
+    B0 -- pasa --> BIB
+    B0 -- falta solo el modelo --> B5C[B5 Continuamos]
+    B0 -- entorno no válido --> B5R
+    D -- progreso previo sin marcador --> B5C
+    D -- nada --> B1[B1 Bienvenida]
+```
 
 ### Wireframes
 
@@ -133,11 +153,74 @@ B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (
 
 **B5 — Reanudar** (al abrir la app con instalación incompleta): B1 con título "Continuamos donde lo dejamos", texto "Faltan unos 450 MB por descargar." y botón "Continuar la preparación".
 
+**B0 — Comprobando tu instalación** (solo si hay que verificar un motor ya instalado; ADR 0009 §6.2; 3–5 s). Misma composición que B1 (fondo `fondo-0`, columna de 560 px, logotipo), sin botones ni enlace de licencias.
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                                                                          │
+│                          ◆ Shinobi Karaoke                               │
+│                                                                          │
+│                    Comprobando tu instalación…                           │
+│               Solo tardará unos segundos.                                │
+│                                                                          │
+│            ░░░░░░▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░  (barra indeterminada, 320 px)│
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**B6 — Tu equipo no es compatible todavía** (la plataforma no tiene requisitos en el manifiesto; `arquitectura.md` "Restricciones" §8). Composición de B1; la caja de requisitos se sustituye por un banner `error`; no hay "Preparar".
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          ◆ Shinobi Karaoke                               │
+│                                                                          │
+│                 Tu equipo no es compatible todavía                       │
+│                                                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐   │
+│   │ ✕ Shinobi Karaoke necesita instalar un motor de audio que, por   │   │
+│   │   ahora, solo existe para Windows 10/11 y Linux con procesador de│   │
+│   │   64 bits (x64) y para Mac con chip Apple y macOS 14 o posterior.│   │
+│   │   Tu equipo: Linux · procesador ARM de 64 bits                    │   │
+│   └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│   Si quieres que lo soportemos, cuéntanoslo: copia los detalles y        │
+│   ábrenos una incidencia en la web del proyecto.                         │
+│                                                                          │
+│   [ Pedir soporte para mi equipo ]  [ Copiar detalles ]  [ Salir ]       │
+│        (secundario)                    (secundario)       (primario)     │
+│                                                                          │
+│                 Shinobi Karaoke es software libre (GPL-3.0) · Licencias  │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**B6b — Necesitas actualizar macOS** (variante de B6: Mac cuya versión de macOS está por debajo del mínimo de su procesador; [0015](../preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md) §1, [0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md)). A diferencia de B6, **el usuario lo puede resolver él mismo**, así que el banner es `aviso` (no `error`) y la acción principal explica cómo actualizar. Misma composición que B6; no hay "Preparar".
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          ◆ Shinobi Karaoke                               │
+│                                                                          │
+│                     Necesitas actualizar macOS                           │
+│                                                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐   │
+│   │ ⚠ Shinobi Karaoke necesita macOS 14 (Sonoma) o posterior y tu    │   │
+│   │   Mac tiene macOS 13.6.                                          │   │
+│   │   Todos los Mac con chip Apple pueden actualizar gratis.         │   │
+│   └──────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+│   Para actualizar: menú Apple () → Ajustes del Sistema (o Preferencias  │
+│   del Sistema) → Actualización de software. Antes, conviene hacer una    │
+│   copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke.   │
+│                                                                          │
+│   [ Cómo actualizar macOS ↗ ]  [ Copiar detalles ]  [ Salir ]            │
+│        (secundario)               (secundario)       (primario)          │
+│                                                                          │
+│                 Shinobi Karaoke es software libre (GPL-3.0) · Licencias  │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+B6b solo la ven los Mac con chip Apple en macOS 11–13 (todos pueden actualizar gratis). Los Mac Intel no se soportan en el MVP ([0016](../preguntas/0016-mac-intel-fuera-del-mvp.md), opción C): reciben **B6 general**, nunca B6b, sea cual sea su versión de macOS (en la práctica ni siquiera abren la app, porque solo se publica el DMG para chip Apple; B6 cubre builds de desarrollo o x64). Si en el futuro se soportan los Mac Intel con otro mínimo, B6b ya admite un `{min}` por procesador, pero su texto `pa.macos.gratis` habría que revisarlo (no todos los Mac Intel pueden actualizar).
+
 ### Componentes e interacciones
 | Elemento | Comportamiento |
 |----------|----------------|
-| Perfil previsto (antes de B1) | El proceso principal detecta, sin Python, SO/arquitectura y GPU NVIDIA (`nvidia-smi`) → perfil previsto: **NVIDIA**, **Apple Silicon** o **solo CPU**. Con él se leen del manifiesto la descarga y el espacio requerido de ese perfil (valores provisionales: CPU ≈ 0,5–0,8 GB de descarga y 3 GB de espacio; Apple Silicon ≈ 1,3–1,7 GB y 4 GB; NVIDIA ≈ 3–4 GB y 8 GB). La descarga se muestra redondeada a una cifra: `pa.req.descarga` ("unos {n} GB"). Si la detección falla: `pa.req.descarga.generica` y 8 GB de espacio. La detección tarda milisegundos: B1 no tiene estado de carga propio. |
-| Comprobación de espacio (B1) | Al mostrar B1 (y al pulsar "Comprobar de nuevo") se consulta el espacio libre del disco del directorio de datos (o de su carpeta existente más cercana). Requisito mostrado: el del perfil previsto. Si no alcanza: fila en `error` con `pa.req.espacio.insuficiente` ("Necesitas 8 GB libres y tienes 3,1 GB") y el botón primario cambia a "Comprobar de nuevo". |
+| Perfil previsto (antes de B1) | El proceso principal detecta, sin Python, SO/arquitectura y GPU NVIDIA (`nvidia-smi`) → perfil previsto: **NVIDIA**, **Apple Silicon** o **solo CPU**. Con él se leen del manifiesto la descarga y el espacio requerido de ese perfil (valores de ejemplo: CPU ≈ 0,5–0,8 GB de descarga y 3 GB de espacio; Apple Silicon ≈ 1,3–1,7 GB y 4 GB; NVIDIA ≈ 3–4 GB y 10 GB; la cifra real es siempre la del manifiesto, ADR 0009 §2). La descarga se muestra redondeada a una cifra: `pa.req.descarga` ("unos {n} GB"). Si la detección falla: `pa.req.descarga.generica` y el mayor espacio del manifiesto (hoy 10 GB). Si la plataforma no tiene entrada en el manifiesto → B6. La detección tarda milisegundos: B1 no tiene estado de carga propio. |
+| Comprobación de espacio (B1) | Al mostrar B1 (y al pulsar "Comprobar de nuevo") se consulta el espacio libre del disco del directorio de datos (o de su carpeta existente más cercana). Requisito mostrado: el del perfil previsto. Si no alcanza: fila en `error` con `pa.req.espacio.insuficiente` ("Necesitas 10 GB libres y tienes 3,1 GB") y el botón primario cambia a "Comprobar de nuevo". |
 | "Preparar Shinobi Karaoke" | Inicia la secuencia del gestor de runtime. Foco inicial de B1. |
 | Lista de fases | 3 fases visibles (las 5 técnicas de arquitectura §6 se agrupan: 1–2 → "Preparando el motor de audio", 3 → "Instalando componentes", 4 → se integra al final de "Instalando componentes" como subestado "Comprobando tu equipo…", 5 → "Descargando el modelo de separación"). Cada fase: pendiente ○ / en curso ⟳ / completada ✓ / error ✕. |
 | Progreso por fase | "X MB de Y MB" con Y tomado del manifiesto desde el inicio. Python y el modelo tienen progreso exacto; en "Instalando componentes" X es una aproximación (crece a saltos): la barra **nunca retrocede** y nunca muestra 100 % hasta que la fase termina (máximo 99 %). "Calculando tamaño…" (indeterminado) solo si faltara el dato del manifiesto. |
@@ -150,6 +233,9 @@ B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (
 | "Empezar" | Abre la Biblioteca (estado vacío). Foco inicial de B3. |
 | Licencias (B1) | Abre Ajustes → Acerca de (en un diálogo, ya que aún no hay barra superior). |
 | Teclado | Tab recorre los botones; Intro activa; Esc en B2 = "Pausar y salir". |
+| B0 Comprobando | Se muestra solo en el caso 2 de ADR 0009 §6 (estado distinto de `completa` con marcador válido). Para no parpadear, la ventana muestra solo el fondo y el logotipo los primeros 300 ms y el texto y la barra después. Sin botones: cerrar la ventana (X) cierra la app **sin diálogo** (no se pierde nada; al reabrir se repite la comprobación); Esc no hace nada. Si pasa 15 s sin terminar, el subtítulo cambia a `pa.comprobando.lento`. Resultado: **pasa** → directamente a la Biblioteca (sin B3 ni toast: el usuario ya tenía la app preparada); **falta solo el modelo** (entorno y marcador correctos) → B5 "Continuamos donde lo dejamos" con lo que falta; **entorno no válido** o error inesperado de la verificación → B5 "Hay que reparar el motor de audio". La comprobación barata de cada arranque (milisegundos) no muestra B0. Anuncio a lectores de pantalla: `pa.comprobando.titulo` (una vez). |
+| B6 No compatible | Se decide antes de B1, con la misma detección previa (SO + **arquitectura real** + versión de macOS) que el perfil previsto. "Tu equipo:" usa `pa.nocompat.equipo` con nombres legibles: SO `Windows`, `macOS {versión}` (la versión solo en macOS, tal como la da el sistema, p. ej. `macOS 13.6.1`), `Linux`; procesador `procesador x64`, `procesador ARM de 64 bits`, `procesador de 32 bits`, y en macOS `chip Apple` (arm64) o `procesador Intel` (x64). Ejemplos: "Tu equipo: Linux · procesador ARM de 64 bits", "Tu equipo: macOS 15.1 · procesador Intel". "Pedir soporte para mi equipo" abre en el navegador la página de incidencias del proyecto (enlace permitido, como "Web del proyecto" en spec 08). "Copiar detalles" copia versión de la app, SO y versión, arquitectura y la marca `plataforma no compatible`; toast "Detalles copiados". "Salir" (foco inicial) cierra la app. "Licencias" igual que en B1. No hay acceso a ninguna otra vista. |
+| B6b Actualiza macOS | Se muestra **en lugar de B6** cuando el procesador sí es compatible pero la versión de macOS es menor que su mínimo (`{min}`: hoy 14 en chip Apple). El orden de la decisión es: 1) procesador/SO sin entrada en el manifiesto (incluido cualquier Mac Intel) → B6; 2) Mac con chip Apple y versión de macOS < mínimo → B6b; 3) resto → B1/B0/B5. La versión mínima la da la detección del proceso principal (no se escribe a mano en el renderer). "Cómo actualizar macOS" abre en el navegador la página oficial de Apple sobre actualizar macOS, en español (enlace permitido, como "Pedir soporte"; el programador fija la URL de support.apple.com y comprueba que abre). "Copiar detalles" igual que en B6, con la marca `macos por debajo del mínimo ({min})`. "Salir" (primario, foco inicial). Sin "Pedir soporte para mi equipo": el problema tiene solución por parte del usuario (sigue disponible la web del proyecto desde Licencias → Acerca de). Anuncio a lectores de pantalla: título + cuerpo, una vez. |
 | Lectores de pantalla | Anunciar el cambio de fase ("Instalando componentes") y cada 25 % del total, no cada evento. |
 
 ### Estados
@@ -160,8 +246,11 @@ B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (
 | Error | B4, con textos por código (tabla de microcopy). Las fases completadas no se repiten. |
 | Éxito | B3. |
 | Interrumpido / reanudación | B5 al reabrir; también si se pierde la conexión y se recupera, B4 → Reintentar. |
-| Actualización silenciosa de yt-dlp (arranques posteriores) | Invisible. Solo si falla dos veces seguidas una descarga de YouTube se ofrece (spec 03). |
+| Actualización de yt-dlp (arranques posteriores) | **Automática, nunca se ofrece ni se pregunta** ([0013](../preguntas/0013-huecos-ux-de-la-fase-2.md) §1). La semanal es invisible. La que sigue a un bloqueo de YouTube solo se ve como texto de reintento en la operación que la provocó (`add.reintento.ytdlp` en spec 03, `prog.reintento.ytdlp` en spec 04). |
 | Instalación dañada en un arranque posterior (falta el venv o el modelo) | Se vuelve a B5 con título "Hay que reparar el motor de audio" y botón "Reparar". |
+| Verificando una instalación existente | B0 (3–5 s), luego Biblioteca o B5. |
+| Plataforma no compatible | B6. |
+| macOS por debajo del mínimo (procesador compatible) | B6b. |
 
 ### Microcopy
 | Clave | Texto |
@@ -205,11 +294,25 @@ B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (
 | `pa.boton.salir` | Salir |
 | `pa.detalles` | Ver detalles · Copiar detalles |
 | `pa.dialogo.pausar` | ¿Pausar la preparación? Se guardará lo descargado y continuará la próxima vez que abras Shinobi Karaoke. — [Seguir preparando] [Pausar y salir] |
+| `pa.comprobando.titulo` | Comprobando tu instalación… |
+| `pa.comprobando.cuerpo` | Solo tardará unos segundos. |
+| `pa.comprobando.lento` | Está tardando un poco más de lo normal. No cierres la aplicación. |
+| `pa.nocompat.titulo` | Tu equipo no es compatible todavía |
+| `pa.nocompat.cuerpo` | Shinobi Karaoke necesita instalar un motor de audio que, por ahora, solo existe para Windows 10/11 y Linux con procesador de 64 bits (x64) y para Mac con chip Apple y macOS 14 o posterior. |
+| `pa.nocompat.equipo` | Tu equipo: {so} · {procesador} |
+| `pa.nocompat.nota` | Si quieres que lo soportemos, cuéntanoslo: copia los detalles y ábrenos una incidencia en la web del proyecto. |
+| `pa.nocompat.soporte` | Pedir soporte para mi equipo |
+| `pa.macos.titulo` | Necesitas actualizar macOS |
+| `pa.macos.cuerpo` | Shinobi Karaoke necesita macOS {min} o posterior y tu Mac tiene macOS {version}. ({min} con nombre: "14 (Sonoma)"; {version} tal como la da el sistema) |
+| `pa.macos.gratis` | Todos los Mac con chip Apple pueden actualizar gratis. |
+| `pa.macos.pasos` | Para actualizar: menú Apple () → Ajustes del Sistema (o Preferencias del Sistema) → Actualización de software. Antes, conviene hacer una copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke. |
+| `pa.macos.ayuda` | Cómo actualizar macOS |
+| `pa.boton.copiar` | Copiar detalles |
 | `pa.eta` | quedan unos {n} minutos · menos de 1 minuto · Calculando tiempo… |
 
 ## Criterios de aceptación
 1. Si `config.instalacion.estado` no es `"completa"`, la app abre B1 (o B5 si había progreso previo) y no permite acceder a ninguna otra vista hasta completar la instalación.
-2. B1 muestra la descarga y el espacio requeridos **del perfil previsto** (leídos del manifiesto; si la detección previa falla, el rango genérico de descarga y 8 GB), el tiempo y el espacio libre real del disco del directorio de datos; si el espacio libre es menor que el requerido, se muestra `pa.req.espacio.insuficiente`, el botón principal es "Comprobar de nuevo" y la instalación no empieza.
+2. B1 muestra la descarga y el espacio requeridos **del perfil previsto** (leídos del manifiesto; si la detección previa falla, el rango genérico de descarga y el mayor espacio del manifiesto, hoy 10 GB), el tiempo y el espacio libre real del disco del directorio de datos; si el espacio libre es menor que el requerido, se muestra `pa.req.espacio.insuficiente`, el botón principal es "Comprobar de nuevo" y la instalación no empieza.
 3. B2 muestra exactamente tres fases con sus estados (○ ⟳ ✓ ✕) y una barra total; la fase en curso muestra "X MB de Y MB" con Y del manifiesto; ninguna barra retrocede y "Instalando componentes" no pasa de 99 % hasta terminar.
 4. El tiempo restante no aparece durante los primeros 10 s; después se muestra redondeado según la tabla de microcopy y se actualiza como máximo una vez por segundo.
 5. Con perfil previsto, B2 muestra desde el inicio el mensaje de modo correspondiente (Calidad NVIDIA / Calidad Apple / Rápido); el modo final (tras "Comprobando tu equipo…") se repite en B3 con el tiempo estimado para 4 minutos.
@@ -222,3 +325,10 @@ B1 Bienvenida → B2 Instalando (3 fases) → B3 Todo listo → Biblioteca. B4 (
 11. "Empezar" abre la Biblioteca en estado vacío (spec 02).
 12. Si en un arranque posterior falta el entorno o el modelo, se muestra la variante "Hay que reparar el motor de audio" en lugar de la Biblioteca.
 13. La guía de instalación (Parte A) está publicada en la página de descarga/README con los textos de los botones de sistema indicados y una captura por SO antes de la primera versión pública.
+14. Si hay que verificar una instalación existente (estado distinto de `completa` con marcador válido), se muestra B0 sin botones: nada visible salvo fondo y logotipo los primeros 300 ms, después `pa.comprobando.*` con barra indeterminada y, a los 15 s, `pa.comprobando.lento`. Si la verificación pasa, se abre directamente la Biblioteca (sin B3); si falta solo el modelo, B5 "Continuamos donde lo dejamos"; si el entorno no vale o la verificación falla de forma inesperada, B5 "Hay que reparar el motor de audio". Cerrar la ventana durante B0 cierra la app sin diálogo.
+15. En una plataforma sin requisitos en el manifiesto se muestra B6 (no B1 ni B4): banner `error` con `pa.nocompat.cuerpo` y `pa.nocompat.equipo`, botones "Pedir soporte para mi equipo", "Copiar detalles" y "Salir" (foco inicial), enlace Licencias; no existe "Preparar" ni acceso a otras vistas.
+15b. En un Mac con chip Apple y macOS < 14 (p. ej. 13.6) se muestra B6b, no B6 ni B1: banner `aviso` con `pa.macos.cuerpo` (con `{min}` = "14 (Sonoma)" y la versión real) y `pa.macos.gratis`, texto `pa.macos.pasos`, botones "Cómo actualizar macOS" (abre la página de Apple en el navegador), "Copiar detalles" y "Salir" (foco inicial); sin "Preparar" ni "Pedir soporte para mi equipo". Con macOS 14.0 se muestra B1. Un Mac Intel muestra B6 general con cualquier versión de macOS (p. ej. 13.6 → B6, no B6b; `preguntas/0016`, opción C).
+15c. `pa.nocompat.equipo` usa los nombres legibles de la tabla de componentes; en macOS incluye la versión y `chip Apple`/`procesador Intel` (nunca `arm64`/`x64` en crudo).
+16. La app nunca pregunta ni ofrece actualizar yt-dlp: la actualización semanal no muestra nada y la provocada por un bloqueo solo cambia el texto de la operación en curso (specs 03 y 04).
+17. La página de descarga dice en el botón de macOS "Descargar para Mac con chip Apple", muestra siempre debajo el requisito (chip Apple, macOS 14 o posterior, Intel no compatible por ahora) y "¿Qué Mac tengo?", la línea de requisitos de la Parte A §2 y, en "¿Sigue sin abrirse?", las dos entradas de macOS. No intenta detectar Intel desde el navegador.
+

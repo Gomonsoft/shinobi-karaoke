@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { migrarConfig } from '../../shared'
+import { estiloPredeterminado, migrarConfig } from '../../shared'
 import { silencioFlac } from './flac'
 import { sembrar } from './semilla'
 import { ServicioBiblioteca } from './servicio'
@@ -18,7 +18,7 @@ afterEach(async () => {
 describe('sembrar', () => {
   it('crea la variedad pedida, es idempotente y recrea con limpiar', async () => {
     const r = await sembrar(datos)
-    expect(r.creadas).toHaveLength(10)
+    expect(r.creadas).toHaveLength(12)
     const config = migrarConfig(JSON.parse(await readFile(join(datos, 'config.json'), 'utf8')))
     expect(config.instalacion.estado).toBe('completa')
 
@@ -28,17 +28,26 @@ describe('sembrar', () => {
     expect(lista.filter((c) => c.motivo === 'json')).toHaveLength(1)
     expect(lista.filter((c) => c.motivo === 'pistas')).toHaveLength(1)
     const sana = lista.filter((c) => !c.danada)
-    expect(sana.filter((c) => c.estado === 'borrador')).toHaveLength(5)
+    expect(sana.filter((c) => c.estado === 'borrador')).toHaveLength(7)
     expect(sana.some((c) => c.pasos?.separacion.error)).toBe(true)
     expect(sana.some((c) => c.pasos?.separacion.estado === 'interrumpido')).toBe(true)
     expect(new Set(sana.map((c) => c.estilo?.letra.fuente.familia)).size).toBeGreaterThan(1)
 
+    const yt = sana.filter((c) => c.miniatura !== null)
+    expect(yt).toHaveLength(2)
+    expect(yt.map((c) => c.estilo)).toContainEqual(estiloPredeterminado())
+    expect(
+      yt.filter((c) => JSON.stringify(c.estilo) !== JSON.stringify(estiloPredeterminado()))
+    ).toHaveLength(1)
+    const jpg = await readFile(join(datos, 'biblioteca', yt[0]!.id, 'fuente', 'miniatura.jpg'))
+    expect(jpg.subarray(0, 2).toString('hex')).toBe('ffd8')
+
     const r2 = await sembrar(datos)
     expect(r2.creadas).toHaveLength(0)
-    expect(r2.existentes).toHaveLength(10)
+    expect(r2.existentes).toHaveLength(12)
 
     const r3 = await sembrar(datos, { limpiar: true })
-    expect(r3.creadas).toHaveLength(10)
+    expect(r3.creadas).toHaveLength(12)
   })
 })
 

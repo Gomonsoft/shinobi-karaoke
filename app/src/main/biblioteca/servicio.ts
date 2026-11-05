@@ -23,6 +23,7 @@ import {
   ErrorBiblioteca,
   type CambioCancion,
   type DatosNuevaCancion,
+  type DatosSustitucionFuente,
   type EventoCancion,
   type ImportacionPreparada,
   type OpcionesActualizar,
@@ -208,6 +209,59 @@ export class ServicioBiblioteca {
     return this.enSerie(id, async () => {
       this.exigirIdSeguro(id)
       await rm(this.carpetaImportacion(id), { recursive: true, force: true })
+    })
+  }
+
+  /**
+   * Sustituye la fuente de una canción cuyo paso `fuente` es `pendiente`/`error`/`interrumpido` y
+   * que aún no tiene `fuente/mezcla.flac` (el llamador comprueba que no hay trabajo vivo). Conserva
+   * id, carpeta, estilo y letra. `cancion.json` se escribe al final: si algo falla antes, se borra
+   * la mezcla movida y la canción queda como estaba.
+   */
+  sustituirFuente(id: string, datos: DatosSustitucionFuente): Promise<ResumenCancion> {
+    return this.enSerie(id, async () => {
+      const previa = this.exigirCancion(id)
+      if (!['pendiente', 'error', 'interrumpido'].includes(previa.pasos.fuente.estado)) {
+        throw new ErrorBiblioteca(
+          'ARGUMENTOS_NO_VALIDOS',
+          'La fuente de esta canción no se puede sustituir.'
+        )
+      }
+      const carpeta = this.carpetaCancion(id)
+      const destino = join(carpeta, 'fuente', 'mezcla.flac')
+      if (await existe(destino)) {
+        throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', 'La canción ya tiene audio.')
+      }
+      const candidata = structuredClone(previa) as Cancion
+      candidata.fuente = structuredClone(datos.fuente)
+      candidata.metadatos = structuredClone(datos.metadatos)
+      candidata.pasos.fuente = {
+        estado: 'completado',
+        actualizado: this.ahora().toISOString(),
+        error: null
+      }
+      candidata.modificada = this.ahora().toISOString()
+      const valida = this.validar(candidata)
+      try {
+        await mkdir(join(carpeta, 'fuente'), { recursive: true })
+        await rename(datos.mezclaOrigen, destino)
+      } catch (e) {
+        throw new ErrorBiblioteca('ERROR_INTERNO', `No se pudo mover el audio: ${String(e)}`)
+      }
+      let resumen: ResumenCancion
+      try {
+        resumen = await this.guardar(id, valida, 0)
+      } catch (e) {
+        await rm(destino, { force: true })
+        throw e
+      }
+      // Ya referenciada la mezcla nueva: se borran los restos de la fuente anterior.
+      const dirFuente = join(carpeta, 'fuente')
+      await rm(join(dirFuente, 'miniatura.jpg'), { force: true })
+      for (const nombre of await readdir(dirFuente).catch(() => [] as string[])) {
+        if (nombre.startsWith('descarga.')) await rm(join(dirFuente, nombre), { force: true })
+      }
+      return resumen
     })
   }
 

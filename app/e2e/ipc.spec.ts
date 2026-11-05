@@ -50,8 +50,12 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'alAccionMenu',
       'alCambiarCancion',
       'alCambiarConfig',
+      'alCambiarEstadoInfo',
+      'app',
       'biblioteca',
       'config',
+      'fuente',
+      'runtime',
       'rutaDeArchivo',
       'sistema',
       'trabajos'

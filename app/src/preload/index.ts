@@ -11,7 +11,8 @@ async function invocar<T>(canal: string, ...args: unknown[]): Promise<T> {
     throw { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
   }
   if (respuesta.ok) return respuesta.valor
-  throw { codigo: respuesta.error.codigo, mensaje: respuesta.error.mensaje }
+  const { codigo, mensaje, detalles } = respuesta.error
+  throw detalles === undefined ? { codigo, mensaje } : { codigo, mensaje, detalles }
 }
 
 /** Suscripción que no filtra el objeto `event` de Electron al renderer. */
@@ -46,10 +47,51 @@ const api: ApiShinobi = {
   },
   sistema: {
     info: () => invocar(CANALES.sistema.info),
-    abrirEnlace: (url) => invocar(CANALES.sistema.abrirEnlace, url)
+    abrirEnlace: (url) => invocar(CANALES.sistema.abrirEnlace, url),
+    textoLegal: (tipo) => invocar(CANALES.sistema.textoLegal, tipo),
+    abrirCarpetaDatos: () => invocar(CANALES.sistema.abrirCarpetaDatos),
+    elegirArchivoAudio: () => invocar(CANALES.sistema.elegirArchivoAudio)
+  },
+  fuente: {
+    importarArchivo: (ruta) => invocar(CANALES.fuente.importarArchivo, ruta),
+    cancelarImportacion: (id) =>
+      id === undefined
+        ? invocar(CANALES.fuente.cancelarImportacion)
+        : invocar(CANALES.fuente.cancelarImportacion, id),
+    confirmarArchivo: (id, metadatos, opciones) =>
+      opciones === undefined
+        ? invocar(CANALES.fuente.confirmarArchivo, id, metadatos)
+        : invocar(CANALES.fuente.confirmarArchivo, id, metadatos, opciones),
+    descartarImportacion: (id) => invocar(CANALES.fuente.descartarImportacion, id),
+    infoYoutube: (url) => invocar(CANALES.fuente.infoYoutube, url),
+    cancelarInfo: (id) =>
+      id === undefined
+        ? invocar(CANALES.fuente.cancelarInfo)
+        : invocar(CANALES.fuente.cancelarInfo, id),
+    confirmarYoutube: (id, metadatos, opciones) =>
+      opciones === undefined
+        ? invocar(CANALES.fuente.confirmarYoutube, id, metadatos)
+        : invocar(CANALES.fuente.confirmarYoutube, id, metadatos, opciones),
+    reintentar: (id) => invocar(CANALES.fuente.reintentar, id)
+  },
+  runtime: {
+    estado: () => invocar(CANALES.runtime.estado),
+    requisitos: (opciones) => invocar(CANALES.runtime.requisitos, opciones),
+    instalar: () => invocar(CANALES.runtime.instalar),
+    pausar: () => invocar(CANALES.runtime.pausar),
+    detalles: () => invocar(CANALES.runtime.detalles),
+    estimarSeparacion: (duracionMs) => invocar(CANALES.runtime.estimarSeparacion, duracionMs),
+    alProgreso: (cb) => suscribir(CANALES.eventos.runtimeProgreso, cb),
+    alCambiar: (cb) => suscribir(CANALES.eventos.runtimeCambio, cb)
+  },
+  app: {
+    confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
+    salir: () => invocar(CANALES.app.salir),
+    alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, () => cb())
   },
   alCambiarCancion: (cb) => suscribir(CANALES.eventos.cancion, cb),
   alCambiarConfig: (cb) => suscribir(CANALES.eventos.config, cb),
+  alCambiarEstadoInfo: (cb) => suscribir(CANALES.eventos.estadoInfo, cb),
   alAccionMenu: (cb) => suscribir(CANALES.eventos.menu, cb),
   rutaDeArchivo: (archivo) => webUtils.getPathForFile(archivo)
 }

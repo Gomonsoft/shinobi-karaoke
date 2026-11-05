@@ -76,6 +76,8 @@ export type VistaContinuar = 'anadir' | 'progreso' | 'letra' | 'editor'
 export interface OpcionesVista {
   /** El usuario ya vio el progreso de la separación en curso (ux/00 §3): con separación en curso y sin letra, abre Letra. */
   progresoVisto?: boolean
+  /** Hay un trabajo de fuente vivo (p. ej. una descarga en cola): la fuente `pendiente` no abre Añadir. */
+  fuenteEnCola?: boolean
 }
 
 /** Vista que abre "Continuar" (ux/00-mapa-de-vistas.md §3). Para canciones listas, "Editar" abre el editor. */
@@ -83,6 +85,7 @@ export function vistaAlContinuar(cancion: Cancion, opciones: OpcionesVista = {})
   if (cancion.estado === 'lista') return 'editor'
   const { fuente, separacion } = cancion.pasos
   if (fuente.estado === 'en_curso') return 'progreso'
+  if (fuente.estado === 'pendiente' && opciones.fuenteEnCola) return 'progreso'
   if (fuente.estado !== 'completado') return 'anadir'
   if (contarLineas(cancion.letra) > 0) return 'editor'
   if (separacion.estado === 'completado') return 'letra'

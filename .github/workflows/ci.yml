@@ -85,3 +85,5 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest
+      # Requisitos bloqueados por perfil al día (ADR 0009 §1): solo resuelve, sin descargar ruedas.
+      - run: uv run python scripts/compilar_requisitos.py --comprobar

@@ -113,6 +113,11 @@ describe('vistaAlContinuar (ux/00 §3)', () => {
       expect(vistaAlContinuar(c)).toBe('anadir')
     }
   })
+  it('fuente pendiente con descarga en cola → progreso', () => {
+    const c = borradorRecienCreado()
+    c.pasos.fuente.estado = 'pendiente'
+    expect(vistaAlContinuar(c, { fuenteEnCola: true })).toBe('progreso')
+  })
   it('fuente en curso → progreso', () => {
     expect(vistaAlContinuar(descargando())).toBe('progreso')
   })

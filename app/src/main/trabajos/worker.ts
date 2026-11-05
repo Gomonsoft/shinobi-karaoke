@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { join } from 'node:path'
+import { join, posix, win32 } from 'node:path'
 import { parsearLineaWorker, type MensajeWorker } from '../../shared/protocolo'
 import { LectorLineas } from './lineas'
 import { ColaLineas, RegistroWorker } from './registro'
@@ -40,6 +40,8 @@ export interface OpcionesLanzadorProduccion {
   plataforma: NodeJS.Platform
   /** Carpeta con el paquete `shinobi_worker` empaquetado (se añade a PYTHONPATH). */
   rutaCodigoWorker?: string
+  /** Entorno del que parte el hijo: si se da, el directorio de scripts del venv se antepone a su PATH. */
+  envBase?: Record<string, string | undefined>
 }
 
 /** Resuelve el intérprete del worker. Función pura. */
@@ -57,10 +59,21 @@ export function resolverLanzador(
   const venv = join(o.datos, 'runtime', 'venv')
   const python =
     o.plataforma === 'win32' ? join(venv, 'Scripts', 'python.exe') : join(venv, 'bin', 'python')
+  const env: Record<string, string> = {}
+  if (o.rutaCodigoWorker) env.PYTHONPATH = o.rutaCodigoWorker
+  if (o.envBase) {
+    const win = o.plataforma === 'win32'
+    const ruta = win ? win32 : posix
+    const scripts = ruta.join(o.datos, 'runtime', 'venv', win ? 'Scripts' : 'bin')
+    const clave =
+      Object.keys(o.envBase).find((k) => k.toUpperCase() === 'PATH') ?? (win ? 'Path' : 'PATH')
+    const previo = o.envBase[clave]
+    env[clave] = previo ? `${scripts}${win ? ';' : ':'}${previo}` : scripts
+  }
   return {
     comando: python,
     argsBase: ['-m', 'shinobi_worker'],
-    ...(o.rutaCodigoWorker ? { env: { PYTHONPATH: o.rutaCodigoWorker } } : {})
+    ...(Object.keys(env).length > 0 ? { env } : {})
   }
 }
 
@@ -77,6 +90,8 @@ export interface ConfigCliente {
   /** Espera entre SIGTERM y SIGKILL (ms). Por defecto 3000. */
   esperaKillMs?: number
   plataforma?: NodeJS.Platform
+  /** Si devuelve `false` (instalación no completa) no se lanza ningún proceso: `RUNTIME_NO_DISPONIBLE`. */
+  disponible?: () => boolean
 }
 
 export const LINEAS_DETALLE = 50
@@ -88,7 +103,7 @@ const error = (codigo: string, mensaje: string, reintentable = false): ErrorTrab
 })
 
 /** Termina el proceso y todo su árbol. Devuelve una función que cancela el temporizador de SIGKILL. */
-function terminarArbol(
+export function terminarArbol(
   hijo: ChildProcess,
   plataforma: NodeJS.Platform,
   esperaKillMs: number
@@ -128,6 +143,10 @@ export function crearClienteWorker(config: ConfigCliente) {
     return new Promise((resolver, rechazar) => {
       if (señal?.aborted) {
         rechazar(error('CANCELADO', 'Trabajo cancelado'))
+        return
+      }
+      if (config.disponible && !config.disponible()) {
+        rechazar(error('RUNTIME_NO_DISPONIBLE', 'El motor de audio no está instalado'))
         return
       }
       const { lanzador } = config

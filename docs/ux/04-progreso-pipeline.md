@@ -3,7 +3,7 @@
 - Paso del pipeline: 1 (descarga YouTube) y 2 (Separación)
 - ADRs: [0003](../adr/0003-fuente-de-audio.md), [0004](../adr/0004-separacion-voz-instrumental.md), [0006](../adr/0006-persistencia-y-modelo-de-datos.md)
 - Restricciones: [arquitectura.md §6 y "Restricciones e implicaciones para UX" §2–§3](../arquitectura.md)
-- Pregunta respondida: [0003](../preguntas/0003-elegir-calidad-o-rapidez-separacion.md) (modo informativo + ajuste global)
+- Preguntas respondidas: [0013](../preguntas/0013-huecos-ux-de-la-fase-2.md) §1, §4 (cancelar la descarga, fuente pendiente, cola de descargas); [0003](../preguntas/0003-elegir-calidad-o-rapidez-separacion.md) (modo informativo + ajuste global)
 
 ## Objetivo
 Que el usuario entienda que la separación **tarda minutos**, sepa **cuánto falta**, pueda **cancelar** y, sobre todo, **no tenga que esperar**: puede buscar la letra, sincronizar o volver a la biblioteca mientras tanto. Nada se pierde al salir.
@@ -56,13 +56,31 @@ Si la canción viene de un archivo local, la fila "Descargar de YouTube" no apar
 │   └──────────────────────────────────────────────────────────────────┘   │
 ```
 
+**Descarga pendiente** (YouTube, tras cancelar la descarga; o al llegar por el stepper con la fuente `pendiente` sin trabajo vivo)
+```
+│   Separando la voz de la música                                          │
+│   ○  Descargar de YouTube                                                │
+│   ○  Preparar el audio                                                   │
+│   ○  Separar voz e instrumental                                          │
+│   ┌──────────────────────────────────────────────────────────────────┐   │
+│   │ ⓘ Falta descargar el audio.                                      │   │
+│   │   Cancelaste la descarga antes de que terminara. La canción sigue│   │
+│   │   en tu biblioteca como borrador.                                │   │
+│   │   [ Descargar ahora ] (primario)                                 │   │
+│   └──────────────────────────────────────────────────────────────────┘   │
+│   [ Volver a la biblioteca ] (secundario)                                │
+```
+Sin bloque "Mientras tanto…" ni "Cancelar …". Para usar otro vídeo: paso 1 (wireframe E de la spec 03).
+
 ### Subpasos y fases
 | Subpaso | Fases técnicas (worker) | Progreso mostrado |
 |---------|-------------------------|-------------------|
 | Descargar de YouTube | `descargando` | % + "X MB de Y MB" + tiempo restante |
 | Preparar el audio | `importar-archivo` | indeterminado, "Preparando el audio…" (2–10 s) |
 | Separar voz e instrumental | `cargando_modelo` → `separando` → `guardando` | "Preparando la separación…" (indeterminado, 5–20 s) → "Separando… N %" + tiempo → "Guardando las pistas…" (indeterminado) |
-| En cola | — | "En cola: se separará cuando termine «{otra canción}»." (sin barra; posición si hay > 1: "2.ª en la cola") |
+| En cola (separación) | — | `prog.cola`: "En cola: se separará cuando termine «{otra canción}»." (sin barra; posición si hay > 1: "2.ª en la cola") |
+| En cola (descarga) | — | `prog.cola.descarga`: "En cola: se descargará cuando termine «{otra canción}»." Si lo que ocupa la cola `ligera` es la actualización de yt-dlp (trabajo sin canción): `prog.cola.descarga.mantenimiento`. Misma regla de posición. |
+| Reintento tras bloqueo | `actualizando` | Barra indeterminada + `prog.reintento.ytdlp` en el subpaso "Descargar de YouTube" (no es error). |
 
 ### Componentes e interacciones
 | Elemento | Comportamiento |
@@ -73,7 +91,9 @@ Si la canción viene de un archivo local, la fila "Descargar de YouTube" no apar
 | Modo · ⓘ | Texto "Modo Calidad" / "Modo Rápido". Tooltip/popover: "Shinobi Karaoke eligió este modo según tu equipo. Puedes cambiarlo en Ajustes." con enlace a Ajustes (spec 08). |
 | Buscar la letra mientras tanto | Navega a la vista 05. La separación continúa. |
 | Volver a la biblioteca | Navega a la Biblioteca. La separación continúa. |
-| Cancelar separación / Cancelar descarga | Diálogo: "¿Cancelar la separación? Tendrás que volver a empezarla más tarde. La letra y lo que hayas sincronizado se conservan." [Seguir separando] [Cancelar separación]. Al confirmar, el paso vuelve a `pendiente` y la vista muestra el estado "Pendiente". |
+| Cancelar separación | Diálogo `prog.dialogo.cancelar`, foco en "Seguir separando". Al confirmar, el paso vuelve a `pendiente` y la vista muestra el estado "Pendiente". |
+| Cancelar descarga | Visible con la descarga en curso (fases `descargando`, `actualizando` o `preparando`) o en cola. En cola: retira sin diálogo. En curso: diálogo `prog.dialogo.cancelar.descarga`, foco en "Seguir descargando"; "Cancelar descarga" es destructivo. Al confirmar (o retirar de la cola), el paso `fuente` queda `pendiente`, **se conserva el borrador** con sus datos (y la letra, si ya se buscó) y la vista muestra "Descarga pendiente". No se elimina la canción: para quitarla está "Eliminar…" en la Biblioteca. El mismo diálogo se usa desde [✕] del panel de actividad y "Cancelar trabajo" del menú de la tarjeta. |
+| Descargar ahora (descarga pendiente) | Encola la descarga con el mismo enlace; la vista pasa a "En cola" o "Descargando". Foco inicial en este botón. |
 | Estado "Pendiente" (tras cancelar) | "La separación está pendiente." + primario "Separar ahora" + estimación previa. |
 | Escuchar Voz / Instrumental | Reproductor mínimo en línea (▶/❚❚ + barra de posición). Solo uno suena a la vez. Permite comprobar el resultado antes de seguir. |
 | Teclado | Foco inicial en "Buscar la letra mientras tanto" (o "Buscar la letra" al terminar). Esc = volver a la Biblioteca (no cancela). |
@@ -84,6 +104,7 @@ Si la canción viene de un archivo local, la fila "Descargar de YouTube" no apar
 |--------|--------------|
 | Vacío | No aplica (la vista solo existe si hay fuente). |
 | En cola | Subpaso con ⏸ y texto de cola; botón "Cancelar" retira de la cola (sin diálogo). |
+| Pendiente (fuente de YouTube) | Wireframe "Descarga pendiente": banner `info` (no `aviso`: lo decidió el usuario, no es un fallo). |
 | Procesando | Wireframe principal. |
 | Éxito | Wireframe "Terminado"; toast si el usuario está en otra vista (ver §3). |
 | Error | El subpaso muestra ✕ y debajo un banner `error` con título, explicación y acciones (tabla de microcopy). Los reintentos automáticos (memoria, yt-dlp, red) **no** se muestran como error: el subpaso dice "Reintentando con un modo más ligero…" / "Actualizando el descargador y reintentando…" / "Reintentando en {n} s…". |
@@ -100,6 +121,8 @@ Botón en la barra superior, visible solo si hay trabajos en curso o en cola: sp
 │ ⟳ La flaca — Descargando 80 %            │
 │   █████████░░ menos de 1 min       [Ir] [✕]│
 │ ⏸ Despacito — En cola para separar  [Ir] [✕]│
+│ ⟳ Vivir mi vida — Actualizando el        │
+│   descargador…  ░░▓▓▓░░░        [Ir] [✕]│
 └──────────────────────────────────────────┘
 ```
 - [Ir] abre la vista de progreso de esa canción. [✕] = cancelar (con el mismo diálogo de confirmación salvo para elementos en cola).
@@ -128,6 +151,8 @@ Botón en la barra superior, visible solo si hay trabajos en curso o en cola: sp
 | `prog.fase.guardando` | Guardando las pistas… |
 | `prog.fase.descargando` | Descargando… {n} % · {x} MB de {y} MB |
 | `prog.cola` | En cola: se separará cuando termine «{otra}». |
+| `prog.cola.descarga` | En cola: se descargará cuando termine «{otra}». |
+| `prog.cola.descarga.mantenimiento` | En cola: el descargador de YouTube se está actualizando. Empezará enseguida. |
 | `prog.eta.calculando` | Calculando tiempo… |
 | `prog.eta` | quedan unos {n} minutos · queda 1 minuto aprox. · menos de 1 minuto |
 | `prog.eta.previa` | Tardará unos {n} minutos |
@@ -142,9 +167,12 @@ Botón en la barra superior, visible solo si hay trabajos en curso o en cola: sp
 | `prog.boton.cancelar` | Cancelar separación · Cancelar descarga |
 | `prog.dialogo.cancelar` | ¿Cancelar la separación? Tendrás que volver a empezarla más tarde. La letra y lo que hayas sincronizado se conservan. — [Seguir separando] [Cancelar separación] |
 | `prog.pendiente` | La separación está pendiente. — [Separar ahora] |
+| `prog.dialogo.cancelar.descarga` | **¿Cancelar la descarga?** «{título}» se quedará en tu biblioteca como borrador, sin audio. Podrás descargarla de nuevo cuando quieras. — [Seguir descargando] [Cancelar descarga] |
+| `prog.pendiente.descarga` | **Falta descargar el audio.** Cancelaste la descarga antes de que terminara. La canción sigue en tu biblioteca como borrador. — [Descargar ahora] |
+| `prog.boton.descargar.ahora` | Descargar ahora |
 | `prog.escuchar` | Escucha el resultado: Voz · Instrumental |
 | `prog.reintento.memoria` | Reintentando con un modo más ligero… |
-| `prog.reintento.ytdlp` | Actualizando el descargador y reintentando… |
+| `prog.reintento.ytdlp` | Actualizando el descargador de YouTube y reintentando… |
 | `prog.reintento.red` | Reintentando en {n} s… |
 | `prog.error.SIN_CONEXION` | **Sin conexión a internet.** La descarga se detuvo. Comprueba tu conexión. — [Reintentar] |
 | `prog.error.SIN_ESPACIO` | **No queda espacio en el disco.** Libera espacio y vuelve a intentarlo. — [Reintentar] |
@@ -179,3 +207,6 @@ Botón en la barra superior, visible solo si hay trabajos en curso o en cola: sp
 12. Cerrar la app con trabajos pendientes muestra el diálogo de cierre con el foco en "Seguir trabajando"; al reabrir, esos pasos aparecen como "Interrumpido" con "Reintentar".
 13. La vista muestra el modo de separación (Calidad/Rápido) con la ayuda que enlaza a Ajustes.
 14. Los lectores de pantalla reciben anuncios al iniciar cada subpaso, al 25/50/75 %, al terminar y en error.
+15. "Cancelar descarga" con la descarga en curso abre `prog.dialogo.cancelar.descarga` con el foco en "Seguir descargando"; en cola retira sin diálogo. Al confirmar, la canción sigue en la Biblioteca como borrador con el paso `fuente` `pendiente`, sin audio, y la vista muestra "Descarga pendiente" con "Descargar ahora", que vuelve a encolar la descarga con el mismo enlace.
+16. Una descarga que espera en la cola `ligera` muestra `prog.cola.descarga` con el título de la canción que se está descargando, o `prog.cola.descarga.mantenimiento` si espera a la actualización de yt-dlp.
+17. Durante la actualización automática de yt-dlp tras un bloqueo, el subpaso "Descargar de YouTube" muestra `prog.reintento.ytdlp` con barra indeterminada, "Cancelar descarga" sigue disponible y el panel de actividad muestra "Actualizando el descargador…"; no se muestra ningún error ni se pregunta nada.

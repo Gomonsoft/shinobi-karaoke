@@ -1,0 +1,11 @@
+{
+  "id": "Bloq_Una_01",
+  "_type": "video",
+  "title": "Tema bloqueado una vez",
+  "channel": "Canal de prueba",
+  "duration": 35,
+  "live_status": "not_live",
+  "bytes_por_segundo": 200000,
+  "ritmo": 1,
+  "error_descarga_una_vez": "ERROR: [youtube] Bloq_Una_01: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication."
+}

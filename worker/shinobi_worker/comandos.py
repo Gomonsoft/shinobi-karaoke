@@ -67,7 +67,36 @@ def demo(args: dict[str, Any]) -> None:
     protocolo.resultado({"segundos": segundos})
 
 
+# Importacion perezosa: `version` y `demo` no deben cargar av/numpy/yt-dlp.
+def importar_archivo(args: dict[str, Any]) -> None:
+    from .importar_archivo import importar_archivo as comando
+
+    comando(args)
+
+
+def diagnostico(args: dict[str, Any]) -> None:
+    from .diagnostico import diagnostico as comando
+
+    comando(args)
+
+
+def info_youtube(args: dict[str, Any]) -> None:
+    from .youtube import info_youtube as comando
+
+    comando(args)
+
+
+def descargar_youtube(args: dict[str, Any]) -> None:
+    from .youtube import descargar_youtube as comando
+
+    comando(args)
+
+
 COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "version": version,
     "demo": demo,
+    "importar-archivo": importar_archivo,
+    "diagnostico": diagnostico,
+    "info-youtube": info_youtube,
+    "descargar-youtube": descargar_youtube,
 }

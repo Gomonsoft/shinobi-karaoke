@@ -203,13 +203,22 @@ export function Biblioteca() {
     }
   }
 
+  const vivosRef = useRef(vivos)
+  useEffect(() => {
+    vivosRef.current = vivos
+  })
+
   const continuar = useCallback(
     async (id: string) => {
       try {
         const cancion = await window.shinobi.biblioteca.obtener(id)
         if (!cancion) throw new Error('sin canción')
-        const paso = vistaAlContinuar(cancion)
-        ir(paso === 'anadir' ? { tipo: 'anadir' } : { tipo: 'cancion', id, paso })
+        const fuenteEnCola = vivosRef.current.trabajos.some(
+          (t) => t.cancionId === id && t.paso === 'fuente' && t.estado !== 'terminado'
+        )
+        const paso = vistaAlContinuar(cancion, { fuenteEnCola })
+        // Fuente sin completar: resumen de la fuente de esa canción (wireframe E), no una vista nueva.
+        ir({ tipo: 'cancion', id, paso: paso === 'anadir' ? 'fuente' : paso })
       } catch {
         mostrarToast({ tipo: 'error', mensaje: 'No se pudo abrir la canción.' })
       }

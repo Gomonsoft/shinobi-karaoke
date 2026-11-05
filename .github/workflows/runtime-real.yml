@@ -1,0 +1,94 @@
+name: Runtime real (manual)
+
+# Instalación real del runtime con red en los tres SO (tarea 0040). Solo manual: NO se ejecuta en push ni en PR.
+on:
+  workflow_dispatch:
+    inputs:
+      perfil:
+        description: "Perfil esperado (auto = cpu en Windows/Linux, mps en macOS; falla si el equipo resuelve otro)"
+        type: choice
+        default: auto
+        options: [auto, cpu, cuda, mps]
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.13.7"
+
+jobs:
+  runtime:
+    name: runtime (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+
+      - name: Dependencias de la app
+        working-directory: app
+        run: npm ci
+
+      # El gestor real (0034) con SHINOBI_DATOS temporal; el script quita ffmpeg del PATH, instala motor,
+      # componentes, diagnóstico y modelo Rápido, y ejecuta demo y diagnostico con el lanzador de producción.
+      - name: Instalar el runtime y medir
+        working-directory: app
+        env:
+          SHINOBI_DATOS: ${{ runner.temp }}/shinobi-datos
+        run: >
+          node --experimental-transform-types --disable-warning=ExperimentalWarning
+          --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/instalar-runtime.mjs
+          --perfil "${{ inputs.perfil }}" --salida "${{ runner.temp }}/runtime-real-${{ matrix.os }}.json"
+
+      # El extra `separacion` instala PyTorch y audio-separator: pruebas con red y pesadas del worker.
+      - name: Pruebas con red y pesadas del worker
+        working-directory: worker
+        env:
+          SHINOBI_TESTS_RED: "1"
+        run: |
+          uv sync --locked --extra separacion
+          uv run pytest -m "red or pesado" -v
+
+      - name: Artefacto con las mediciones
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-real-${{ matrix.os }}
+          path: ${{ runner.temp }}/runtime-real-${{ matrix.os }}.json
+          if-no-files-found: warn
+
+  licencia-ffmpeg-av:
+    name: licencia del FFmpeg de PyAV (5 requisitos + darwin-x64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # Descarga las ruedas `av` sin instalarlas; falla con --enable-nonfree o bibliotecas no libres.
+      - name: Inspeccionar las ruedas de av
+        run: python worker/scripts/inspeccionar_av.py --json "${{ runner.temp }}/licencia-av.json"
+      - name: Artefacto con el resultado por plataforma
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: licencia-ffmpeg-av
+          path: ${{ runner.temp }}/licencia-av.json
+          if-no-files-found: warn

@@ -29,4 +29,14 @@ describe('menú de aplicación', () => {
     expect(plantillaMenu('darwin', vi.fn())[0]?.label).toBe('Shinobi Karaoke')
     expect(plantillaMenu('linux', vi.fn())[0]?.label).toBe('Archivo')
   })
+
+  it('durante el primer arranque se ignoran "Añadir canción" y "Ajustes" y sus atajos; el resto sigue', () => {
+    const enviar = vi.fn()
+    const items = aplanar(plantillaMenu('darwin', enviar, () => false))
+    for (const atajo of ['CommandOrControl+N', 'CommandOrControl+,']) {
+      items.find((i) => i.accelerator === atajo)?.click?.({} as never, undefined, {} as never)
+    }
+    expect(enviar).not.toHaveBeenCalled()
+    expect(items.map((i) => i.role)).toEqual(expect.arrayContaining(['copy', 'zoomIn', 'quit']))
+  })
 })

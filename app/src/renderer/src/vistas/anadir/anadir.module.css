@@ -1,0 +1,187 @@
+/* Vista 03: Añadir canción (docs/ux/03). Columna central de 640 px. */
+.vista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-4);
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+.vista h1:focus {
+  outline: none;
+}
+
+.zona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-3);
+  height: 240px;
+  padding: var(--e-4);
+  border: 2px dashed var(--borde-control);
+  border-radius: var(--r-m);
+  color: var(--texto-2);
+  text-align: center;
+}
+
+.zonaSobre {
+  border-color: var(--info);
+  background: var(--info-tenue);
+  color: var(--texto-1);
+}
+
+.formatos {
+  margin: 0;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno, 0.8125rem);
+}
+
+.leyendo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.nombre {
+  overflow: hidden;
+  color: var(--texto-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leido {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin: 0;
+  color: var(--exito);
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-4);
+}
+
+.formulario h2,
+.formulario p {
+  margin: 0;
+}
+
+.ayuda {
+  color: var(--texto-2);
+}
+
+.acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--e-3);
+}
+
+.grupoError {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+
+.grupoError:focus {
+  outline: none;
+}
+
+.resumen {
+  display: flex;
+  align-items: center;
+  gap: var(--e-4);
+  padding: var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.miniatura {
+  flex: none;
+  width: 160px;
+  height: 90px;
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  object-fit: cover;
+}
+
+.marcador {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 90px;
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-3);
+}
+
+.datosResumen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+  min-width: 0;
+  color: var(--texto-2);
+}
+
+.nota {
+  margin: 0;
+  color: var(--texto-3);
+}
+
+.estadoGuardado {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--exito);
+}
+
+.legal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.legal h2,
+.legal p {
+  margin: 0;
+}
+
+.legal ul {
+  margin: 0;
+  padding-left: var(--e-5, 1.25rem);
+}
+
+.campoEnlace {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e-3);
+}
+
+.campoEnlace > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.reintento {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin: 0;
+  color: var(--texto-2);
+}
+
+.reintento svg {
+  color: var(--info);
+}

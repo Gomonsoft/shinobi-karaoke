@@ -16,7 +16,7 @@
 - [x] UX: ajustar specs tras 0001, 0002 y 0005 → [0006](preguntas/0006-ajustes-specs-ux-tras-0005.md) respondida (disenador-ux, 2026-11-04): specs 01–08 y sistema visual actualizadas; "lista incompleta" definida en `ux/02`, `ux/06` y `ux/07`. Tareas ajustadas por el arquitecto (2026-11-04): 0019 (lista incompleta y singular), 0020 (filtro *Listas* incluye incompletas) y 0006 (palabras que se mueven y se borran con su línea; ADR 0005/0006 y `arquitectura.md` revisados).
 
 ## Fase 1 — Esqueleto — **cerrada (2026-11-04)**, salvo mediciones pendientes en NVIDIA/Windows/Linux
-Proyecto base, comunicación con el worker, persistencia de canciones, sistema visual y biblioteca. 20 de 20 tareas hechas. Spike 0005 cerrado con datos medidos en un MacBook Air M1 8 GB; preguntas [0009](preguntas/0009-audio-separator-exige-ffmpeg.md) (parche + soundfile, sin ffmpeg) y [0010](preguntas/0010-apple-silicon-cpu-mas-rapida-que-mps.md) (Apple Silicon en CPU) respondidas; ADR 0001–0004 y `arquitectura.md` actualizados. Abierta para el **usuario**: [0012](preguntas/0012-licencia-no-declarada-del-modelo-rapido.md) (licencia no declarada del modelo Rápido; bloquea solo la elección del modelo Rápido en la Fase 3). Revisión técnica de cierre: decisiones de los programadores aceptadas y recogidas en ADR 0003, 0005 y 0006; seguridad en el nuevo [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md); textos y comportamientos de UI no definidos por la spec enviados a UX en [0007](preguntas/0007-textos-y-comportamientos-de-ui-no-definidos-fase-1.md) (respondida por disenador-ux el mismo día, con revisión visual en `ux/revision-fase-1/`); sus cambios de código ([pregunta 0008](preguntas/0008-ajustes-ui-tras-revision-fase-1.md), respondida) son las tareas 0026 y 0027.
+Proyecto base, comunicación con el worker, persistencia de canciones, sistema visual y biblioteca. 20 de 20 tareas hechas. Spike 0005 cerrado con datos medidos en un MacBook Air M1 8 GB; preguntas [0009](preguntas/0009-audio-separator-exige-ffmpeg.md) (parche + soundfile, sin ffmpeg) y [0010](preguntas/0010-apple-silicon-cpu-mas-rapida-que-mps.md) (Apple Silicon en CPU) respondidas; ADR 0001–0004 y `arquitectura.md` actualizados. Respondida por el **usuario**: [0012](preguntas/0012-licencia-no-declarada-del-modelo-rapido.md) (opción C: Rápido provisional, licencia no declarada, pedir aclaración a UVR). Revisión técnica de cierre: decisiones de los programadores aceptadas y recogidas en ADR 0003, 0005 y 0006; seguridad en el nuevo [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md); textos y comportamientos de UI no definidos por la spec enviados a UX en [0007](preguntas/0007-textos-y-comportamientos-de-ui-no-definidos-fase-1.md) (respondida por disenador-ux el mismo día, con revisión visual en `ux/revision-fase-1/`); sus cambios de código ([pregunta 0008](preguntas/0008-ajustes-ui-tras-revision-fase-1.md), respondida) son las tareas 0026 y 0027.
 
 | Tarea | Título | Depende de | Estado |
 |-------|--------|-----------|--------|
@@ -59,16 +59,54 @@ Hecho tras cerrar 0005: ADR 0001/0002/0003/0004 y `arquitectura.md` actualizados
 - Revisión visual (0015–0020): la Biblioteca está revisada (`ux/revision-fase-1/`, tareas 0026–0027); falta otra pasada de UX sobre el Muestrario (`npm run dev`) y los esqueletos de carga (Fase 1) y sobre el indicador de actividad con trabajos reales (Fase 3).
 - Componentes (0016): el diálogo no marca el resto de la app como `inert`; el tooltip no se reposiciona en los bordes; el menú sin búsqueda por letra → **Fase 5** (el editor es la vista que más los usa).
 - Marco (0018): parpadeo del título de la Biblioteca hasta que responde `listar()`, y doble `listar()` (`App` y `Biblioteca`) → **Fase 3** (al tocar el indicador de actividad); zoom sin persistir → post-MVP.
-- Semilla (0009) sin miniaturas → **Fase 2** (YouTube), junto con un E2E de la miniatura vía `shinobi-media://`.
+- Semilla (0009) sin miniaturas → **Fase 2**: tarea [0052](tareas/0052-semilla-con-miniaturas-y-e2e-de-miniatura.md).
 - `jsonAtomico` (0007): si el principal está corrupto, el siguiente guardado podría copiarlo a `.bak` → aceptado (la lectura recupera y reescribe antes); revisar si aparece en pruebas de la Fase 5 (autoguardado).
 - `config.json.danado` (0008) se sobrescribe si ya existía → aceptado en el MVP.
 - Orden de `paradas` del degradado no validado (0006) → **Fase 5** (el editor de estilo las mantiene ordenadas; añadir la validación allí).
 - E2E de eventos IPC y del indicador de actividad (0011, 0014, 0020) → **Fase 3**, con trabajos reales.
 
-## Fase 2 — Fuente
-- [ ] Gestor de runtime y primer arranque (detección previa, manifiesto con los datos de la tarea 0005 §9, uv, `uv cache clean` tras instalar, versiones fijadas por perfil incl. `audioread` explícito, borrar `*.partial` de `modelos/`, diagnóstico, modelo) — `ux/01`. Incluye: `resolverLanzador` en modo producción y ruta real del venv/código del worker (deuda de 0013; hoy `index.ts` usa siempre el modo desarrollo); detectar y **reutilizar** un runtime y modelos ya válidos si `config.json` se recreó desde cero (ADR 0006, revisión 2026-11-04); sustituir el marcador de Primer arranque y su botón provisional (0018).
-- [ ] Importar archivo local (incluye la importación real del archivo arrastrado a la Biblioteca, 0020).
-- [ ] Importar desde YouTube (miniatura convertida a JPEG con PyAV, ADR 0003 revisión 2026-11-04; semilla y E2E con miniatura).
+## Fase 2 — Fuente — desglosada (2026-11-04): tareas 0028–0054
+Decisiones de detalle en el nuevo [ADR 0009](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md) (requisitos fijados por plataforma × perfil, manifiesto, `runtime/`, descarga de modelos en main, reutilización, consultas interactivas fuera de las colas, dobles de prueba) y en la revisión de la Fase 2 del [ADR 0003](adr/0003-fuente-de-audio.md) (un solo trabajo `descargar-youtube`, miniatura JPEG desde `info-youtube`). Modelo Rápido provisional con licencia no declarada ([0012](preguntas/0012-licencia-no-declarada-del-modelo-rapido.md), opción C; **acción del usuario**: abrir la consulta a UVR, texto propuesto en su "Seguimiento"). [0013](preguntas/0013-huecos-ux-de-la-fase-2.md) respondida por el diseñador UX (B0, B6, yt-dlp automático, descarga pendiente, sin miniatura) y [0014](preguntas/0014-interrupcion-de-la-actualizacion-de-yt-dlp-y-plataformas-emuladas.md) respondida por el arquitecto: cerrojo de yt-dlp con reparación tras cierre, plataforma real (Rosetta → `darwin-arm64-mps`, Windows on ARM → B6) y sustitución de la fuente de la misma canción. Ver ADR 0009/0003/0006 (Revisiones). Tareas ajustadas: 0031, 0034, 0037, 0040, 0042, 0049, 0050, 0051, 0053 (0045, en curso, solo con una nota); nueva 0054. FFmpeg de PyAV con x264/x265 (GPL) compatible con GPL-3.0-or-later; se comprueban todas las ruedas en 0040 (ADR 0002, Revisiones).
+
+**Plataformas (respuesta a [0015](preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md), 2026-11-04)**: Apple Silicon exige **macOS 14+** (B6 por debajo); **Mac Intel sin runtime** (PyTorch ≥ 2.3 no existe para macOS x86_64): no compatible y solo DMG arm64, provisional hasta [0016](preguntas/0016-mac-intel-fuera-del-mvp.md) (**usuario**; recomendada: fuera del MVP). Textos de requisitos y B6 → [0017](preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md) (**diseñador UX**). Ajustadas 0025, 0034 (`--index-strategy unsafe-best-match`, macOS < 14), 0037, 0040; nota para 0031 (en curso) en la respuesta de 0015.
+
+**Pruebas sin red en CI**: audio generado en las pruebas; runtime falso (`SHINOBI_RUNTIME_FALSO`) y doble de yt-dlp (`SHINOBI_YTDLP_FALSO`), ignorados en la app empaquetada. Las pruebas que necesitan red o descargas grandes llevan el marcador `red`/`pesado` (pytest) o `SHINOBI_TESTS_RED=1` (Vitest/Playwright), se omiten por defecto y se ejecutan en el workflow manual de 0040.
+
+- [ ] Gestor de runtime y primer arranque — `ux/01`: 0028–0040 (`resolverLanzador` en producción en 0035; reutilizar runtime tras recrear `config.json` en 0035; marcador de Primer arranque y su botón provisional sustituidos en 0037).
+- [ ] Importar archivo local (incluida la importación real del archivo arrastrado a la Biblioteca, 0020): 0041–0046.
+- [ ] Importar desde YouTube (miniatura JPEG con PyAV; semilla y E2E con miniatura): 0047–0053.
+
+| Tarea | Título | Depende de | Paralelizable | Estado |
+|-------|--------|-----------|---------------|--------|
+| [0028](tareas/0028-worker-dependencias-y-audio-de-prueba.md) | Worker: dependencias de la Fase 2, marcadores `red`/`pesado` y audio de prueba generado | 0003, 0024 | Sí, con 0029, 0043, 0052 | Pendiente |
+| [0029](tareas/0029-contratos-compartidos-de-la-fase-2.md) | Contratos compartidos: manifiesto, resultados del worker, URL de YouTube, errores, config | 0006, 0013 | Sí, con 0028, 0043, 0052 | Pendiente |
+| [0030](tareas/0030-manifiesto-de-runtime-y-requisitos-por-perfil.md) | Manifiesto de runtime y requisitos bloqueados por plataforma y perfil | 0028, 0029 | Sí, con 0032, 0041, 0047 | Hecha (sin `darwin-x64-cpu`, `preguntas/0015`) |
+| [0031](tareas/0031-deteccion-previa-de-hardware-y-espacio.md) | Runtime: detección previa de hardware y espacio libre | 0029, 0030 | Sí, con 0032, 0033 | Pendiente |
+| [0032](tareas/0032-worker-comando-diagnostico.md) | Worker: comando `diagnostico` | 0028, 0029 | Sí, con 0030, 0031, 0033, 0041, 0047 | Pendiente |
+| [0033](tareas/0033-descarga-y-verificacion-de-modelos.md) | Runtime: descarga reanudable de modelos con SHA-256 y limpieza de `*.partial` | 0029, 0030 | Sí, con 0031, 0032 | Pendiente |
+| [0034](tareas/0034-gestor-de-runtime-instalacion-con-uv.md) | Gestor de runtime: instalación con uv, progreso, pausa y errores | 0013, 0031, 0032, 0033 | No (núcleo del bloque) | Pendiente |
+| [0035](tareas/0035-reutilizacion-del-runtime-y-lanzador-de-produccion.md) | Runtime: comprobación al arrancar, reutilización y `resolverLanzador` en producción | 0034 | Sí, con 0036 | Hecha |
+| [0036](tareas/0036-api-ipc-del-runtime-y-solicitud-de-cierre.md) | API IPC del runtime, solicitud de cierre y menú bloqueado en el primer arranque | 0011, 0021, 0034 | Sí, con 0035 | Pendiente |
+| [0037](tareas/0037-vista-primer-arranque.md) | Vista Primer arranque B1–B5 (sustituye el marcador) | 0016, 0018, 0036, 0038 | Sí, con 0035, 0040 | Pendiente |
+| [0038](tareas/0038-dialogo-acerca-de-y-licencias.md) | Bloque "Acerca de" y diálogos de licencias (reutilizable en Ajustes) | 0011, 0016 | Sí, en cualquier momento | Hecha |
+| [0039](tareas/0039-e2e-primer-arranque-con-runtime-falso.md) | E2E del primer arranque con runtime falso (sin red) | 0035, 0037 | Sí, con 0040 | Hecha |
+| [0040](tareas/0040-ci-manual-instalacion-real-del-runtime.md) | CI manual: instalación real del runtime en los 3 SO y mediciones (**red**) | 0030, 0035 | Sí, con 0037, 0039 | En curso |
+| [0041](tareas/0041-worker-importar-archivo.md) | Worker: `importar-archivo` (PyAV → `mezcla.flac` 16 bits, sonoridad, metadatos) | 0028, 0029 | Sí, con todo el bloque de runtime y con 0047 | Pendiente |
+| [0042](tareas/0042-main-importacion-de-archivo-local.md) | Main: importación de archivo local (`.importando`, materializar) | 0010, 0011, 0013, 0041 | Sí, con 0043, 0048 | Pendiente |
+| [0043](tareas/0043-cabecera-del-espacio-de-cancion-y-stepper.md) | Cabecera del espacio de canción con stepper | 0016, 0018, 0019 | Sí, en cualquier momento | Pendiente |
+| [0044](tareas/0044-vista-anadir-cancion-archivo-local.md) | Vista Añadir canción: archivo local y arrastrar a la Biblioteca | 0042, 0043 (+ 0036 para la estimación) | Sí, con 0045 | Pendiente |
+| [0045](tareas/0045-vista-progreso-subpasos-de-fuente.md) | Vista de progreso: subpasos de la fuente | 0014, 0020, 0043 | Sí, con 0044 | Pendiente |
+| [0046](tareas/0046-e2e-importar-archivo-local.md) | E2E: importar un archivo local (elegir y arrastrar) | 0044, 0045 | Sí, con el bloque de YouTube | Pendiente |
+| [0047](tareas/0047-worker-info-youtube.md) | Worker: `info-youtube`, miniatura JPEG y adaptador `FuenteYoutube` | 0028, 0029 | Sí, con 0041 y el bloque de runtime | Pendiente |
+| [0048](tareas/0048-worker-descargar-youtube.md) | Worker: `descargar-youtube` (descarga + normalización) | 0041, 0047 | Sí, con 0042 | Pendiente |
+| [0049](tareas/0049-main-servicio-de-youtube.md) | Main: servicio de YouTube (consulta, aviso, crear, encolar, reintentar) | 0014, 0042, 0048 | Sí, con 0044, 0045 | Pendiente |
+| [0050](tareas/0050-actualizacion-de-yt-dlp.md) | Actualización de yt-dlp: semanal y reintento tras bloqueo | 0035, 0049 | Sí, con 0051 | Pendiente |
+| [0051](tareas/0051-vista-anadir-cancion-youtube.md) | Vista Añadir canción: YouTube | 0044, 0049 | Sí, con 0050 | Pendiente |
+| [0052](tareas/0052-semilla-con-miniaturas-y-e2e-de-miniatura.md) | Semilla con miniaturas y E2E de la miniatura vía `shinobi-media://` | 0009, 0012, 0019, 0022 | Sí, en cualquier momento | Pendiente |
+| [0053](tareas/0053-e2e-importar-desde-youtube-sin-red.md) | E2E: YouTube sin red (doble de yt-dlp) + prueba opcional con red | 0045, 0050, 0051, 0052 | No (cierra el bloque) | Pendiente |
+| [0054](tareas/0054-informacion-para-soporte-completa.md) | "Copiar información para soporte" con arquitectura real, yt-dlp y `sin instalar` | 0038, 0031, 0050 | Sí, con 0051/0053 | Pendiente |
+
+Orden sugerido con dos o tres programadores: **(A) runtime** 0028/0029 → 0030 → 0031 ‖ 0032 ‖ 0033 → 0034 → 0035 ‖ 0036 → 0037 → 0039 (+ 0040); **(B) archivo local** 0041 → 0042 → 0044 ‖ 0045 → 0046 (0043 y 0038 en cualquier hueco); **(C) YouTube** 0047 → 0048 → 0049 → 0050 ‖ 0051 → 0053 (0052 en cualquier hueco; 0054 tras 0050). Los bloques B y C solo necesitan de A los contratos (0028, 0029) hasta 0050, que usa 0035.
 
 ## Fase 3 — Separación de pistas
 - [ ] Separación en segundo plano con progreso (interfaz `Separador` con el parche sin ffmpeg y `use_soundfile=True` de `preguntas/0009`, CPU forzada en Apple Silicon de `preguntas/0010`, renombrado de stems, test "sin ffmpeg en el PATH"; modelo Rápido según `preguntas/0012`; vista de progreso, **panel** del indicador de actividad —el indicador informativo y las líneas en vivo ya están, 0020—, avisos al terminar: toasts de fin/error y notificaciones del sistema).
@@ -89,4 +127,4 @@ Hecho tras cerrar 0005: ADR 0001/0002/0003/0004 y `arquitectura.md` actualizados
 ## Fase 7 — Empaquetado y distribución
 | Tarea | Título | Depende de | Estado |
 |-------|--------|-----------|--------|
-| [0025](tareas/0025-empaquetado-e-instaladores.md) | Empaquetado: electron-builder, *fuses* (ADR 0008) e instaladores sin firma | 0022, 0024 (+ gestor de runtime, Fase 2) | Pendiente |
+| [0025](tareas/0025-empaquetado-e-instaladores.md) | Empaquetado: electron-builder, *fuses* (ADR 0008) e instaladores sin firma | 0022, 0024 (+ 0035, 0038 de la Fase 2) | Pendiente |

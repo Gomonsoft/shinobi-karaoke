@@ -53,7 +53,8 @@ Al elegirla, diálogo: "¿Usar el modo Calidad? En tu equipo cada canción tarda
 | Créditos y licencias de terceros | Diálogo con `THIRD_PARTY_NOTICES.md` renderizado (UVR y autores de modelos, fuentes OFL, FFmpeg, yt-dlp, Electron…). |
 | Aviso sobre YouTube | Diálogo de solo lectura con el texto del aviso legal (spec 03) y la fecha de aceptación. |
 | Abrir carpeta de datos | Abre el directorio de datos en el explorador del sistema. |
-| Copiar información para soporte | Copia versión, SO, perfil de hardware y modo de separación. Toast "Información copiada". |
+| Copiar información para soporte | Copia versión, SO con su versión (p. ej. `macOS 14.5`) y arquitectura real, perfil de hardware, modo de separación, versión de yt-dlp y fecha de su última comprobación (útil ante `YOUTUBE_BLOQUEADO`, ya que se actualiza solo). Los datos que aún no existen (p. ej. abierto desde B1, B6 o B0 de la spec 01, sin motor instalado) se copian como `sin instalar`, nunca se omite la línea ni falla. Toast "Información copiada". |
+| Diálogo Acerca de desde el primer arranque (B1, B5, B6 de la spec 01) | Mismo bloque "Acerca de", sin la sección "Separación de voz". "Abrir carpeta de datos" se muestra solo si la carpeta existe. "Aviso sobre YouTube" muestra "No aceptado todavía" si procede. |
 | Teclado | Ctrl/Cmd+, abre esta vista; Esc vuelve. |
 
 ## Estados
@@ -90,3 +91,4 @@ Al elegirla, diálogo: "¿Usar el modo Calidad? En tu equipo cada canción tarda
 6. "Ver licencia" y "Créditos y licencias de terceros" muestran los textos completos sin conexión.
 7. "Aviso sobre YouTube" muestra el texto del aviso y la fecha de aceptación (o "No aceptado todavía").
 8. La vista es operable con teclado y Esc vuelve a la Biblioteca.
+9. "Copiar información para soporte" incluye la versión de yt-dlp y la fecha de su última comprobación; sin motor instalado copia `sin instalar` en los campos que falten y funciona igual desde el diálogo Acerca de del primer arranque ([0013](../preguntas/0013-huecos-ux-de-la-fase-2.md)).

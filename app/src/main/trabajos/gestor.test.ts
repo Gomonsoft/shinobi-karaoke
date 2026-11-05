@@ -315,3 +315,151 @@ describe('progreso', () => {
     await g.cancelarTodos()
   })
 })
+
+describe('yt-dlp: mantenimiento y reintento automático (0050)', () => {
+  const descarga = (id: string) => peticion(id, 'ligera', { comando: 'descargar-youtube' })
+  const bloqueo = { codigo: 'YOUTUBE_BLOQUEADO', mensaje: 'YouTube bloqueó la descarga' }
+
+  function montarGestor(extra: Record<string, unknown> = {}) {
+    const fin: (() => void)[] = []
+    let mantenimiento = false
+    const g = new GestorTrabajos({
+      biblioteca: bib,
+      ejecutar: worker.ejecutar,
+      mantenimiento: {
+        enMantenimiento: () => mantenimiento,
+        alTerminarMantenimiento: (cb) => fin.push(cb)
+      },
+      ...extra
+    })
+    const vistos: TrabajoIpc[] = []
+    g.suscribir((t) => vistos.push(t))
+    return {
+      g,
+      vistos,
+      empezar: () => (mantenimiento = true),
+      terminar: () => {
+        mantenimiento = false
+        fin.splice(0).forEach((cb) => cb())
+      }
+    }
+  }
+
+  it('una descarga espera en_cola con motivo mantenimiento y arranca al terminar', async () => {
+    const m = montarGestor()
+    m.empezar()
+    const t = m.g.encolar(descarga('a'))
+    await reposo()
+    expect(worker.llamadas).toHaveLength(0)
+    expect(m.g.obtener(t.id)).toMatchObject({ estado: 'en_cola', motivo: 'mantenimiento' })
+    expect(m.vistos.some((v) => v.motivo === 'mantenimiento')).toBe(true)
+    m.terminar()
+    await reposo()
+    expect(worker.llamadas).toHaveLength(1)
+    expect(m.g.obtener(t.id)).toMatchObject({ estado: 'en_curso', motivo: null })
+    worker.llamadas[0]!.resolver()
+    await reposo()
+  })
+
+  it('cancelar una descarga que espera el mantenimiento no lanza nada', async () => {
+    const m = montarGestor()
+    m.empezar()
+    const t = m.g.encolar(descarga('a'))
+    await reposo()
+    await m.g.cancelar(t.id)
+    m.terminar()
+    await reposo()
+    expect(worker.llamadas).toHaveLength(0)
+    expect(bib.estados('a', 'fuente')).toEqual([])
+  })
+
+  it('los trabajos que no son de yt-dlp no esperan', async () => {
+    const m = montarGestor()
+    m.empezar()
+    m.g.encolar(peticion('a', 'ligera'))
+    await reposo()
+    expect(worker.llamadas).toHaveLength(1)
+    worker.llamadas[0]!.resolver()
+    await reposo()
+  })
+
+  it('YOUTUBE_BLOQUEADO: emite actualizando, actualiza y relanza una vez sin soltar el puesto', async () => {
+    const actualizar = vi.fn(() => Promise.resolve())
+    const m = montarGestor({ actualizarYtDlp: actualizar })
+    const a = m.g.encolar(descarga('a'))
+    const b = m.g.encolar(descarga('b'))
+    const progresos: string[] = []
+    m.g.suscribirProgreso((p) => progresos.push(p.fase))
+    await reposo()
+    worker.llamadas[0]!.fallar(bloqueo)
+    await reposo(30)
+    expect(actualizar).toHaveBeenCalledTimes(1)
+    expect(progresos).toContain('actualizando')
+    // Relanzada la misma descarga; la siguiente sigue en cola.
+    expect(worker.llamadas.map((l) => l.args.cancionId)).toEqual(['a', 'a'])
+    expect(m.g.obtener(b.id)?.estado).toBe('en_cola')
+    worker.llamadas[1]!.resolver()
+    await reposo()
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'completado'])
+    expect(m.g.obtener(a.id)).toBeUndefined()
+  })
+
+  it('si vuelve a fallar con YOUTUBE_BLOQUEADO termina en error sin un segundo reintento', async () => {
+    const actualizar = vi.fn(() => Promise.resolve())
+    const m = montarGestor({ actualizarYtDlp: actualizar })
+    m.g.encolar(descarga('a'))
+    await reposo()
+    worker.llamadas[0]!.fallar(bloqueo)
+    await reposo(30)
+    worker.llamadas[1]!.fallar(bloqueo)
+    await reposo(30)
+    expect(actualizar).toHaveBeenCalledTimes(1)
+    expect(worker.llamadas).toHaveLength(2)
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'error'])
+    const ultimo = bib.cambios.at(-1)!.cambio.pasos as Record<string, { error: { codigo: string } }>
+    expect(ultimo.fuente!.error.codigo).toBe('YOUTUBE_BLOQUEADO')
+  })
+
+  it('si la actualización falla, el trabajo termina con el error original', async () => {
+    const m = montarGestor({ actualizarYtDlp: () => Promise.reject(new Error('sin red')) })
+    m.g.encolar(descarga('a'))
+    await reposo()
+    worker.llamadas[0]!.fallar(bloqueo)
+    await reposo(30)
+    expect(worker.llamadas).toHaveLength(1)
+    const ultimo = bib.cambios.at(-1)!.cambio.pasos as Record<string, { error: { codigo: string } }>
+    expect(ultimo.fuente!.error.codigo).toBe('YOUTUBE_BLOQUEADO')
+  })
+
+  it('cancelar durante actualizando deja el paso pendiente y la actualización sigue', async () => {
+    let terminada = false
+    let acabar: () => void = () => undefined
+    const actualizar = vi.fn(
+      () =>
+        new Promise<void>((r) => {
+          acabar = () => ((terminada = true), r())
+        })
+    )
+    const m = montarGestor({ actualizarYtDlp: actualizar })
+    const t = m.g.encolar(descarga('a'))
+    await reposo()
+    worker.llamadas[0]!.fallar(bloqueo)
+    await reposo(30)
+    await m.g.cancelar(t.id)
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'pendiente'])
+    expect(terminada).toBe(false)
+    acabar()
+    await reposo()
+    expect(worker.llamadas).toHaveLength(1)
+  })
+
+  it('los demás comandos no se reintentan', async () => {
+    const actualizar = vi.fn(() => Promise.resolve())
+    const m = montarGestor({ actualizarYtDlp: actualizar })
+    m.g.encolar(peticion('a', 'ligera'))
+    await reposo()
+    worker.llamadas[0]!.fallar(bloqueo)
+    await reposo(30)
+    expect(actualizar).not.toHaveBeenCalled()
+  })
+})

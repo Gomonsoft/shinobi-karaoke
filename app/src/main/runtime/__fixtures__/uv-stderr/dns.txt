@@ -1,0 +1,7 @@
+Using Python 3.13.1 environment at: v1
+error: Failed to fetch: http://nonexistent.invalid/simple/six/
+  cause: error sending request for url (http://nonexistent.invalid/simple/six/)
+  cause: client error (Connect)
+  cause: dns error
+  cause: error resolving DNS
+  cause: failed to lookup address information: nodename nor servname provided, or not known

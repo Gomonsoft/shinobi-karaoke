@@ -1,0 +1,15 @@
+{
+  "id": "aaaaaaaaaaa",
+  "_type": "video",
+  "title": "Artista Ejemplo - Canción de prueba (Official Video) [HD]",
+  "channel": "ArtistaEjemploVEVO",
+  "uploader": "ArtistaEjemploVEVO",
+  "duration": 215,
+  "live_status": "not_live",
+  "is_live": false,
+  "thumbnails": [
+    { "url": "https://i.ytimg.com/vi/aaaaaaaaaaa/default.jpg", "width": 120, "height": 90 },
+    { "url": "https://i.ytimg.com/vi/aaaaaaaaaaa/hqdefault.jpg", "width": 480, "height": 360 },
+    { "url": "https://i.ytimg.com/vi/aaaaaaaaaaa/maxresdefault.jpg", "width": 1280, "height": 720 }
+  ]
+}

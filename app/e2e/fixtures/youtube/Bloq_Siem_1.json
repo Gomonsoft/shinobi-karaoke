@@ -1,0 +1,9 @@
+{
+  "id": "Bloq_Siem_1",
+  "_type": "video",
+  "title": "Tema siempre bloqueado",
+  "channel": "Canal de prueba",
+  "duration": 35,
+  "live_status": "not_live",
+  "error_descarga": "ERROR: [youtube] Bloq_Siem_1: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication."
+}

@@ -1,0 +1,135 @@
+/* Cabecera del espacio de canción (docs/ux/00 §2, sistema-visual §6 "Lista de pasos"). */
+.cabecera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  margin-bottom: var(--e-5);
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: var(--e-4);
+  min-width: 0;
+}
+
+.titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--texto-1);
+  font-size: var(--t-subtitulo);
+  line-height: var(--t-subtitulo-lh);
+  font-weight: var(--t-subtitulo-peso);
+}
+
+.artista {
+  color: var(--texto-2);
+  font-weight: 400;
+}
+
+.pasos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+}
+
+.paso {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-2);
+  font-size: var(--t-cuerpo);
+  line-height: var(--t-cuerpo-lh);
+}
+
+.paso:hover {
+  background: var(--fondo-2);
+}
+
+.paso[aria-disabled='true'] {
+  color: var(--texto-desactivado);
+  cursor: not-allowed;
+}
+
+.paso[aria-disabled='true']:hover {
+  background: transparent;
+}
+
+.paso[aria-current='step'] {
+  color: var(--texto-1);
+  font-weight: 600;
+}
+
+.circulo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-pildora);
+}
+
+.ind_completado .circulo {
+  border-color: var(--exito);
+  color: var(--exito);
+}
+
+.ind_curso .circulo {
+  border-color: var(--info);
+  color: var(--info);
+}
+
+.ind_error .circulo {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.ind_interrumpido .circulo {
+  border-color: var(--aviso);
+  color: var(--aviso);
+}
+
+.ind_actual .circulo {
+  border-color: var(--acento);
+  background: var(--acento);
+  color: var(--texto-sobre-acento);
+}
+
+.ind_curso .circulo svg {
+  animation: girar 1.2s linear infinite;
+}
+
+.detalle {
+  color: var(--texto-2);
+  font-weight: 400;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ind_curso .circulo svg {
+    animation: none;
+  }
+}

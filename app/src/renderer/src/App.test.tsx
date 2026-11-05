@@ -47,6 +47,7 @@ function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {})
         )
     },
     config: { obtener: () => Promise.resolve(config) },
+    sistema: { info: () => Promise.resolve({ youtube: false }) },
     trabajos: {
       listar: () => Promise.resolve(trabajosIniciales),
       alCambiar: (cb: (t: TrabajoIpc) => void) => {
@@ -59,8 +60,48 @@ function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {})
       }
     },
     rutaDeArchivo: (f: File) => `/ruta/${f.name}`,
+    fuente: {
+      importarArchivo: vi.fn(() => new Promise(() => undefined)),
+      cancelarImportacion: () => Promise.resolve(),
+      descartarImportacion: () => Promise.resolve()
+    },
     alCambiarCancion: () => () => undefined,
     alCambiarConfig: () => () => undefined,
+    runtime: {
+      estado: () =>
+        Promise.resolve({
+          estado: 'pendiente',
+          fases: { motor: 'pendiente', componentes: 'pendiente', modelo: 'pendiente' },
+          error: null,
+          perfilPrevisto: 'cpu',
+          perfil: null,
+          motivoRebaja: null,
+          modo: 'rapido',
+          bytesRestantes: null
+        }),
+      requisitos: () =>
+        Promise.resolve({
+          plataforma: 'linux-x64',
+          motivo: null,
+          versionMinimaSo: null,
+          equipo: { so: 'linux', versionSo: '6.8', arquitectura: 'x64' },
+          emulada: false,
+          perfil: 'cpu',
+          gpu: null,
+          bytesDescarga: 700_000_000,
+          espacioRequerido: 3_000_000_000,
+          espacioLibre: 120_000_000_000,
+          modoPrevisto: 'rapido'
+        }),
+      instalar: () => Promise.resolve(),
+      alCambiar: () => () => undefined,
+      alProgreso: () => () => undefined
+    },
+    app: {
+      confirmarCierre: () => Promise.resolve(),
+      salir: () => Promise.resolve(),
+      alSolicitudCierre: () => () => undefined
+    },
     alAccionMenu: (cb: (a: AccionMenu) => void) => {
       accionMenu = cb
       return () => {
@@ -90,13 +131,15 @@ describe('arranque', () => {
     expect(screen.getByRole('main')).toBeInTheDocument()
   })
 
-  it('con la instalación incompleta muestra el marcador de Primer arranque sin barra', async () => {
+  it('con la instalación incompleta muestra la Bienvenida de Primer arranque sin barra', async () => {
     await abrir({ instalacion: 'pendiente' })
-    expect(screen.getByRole('heading', { level: 1, name: 'Primer arranque' })).toBeInTheDocument()
+    const bienvenida = { level: 1, name: 'Hola. Vamos a preparar tu estudio de karaoke.' } as const
+    expect(await screen.findByRole('heading', bienvenida)).toBeInTheDocument()
     expect(screen.queryByRole('banner')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Ir a la Biblioteca' })).toBeNull()
     teclear({ key: ',', ctrlKey: true })
     teclear({ key: 'n', ctrlKey: true })
-    expect(screen.getByRole('heading', { level: 1, name: 'Primer arranque' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', bienvenida)).toBeInTheDocument()
   })
 })
 
@@ -144,7 +187,7 @@ describe('atajos globales', () => {
     await abrir()
     teclear({ key: 'n', ctrlKey: true })
     expect(screen.getByRole('heading', { level: 1, name: 'Añadir canción' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '‹ Biblioteca' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Biblioteca' }))
     teclear({ key: 'n', metaKey: true })
     expect(screen.getByRole('heading', { level: 1, name: 'Añadir canción' })).toBeInTheDocument()
   })
@@ -311,7 +354,8 @@ describe('arrastrar un archivo', () => {
     await abrir()
     soltar(['tema.MP3'])
     expect(screen.getByRole('heading', { level: 1, name: 'Añadir canción' })).toBeInTheDocument()
-    expect(screen.getByText('Archivo seleccionado: /ruta/tema.MP3')).toBeInTheDocument()
+    expect(screen.getByText('tema.MP3')).toBeInTheDocument()
+    expect(window.shinobi.fuente.importarArchivo).toHaveBeenCalledWith('/ruta/tema.MP3')
   })
 
   it('un formato no admitido avisa y no navega; varios archivos avisan y usan el primero', async () => {
@@ -325,7 +369,8 @@ describe('arrastrar un archivo', () => {
     ).toBeInTheDocument()
     soltar(['a.flac', 'b.wav'])
     expect(screen.getByText('Añade las canciones de una en una.')).toBeInTheDocument()
-    expect(screen.getByText('Archivo seleccionado: /ruta/a.flac')).toBeInTheDocument()
+    expect(screen.getByText('a.flac')).toBeInTheDocument()
+    expect(window.shinobi.fuente.importarArchivo).toHaveBeenCalledWith('/ruta/a.flac')
   })
 
   it('fuera de la Biblioteca no navega', async () => {

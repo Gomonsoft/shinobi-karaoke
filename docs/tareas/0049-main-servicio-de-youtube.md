@@ -1,0 +1,33 @@
+# 0049 — Main: servicio de YouTube (consulta, aviso legal, crear canción, encolar descarga y reintentar)
+- Estado: Hecha
+- Paso del pipeline: 1
+- Depende de: 0014, 0042, 0048
+- ADRs: 0003 (mitigaciones legales 3 y 5), 0006 (Revisiones: sustitución de la fuente), 0008 (URLs validadas en main), 0009 §7–§8 y Revisiones; `preguntas/0014` §3
+- Spec UX: docs/ux/03-anadir-cancion.md (flujo YouTube, criterios 4–8, 11, 13); docs/ux/04-progreso-pipeline.md (cancelar descarga)
+
+## Objetivo
+Orquestar YouTube en el proceso principal: consulta interactiva de información, creación del borrador al confirmar (con su miniatura), trabajo de descarga en la cola `ligera` y reintento con la misma URL.
+
+## Criterios de aceptación
+- [x] `app/src/main/fuente/youtube.ts` + IPC:
+  - `fuente.infoYoutube(url)` → `{ consultaId, idVideo, tituloOriginal, canal, duracionS, metadatos, miniaturaDataUrl | null }`: valida en main con `analizarUrlYoutube` (0029; sin llamada al worker si falla), exige `config.aviso_youtube_aceptado` no nulo (si no, `ARGUMENTOS_NO_VALIDOS`) y ejecuta `info-youtube` fuera de las colas (ADR 0009 §7). Una consulta nueva cancela la anterior. `fuente.cancelarInfo(consultaId)`.
+  - El resultado completo (incluida la URL canónica y la miniatura en bytes) se guarda en main por `consultaId` (máx. 5 consultas, descartadas al confirmar o al cabo de 30 min).
+  - `fuente.confirmarYoutube(consultaId, metadatos)` → `ResumenCancion`: `biblioteca.crear()` con `fuente.tipo = "youtube"`, `url` canónica, `youtube_id`, `metadatos` del usuario (`duracion_ms` provisional de YouTube), `pasos.fuente = pendiente`; escribe `fuente/miniatura.jpg` (si hay) y `fuente.miniatura`; y encola `descargar-youtube` (cola `ligera`, paso `fuente`) con `alResultado` que aplica `mezcla`, `ganancia_db`, `duracion_ms` real y `alDescartar` que borra `fuente/descarga.*` y `mezcla.flac.tmp`.
+  - **Sustitución de la fuente** (`preguntas/0014` §3, ADR 0006 Revisiones): `fuente.confirmarYoutube(consultaId, metadatos, { cancionId })`. Solo se admite si `pasos.fuente` está en `pendiente`/`error`/`interrumpido`, no hay trabajo vivo de esa canción y no existe `fuente/mezcla.flac`; si no → `ARGUMENTOS_NO_VALIDOS`. Pasos, en este orden:
+    1. Miniatura nueva a `fuente/miniatura.jpg.tmp` + `rename`, o borra la anterior si no hay.
+    2. Borra `fuente/descarga.*`.
+    3. Una escritura atómica de `cancion.json` con la `fuente` nueva (`url`, `youtube_id`, `miniatura`), los metadatos, `duracion_ms` provisional y `pasos.fuente = pendiente`, `error: null`.
+    4. Encola `descargar-youtube`.
+    Se conservan id, carpeta, estilo y `letra.json`. Devuelve el `ResumenCancion` de la misma canción. Para `ux/03` wireframe E y error no reintentable.
+  - `fuente.reintentar(cancionId)`: con `pasos.fuente` en `error`, `interrumpido` o `pendiente` y `fuente.tipo = "youtube"`, vuelve a encolar la descarga con la URL guardada en `cancion.json` (`ux/03` criterio 13). Otros casos → `ARGUMENTOS_NO_VALIDOS`.
+- [x] El renderer nunca envía la URL al encolar: solo `consultaId`/`cancionId` (la URL viaja de main al worker como argumento JSON, nunca por shell).
+- [x] **Módulo desactivable** (ADR 0003, mitigación 5): constante de compilación `YOUTUBE_ACTIVO` (por defecto `true`; `SHINOBI_SIN_YOUTUBE=1` al compilar la desactiva) expuesta en `sistema.info().youtube`; desactivado, los canales `fuente.*Youtube*` responden `ARGUMENTOS_NO_VALIDOS` y no se registra nada de YouTube.
+- [x] `SHINOBI_YTDLP_FALSO` se pasa al entorno del worker solo si `!app.isPackaged` (ADR 0009 §8); empaquetada se elimina del entorno del hijo.
+- [x] Tests (Vitest, worker de desarrollo real con el doble de 0047/0048, sin red): URL inválida sin lanzar procesos; aviso no aceptado; info → confirmar → trabajo en cola `ligera` → canción `completado` con `mezcla.flac` y `miniatura.jpg`; error del doble → paso `error` con su código; cancelación a mitad → paso `pendiente` y sin `descarga.*`; cierre de la app a mitad → `interrumpido`; `reintentar` tras error e interrumpido; sustitución sobre `pendiente` y `error` (mismo id, `letra.json` intacta, miniatura nueva o borrada, descarga encolada con la URL nueva) y rechazo con trabajo vivo o con `mezcla.flac`; módulo desactivado. Los procesos de yt-dlp pasan por el cerrojo de 0050 (hasta 0050, un cerrojo trivial que no espera).
+
+## Notas de implementación
+- **Qué se hizo**: `app/src/main/fuente/youtube.ts` (`ServicioYoutube`, `ErrorYoutube`, `YOUTUBE_ACTIVO`, `CerrojoYtdlp` + `cerrojoTrivial`, `ejecutarConCerrojo`, `entornoYtdlpFalso`), cableado en `main/index.ts` y canales nuevos `fuente.infoYoutube`, `cancelarInfo`, `confirmarYoutube(consultaId, metadatos, { cancionId }?)` y `reintentar(cancionId)` (`shared/canales.ts`, `ipc.ts`, preload, `ipc/handlers.ts`). `sistema.info()` gana `youtube: boolean`. La URL canónica y los bytes de la miniatura se quedan en main por `consultaId` (máx. 5, 30 min, se descartan al confirmar); la descarga se encola en la cola `ligera`, paso `fuente`, con `alResultado` (mezcla, ganancia, `duracion_ms` real) y `alDescartar` (borra `descarga.*` y `mezcla.flac.tmp`).
+- **Decisiones**: `cancelarInfo` admite id opcional (como `cancelarImportacion`): mientras se consulta el renderer no conoce el id, así que sin id cancela la consulta en curso. `confirmar` crea la canción con `miniatura: null`, escribe `miniatura.jpg` y luego fija `fuente.miniatura` (dos escrituras; así el índice ve la miniatura). `reintentar` pone el paso en `pendiente` antes de encolar (si la cola está ocupada la UI no ve un `error` obsoleto), borra restos, y revalida la URL guardada. Se rechazan operaciones simultáneas sobre la misma canción. Desactivado el módulo, `deps.youtube` no se crea y los cuatro canales responden `ARGUMENTOS_NO_VALIDOS` (`define` `__SHINOBI_YOUTUBE__` en `electron.vite.config.ts`, `SHINOBI_SIN_YOUTUBE=1` al compilar). `SHINOBI_YTDLP_FALSO` solo se añade al entorno del worker sin empaquetar; empaquetada se borra de `process.env` al arrancar.
+- **Cerrojo**: `ejecutarConCerrojo` envuelve `info-youtube` y `descargar-youtube` (también para el gestor); hasta 0050 el cerrojo es trivial. 0050 debe sustituir `cerrojoTrivial` en `index.ts` por el real (`conLectura`).
+- **Cómo probarlo** (desde `app/`): `SHINOBI_UV=/ruta/uv npx vitest run src/main/fuente/youtube.test.ts src/main/ipc` (los de worker real se omiten sin uv; los del doble usan audios de 11 s porque el mínimo es 10 s).
+- **Deuda técnica**: sin E2E (0053); `info` no está serializada si el renderer lanza dos consultas en el mismo tick; el dato `ganancia_db` queda en 0 hasta que termina la descarga.

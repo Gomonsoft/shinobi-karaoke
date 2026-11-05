@@ -8,9 +8,10 @@
 > [0005 Letras y sincronía](adr/0005-letras-y-formato-de-sincronia.md) ·
 > [0006 Persistencia y modelo de datos](adr/0006-persistencia-y-modelo-de-datos.md) ·
 > [0007 Herramientas de desarrollo](adr/0007-herramientas-de-desarrollo-y-calidad.md) ·
-> [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md)
+> [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md) ·
+> [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md)
 >
-> Última revisión: 2026-11-04, revisión de cierre de la Fase 1 (código de las tareas 0001–0020, salvo el spike 0005).
+> Última revisión: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053); antes, revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -29,7 +30,7 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | **Cliente de letras** | Main | TS (`fetch`) | LRCLIB `get` → `search`; parseo LRC / LRC mejorado / Lyricsfile YAML → formato interno; importación de `.lrc`/`.txt` (ADR 0005). |
 | **Protocolo de medios** | Main | `protocol.handle` de Electron | Esquema propio `shinobi-media://<id>/<ruta-relativa>` para servir audio y miniaturas de la biblioteca al renderer (lista blanca de 4 rutas, rangos, 404 sin detalle), sin habilitar `file://`. CORS limitado al origen del renderer (ADR 0008). |
 | **Protocolo de la app** | Main | `protocol.handle` | Esquema `shinobi-app://app/` que sirve el build del renderer en producción en lugar de `file://` (ADR 0008, tarea 0022). |
-| **Worker de audio** | Proceso hijo Python (uno por trabajo) | Python 3.12, yt-dlp + Deno, PyAV, pyloudnorm, audio-separator (PyTorch/ONNX Runtime), soundfile | Comandos: `info-youtube`, `descargar-youtube`, `importar-archivo` (decodificar a `fuente/mezcla.flac`, sonoridad, metadatos), `separar`, `diagnostico` (hardware/aceleración). Emite JSON Lines por stdout. Sin estado propio. |
+| **Worker de audio** | Proceso hijo Python (uno por trabajo) | Python 3.12, yt-dlp + Deno, PyAV, pyloudnorm, audio-separator (PyTorch/ONNX Runtime), soundfile | Comandos: `info-youtube` (metadatos + miniatura JPEG, sin descargar audio), `descargar-youtube` (descarga + normalización en un solo trabajo), `importar-archivo` (decodificar a `fuente/mezcla.flac`, sonoridad, metadatos), `separar`, `diagnostico` (hardware/aceleración). Emite JSON Lines por stdout. Sin estado propio. yt-dlp detrás de un adaptador `FuenteYoutube` (ADR 0009). |
 
 ## 3. Flujo de datos
 
@@ -90,7 +91,8 @@ flowchart TB
 ### Secuencia típica de creación
 1. **Añadir canción**:
    - Archivo local: `importar-archivo` se ejecuta en `biblioteca/.importando/<id>/` → `fuente/mezcla.flac`, metadatos, `ganancia_db` (el original no se conserva). El usuario revisa título/artista y, al pulsar "Continuar", el servicio de biblioteca escribe `cancion.json` (paso `fuente` = `completado`) y renombra la carpeta a `biblioteca/<id>/`. Si abandona, se borra.
-   - YouTube: `info-youtube` (sin archivos); al confirmar se crea `biblioteca/<id>/cancion.json` (paso `fuente` = `en_curso`) y se encolan `descargar-youtube` → `importar-archivo` sobre la descarga (que se borra al terminar).
+   - YouTube: `info-youtube` (sin archivos; devuelve la miniatura en JPEG); al confirmar se crea `biblioteca/<id>/cancion.json` con `fuente/miniatura.jpg` y se encola **un** trabajo `descargar-youtube` (cola `ligera`) que descarga y normaliza; la descarga se borra al terminar (ADR 0003, revisión de la Fase 2).
+   - `importar-archivo` de la vista previa local e `info-youtube` son **consultas interactivas** fuera de las colas (ADR 0009 §7).
 2. **Fuente completada** → `fuente/mezcla.flac` + metadatos.
 3. **Separación** se encola automáticamente al completar la fuente, con el modo vigente al empezar → `pistas/voz.flac`, `pistas/instrumental.flac`. La mezcla se conserva (pista "Original" del editor).
 4. **Letra** (puede hacerse en paralelo a la separación): LRCLIB o manual → `letra.lineas`.
@@ -172,7 +174,8 @@ shinobi-karaoke/
 │       │   ├── ipc/              # handlers de la API expuesta al renderer
 │       │   ├── biblioteca/       # escaneo, índice, operaciones de escritura, semilla
 │       │   ├── trabajos/         # gestor (colas, ETA), cliente del worker, parser JSON Lines, registro del worker
-│       │   ├── runtime/          # (Fase 2) primer arranque con uv, detección de hardware, actualización de yt-dlp
+│       │   ├── runtime/          # (Fase 2) detección previa, gestor de instalación con uv, modelos, comprobación al arrancar, actualización de yt-dlp
+│       │   ├── fuente/           # (Fase 2) importación de archivo local y servicio de YouTube
 │       │   └── letras/           # (Fase 4) cliente LRCLIB, parsers LRC / LRC mejorado / Lyricsfile
 │       ├── preload/
 │       │   └── index.ts          # contextBridge con API tipada (sin exponer ipcRenderer)
@@ -188,10 +191,12 @@ shinobi-karaoke/
 ├── worker/                       # worker Python
 │   ├── pyproject.toml            # dependencias: yt-dlp[default], deno, av, soundfile, pyloudnorm, audio-separator[...]
 │   ├── uv.lock
+│   ├── requisitos/               # <plataforma>-<perfil>.txt fijados con hashes (ADR 0009), generados por scripts/compilar_requisitos.py
 │   ├── shinobi_worker/
 │   │   ├── __main__.py           # CLI: despacha comandos
 │   │   ├── protocolo.py          # emisión de JSON Lines (progreso, log, resultado, error con códigos)
-│   │   ├── fuente.py             # importar-archivo, info/descargar-youtube
+│   │   ├── fuente.py             # importar-archivo
+│   │   ├── youtube.py            # info/descargar-youtube, adaptador FuenteYoutube (+ doble para pruebas)
 │   │   ├── audio.py              # decodificación PyAV, remuestreo, sonoridad
 │   │   ├── separacion.py         # interfaz Separador + adaptador audio-separator, intercepción de tqdm
 │   │   └── diagnostico.py        # detección de CUDA/MPS/CPU y memoria
@@ -204,7 +209,7 @@ shinobi-karaoke/
 
 ### Modelo de ejecución
 - **Un proceso hijo Python por trabajo**, lanzado por el gestor de trabajos con el intérprete del venv: `runtime/venv/bin/python -m shinobi_worker <comando> --args '<json>'`.
-- **Colas**: `pesada` (separación) con concurrencia 1; `ligera` (YouTube, importación) con concurrencia 1. Así una descarga puede avanzar mientras otra canción se separa, sin saturar la máquina.
+- **Colas**: `pesada` (separación) con concurrencia 1; `ligera` (descarga de YouTube) con concurrencia 1. La actualización de yt-dlp no es un trabajo: un cerrojo lectores/escritor la serializa con `info-youtube` y `descargar-youtube` (ADR 0009, Revisiones). Las consultas interactivas (`importar-archivo` de la vista previa, `info-youtube`) no pasan por las colas (ADR 0009 §7). Así una descarga puede avanzar mientras otra canción se separa, sin saturar la máquina.
 - **Protocolo JSON Lines** (stdout, una línea JSON por mensaje; stderr va a `registros/`):
   ```json
   {"tipo":"progreso","fase":"descargando","valor":0.37,"detalle":{"bytes":1234567,"total":3333333}}
@@ -218,18 +223,20 @@ shinobi-karaoke/
 - **Cancelación**: matar el árbol de procesos (POSIX: proceso líder de grupo, SIGTERM al grupo → SIGKILL a los 3 s; `taskkill /T /F` en Windows); la promesa rechaza con `CANCELADO` cuando el proceso ya ha muerto y entonces el llamador borra las salidas parciales (`alDescartar`); paso → `pendiente`. Cancelar un trabajo en cola no escribe nada.
 - **Cierre de la app**: si hay trabajos, diálogo de confirmación (Fase 3; `trabajos.hayPendientes()` ya existe). Al salir se cancelan todos los trabajos (sin procesos hijos vivos), sus pasos quedan `interrumpido` (no `pendiente`) y se vuelcan las escrituras pendientes, con un plazo máximo (tarea 0021). Al reabrir, cualquier `en_curso` restante pasa también a `interrumpido`.
 - **Eventos**: `trabajo:cambio` (alta, cambio de posición en cola, fin con `resultado` `completado|error|cancelado|interrumpido`) y `trabajo:progreso` (≤ 4/s por trabajo). Los `args` del trabajo no se envían al renderer.
-- **Reintentos automáticos**: separación sin memoria → un reintento con bloques menores / perfil Rápido; descarga de YouTube con error de extracción → actualizar yt-dlp y reintentar una vez; descargas de red → reintento con espera exponencial.
+- **Reintentos automáticos**: separación sin memoria → un reintento con bloques menores / perfil Rápido; descarga o consulta de YouTube con `YOUTUBE_BLOQUEADO` → actualizar yt-dlp (sin preguntar; cancelar la operación no aborta la actualización, y si se interrumpe al cerrar la app se repara en el siguiente arranque) y reintentar una vez; descargas de red → reintento con espera exponencial.
 - **Arranque en frío del worker**: importar PyTorch y cargar el modelo cuesta 5–20 s por trabajo de separación; se acepta en el MVP (alternativa futura: worker persistente).
 
 ### Primer arranque
 Antes de empezar (pantalla de bienvenida): detección previa de hardware sin Python (SO/arquitectura, `nvidia-smi`) → perfil provisional → tamaño de descarga y espacio requerido leídos del manifiesto; espacio libre con `fs.statfs`. Requisito: CPU ≈ 3 GB, Apple Silicon ≈ 4 GB (medido: pico ≈ 3,4 GB con Calidad y caché de uv), NVIDIA ≈ 10 GB (calculado; 10 GB si la detección falla). Tras instalar se ejecuta `uv cache clean` (tarea 0005: `prune` no libera nada).
 
+Detalle de requisitos por perfil, manifiesto, directorio `runtime/`, descarga de modelos, reutilización de una instalación existente y dobles de prueba: [ADR 0009](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md).
+
 Secuencia del gestor de runtime, cada fase reanudable e idempotente (en la UI se agrupan en 3 fases visibles, `docs/ux/01-primer-arranque.md`):
 1. Detección básica de plataforma.
 2. `uv python install 3.12` → `uv venv` en `runtime/`.
-3. `uv pip install --torch-backend=auto -r <requisitos bloqueados>` (incluye yt-dlp[default] y Deno).
+3. `uv pip install --require-hashes -r worker/requisitos/<plataforma>-<perfil>.txt` (requisitos fijados por perfil, ADR 0009 §1; incluye yt-dlp[default] y Deno) → marcador `runtime/instalado.json` → `uv cache clean`.
 4. `python -m shinobi_worker diagnostico` → confirma el perfil de hardware (CUDA / MPS / CPU; solo puede rebajar Calidad → Rápido), guardado en `config.json`.
-5. Descarga y verificación SHA-256 del modelo del perfil en `modelos/`.
+5. Descarga (en main, reanudable con `Range`) y verificación SHA-256 del modelo del perfil en `modelos/`; al arrancar se borran los `*.partial` de audio-separator.
 
 Progreso: bytes exactos para Python y modelo; para las dependencias, crecimiento de la caché de `uv` (en `runtime/`) frente al total del manifiesto (aproximado). ETA = bytes restantes / velocidad observada.
 
@@ -250,7 +257,7 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 - CSP en `renderer/index.html`: `default-src 'self'`, `script-src 'self'` (sin `unsafe-eval`), `style-src 'self' 'unsafe-inline'`, `media-src`/`img-src`/`connect-src` admiten `shinobi-media:`, `object-src 'none'`, `base-uri 'none'`, `form-action 'none'`. El renderer nunca inserta HTML sin escapar.
 - Origen del renderer: `shinobi-app://app` en producción (no `file://`) y el servidor de Vite en desarrollo (tarea 0022). `shinobi-media://` solo sirve 4 rutas por canción dentro de `biblioteca/<id>/` (`realpath`, sin symlinks que escapen) y su CORS solo admite ese origen.
 - IPC: todos los argumentos se validan con Zod en main; errores como `{ codigo, mensaje }` sin detalles internos; remitente comprobado (ventana de la app y *frame* principal del origen del renderer, tarea 0021).
-- Navegación y ventanas nuevas bloqueadas en todos los `webContents`; enlaces externos solo a la lista blanca `ENLACES_PERMITIDOS` (`lrclib.net`, `github.com/Gomonsoft/shinobi-karaoke`), tanto por IPC como por navegación; sin `<webview>`; permisos de Chromium denegados salvo pantalla completa y escribir en el portapapeles; una sola instancia de la app.
+- Navegación y ventanas nuevas bloqueadas en todos los `webContents`; enlaces externos solo a la lista blanca `ENLACES_PERMITIDOS` (`lrclib.net`, `github.com/Gomonsoft/shinobi-karaoke`, `support.apple.com/es-es/108382` para B6b), tanto por IPC como por navegación; sin `<webview>`; permisos de Chromium denegados salvo pantalla completa y escribir en el portapapeles; una sola instancia de la app.
 - Empaquetado con *fuses* restrictivos (ADR 0008, tarea 0025).
 - Las URLs de YouTube se validan en main antes de pasarlas al worker; argumentos siempre como JSON (nunca concatenados en un shell; `shell: false`).
 - Sin telemetría.
@@ -339,7 +346,7 @@ Implicaciones:
 - Sección **Acerca de / Licencias** con la licencia GPL-3.0 y créditos de terceros (UVR y autores de modelos, fuentes, FFmpeg, yt-dlp).
 
 ### 8. Requisitos del equipo (orientativos)
-- Windows 10/11 x64, macOS 12+ (Apple Silicon recomendado; Intel soportado en modo Rápido), Linux x64 con glibc ≥ 2.28.
+- Windows 10/11 x64, **macOS 14+ en Apple Silicon** (torch, onnxruntime y av solo publican `macosx_14_0_arm64`; la app muestra B6 por debajo de 14), Linux x64 con glibc ≥ 2.28. **Mac Intel: no compatible** en el MVP (sin PyTorch ≥ 2.3 para macOS x86_64; provisional hasta `preguntas/0016`; solo se publica el DMG arm64). Ver `preguntas/0015`. Cuenta la **arquitectura real** del equipo (`app.runningUnderARM64Translation`): Windows on ARM con el build x64 → B6; Mac Apple Silicon con el build x64 → runtime `darwin-arm64-mps` nativo (ADR 0009, Revisiones).
 - 8 GB de RAM mínimo; ≈ 1,3 GB (CPU/Rápido) – 2,2 GB (Apple Silicon/Calidad, medido) – ~6–8 GB (NVIDIA, estimado) de disco para el motor + ≈ 40–100 MB por canción de 4 min (medido 37–48 MB con una grabación antigua).
 - GPU opcional: NVIDIA con ≥ 4 GB de VRAM para el modo Calidad acelerado. Apple Silicon usa Calidad **en CPU** (más rápido que MPS en el M1 medido, `preguntas/0010`); pico de RAM ≈ 3,2 GB.
 - La resolución del reproductor se adapta a la pantalla; sin requisitos de GPU para el render de la letra.

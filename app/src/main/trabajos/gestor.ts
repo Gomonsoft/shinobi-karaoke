@@ -8,6 +8,7 @@ import type {
 } from '../../shared'
 import type { CambioCancion } from '../biblioteca'
 import { registroNulo, type RegistroApp } from '../registro'
+import { esperarCancelable } from './cancelable'
 import { EstimadorProgreso, UmbralProgreso } from './progreso'
 import type { OpcionesEjecucion } from './worker'
 
@@ -27,7 +28,21 @@ export type EjecutarWorker = (
   opciones: OpcionesEjecucion
 ) => Promise<Record<string, unknown>>
 
+/** Puerto del cerrojo de yt-dlp (0050): la descarga no arranca mientras hay una actualización. */
+export interface PuertoMantenimiento {
+  enMantenimiento(): boolean
+  /** Avisa una sola vez cuando termina el mantenimiento. */
+  alTerminarMantenimiento(cb: () => void): void
+}
+
 export interface OpcionesGestor {
+  /** Si se da, los trabajos `descargar-youtube` esperan `en_cola` (motivo `mantenimiento`). */
+  mantenimiento?: PuertoMantenimiento
+  /**
+   * Actualiza yt-dlp tras un `YOUTUBE_BLOQUEADO` (0050). Con ella, la descarga se relanza una
+   * vez; si la actualización falla, el trabajo termina con el error original.
+   */
+  actualizarYtDlp?: () => Promise<unknown>
   biblioteca: BibliotecaTrabajos
   /** Cliente del worker (0013). */
   ejecutar: EjecutarWorker
@@ -70,6 +85,9 @@ interface Trabajo extends PeticionTrabajo {
   umbral: UmbralProgreso
   /** Cadena de escrituras en `cancion.json` de este trabajo (en orden). */
   escrituras: Promise<unknown>
+  /** `mantenimiento` mientras espera en la cola a que termine una actualización de yt-dlp. */
+  motivo: 'mantenimiento' | null
+  reintentado: boolean
   ultimoEnvioMs: number
   temporizador: ReturnType<typeof setTimeout> | null
   /** Se resuelve cuando el trabajo ha terminado del todo (paso escrito incluido). */
@@ -109,8 +127,13 @@ export class GestorTrabajos {
   private readonly oyentes = new Set<(t: TrabajoIpc) => void>()
   private readonly oyentesProgreso = new Set<(p: EventoProgresoIpc) => void>()
   private cerrando = false
+  private readonly mantenimiento: PuertoMantenimiento | undefined
+  private readonly actualizarYtDlp: (() => Promise<unknown>) | undefined
+  private readonly vigilando = new Set<ColaTrabajo>()
 
   constructor(opciones: OpcionesGestor) {
+    this.mantenimiento = opciones.mantenimiento
+    this.actualizarYtDlp = opciones.actualizarYtDlp
     this.biblioteca = opciones.biblioteca
     this.ejecutarWorker = opciones.ejecutar
     this.registro = opciones.registro ?? registroNulo
@@ -136,6 +159,8 @@ export class GestorTrabajos {
       estimador: new EstimadorProgreso(),
       umbral: new UmbralProgreso(),
       escrituras: Promise.resolve(),
+      motivo: null,
+      reintentado: false,
       ultimoEnvioMs: Number.NEGATIVE_INFINITY,
       temporizador: null,
       fin,
@@ -224,6 +249,7 @@ export class GestorTrabajos {
       comando: t.comando,
       estado: t.estado,
       posicion: indice >= 0 ? indice + 1 : null,
+      motivo: t.estado === 'en_cola' ? t.motivo : null,
       resultado: t.resultado,
       error: t.error,
       progreso: t.progreso ? { ...t.progreso } : null
@@ -248,8 +274,28 @@ export class GestorTrabajos {
 
   private bombear(cola: ColaTrabajo): void {
     if (this.activo[cola]) return
-    const siguiente = this.esperando[cola].shift()
+    const siguiente = this.esperando[cola][0]
     if (!siguiente) return
+    if (
+      this.mantenimiento?.enMantenimiento() &&
+      (siguiente.comando === 'descargar-youtube' || siguiente.comando === 'info-youtube')
+    ) {
+      // Sigue `en_cola` hasta que acabe la actualización de yt-dlp.
+      if (siguiente.motivo !== 'mantenimiento') {
+        siguiente.motivo = 'mantenimiento'
+        this.emitirCambio(siguiente)
+      }
+      if (!this.vigilando.has(cola)) {
+        this.vigilando.add(cola)
+        this.mantenimiento.alTerminarMantenimiento(() => {
+          this.vigilando.delete(cola)
+          this.bombear(cola)
+        })
+      }
+      return
+    }
+    this.esperando[cola].shift()
+    siguiente.motivo = null
     this.activo[cola] = siguiente
     siguiente.estado = 'en_curso'
     this.emitirCambio(siguiente)
@@ -290,15 +336,27 @@ export class GestorTrabajos {
     let error: { codigo: string; mensaje: string } | null = null
     try {
       await this.escribirPaso(t, this.pasoCambio(t, 'en_curso', null))
-      const datos = await this.ejecutarWorker(t.comando, t.args, {
-        señal: t.control.signal,
-        alProgreso: (m) => this.alProgreso(t, m.fase, m.valor),
-        alLog: (m) => {
-          if (m.nivel === 'warning' || m.nivel === 'error') {
-            this.registro.escribir(m.nivel === 'error' ? 'error' : 'aviso', MODULO, m.mensaje)
+      const lanzar = (): Promise<Record<string, unknown>> =>
+        this.ejecutarWorker(t.comando, t.args, {
+          señal: t.control.signal,
+          alProgreso: (m) => this.alProgreso(t, m.fase, m.valor, m.detalle),
+          alLog: (m) => {
+            if (m.nivel === 'warning' || m.nivel === 'error') {
+              this.registro.escribir(m.nivel === 'error' ? 'error' : 'aviso', MODULO, m.mensaje)
+            }
           }
-        }
-      })
+        })
+      let datos: Record<string, unknown>
+      try {
+        datos = await lanzar()
+      } catch (e) {
+        if (!this.debeReintentar(t, e)) throw e
+        // YouTube bloqueó la descarga: se actualiza yt-dlp y se repite una vez sin soltar el puesto.
+        t.reintentado = true
+        this.alProgreso(t, 'actualizando', null)
+        await esperarCancelable(this.actualizarYtDlp!(), t.control.signal, e)
+        datos = await lanzar()
+      }
       if (t.control.signal.aborted) throw { codigo: 'CANCELADO', mensaje: 'Trabajo cancelado' }
       const extra = (await t.alResultado?.(datos)) ?? {}
       await this.limpiarProgreso(t)
@@ -329,6 +387,16 @@ export class GestorTrabajos {
     this.bombear(t.cola)
   }
 
+  private debeReintentar(t: Trabajo, e: unknown): boolean {
+    return (
+      this.actualizarYtDlp !== undefined &&
+      t.comando === 'descargar-youtube' &&
+      !t.reintentado &&
+      !t.control.signal.aborted &&
+      aError(e).codigo === 'YOUTUBE_BLOQUEADO'
+    )
+  }
+
   private async descartar(t: Trabajo): Promise<void> {
     try {
       await t.alDescartar?.()
@@ -356,9 +424,22 @@ export class GestorTrabajos {
     t.terminar()
   }
 
-  private alProgreso(t: Trabajo, fase: string, valor: number | null): void {
+  private alProgreso(
+    t: Trabajo,
+    fase: string,
+    valor: number | null,
+    detalle?: Record<string, unknown>
+  ): void {
     if (t.estado !== 'en_curso') return
     t.progreso = t.estimador.registrar(fase, valor, this.ahora())
+    const bytes = detalle?.bytes
+    const total = detalle?.total
+    if (typeof bytes === 'number' && bytes >= 0) {
+      t.progreso.detalle = {
+        bytes,
+        total: typeof total === 'number' && total >= 0 ? total : null
+      }
+    }
     if (t.progreso.valor !== null && t.umbral.aceptar(t.progreso.valor)) {
       const v = t.progreso.valor
       void this.escribirPaso(t, {

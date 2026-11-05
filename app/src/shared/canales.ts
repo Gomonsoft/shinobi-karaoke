@@ -17,7 +17,34 @@ export const CANALES = {
   },
   sistema: {
     info: 'sistema:info',
-    abrirEnlace: 'sistema:abrirEnlace'
+    abrirEnlace: 'sistema:abrirEnlace',
+    textoLegal: 'sistema:textoLegal',
+    abrirCarpetaDatos: 'sistema:abrirCarpetaDatos',
+    elegirArchivoAudio: 'sistema:elegirArchivoAudio'
+  },
+  fuente: {
+    importarArchivo: 'fuente:importarArchivo',
+    cancelarImportacion: 'fuente:cancelarImportacion',
+    confirmarArchivo: 'fuente:confirmarArchivo',
+    descartarImportacion: 'fuente:descartarImportacion',
+    infoYoutube: 'fuente:infoYoutube',
+    cancelarInfo: 'fuente:cancelarInfo',
+    confirmarYoutube: 'fuente:confirmarYoutube',
+    reintentar: 'fuente:reintentar'
+  },
+  runtime: {
+    estado: 'runtime:estado',
+    requisitos: 'runtime:requisitos',
+    instalar: 'runtime:instalar',
+    pausar: 'runtime:pausar',
+    detalles: 'runtime:detalles',
+    estimarSeparacion: 'runtime:estimarSeparacion'
+  },
+  app: {
+    /** El renderer confirma el cierre pedido por `eventos.solicitudCierre` (0036). */
+    confirmarCierre: 'app:confirmarCierre',
+    /** Sale de la aplicación (`app.quit()`), también en macOS donde cerrar la ventana no basta. */
+    salir: 'app:salir'
   },
   trabajos: {
     listar: 'trabajos:listar',
@@ -31,6 +58,14 @@ export const CANALES = {
     trabajo: 'trabajo:cambio',
     /** Progreso de un trabajo, ≤ 4 por segundo y trabajo (0014). */
     trabajoProgreso: 'trabajo:progreso',
-    menu: 'evento:menu'
+    menu: 'evento:menu',
+    /** Progreso de la instalación del runtime, ≤ 4 por segundo (0036). */
+    runtimeProgreso: 'runtime:progreso',
+    /** Cambio de fase, estado o error del runtime (0036). */
+    runtimeCambio: 'runtime:cambio',
+    /** Main pide confirmar el cierre con una instalación en curso (0036). */
+    solicitudCierre: 'app:solicitudCierre',
+    /** La consulta de YouTube espera o provoca una actualización de yt-dlp (0050). */
+    estadoInfo: 'fuente:estadoInfo'
   }
 } as const

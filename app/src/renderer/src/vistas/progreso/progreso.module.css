@@ -1,0 +1,107 @@
+/* Vista de progreso (docs/ux/04 §1). */
+.vista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-4);
+  max-width: 720px;
+}
+
+.vista h1:focus {
+  outline: none;
+}
+
+.subtitulo {
+  margin: 0;
+  color: var(--texto-2);
+}
+
+.filas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fila {
+  display: flex;
+  gap: var(--e-3);
+  color: var(--texto-2);
+}
+
+.fila_completado .icono {
+  color: var(--exito);
+}
+.fila_curso .icono,
+.fila_cola .icono {
+  color: var(--info);
+}
+.fila_error .icono {
+  color: var(--error);
+}
+.fila_interrumpido .icono {
+  color: var(--aviso);
+}
+
+.icono {
+  display: inline-flex;
+  padding-top: 2px;
+}
+
+.cuerpo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--e-2);
+  min-width: 0;
+}
+
+.cabeza {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-4);
+  color: var(--texto-1);
+}
+
+.dato {
+  color: var(--texto-2);
+}
+
+.detalle {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-4);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+
+.mientras {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  padding: var(--e-4);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.mientras h2,
+.mientras p {
+  margin: 0;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-3);
+}
+
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

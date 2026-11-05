@@ -1,0 +1,69 @@
+[
+  { "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "http://www.youtube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "youtube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "www.youtube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://YouTube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "  https://www.youtube.com/watch?v=dQw4w9WgXcQ\n", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://m.youtube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://music.youtube.com/watch?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://youtu.be/dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "youtu.be/dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://youtu.be/dQw4w9WgXcQ?si=abcDEF123&t=42", "id": "dQw4w9WgXcQ" },
+  {
+    "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s&feature=shared",
+    "id": "dQw4w9WgXcQ"
+  },
+  { "entrada": "https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  {
+    "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLabc123&index=2",
+    "id": "dQw4w9WgXcQ"
+  },
+  { "entrada": "https://www.youtube.com/shorts/abcDEFghi_-", "id": "abcDEFghi_-" },
+  { "entrada": "https://youtube.com/shorts/abcDEFghi_-/", "id": "abcDEFghi_-" },
+  { "entrada": "https://www.youtube.com/watch/?v=dQw4w9WgXcQ", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQ#t=10", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLabc123", "id": "dQw4w9WgXcQ" },
+  { "entrada": "https://www.youtube.com/watch?list=PLabc123", "codigo": "URL_NO_SOPORTADA" },
+  { "entrada": "https://www.youtube.com/playlist?list=PLabc123", "codigo": "URL_NO_SOPORTADA" },
+  {
+    "entrada": "https://music.youtube.com/playlist?list=OLAK5uy_abc",
+    "codigo": "URL_NO_SOPORTADA"
+  },
+  { "entrada": "https://www.youtube.com/live/dQw4w9WgXcQ", "codigo": "URL_NO_SOPORTADA" },
+  {
+    "entrada": "https://www.youtube.com/live/dQw4w9WgXcQ?feature=share",
+    "codigo": "URL_NO_SOPORTADA"
+  },
+  { "entrada": "https://vimeo.com/76979871", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com.evil.com/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://evil.com/?u=youtube.com/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  {
+    "entrada": "https://usuario:clave@www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "codigo": "URL_NO_VALIDA"
+  },
+  { "entrada": "https://www.youtube.com:8080/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com:443/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "javascript:alert(1)//youtube.com/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "ftp://www.youtube.com/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "file:///watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/watch?v=corto", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQQ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/watch?v=dQw4w9Wg%20Q", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/watch?v=", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/watch", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/@canal", "codigo": "URL_NO_VALIDA" },
+  {
+    "entrada": "https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv",
+    "codigo": "URL_NO_VALIDA"
+  },
+  { "entrada": "https://youtu.be/", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://youtu.be/dQw4w9WgXcQ/extra", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/shorts/", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "   ", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "hola mundo", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "https://www.youtube.com/watch?v=dQw4w9WgXcQ y más", "codigo": "URL_NO_VALIDA" },
+  { "entrada": "//www.youtube.com/watch?v=dQw4w9WgXcQ", "codigo": "URL_NO_VALIDA" }
+]

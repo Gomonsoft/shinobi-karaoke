@@ -66,6 +66,10 @@ function lineaDeTrabajo({ trabajo, progreso }: TrabajoVivo): LineaPasoDatos {
       texto: separacion ? 'En cola para separar' : 'En cola para descargar'
     }
   }
+  const fase = progreso?.fase ?? trabajo.progreso?.fase
+  if (!separacion && fase === 'actualizando') {
+    return { tipo: 'curso', texto: 'Actualizando el descargador…', barra: null }
+  }
   const valor = progreso?.valor ?? trabajo.progreso?.valor ?? null
   if (valor === null) {
     return {
@@ -140,7 +144,7 @@ export function lineaDeBorrador(
   }
   if (fuente && fuente.estado !== 'completado') {
     return {
-      linea: { tipo: 'texto', texto: 'Falta preparar el audio' },
+      linea: { tipo: 'texto', texto: 'Falta descargar el audio' },
       accion: 'continuar',
       error: false
     }

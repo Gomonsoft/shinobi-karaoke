@@ -1,0 +1,2 @@
+error: Failed to install: torch-2.15.0+cpu-cp312-cp312-win_amd64.whl (torch==2.15.0+cpu)
+  cause: failed to write to file `C:\Users\x\runtime\cache-uv\.tmpAbC\torch\lib\torch_cpu.dll`: Espacio en disco insuficiente. (os error 112)
