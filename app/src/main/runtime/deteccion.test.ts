@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { manifiestoSchema, type Manifiesto } from '../../shared'
 import {
@@ -248,14 +248,18 @@ describe('espacioLibre', () => {
     expect(await e.bytesLibres('/datos')).toBe(4096000)
   })
   it('sube al ancestro existente más cercano', async () => {
+    // Rutas nativas: en Windows resolve('/a') añade la unidad (p. ej. D:\\a).
+    const a = resolve('/a')
+    const ab = join(a, 'b')
+    const abc = join(ab, 'c')
     const consultadas: string[] = []
     const e = crearEspacioLibre(async (ruta) => {
       consultadas.push(ruta)
-      if (ruta !== '/a') throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      if (ruta !== a) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       return { bavail: 10, bsize: 512 }
     })
-    expect(await e.bytesLibres('/a/b/c')).toBe(5120)
-    expect(consultadas).toEqual(['/a/b/c', '/a/b', '/a'])
+    expect(await e.bytesLibres(abc)).toBe(5120)
+    expect(consultadas).toEqual([abc, ab, a])
   })
   it('si no existe ningún ancestro propaga el error', async () => {
     const e = crearEspacioLibre(async () => {
