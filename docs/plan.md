@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-04.
+Última actualización: 2026-11-05.
 
 ## Resumen
 
@@ -14,7 +14,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 |---|---|---|
 | 0 | Fundamentos: decisiones técnicas, arquitectura, diseño de vistas | ✅ Cerrada |
 | 1 | Esqueleto: app, worker, persistencia, biblioteca | ✅ Cerrada |
-| 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (falta lanzar 0040 en GitHub) |
+| 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (0040 ejecutada el 2026-11-05) |
 | 3 | Separación de voz e instrumental | ⏳ Siguiente |
 | 4 | Letras | Pendiente |
 | 5 | Editor (sincronía y estilo) | Pendiente |
@@ -37,7 +37,7 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 - Stack: app de escritorio **Electron + React + TypeScript** y un **worker Python** para el audio, instalado con **uv** en el primer arranque (ADR 0001).
 - Licencia **GPL-3.0-or-later** (ADR 0002).
 - Fuente: PyAV para archivos locales y **yt-dlp + Deno** para YouTube (ADR 0003).
-- Separación: **audio-separator** con MelBand RoFormer (Calidad) o MDX-Net (Rápido) (ADR 0004).
+- Separación: **audio-separator** con MelBand RoFormer (Calidad) o MDX-Net (Rápido) (ADR 0004). Desde 2026-11-05, Calidad en todos los equipos y Rápido solo con consentimiento.
 - Letras: **LRCLIB** más entrada manual, sincronía por línea en un JSON propio (ADR 0005).
 - Persistencia: una carpeta por canción con `cancion.json` (ADR 0006). Herramientas de desarrollo (ADR 0007).
 - Diseño: mapa de vistas, sistema visual y una spec por vista (`ux/00`–`08`).
@@ -66,18 +66,22 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Decisiones del usuario**: modelo Rápido de forma provisional, pidiendo aclaración de licencia a UVR (pregunta 0012); **Mac Intel fuera del MVP**; Apple Silicon requiere **macOS 14** (preguntas 0015–0017).
 
-**Pendiente**: lanzar `runtime-real.yml` en GitHub (tarea 0040) y abrir el issue a UVR.
+**Hecho después del cierre**: primera ejecución de `runtime-real.yml` (tarea 0040, 2026-11-05) en verde en los 3 SO; datos y decisiones en la pregunta 0018.
+
+**Pendiente**: abrir el issue a UVR (pregunta 0012).
 
 ## Fase 3 — Separación de pistas ⏳
 **Objetivo**: obtener `voz.flac` e `instrumental.flac` de cada canción.
 
+- **Antes de empezar**: tareas 0055 (manifiesto: 4 GB en CPU, `bytes_disco` medidos, progreso de componentes) y 0056 (Calidad por defecto, sin elección de modo). **Al inicio**: 0057 (alternativa a Rápido con consentimiento, reutilizada por la separación y los Ajustes). **En paralelo**: 0058 (bytes de red y pico de disco en `runtime-real`).
 - Comando del worker `separar` sobre audio-separator, sin ffmpeg y forzando CPU en Apple Silicon (preguntas 0009 y 0010).
 - Trabajo en la cola pesada con progreso interpolado, tiempo restante, cancelación y reintentos automáticos.
 - Estimación previa ("Tardará unos N minutos"), "Re-separar pistas" y "Cancelar trabajo".
 - Vista de progreso completa para el paso de separación y panel de actividad.
-- **Ajustes**: modo de separación (Automático / Calidad / Rápido) y Acerca de (`ux/08`).
+- **Modelo Calidad en todos los equipos**, también solo CPU. El modelo Rápido solo se usa si el usuario lo acepta bajo su responsabilidad tras un fallo de Calidad (en el primer arranque, por memoria insuficiente o por modelo no disponible); nunca de forma automática ni como elección libre.
+- **Ajustes**: sin elección de modo. Informa del modelo en uso y, si es Rápido, ofrece **Volver a Calidad**. Incluye Acerca de (`ux/08`, cambios pendientes en la pregunta 0019 para el diseñador UX).
 
-**A decidir antes de empezar**: si en Apple Silicon y NVIDIA el instalador descarga el modelo Calidad aunque el modo elegido sea Rápido.
+**Decidido (pregunta 0018, usuario, 2026-11-05)**: modelo Calidad por defecto en todos los perfiles; Rápido solo como alternativa con consentimiento tras un fallo de Calidad (no elegible en Ajustes); 4 GB de espacio mínimo en CPU. Ya no queda pendiente la decisión del modelo según el modo.
 
 ## Fase 4 — Letras
 **Objetivo**: tener la letra de la canción, con tiempos si es posible.
@@ -109,8 +113,8 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 - **electron-builder** con *fuses* de seguridad (ADR 0008): NSIS (Windows), **DMG arm64** (macOS) y AppImage/.deb (Linux).
 - Worker, requisitos y manifiesto empaquetados en `resources/`.
 - Sección "Descargar" en el README, apuntando a las Releases, y guía `INSTALAR.md` para superar los avisos de una app sin firma.
-- Condición: **no publicar con el modelo Rápido** hasta tener respuesta de UVR (si no la hay, solo modo Calidad).
-- Mediciones pendientes antes de publicar: NVIDIA, Windows y Linux en CPU, otros chips Apple.
+- Modelo Rápido: **se puede publicar** porque no se descarga sin el consentimiento explícito del usuario, que acepta el aviso de licencia no declarada (pregunta 0018; sustituye a la condición anterior de la pregunta 0012). Si UVR responde con una licencia incompatible, se retira la oferta. El issue a UVR sigue siendo recomendable.
+- Mediciones pendientes antes de publicar: bytes de descarga reales y pico de disco (tarea 0058), separación con Calidad en Windows y Linux CPU, NVIDIA y otros chips Apple.
 
 ---
 

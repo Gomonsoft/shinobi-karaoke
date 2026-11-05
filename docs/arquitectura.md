@@ -11,7 +11,7 @@
 > [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md) ·
 > [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md)
 >
-> Última revisión: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053); antes, revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -25,7 +25,7 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/` con índice en memoria (id = nombre de carpeta), CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor, vía `main/persistencia/`), reglas de estado (ADR 0006), eventos `cancion:cambiada`. |
 | **Servicio de configuración y registro** | Main | TS | `config.json` (lectura tolerante, actualización parcial validada, suscripciones), estructura del directorio de datos y registro rotado `registros/app.log`. |
 | **Gestor de trabajos** | Main | TS | Cola de trabajos en segundo plano, lanzamiento del worker, lectura de JSON Lines, progreso/ETA, cancelación (matar árbol de procesos), recuperación de trabajos interrumpidos. |
-| **Gestor de runtime** | Main | TS + binario `uv` | Detección previa de hardware sin Python (SO/arquitectura + `nvidia-smi`) y espacio libre (`fs.statfs`); primer arranque: Python 3.12, venv, dependencias (`--torch-backend=auto`), modelo del perfil, Deno, con tamaños tomados del manifiesto de runtime; confirmación del perfil con PyTorch; descarga de modelos bajo demanda (Ajustes); actualización de yt-dlp. |
+| **Gestor de runtime** | Main | TS + binario `uv` | Detección previa de hardware sin Python (SO/arquitectura + `nvidia-smi`) y espacio libre (`fs.statfs`); primer arranque: Python 3.12, venv, dependencias (requisitos fijados por perfil, ADR 0009 §1), modelo **Calidad** (todos los perfiles; Rápido solo con consentimiento, ADR 0004 Revisiones), Deno, con tamaños tomados del manifiesto de runtime; confirmación del perfil con PyTorch; descarga de modelos bajo demanda (Rápido con consentimiento tras un fallo de Calidad; "Volver a Calidad" desde Ajustes); actualización de yt-dlp. |
 | **Avisos del sistema** | Main | Electron `Notification`, `app.dock`, `BrowserWindow.flashFrame` | Notificación al terminar/fallar un trabajo con la ventana sin foco; alternativa sin firma en macOS (rebote + insignia del Dock). |
 | **Cliente de letras** | Main | TS (`fetch`) | LRCLIB `get` → `search`; parseo LRC / LRC mejorado / Lyricsfile YAML → formato interno; importación de `.lrc`/`.txt` (ADR 0005). |
 | **Protocolo de medios** | Main | `protocol.handle` de Electron | Esquema propio `shinobi-media://<id>/<ruta-relativa>` para servir audio y miniaturas de la biblioteca al renderer (lista blanca de 4 rutas, rangos, 404 sin detalle), sin habilitar `file://`. CORS limitado al origen del renderer (ADR 0008). |
@@ -223,11 +223,11 @@ shinobi-karaoke/
 - **Cancelación**: matar el árbol de procesos (POSIX: proceso líder de grupo, SIGTERM al grupo → SIGKILL a los 3 s; `taskkill /T /F` en Windows); la promesa rechaza con `CANCELADO` cuando el proceso ya ha muerto y entonces el llamador borra las salidas parciales (`alDescartar`); paso → `pendiente`. Cancelar un trabajo en cola no escribe nada.
 - **Cierre de la app**: si hay trabajos, diálogo de confirmación (Fase 3; `trabajos.hayPendientes()` ya existe). Al salir se cancelan todos los trabajos (sin procesos hijos vivos), sus pasos quedan `interrumpido` (no `pendiente`) y se vuelcan las escrituras pendientes, con un plazo máximo (tarea 0021). Al reabrir, cualquier `en_curso` restante pasa también a `interrumpido`.
 - **Eventos**: `trabajo:cambio` (alta, cambio de posición en cola, fin con `resultado` `completado|error|cancelado|interrumpido`) y `trabajo:progreso` (≤ 4/s por trabajo). Los `args` del trabajo no se envían al renderer.
-- **Reintentos automáticos**: separación sin memoria → un reintento con bloques menores / perfil Rápido; descarga o consulta de YouTube con `YOUTUBE_BLOQUEADO` → actualizar yt-dlp (sin preguntar; cancelar la operación no aborta la actualización, y si se interrumpe al cerrar la app se repara en el siguiente arranque) y reintentar una vez; descargas de red → reintento con espera exponencial.
+- **Reintentos automáticos**: separación sin memoria → un reintento con bloques menores y, en GPU, otro en CPU, siempre con Calidad. Si persiste, error con la oferta de Rápido con consentimiento; **nunca se pasa a Rápido de forma automática** (ADR 0004, revisión 2026-11-05). descarga o consulta de YouTube con `YOUTUBE_BLOQUEADO` → actualizar yt-dlp (sin preguntar; cancelar la operación no aborta la actualización, y si se interrumpe al cerrar la app se repara en el siguiente arranque) y reintentar una vez; descargas de red → reintento con espera exponencial.
 - **Arranque en frío del worker**: importar PyTorch y cargar el modelo cuesta 5–20 s por trabajo de separación; se acepta en el MVP (alternativa futura: worker persistente).
 
 ### Primer arranque
-Antes de empezar (pantalla de bienvenida): detección previa de hardware sin Python (SO/arquitectura, `nvidia-smi`) → perfil provisional → tamaño de descarga y espacio requerido leídos del manifiesto; espacio libre con `fs.statfs`. Requisito: CPU ≈ 3 GB, Apple Silicon ≈ 4 GB (medido: pico ≈ 3,4 GB con Calidad y caché de uv), NVIDIA ≈ 10 GB (calculado; 10 GB si la detección falla). Tras instalar se ejecuta `uv cache clean` (tarea 0005: `prune` no libera nada).
+Antes de empezar (pantalla de bienvenida): detección previa de hardware sin Python (SO/arquitectura, `nvidia-smi`) → perfil provisional → tamaño de descarga y espacio requerido leídos del manifiesto; espacio libre con `fs.statfs`. Requisito: CPU **4 GB** (revisión 2026-11-05; pico en el peor caso en Linux ≈ 3,35 GB sin compartir bloques entre la caché y el venv), Apple Silicon 4 GB (medido: pico ≈ 3,4 GB con Calidad y caché de uv), NVIDIA 10 GB (calculado; 10 GB si la detección falla). Tras instalar se ejecuta `uv cache clean` (tarea 0005: `prune` no libera nada).
 
 Detalle de requisitos por perfil, manifiesto, directorio `runtime/`, descarga de modelos, reutilización de una instalación existente y dobles de prueba: [ADR 0009](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md).
 
@@ -235,10 +235,10 @@ Secuencia del gestor de runtime, cada fase reanudable e idempotente (en la UI se
 1. Detección básica de plataforma.
 2. `uv python install 3.12` → `uv venv` en `runtime/`.
 3. `uv pip install --require-hashes -r worker/requisitos/<plataforma>-<perfil>.txt` (requisitos fijados por perfil, ADR 0009 §1; incluye yt-dlp[default] y Deno) → marcador `runtime/instalado.json` → `uv cache clean`.
-4. `python -m shinobi_worker diagnostico` → confirma el perfil de hardware (CUDA / MPS / CPU; solo puede rebajar Calidad → Rápido), guardado en `config.json`.
-5. Descarga (en main, reanudable con `Range`) y verificación SHA-256 del modelo del perfil en `modelos/`; al arrancar se borran los `*.partial` de audio-separator.
+4. `python -m shinobi_worker diagnostico` → confirma el perfil de hardware (CUDA / MPS / CPU; solo puede rebajar `cuda` → `cpu`, que cambia dónde se ejecuta pero no el modelo), guardado en `config.json`.
+5. Descarga (en main, reanudable con `Range`) y verificación SHA-256 del modelo **Calidad** en `modelos/`. Si falla de forma definitiva por verificación, servidores o espacio, B4 ofrece Rápido con consentimiento (ADR 0009, revisión 2026-11-05). al arrancar se borran los `*.partial` de audio-separator.
 
-Progreso: bytes exactos para Python y modelo; para las dependencias, crecimiento de la caché de `uv` (en `runtime/`) frente al total del manifiesto (aproximado). ETA = bytes restantes / velocidad observada.
+Progreso: bytes exactos para Python y modelo; para las dependencias, crecimiento de la caché de `uv` (en `runtime/`) frente a `bytes_cache` del manifiesto (aproximado; `bytes_descarga` es la cifra que se muestra al usuario, ADR 0009, revisión 2026-11-05). ETA = bytes restantes / velocidad observada.
 
 ### Avisos al terminar un trabajo
 Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acceso directo con `AppUserModelID` que crea el instalador NSIS y `app.setAppUserModelId`) y Linux (libnotify). En macOS sin firma la notificación falla (evento `failed`) → rebote del icono (`app.dock.bounce('informational')`) e insignia numérica del Dock; en Windows/Linux además `flashFrame`. Siempre toast al volver a la ventana.
@@ -273,10 +273,10 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 - **Primer arranque obligatorio con conexión**: descarga de Python, dependencias y el modelo de separación.
   | Equipo | Descarga aprox. | Tiempo aprox. (conexión 50 Mbps) |
   |--------|----------------|-------------------------------|
-  | Solo CPU, modelo Rápido (Win/Linux; calculado) | ~0,4–0,5 GB | 2–5 min |
+  | Solo CPU, modelo Calidad (Win/Linux; dependencias calculadas, modelo 913 MB) | ~1,25–1,4 GB | 4–8 min |
   | Apple Silicon, modelo Calidad (medido) | ~1,2 GB | 4–8 min |
   | NVIDIA (CUDA), modelo Calidad (calculado) | ~4–5,3 GB | 12–20 min |
-  Necesita: pantalla dedicada con fases (*Preparando motor de audio*, *Instalando componentes*, *Descargando modelo de separación*), progreso, tamaño, posibilidad de reintentar/reanudar, error de "sin conexión" o "sin espacio en disco" (pedir ≈ 3 GB en CPU, ≈ 4 GB en Apple Silicon, ≈ 10 GB con NVIDIA; el perfil se conoce antes de instalar). La app no es utilizable hasta completarlo.
+  Necesita: pantalla dedicada con fases (*Preparando motor de audio*, *Instalando componentes*, *Descargando modelo de separación*), progreso, tamaño, posibilidad de reintentar/reanudar, error de "sin conexión" o "sin espacio en disco" (pedir 4 GB en CPU y en Apple Silicon y 10 GB con NVIDIA; el perfil se conoce antes de instalar). La app no es utilizable hasta completarlo.
 - Arranques posteriores: 1–3 s. Ocasionalmente (≤ 1 vez/semana) actualización silenciosa de yt-dlp en segundo plano.
 
 ### 2. Tiempos esperados por paso (canción de ~4 min)
@@ -287,9 +287,8 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 | YouTube: descarga | 5–60 s según conexión | Sí, con % | Sí |
 | Separación — GPU NVIDIA (Calidad) | ~0,5–2 min (sin medir) | **Sí, en segundo plano** | Sí |
 | Separación — Apple Silicon (Calidad, en CPU) | **≈ 4,5–5 min (medido M1)** | Sí | Sí |
-| Separación — Apple Silicon (Rápido, elegido en Ajustes) | **≈ 3 min (medido M1)** | Sí | Sí |
-| Separación — solo CPU x86 (Rápido) | ~3–7 min (sin medir) | Sí | Sí |
-| Separación — CPU x86 en modo Calidad (elegido en Ajustes) | ~6–15 min (estimado) | Sí | Sí |
+| Separación — solo CPU x86 (Calidad, por defecto) | ~6–15 min (estimado, sin medir) | Sí | Sí |
+| Separación — modelo Rápido (solo con consentimiento): Apple Silicon / CPU x86 | **≈ 3 min (medido M1)** / ~3–7 min (sin medir) | Sí | Sí |
 | + preparación y carga del modelo al inicio de cada separación | 5–20 s, progreso **indeterminado** | — | Sí |
 | Búsqueda de letra (LRCLIB) | < 2 s (timeout 10 s) | Sí | — |
 | Sincronía manual por líneas | lo que tarde el usuario (≈ duración de la canción + ajustes) | — | — |
@@ -313,8 +312,8 @@ Implicaciones:
 | Es una lista de reproducción / directo | Fuente | `URL_NO_SOPORTADA` | Usar URL de un vídeo |
 | Vídeo privado, eliminado, con restricción de edad o región | Fuente | `VIDEO_NO_DISPONIBLE` | — (sin login en el MVP) |
 | YouTube bloquea la descarga ("confirma que no eres un bot", 403/429) | Fuente | `YOUTUBE_BLOQUEADO` | Reintento automático tras actualizar yt-dlp; si persiste, probar más tarde o usar archivo local |
-| Memoria insuficiente (RAM/VRAM) | Separación | `MEMORIA_INSUFICIENTE` | Reintento automático en modo más ligero |
-| Modelo no descargado o corrupto | Separación | `MODELO_NO_DISPONIBLE` | Re-descarga |
+| Memoria insuficiente (RAM/VRAM) | Separación | `MEMORIA_INSUFICIENTE` | Reintento automático con bloques más pequeños (y en CPU si era GPU), con Calidad; si persiste, ofrecer Rápido con consentimiento |
+| Modelo no descargado o corrupto | Separación | `MODELO_NO_DISPONIBLE` | Re-descarga; si Calidad no se puede descargar, ofrecer Rápido con consentimiento |
 | Trabajo interrumpido por cierre de la app | Fuente/Separación | estado `interrumpido` | Reintentar desde cero ese paso |
 | Letra no encontrada / es instrumental | Letra | `LETRA_NO_ENCONTRADA` / `INSTRUMENTAL` | Pegar o importar `.lrc`/`.txt`; editar título/artista y buscar de nuevo |
 | LRCLIB caído o limitando (429) | Letra | `SERVICIO_NO_DISPONIBLE` | Reintentar más tarde o entrada manual |
@@ -347,6 +346,7 @@ Implicaciones:
 
 ### 8. Requisitos del equipo (orientativos)
 - Windows 10/11 x64, **macOS 14+ en Apple Silicon** (torch, onnxruntime y av solo publican `macosx_14_0_arm64`; la app muestra B6 por debajo de 14), Linux x64 con glibc ≥ 2.28. **Mac Intel: no compatible** en el MVP (sin PyTorch ≥ 2.3 para macOS x86_64; provisional hasta `preguntas/0016`; solo se publica el DMG arm64). Ver `preguntas/0015`. Cuenta la **arquitectura real** del equipo (`app.runningUnderARM64Translation`): Windows on ARM con el build x64 → B6; Mac Apple Silicon con el build x64 → runtime `darwin-arm64-mps` nativo (ADR 0009, Revisiones).
-- 8 GB de RAM mínimo; ≈ 1,3 GB (CPU/Rápido) – 2,2 GB (Apple Silicon/Calidad, medido) – ~6–8 GB (NVIDIA, estimado) de disco para el motor + ≈ 40–100 MB por canción de 4 min (medido 37–48 MB con una grabación antigua).
-- GPU opcional: NVIDIA con ≥ 4 GB de VRAM para el modo Calidad acelerado. Apple Silicon usa Calidad **en CPU** (más rápido que MPS en el M1 medido, `preguntas/0010`); pico de RAM ≈ 3,2 GB.
+- 8 GB de RAM mínimo (16 GB recomendados, README); **4 GB de espacio libre** para instalar en CPU y Apple Silicon (10 GB con NVIDIA). Ocupado tras instalar con Calidad: ≈ 2,2 GB en Apple Silicon (medido), ≈ 2,2 GB en Windows CPU y ≈ 2,7 GB en Linux CPU (venv medido + Python + 913 MB del modelo) – ~6–8 GB (NVIDIA, estimado) de disco para el motor + ≈ 40–100 MB por canción de 4 min (medido 37–48 MB con una grabación antigua).
+- **Modelo**: Calidad en todos los equipos. Rápido solo si el usuario lo acepta tras un fallo de Calidad (no se elige en Ajustes, que solo informa del modelo en uso y permite volver a Calidad), avisando de que su licencia no está declarada (`preguntas/0012`, `0018`).
+- GPU opcional: NVIDIA con ≥ 4 GB de VRAM para acelerar Calidad. Apple Silicon usa Calidad **en CPU** (más rápido que MPS en el M1 medido, `preguntas/0010`); pico de RAM ≈ 3,2 GB.
 - La resolución del reproductor se adapta a la pantalla; sin requisitos de GPU para el render de la letra.

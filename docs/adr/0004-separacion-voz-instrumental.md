@@ -30,7 +30,9 @@ Estado del arte (noviembre 2026):
 ## Decisión
 **Librería: `audio-separator` (MIT), ejecutada en el worker Python como proceso hijo (ADR 0001).**
 
-**Selección automática del modelo según el hardware detectado en el primer arranque:**
+> **Revisión 2026-11-05** (decisión del usuario, `preguntas/0018`): el modelo ya **no depende del perfil**. **Calidad en todos los equipos**, y Rápido solo con consentimiento explícito del usuario. La tabla y las viñetas siguientes describen la decisión original; lo vigente está en Revisiones.
+
+**Selección automática del modelo según el hardware detectado en el primer arranque** (sustituida, ver Revisiones 2026-11-05):
 
 | Perfil | Cuándo | Modelo | Motor |
 |--------|--------|--------|-------|
@@ -73,7 +75,7 @@ Requisitos mínimos orientativos: 8 GB de RAM; para el perfil Calidad en GPU, �
 - Positivas: calidad estado del arte donde hay GPU; tiempos razonables sin GPU; una sola librería para ambos perfiles; licencias compatibles con GPL-3.0.
 - Negativas / riesgos:
   - **Licencias de pesos comunitarios declaradas de forma inconsistente** (MIT en Hugging Face vs. repo sin licencia; datos de entrenamiento no documentados). Mitigación: no se redistribuyen en el instalador, se descargan desde su origen, se acredita a los autores y se revisará si aparece información nueva.
-  - **Pesos del modelo Rápido sin licencia declarada** (no "MIT con atribución" como se suponía): pendiente de decisión del usuario (`preguntas/0012`); alternativa sin riesgo: Calidad en todos los equipos.
+  - **Pesos del modelo Rápido sin licencia declarada** (no "MIT con atribución" como se suponía): `preguntas/0012` y, desde 2026-11-05, Calidad por defecto en todos los equipos y Rápido solo con el consentimiento del usuario (Revisiones).
   - Parche de un método interno de audio-separator: mitigado con versión fijada y test "sin ffmpeg en el PATH" en CI.
   - La calidad en CPU (perfil Rápido) será perceptiblemente peor: restos de voz en el instrumental.
   - Dependencia de un proyecto comunitario (audio-separator) para la API de inferencia; mitigación: el worker encapsula la llamada en una interfaz propia (`Separador`) para poder cambiar de librería.
@@ -86,6 +88,24 @@ Requisitos mínimos orientativos: 8 GB de RAM; para el perfil Calidad en GPU, �
   - El usuario puede querer escuchar voz e instrumental para comprobar el resultado.
 
 ## Revisiones
+- 2026-11-05 (decisiones del usuario en [`preguntas/0018`](../preguntas/0018-datos-reales-del-runtime-y-espacio-en-linux.md); sustituye la selección del modelo por perfil):
+  1. **Modelo por defecto: Calidad (MelBand RoFormer, MIT) en todos los perfiles**, también solo CPU. El perfil (`cuda`/`mps`/`cpu`) decide solo **dónde** se ejecuta: CUDA si existe; en otro caso, CPU (Apple Silicon también, `preguntas/0010`). En el primer arranque siempre se descarga Calidad. Si el diagnóstico rebaja `cuda` → `cpu`, se separa con Calidad en CPU: rebajar ya no cambia el modelo.
+  2. **Rápido (`UVR-MDX-NET-Inst_HQ_4`, licencia no declarada, `preguntas/0012`) solo con consentimiento explícito.**
+     - Nunca se descarga ni se usa sin él. El consentimiento se guarda en `config.separacion.rapido_aceptado` (ADR 0006, Revisiones) y el proceso principal rechaza la descarga si falta.
+     - Se ofrece tras un fallo **definitivo** de Calidad:
+       - primer arranque: verificación SHA-256 fallida tras el reintento, servidores de descarga no disponibles, o espacio suficiente para Rápido pero no para Calidad (no con `SIN_CONEXION`);
+       - separación: `MEMORIA_INSUFICIENTE` tras los reintentos automáticos, o `MODELO_NO_DISPONIBLE` si Calidad no se puede volver a descargar.
+     - **No se puede elegir libremente en Ajustes** (decisión del usuario, 2026-11-05): solo se ofrece tras uno de esos fallos. Ajustes informa del modelo en uso y, si es Rápido, permite **volver a Calidad**. Textos en [`preguntas/0019`](../preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md).
+     - El aviso dice que sus autores no han declarado licencia y que se usa bajo la responsabilidad del usuario.
+  3. **Modos**: desaparece la elección de modo en Ajustes, *Automático* incluido. `separacion.modo` vale `calidad` (por defecto) o `rapido` y es estado interno: solo lo cambian la aceptación de Rápido tras un fallo (→ `rapido`) y "Volver a Calidad" (→ `calidad`, cuando el modelo está verificado). El renderer no puede fijarlo directamente.
+     - Un `automatico` guardado se lee como `calidad`.
+     - Si el modo es `rapido` y su modelo falta, se usa Calidad (no necesita consentimiento).
+     - Si el modo es `calidad` y su modelo falta, se vuelve a descargar Calidad; si falla, error `MODELO_NO_DISPONIBLE` con la oferta del punto 2. **Nunca se pasa a Rápido de forma automática.**
+  4. **Errores**: con memoria insuficiente se reintenta una vez con bloques más pequeños; en GPU, después en CPU **con Calidad**. Si persiste, error definitivo con la oferta del punto 2. Sustituye a "en CPU con el perfil rápido" de la sección *Ejecución*.
+  5. **Consecuencias**:
+     - **Equipos sin GPU**: descargan ≈ +0,85 GB (Calidad, 913 MB, frente a Rápido, 59 MB) y separan en ~6–15 min por canción de 4 min en x86 (estimado, sin medir).
+     - **Espacio requerido**: 4 GB en los perfiles CPU (ADR 0009, Revisiones).
+     - **Fase 7**: la condición de `preguntas/0012` de no publicar con Rápido se sustituye. Se puede publicar porque Rápido no se descarga sin consentimiento, y su licencia sigue marcada como "no declarada" en el manifiesto y en `THIRD_PARTY_NOTICES.md`. Si UVR declara una licencia incompatible, se retira la oferta.
 - 2026-11-04 (respuesta a [`preguntas/0015`](../preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md)): las filas "CPU x86" de la tabla de tiempos aplican a **Windows y Linux x64**; **Mac Intel no tiene perfil** (PyTorch ≥ 2.3 no existe para macOS x86_64). Alternativas evaluadas: audio-separator antiguo + torch 2.2.2 (descartada: CVE-2025-32434, segundo parche, sin actualizaciones) y un adaptador propio solo ONNX (Rápido) con `onnxruntime==1.23.2` (posible post-MVP; depende de `preguntas/0012`). Decisión de producto en [`preguntas/0016`](../preguntas/0016-mac-intel-fuera-del-mvp.md) (provisional: no compatible). Apple Silicon: macOS 14 o posterior.
 - 2026-11-04 (resultados del spike, [tarea 0005](../tareas/0005-spike-separacion-y-runtime.md); respuestas a `preguntas/0009` y `0010`): modelos exactos con tamaño y SHA-256; **Apple Silicon ejecuta en CPU** (MPS/CoreML más lentos en M1); tabla de tiempos con factores medidos; progreso por `tqdm` validado; ejecución **sin `ffmpeg`** con el parche de `check_ffmpeg_installed` + `use_soundfile=True` encapsulado en `Separador`, versiones fijadas (`audio-separator==0.48.0`, torch, onnxruntime, `onnx-weekly`), `audioread` declarado explícitamente, siempre `model_file_dir` y renombrado de stems (`other`/`Instrumental` → `instrumental.flac`, `vocals`/`Vocals` → `voz.flac`); `imageio-ffmpeg` como plan B. Licencia de pesos del Rápido sin declarar → `preguntas/0012` (usuario).
 - 2026-11-03: ajuste global de modo (respuestas a `preguntas/0003` y `0005` §2, §10); detección previa sin Python; manifiesto de runtime con tamaños, SHA-256 y factores de tiempo; entrada `mezcla.flac`.

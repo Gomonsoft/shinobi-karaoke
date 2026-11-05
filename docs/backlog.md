@@ -109,9 +109,25 @@ Decisiones de detalle en el nuevo [ADR 0009](adr/0009-gestor-de-runtime-y-dobles
 Orden sugerido con dos o tres programadores: **(A) runtime** 0028/0029 → 0030 → 0031 ‖ 0032 ‖ 0033 → 0034 → 0035 ‖ 0036 → 0037 → 0039 (+ 0040); **(B) archivo local** 0041 → 0042 → 0044 ‖ 0045 → 0046 (0043 y 0038 en cualquier hueco); **(C) YouTube** 0047 → 0048 → 0049 → 0050 ‖ 0051 → 0053 (0052 en cualquier hueco; 0054 tras 0050). Los bloques B y C solo necesitan de A los contratos (0028, 0029) hasta 0050, que usa 0035.
 
 ## Fase 3 — Separación de pistas
-- [ ] Separación en segundo plano con progreso (interfaz `Separador` con el parche sin ffmpeg y `use_soundfile=True` de `preguntas/0009`, CPU forzada en Apple Silicon de `preguntas/0010`, renombrado de stems, test "sin ffmpeg en el PATH"; modelo Rápido según `preguntas/0012`; vista de progreso, **panel** del indicador de actividad —el indicador informativo y las líneas en vivo ya están, 0020—, avisos al terminar: toasts de fin/error y notificaciones del sistema).
+**Decisión del usuario ([0018](preguntas/0018-datos-reales-del-runtime-y-espacio-en-linux.md), 2026-11-05)**:
+- **Calidad en todos los perfiles**, también solo CPU.
+- **Rápido** solo con el consentimiento explícito del usuario (aviso de licencia no declarada, [0012](preguntas/0012-licencia-no-declarada-del-modelo-rapido.md)), solo tras un fallo definitivo de Calidad (no elegible en Ajustes, que permite volver a Calidad); nunca de forma automática.
+- **4 GB** de espacio en CPU.
+
+Revisiones 2026-11-05 en ADR [0004](adr/0004-separacion-voz-instrumental.md), [0006](adr/0006-persistencia-y-modelo-de-datos.md) y [0009](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md). Cambios de UX en [0019](preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md) (**diseñador UX**, abierta: B1–B4, `ux/04`, `ux/08`, aviso de riesgo de Rápido).
+
+| Tarea | Título | Depende de | Cuándo | Estado |
+|-------|--------|-----------|--------|--------|
+| [0055](tareas/0055-manifiesto-espacio-requerido-y-bytes-medidos.md) | Manifiesto: `espacio_requerido` 4 GB en CPU, `bytes_disco` medidos, `bytes_cache` para el progreso | 0030, 0034, 0040 | Antes de la Fase 3 (‖ 0056) | Pendiente |
+| [0056](tareas/0056-modelo-calidad-por-defecto-y-modo-de-separacion.md) | Modelo Calidad por defecto; sin elección de modo; `rapido_aceptado` | 0029, 0034, 0035 | Antes de la Fase 3 | Pendiente |
+| [0057](tareas/0057-alternativa-al-modelo-rapido-con-consentimiento.md) | Alternativa al modelo Rápido con consentimiento (B4, API reutilizable y "Volver a Calidad") | 0056 (+ 0019 para los textos) | Al inicio de la Fase 3 | Pendiente |
+| [0058](tareas/0058-runtime-real-bytes-de-red-pico-de-disco-y-calidad-en-cpu.md) | `runtime-real`: bytes reales de descarga, pico de disco y Calidad en CPU | 0040, 0055, 0056 | Durante la Fase 3 (antes de la Fase 7) | Pendiente |
+
+Las tareas de separación (oferta de Rápido tras `MEMORIA_INSUFICIENTE`/`MODELO_NO_DISPONIBLE`) y de Ajustes (modelo en uso y "Volver a Calidad"), que se desglosarán en la Fase 3, reutilizan `aceptarYUsarRapido` y `volverACalidad` de 0057.
+
+- [ ] Separación en segundo plano con progreso (interfaz `Separador` con el parche sin ffmpeg y `use_soundfile=True` de `preguntas/0009`, CPU forzada en Apple Silicon de `preguntas/0010`, renombrado de stems, test "sin ffmpeg en el PATH"; modelo Calidad por defecto y Rápido solo con consentimiento según `preguntas/0018` y la tarea 0057; vista de progreso, **panel** del indicador de actividad —el indicador informativo y las líneas en vivo ya están, 0020—, avisos al terminar: toasts de fin/error y notificaciones del sistema).
 - [ ] Trabajos (deuda de 0014/0019/0020): reintentos automáticos según `reintentable` (`arquitectura.md` §6), estimación previa "Tardará unos N minutos", "Reintentar" que relanza el paso (hoy navega como "Continuar"), "Cancelar trabajo" y "Re-separar pistas" en el menú ⋯, diálogo de cierre con trabajos (`trabajos.hayPendientes()` ya existe).
-- [ ] Ajustes: modo de separación y Acerca de — `ux/08`.
+- [ ] Ajustes: modelo en uso (informativo) con "Volver a Calidad" si se usa Rápido, sin elección de modo, y Acerca de — `ux/08` tras `preguntas/0019`.
 
 ## Fase 4 — Letras
 - [ ] Búsqueda de letra + entrada manual (conversores con la normalización de ADR 0005, revisión 2026-11-04: inicios repetidos +1 ms, ids únicos, `palabras: null`).

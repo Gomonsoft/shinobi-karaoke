@@ -38,10 +38,10 @@ Los ADR 0001 y 0004 deciden **qué** se instala en el primer arranque (Python 3.
 `app/resources/runtime-manifest.json`, validado con Zod (`app/src/shared/manifiesto.ts`), mantenido a mano a partir de la tarea 0005 §9 y comprobado por un test:
 - `version` (entero; sube con cualquier cambio de requisitos o modelos).
 - `python`: versión exacta y bytes de descarga por plataforma.
-- `runtime[plataforma][perfil]`: `requisitos` (ruta), `sha256_requisitos`, `bytes_descarga`, `bytes_disco`, `espacio_requerido` (CPU 3 GB, Apple Silicon 4 GB, NVIDIA 10 GB; sin detección 10 GB), `medido` (bool).
+- `runtime[plataforma][perfil]`: `requisitos` (ruta), `sha256_requisitos`, `bytes_descarga`, `bytes_disco`, `espacio_requerido` (~~CPU 3 GB~~ CPU 4 GB desde la revisión 2026-11-05, Apple Silicon 4 GB, NVIDIA 10 GB; sin detección 10 GB), `medido` (bool), `bytes_cache` (revisión 2026-11-05).
 - `modelos[]`: `id` (`rapido` | `calidad`), `archivo`, `urls[]` (espejo de audio-separator primero, origen después), `bytes`, `sha256`, `extra[]` (yaml de Calidad), `licencia` (`"MIT"` | `"no declarada"`) y `provisional` (el Rápido, `preguntas/0012` opción C).
 - `factores[perfil][modo]`: `[min, max]` o `null` (sin medir → estimación del ADR 0004 en `estimacion`).
-- Perfil → modelo inicial: `cuda`/`mps` → `calidad`, `cpu` → `rapido`.
+- ~~Perfil → modelo inicial: `cuda`/`mps` → `calidad`, `cpu` → `rapido`.~~ Desde la revisión 2026-11-05: el modelo inicial es siempre `calidad`; `rapido` solo con consentimiento.
 
 ### 3. Directorio `runtime/` y aislamiento de uv
 - `runtime/python/` (`UV_PYTHON_INSTALL_DIR`), `runtime/venv/`, `runtime/cache-uv/` (`UV_CACHE_DIR`, se vacía con `uv cache clean` al terminar), `runtime/instalado.json` (marcador). uv se ejecuta siempre con `--no-config`, `UV_PYTHON_PREFERENCE=only-managed`, `UV_NO_PROGRESS=1` y sin heredar `VIRTUAL_ENV`/`PYTHONPATH`/`UV_*` del usuario.
@@ -79,6 +79,18 @@ Los ADR 0001 y 0004 deciden **qué** se instala en el primer arranque (Python 3.
 - Impacto en UX: habilita B0–B6 de `ux/01`. La reutilización tras recrear `config.json` añade una comprobación de unos segundos (B0, `preguntas/0013` §3).
 
 ## Revisiones
+- 2026-11-05 (respuesta a [`preguntas/0018`](../preguntas/0018-datos-reales-del-runtime-y-espacio-en-linux.md), datos de la primera ejecución de `runtime-real`, tarea 0040):
+  1. **Modelo**: el gestor descarga siempre **Calidad**. `modeloDelPerfil` desaparece (constante `MODELO_POR_DEFECTO = 'calidad'`). Rápido solo se descarga mediante una petición explícita del renderer, con `config.separacion.rapido_aceptado` ya guardado; sin él, main responde con error y no descarga (ADR 0004, Revisiones). La comprobación barata de §6 exige el modelo **del modo vigente** (Calidad, o Rápido si el usuario lo eligió con consentimiento), no el del perfil.
+  2. **Instalación completa con Rápido**: si la fase de modelo falla de forma definitiva con Calidad y el usuario acepta Rápido, la fase se completa con Rápido. `config.instalacion` queda `completa` y `separacion.modo = 'rapido'`. Desde Ajustes ("Volver a Calidad") se puede descargar Calidad de nuevo; Ajustes no permite elegir Rápido.
+  3. **`espacio_requerido`**: `win32-x64.cpu` y `linux-x64.cpu` pasan a **4 GB**; Apple Silicon sigue en 4 GB y NVIDIA en 10 GB.
+     - **Pico en el peor caso** (Linux CPU, caché y venv sin compartir bloques): 3,35 GB en la fase de componentes (Python 0,10 + venv 1,62 + caché 1,62). La fase de modelo empieza tras `uv cache clean` y llega a 2,64 GB.
+     - **Pico real**: uv enlaza la caché con el venv mediante enlaces duros (Linux y Windows) o clonación (APFS). Ambos están dentro de `runtime/`, así que el pico real es menor.
+     - **Modo de enlace de uv**: no se cambia.
+     - **Medición pendiente** (tarea 0058): `runtime-real` mide el pico muestreando el espacio libre. Criterio: pico + 0,5 GB ≤ `espacio_requerido`.
+  4. **`bytes_disco`** = tamaño del venv (sin Python ni modelos), medido: Windows CPU 1 165 000 000, Linux CPU 1 619 000 000, macOS 1 205 000 000. `medido: true` exige también `bytes_descarga` medido.
+  5. **`bytes_descarga`** = suma del tamaño de las ruedas de cada archivo de requisitos. Se obtiene de los índices (API JSON de PyPI / HEAD en el índice de PyTorch) eligiendo la rueda de la plataforma entre los hashes. Se contrasta con el tráfico de red de `runtime-real`. La caché de uv (descomprimida) no sirve para este valor.
+  6. **Nuevo campo `bytes_cache`** por plataforma y perfil (opcional; `null` → se usa `bytes_descarga`): tamaño de la caché de uv al terminar la instalación (medido: 1 204 / 1 163 / 1 625 MB en macOS / Windows / Linux CPU). Es el denominador del progreso de "Instalando componentes", que mide el crecimiento de la caché. Hoy ese progreso compara bytes descomprimidos con `bytes_descarga` y se queda en el 99 % durante la mayor parte de la fase. No se muestra al usuario.
+  7. La `version` del manifiesto no sube con estos cambios (no cambian requisitos ni modelos).
 - 2026-11-04 (respuesta a [`preguntas/0014`](../preguntas/0014-interrupcion-de-la-actualizacion-de-yt-dlp-y-plataformas-emuladas.md)):
   1. **yt-dlp y exclusión mutua**:
      - `actualizarYtDlp()` es la única forma de tocar yt-dlp/Deno en el venv (semanal, tras bloqueo, reparación). Las llamadas concurrentes reciben la misma promesa.

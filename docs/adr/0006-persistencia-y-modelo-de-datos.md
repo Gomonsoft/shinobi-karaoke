@@ -184,7 +184,7 @@ Tiempos en **milisegundos enteros**; colores en `#RRGGBB` (sRGB); fechas ISO-860
   "estilo_predeterminado": { /* estilo, ver docs/ux/sistema-visual.md §8 */ }
 }
 ```
-- Modo efectivo de separación = `modo` si no es `automatico`; si no, el del perfil (`cuda`/`mps` → `calidad`, `cpu` → `rapido`; **sin perfil detectado → `rapido`**, revisión 2026-11-04). Se resuelve **al empezar** cada separación (respuesta a `preguntas/0005` §10).
+- **Desde la revisión 2026-11-05**: `modo` es `calidad` (por defecto) o `rapido`; `automatico` se lee como `calidad`; nuevo campo `rapido_aceptado` (fecha ISO o `null`). Texto anterior: modo efectivo de separación = `modo` si no es `automatico`; si no, el del perfil (`cuda`/`mps` → `calidad`, `cpu` → `rapido`; **sin perfil detectado → `rapido`**, revisión 2026-11-04). Se resuelve **al empezar** cada separación (respuesta a `preguntas/0005` §10).
 - Campos nuevos con valor por defecto se añaden sin subir `esquema` (lectura tolerante); solo un cambio incompatible sube la versión.
 - Si `config.json` y su `.bak` son ilegibles, el archivo se aparta como `config.json.danado` (se registra como error) y se parte de los valores por defecto (revisión 2026-11-04, tarea 0008). Consecuencia: `instalacion.estado` vuelve a `pendiente`, así que el gestor de runtime (Fase 2) debe **detectar y reutilizar** un runtime y modelos ya presentes y válidos en lugar de reinstalar.
 
@@ -212,6 +212,7 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
   - Una fuente `completado` no se sustituye.
   - Riesgo anotado para la Fase 4: la letra conservada puede no cuadrar si la duración nueva difiere más de 2 s.
   - Esquema sin cambios (versión 1).
+- 2026-11-05 (`preguntas/0018`, ADR 0004 Revisiones): `config.separacion.modo` admite `calidad` | `rapido` (por defecto `calidad`). Un `automatico` guardado se lee como `calidad` y se reescribe así en el siguiente guardado (lectura tolerante, sin subir `esquema`). Nuevo `separacion.rapido_aceptado: string | null` (fecha ISO del consentimiento para el modelo Rápido; por defecto `null`). Un `rapido` en `modelos_descargados` sin consentimiento no se usa. Sustituye la regla "modo automático sin perfil → `rapido`".
 
 ## Fuentes
 - Electron `app.getPath` y `shell.trashItem`: https://www.electronjs.org/docs/latest/api/app , https://www.electronjs.org/docs/latest/api/shell

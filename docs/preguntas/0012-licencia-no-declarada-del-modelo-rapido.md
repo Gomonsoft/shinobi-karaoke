@@ -33,4 +33,5 @@ Decisión del usuario (2026-11-04): **opción C**. Se usa `UVR-MDX-NET-Inst_HQ_4
   >
   > This repository does not declare a license for the model weights. Could you confirm under which license they are published (for example MIT, like the UVR code) and whether this use is fine with you? Thank you!
 
-- Puerta de publicación: la tarea de empaquetado (0025) no debe generar una versión pública con el Rápido mientras esta pregunta no tenga respuesta de UVR; si no la hay, se pasa a la opción B (solo Calidad), lo que cambia el manifiesto y el perfil `cpu`.
+- **Revisión 2026-11-05** ([`preguntas/0018`](0018-datos-reales-del-runtime-y-espacio-en-linux.md), decisión del usuario): Calidad es el modelo de todos los equipos y Rápido solo se descarga y se usa con el consentimiento explícito del usuario, con este aviso de licencia. Por eso la puerta de publicación siguiente **queda sustituida**. Se puede publicar; Rápido sigue marcado como "no declarada"; si UVR declara una licencia incompatible, se retira la oferta. Abrir la consulta a UVR sigue siendo recomendable.
+- ~~Puerta de publicación~~ (sustituida): la tarea de empaquetado (0025) no debe generar una versión pública con el Rápido mientras esta pregunta no tenga respuesta de UVR; si no la hay, se pasa a la opción B (solo Calidad), lo que cambia el manifiesto y el perfil `cpu`.
