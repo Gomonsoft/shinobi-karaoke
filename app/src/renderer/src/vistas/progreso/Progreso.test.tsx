@@ -4,6 +4,7 @@ import type { EventoProgresoIpc, TrabajoIpc } from '@shared/ipc'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
 import { paso, resumenPrueba } from '../biblioteca/resumenPrueba'
+import { olvidarProgresosVistos, progresoVisto } from '../../navegacion/progresoVisto'
 import { Progreso } from './Progreso'
 
 const trabajo = (extra: Partial<TrabajoIpc> = {}): TrabajoIpc => ({
@@ -40,7 +41,8 @@ interface Opciones {
   /** Estado del runtime (modo vigente, oferta de Rápido). */
   runtime?: Record<string, unknown>
   runtimeApi?: Record<string, unknown>
-  letra?: boolean
+  /** `true` = letra con líneas; `'vacia'` = letra con cero líneas. */
+  letra?: boolean | 'vacia'
   pistasPerfil?: string
   estimacion?: { min: number; max: number; origen: string } | null
 }
@@ -61,7 +63,9 @@ function montar(o: Opciones = {}) {
   const cancion = {
     metadatos: { album: 'Álbum' },
     fuente: { tipo: o.tipo ?? 'youtube' },
-    letra: o.letra ? {} : null,
+    letra: o.letra
+      ? { lineas: o.letra === 'vacia' ? [] : [{ tipo: 'linea', texto: 'x', inicio_ms: null }] }
+      : null,
     pistas: o.pistasPerfil ? { modelo: { perfil: o.pistasPerfil } } : null
   } as unknown as Cancion
   const separar = vi.fn().mockResolvedValue(undefined)
@@ -421,6 +425,21 @@ describe('Progreso: separación', () => {
     expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'editor' })
   })
 
+  it('una letra con cero líneas no cuenta: sigue "Buscar la letra mientras tanto"', async () => {
+    const { ir } = montar({ trabajos: [trabajoSep()], progreso: [progSep()], letra: 'vacia' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Buscar la letra mientras tanto' }))
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'letra' })
+    expect(screen.queryByRole('button', { name: 'Ir al editor' })).toBeNull()
+  })
+
+  it('al ir a Letra se marca el progreso como visto', async () => {
+    olvidarProgresosVistos()
+    montar({ trabajos: [trabajoSep()], progreso: [progSep()] })
+    expect(progresoVisto('c1')).toBe(false)
+    fireEvent.click(await screen.findByRole('button', { name: 'Buscar la letra mientras tanto' }))
+    expect(progresoVisto('c1')).toBe(true)
+  })
+
   describe('errores', () => {
     const error = (codigo: string) => paso('error', { error: { codigo, mensaje: 'x' } })
 
@@ -564,6 +583,12 @@ describe('Progreso: separación', () => {
       montar({ tipo: 'archivo', separacion: terminada() })
       await screen.findByText('Escucha el resultado:')
       expect(screen.queryByText(/\d+ s$/)).toBeNull()
+    })
+
+    it('con una letra de cero líneas el primario es "Buscar la letra"', async () => {
+      montar({ tipo: 'archivo', separacion: terminada(30), letra: 'vacia' })
+      expect(await screen.findByRole('button', { name: 'Buscar la letra' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Ir al editor' })).toBeNull()
     })
 
     it('con letra el primario es "Ir al editor"', async () => {

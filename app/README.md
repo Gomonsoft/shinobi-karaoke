@@ -26,7 +26,11 @@ Requisitos: Node 24 (`.nvmrc`) y npm. Desde esta carpeta: `npm install`.
 
 `SHINOBI_YTDLP_FALSO=<dir>` (solo pruebas; se ignora empaquetada): el worker usa un doble de yt-dlp que lee `<dir>/<id>.json` (y la miniatura `<id>.jpg`) y genera el audio "descargado". `SHINOBI_YTDLP_ACTUALIZAR_MS=<ms>` alarga la actualización simulada de yt-dlp. Los usa `e2e/importar-youtube.spec.ts` con una copia temporal de `e2e/fixtures/youtube/` (sin red). La prueba con red `e2e/youtube-red.spec.ts` solo se ejecuta con `SHINOBI_TESTS_RED=1` (descarga un vídeo CC BY real).
 
+Prueba opcional con LRCLIB real (0089), solo con `SHINOBI_TESTS_RED=1` y nunca en push/PR: `SHINOBI_TESTS_RED=1 npx vitest run lrclib.red` (contrato del cliente: `get`, `search` y 404; 3 peticiones en serie con el `User-Agent` del proyecto y 250 ms entre ellas) y `npm run build && SHINOBI_TESTS_RED=1 npx playwright test letras-red` (búsqueda automática real y «Usar esta letra» → `origen: lrclib`; sin `SHINOBI_LRCLIB_URL`). Solo se comprueba la estructura: las letras recibidas no se guardan. Se ejecutan también como pasos opcionales (`continue-on-error`) del workflow manual `runtime-real`.
+
 `SHINOBI_SEPARADOR_FALSO=<escenario.json>` (solo pruebas; se ignora empaquetada): el comando `separar` del worker usa un doble que sigue el escenario (duración, pasos, fallos por dispositivo/bloques/intento, muerte por SIGKILL). El main pasa además `SHINOBI_INTENTO=<n>`. Esquema Zod y ejemplo en `src/shared/separacion.ts`; lo implementa la tarea 0060.
+
+`SHINOBI_LRCLIB_URL=<url>` (solo pruebas; se ignora empaquetada y el main la borra del entorno): sustituye la URL base de LRCLIB (`https://lrclib.net`). Solo admite `http://127.0.0.1:<puerto>` (servidor falso local) y `http://lrclib.invalid` (para probar `SIN_CONEXION`); cualquier otro valor se descarta. Constante y función en `src/shared/letrasBusqueda.ts`; la usa el cliente de LRCLIB (0081) y los E2E (0088). Los fixtures con letras inventadas están en `src/shared/__fixtures__/letras/`.
 
 ## Cliente del worker (`src/main/trabajos/worker.ts`)
 

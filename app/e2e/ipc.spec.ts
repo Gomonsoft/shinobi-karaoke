@@ -56,6 +56,7 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'biblioteca',
       'config',
       'fuente',
+      'letras',
       'runtime',
       'rutaDeArchivo',
       'separacion',

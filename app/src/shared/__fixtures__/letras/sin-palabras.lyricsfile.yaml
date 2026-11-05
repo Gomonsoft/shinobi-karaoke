@@ -1,0 +1,11 @@
+metadata:
+  title: Canción inventada
+  artist: Artista inventado
+  offset_ms: 0
+lines:
+  - text: 'Luciérnagas sobre el tejado'
+    start_ms: 12000
+  - text: 'Cuentan estrellas sin prisa'
+    start_ms: 16500
+  - text: 'El viento ordena las nubes'
+    start_ms: 21000

@@ -1,0 +1,32 @@
+metadata:
+  title: Canción inventada
+  artist: Artista inventado
+  offset_ms: 0
+lines:
+  - text: 'Barcos de papel navegan'
+    start_ms: 10000
+    end_ms: 12500
+    words:
+      - text: 'Barcos '
+        start_ms: 10000
+        end_ms: 10600
+      - text: 'de '
+        start_ms: 10600
+        end_ms: 10900
+      - text: 'papel '
+        start_ms: 10900
+        end_ms: 11500
+      - text: 'navegan'
+        start_ms: 11500
+        end_ms: 12500
+  - text: 'Por el río seco'
+    start_ms: 14000
+    words:
+      - text: 'Por '
+        start_ms: 14000
+      - text: 'el '
+        start_ms: 14400
+      - text: 'río '
+        start_ms: 14700
+      - text: 'seco'
+        start_ms: 15200

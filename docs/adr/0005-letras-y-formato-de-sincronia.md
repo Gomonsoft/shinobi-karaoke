@@ -74,9 +74,50 @@ Las letras están protegidas por derechos de autor y LRCLIB no declara licencia 
 - 2026-11-03: respuesta del usuario a `preguntas/0002` (solo por línea en el editor); pausas, fin automático, diff al editar el texto y precisión del toque (respuesta a `preguntas/0005` §4–§7).
 - 2026-11-04: tras `preguntas/0006`, las palabras se desplazan y se borran con su línea (ADR 0006).
 - 2026-11-04 (revisión de cierre de la Fase 1): como el validador exige inicios **estrictamente** crecientes, ids únicos y `palabras: null` en vez de lista vacía (ADR 0006), los conversores de importación (Fase 4) deben normalizar antes de validar: ordenar por inicio las líneas expandidas de LRC con varias marcas; si dos elementos quedarían con el mismo inicio (marcas repetidas, dúos), desplazar el posterior +1 ms (repetido si hace falta); generar ids nuevos únicos; convertir listas de palabras vacías en `null`. Una letra que siga sin cumplir los invariantes tras normalizar se trata como "sin sincronizar" (se conservan los textos, sin tiempos) en lugar de rechazarse.
+- 2026-11-05 (desglose de la Fase 4, tareas 0077–0089; API de LRCLIB revisada ese día). No cambia la decisión; la concreta:
+  - **Lo que ha cambiado en LRCLIB**:
+    - Todos los registros traen `lyricsfile` (YAML). Lo trae también un registro sin sincronía por palabra; en ese caso los `end_ms` de línea se derivan del inicio de la siguiente.
+    - Recomiendan peticiones secuenciales con 200–500 ms entre ellas. Tras un 429 hay que esperar `Retry-After` más hasta un 30 % de margen aleatorio; si no, puede haber una prohibición temporal.
+    - Existe un registro opcional de aplicación (`Lrclib-App-Id`, público) para tener más cuota. Con un solo usuario por instalación, los ~90 por minuto de un cliente identificado sobran: **no se registra en el MVP**.
+    - `/api/v2/search` está en beta y **no se usa**. Tampoco se usan `publish` ni `flag`.
+  - **Formato Lyricsfile**, según la especificación de LRCGET (`LYRICSFILE_CONCEPT.md`, MIT):
+    - `metadata.offset_ms`;
+    - `lines[]`: `text`, `start_ms`, `end_ms` opcional, `words[]` opcional;
+    - `words[]`: `text`, que incluye el espacio final; `start_ms`; `end_ms` opcional.
+    Se lee con la librería **`yaml`** (eemeli/yaml, ISC), **solo en el proceso principal** y con límites de tamaño y de alias.
+  - **Qué fuente se usa de cada registro**:
+    1. Si `hasWordSync`, el `lyricsfile`. Si no se puede leer, se pasa a `syncedLyrics`.
+    2. Si no, `syncedLyrics` (LRC).
+    3. Si no, `plainLyrics`.
+    4. Los registros `instrumental` o sin texto no son candidatos.
+    Del Lyricsfile, el `end_ms` de una línea solo se guarda como fin fijado si `inicio < end_ms < inicio del siguiente elemento con tiempo`, o si es la última línea. Así no se fijan los fines derivados. Una palabra sin `end_ms` termina donde empieza la siguiente palabra. La última termina en el fin de la línea, o en `min(inicio del siguiente elemento, inicio + 1000)`.
+  - **Estrategia de búsqueda** (sustituye a "search solo si 404"): **`get` y luego `search`**, siempre en serie. La lista une ambas respuestas sin duplicados por `id`, con el resultado de `get` primero. Si no hay artista, se salta `get` y se busca con `q`. Si `search` estructurado no da nada, se repite con `q` libre. Hay un **presupuesto total de 10 s**: si se agota y ya hay candidatos, se muestran; si no los hay, `SERVICIO_NO_DISPONIBLE`. Tras un 429 con `Retry-After` mayor que el presupuesto que queda, la respuesta es `SERVICIO_NO_DISPONIBLE`. El cliente recuerda el "no antes de", y hasta entonces no vuelve a llamar.
+  - **Instrumental**: si el resultado de `get` es instrumental o todos los registros devueltos lo son, el resultado lleva `instrumental: true`.
+  - **Errores**:
+    - DNS sin resolver, red caída o equipo sin conexión → `SIN_CONEXION`.
+    - Tiempo agotado, conexión rechazada, 5xx, 429, cuerpo no válido o mayor de 2 MB → `SERVICIO_NO_DISPONIBLE`.
+    - Ningún candidato → `LETRA_NO_ENCONTRADA`.
+    - Solo instrumentales → `INSTRUMENTAL`.
+  - **Cliente HTTP**: `net.fetch` de Electron, que usa el proxy del sistema, inyectable en los tests.
+    - Cabecera única `User-Agent: ShinobiKaraoke/<versión> (https://github.com/Gomonsoft/shinobi-karaoke)`. **No se envían** datos del equipo, del sistema operativo ni del usuario, ni identificadores de instalación, cookies o `Referer`.
+    - Solo se envían título, artista, álbum y duración de la canción, y solo cuando el usuario entra en el paso Letra o pulsa Buscar.
+    - La URL base es fija (`https://lrclib.net`). Solo sin empaquetar se puede sustituir con `SHINOBI_LRCLIB_URL` (doble HTTP local para los E2E, ADR 0009 §8).
+  - **Importación**:
+    - Un texto pegado o un archivo (`.lrc` o `.txt`, da igual la extensión) se trata como LRC si al menos la mitad de sus renglones no vacíos y sin metadatos empiezan por una marca `[m:ss(.xx)]`.
+    - En un LRC se ignoran los renglones con texto pero sin marca. También se ignoran las etiquetas `[ar:]`, `[ti:]`, `[al:]`, `[by:]`, `[length:]`, `[re:]`, `[ve:]` y `[#…]`.
+    - El `[offset:±ms]` de un LRC y el `offset_ms` de un Lyricsfile **se aplican a los tiempos** al importar (`t − offset`, con mínimo 0). El `offset_ms` de la letra queda en 0.
+    - Una marca vacía **al final** se convierte en el fin fijado de la última línea, si es posterior a su inicio; al principio se descarta.
+    - Archivos de hasta 512 KB y 5000 elementos.
+    - Codificación: UTF-8 (con o sin BOM), UTF-16 con BOM y, si el UTF-8 no es válido, Windows-1252.
+  - **Licencia y términos (revisado el 2026-11-05)**:
+    - La documentación de la API y `llms.txt` siguen sin declarar licencia ni términos de uso de los textos. El servidor sigue siendo MIT.
+    - **Sin cambios en la mitigación**: consulta iniciada por el usuario y uso personal; la letra elegida se guarda solo en su `cancion.json` y nunca se redistribuye ni se publica; atribución "Letra: LRCLIB". Los resultados de una búsqueda solo se guardan en memoria y caducan en 10 min.
+    - Las letras de prueba de los E2E y de las fixtures son **inventadas**; ninguna letra real entra en el repositorio. La prueba opcional con red consulta un registro real, pero no lo guarda en el repositorio.
 
 ## Fuentes
-- Documentación de la API de LRCLIB: https://lrclib.net/docs
+- Documentación de la API de LRCLIB: https://lrclib.net/docs (versión Markdown: https://lrclib.net/docs.md, consultada el 2026-11-05) e índice https://lrclib.net/llms.txt
+- Especificación Lyricsfile (LRCGET, MIT): https://github.com/tranxuanthang/lrcget/blob/main/LYRICSFILE_CONCEPT.md
+- Librería `yaml` (ISC): https://github.com/eemeli/yaml
 - Servidor LRCLIB (MIT): https://github.com/tranxuanthang/lrclib
 - Plugin LibreLyrics para LRCLIB (estrategia get → search): https://pypi.org/project/librelyrics-lrclib/
 - Cliente Python de LRCLIB: https://lrclibapi.readthedocs.io/en/stable/lrclib.html

@@ -49,7 +49,13 @@ Las vistas de creación comparten cabecera con stepper:
 | 2 Separación | Cuando la fuente está completada o en curso | ⟳ con % · "En cola" · ✓ · ✕ · ⚠ |
 | 3 Letra | Cuando la fuente está completada (no espera a la separación) | ✓ si hay ≥ 1 línea; ● si es el actual |
 | 4 Editor | Cuando hay letra (≥ 1 línea) | ✓ si la canción está **Lista** |
-Los pasos no navegables muestran *tooltip* con el motivo ("Primero elige una letra").
+Los pasos no navegables tienen `aria-disabled` y muestran *tooltip* con el motivo (definitivos, `preguntas/0022` §8):
+
+| Clave | Cuándo | Texto |
+|-------|--------|-------|
+| `paso.motivo.sinFuente` | Pasos 2–4 con la fuente `pendiente`, `error` o `interrumpido` | Primero añade el audio |
+| `paso.motivo.descargando` | Pasos 3–4 con la fuente `en_curso` (descargando de YouTube) | Espera a que termine la descarga |
+| `paso.motivo.sinLetra` | Paso 4 con la fuente completada y sin letra (0 líneas) | Primero elige una letra |
 
 ## 3. Navegación
 

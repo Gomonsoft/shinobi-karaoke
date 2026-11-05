@@ -1,0 +1,50 @@
+[
+  {
+    "id": 9001,
+    "trackName": "Canción inventada",
+    "artistName": "Artista inventado",
+    "albumName": "Álbum inventado",
+    "duration": 215.4,
+    "instrumental": false,
+    "plainLyrics": "Luciérnagas sobre el tejado\nCuentan estrellas sin prisa",
+    "syncedLyrics": "[00:12.00]Luciérnagas sobre el tejado\n[00:16.50]Cuentan estrellas sin prisa",
+    "lyricsfile": "lines:\n  - text: \"Luciérnagas sobre el tejado\"\n    start_ms: 12000\n  - text: \"Cuentan estrellas sin prisa\"\n    start_ms: 16500\n",
+    "hasWordSync": false
+  },
+  {
+    "id": 9002,
+    "trackName": "Canción inventada (en directo)",
+    "artistName": "Artista inventado",
+    "albumName": null,
+    "duration": 231.0,
+    "instrumental": false,
+    "plainLyrics": "Barcos de papel navegan\nPor el río seco",
+    "syncedLyrics": "[00:10.00]Barcos de papel navegan\n[00:14.00]Por el río seco",
+    "lyricsfile": "lines:\n  - text: \"Barcos de papel navegan\"\n    start_ms: 10000\n    words:\n      - text: \"Barcos \"\n        start_ms: 10000\n      - text: \"de \"\n        start_ms: 10600\n      - text: \"papel \"\n        start_ms: 10900\n      - text: \"navegan\"\n        start_ms: 11500\n  - text: \"Por el río seco\"\n    start_ms: 14000\n",
+    "hasWordSync": true
+  },
+  {
+    "id": 9003,
+    "trackName": "Canción inventada (versión texto)",
+    "artistName": "Artista inventado",
+    "albumName": "Otro álbum inventado",
+    "duration": 190.0,
+    "instrumental": false,
+    "plainLyrics": "Primera estrofa inventada\ncon dos renglones\n\nSegunda estrofa inventada",
+    "syncedLyrics": null,
+    "lyricsfile": "lines:\n  - text: \"Primera estrofa inventada\"\n  - text: \"con dos renglones\"\n",
+    "hasWordSync": false
+  },
+  {
+    "id": 9004,
+    "trackName": "Canción inventada (instrumental)",
+    "artistName": "Artista inventado",
+    "albumName": null,
+    "duration": 215.0,
+    "instrumental": true,
+    "plainLyrics": null,
+    "syncedLyrics": null,
+    "lyricsfile": null,
+    "hasWordSync": false
+  }
+]

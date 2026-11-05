@@ -633,4 +633,25 @@ describe('separación (0059)', () => {
     })
     expect(separacion.separar).toHaveBeenCalledWith('abc')
   })
+
+  it('letras.*: sin servicio responden ERROR_INTERNO y con servicio delegan', async () => {
+    const m = crearManejadores(crearDeps().deps)
+    const peticion = { cancionId: 'x', titulo: 'T', artista: '' }
+    const r = await m[CANALES.letras.buscar]([peticion])
+    expect(r).toMatchObject({ ok: false, error: { codigo: 'ERROR_INTERNO' } })
+    expect(await m[CANALES.letras.leerArchivo]([])).toMatchObject({ ok: false })
+    expect(await m[CANALES.letras.buscar]([{ ...peticion, titulo: '' }])).toMatchObject({
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    const buscar = vi.fn().mockResolvedValue({ candidatos: [], instrumental: true })
+    const conServicio = crearManejadores({
+      ...crearDeps().deps,
+      letras: { buscar } as unknown as DependenciasIpc['letras']
+    })
+    expect(await conServicio[CANALES.letras.buscar]([peticion])).toEqual({
+      ok: true,
+      valor: { candidatos: [], instrumental: true }
+    })
+    expect(buscar).toHaveBeenCalledWith(peticion)
+  })
 })

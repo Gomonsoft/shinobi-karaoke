@@ -6,6 +6,8 @@ Shinobi Karaoke se distribuye bajo GPL-3.0-or-later (ver `LICENSE`). Este archiv
 
 Dependencias de ejecución actuales (se incluyen en el bundle de la app): React y React DOM (MIT). Electron (MIT) se distribuye con la app. El resto (electron-vite, Vite, TypeScript, ESLint, Prettier, Vitest, Testing Library, Playwright…) son herramientas de desarrollo, no se distribuyen.
 
+- **yaml** (eemeli/yaml) 2.9.1 — ISC, © Eemeli Aro, <https://github.com/eemeli/yaml>. Solo en el proceso principal (lectura del Lyricsfile de LRCLIB, tarea 0080); no entra en el bundle del renderer.
+
 (lista completa pendiente de la tarea de empaquetado)
 
 ## Worker Python

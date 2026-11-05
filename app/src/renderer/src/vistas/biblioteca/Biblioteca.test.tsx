@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ApiShinobi, EventoCancionIpc, ResumenCancionIpc } from '@shared/ipc'
 import { fixtures } from './fixturesApi'
 import { Biblioteca, reiniciarFiltroDeSesion } from './Biblioteca'
-import { resumenPrueba } from './resumenPrueba'
+import { marcarProgresoVisto, olvidarProgresosVistos } from '../../navegacion/progresoVisto'
+import { paso, resumenPrueba } from './resumenPrueba'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { RETRASO_CARGA_LENTA_MS } from './useBiblioteca'
 
@@ -164,6 +165,74 @@ describe('tarjetas', () => {
       fireEvent.click(within(t).getByRole('button', { name: 'Continuar «La flaca»', hidden: true }))
     })
     expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c', paso: 'letra' })
+  })
+
+  it('Borrador sin letra y separación en curso: Continuar abre Progreso, y Letra si ya lo vio', async () => {
+    olvidarProgresosVistos()
+    const sepando = resumenPrueba({
+      id: 'e',
+      titulo: 'En marcha',
+      pasos: {
+        fuente: paso('completado'),
+        separacion: paso('en_curso', { progreso: 0.3 }),
+        letra: paso('pendiente'),
+        edicion: paso('pendiente')
+      }
+    })
+    const { ir, api } = montar([sepando])
+    vi.spyOn(api.biblioteca, 'obtener').mockResolvedValue({
+      pasos: sepando.pasos,
+      letra: null,
+      pistas: null
+    } as never)
+    const t = await screen.findByRole('article')
+    const boton = () =>
+      within(t).getByRole('button', { name: 'Continuar «En marcha»', hidden: true })
+    await act(async () => {
+      fireEvent.click(boton())
+    })
+    expect(ir).toHaveBeenLastCalledWith({ tipo: 'cancion', id: 'e', paso: 'progreso' })
+    marcarProgresoVisto('e')
+    await act(async () => {
+      fireEvent.click(boton())
+    })
+    expect(ir).toHaveBeenLastCalledWith({ tipo: 'cancion', id: 'e', paso: 'letra' })
+    olvidarProgresosVistos()
+  })
+
+  it('Borrador con letra: Continuar abre el Editor', async () => {
+    const { ir, api } = montar([borrador])
+    vi.spyOn(api.biblioteca, 'obtener').mockResolvedValue({
+      pasos: borrador.pasos,
+      letra: { lineas: [{ tipo: 'linea', texto: 'x', inicio_ms: null }] },
+      pistas: null
+    } as never)
+    const t = await screen.findByRole('article')
+    await act(async () => {
+      fireEvent.click(within(t).getByRole('button', { name: 'Continuar «La flaca»', hidden: true }))
+    })
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c', paso: 'editor' })
+  })
+
+  it('la tarjeta cambia en vivo al guardar la letra desde Letra', async () => {
+    const { emitir } = montar([borrador])
+    const t = await screen.findByRole('article')
+    expect(within(t).getByText('Falta la letra')).toBeInTheDocument()
+    const conPasos = (letra: 'pendiente' | 'completado', n: number) => ({
+      id: 'c',
+      eliminada: false,
+      resumen: {
+        ...borrador,
+        lineasSinSincronizar: n,
+        pasos: { ...borrador.pasos!, letra: paso(letra) }
+      }
+    })
+    emitir(conPasos('completado', 3) as unknown as EventoCancionIpc)
+    expect(await within(t).findByText('Faltan 3 líneas por sincronizar')).toBeInTheDocument()
+    emitir(conPasos('completado', 1) as unknown as EventoCancionIpc)
+    expect(await within(t).findByText('Falta 1 línea por sincronizar')).toBeInTheDocument()
+    emitir(conPasos('pendiente', 0) as unknown as EventoCancionIpc)
+    expect(await within(t).findByText('Falta la letra')).toBeInTheDocument()
   })
 
   it('Dañada: clic en la portada abre su menú ⋯ (con Mostrar en la carpeta)', async () => {

@@ -1,6 +1,6 @@
 import type { Cancion, NombrePaso } from './cancion'
 import { NOMBRES_PASO } from './cancion'
-import { contarLineas, numerosLineasSinInicio } from './letra'
+import { contarLineas, numerosLineasSinInicio, type Letra } from './letra'
 
 /** Paso actual derivado (no se guarda): el primero no completado; `lista` si la canción está lista. */
 export type PasoActual = NombrePaso | 'lista'
@@ -11,6 +11,16 @@ export function pasoActual(cancion: Cancion): PasoActual {
     if (cancion.pasos[paso].estado !== 'completado') return paso
   }
   return 'edicion'
+}
+
+/**
+ * Regla de `pasos.letra` (ADR 0006, Revisión 2026-11-05): `completado` con al menos una línea; si no,
+ * `pendiente`. Nunca `en_curso` ni `error` (la búsqueda no es un trabajo).
+ */
+export function estadoPasoLetra(
+  letra: Pick<Letra, 'lineas'> | null | undefined
+): 'completado' | 'pendiente' {
+  return contarLineas(letra) >= 1 ? 'completado' : 'pendiente'
 }
 
 /** Etiqueta orientativa de 01-pipeline.md: borrador:fuente | borrador:separando | borrador:letra | borrador:edicion | lista. */

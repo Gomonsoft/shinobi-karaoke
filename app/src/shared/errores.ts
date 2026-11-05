@@ -24,7 +24,8 @@ export const CODIGOS_ERROR = [
   'PLATAFORMA_NO_SOPORTADA',
   'CANCELADO',
   'DEMO_FALLO',
-  'PROCESO_TERMINADO'
+  'PROCESO_TERMINADO',
+  'ARCHIVO_SIN_LETRA'
 ] as const
 
 /**
@@ -32,8 +33,10 @@ export const CODIGOS_ERROR = [
  * `worker/shinobi_worker/errores.py`). `PROCESO_TERMINADO`: el sistema mató el proceso sin que dejara
  * línea de error (p. ej. el OOM killer de Linux; 0063). Fuera de la separación la interfaz lo muestra con
  * `prog.error.generico`; en `separar` el main lo convierte en `MEMORIA_INSUFICIENTE` (0066).
+ * `ARCHIVO_SIN_LETRA`: el archivo elegido en `letras.leerArchivo` no contiene letra legible (0077;
+ * la interfaz lo muestra con `let.error.archivo`).
  */
-export const CODIGOS_SOLO_MAIN = ['PROCESO_TERMINADO'] as const
+export const CODIGOS_SOLO_MAIN = ['PROCESO_TERMINADO', 'ARCHIVO_SIN_LETRA'] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]
 

@@ -4,7 +4,7 @@ import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
 import { paso, resumenPrueba } from '../biblioteca/resumenPrueba'
 import { CabeceraCancion } from './CabeceraCancion'
-import { pasosDeCancion, pasosDeNueva } from './pasos'
+import { MOTIVOS, pasosDeCancion, pasosDeNueva } from './pasos'
 
 const trabajo = (extra: Partial<TrabajoIpc> = {}): TrabajoIpc => ({
   id: 't1',
@@ -111,6 +111,36 @@ describe('canción existente', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Primero elige una letra')
   })
 
+  it('el stepper cambia en vivo al guardar o vaciar la letra (nuevo resumen)', () => {
+    const ir = vi.fn<(v: Vista) => void>()
+    const con = (letra: 'pendiente' | 'completado') => (
+      <NavegacionContexto.Provider value={{ vista: { tipo: 'anadir' }, ir }}>
+        <TrabajosContexto.Provider value={{ trabajos: [], progreso: {}, terminado: false }}>
+          <CabeceraCancion
+            resumen={resumenPrueba({
+              pasos: {
+                fuente: paso('completado'),
+                separacion: paso('en_curso', { progreso: 0.4 }),
+                letra: paso(letra),
+                edicion: paso('pendiente')
+              }
+            })}
+            actual="letra"
+          />
+        </TrabajosContexto.Provider>
+      </NavegacionContexto.Provider>
+    )
+    const { rerender } = render(con('pendiente'))
+    expect(paso3()).toHaveAccessibleName(/paso actual/)
+    expect(paso4()).toHaveAttribute('aria-disabled', 'true')
+    rerender(con('completado'))
+    expect(paso3()).toHaveAccessibleName(/completado|paso actual/)
+    expect(paso4()).not.toHaveAttribute('aria-disabled')
+    expect(paso2()).toHaveAccessibleName(/40 %/)
+    rerender(con('pendiente'))
+    expect(paso4()).toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('con trabajo vivo de separación muestra el porcentaje', () => {
     const resumen = resumenPrueba({
       pasos: {
@@ -160,7 +190,29 @@ describe('indicadores (funciones puras)', () => {
     expect(p[0]!.indicador).toBe('curso')
     expect(p[1]!.navegable).toBe(true)
     expect(p[2]!.navegable).toBe(false)
-    expect(p[2]!.motivo).toBe('Primero añade el audio')
+    expect(p[2]!.motivo).toBe('Espera a que termine la descarga')
+  })
+
+  it.each(['pendiente', 'error', 'interrumpido'] as const)(
+    'fuente %s: Letra y Editor con "Primero añade el audio"',
+    (estado) => {
+      const p = pasosDeCancion(r({ fuente: paso(estado) }), 'fuente')
+      expect(p[2]!.motivo).toBe(MOTIVOS['paso.motivo.sinFuente'])
+      expect(p[1]!.motivo).toBe('Primero añade el audio')
+      expect(p[3]!.motivo).toBe('Primero añade el audio')
+    }
+  )
+
+  it('descargando: Letra y Editor con "Espera a que termine la descarga"', () => {
+    const p = pasosDeCancion(r({ fuente: paso('en_curso', { progreso: 0.3 }) }), 'progreso')
+    expect(p[2]!.motivo).toBe('Espera a que termine la descarga')
+    expect(p[3]!.motivo).toBe('Espera a que termine la descarga')
+  })
+
+  it('con la fuente completada y sin letra: Letra navegable y Editor con "Primero elige una letra"', () => {
+    const p = pasosDeCancion(r({ separacion: paso('en_curso', { progreso: 0.5 }) }), 'progreso')
+    expect(p[2]!.navegable).toBe(true)
+    expect(p[3]!.motivo).toBe('Primero elige una letra')
   })
 
   it('fuente con error: ✕ y navegable, pero el resto no', () => {

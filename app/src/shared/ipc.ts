@@ -13,6 +13,18 @@ import {
   detalleSeparandoSchema
 } from './protocolo'
 import { intentoSchema } from './separacion'
+import {
+  archivoLetraLeidoSchema,
+  busquedaLetraSchema,
+  editarTextoLetraSchema,
+  guardarLetraSchema,
+  resultadoBusquedaLetraSchema,
+  type ArchivoLetraLeido,
+  type BusquedaLetra,
+  type EditarTextoLetra,
+  type GuardarLetra,
+  type ResultadoBusquedaLetra
+} from './letrasBusqueda'
 
 export { CANALES } from './canales'
 
@@ -448,6 +460,16 @@ export const CONTRATO = {
   [CANALES.runtime.aceptarYUsarRapido]: { args: z.tuple([origenRapidoSchema]), res: z.void() },
   [CANALES.runtime.volverACalidad]: { args: vacio, res: z.void() },
   [CANALES.runtime.cancelarVolverACalidad]: { args: vacio, res: z.void() },
+  [CANALES.letras.buscar]: {
+    args: z.tuple([busquedaLetraSchema]),
+    res: resultadoBusquedaLetraSchema
+  },
+  [CANALES.letras.guardar]: { args: z.tuple([guardarLetraSchema]), res: resumenCancionSchema },
+  [CANALES.letras.editarTexto]: {
+    args: z.tuple([editarTextoLetraSchema]),
+    res: resumenCancionSchema
+  },
+  [CANALES.letras.leerArchivo]: { args: vacio, res: archivoLetraLeidoSchema },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
   [CANALES.app.salir]: { args: vacio, res: z.void() }
 } as const
@@ -485,6 +507,16 @@ export interface ApiShinobi {
     separar(cancionId: string): Promise<void>
     /** Minutos estimados según el equipo y el modo vigente; `null` sin datos. */
     estimar(cancionId: string): Promise<EstimacionCancion>
+  }
+  letras: {
+    /** Busca en LRCLIB; una búsqueda nueva cancela la anterior (`CANCELADO`). */
+    buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
+    /** Sustituye la letra entera de la canción. */
+    guardar(letra: GuardarLetra): Promise<ResumenCancionIpc>
+    /** Aplica el diff del texto sobre la letra guardada. */
+    editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancionIpc>
+    /** Diálogo nativo `.lrc`/`.txt`; no guarda (ver `guardar` con `origen: 'archivo'`). */
+    leerArchivo(): Promise<ArchivoLetraLeido>
   }
   config: {
     obtener(): Promise<Config>

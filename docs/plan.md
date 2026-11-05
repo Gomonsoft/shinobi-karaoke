@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-05 (desglose de la Fase 3).
+Última actualización: 2026-11-05 (cierre de la Fase 3 y desglose de la Fase 4).
 
 ## Resumen
 
@@ -15,8 +15,8 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 0 | Fundamentos: decisiones técnicas, arquitectura, diseño de vistas | ✅ Cerrada |
 | 1 | Esqueleto: app, worker, persistencia, biblioteca | ✅ Cerrada |
 | 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (0040 ejecutada el 2026-11-05) |
-| 3 | Separación de voz e instrumental | ⏳ Siguiente (desglosada: 0055–0076) |
-| 4 | Letras | Pendiente |
+| 3 | Separación de voz e instrumental | ✅ Cerrada (0058 y 0062 esperan `runtime-real` en GitHub) |
+| 4 | Letras | ⏳ Siguiente (desglosada: 0077–0089) |
 | 5 | Editor (sincronía y estilo) | Pendiente |
 | 6 | Reproductor a pantalla completa | Pendiente |
 | 7 | Empaquetado y distribución | Pendiente |
@@ -70,7 +70,7 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Pendiente**: abrir el issue a UVR (pregunta 0012).
 
-## Fase 3 — Separación de pistas ⏳ (desglosada el 2026-11-05: tareas 0055–0076)
+## Fase 3 — Separación de pistas ✅ (cerrada el 2026-11-05: tareas 0055–0076, [informe](informe-fase-3.md))
 **Objetivo**: obtener `voz.flac` e `instrumental.flac` de cada canción.
 
 - **Antes de empezar**: 0055 (manifiesto: 4 GB en CPU, `bytes_disco` medidos, progreso de componentes) y 0056 (Calidad por defecto, sin elección de modo; en curso). **Al inicio**: 0057 (alternativa a Rápido con consentimiento) y 0059 (contratos compartidos), en paralelo. **En paralelo durante toda la fase**: 0058 (bytes de red y pico de disco en `runtime-real`) y 0073 (diálogo de cierre).
@@ -98,13 +98,26 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Sin preguntas abiertas en la fase.**
 
-## Fase 4 — Letras
+## Fase 4 — Letras ⏳ (desglosada el 2026-11-05: tareas 0077–0089)
 **Objetivo**: tener la letra de la canción, con tiempos si es posible.
 
-- Búsqueda en **LRCLIB** por título, artista y duración, mostrando los resultados (`ux/05`).
-- Pegar la letra a mano o importar `.lrc` / `.txt`.
-- Conversores LRC, LRC mejorado y Lyricsfile al formato interno, con normalización (ADR 0005).
-- Edición del texto conservando la sincronía de las líneas que no cambian.
+- **Contratos** (0077): API `letras.*` (buscar, guardar, editar texto, leer archivo), candidatos, el código `ARCHIVO_SIN_LETRA`, la regla del paso Letra (completado con ≥ 1 línea) y una API falsa para la interfaz.
+- **Dominio** (0078–0080):
+  - conversores puros de texto plano, LRC y LRC mejorado, con la normalización del ADR 0005;
+  - diff LCS para editar el texto sin perder la sincronía de lo que no cambia;
+  - Lyricsfile (YAML de LRCLIB, con palabras), solo en el proceso principal.
+- **Main** (0081–0083):
+  - cliente de LRCLIB **sin clave**: `get` + `search` en serie, 10 s como máximo, respeta los límites (429), `User-Agent` genérico del proyecto sin datos personales;
+  - búsqueda con candidatos ordenados (palabra > línea > texto y por duración);
+  - guardado de la letra en `cancion.json`;
+  - importación de `.lrc`/`.txt` con detección de codificación.
+- **Interfaz** (0084–0087):
+  - vista Letra con resultados, vista previa y banners; pegar e importar con confirmación de sustituir; letra elegida editable con autoguardado;
+  - integración con el stepper, la vista de progreso ("Buscar la letra mientras tanto"), "Continuar" y la Biblioteca.
+- **E2E** (0088) sin red, con un servidor HTTP local que hace de LRCLIB (solo sin empaquetar), y una prueba opcional con LRCLIB real (0089).
+- **Legal**: LRCLIB sigue sin declarar licencia de las letras. Uso personal, nada se redistribuye, atribución "Letra: LRCLIB" y letras inventadas en las pruebas (ADR 0005, Revisión 2026-11-05).
+
+**Pregunta abierta**: [0022](preguntas/0022-huecos-ux-de-la-vista-letra-fase-4.md) (diseñador UX; no bloquea).
 
 ## Fase 5 — Editor
 **Objetivo**: ajustar la sincronía y el aspecto del karaoke (`ux/06`).

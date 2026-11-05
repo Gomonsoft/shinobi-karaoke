@@ -126,7 +126,7 @@ describe('eventos de progreso hacia el renderer', () => {
 describe('errores', () => {
   it('PROCESO_TERMINADO existe y solo lo genera el main', () => {
     expect(CODIGOS_ERROR).toContain('PROCESO_TERMINADO')
-    expect(CODIGOS_SOLO_MAIN).toEqual(['PROCESO_TERMINADO'])
+    expect(CODIGOS_SOLO_MAIN).toEqual(['PROCESO_TERMINADO', 'ARCHIVO_SIN_LETRA'])
   })
 })
 

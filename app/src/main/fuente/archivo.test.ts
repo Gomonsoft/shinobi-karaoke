@@ -221,13 +221,30 @@ describe.skipIf(!hayUv())('importación de archivo con el worker real', () => {
       const resumen = await biblioteca.crear({
         metadatos: y.metadatos,
         fuente: { ...y.fuente, miniatura: 'fuente/miniatura.jpg' },
-        pasos: { fuente: { estado: 'pendiente', actualizado: null, error: null } }
+        letra: {
+          origen: 'manual',
+          lrclib_id: null,
+          offset_ms: 0,
+          lineas: [
+            {
+              id: 'l1',
+              tipo: 'linea',
+              texto: 'Letra inventada',
+              inicio_ms: 1000,
+              fin_ms: null,
+              palabras: null
+            }
+          ]
+        },
+        pasos: {
+          fuente: { estado: 'pendiente', actualizado: null, error: null },
+          letra: { estado: 'completado', actualizado: '2026-01-01T00:00:00.000Z', error: null }
+        }
       })
       const carpeta = join(datos, 'biblioteca', resumen.id)
       await mkdir(join(carpeta, 'fuente'), { recursive: true })
       await writeFile(join(carpeta, 'fuente', 'miniatura.jpg'), 'jpg')
       await writeFile(join(carpeta, 'fuente', 'descarga.webm'), 'parcial')
-      await writeFile(join(carpeta, 'letra.json'), '{"conservada":true}')
       return { id: resumen.id, carpeta }
     }
     const meta = { titulo: 'Nuevo título', artista: 'Otro', album: null }
@@ -256,7 +273,8 @@ describe.skipIf(!hayUv())('importación de archivo con el worker real', () => {
       expect(existsSync(join(carpeta, 'fuente', 'mezcla.flac'))).toBe(true)
       expect(existsSync(join(carpeta, 'fuente', 'miniatura.jpg'))).toBe(false)
       expect(existsSync(join(carpeta, 'fuente', 'descarga.webm'))).toBe(false)
-      expect(await readFile(join(carpeta, 'letra.json'), 'utf8')).toBe('{"conservada":true}')
+      expect(cancion.letra?.lineas.map((l) => l.texto)).toEqual(['Letra inventada'])
+      expect(cancion.pasos.letra.estado).toBe('completado')
       expect(await importando()).toEqual([])
       expect((await readdir(join(datos, 'biblioteca'))).sort()).toEqual(['.importando', id])
     }, 60_000)

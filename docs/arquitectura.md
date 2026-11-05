@@ -27,7 +27,7 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | **Gestor de trabajos** | Main | TS | Cola de trabajos en segundo plano, lanzamiento del worker, lectura de JSON Lines, progreso/ETA, cancelación (matar árbol de procesos), recuperación de trabajos interrumpidos. |
 | **Gestor de runtime** | Main | TS + binario `uv` | Detección previa de hardware sin Python (SO/arquitectura + `nvidia-smi`) y espacio libre (`fs.statfs`); primer arranque: Python 3.12, venv, dependencias (requisitos fijados por perfil, ADR 0009 §1), modelo **Calidad** (todos los perfiles; Rápido solo con consentimiento, ADR 0004 Revisiones), Deno, con tamaños tomados del manifiesto de runtime; confirmación del perfil con PyTorch; descarga de modelos bajo demanda (Rápido con consentimiento tras un fallo de Calidad; "Volver a Calidad" desde Ajustes); actualización de yt-dlp. |
 | **Avisos del sistema** | Main | Electron `Notification`, `app.dock`, `BrowserWindow.flashFrame` | Notificación al terminar/fallar un trabajo con la ventana sin foco; alternativa sin firma en macOS (rebote + insignia del Dock). |
-| **Cliente de letras** | Main | TS (`fetch`) | LRCLIB `get` → `search`; parseo LRC / LRC mejorado / Lyricsfile YAML → formato interno; importación de `.lrc`/`.txt` (ADR 0005). |
+| **Cliente de letras** | Main | TS (`net.fetch` de Electron; `yaml` solo para Lyricsfile) | LRCLIB `get` + `search` en serie, con un presupuesto de 10 s y `User-Agent` genérico del proyecto. Lectura de Lyricsfile YAML. Importación de `.lrc`/`.txt`. Guardado de la letra y edición del texto con diff LCS (ADR 0005, revisión 2026-11-05). Los conversores de texto plano y LRC y la normalización son funciones puras de `shared/letras/`, que usa también el renderer. |
 | **Protocolo de medios** | Main | `protocol.handle` de Electron | Esquema propio `shinobi-media://<id>/<ruta-relativa>` para servir audio y miniaturas de la biblioteca al renderer (lista blanca de 4 rutas, rangos, 404 sin detalle), sin habilitar `file://`. CORS limitado al origen del renderer (ADR 0008). |
 | **Protocolo de la app** | Main | `protocol.handle` | Esquema `shinobi-app://app/` que sirve el build del renderer en producción en lugar de `file://` (ADR 0008, tarea 0022). |
 | **Worker de audio** | Proceso hijo Python (uno por trabajo) | Python 3.12, yt-dlp + Deno, PyAV, pyloudnorm, audio-separator (PyTorch/ONNX Runtime), soundfile | Comandos: `info-youtube` (metadatos + miniatura JPEG, sin descargar audio), `descargar-youtube` (descarga + normalización en un solo trabajo), `importar-archivo` (decodificar a `fuente/mezcla.flac`, sonoridad, metadatos), `separar`, `diagnostico` (hardware/aceleración). Emite JSON Lines por stdout. Sin estado propio. yt-dlp detrás de un adaptador `FuenteYoutube` (ADR 0009). |
@@ -162,7 +162,8 @@ shinobi-karaoke/
 │   ├── e2e/                      # pruebas Playwright `_electron` (directorio de datos temporal por prueba)
 │   └── src/
 │       ├── shared/               # esquemas Zod (cancion, letra, estilo, config), migraciones, reglas derivadas, operaciones de letra,
-│       │                         # catálogo de errores, protocolo JSON Lines, fuentes incluidas, contrato IPC (ipc.ts) y canales (canales.ts), __fixtures__/
+│       │                         # catálogo de errores, protocolo JSON Lines, fuentes incluidas, contrato IPC (ipc.ts) y canales (canales.ts), __fixtures__/,
+│       │                         # letras/ (Fase 4: texto plano, LRC y LRC mejorado, normalización, diff al editar el texto)
 │       ├── main/
 │       │   ├── index.ts          # ventana, ciclo de vida, registro de protocolos, cableado de servicios
 │       │   ├── rutas.ts          # directorio de datos (SHINOBI_DATOS o ruta por SO)
@@ -178,7 +179,7 @@ shinobi-karaoke/
 │       │   ├── fuente/           # (Fase 2) importación de archivo local y servicio de YouTube
 │       │   ├── separacion/       # (Fase 3) servicio de separación: encolar, args, pistas, reintentos, oferta de Rápido
 │       │   ├── avisos/           # (Fase 3) notificaciones del sistema, Dock y barra de tareas
-│       │   └── letras/           # (Fase 4) cliente LRCLIB, parsers LRC / LRC mejorado / Lyricsfile
+│       │   └── letras/           # (Fase 4) cliente LRCLIB, búsqueda y candidatos, Lyricsfile (yaml), servicio de letras (guardar, editar, importar)
 │       ├── preload/
 │       │   └── index.ts          # contextBridge con API tipada (sin exponer ipcRenderer)
 │       └── renderer/

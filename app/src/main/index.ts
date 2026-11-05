@@ -6,6 +6,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  net,
   Notification,
   protocol,
   session,
@@ -14,6 +15,7 @@ import {
 } from 'electron'
 import { estiloPredeterminado } from '@shared/estilo'
 import { CANALES } from '@shared/canales'
+import { ENTORNO_LRCLIB_URL } from '@shared/letrasBusqueda'
 import { ID_APP_WINDOWS, TITULO_APP } from '@shared/titulo'
 import { ServicioBiblioteca } from './biblioteca'
 import {
@@ -26,6 +28,7 @@ import {
 } from './fuente'
 import { shellConPapeleraDePruebas } from './biblioteca/papelera'
 import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
+import { BusquedaLetras, ServicioLetras, crearClienteLrclib } from './letras'
 import { ServicioConfig } from './configuracion'
 import { registrarIpc } from './ipc'
 import { plantillaMenu } from './menu'
@@ -80,6 +83,7 @@ export let runtime: RuntimeReal | null = null
 
 /** Servicio de separación (0065): cola pesada, pistas y factor medido. */
 export let servicioSeparacion: ServicioSeparacion | null = null
+let busquedaLetras: BusquedaLetras | null = null
 
 /** Avisos del sistema al terminar o fallar un trabajo (0072). */
 let servicioAvisos: ServicioAvisos | null = null
@@ -260,6 +264,8 @@ if (instanciaUnica)
       if (app.isPackaged) delete process.env.SHINOBI_YTDLP_FALSO
       // Igual con el doble del separador (0059): el main solo lo pasa al worker sin empaquetar.
       if (app.isPackaged) delete process.env.SHINOBI_SEPARADOR_FALSO
+      // Y el doble de LRCLIB (0077/0081): empaquetada se ignora y se borra del entorno.
+      if (app.isPackaged) delete process.env[ENTORNO_LRCLIB_URL]
       const { lanzador, modo } = lanzadorDeApp({
         empaquetada: app.isPackaged,
         dirRecursos: process.resourcesPath,
@@ -472,6 +478,28 @@ if (instanciaUnica)
       servirRenderer(dirRenderer, peticion.url, peticion.method)
     )
     if (servicioConfig && servicioBiblioteca && gestorTrabajos && importacionArchivo && runtime) {
+      const servicioLetras = new ServicioLetras({
+        biblioteca: servicioBiblioteca,
+        // `SHINOBI_DIALOGO_PRUEBAS` sustituye el selector nativo en E2E; se ignora empaquetada (0046).
+        dialogo: dialogoConDoblePruebas(
+          { showOpenDialog: (o) => dialog.showOpenDialog(o) },
+          { env: process.env, empaquetada: app.isPackaged }
+        )
+      })
+      const clienteLrclib = crearClienteLrclib({
+        fetch: (url, init) => net.fetch(url, init),
+        version: app.getVersion(),
+        registro,
+        env: process.env,
+        empaquetada: app.isPackaged,
+        enLinea: () => net.isOnline()
+      })
+      busquedaLetras = new BusquedaLetras({
+        biblioteca: servicioBiblioteca,
+        cliente: clienteLrclib,
+        registro
+      })
+      const busqueda = busquedaLetras
       registrarIpc(
         ipcMain,
         {
@@ -482,6 +510,13 @@ if (instanciaUnica)
           trabajos: gestorTrabajos,
           ...(servicioSeparacion ? { separacion: servicioSeparacion } : {}),
           fuente: importacionArchivo,
+          // 0083: guardar, editar e importar. La búsqueda (buscar) es de 0082.
+          letras: {
+            buscar: (p) => busqueda.buscar(p),
+            guardar: (p) => servicioLetras.guardar(p),
+            editarTexto: (p) => servicioLetras.editarTexto(p),
+            leerArchivo: () => servicioLetras.leerArchivo()
+          },
           ...(servicioYoutube ? { youtube: servicioYoutube } : {}),
           elegirArchivoAudio: () =>
             // `SHINOBI_DIALOGO_PRUEBAS` sustituye el selector nativo en E2E; se ignora empaquetada (0046).
@@ -571,6 +606,7 @@ app.on('before-quit', (evento) => {
     runtime?.servicio.cerrar(),
     importacionArchivo?.cerrar(),
     servicioSeparacion?.cerrar(),
+    Promise.resolve(busquedaLetras?.cerrar()),
     servicioYoutube?.cerrar(),
     // Espera a uv ≤ 10 s y después mata el árbol de procesos (0050).
     actualizadorYtDlp?.cerrar()

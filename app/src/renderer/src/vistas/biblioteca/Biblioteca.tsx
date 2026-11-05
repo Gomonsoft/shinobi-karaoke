@@ -8,6 +8,7 @@ import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
+import { progresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
@@ -298,7 +299,10 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         const fuenteEnCola = vivosRef.current.trabajos.some(
           (t) => t.cancionId === id && t.paso === 'fuente' && t.estado !== 'terminado'
         )
-        const paso = vistaAlContinuar(cancion, { fuenteEnCola })
+        const paso = vistaAlContinuar(cancion, {
+          fuenteEnCola,
+          progresoVisto: progresoVisto(id)
+        })
         // Fuente sin completar: resumen de la fuente de esa canción (wireframe E), no una vista nueva.
         ir({ tipo: 'cancion', id, paso: paso === 'anadir' ? 'fuente' : paso })
       } catch {

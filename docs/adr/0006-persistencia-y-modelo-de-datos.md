@@ -213,6 +213,14 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
   - Riesgo anotado para la Fase 4: la letra conservada puede no cuadrar si la duración nueva difiere más de 2 s.
   - Esquema sin cambios (versión 1).
 - 2026-11-05 (`preguntas/0018`, ADR 0004 Revisiones): `config.separacion.modo` admite `calidad` | `rapido` (por defecto `calidad`). Un `automatico` guardado se lee como `calidad` y se reescribe así en el siguiente guardado (lectura tolerante, sin subir `esquema`). Nuevo `separacion.rapido_aceptado: string | null` (fecha ISO del consentimiento para el modelo Rápido; por defecto `null`). Un `rapido` en `modelos_descargados` sin consentimiento no se usa. Sustituye la regla "modo automático sin perfil → `rapido`".
+- 2026-11-05 (desglose de la Fase 4):
+  - **La letra vive en el campo `letra` de `cancion.json`**, como en el esquema. No existe un archivo `letra.json`; donde la revisión 2026-11-04, `preguntas/0014` y las tareas 0042 y 0049 dicen "`letra.json`", se refieren a ese campo.
+  - **Regla de `pasos.letra`**:
+    - Está `completado` si la letra tiene al menos un elemento `tipo: "linea"`; si no, `pendiente`. Nunca está `en_curso` ni en `error`, porque la búsqueda no es un trabajo.
+    - Se recalcula, y se actualiza `actualizado`, en cada guardado de la letra.
+  - **Escritor único**: guardar una letra, sustituirla o editar su texto pasa siempre por el proceso principal (`letras.*`, tarea 0077). Antes de escribir se normaliza (ADR 0005), se generan ids nuevos (salvo al editar, donde las líneas emparejadas conservan el suyo) y se valida con `letraSchema`.
+  - Una canción `lista` no puede quedarse sin líneas al editar el texto: el main lo rechaza (provisional, `preguntas/0022` §2).
+  - Esquema sin cambios (versión 1).
 
 ## Fuentes
 - Electron `app.getPath` y `shell.trashItem`: https://www.electronjs.org/docs/latest/api/app , https://www.electronjs.org/docs/latest/api/shell

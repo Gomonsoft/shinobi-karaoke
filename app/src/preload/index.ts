@@ -45,6 +45,12 @@ const api: ApiShinobi = {
     separar: (cancionId) => invocar(CANALES.separacion.separar, cancionId),
     estimar: (cancionId) => invocar(CANALES.separacion.estimar, cancionId)
   },
+  letras: {
+    buscar: (peticion) => invocar(CANALES.letras.buscar, peticion),
+    guardar: (letra) => invocar(CANALES.letras.guardar, letra),
+    editarTexto: (peticion) => invocar(CANALES.letras.editarTexto, peticion),
+    leerArchivo: () => invocar(CANALES.letras.leerArchivo)
+  },
   config: {
     obtener: () => invocar(CANALES.config.obtener),
     actualizar: (parcial) => invocar(CANALES.config.actualizar, parcial)

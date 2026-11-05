@@ -1,12 +1,13 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { FIXTURES } from '../../shared/__fixtures__'
+import { FIXTURES, linea } from '../../shared/__fixtures__'
 import {
   estiloPredeterminado,
   FUENTES_REGISTRO,
   migrarConfig,
   type Cancion,
-  type Estilo
+  type Estilo,
+  type Letra
 } from '../../shared'
 import { silencioFlac } from './flac'
 
@@ -101,6 +102,31 @@ function plan(): Plan[] {
       }
     }
   }
+  // Letras inventadas para probar el paso Letra (0087).
+  const sincronizadaLrclib = (): Letra => ({
+    origen: 'lrclib',
+    lrclib_id: 987654,
+    offset_ms: 0,
+    lineas: [
+      'Luces sobre el río dormido',
+      'Cantan los grillos al viento',
+      'Vuelve el eco a mi ventana'
+    ].map((texto, i) => linea(`s${i + 1}`, texto, 12000 + i * 4000))
+  })
+  const pegadaSinSincronizar = (): Letra => ({
+    origen: 'manual',
+    lrclib_id: null,
+    offset_ms: 0,
+    lineas: [
+      'Sombras de papel en la pared',
+      'Barcos de tinta sin mar',
+      'Hoy el faro es una canción'
+    ].map((texto, i) => linea(`m${i + 1}`, texto, null))
+  })
+  const conLetra = (letra: Letra): Cancion => {
+    const c = f.sinLetra()
+    return { ...c, letra, pasos: { ...c.pasos, letra: f.lista().pasos.letra } }
+  }
   const danadaPistas = con(10, f.lista(), 'Sin pistas', 'Artista dañado', 9)
   return [
     con(1, f.lista(), 'Canción lista', 'Artista Uno', 1),
@@ -115,7 +141,17 @@ function plan(): Plan[] {
     { id: idN(11), cancion: f.lista(), conPistas: false, jsonCrudo: '{ "esquema": 1, "id": ' },
     // YouTube con miniatura: una usa la miniatura como portada, otra tiene estilo propio.
     youtube(12, 'Desde YouTube con portada', 'Artista Doce', 'sEeD0000012', false),
-    youtube(13, 'Desde YouTube con estilo propio', 'Artista Trece', 'sEeD0000013', true)
+    youtube(13, 'Desde YouTube con estilo propio', 'Artista Trece', 'sEeD0000013', true),
+    // Paso Letra: separando y sin letra; letra de LRCLIB sincronizada; letra pegada sin sincronizar.
+    con(14, f.separando(), 'Separando, sin letra', 'Artista Catorce', 14),
+    con(15, conLetra(sincronizadaLrclib()), 'Letra de LRCLIB sincronizada', 'Artista Quince', 15),
+    con(
+      16,
+      conLetra(pegadaSinSincronizar()),
+      'Letra pegada sin sincronizar',
+      'Artista Dieciséis',
+      16
+    )
   ]
 }
 

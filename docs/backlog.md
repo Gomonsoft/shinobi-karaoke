@@ -108,7 +108,7 @@ Decisiones de detalle en el nuevo [ADR 0009](adr/0009-gestor-de-runtime-y-dobles
 
 Orden sugerido con dos o tres programadores: **(A) runtime** 0028/0029 → 0030 → 0031 ‖ 0032 ‖ 0033 → 0034 → 0035 ‖ 0036 → 0037 → 0039 (+ 0040); **(B) archivo local** 0041 → 0042 → 0044 ‖ 0045 → 0046 (0043 y 0038 en cualquier hueco); **(C) YouTube** 0047 → 0048 → 0049 → 0050 ‖ 0051 → 0053 (0052 en cualquier hueco; 0054 tras 0050). Los bloques B y C solo necesitan de A los contratos (0028, 0029) hasta 0050, que usa 0035.
 
-## Fase 3 — Separación de pistas — desglosada (2026-11-05): tareas 0055–0076
+## Fase 3 — Separación de pistas — **cerrada (2026-11-05)**: tareas 0055–0076 ([informe](informe-fase-3.md)); 0058 y 0062 siguen en curso hasta ejecutar `runtime-real` en GitHub
 **Decisión del usuario ([0018](preguntas/0018-datos-reales-del-runtime-y-espacio-en-linux.md), 2026-11-05)**:
 - **Calidad en todos los perfiles**, también solo CPU.
 - **Rápido** solo con el consentimiento explícito del usuario (aviso de licencia no declarada, [0012](preguntas/0012-licencia-no-declarada-del-modelo-rapido.md)), solo tras un fallo definitivo de Calidad (no elegible en Ajustes, que permite volver a Calidad); nunca de forma automática.
@@ -120,28 +120,28 @@ Revisiones 2026-11-05 en ADR [0004](adr/0004-separacion-voz-instrumental.md), [0
 
 | Tarea | Título | Depende de | ¿Paralelizable? | Estado |
 |-------|--------|-----------|-----------------|--------|
-| [0055](tareas/0055-manifiesto-espacio-requerido-y-bytes-medidos.md) | Manifiesto: `espacio_requerido` 4 GB en CPU, `bytes_disco` medidos, `bytes_cache` para el progreso | 0030, 0034, 0040 | **Antes de la Fase 3**; ‖ 0056 | Pendiente |
-| [0056](tareas/0056-modelo-calidad-por-defecto-y-modo-de-separacion.md) | Modelo Calidad por defecto; sin elección de modo; `rapido_aceptado` | 0029, 0034, 0035 | **Antes de la Fase 3**; ‖ 0055 | En curso |
+| [0055](tareas/0055-manifiesto-espacio-requerido-y-bytes-medidos.md) | Manifiesto: `espacio_requerido` 4 GB en CPU, `bytes_disco` medidos, `bytes_cache` para el progreso | 0030, 0034, 0040 | **Antes de la Fase 3**; ‖ 0056 | Hecha |
+| [0056](tareas/0056-modelo-calidad-por-defecto-y-modo-de-separacion.md) | Modelo Calidad por defecto; sin elección de modo; `rapido_aceptado` | 0029, 0034, 0035 | **Antes de la Fase 3**; ‖ 0055 | Hecha |
 | [0057](tareas/0057-alternativa-al-modelo-rapido-con-consentimiento.md) | Alternativa al modelo Rápido con consentimiento (B4, `aviso-rapido`, API reutilizable, "Rápido pendiente", "Volver a Calidad") | 0056 | Al inicio; ‖ 0059 | Hecha |
-| [0058](tareas/0058-runtime-real-bytes-de-red-pico-de-disco-y-calidad-en-cpu.md) | `runtime-real`: bytes reales de descarga, pico de disco y Calidad en CPU | 0040, 0055, 0056 | Sí, durante toda la fase (coordinar con 0062) | Pendiente |
-| [0059](tareas/0059-contratos-compartidos-de-la-fase-3.md) | Contratos compartidos: protocolo de `separar`, IPC de separación, fases y reintentos | 0055, 0056 | ‖ 0057; desbloquea el resto | Pendiente |
-| [0060](tareas/0060-worker-comando-separar-y-separador-falso.md) | Worker: comando `separar`, interfaz `Separador` y separador falso | 0059 | ‖ 0063, 0064, 0067 | Pendiente |
-| [0061](tareas/0061-worker-adaptador-audio-separator.md) | Worker: adaptador audio-separator (sin ffmpeg, soundfile, CPU en Apple Silicon, stems, `tqdm`) + test de contrato | 0060 | ‖ 0065 | Pendiente |
-| [0062](tareas/0062-ci-separacion-sin-ffmpeg-y-prueba-pesada-real.md) | CI: "sin ffmpeg en el PATH" en los 3 SO y prueba `pesado` real en `runtime-real` | 0061, 0056 | ‖ 0065–0068 | Pendiente |
-| [0063](tareas/0063-gestor-reintentos-automaticos.md) | Gestor: reintentos automáticos según `reintentable`, fase `reintentando`, `PROCESO_TERMINADO` y reintento de red de YouTube | 0059 | ‖ 0060, 0064 | Pendiente |
-| [0064](tareas/0064-progreso-interpolado-y-eta-con-factor.md) | Progreso interpolado y ETA con el factor del manifiesto o el medido | 0059 | ‖ 0060, 0063 | Pendiente |
-| [0065](tareas/0065-main-servicio-de-separacion.md) | Main: servicio de separación (cola pesada, `pistas.tmp`, factor medido, limpieza, auto-encolar) | 0056, 0059, 0060, 0063, 0064 | ‖ 0061, 0062, 0067, 0068 | Pendiente |
-| [0066](tareas/0066-separacion-reintentos-modelo-y-oferta-de-rapido.md) | Separación: reintentos por memoria, modelo que falta y oferta de Rápido | 0057, 0065 | ‖ 0068–0072 | Pendiente |
-| [0067](tareas/0067-estimacion-previa-de-la-separacion.md) | Estimación previa "Tardará unos N minutos" (con `origen`) | 0056, 0059 | ‖ 0060, 0063, 0064 | Pendiente |
-| [0068](tareas/0068-vista-progreso-paso-de-separacion.md) | Vista de progreso: paso de separación (cola, fases, cancelar, pendiente, errores, oferta de Rápido) | 0045, 0057, 0059, 0067 | ‖ 0065, 0066 (API falsa) | Pendiente |
-| [0069](tareas/0069-vista-progreso-terminado-y-escucha.md) | Vista de progreso: terminado, duración real y escucha de voz/instrumental | 0068 | ‖ 0070, 0071, 0072 | Pendiente |
-| [0070](tareas/0070-biblioteca-reintentar-cancelar-trabajo-y-re-separar.md) | Biblioteca: "Reintentar" que relanza, "Cancelar trabajo", "Re-separar pistas" y línea de paso | 0059, 0068 (+ 0065) | ‖ 0069, 0071, 0072 | Pendiente |
-| [0071](tareas/0071-panel-de-actividad.md) | Panel de actividad (+ deuda del marco: parpadeo y doble `listar()`) | 0059, 0067, 0068 | ‖ 0069, 0070, 0072 | Pendiente |
-| [0072](tareas/0072-avisos-al-terminar-toasts-y-notificaciones.md) | Avisos al terminar: toasts, notificaciones, Dock y barra de tareas | 0059 (+ 0065) | ‖ 0069, 0070, 0071 | Pendiente |
-| [0073](tareas/0073-dialogo-de-cierre-con-trabajos.md) | Diálogo de cierre con trabajos pendientes | 0014, 0036 (Hechas) | **Sí, en cualquier momento** | Pendiente |
-| [0074](tareas/0074-vista-ajustes-separacion-informativa-y-volver-a-calidad.md) | Vista Ajustes: separación informativa, "Volver a Calidad", Acerca de y soporte | 0057, 0067 | ‖ 0068–0073 | Pendiente |
-| [0075](tareas/0075-e2e-separacion-con-separador-falso.md) | E2E: separación con el separador falso (feliz, cola, cancelar, cierre, panel, avisos) | 0065, 0068, 0069, 0071, 0072, 0073 | No (cierra el bloque principal) | Pendiente |
-| [0076](tareas/0076-e2e-errores-de-separacion-rapido-y-ajustes.md) | E2E: errores, reintentos, oferta de Rápido, Re-separar y "Volver a Calidad" | 0066, 0070, 0074, 0075 | No (cierra la fase) | Pendiente |
+| [0058](tareas/0058-runtime-real-bytes-de-red-pico-de-disco-y-calidad-en-cpu.md) | `runtime-real`: bytes reales de descarga, pico de disco y Calidad en CPU | 0040, 0055, 0056 | Sí, durante toda la fase (coordinar con 0062) | En curso (falta `runtime-real` en GitHub) |
+| [0059](tareas/0059-contratos-compartidos-de-la-fase-3.md) | Contratos compartidos: protocolo de `separar`, IPC de separación, fases y reintentos | 0055, 0056 | ‖ 0057; desbloquea el resto | Hecha |
+| [0060](tareas/0060-worker-comando-separar-y-separador-falso.md) | Worker: comando `separar`, interfaz `Separador` y separador falso | 0059 | ‖ 0063, 0064, 0067 | Hecha |
+| [0061](tareas/0061-worker-adaptador-audio-separator.md) | Worker: adaptador audio-separator (sin ffmpeg, soundfile, CPU en Apple Silicon, stems, `tqdm`) + test de contrato | 0060 | ‖ 0065 | Hecha |
+| [0062](tareas/0062-ci-separacion-sin-ffmpeg-y-prueba-pesada-real.md) | CI: "sin ffmpeg en el PATH" en los 3 SO y prueba `pesado` real en `runtime-real` | 0061, 0056 | ‖ 0065–0068 | En curso (falta `runtime-real` en GitHub) |
+| [0063](tareas/0063-gestor-reintentos-automaticos.md) | Gestor: reintentos automáticos según `reintentable`, fase `reintentando`, `PROCESO_TERMINADO` y reintento de red de YouTube | 0059 | ‖ 0060, 0064 | Hecha |
+| [0064](tareas/0064-progreso-interpolado-y-eta-con-factor.md) | Progreso interpolado y ETA con el factor del manifiesto o el medido | 0059 | ‖ 0060, 0063 | Hecha |
+| [0065](tareas/0065-main-servicio-de-separacion.md) | Main: servicio de separación (cola pesada, `pistas.tmp`, factor medido, limpieza, auto-encolar) | 0056, 0059, 0060, 0063, 0064 | ‖ 0061, 0062, 0067, 0068 | Hecha |
+| [0066](tareas/0066-separacion-reintentos-modelo-y-oferta-de-rapido.md) | Separación: reintentos por memoria, modelo que falta y oferta de Rápido | 0057, 0065 | ‖ 0068–0072 | Hecha |
+| [0067](tareas/0067-estimacion-previa-de-la-separacion.md) | Estimación previa "Tardará unos N minutos" (con `origen`) | 0056, 0059 | ‖ 0060, 0063, 0064 | Hecha |
+| [0068](tareas/0068-vista-progreso-paso-de-separacion.md) | Vista de progreso: paso de separación (cola, fases, cancelar, pendiente, errores, oferta de Rápido) | 0045, 0057, 0059, 0067 | ‖ 0065, 0066 (API falsa) | Hecha |
+| [0069](tareas/0069-vista-progreso-terminado-y-escucha.md) | Vista de progreso: terminado, duración real y escucha de voz/instrumental | 0068 | ‖ 0070, 0071, 0072 | Hecha |
+| [0070](tareas/0070-biblioteca-reintentar-cancelar-trabajo-y-re-separar.md) | Biblioteca: "Reintentar" que relanza, "Cancelar trabajo", "Re-separar pistas" y línea de paso | 0059, 0068 (+ 0065) | ‖ 0069, 0071, 0072 | Hecha |
+| [0071](tareas/0071-panel-de-actividad.md) | Panel de actividad (+ deuda del marco: parpadeo y doble `listar()`) | 0059, 0067, 0068 | ‖ 0069, 0070, 0072 | Hecha |
+| [0072](tareas/0072-avisos-al-terminar-toasts-y-notificaciones.md) | Avisos al terminar: toasts, notificaciones, Dock y barra de tareas | 0059 (+ 0065) | ‖ 0069, 0070, 0071 | Hecha |
+| [0073](tareas/0073-dialogo-de-cierre-con-trabajos.md) | Diálogo de cierre con trabajos pendientes | 0014, 0036 (Hechas) | **Sí, en cualquier momento** | Hecha |
+| [0074](tareas/0074-vista-ajustes-separacion-informativa-y-volver-a-calidad.md) | Vista Ajustes: separación informativa, "Volver a Calidad", Acerca de y soporte | 0057, 0067 | ‖ 0068–0073 | Hecha |
+| [0075](tareas/0075-e2e-separacion-con-separador-falso.md) | E2E: separación con el separador falso (feliz, cola, cancelar, cierre, panel, avisos) | 0065, 0068, 0069, 0071, 0072, 0073 | No (cierra el bloque principal) | Hecha |
+| [0076](tareas/0076-e2e-errores-de-separacion-rapido-y-ajustes.md) | E2E: errores, reintentos, oferta de Rápido, Re-separar y "Volver a Calidad" | 0066, 0070, 0074, 0075 | No (cierra la fase) | Hecha |
 
 **Orden sugerido con dos o tres programadores**:
 - **Antes**: 0055 ‖ 0056. Después, 0057 ‖ 0059.
@@ -168,8 +168,46 @@ Deuda de fases anteriores que se salda aquí:
 - E2E de eventos IPC y del indicador de actividad (→ 0075);
 - test "sin ffmpeg en el PATH" en los 3 SO (0005/0024 → 0061/0062).
 
-## Fase 4 — Letras
-- [ ] Búsqueda de letra + entrada manual (conversores con la normalización de ADR 0005, revisión 2026-11-04: inicios repetidos +1 ms, ids únicos, `palabras: null`).
+## Fase 4 — Letras — desglosada (2026-11-05): tareas 0077–0089
+**Decisiones técnicas** (Revisión 2026-11-05 de los ADR [0005](adr/0005-letras-y-formato-de-sincronia.md) y [0006](adr/0006-persistencia-y-modelo-de-datos.md)):
+- **Búsqueda**:
+  - LRCLIB `get` + `search` en serie (sin duplicados), con un presupuesto de 10 s y al menos 250 ms entre peticiones;
+  - 429 con `Retry-After` y margen aleatorio;
+  - `net.fetch` desde el main con `User-Agent: ShinobiKaraoke/<versión> (URL del repositorio)`, sin cookies ni datos del equipo o del usuario;
+  - sin registrar App-Id.
+- **Fuente de cada registro**: Lyricsfile si `hasWordSync`, luego `syncedLyrics` y luego `plainLyrics`. El YAML se lee con `yaml` (ISC), solo en el main.
+- **Conversores puros** en `shared/letras/` (texto plano, LRC, LRC mejorado, normalización y exportación), que usa también el renderer.
+- **Persistencia**: la letra vive en `cancion.json#letra` (no hay `letra.json`). `pasos.letra` está completado con ≥ 1 línea.
+- **Edición del texto**: diff LCS por líneas en el main.
+- **Licencias**: LRCLIB sigue sin declarar licencia ni términos de los textos. No cambia la mitigación: uso personal, no se redistribuye, atribución. Las fixtures y los E2E usan letras **inventadas**.
+
+**Preguntas**: [0022](preguntas/0022-huecos-ux-de-la-vista-letra-fase-4.md) (para el diseñador UX; no bloquea: hay opción provisional en cada punto).
+
+| Tarea | Título | Depende de | ¿Paralelizable? | Estado |
+|-------|--------|-----------|-----------------|--------|
+| [0077](tareas/0077-contratos-compartidos-de-la-fase-4.md) | Contratos: API `letras.*`, `CandidatoLetra`, `ARCHIVO_SIN_LETRA`, regla de `pasos.letra`, `SHINOBI_LRCLIB_URL`, API falsa y fixtures | 0006, 0011 (Hechas) | **Empieza ya**; ‖ 0078 | Pendiente |
+| [0078](tareas/0078-conversores-texto-plano-lrc-y-normalizacion.md) | Conversores puros: texto plano, LRC, LRC mejorado, normalización y exportación | 0006 (Hecha) | **Empieza ya**; ‖ 0077, 0081 | Pendiente |
+| [0079](tareas/0079-editar-texto-conservando-sincronia.md) | Editar el texto conservando la sincronía (diff LCS) | 0078 | ‖ 0080, 0081, 0084 | Pendiente |
+| [0080](tareas/0080-main-conversor-lyricsfile.md) | Main: conversor Lyricsfile con `yaml` (+ avisos de terceros) | 0078 | ‖ 0079, 0081 | Pendiente |
+| [0081](tareas/0081-main-cliente-http-de-lrclib.md) | Main: cliente HTTP de LRCLIB (User-Agent, presupuesto, 429, errores, URL de pruebas) | 0077 | ‖ 0078–0080 | Hecha |
+| [0082](tareas/0082-main-busqueda-de-letras-y-candidatos.md) | Main: `letras.buscar` (estrategia, conversión, orden, instrumental, caché, cancelación) | 0077, 0078, 0080, 0081 | ‖ 0083, 0084–0086 | Pendiente |
+| [0083](tareas/0083-main-guardar-editar-e-importar-letra.md) | Main: guardar, editar texto e importar `.lrc`/`.txt` (persistencia y paso `letra`) | 0077, 0078, 0079 | ‖ 0081, 0082, 0084–0086 | Pendiente |
+| [0084](tareas/0084-vista-letra-busqueda-y-resultados.md) | Vista Letra: búsqueda, resultados, vista previa y estados (A) | 0077 (API falsa) | ‖ 0078–0083 | Pendiente |
+| [0085](tareas/0085-vista-letra-pegar-importar-y-sustituir.md) | Vista Letra: pegar, importar y confirmar sustitución (B) | 0084, 0078 | ‖ 0086, 0087 | Pendiente |
+| [0086](tareas/0086-vista-letra-letra-elegida-y-edicion.md) | Vista Letra: letra elegida y edición con autoguardado (C) | 0084, 0079 | ‖ 0085, 0087 | Pendiente |
+| [0087](tareas/0087-integracion-letra-stepper-progreso-y-biblioteca.md) | Integración: stepper, Progreso, "Continuar", Biblioteca y semilla | 0084, 0077 (+ 0083) | ‖ 0085, 0086 | Pendiente |
+| [0088](tareas/0088-e2e-letras-sin-red.md) | E2E sin red con un doble HTTP local de LRCLIB | 0082, 0083, 0085, 0086, 0087 | No (cierra la fase) | Pendiente |
+| [0089](tareas/0089-prueba-opcional-con-lrclib-real.md) | Prueba opcional con LRCLIB real (`SHINOBI_TESTS_RED=1`) | 0082, 0088 | La parte Vitest, ‖ 0088 | Hecha |
+
+**Orden sugerido con dos o tres programadores**:
+- **(A) Dominio**: 0078 → 0079 ‖ 0080.
+- **(B) Main**: 0077 → 0081 → 0082, y 0083 en cuanto estén 0078 y 0079.
+- **(C) Interfaz**: 0084 (API falsa en cuanto esté 0077) → 0085 ‖ 0086 ‖ 0087.
+- **Cierre**: 0088 → 0089.
+
+Deuda que se salda aquí:
+- `hayLetra` de Progreso con `contarLineas` y motivos provisionales del stepper (0043/0068 → 0087);
+- el test de `archivo.test.ts` que escribía un `letra.json` aparte (→ 0083).
 
 ## Fase 5 — Editor
 - [ ] Sincronización de letra (usa `moverInicioLinea` / `borrarTiemposLinea` de 0006 para la regla de palabras de `ux/06` criterio 7d).

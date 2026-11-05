@@ -61,6 +61,16 @@ export const CANALES = {
     /** Estimación previa en minutos de una canción (0067). */
     estimar: 'separacion:estimar'
   },
+  letras: {
+    /** Búsqueda en LRCLIB (0082). */
+    buscar: 'letras:buscar',
+    /** Sustituye la letra entera (0083). */
+    guardar: 'letras:guardar',
+    /** Aplica el diff del texto sobre la letra guardada (0083). */
+    editarTexto: 'letras:editarTexto',
+    /** Diálogo nativo `.lrc`/`.txt`; no guarda (0083). */
+    leerArchivo: 'letras:leerArchivo'
+  },
   eventos: {
     cancion: 'evento:cancion',
     config: 'evento:config',

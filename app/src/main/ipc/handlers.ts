@@ -20,6 +20,11 @@ import {
   type ProgresoRuntimeIpc,
   type RequisitosRuntimeIpc,
   type MetadatosEditables,
+  type BusquedaLetra,
+  type ResultadoBusquedaLetra,
+  type GuardarLetra,
+  type EditarTextoLetra,
+  type ArchivoLetraLeido,
   CODIGOS_ERROR,
   ErrorDatosInvalidos,
   type Cancion,
@@ -103,7 +108,16 @@ export interface SeparacionIpc {
   estimar(cancionId: string): EstimacionCancion
 }
 
+/** Servicio de letras (0082 y 0083); mientras no exista, los canales responden `ERROR_INTERNO`. */
+export interface LetrasIpc {
+  buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
+  guardar(letra: GuardarLetra): Promise<ResumenCancion>
+  editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancion>
+  leerArchivo(): Promise<ArchivoLetraLeido>
+}
+
 export interface DependenciasIpc {
+  letras?: LetrasIpc
   separacion?: SeparacionIpc
   runtime: RuntimeIpc
   /** Respuesta del renderer a la solicitud de cierre (`cierre.ts`). */
@@ -203,7 +217,22 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.separacion
   }
 
+  const letras = (): LetrasIpc => {
+    if (!deps.letras) throw new Error('El servicio de letras no está disponible.')
+    return deps.letras
+  }
+
   return {
+    [CANALES.letras.buscar]: envolver(CANALES.letras.buscar, (p) => letras().buscar(p)),
+    [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) =>
+      resumenParaRenderer(await letras().guardar(p))
+    ),
+    [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) =>
+      resumenParaRenderer(await letras().editarTexto(p))
+    ),
+    [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () =>
+      letras().leerArchivo()
+    ),
     [CANALES.biblioteca.listar]: envolver(CANALES.biblioteca.listar, () =>
       biblioteca.listar().map(resumenParaRenderer)
     ),

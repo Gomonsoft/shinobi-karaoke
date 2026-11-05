@@ -7,6 +7,7 @@ import { Icono } from '../../componentes/Icono'
 import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { Tooltip } from '../../componentes/Tooltip'
 import { useNavegacion, type PasoCancion } from '../../navegacion/estado'
+import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import type { TrabajoVivo } from '../biblioteca/tarjeta'
 import { pasosDeCancion, pasosDeNueva, type DatosPaso, type IndicadorPaso } from './pasos'
@@ -120,7 +121,11 @@ export function CabeceraCancion({ resumen, actual }: CabeceraCancionProps) {
             <Paso
               key={p.paso}
               datos={p}
-              onIr={() => resumen && ir({ tipo: 'cancion', id: resumen.id, paso: p.paso })}
+              onIr={() => {
+                if (!resumen) return
+                if (actual === 'progreso' && p.paso === 'letra') marcarProgresoVisto(resumen.id)
+                ir({ tipo: 'cancion', id: resumen.id, paso: p.paso })
+              }}
             />
           ))}
         </ol>

@@ -9,6 +9,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
+import { contarLineas } from '@shared/letra'
 import type {
   EstadoRuntimeIpc,
   EstimacionCancion,
@@ -22,6 +23,7 @@ import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
+import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { detallesDeError } from '../biblioteca/errores'
@@ -316,7 +318,7 @@ export function Progreso({ id }: { id: string }) {
             rapidoPendiente: runtime?.rapidoPendiente === true,
             aceptandoRapido: aceptando,
             errorRapido,
-            hayLetra: datos.cancion.letra != null,
+            hayLetra: contarLineas(datos.cancion.letra) > 0,
             pisoSep:
               pisoSep.current?.clave === `${trabajoSep?.id}|${pSep?.fase}`
                 ? pisoSep.current.valor
@@ -470,6 +472,12 @@ export function Progreso({ id }: { id: string }) {
         origen: 'youtube'
       }
     })
+  // Al salir hacia Letra se marca el progreso como visto: "Continuar" ya no vuelve a esta vista.
+  const irAPasoLetra = (editor: boolean | undefined) => {
+    if (!editor) marcarProgresoVisto(id)
+    ir({ tipo: 'cancion', id, paso: editor ? 'editor' : 'letra' })
+  }
+
   const volver = (
     <Boton variante="secundario" onClick={() => ir({ tipo: 'biblioteca' })}>
       {TEXTO.botonBiblioteca}
@@ -523,9 +531,7 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
-                  onClick={() =>
-                    ir({ tipo: 'cancion', id, paso: bloque.editor ? 'editor' : 'letra' })
-                  }
+                  onClick={() => irAPasoLetra(bloque.editor)}
                 >
                   {bloque.editor ? SEP.botonEditor : TEXTO.botonLetra}
                 </Boton>
@@ -541,9 +547,7 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
-                  onClick={() =>
-                    ir({ tipo: 'cancion', id, paso: bloque.editor ? 'editor' : 'letra' })
-                  }
+                  onClick={() => irAPasoLetra(bloque.editor)}
                 >
                   {bloque.editor ? SEP.botonEditor : SEP.botonLetraFin}
                 </Boton>

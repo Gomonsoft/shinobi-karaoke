@@ -1,0 +1,13 @@
+{
+  "id": 9001,
+  "name": "Canción inventada",
+  "trackName": "Canción inventada",
+  "artistName": "Artista inventado",
+  "albumName": "Álbum inventado",
+  "duration": 215.4,
+  "instrumental": false,
+  "plainLyrics": "Luciérnagas sobre el tejado\nCuentan estrellas sin prisa\nEl viento ordena las nubes\nY todo queda en calma",
+  "syncedLyrics": "[00:12.00]Luciérnagas sobre el tejado\n[00:16.50]Cuentan estrellas sin prisa\n[00:21.00]El viento ordena las nubes\n[00:25.75]Y todo queda en calma",
+  "lyricsfile": "metadata:\n  offset_ms: 0\nlines:\n  - text: \"Luciérnagas sobre el tejado\"\n    start_ms: 12000\n  - text: \"Cuentan estrellas sin prisa\"\n    start_ms: 16500\n  - text: \"El viento ordena las nubes\"\n    start_ms: 21000\n  - text: \"Y todo queda en calma\"\n    start_ms: 25750\n",
+  "hasWordSync": false
+}

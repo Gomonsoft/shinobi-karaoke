@@ -80,6 +80,31 @@ jobs:
           SHINOBI_MODELOS_DIR: ${{ runner.temp }}/shinobi-datos/modelos
         run: uv run python scripts/sin_ffmpeg.py uv run pytest -m pesado -v
 
+      # Opcional (0089): contrato con LRCLIB real (máx. 8 peticiones en total, 250 ms entre ellas). Su fallo
+      # no hace fallar el workflow. Las letras recibidas no se guardan.
+      - name: Prueba opcional con LRCLIB real (Vitest)
+        continue-on-error: true
+        working-directory: app
+        env:
+          SHINOBI_TESTS_RED: "1"
+        run: npx vitest run lrclib.red
+
+      - name: Prueba opcional con LRCLIB real (E2E)
+        if: runner.os != 'Linux'
+        continue-on-error: true
+        working-directory: app
+        env:
+          SHINOBI_TESTS_RED: "1"
+        run: npm run build && npx playwright test letras-red
+
+      - name: Prueba opcional con LRCLIB real (E2E, xvfb)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        working-directory: app
+        env:
+          SHINOBI_TESTS_RED: "1"
+        run: npm run build && xvfb-run --auto-servernum npx playwright test letras-red
+
       - name: Artefacto con las mediciones
         if: always()
         uses: actions/upload-artifact@v7

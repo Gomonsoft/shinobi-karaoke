@@ -28,9 +28,12 @@ export const PASOS: readonly { paso: PasoCancion; etiqueta: string }[] = [
   { paso: 'editor', etiqueta: 'Editor' }
 ]
 
-/** Motivos provisionales (la spec solo da "Primero elige una letra"; pregunta de UX pendiente). */
-export const MOTIVO_SIN_AUDIO = 'Primero añade el audio'
-export const MOTIVO_SIN_LETRA = 'Primero elige una letra'
+/** Motivos definitivos de un paso no navegable (docs/ux/00 §2, claves `paso.motivo.*`). */
+export const MOTIVOS = {
+  'paso.motivo.sinFuente': 'Primero añade el audio',
+  'paso.motivo.descargando': 'Espera a que termine la descarga',
+  'paso.motivo.sinLetra': 'Primero elige una letra'
+} as const
 
 const DESCRIPCION: Record<IndicadorPaso, string> = {
   completado: 'completado',
@@ -100,12 +103,15 @@ export function pasosDeCancion(
   const fuenteLista = fuente?.estado === 'completado'
   const fuenteViva = fuenteLista || fuente?.estado === 'en_curso' || !!vivos.fuente
   const lista = resumen.estado === 'lista'
+  // Fuente descargándose (o en cola para descargar): Letra y Editor esperan a que termine.
+  const descargando = fuente?.estado === 'en_curso' || !!vivos.fuente
+  const sinFuente = MOTIVOS[descargando ? 'paso.motivo.descargando' : 'paso.motivo.sinFuente']
 
   const navegable: Record<PasoCancion, [boolean, string]> = {
-    fuente: [!resumen.danada, MOTIVO_SIN_AUDIO],
-    progreso: [fuenteViva === true, MOTIVO_SIN_AUDIO],
-    letra: [fuenteLista, MOTIVO_SIN_AUDIO],
-    editor: [tieneLetra, MOTIVO_SIN_LETRA]
+    fuente: [!resumen.danada, MOTIVOS['paso.motivo.sinFuente']],
+    progreso: [fuenteViva === true, MOTIVOS['paso.motivo.sinFuente']],
+    letra: [fuenteLista, sinFuente],
+    editor: [tieneLetra, fuenteLista ? MOTIVOS['paso.motivo.sinLetra'] : sinFuente]
   }
 
   return PASOS.map(({ paso, etiqueta }, i) => {
@@ -153,7 +159,7 @@ export function pasosDeNueva(): DatosPaso[] {
       etiqueta,
       { indicador: i === 0 ? 'actual' : 'pendiente', detalle: null },
       i === 0,
-      i === 0 ? null : MOTIVO_SIN_AUDIO,
+      i === 0 ? null : MOTIVOS['paso.motivo.sinFuente'],
       i === 0
     )
   )
