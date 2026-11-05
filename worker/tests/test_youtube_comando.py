@@ -9,9 +9,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from red import omitir_si_youtube_bloquea_la_ci
 from test_youtube_miniatura import FORMATOS, _imagen, codificar
 
 from shinobi_worker import youtube
+from shinobi_worker.errores import ErrorWorker
 
 FIXTURES = Path(__file__).parent / "fixtures" / "youtube"
 
@@ -137,7 +139,11 @@ def test_el_doble_solo_con_la_variable():
 def test_real_con_video_de_dominio_publico():
     """Big Buck Bunny (Blender Foundation, CC BY 3.0). Solo pide metadatos. Requiere Internet."""
     fuente = youtube.FuenteYoutubeReal()
-    info = fuente.info(youtube.url_canonica(VIDEO_PUBLICO))
+    try:
+        info = fuente.info(youtube.url_canonica(VIDEO_PUBLICO))
+    except ErrorWorker as e:
+        omitir_si_youtube_bloquea_la_ci(e.codigo)
+        raise
     assert info["id"] == VIDEO_PUBLICO
     assert info["duration"] > 0
     assert miniatura_ok(fuente, info)

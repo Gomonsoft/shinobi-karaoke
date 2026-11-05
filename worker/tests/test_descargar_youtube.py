@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import soundfile as sf
+from red import omitir_si_youtube_bloquea_la_ci
 
 from shinobi_worker import youtube
 
@@ -156,8 +157,11 @@ def test_real_con_video_libre(tmp_path):
         [sys.executable, "-m", "shinobi_worker", "descargar-youtube", "--args", json.dumps(args)],
         capture_output=True, text=True, encoding="utf-8", timeout=600,
     )  # fmt: skip
+    ultimo = json.loads(p.stdout.splitlines()[-1]) if p.stdout.strip() else {}
+    if ultimo.get("tipo") == "error":
+        omitir_si_youtube_bloquea_la_ci(ultimo.get("codigo"))
     assert p.returncode == 0, p.stderr
-    datos = json.loads(p.stdout.splitlines()[-1])["datos"]
+    datos = ultimo["datos"]
     assert datos["id_video"] == "aqz-KE-bpKQ"
     assert datos["duracion_ms"] > 10_000
     assert restos(salida) == []
