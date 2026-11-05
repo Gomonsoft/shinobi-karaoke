@@ -79,9 +79,11 @@ Se muestra el **primer paso no completado** con prioridad para trabajos activos 
 |-----------|-------|-------|
 | Descargando de YouTube | ⟳ Descargando 63 % | barra + tiempo |
 | Preparando el audio | ⟳ Preparando el audio… | barra indeterminada |
+| Descargando: actualizando el descargador tras un bloqueo (fase `actualizando`) | ⟳ Actualizando el descargador… | barra indeterminada |
 | Descarga en cola (trabajo vivo) | 🕒 En cola para descargar | — |
 | Separación en cola (trabajo vivo) | 🕒 En cola para separar | — |
-| Fuente pendiente **sin** trabajo vivo | Falta preparar el audio | botón Continuar |
+| Fuente pendiente **sin** trabajo vivo, archivo local | Falta preparar el audio | botón Continuar |
+| Fuente pendiente **sin** trabajo vivo, YouTube (descarga cancelada) | Falta descargar el audio | botón Continuar (abre la spec 03, wireframe E) |
 | Separación pendiente **sin** trabajo vivo | Falta separar las pistas | botón Continuar |
 | Separación cargando modelo | ⟳ Preparando la separación… | barra indeterminada |
 | Separando | ⟳ Separando 42 % · quedan unos 3 min | barra |
@@ -162,6 +164,8 @@ Una canción `lista` en la que, tras editarla, hay líneas (no pausas) sin tiemp
 | `bib.paso.cola.descarga` | En cola para descargar |
 | `bib.paso.cola.separacion` | En cola para separar |
 | `bib.paso.falta.fuente` | Falta preparar el audio |
+| `bib.paso.falta.descarga` | Falta descargar el audio |
+| `bib.paso.actualizando` | Actualizando el descargador… |
 | `bib.paso.falta.separacion` | Falta separar las pistas |
 | `bib.eta` | quedan unos {n} min · queda alrededor de 1 min · queda menos de 1 min |
 | `bib.dialogo.eliminar` | ¿Eliminar «{título}»? Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí. |
@@ -197,3 +201,5 @@ Revisión 2026-11-04 de los textos escritos en las tareas 0019/0020 sin estar en
 13. Toda la vista es operable con teclado: rejilla navegable con flechas, Intro/Espacio para acciones, tecla Menú o Mayús+F10 para ⋯, Supr para eliminar; foco visible según sistema visual.
 14. Cada tarjeta expone a lectores de pantalla el texto `bib.aria.tarjeta`.
 15. La portada usa el estilo de la canción (fondo + fuente + color de letra) o, en canciones de YouTube sin estilo modificado (estilo igual al predeterminado de fábrica **o** al predeterminado vigente del usuario; deja de valer en cuanto se edita en el Editor), la miniatura con velo `rgba(0,0,0,0.5)` y el título en `texto-1`.
+16. Un borrador de YouTube con la fuente `pendiente` y sin trabajo vivo muestra «Falta descargar el audio» en `texto-2` sin icono y "Continuar", que abre el paso 1 (spec 03, wireframe E); durante la actualización automática de yt-dlp la línea de paso es «⟳ Actualizando el descargador…» con barra indeterminada ([0013](../preguntas/0013-huecos-ux-de-la-fase-2.md) §1, §4).
+17. Una canción de YouTube sin `fuente/miniatura.jpg` (o cuya miniatura no carga) usa la portada del estilo como cualquier otra canción, sin marcador ni aviso.

@@ -61,6 +61,10 @@ flowchart TD
     PAERR -- Reintentar --> PA
     PA -- "Empezar" --> BIB
     CHK -- Sí --> BIB[2 · Biblioteca]
+    CHK -- "Hay que verificar una instalación existente" --> COMP[1 · Comprobando… 3–5 s]
+    COMP -- pasa --> BIB
+    COMP -- "no pasa" --> PA
+    CHK -- "Plataforma no compatible" --> NOC[1 · Equipo no compatible<br/>Salir]
 
     BIB -- "+ Añadir canción" --> ADD[3 · Añadir canción<br/>archivo / YouTube]
     ADD -- "1ª vez YouTube" --> LEGAL{{Aviso legal único}}
@@ -90,7 +94,7 @@ flowchart TD
 **"Continuar" de un borrador** abre la vista del paso actual derivado:
 | Situación de la canción | Vista que abre |
 |-------------------------|---------------|
-| Fuente pendiente / error / interrumpida | 3 Añadir canción (con el error o "interrumpido" y Reintentar) |
+| Fuente pendiente / error / interrumpida | 3 Añadir canción (con el error o "interrumpido" y Reintentar; YouTube pendiente sin trabajo vivo: "Falta descargar el audio" y "Descargar ahora", spec 03 wireframe E) |
 | Fuente en curso (descargando) | 4 Progreso |
 | Separación en curso / en cola / error / interrumpida **y** sin letra | 4 Progreso |
 | Sin letra (separación completada o en curso pero ya vista) | 5 Letra |

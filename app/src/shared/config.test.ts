@@ -11,6 +11,10 @@ describe('configSchema (lectura tolerante)', () => {
         estado: 'pendiente',
         fases: { motor: 'pendiente', componentes: 'pendiente', modelo: 'pendiente' },
         perfil_hardware: null,
+        perfil_previsto: null,
+        motivo_rebaja: null,
+        error: null,
+        version_manifiesto: null,
         hardware: { gpu: null, vram_mb: null }
       },
       separacion: { modo: 'automatico', modelos_descargados: [], factores_medidos: {} },
@@ -45,6 +49,10 @@ describe('configSchema (lectura tolerante)', () => {
         estado: 'completa',
         fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
         perfil_hardware: 'cpu',
+        perfil_previsto: 'cpu',
+        motivo_rebaja: null,
+        error: null,
+        version_manifiesto: 1,
         hardware: { gpu: null, vram_mb: null }
       },
       separacion: {
@@ -69,5 +77,37 @@ describe('configSchema (lectura tolerante)', () => {
       configSchema.safeParse({ separacion: { factores_medidos: { rapido: -1 } } }).success
     ).toBe(false)
     expect(configSchema.safeParse({ estilo_predeterminado: { version: 1 } }).success).toBe(false)
+  })
+
+  it('una config antigua sin los campos de la Fase 2 se lee igual', () => {
+    const c = configSchema.parse({
+      esquema: 1,
+      instalacion: {
+        estado: 'completa',
+        fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
+        perfil_hardware: 'mps',
+        hardware: { gpu: 'Apple M1', vram_mb: null }
+      }
+    })
+    expect(c.esquema).toBe(1)
+    expect(c.instalacion.perfil_hardware).toBe('mps')
+    expect(c.instalacion.perfil_previsto).toBeNull()
+    expect(c.instalacion.motivo_rebaja).toBeNull()
+    expect(c.instalacion.error).toBeNull()
+    expect(c.instalacion.version_manifiesto).toBeNull()
+  })
+  it('acepta y valida los campos nuevos de la instalación', () => {
+    const c = configSchema.parse({
+      instalacion: {
+        perfil_previsto: 'cuda',
+        motivo_rebaja: 'memoria',
+        error: { codigo: 'SIN_ESPACIO', mensaje: 'x', fase: 'componentes' },
+        version_manifiesto: 3
+      }
+    })
+    expect(c.instalacion.error?.codigo).toBe('SIN_ESPACIO')
+    expect(configSchema.safeParse({ instalacion: { motivo_rebaja: 'otro' } }).success).toBe(false)
+    expect(configSchema.safeParse({ instalacion: { perfil_previsto: 'tpu' } }).success).toBe(false)
+    expect(configSchema.safeParse({ instalacion: { error: { codigo: 'X' } } }).success).toBe(false)
   })
 })

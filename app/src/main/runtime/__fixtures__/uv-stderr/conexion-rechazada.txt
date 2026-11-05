@@ -1,0 +1,6 @@
+Using Python 3.13.1 environment at: v1
+error: Failed to fetch: http://127.0.0.1:9/simple/six/
+  cause: error sending request for url (http://127.0.0.1:9/simple/six/)
+  cause: client error (Connect)
+  cause: tcp connect error
+  cause: Connection refused (os error 61)

@@ -3,12 +3,22 @@ import { createContext, useContext } from 'react'
 /** Pasos del espacio de canción (docs/ux/00 §2): 1 Fuente, 2 Separación, 3 Letra, 4 Editor. */
 export type PasoCancion = 'fuente' | 'progreso' | 'letra' | 'editor'
 
+/** "Usar otro enlace" (0045): metadatos de la canción existente, valores iniciales de la vista 03. */
+export interface DatosInicialesAnadir {
+  cancionId: string
+  titulo: string
+  artista: string
+  album: string | null
+  /** Pestaña con la que abre la vista 03 (por defecto, Archivo). */
+  origen?: 'archivo' | 'youtube'
+}
+
 /** Estado de navegación propio (ADR 0007: sin router). */
 export type Vista =
   | { tipo: 'primer-arranque' }
   | { tipo: 'biblioteca' }
   /** `archivo`: ruta de un archivo arrastrado sobre la Biblioteca (la vista 03 lo recibe). */
-  | { tipo: 'anadir'; archivo?: string }
+  | { tipo: 'anadir'; archivo?: string; iniciales?: DatosInicialesAnadir }
   | { tipo: 'cancion'; id: string; paso: PasoCancion }
   | { tipo: 'ajustes' }
   | { tipo: 'reproductor'; id: string }

@@ -23,6 +23,8 @@ function crearDeps() {
   const oyentesCancion: ((e: EventoCancion) => void)[] = []
   const oyentesTrabajo: ((t: unknown) => void)[] = []
   const oyentesProgreso: ((p: unknown) => void)[] = []
+  const oyentesRtProgreso: ((p: unknown) => void)[] = []
+  const oyentesRtCambio: ((e: unknown) => void)[] = []
   const oyentesConfig: ((c: ReturnType<typeof configPredeterminada>) => void)[] = []
   const deps = {
     biblioteca: {
@@ -37,6 +39,22 @@ function crearDeps() {
         return () => oyentesCancion.splice(0)
       })
     },
+    fuente: {
+      importar: vi.fn(() =>
+        Promise.resolve({
+          importacionId: 'imp1',
+          nombre: 'a.wav',
+          duracionMs: 30000,
+          metadatos: { titulo: 'a', artista: '', album: '' },
+          gananciaDb: 1.5,
+          larga: false
+        })
+      ),
+      cancelar: vi.fn(() => Promise.resolve()),
+      confirmar: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      descartar: vi.fn(() => Promise.resolve())
+    },
+    elegirArchivoAudio: vi.fn(() => Promise.resolve('/x/a.wav' as string | null)),
     trabajos: {
       listar: vi.fn(() => []),
       cancelar: vi.fn(() => Promise.resolve(true)),
@@ -58,8 +76,37 @@ function crearDeps() {
         return () => oyentesConfig.splice(0)
       })
     },
-    infoSistema: vi.fn(() => ({ version: '1.0.0', so: 'Test 1', plataforma: 'linux' })),
+    runtime: {
+      estado: vi.fn(() => Promise.resolve(estadoRt)),
+      requisitos: vi.fn(() => Promise.resolve({})),
+      instalar: vi.fn(),
+      pausar: vi.fn(() => Promise.resolve()),
+      detalles: vi.fn(() => Promise.resolve('detalles')),
+      estimarSeparacion: vi.fn(() => ({ min: 1, max: 2 })),
+      alProgreso: vi.fn((cb: (p: unknown) => void) => {
+        oyentesRtProgreso.push(cb)
+        return () => oyentesRtProgreso.splice(0)
+      }),
+      alCambiar: vi.fn((cb: (e: unknown) => void) => {
+        oyentesRtCambio.push(cb)
+        return () => oyentesRtCambio.splice(0)
+      })
+    },
+    confirmarCierre: vi.fn(() => Promise.resolve()),
+    salir: vi.fn(),
+    infoSistema: vi.fn(() => ({
+      version: '1.0.0',
+      so: 'Test 1',
+      plataforma: 'linux',
+      youtube: true,
+      versionSo: '6.1',
+      arquitectura: 'x64',
+      emulada: false,
+      ytdlp: { version: '2026.10.01', ultimaComprobacion: null }
+    })),
     abrirExterno: vi.fn(() => Promise.resolve()),
+    textoLegal: vi.fn((tipo: string) => Promise.resolve(`texto ${tipo}`)),
+    abrirCarpetaDatos: vi.fn(() => Promise.resolve()),
     registrar: vi.fn()
   }
   return {
@@ -67,8 +114,21 @@ function crearDeps() {
     oyentesCancion,
     oyentesConfig,
     oyentesTrabajo,
-    oyentesProgreso
+    oyentesProgreso,
+    oyentesRtProgreso,
+    oyentesRtCambio
   }
+}
+
+const estadoRt = {
+  estado: 'pendiente',
+  fases: { motor: 'pendiente', componentes: 'pendiente', modelo: 'pendiente' },
+  error: null,
+  perfilPrevisto: 'mps',
+  perfil: null,
+  motivoRebaja: null,
+  modo: 'calidad',
+  bytesRestantes: 1000
 }
 
 describe('manejadores IPC', () => {
@@ -112,6 +172,89 @@ describe('manejadores IPC', () => {
     expect(deps.biblioteca.actualizar).not.toHaveBeenCalled()
     expect(deps.config.actualizar).not.toHaveBeenCalled()
     expect(deps.abrirExterno).not.toHaveBeenCalled()
+  })
+
+  it('fuente: importar, cancelar (con y sin id), confirmar y descartar; argumentos inválidos rechazados', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    const lectura = await m[CANALES.fuente.importarArchivo](['/x/a.wav'])
+    expect(lectura).toMatchObject({ ok: true, valor: { importacionId: 'imp1', gananciaDb: 1.5 } })
+    expect(await m[CANALES.fuente.cancelarImportacion]([])).toEqual({ ok: true, valor: undefined })
+    expect(deps.fuente.cancelar).toHaveBeenLastCalledWith(undefined)
+    await m[CANALES.fuente.cancelarImportacion](['imp1'])
+    expect(deps.fuente.cancelar).toHaveBeenLastCalledWith('imp1')
+    const meta = { titulo: 'T', artista: '', album: null }
+    const conf = await m[CANALES.fuente.confirmarArchivo](['imp1', meta])
+    expect(conf).toMatchObject({ ok: true, valor: { id: 'imp1' } })
+    await m[CANALES.fuente.descartarImportacion](['imp1'])
+    expect(deps.fuente.descartar).toHaveBeenCalledWith('imp1')
+    expect(await m[CANALES.sistema.elegirArchivoAudio]([])).toEqual({ ok: true, valor: '/x/a.wav' })
+    // Ni ganancia ni rutas pueden venir del renderer.
+    const casos: [string, unknown[]][] = [
+      [CANALES.fuente.importarArchivo, []],
+      [CANALES.fuente.importarArchivo, ['']],
+      [CANALES.fuente.confirmarArchivo, ['imp1', { ...meta, ganancia_db: 20 }]],
+      [CANALES.fuente.confirmarArchivo, ['imp1', { ...meta, titulo: '  ' }]],
+      [CANALES.fuente.descartarImportacion, []]
+    ]
+    for (const [canal, args] of casos) {
+      const r = await m[canal as keyof typeof m](args)
+      expect(r, canal).toMatchObject({ ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } })
+    }
+    expect(deps.fuente.confirmar).toHaveBeenCalledTimes(1)
+  })
+
+  it('youtube: delega en el servicio, no admite URL en confirmar y desactivado responde ARGUMENTOS_NO_VALIDOS', async () => {
+    const { deps } = crearDeps()
+    const youtube = {
+      info: vi.fn(() => Promise.resolve({ consultaId: 'c1' })),
+      cancelarInfo: vi.fn(() => Promise.resolve()),
+      confirmar: vi.fn(() => Promise.resolve({ id: 'abc', miniatura: null })),
+      reintentar: vi.fn(() => Promise.resolve())
+    }
+    const m = crearManejadores({ ...deps, youtube } as unknown as DependenciasIpc)
+    const meta = { titulo: 'T', artista: '', album: null }
+    expect(await m[CANALES.fuente.infoYoutube](['https://youtu.be/aaaaaaaaaaa'])).toMatchObject({
+      ok: true
+    })
+    await m[CANALES.fuente.cancelarInfo]([])
+    expect(youtube.cancelarInfo).toHaveBeenLastCalledWith(undefined)
+    await m[CANALES.fuente.confirmarYoutube](['c1', meta, { cancionId: 'abc' }])
+    expect(youtube.confirmar).toHaveBeenLastCalledWith('c1', meta, { cancionId: 'abc' })
+    await m[CANALES.fuente.reintentar](['abc'])
+    expect(youtube.reintentar).toHaveBeenCalledWith('abc')
+    // El renderer no puede enviar la URL al confirmar.
+    const r = await m[CANALES.fuente.confirmarYoutube](['c1', meta, { url: 'https://x' }])
+    expect(r).toMatchObject({ ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } })
+    expect(youtube.confirmar).toHaveBeenCalledTimes(1)
+
+    const sin = crearManejadores(deps)
+    for (const [canal, args] of [
+      [CANALES.fuente.infoYoutube, ['https://youtu.be/aaaaaaaaaaa']],
+      [CANALES.fuente.cancelarInfo, []],
+      [CANALES.fuente.confirmarYoutube, ['c1', meta]],
+      [CANALES.fuente.reintentar, ['abc']]
+    ] as [string, unknown[]][]) {
+      expect(await sin[canal as keyof typeof sin](args), canal).toMatchObject({
+        ok: false,
+        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+      })
+    }
+  })
+
+  it('fuente: el error de la importación llega con código y detalles', async () => {
+    const { deps } = crearDeps()
+    deps.fuente.importar.mockRejectedValueOnce(
+      Object.assign(new Error('No podemos leerlo'), {
+        codigo: 'FORMATO_NO_SOPORTADO',
+        detalles: 'x'
+      })
+    )
+    const r = await crearManejadores(deps)[CANALES.fuente.importarArchivo](['/x/a.wav'])
+    expect(r).toEqual({
+      ok: false,
+      error: { codigo: 'FORMATO_NO_SOPORTADO', mensaje: 'No podemos leerlo', detalles: 'x' }
+    })
   })
 
   it('trabajos: listar, cancelar y hayPendientes; id vacío rechazado', async () => {
@@ -179,18 +322,141 @@ describe('manejadores IPC', () => {
     expect(deps.abrirExterno).toHaveBeenCalledWith('https://lrclib.net/docs')
   })
 
+  it('textoLegal devuelve el texto y rechaza tipos no válidos', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    expect(await m[CANALES.sistema.textoLegal](['gpl'])).toEqual({ ok: true, valor: 'texto gpl' })
+    expect(await m[CANALES.sistema.textoLegal](['terceros'])).toEqual({
+      ok: true,
+      valor: 'texto terceros'
+    })
+    for (const mal of [['../LICENSE'], [], ['gpl', 'x'], [1]]) {
+      expect(await m[CANALES.sistema.textoLegal](mal)).toMatchObject({
+        ok: false,
+        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+      })
+    }
+    expect(deps.textoLegal).toHaveBeenCalledTimes(2)
+  })
+
+  it('abrirCarpetaDatos delega en main', async () => {
+    const { deps } = crearDeps()
+    expect(await crearManejadores(deps)[CANALES.sistema.abrirCarpetaDatos]([])).toMatchObject({
+      ok: true
+    })
+    expect(deps.abrirCarpetaDatos).toHaveBeenCalledOnce()
+  })
+
   it('sistema.info devuelve versión, SO y plataforma', async () => {
     const { deps } = crearDeps()
     expect(await crearManejadores(deps)[CANALES.sistema.info]([])).toEqual({
       ok: true,
-      valor: { version: '1.0.0', so: 'Test 1', plataforma: 'linux' }
+      valor: {
+        version: '1.0.0',
+        so: 'Test 1',
+        plataforma: 'linux',
+        youtube: true,
+        versionSo: '6.1',
+        arquitectura: 'x64',
+        emulada: false,
+        ytdlp: { version: '2026.10.01', ultimaComprobacion: null }
+      }
     })
+  })
+})
+
+describe('runtime y cierre (0036)', () => {
+  it('estado, instalar, pausar, detalles y confirmarCierre llegan al servicio', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    expect(await m[CANALES.runtime.estado]([])).toEqual({ ok: true, valor: estadoRt })
+    expect(await m[CANALES.runtime.instalar]([])).toEqual({ ok: true, valor: undefined })
+    expect(deps.runtime.instalar).toHaveBeenCalledOnce()
+    await m[CANALES.runtime.pausar]([])
+    expect(deps.runtime.pausar).toHaveBeenCalledOnce()
+    expect(await m[CANALES.runtime.detalles]([])).toEqual({ ok: true, valor: 'detalles' })
+    await m[CANALES.app.confirmarCierre]([])
+    expect(deps.confirmarCierre).toHaveBeenCalledOnce()
+  })
+
+  it('app.salir llama a salir() de main y rechaza argumentos', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    expect(await m[CANALES.app.salir]([])).toEqual({ ok: true, valor: undefined })
+    expect(deps.salir).toHaveBeenCalledOnce()
+    expect(await m[CANALES.app.salir](['x'])).toMatchObject({ ok: false })
+    expect(deps.salir).toHaveBeenCalledOnce()
+  })
+
+  it('requisitos pasa recalcularEspacio y estimarSeparacion la duración', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    await m[CANALES.runtime.requisitos]([{ recalcularEspacio: true }])
+    expect(deps.runtime.requisitos).toHaveBeenCalledWith(true)
+    expect(await m[CANALES.runtime.estimarSeparacion]([240000])).toEqual({
+      ok: true,
+      valor: { min: 1, max: 2 }
+    })
+    expect(deps.runtime.estimarSeparacion).toHaveBeenCalledWith(240000)
+  })
+
+  it('rechaza argumentos inválidos sin llamar al servicio', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    const casos: [string, unknown[]][] = [
+      [CANALES.runtime.estado, ['sobra']],
+      [CANALES.runtime.instalar, [1]],
+      [CANALES.runtime.pausar, ['x']],
+      [CANALES.runtime.requisitos, []],
+      [CANALES.runtime.requisitos, [{}]],
+      [CANALES.runtime.requisitos, [{ recalcularEspacio: 'si' }]],
+      [CANALES.runtime.requisitos, [{ recalcularEspacio: true, otro: 1 }]],
+      [CANALES.runtime.estimarSeparacion, [-1]],
+      [CANALES.runtime.estimarSeparacion, ['240000']],
+      [CANALES.runtime.estimarSeparacion, [Number.NaN]],
+      [CANALES.app.confirmarCierre, ['x']]
+    ]
+    for (const [canal, args] of casos) {
+      const r = await m[canal as keyof typeof m](args)
+      expect(r, canal).toMatchObject({ ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } })
+    }
+    expect(deps.runtime.instalar).not.toHaveBeenCalled()
+    expect(deps.runtime.pausar).not.toHaveBeenCalled()
+    expect(deps.runtime.requisitos).not.toHaveBeenCalled()
+    expect(deps.confirmarCierre).not.toHaveBeenCalled()
+  })
+
+  it('los canales de runtime y cierre rechazan remitentes ajenos', async () => {
+    const { deps } = crearDeps()
+    const manejadores = new Map<string, (e: unknown, ...a: unknown[]) => unknown>()
+    registrarIpc(
+      { handle: (c, f) => void manejadores.set(c, f), removeHandler: () => undefined },
+      deps,
+      { remitenteValido: (e) => e === 'mio', difundir: vi.fn() }
+    )
+    for (const canal of [
+      CANALES.runtime.instalar,
+      CANALES.runtime.pausar,
+      CANALES.app.confirmarCierre,
+      CANALES.app.salir
+    ]) {
+      expect(await manejadores.get(canal)?.('ajeno')).toMatchObject({ ok: false })
+    }
+    expect(deps.runtime.instalar).not.toHaveBeenCalled()
+    expect(deps.confirmarCierre).not.toHaveBeenCalled()
+    expect(deps.salir).not.toHaveBeenCalled()
   })
 })
 
 describe('enlacePermitido', () => {
   it.each([
     ['https://lrclib.net', true],
+    ['https://support.apple.com/es-es/108382', true],
+    ['http://support.apple.com/es-es/108382', false],
+    ['https://support.apple.com/es-es/108383', false],
+    ['https://support.apple.com/es-es/1083829', false],
+    ['https://support.apple.com/', false],
+    ['https://apple.com/es-es/108382', false],
     ['https://lrclib.net/docs', true],
     ['https://github.com/Gomonsoft/shinobi-karaoke', true],
     ['https://github.com/Gomonsoft/shinobi-karaoke/issues/new', true],
@@ -217,15 +483,23 @@ describe('registrarIpc', () => {
     return { ipc, manejadores }
   }
 
-  it('registra 13 canales, rechaza remitentes ajenos y difunde eventos con URL de medios', async () => {
-    const { deps, oyentesCancion, oyentesConfig, oyentesTrabajo, oyentesProgreso } = crearDeps()
+  it('registra 31 canales, rechaza remitentes ajenos y difunde eventos con URL de medios', async () => {
+    const {
+      deps,
+      oyentesCancion,
+      oyentesConfig,
+      oyentesTrabajo,
+      oyentesProgreso,
+      oyentesRtProgreso,
+      oyentesRtCambio
+    } = crearDeps()
     const { ipc, manejadores } = ipcFalso()
     const difundir = vi.fn()
     const deshacer = registrarIpc(ipc, deps, {
       remitenteValido: (e) => e === 'mio',
       difundir
     })
-    expect(manejadores.size).toBe(13)
+    expect(manejadores.size).toBe(32)
     expect(await manejadores.get(CANALES.sistema.info)?.('ajeno')).toMatchObject({ ok: false })
     expect(await manejadores.get(CANALES.sistema.info)?.('mio')).toMatchObject({ ok: true })
 
@@ -248,6 +522,13 @@ describe('registrarIpc', () => {
       id: 't',
       valor: 0.5
     })
+
+    oyentesRtProgreso[0]?.({ porcentajeGlobal: 5 })
+    oyentesRtCambio[0]?.(estadoRt)
+    expect(difundir).toHaveBeenNthCalledWith(6, CANALES.eventos.runtimeProgreso, {
+      porcentajeGlobal: 5
+    })
+    expect(difundir).toHaveBeenNthCalledWith(7, CANALES.eventos.runtimeCambio, estadoRt)
 
     deshacer()
     expect(manejadores.size).toBe(0)

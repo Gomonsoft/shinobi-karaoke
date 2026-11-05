@@ -11,8 +11,10 @@ test('la app arranca y la ventana muestra "Shinobi Karaoke"', async () => {
   try {
     const ventana = await app.firstWindow()
     await expect(ventana).toHaveTitle('Shinobi Karaoke')
-    // Sin instalación completa arranca el marcador de Primer arranque (0018).
-    await expect(ventana.getByRole('heading', { name: 'Primer arranque' })).toBeVisible()
+    // Sin instalación completa arranca el Primer arranque: la bienvenida (B1, 0037).
+    await expect(
+      ventana.getByRole('heading', { name: 'Hola. Vamos a preparar tu estudio de karaoke.' })
+    ).toBeVisible()
   } finally {
     await app.close()
   }

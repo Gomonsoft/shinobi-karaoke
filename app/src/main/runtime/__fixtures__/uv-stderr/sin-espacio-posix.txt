@@ -1,0 +1,2 @@
+error: Failed to install: torch-2.15.0-cp312-none-macosx_14_0_arm64.whl (torch==2.15.0)
+  cause: failed to write to file `/Users/x/runtime/cache-uv/.tmpAbC/torch/lib/libtorch_cpu.dylib`: No space left on device (os error 28)

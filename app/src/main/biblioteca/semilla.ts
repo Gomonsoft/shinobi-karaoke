@@ -1,7 +1,13 @@
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
 import { FIXTURES } from '../../shared/__fixtures__'
-import { FUENTES_REGISTRO, migrarConfig, type Cancion, type Estilo } from '../../shared'
+import {
+  estiloPredeterminado,
+  FUENTES_REGISTRO,
+  migrarConfig,
+  type Cancion,
+  type Estilo
+} from '../../shared'
 import { silencioFlac } from './flac'
 
 export interface ResultadoSemilla {
@@ -43,6 +49,37 @@ interface Plan {
   conPistas?: boolean
   /** Contenido literal de cancion.json (canción dañada por JSON). */
   jsonCrudo?: string
+  /** Miniatura JPEG de `scripts/fixtures/` que se copia a `fuente/miniatura.jpg`. */
+  miniatura?: string
+}
+
+/** Carpeta de las miniaturas generadas (tarea 0052); la semilla se ejecuta siempre desde `app/`. */
+const rutaFixture = (nombre: string): string =>
+  resolve(process.cwd(), 'scripts', 'fixtures', nombre)
+
+/** Canción de YouTube ya descargada, con miniatura. `propio` = estilo modificado por el usuario. */
+function youtube(n: number, titulo: string, artista: string, ytId: string, propio: boolean): Plan {
+  const base = FIXTURES.borradorRecienCreado()
+  const fecha = new Date(Date.UTC(2026, 10, 3, 10, 20 - n)).toISOString().replace('.000Z', 'Z')
+  return {
+    id: idN(n),
+    miniatura: n === 12 ? 'miniatura-a.jpg' : 'miniatura-b.jpg',
+    cancion: {
+      ...base,
+      id: idN(n),
+      modificada: fecha,
+      metadatos: { ...base.metadatos, titulo, artista },
+      fuente: {
+        ...base.fuente,
+        tipo: 'youtube',
+        nombre_original: null,
+        url: `https://youtu.be/${ytId}`,
+        youtube_id: ytId,
+        miniatura: 'fuente/miniatura.jpg'
+      },
+      estilo: propio ? estiloVariado(n) : estiloPredeterminado()
+    }
+  }
 }
 
 const idN = (n: number): string => `5eed0000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -75,7 +112,10 @@ function plan(): Plan[] {
     con(7, f.conError(), 'Separación con error', 'Artista Siete', 7),
     con(8, f.interrumpida(), 'Separación interrumpida', 'Artista Ocho', 8),
     { ...danadaPistas, conPistas: false },
-    { id: idN(11), cancion: f.lista(), conPistas: false, jsonCrudo: '{ "esquema": 1, "id": ' }
+    { id: idN(11), cancion: f.lista(), conPistas: false, jsonCrudo: '{ "esquema": 1, "id": ' },
+    // YouTube con miniatura: una usa la miniatura como portada, otra tiene estilo propio.
+    youtube(12, 'Desde YouTube con portada', 'Artista Doce', 'sEeD0000012', false),
+    youtube(13, 'Desde YouTube con estilo propio', 'Artista Trece', 'sEeD0000013', true)
   ]
 }
 
@@ -129,6 +169,12 @@ export async function sembrar(
     await mkdir(join(carpeta, 'fuente'), { recursive: true })
     await mkdir(join(carpeta, 'pistas'), { recursive: true })
     await writeFile(join(carpeta, 'fuente', 'mezcla.flac'), audio)
+    if (p.miniatura) {
+      await writeFile(
+        join(carpeta, 'fuente', 'miniatura.jpg'),
+        await readFile(rutaFixture(p.miniatura))
+      )
+    }
     const hayPistas =
       p.cancion.pistas !== null || p.cancion.pasos.separacion.estado === 'completado'
     if (hayPistas && p.conPistas !== false) {

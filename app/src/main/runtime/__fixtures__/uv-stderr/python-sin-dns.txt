@@ -1,0 +1,7 @@
+error: Failed to install cpython-3.12.16-macos-aarch64-none
+  cause: Failed to download `http://nonexistent.invalid/x/20261026/cpython-3.12.16%2B20261026-aarch64-apple-darwin-install_only_stripped.tar.gz`
+  cause: error sending request for url (http://nonexistent.invalid/x/20261026/cpython-3.12.16%2B20261026-aarch64-apple-darwin-install_only_stripped.tar.gz)
+  cause: client error (Connect)
+  cause: dns error
+  cause: error resolving DNS
+  cause: failed to lookup address information: nodename nor servname provided, or not known

@@ -12,9 +12,31 @@ Dependencias de ejecución actuales (se incluyen en el bundle de la app): React 
 
 FFmpeg (vía PyAV), yt-dlp, Deno, audio-separator, PyTorch / ONNX Runtime.
 
-Esqueleto actual (tarea 0003): sin dependencias de producción (solo biblioteca estándar). Solo desarrollo, no se distribuyen: pytest (MIT), ruff (MIT).
+Dependencias base de la Fase 2 (tarea 0028), versiones fijadas en `worker/uv.lock`. Licencias comprobadas en los metadatos de las ruedas instaladas (`importlib.metadata`, `licenses/` de cada `dist-info`) y en el binario de FFmpeg:
 
-(pendiente: dependencias de producción de las fases 2-3)
+- **PyAV** (`av`) 19.0.2 — BSD-3-Clause, <https://github.com/PyAV-Org/PyAV>.
+- **FFmpeg incluido en las ruedas de PyAV** (libavcodec/libavformat/libavutil 63.1/63.1/61.1) — licencia **efectiva**: se declara LGPL-3.0 o posterior (`avutil_license() = "LGPL version 3 or later"`, configuración con `--enable-version3`, sin `--enable-gpl` ni `--enable-nonfree`), pero **todas las ruedas incluyen y enlazan libx264 y libx265 (GPL-2.0-or-later)**, de modo que el conjunto, tal como se distribuye, se rige en la práctica por la **GPL-3.0** (compatible con la GPL-3.0-or-later de este proyecto). Revisión hecha con `worker/scripts/inspeccionar_av.py` sobre las ruedas `av` 19.0.2 fijadas en `worker/requisitos/` (macOS arm64, Windows x64 —CPU y CUDA, la misma rueda— y Linux x64 —CPU y CUDA, la misma rueda—) y la de macOS x64 (sin archivo de requisitos): en ninguna aparece `--enable-nonfree`, `libfdk`, `libnpp`, `cuda-nvcc` ni `decklink`. Además de x264 y x265 enlazan libmp3lame (LGPL-2.1+), libopus (BSD-3-Clause), libvpx (BSD-3-Clause), libdav1d (BSD-2-Clause), libwebp (BSD-3-Clause), libSvtAv1Enc (BSD-3-Clause-Clear/AOM), libvmaf (BSD-2-Clause-Patent) y zlib; la de Windows, libvpl (MIT), y las de Windows y Linux activan `--enable-nvenc/nvdec/amf`, que solo cargan en tiempo de ejecución los controladores del fabricante (no incluyen código propietario). PyAV no se incluye en el instalador: se instala desde PyPI en el primer arranque (ADR 0002, Revisiones). Se repite la comprobación en cada cambio de la versión de `av`. <https://ffmpeg.org/legal.html>, <https://github.com/PyAV-Org/pyav-ffmpeg>.
+- **x264** (libx264.165) — GPL-2.0-or-later, © VideoLAN / x264 project, <https://www.videolan.org/developers/x264.html>. Incluido en las ruedas de PyAV; este programa no lo usa para codificar vídeo.
+- **x265** (libx265.217) — GPL-2.0-or-later, © MulticoreWare, Inc., <https://bitbucket.org/multicoreware/x265_git>. Incluido en las ruedas de PyAV; este programa no lo usa para codificar vídeo.
+- **soundfile** 0.14.0 — BSD-3-Clause, <https://github.com/bastibe/python-soundfile>.
+- **libsndfile** 1.2.2 (incluida en la rueda de soundfile) — LGPL-2.1-or-later, texto en `_soundfile_data/COPYING` de la rueda.
+- **numpy** 2.5.4 — BSD-3-Clause (la rueda declara `BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0` por componentes empaquetados), <https://github.com/numpy/numpy>.
+- **pyloudnorm** 0.2.0 — MIT, <https://github.com/csteinmetz1/pyloudnorm>.
+- **yt-dlp** 2026.10.26 — Unlicense (dominio público), <https://github.com/yt-dlp/yt-dlp>.
+- **yt-dlp-ejs** 0.8.0 — `Unlicense AND MIT AND ISC` según los metadatos de la rueda (el propio código es Unlicense; MIT e ISC por las bibliotecas JavaScript empaquetadas), <https://github.com/yt-dlp/ejs>.
+- **Deno** (paquete PyPI `deno` 2.9.8, redistribuye los binarios de Deno) — MIT, <https://github.com/denoland/deno>.
+
+Solo desarrollo, no se distribuyen: pytest (MIT), ruff (MIT).
+
+Extra `separacion` (se instala en el primer arranque con los requisitos bloqueados de `worker/requisitos/`, tarea 0030). Licencias según los metadatos de PyPI y los repositorios de cada proyecto:
+
+- **audio-separator** 0.48.0 — MIT, <https://github.com/nomadkaraoke/python-audio-separator>.
+- **PyTorch** (`torch` 2.15.0; 2.11.0+cu128 en NVIDIA) — BSD-3-Clause, <https://github.com/pytorch/pytorch>. Las ruedas CUDA arrastran las bibliotecas `nvidia-*` de NVIDIA (licencia de usuario final de NVIDIA CUDA), que no se redistribuyen con la app: las descarga el usuario desde PyPI en su equipo.
+- **ONNX Runtime** (`onnxruntime` 1.31.1) — MIT, <https://github.com/microsoft/onnxruntime>.
+- **audioread** 3.1.0 — MIT, <https://github.com/beetbox/audioread>.
+- **onnx-weekly** 1.24.0.dev20261102 (dependencia transitiva) — Apache-2.0, <https://github.com/onnx/onnx>.
+
+El modelo Rápido (`UVR-MDX-NET-Inst_HQ_4.onnx`) sigue con licencia no declarada y uso provisional (sección siguiente y `docs/preguntas/0012-licencia-no-declarada-del-modelo-rapido.md`); el manifiesto lo marca con `licencia: "no declarada"` y `provisional: true`. El resto de dependencias transitivas (más de 60 paquetes) se revisarán al empaquetar (tarea 0025).
 
 ## Modelos de separación
 

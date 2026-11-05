@@ -17,6 +17,9 @@ interface DialogoProps {
   enfoqueInicial?: string
 }
 
+/** Diálogos abiertos, el último arriba: solo el de arriba atiende Esc y Tab (diálogos anidados). */
+const pila: symbol[] = []
+
 /** Modal que atrapa el foco, se cancela con Esc y devuelve el foco al disparador. */
 export function Dialogo({
   abierto,
@@ -41,7 +44,10 @@ export function Dialogo({
     const inicial = enfoqueInicial ? nodo.querySelector<HTMLElement>(enfoqueInicial) : null
     ;(inicial ?? enfocables()[0] ?? nodo).focus()
 
+    const marca = Symbol('dialogo')
+    pila.push(marca)
     const alTeclear = (e: KeyboardEvent) => {
+      if (pila[pila.length - 1] !== marca) return
       if (e.key === 'Escape') {
         e.preventDefault()
         alCancelar.current()
@@ -66,6 +72,7 @@ export function Dialogo({
     document.addEventListener('keydown', alTeclear)
     return () => {
       document.removeEventListener('keydown', alTeclear)
+      pila.splice(pila.indexOf(marca), 1)
       if (disparador && document.contains(disparador)) disparador.focus()
     }
   }, [abierto, enfoqueInicial])

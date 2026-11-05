@@ -348,7 +348,7 @@ describe('trabajo en vivo (0014)', () => {
         }
       })
     )
-    expect(fuente.linea).toEqual({ tipo: 'texto', texto: 'Falta preparar el audio' })
+    expect(fuente.linea).toEqual({ tipo: 'texto', texto: 'Falta descargar el audio' })
     expect(fuente.accion).toBe('continuar')
     // Con trabajo vivo, la línea es la del trabajo.
     expect(

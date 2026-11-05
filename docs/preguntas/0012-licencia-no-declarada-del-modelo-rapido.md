@@ -22,3 +22,15 @@ C: el manifiesto de runtime y el diseño siguen con `Inst_HQ_4` marcado como "li
 
 ## Respuesta
 Decisión del usuario (2026-11-04): **opción C**. Se usa `UVR-MDX-NET-Inst_HQ_4` de forma provisional para el perfil Rápido, marcado como "licencia no declarada" en el manifiesto y en `THIRD_PARTY_NOTICES.md`, y se pide aclaración de licencia a los autores de UVR. No se publica ninguna versión con este modelo hasta tener respuesta; si no la hay o es incompatible, se pasa a la opción B (solo Calidad).
+
+## Seguimiento (arquitecto, 2026-11-04, desglose de la Fase 2)
+- Aplicado en la Fase 2: el manifiesto (tarea 0030) marca el Rápido con `licencia: "no declarada"` y `provisional: true`; el registro anota la licencia al descargarlo (0033). `THIRD_PARTY_NOTICES.md` ya lo indica.
+- **Acción pendiente del usuario** (los agentes no publican en GitHub): abrir la consulta a los autores. Propuesta de texto para un *issue* en `TRvlvr/model_repo` (con copia o enlace en `Anjok07/ultimatevocalremovergui`):
+
+  > **Title:** License of the model weights (e.g. UVR-MDX-NET-Inst_HQ_4.onnx)
+  >
+  > Hi, and thanks for UVR and for publishing these models. We are building Shinobi Karaoke, a free and open-source (GPL-3.0-or-later) desktop karaoke app. It would download `UVR-MDX-NET-Inst_HQ_4.onnx` from this repository on the user's machine (we would not redistribute it) and credit UVR in the app.
+  >
+  > This repository does not declare a license for the model weights. Could you confirm under which license they are published (for example MIT, like the UVR code) and whether this use is fine with you? Thank you!
+
+- Puerta de publicación: la tarea de empaquetado (0025) no debe generar una versión pública con el Rápido mientras esta pregunta no tenga respuesta de UVR; si no la hay, se pasa a la opción B (solo Calidad), lo que cambia el manifiesto y el perfil `cpu`.

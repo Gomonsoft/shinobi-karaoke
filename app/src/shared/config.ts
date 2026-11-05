@@ -19,6 +19,18 @@ const instalacionSchema = z
       })
       .prefault({}),
     perfil_hardware: z.enum(['cpu', 'cuda', 'mps']).nullable().default(null),
+    /** Perfil detectado antes de instalar (0031); el definitivo es `perfil_hardware`. */
+    perfil_previsto: z.enum(['cpu', 'cuda', 'mps']).nullable().default(null),
+    motivo_rebaja: z.enum(['memoria', 'generico']).nullable().default(null),
+    error: z
+      .object({
+        codigo: z.string().min(1),
+        mensaje: z.string(),
+        fase: z.string().min(1)
+      })
+      .nullable()
+      .default(null),
+    version_manifiesto: z.number().int().nullable().default(null),
     hardware: z
       .object({
         gpu: z.string().nullable().default(null),

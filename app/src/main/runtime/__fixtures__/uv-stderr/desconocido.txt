@@ -1,0 +1,2 @@
+error: No solution found when resolving dependencies:
+  Because foo==9.9 was not found in the package registry and you require foo==9.9, we can conclude that your requirements are unsatisfiable.

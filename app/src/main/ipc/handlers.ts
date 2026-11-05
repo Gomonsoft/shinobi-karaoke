@@ -8,8 +8,16 @@ import {
   type EventoProgresoIpc,
   type TrabajoIpc,
   type InfoSistema,
+  type TextoLegal,
   type RespuestaIpc,
   type ResumenCancionIpc,
+  type ImportacionLeidaIpc,
+  type InfoYoutubeIpc,
+  type EstadoRuntimeIpc,
+  type EstimacionSeparacion,
+  type ProgresoRuntimeIpc,
+  type RequisitosRuntimeIpc,
+  type MetadatosEditables,
   CODIGOS_ERROR,
   ErrorDatosInvalidos,
   type Cancion,
@@ -48,12 +56,58 @@ export interface TrabajosIpc {
   suscribirProgreso(cb: (progreso: EventoProgresoIpc) => void): () => void
 }
 
+/** Subconjunto del servicio de importación de archivo (0042) que usa la IPC. */
+export interface FuenteIpc {
+  importar(ruta: string): Promise<ImportacionLeidaIpc>
+  cancelar(id?: string): Promise<void>
+  confirmar(
+    id: string,
+    metadatos: MetadatosEditables,
+    opciones?: { cancionId: string }
+  ): Promise<ResumenCancion>
+  descartar(id: string): Promise<void>
+}
+
+/** Subconjunto del servicio de YouTube (0049) que usa la IPC. Ausente con el módulo desactivado. */
+export interface YoutubeIpc {
+  info(url: string): Promise<InfoYoutubeIpc>
+  cancelarInfo(consultaId?: string): Promise<void>
+  confirmar(
+    consultaId: string,
+    metadatos: MetadatosEditables,
+    opciones?: { cancionId: string }
+  ): Promise<ResumenCancion>
+  reintentar(cancionId: string): Promise<void>
+}
+
+/** Subconjunto del servicio de runtime (0036) que usa la IPC. */
+export interface RuntimeIpc {
+  estado(): Promise<EstadoRuntimeIpc>
+  requisitos(recalcularEspacio: boolean): Promise<RequisitosRuntimeIpc>
+  instalar(): void
+  pausar(): Promise<void>
+  detalles(): Promise<string>
+  estimarSeparacion(duracionMs: number): EstimacionSeparacion
+  alProgreso(cb: (progreso: ProgresoRuntimeIpc) => void): () => void
+  alCambiar(cb: (estado: EstadoRuntimeIpc) => void): () => void
+}
+
 export interface DependenciasIpc {
+  runtime: RuntimeIpc
+  /** Respuesta del renderer a la solicitud de cierre (`cierre.ts`). */
+  confirmarCierre(): Promise<void>
+  /** Sale de la aplicación (`app.quit()`). */
+  salir(): void
   biblioteca: BibliotecaIpc
+  fuente: FuenteIpc
+  youtube?: YoutubeIpc
+  elegirArchivoAudio(): Promise<string | null>
   trabajos: TrabajosIpc
   config: ConfigIpc
-  infoSistema(): InfoSistema
+  infoSistema(): InfoSistema | Promise<InfoSistema>
   abrirExterno(url: string): Promise<void>
+  textoLegal(tipo: TextoLegal): Promise<string>
+  abrirCarpetaDatos(): Promise<void>
   registrar?(nivel: 'aviso' | 'error', mensaje: string): void
 }
 
@@ -83,7 +137,12 @@ export function aErrorIpc(e: unknown): ErrorIpc {
     return { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Los datos no son válidos.' }
   }
   if (e instanceof Error && esCodigo((e as { codigo?: unknown }).codigo)) {
-    return { codigo: (e as unknown as ErrorIpc).codigo, mensaje: e.message }
+    const detalles = (e as { detalles?: unknown }).detalles
+    return {
+      codigo: (e as unknown as ErrorIpc).codigo,
+      mensaje: e.message,
+      ...(typeof detalles === 'string' && detalles ? { detalles } : {})
+    }
   }
   return { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
 }
@@ -92,7 +151,16 @@ export type ManejadorIpc = (args: unknown[]) => Promise<RespuestaIpc<unknown>>
 
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
 export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
-  const { biblioteca, config, trabajos } = deps
+  const { biblioteca, config, trabajos, fuente, runtime } = deps
+  /** Módulo desactivado: los canales de YouTube responden `ARGUMENTOS_NO_VALIDOS`. */
+  const youtube = (): YoutubeIpc => {
+    if (!deps.youtube) {
+      throw Object.assign(new Error('YouTube no está disponible en esta versión.'), {
+        codigo: 'ARGUMENTOS_NO_VALIDOS'
+      })
+    }
+    return deps.youtube
+  }
 
   const envolver =
     <C extends CanalInvocable>(
@@ -149,7 +217,58 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.sistema.info]: envolver(CANALES.sistema.info, () => deps.infoSistema()),
     [CANALES.sistema.abrirEnlace]: envolver(CANALES.sistema.abrirEnlace, (url) =>
       deps.abrirExterno(url)
-    )
+    ),
+    [CANALES.sistema.textoLegal]: envolver(CANALES.sistema.textoLegal, (tipo) =>
+      deps.textoLegal(tipo)
+    ),
+    [CANALES.sistema.abrirCarpetaDatos]: envolver(CANALES.sistema.abrirCarpetaDatos, () =>
+      deps.abrirCarpetaDatos()
+    ),
+    [CANALES.sistema.elegirArchivoAudio]: envolver(CANALES.sistema.elegirArchivoAudio, () =>
+      deps.elegirArchivoAudio()
+    ),
+    [CANALES.fuente.importarArchivo]: envolver(CANALES.fuente.importarArchivo, (ruta) =>
+      fuente.importar(ruta)
+    ),
+    [CANALES.fuente.cancelarImportacion]: envolver(CANALES.fuente.cancelarImportacion, (...ids) =>
+      fuente.cancelar(ids[0])
+    ),
+    [CANALES.fuente.confirmarArchivo]: envolver(
+      CANALES.fuente.confirmarArchivo,
+      async (id, metadatos, opciones?: { cancionId: string }) =>
+        resumenParaRenderer(await fuente.confirmar(id, metadatos, opciones))
+    ),
+    [CANALES.fuente.descartarImportacion]: envolver(CANALES.fuente.descartarImportacion, (id) =>
+      fuente.descartar(id)
+    ),
+    [CANALES.fuente.infoYoutube]: envolver(CANALES.fuente.infoYoutube, (url) =>
+      youtube().info(url)
+    ),
+    [CANALES.fuente.cancelarInfo]: envolver(CANALES.fuente.cancelarInfo, (...ids) =>
+      youtube().cancelarInfo(ids[0])
+    ),
+    [CANALES.fuente.confirmarYoutube]: envolver(
+      CANALES.fuente.confirmarYoutube,
+      async (id, metadatos, opciones?: { cancionId: string }) =>
+        resumenParaRenderer(await youtube().confirmar(id, metadatos, opciones))
+    ),
+    [CANALES.fuente.reintentar]: envolver(CANALES.fuente.reintentar, (id) =>
+      youtube().reintentar(id)
+    ),
+    [CANALES.runtime.estado]: envolver(CANALES.runtime.estado, () => runtime.estado()),
+    [CANALES.runtime.requisitos]: envolver(CANALES.runtime.requisitos, (opciones) =>
+      runtime.requisitos(opciones.recalcularEspacio)
+    ),
+    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, () => runtime.instalar()),
+    [CANALES.runtime.pausar]: envolver(CANALES.runtime.pausar, () => runtime.pausar()),
+    [CANALES.runtime.detalles]: envolver(CANALES.runtime.detalles, () => runtime.detalles()),
+    [CANALES.runtime.estimarSeparacion]: envolver(CANALES.runtime.estimarSeparacion, (ms) =>
+      runtime.estimarSeparacion(ms)
+    ),
+    [CANALES.app.confirmarCierre]: envolver(CANALES.app.confirmarCierre, () =>
+      deps.confirmarCierre()
+    ),
+    [CANALES.app.salir]: envolver(CANALES.app.salir, () => deps.salir())
   }
 }
 
@@ -193,7 +312,15 @@ export function registrarIpc(
   const bajaProgreso = deps.trabajos.suscribirProgreso((p) =>
     opciones.difundir(CANALES.eventos.trabajoProgreso, p)
   )
+  const bajaRtProgreso = deps.runtime.alProgreso((p) =>
+    opciones.difundir(CANALES.eventos.runtimeProgreso, p)
+  )
+  const bajaRtCambio = deps.runtime.alCambiar((e) =>
+    opciones.difundir(CANALES.eventos.runtimeCambio, e)
+  )
   return () => {
+    bajaRtProgreso()
+    bajaRtCambio()
     bajaCancion()
     bajaConfig()
     bajaTrabajo()

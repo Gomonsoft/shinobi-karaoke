@@ -41,6 +41,14 @@ export interface OpcionesActualizar {
 export type EventoCancion =
   { id: string; resumen: ResumenCancion; eliminada?: false } | { id: string; eliminada: true }
 
+/** Sustitución de la fuente de una canción sin audio (ADR 0006, Revisiones; preguntas/0014 §3). */
+export interface DatosSustitucionFuente {
+  /** Ruta absoluta de la `mezcla.flac` ya normalizada (se mueve a `fuente/mezcla.flac`). */
+  mezclaOrigen: string
+  fuente: Cancion['fuente']
+  metadatos: Cancion['metadatos']
+}
+
 export interface ImportacionPreparada {
   id: string
   ruta: string

@@ -49,7 +49,7 @@ test('el menú ⋯ se ve entero en la primera y en la última fila a 1024×640',
       .poll(() => v.evaluate('[window.innerWidth, window.innerHeight]'))
       .toEqual([1024, 640])
     const tarjetas = v.getByRole('article')
-    await expect(tarjetas).toHaveCount(10)
+    await expect(tarjetas).toHaveCount(12)
     await comprobarMenu(v, tarjetas.first())
     await comprobarMenu(v, tarjetas.last())
     // Una tarjeta con más ítems (lista: incluye «Volver a borrador» y «Eliminar…») también cabe.

@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resultadoDiagnosticoSchema } from '../../shared'
 import { procesosCon } from './procesosCon.testutil'
 import { crearClienteWorker, resolverLanzador, type ErrorTrabajo, type Lanzador } from './worker'
 
@@ -52,6 +53,44 @@ describe('resolverLanzador', () => {
     })
     expect(win.comando).toBe(join('/d', 'runtime', 'venv', 'Scripts', 'python.exe'))
     expect(win.env).toEqual({ PYTHONPATH: '/app/worker' })
+  })
+
+  it('producción: antepone los scripts del venv al PATH (POSIX)', () => {
+    const l = resolverLanzador({
+      modo: 'produccion',
+      datos: '/d',
+      plataforma: 'linux',
+      rutaCodigoWorker: '/app/worker',
+      envBase: { PATH: '/usr/bin:/bin' }
+    })
+    expect(l.env).toEqual({
+      PYTHONPATH: '/app/worker',
+      PATH: '/d/runtime/venv/bin:/usr/bin:/bin'
+    })
+  })
+
+  it('producción: PATH de Windows con ; y la clave original (Path)', () => {
+    const l = resolverLanzador({
+      modo: 'produccion',
+      datos: 'C:\\Datos',
+      plataforma: 'win32',
+      rutaCodigoWorker: 'C:\\App\\resources\\worker',
+      envBase: { Path: 'C:\\Windows' }
+    })
+    expect(l.env).toEqual({
+      PYTHONPATH: 'C:\\App\\resources\\worker',
+      Path: 'C:\\Datos\\runtime\\venv\\Scripts;C:\\Windows'
+    })
+  })
+
+  it('producción: sin PATH previo solo el directorio de scripts', () => {
+    const l = resolverLanzador({
+      modo: 'produccion',
+      datos: '/d',
+      plataforma: 'darwin',
+      envBase: {}
+    })
+    expect(l.env).toEqual({ PATH: '/d/runtime/venv/bin' })
   })
 })
 
@@ -140,6 +179,16 @@ describe('ejecutar con worker falso', () => {
       lanzador: { comando: join(dir, 'no-existe'), argsBase: [] }
     })
     await expect(c.ejecutar('x', {})).rejects.toMatchObject({ codigo: 'RUNTIME_NO_DISPONIBLE' })
+  })
+
+  it('instalación no completa (disponible → false): RUNTIME_NO_DISPONIBLE sin lanzar', async () => {
+    const marca = join(dir, 'lanzado')
+    const c = crearClienteWorker({
+      lanzador: falso(`require('fs').writeFileSync(${JSON.stringify(marca)}, '')`),
+      disponible: () => false
+    })
+    await expect(c.ejecutar('x', {})).rejects.toMatchObject({ codigo: 'RUNTIME_NO_DISPONIBLE' })
+    expect(existsSync(marca)).toBe(false)
   })
 
   it('señal ya abortada → CANCELADO sin lanzar', async () => {
@@ -242,5 +291,20 @@ describe.skipIf(!hayUv())('integración con el worker real (demo)', () => {
     rmSync(parcial, { force: true }) // limpieza a cargo del llamador
     await new Promise((r) => setTimeout(r, 200))
     expect(procesosCon(parcial)).toBe(0)
+  }, 60_000)
+
+  it('diagnostico: resultado válido con el esquema compartido (cpu/generico sin torch en CI)', async () => {
+    const progresos: { fase: string; valor: number | null }[] = []
+    const r = await cliente().ejecutar(
+      'diagnostico',
+      { perfil_previsto: 'cuda' },
+      { alProgreso: (m) => progresos.push({ fase: m.fase, valor: m.valor }) }
+    )
+    const d = resultadoDiagnosticoSchema.parse(r)
+    expect(progresos[0]).toEqual({ fase: 'diagnostico', valor: null })
+    // Sin el extra `separacion` torch no está: se rebaja a cpu/generico.
+    if (d.torch === null) {
+      expect(d).toMatchObject({ perfil: 'cpu', dispositivo: 'cpu', motivo_rebaja: 'generico' })
+    }
   }, 60_000)
 })

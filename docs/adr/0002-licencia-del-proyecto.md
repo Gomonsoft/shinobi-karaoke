@@ -18,7 +18,7 @@ Shinobi Karaoke es software libre y gratuito (ver `00-vision-y-alcance.md`). La 
 | PyTorch | BSD-3-Clause | Sí |
 | ONNX Runtime | MIT | Sí |
 | audio-separator | MIT (pide crédito a UVR) | Sí |
-| PyAV | BSD-3-Clause (wheels con FFmpeg LGPL o GPL) | Sí, en ambos casos |
+| PyAV | BSD-3-Clause (wheels con FFmpeg que se declara LGPL-3.0+ pero enlaza libx264/libx265, GPL-2.0+: en la práctica, combinación GPL; ver Revisiones) | Sí (GPL-2.0-or-later y LGPL-3.0+ son compatibles con GPL-3.0-or-later); **no** lo sería un build con `--enable-nonfree` |
 | soundfile / libsndfile | BSD-3 / LGPL-2.1+ | Sí |
 | yt-dlp | Unlicense (sus ejecutables congelados incluyen código GPLv3+) | Sí |
 | yt-dlp-ejs, Deno | Unlicense / MIT | Sí |
@@ -55,8 +55,25 @@ Reglas derivadas:
 
 ## Revisiones
 - 2026-11-04 (tarea 0005): los pesos UVR MDX-Net no declaran licencia (se suponía MIT con atribución) → `preguntas/0012`; se añaden audioread e imageio-ffmpeg (plan B) al inventario.
+- 2026-11-04 (hallazgo de la tarea 0028: FFmpeg de las ruedas de PyAV 19.0.2).
+  - **Qué se encontró**:
+    - La rueda de macOS arm64 informa `avutil_license() = "LGPL version 3 or later"`.
+    - Se configuró con `--enable-version3` y sin `--enable-gpl`, pero con `--enable-libx264 --enable-libx265`. FFmpeg normalmente rechaza esa combinación, así que el *build* de PyAV debe eludir la comprobación de licencia de `configure` (deducido, no verificado en su código).
+    - `libavcodec` enlaza de verdad `libx264.165.dylib` y `libx265.217.dylib`, incluidas en `av/.dylibs` (comprobado con `otool -L` y con `av.codec.Codec("libx264", "w")`).
+    - x264 y x265 son **GPL-2.0-or-later**, así que el binario combinado se rige en la práctica por la GPL (versión 3, por `version3`), aunque se declare LGPL.
+  - **Valoración**:
+    - **Compatible con GPL-3.0-or-later**: GPL-2.0-or-later admite la versión 3, LGPL-3.0+ también, y el proyecto ya es GPL-3.0-or-later. No hay una cláusula que incumplir.
+    - Tampoco hay redistribución: PyAV no va en el instalador, se instala desde PyPI en el primer arranque (como yt-dlp, mitigación 4 del ADR 0003). La declaración incorrecta es responsabilidad del empaquetador de PyAV.
+    - No usamos los codificadores H.264/H.265: solo decodificamos audio y codificamos `mjpeg` para la miniatura. No hay exposición de patentes por uso.
+    - **Acción**:
+      1. `THIRD_PARTY_NOTICES.md` debe decir que el FFmpeg de PyAV, tal como se distribuye, incluye componentes GPL-2.0-or-later (x264, x265) y se acredita también a ellos (lo hace la tarea 0040 al cerrar la comprobación).
+      2. Sería **incompatible** una rueda con `--enable-nonfree` o con bibliotecas no libres (p. ej. `libfdk_aac`, NVENC/`libnpp` con SDK propietario): el resultado no se podría redistribuir, ni siquiera combinado con GPL. Eso obligaría a fijar otra versión de `av` o a abrir una pregunta.
+      3. **Hay que comprobar las ruedas de Windows, Linux y macOS x64**, porque cada plataforma se compila con otra configuración (`delvewheel`/`auditwheel` meten otras bibliotecas). Se hace en la tarea 0040 sin instalar nada, inspeccionando las ruedas fijadas en los 6 archivos de requisitos, y se repite al cambiar la versión de `av`.
 
 ## Fuentes
+- PyAV, *scripts* de compilación de FFmpeg para las ruedas: https://github.com/PyAV-Org/pyav-ffmpeg
+- FFmpeg, licencia y opciones `--enable-gpl` / `--enable-version3` / `--enable-nonfree`: https://ffmpeg.org/legal.html
+- x264 (GPL-2.0-or-later): https://www.videolan.org/developers/x264.html ; x265 (GPL-2.0-or-later): https://bitbucket.org/multicoreware/x265_git
 - GPL-3.0: https://www.gnu.org/licenses/gpl-3.0.html ; compatibilidad de licencias (FSF): https://www.gnu.org/licenses/license-list.html
 - yt-dlp (Unlicense; ejecutables con GPLv3+): https://github.com/yt-dlp/yt-dlp
 - audio-separator (MIT, crédito a UVR): https://github.com/nomadkaraoke/python-audio-separator

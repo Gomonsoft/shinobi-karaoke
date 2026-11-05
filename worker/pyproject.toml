@@ -5,7 +5,23 @@ description = "Worker de audio de Shinobi Karaoke (protocolo JSON Lines por stdo
 readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+  "av",
+  "soundfile",
+  "numpy",
+  "pyloudnorm",
+  "yt-dlp[default]",
+  "deno",
+]
+
+[project.optional-dependencies]
+# No se instala en la CI normal (ADR 0009 §1): `uv sync --extra separacion`.
+separacion = [
+  "audio-separator[cpu]==0.48.0",
+  "torch",
+  "onnxruntime",
+  "audioread",
+]
 
 [dependency-groups]
 dev = ["pytest", "ruff"]
@@ -19,6 +35,11 @@ packages = ["shinobi_worker"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = '-m "not red and not pesado"'
+markers = [
+  "red: necesita Internet (SHINOBI_TESTS_RED=1 uv run pytest -m red)",
+  "pesado: necesita el extra `separacion` o descargas de más de 50 MB (uv run pytest -m pesado)",
+]
 
 [tool.ruff]
 line-length = 100

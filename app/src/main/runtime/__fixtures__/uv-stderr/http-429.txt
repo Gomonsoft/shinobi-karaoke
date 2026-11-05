@@ -1,0 +1,2 @@
+error: Failed to fetch: https://pypi.org/simple/numpy/
+  Caused by: HTTP status client error (429 Too Many Requests) for url (https://pypi.org/simple/numpy/)

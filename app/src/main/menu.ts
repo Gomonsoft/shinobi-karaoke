@@ -8,12 +8,17 @@ import { TITULO_APP } from '@shared/titulo'
  */
 export function plantillaMenu(
   plataforma: NodeJS.Platform,
-  enviar: (accion: AccionMenu) => void
+  enviar: (accion: AccionMenu) => void,
+  /** Durante el primer arranque devuelve `false` y "Añadir canción" y "Ajustes" se ignoran (0036). */
+  permitida: () => boolean = () => true
 ): MenuItemConstructorOptions[] {
+  const lanzar = (accion: AccionMenu): void => {
+    if (permitida()) enviar(accion)
+  }
   const mac = plataforma === 'darwin'
   const archivo: MenuItemConstructorOptions[] = [
-    { label: 'Añadir canción', accelerator: 'CommandOrControl+N', click: () => enviar('anadir') },
-    { label: 'Ajustes', accelerator: 'CommandOrControl+,', click: () => enviar('ajustes') }
+    { label: 'Añadir canción', accelerator: 'CommandOrControl+N', click: () => lanzar('anadir') },
+    { label: 'Ajustes', accelerator: 'CommandOrControl+,', click: () => lanzar('ajustes') }
   ]
   if (!mac) archivo.push({ type: 'separator' }, { role: 'quit', label: 'Salir' })
 

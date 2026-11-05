@@ -22,6 +22,9 @@ export class EstimadorProgreso {
   /** Muestra con la que empezó la parte determinada de la fase actual. */
   private origen: { ms: number; valor: number } | null = null
 
+  /** `segundosMinimos`: segundos observados antes de mostrar ETA (15 en tareas; 10 en el primer arranque). */
+  constructor(private readonly segundosMinimos = SEGUNDOS_MINIMOS_ETA) {}
+
   registrar(fase: string, valor: number | null, ahoraMs: number): ProgresoSuavizado {
     if (fase !== this.fase) {
       this.fase = fase
@@ -46,7 +49,7 @@ export class EstimadorProgreso {
     if (valor >= 1) return 0
     const transcurridoS = (ahoraMs - origen.ms) / 1000
     const avance = valor - origen.valor
-    if (transcurridoS < SEGUNDOS_MINIMOS_ETA || avance <= 0) return null
+    if (transcurridoS < this.segundosMinimos || avance <= 0) return null
     return Math.round(((1 - valor) / (avance / transcurridoS)) * 10) / 10
   }
 }
