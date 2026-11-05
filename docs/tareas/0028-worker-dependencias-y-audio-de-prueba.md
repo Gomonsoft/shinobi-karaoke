@@ -21,3 +21,6 @@ Preparar el worker para los comandos reales de la Fase 2: dependencias base fija
 - Probar: `cd worker && uv sync --locked && uv run ruff check && uv run ruff format --check && uv run pytest` (32 pasan, 2 deseleccionados); `uv run pytest --collect-only -m "red or pesado"`.
 - Hallazgos: la rueda de PyAV 19 de macOS no trae `libvorbis` (por eso solo OGG/Opus, como pide la tarea) y su FFmpeg se declara LGPL-3.0+ aunque enlaza x264/x265; verificar en Windows/Linux (0040). `uv lock` resuelve el extra para todas las plataformas, por lo que el lock crece (torch y nvidia-*), pero no se instala sin el extra. El lock y la CI no se han podido ejecutar en Windows/Linux aqui.
 - Deuda: la CI no cambia (ya hacia `uv sync --locked` + `pytest`); los *fixtures* no incluyen Vorbis.
+
+### Mantenimiento (2026-11-04)
+En el runner de Windows de la CI, `test_generadores_son_rapidos` tardó 3,1 s (MP3 + WAV de 11 min) y superó el límite de 2 s; en un M1 tarda ~0,44 s. El objetivo de diseño sigue siendo < 2 s por generador, pero el test mide ahora cada generador por separado con un límite de 10 s (`LIMITE_GENERADOR_S`), suficiente para detectar regresiones graves sin depender de la velocidad del runner.
