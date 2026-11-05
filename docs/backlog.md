@@ -168,7 +168,7 @@ Deuda de fases anteriores que se salda aquí:
 - E2E de eventos IPC y del indicador de actividad (→ 0075);
 - test "sin ffmpeg en el PATH" en los 3 SO (0005/0024 → 0061/0062).
 
-## Fase 4 — Letras — desglosada (2026-11-05): tareas 0077–0089
+## Fase 4 — Letras — **cerrada (2026-11-05)**: tareas 0077–0089 hechas; pregunta 0024 abierta (UX, Fase 5)
 **Decisiones técnicas** (Revisión 2026-11-05 de los ADR [0005](adr/0005-letras-y-formato-de-sincronia.md) y [0006](adr/0006-persistencia-y-modelo-de-datos.md)):
 - **Búsqueda**:
   - LRCLIB `get` + `search` en serie (sin duplicados), con un presupuesto de 10 s y al menos 250 ms entre peticiones;
@@ -185,18 +185,18 @@ Deuda de fases anteriores que se salda aquí:
 
 | Tarea | Título | Depende de | ¿Paralelizable? | Estado |
 |-------|--------|-----------|-----------------|--------|
-| [0077](tareas/0077-contratos-compartidos-de-la-fase-4.md) | Contratos: API `letras.*`, `CandidatoLetra`, `ARCHIVO_SIN_LETRA`, regla de `pasos.letra`, `SHINOBI_LRCLIB_URL`, API falsa y fixtures | 0006, 0011 (Hechas) | **Empieza ya**; ‖ 0078 | Pendiente |
-| [0078](tareas/0078-conversores-texto-plano-lrc-y-normalizacion.md) | Conversores puros: texto plano, LRC, LRC mejorado, normalización y exportación | 0006 (Hecha) | **Empieza ya**; ‖ 0077, 0081 | Pendiente |
-| [0079](tareas/0079-editar-texto-conservando-sincronia.md) | Editar el texto conservando la sincronía (diff LCS) | 0078 | ‖ 0080, 0081, 0084 | Pendiente |
-| [0080](tareas/0080-main-conversor-lyricsfile.md) | Main: conversor Lyricsfile con `yaml` (+ avisos de terceros) | 0078 | ‖ 0079, 0081 | Pendiente |
+| [0077](tareas/0077-contratos-compartidos-de-la-fase-4.md) | Contratos: API `letras.*`, `CandidatoLetra`, `ARCHIVO_SIN_LETRA`, regla de `pasos.letra`, `SHINOBI_LRCLIB_URL`, API falsa y fixtures | 0006, 0011 (Hechas) | **Empieza ya**; ‖ 0078 | Hecha |
+| [0078](tareas/0078-conversores-texto-plano-lrc-y-normalizacion.md) | Conversores puros: texto plano, LRC, LRC mejorado, normalización y exportación | 0006 (Hecha) | **Empieza ya**; ‖ 0077, 0081 | Hecha |
+| [0079](tareas/0079-editar-texto-conservando-sincronia.md) | Editar el texto conservando la sincronía (diff LCS) | 0078 | ‖ 0080, 0081, 0084 | Hecha |
+| [0080](tareas/0080-main-conversor-lyricsfile.md) | Main: conversor Lyricsfile con `yaml` (+ avisos de terceros) | 0078 | ‖ 0079, 0081 | Hecha |
 | [0081](tareas/0081-main-cliente-http-de-lrclib.md) | Main: cliente HTTP de LRCLIB (User-Agent, presupuesto, 429, errores, URL de pruebas) | 0077 | ‖ 0078–0080 | Hecha |
-| [0082](tareas/0082-main-busqueda-de-letras-y-candidatos.md) | Main: `letras.buscar` (estrategia, conversión, orden, instrumental, caché, cancelación) | 0077, 0078, 0080, 0081 | ‖ 0083, 0084–0086 | Pendiente |
-| [0083](tareas/0083-main-guardar-editar-e-importar-letra.md) | Main: guardar, editar texto e importar `.lrc`/`.txt` (persistencia y paso `letra`) | 0077, 0078, 0079 | ‖ 0081, 0082, 0084–0086 | Pendiente |
-| [0084](tareas/0084-vista-letra-busqueda-y-resultados.md) | Vista Letra: búsqueda, resultados, vista previa y estados (A) | 0077 (API falsa) | ‖ 0078–0083 | Pendiente |
-| [0085](tareas/0085-vista-letra-pegar-importar-y-sustituir.md) | Vista Letra: pegar, importar y confirmar sustitución (B) | 0084, 0078 | ‖ 0086, 0087 | Pendiente |
-| [0086](tareas/0086-vista-letra-letra-elegida-y-edicion.md) | Vista Letra: letra elegida y edición con autoguardado (C) | 0084, 0079 | ‖ 0085, 0087 | Pendiente |
-| [0087](tareas/0087-integracion-letra-stepper-progreso-y-biblioteca.md) | Integración: stepper, Progreso, "Continuar", Biblioteca y semilla | 0084, 0077 (+ 0083) | ‖ 0085, 0086 | Pendiente |
-| [0088](tareas/0088-e2e-letras-sin-red.md) | E2E sin red con un doble HTTP local de LRCLIB | 0082, 0083, 0085, 0086, 0087 | No (cierra la fase) | Pendiente |
+| [0082](tareas/0082-main-busqueda-de-letras-y-candidatos.md) | Main: `letras.buscar` (estrategia, conversión, orden, instrumental, caché, cancelación) | 0077, 0078, 0080, 0081 | ‖ 0083, 0084–0086 | Hecha |
+| [0083](tareas/0083-main-guardar-editar-e-importar-letra.md) | Main: guardar, editar texto e importar `.lrc`/`.txt` (persistencia y paso `letra`) | 0077, 0078, 0079 | ‖ 0081, 0082, 0084–0086 | Hecha |
+| [0084](tareas/0084-vista-letra-busqueda-y-resultados.md) | Vista Letra: búsqueda, resultados, vista previa y estados (A) | 0077 (API falsa) | ‖ 0078–0083 | Hecha |
+| [0085](tareas/0085-vista-letra-pegar-importar-y-sustituir.md) | Vista Letra: pegar, importar y confirmar sustitución (B) | 0084, 0078 | ‖ 0086, 0087 | Hecha |
+| [0086](tareas/0086-vista-letra-letra-elegida-y-edicion.md) | Vista Letra: letra elegida y edición con autoguardado (C) | 0084, 0079 | ‖ 0085, 0087 | Hecha |
+| [0087](tareas/0087-integracion-letra-stepper-progreso-y-biblioteca.md) | Integración: stepper, Progreso, "Continuar", Biblioteca y semilla | 0084, 0077 (+ 0083) | ‖ 0085, 0086 | Hecha |
+| [0088](tareas/0088-e2e-letras-sin-red.md) | E2E sin red con un doble HTTP local de LRCLIB | 0082, 0083, 0085, 0086, 0087 | No (cierra la fase) | Hecha |
 | [0089](tareas/0089-prueba-opcional-con-lrclib-real.md) | Prueba opcional con LRCLIB real (`SHINOBI_TESTS_RED=1`) | 0082, 0088 | La parte Vitest, ‖ 0088 | Hecha |
 
 **Orden sugerido con dos o tres programadores**:

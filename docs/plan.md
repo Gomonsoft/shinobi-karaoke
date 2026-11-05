@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-05 (cierre de la Fase 3 y desglose de la Fase 4).
+Última actualización: 2026-11-05 (cierre de la Fase 4; Fases 3 y 4 fusionadas en `main`).
 
 ## Resumen
 
@@ -16,8 +16,8 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 1 | Esqueleto: app, worker, persistencia, biblioteca | ✅ Cerrada |
 | 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (0040 ejecutada el 2026-11-05) |
 | 3 | Separación de voz e instrumental | ✅ Cerrada (0058 y 0062 esperan `runtime-real` en GitHub) |
-| 4 | Letras | ⏳ Siguiente (desglosada: 0077–0089) |
-| 5 | Editor (sincronía y estilo) | Pendiente |
+| 4 | Letras | ✅ Cerrada (0077–0089; pregunta 0024 abierta para la Fase 5) |
+| 5 | Editor (sincronía y estilo) | ⏳ Siguiente |
 | 6 | Reproductor a pantalla completa | Pendiente |
 | 7 | Empaquetado y distribución | Pendiente |
 
@@ -98,7 +98,7 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Sin preguntas abiertas en la fase.**
 
-## Fase 4 — Letras ⏳ (desglosada el 2026-11-05: tareas 0077–0089)
+## Fase 4 — Letras ✅ (tareas 0077–0089, cerrada el 2026-11-05)
 **Objetivo**: tener la letra de la canción, con tiempos si es posible.
 
 - **Contratos** (0077): API `letras.*` (buscar, guardar, editar texto, leer archivo), candidatos, el código `ARCHIVO_SIN_LETRA`, la regla del paso Letra (completado con ≥ 1 línea) y una API falsa para la interfaz.
@@ -119,7 +119,11 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Pregunta abierta**: [0022](preguntas/0022-huecos-ux-de-la-vista-letra-fase-4.md) (diseñador UX; no bloquea).
 
-## Fase 5 — Editor
+**Resultado**: la letra se busca sola en LRCLIB al llegar al paso Letra (palabra > línea > texto), se puede pegar o importar (`.lrc`/`.txt`), y se edita con autoguardado sin perder la sincronía de lo que no cambia. E2E sin red con un doble de LRCLIB y prueba opcional con LRCLIB real. Detalle en [`informe-fase-4.md`](informe-fase-4.md).
+
+**Pendiente**: pregunta 0024 (✓ de Letra en el stepper y volver a Letra desde el Editor), que se resuelve al empezar la Fase 5; revisar con UX el texto "El texto es demasiado largo (máximo 512 KB).".
+
+## Fase 5 — Editor ⏳
 **Objetivo**: ajustar la sincronía y el aspecto del karaoke (`ux/06`).
 
 - Sincronía **"al ritmo"** por línea: Intro marca el inicio y mantenerlo marca el final. Deshacer, ajuste fino, desplazamiento global y velocidad 0,5× / 0,75× / 1×.
