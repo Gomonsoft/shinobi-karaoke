@@ -63,6 +63,8 @@ export interface OpcionesRuntimeReal {
   env?: Record<string, string | undefined>
   /** `SHINOBI_RUNTIME_FALSO` ya cargado y con la app sin empaquetar (0039, ADR 0009 §8). */
   falso?: { escenario: EscenarioRuntimeFalso; ruta: string } | null
+  /** Oferta de Rápido de la separación (0066); se enlaza tarde porque el servicio de separación nace después. */
+  ofertaSeparacionVigente?: () => boolean
 }
 
 export interface RuntimeReal {
@@ -130,7 +132,8 @@ export function crearRuntimeReal(o: OpcionesRuntimeReal): RuntimeReal {
     versionApp: o.versionApp,
     descripcionSo: o.descripcionSo,
     ultimasLineasRegistro: (n) => ultimasLineasDeRegistro(dirRegistros, 'runtime', n),
-    registrar: (nivel, m) => o.registro.escribir(nivel, 'runtime', m)
+    registrar: (nivel, m) => o.registro.escribir(nivel, 'runtime', m),
+    ...(o.ofertaSeparacionVigente ? { ofertaSeparacionVigente: o.ofertaSeparacionVigente } : {})
   })
   return { manifiesto, deteccion, gestor, servicio }
 }

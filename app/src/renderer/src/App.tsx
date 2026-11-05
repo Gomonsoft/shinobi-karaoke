@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { ContenedorToasts } from './componentes/Toasts'
+import { DialogoCierre } from './navegacion/DialogoCierre'
 import { Marco } from './navegacion/Marco'
 import {
   NavegacionContexto,
@@ -10,8 +11,11 @@ import {
 } from './navegacion/estado'
 import { useArrastrarArchivo } from './navegacion/useArrastrarArchivo'
 import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
+import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
 import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
 import { Biblioteca } from './vistas/biblioteca/Biblioteca'
+import { BibliotecaContexto, useBiblioteca } from './vistas/biblioteca/useBiblioteca'
+import { Ajustes } from './vistas/ajustes/Ajustes'
 import { Marcador } from './vistas/Marcadores'
 import { AnadirCancion } from './vistas/anadir/AnadirCancion'
 import { ResumenFuente } from './vistas/anadir/ResumenFuente'
@@ -22,28 +26,6 @@ import { PrimerArranque } from './vistas/primer-arranque/PrimerArranque'
 const Muestrario = import.meta.env.DEV
   ? lazy(() => import('./vistas/Muestrario').then((m) => ({ default: m.Muestrario })))
   : null
-
-/** `true`/`false` cuando se sabe; `null` mientras carga. */
-function useBibliotecaVacia(): boolean | null {
-  const [vacia, setVacia] = useState<boolean | null>(null)
-  useEffect(() => {
-    let activo = true
-    const actualizar = () => {
-      window.shinobi.biblioteca.listar().then(
-        (lista) => activo && setVacia(lista.length === 0),
-        // Conservador: ante un error se mantiene el botón de la barra.
-        () => activo && setVacia(false)
-      )
-    }
-    actualizar()
-    const baja = window.shinobi.alCambiarCancion(actualizar)
-    return () => {
-      activo = false
-      baja()
-    }
-  }, [])
-  return vacia
-}
 
 function Contenido({ vista }: { vista: Vista }) {
   switch (vista.tipo) {
@@ -63,6 +45,8 @@ function Contenido({ vista }: { vista: Vista }) {
       if (vista.paso === 'progreso') return <Progreso key={vista.id} id={vista.id} />
       if (vista.paso === 'fuente') return <ResumenFuente key={vista.id} id={vista.id} />
       return <Marcador titulo={`${TITULOS_VISTA.cancion}: ${vista.paso}`} />
+    case 'ajustes':
+      return <Ajustes />
     default:
       return <Marcador titulo={TITULOS_VISTA[vista.tipo]} />
   }
@@ -70,19 +54,26 @@ function Contenido({ vista }: { vista: Vista }) {
 
 function Aplicacion({ inicial }: { inicial: Vista }) {
   const [vista, ir] = useState<Vista>(inicial)
-  const vacia = useBibliotecaVacia()
+  // Una sola lectura de `listar()` para la barra superior, el panel de actividad y la Biblioteca.
+  const biblioteca = useBiblioteca()
+  // Conservador: mientras carga o ante un error se mantiene el botón de la barra.
+  const vacia = biblioteca.estado === 'listo' && biblioteca.canciones.length === 0
   const trabajos = useEstadoTrabajos()
   const navegar = useCallback((v: Vista) => ir(v), [])
   const navegacion = useMemo<Navegacion>(() => ({ vista, ir: navegar }), [vista, navegar])
   useAtajosGlobales(vista, navegar)
   useArrastrarArchivo(vista, navegar)
+  useAvisosTrabajos(vista, navegar)
 
   return (
     <NavegacionContexto.Provider value={navegacion}>
       <TrabajosContexto.Provider value={trabajos}>
-        <Marco bibliotecaVacia={vacia === true}>
-          <Contenido vista={vista} />
-        </Marco>
+        <BibliotecaContexto.Provider value={biblioteca}>
+          <Marco bibliotecaVacia={vacia}>
+            <Contenido vista={vista} />
+          </Marco>
+          <DialogoCierre vista={vista} />
+        </BibliotecaContexto.Provider>
       </TrabajosContexto.Provider>
     </NavegacionContexto.Provider>
   )

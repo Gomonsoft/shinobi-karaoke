@@ -1,10 +1,18 @@
 import { z } from 'zod'
 import { CANALES } from './canales'
+import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
 import { cancionSchema, ESTADOS_PASO, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
 import { estiloSchema } from './estilo'
 import { configSchema } from './config'
-import { perfilSchema, plataformaSchema } from './manifiesto'
+import { MODELOS_SEPARACION, perfilSchema, plataformaSchema } from './manifiesto'
+import {
+  DISPOSITIVOS_SEPARACION,
+  detalleDescargandoModeloSchema,
+  detalleReintentandoSchema,
+  detalleSeparandoSchema
+} from './protocolo'
+import { intentoSchema } from './separacion'
 
 export { CANALES } from './canales'
 
@@ -30,7 +38,15 @@ export type MetadatosEditables = z.infer<typeof metadatosEditablesSchema>
 const pasoResumenSchema = z.object({
   estado: z.enum(ESTADOS_PASO),
   progreso: z.number().nullable(),
-  error: z.object({ codigo: z.string(), mensaje: z.string() }).nullable()
+  error: z
+    .object({
+      codigo: z.string(),
+      mensaje: z.string(),
+      modelo: z.enum(['calidad', 'rapido']).optional()
+    })
+    .nullable(),
+  /** Duración real de la separación (0069); ausente si no se conoce. */
+  segundos: z.number().nullable().optional()
 })
 
 /** Resumen de canción tal y como lo recibe el renderer: la miniatura es una URL shinobi-media://. */
@@ -48,7 +64,9 @@ export const resumenCancionSchema = z.object({
   incompleta: z.boolean(),
   lineasSinSincronizar: z.number(),
   danada: z.boolean(),
-  motivo: z.enum(['json', 'pistas']).nullable()
+  motivo: z.enum(['json', 'pistas']).nullable(),
+  /** Dañada por pistas y sin `fuente/mezcla.flac`: no se puede re-separar (0070). */
+  sinMezcla: z.boolean().optional()
 })
 export type ResumenCancionIpc = z.infer<typeof resumenCancionSchema>
 
@@ -83,8 +101,15 @@ export const progresoTrabajoSchema = z.object({
   valor: z.number().min(0).max(1).nullable(),
   /** Segundos restantes; null si no hay estimación (ver ux/04). */
   etaSegundos: z.number().min(0).nullable(),
-  /** Bytes descargados y totales (solo en la fase `descargando`; `total` puede ser desconocido). */
-  detalle: z.object({ bytes: z.number().min(0), total: z.number().min(0).nullable() }).optional()
+  /**
+   * Según la fase: `descargando` y `descargando_modelo` → `{ bytes, total }` (`total` puede ser
+   * desconocido); `separando` → `{ paso, total }`; `reintentando` → `{ motivo, espera_s? }`.
+   */
+  detalle: z
+    .union([detalleDescargandoModeloSchema, detalleSeparandoSchema, detalleReintentandoSchema])
+    .optional(),
+  /** Intento de la separación (1, 2 o 3; 0063). Ausente en los demás trabajos. */
+  intento: intentoSchema.optional()
 })
 export type ProgresoTrabajo = z.infer<typeof progresoTrabajoSchema>
 
@@ -103,7 +128,15 @@ export const trabajoSchema = z.object({
   /** Solo cuando `estado` es `terminado`. */
   resultado: z.enum(RESULTADOS_TRABAJO).nullable(),
   error: z.object({ codigo: z.string(), mensaje: z.string() }).nullable(),
-  progreso: progresoTrabajoSchema.nullable()
+  progreso: progresoTrabajoSchema.nullable(),
+  /**
+   * Solo en separación: el modelo y el dispositivo realmente usados ("Modelo Calidad · ⓘ", ux/04
+   * criterio 13). Ausente equivale a `null`.
+   */
+  modo: z.enum(MODELOS_SEPARACION).nullable().optional(),
+  dispositivo: z.enum(DISPOSITIVOS_SEPARACION).nullable().optional(),
+  /** Intento en curso de la separación (1, 2 o 3). */
+  intento: intentoSchema.nullable().optional()
 })
 export type TrabajoIpc = z.infer<typeof trabajoSchema>
 
@@ -122,9 +155,8 @@ export const configParcialRendererSchema = z.strictObject({
       silenciado: z.boolean().optional()
     })
     .optional(),
-  separacion: z
-    .strictObject({ modo: z.enum(['automatico', 'calidad', 'rapido']).optional() })
-    .optional(),
+  // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
+  // cambian `aceptarYUsarRapido` y `volverACalidad` (0057).
   estilo_predeterminado: estiloSchema.optional(),
   aviso_youtube_aceptado: z.iso.datetime().nullable().optional()
 })
@@ -230,9 +262,26 @@ export const estadoRuntimeSchema = z.object({
   motivoRebaja: z.enum(['memoria', 'generico']).nullable(),
   modo: modoRuntimeSchema.nullable(),
   /** Bytes que faltan por descargar (fases no completadas); `null` sin perfil. */
-  bytesRestantes: z.number().nonnegative().nullable()
+  bytesRestantes: z.number().nonnegative().nullable(),
+  /** Aceptó Rápido y la descarga no terminó (0057, preguntas/0021 §1). La oferta no se repite. */
+  rapidoPendiente: z.boolean(),
+  /** B4 puede ofrecer el modelo Rápido (0057): fallo definitivo de Calidad y sin `rapidoPendiente`. */
+  ofrecerRapido: z.boolean(),
+  /** "Volver a Calidad" en curso o fallida; operación del runtime, no un trabajo (0057). */
+  volverACalidad: z
+    .object({
+      estado: z.enum(['descargando', 'error']),
+      bytes: z.number().nonnegative(),
+      total: z.number().nonnegative(),
+      error: z.object({ codigo: z.string(), mensaje: z.string() }).nullable()
+    })
+    .nullable()
 })
 export type EstadoRuntimeIpc = z.infer<typeof estadoRuntimeSchema>
+
+/** Origen del consentimiento de Rápido. No existe `ajustes`: Rápido no es elegible desde Ajustes. */
+export const origenRapidoSchema = z.enum(['primer_arranque', 'separacion'])
+export type OrigenRapido = z.infer<typeof origenRapidoSchema>
 
 export const requisitosRuntimeSchema = z.object({
   plataforma: plataformaSchema.nullable(),
@@ -249,9 +298,22 @@ export const requisitosRuntimeSchema = z.object({
   perfil: perfilSchema.nullable(),
   gpu: z.object({ nombre: z.string(), vramMb: z.number() }).nullable(),
   bytesDescarga: z.number().nonnegative().nullable(),
+  /** Menor y mayor descarga de la plataforma (para el texto genérico sin perfil); `null` si no hay. */
+  rangoDescarga: z
+    .tuple([z.number().nonnegative(), z.number().nonnegative()])
+    .nullable()
+    .optional(),
   espacioRequerido: z.number().nonnegative(),
   espacioLibre: z.number().nonnegative(),
-  modoPrevisto: modoRuntimeSchema.nullable()
+  modoPrevisto: modoRuntimeSchema.nullable(),
+  /** Bytes del modelo Rápido del manifiesto, para el aviso de consentimiento (0057). */
+  bytesRapido: z.number().nonnegative().nullable().optional(),
+  /** Rápido ya está descargado y verificado: el aviso no repite el tamaño (0057). */
+  rapidoDescargado: z.boolean().optional(),
+  /** Bytes del modelo Calidad del manifiesto (`aj.sep.descarga`, 0074). */
+  bytesCalidad: z.number().nonnegative().nullable().optional(),
+  /** Calidad ya está descargado y verificado: el diálogo de Ajustes omite la descarga (0074). */
+  calidadDescargado: z.boolean().optional()
 })
 export type RequisitosRuntimeIpc = z.infer<typeof requisitosRuntimeSchema>
 
@@ -273,10 +335,22 @@ export const progresoRuntimeSchema = z.object({
 })
 export type ProgresoRuntimeIpc = z.infer<typeof progresoRuntimeSchema>
 
-export const estimacionSeparacionSchema = z
-  .object({ min: z.number().nonnegative(), max: z.number().nonnegative() })
+export const ORIGENES_ESTIMACION = ['medido_equipo', 'referencia_medida', 'estimado'] as const
+/**
+ * Minutos de separación de una canción (incluido el coste de arranque, `shared/estimacion.ts`).
+ * `origen` decide si la interfaz usa la variante `.aprox`: solo con `'estimado'`.
+ */
+export const estimacionCancionSchema = z
+  .object({
+    min: z.number().nonnegative(),
+    max: z.number().nonnegative(),
+    origen: z.enum(ORIGENES_ESTIMACION)
+  })
   .nullable()
+export const estimacionSeparacionSchema = estimacionCancionSchema
 export type EstimacionSeparacion = z.infer<typeof estimacionSeparacionSchema>
+
+export type EstimacionCancion = z.infer<typeof estimacionCancionSchema>
 
 // --- Errores y contrato ----------------------------------------------------
 
@@ -361,9 +435,19 @@ export const CONTRATO = {
   [CANALES.runtime.pausar]: { args: vacio, res: z.void() },
   [CANALES.runtime.detalles]: { args: vacio, res: z.string() },
   [CANALES.runtime.estimarSeparacion]: {
-    args: z.tuple([z.number().finite().nonnegative().max(1e9)]),
+    args: z.tuple([
+      z.number().finite().nonnegative().max(1e9),
+      z.enum(MODELOS_SEPARACION).optional()
+    ]),
     res: estimacionSeparacionSchema
   },
+  // Mismo canal para "Separar ahora", "Reintentar" y "Re-separar pistas" (reglas en 0065).
+  [CANALES.separacion.separar]: { args: unId, res: z.void() },
+  [CANALES.separacion.estimar]: { args: unId, res: estimacionCancionSchema },
+  // La llamada es el consentimiento (0057); responde al terminar la descarga.
+  [CANALES.runtime.aceptarYUsarRapido]: { args: z.tuple([origenRapidoSchema]), res: z.void() },
+  [CANALES.runtime.volverACalidad]: { args: vacio, res: z.void() },
+  [CANALES.runtime.cancelarVolverACalidad]: { args: vacio, res: z.void() },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
   [CANALES.app.salir]: { args: vacio, res: z.void() }
 } as const
@@ -395,6 +479,12 @@ export interface ApiShinobi {
     /** Cambios de estado y de posición en la cola. Devuelve la función para darse de baja. */
     alCambiar(cb: (trabajo: TrabajoIpc) => void): () => void
     alProgreso(cb: (progreso: EventoProgresoIpc) => void): () => void
+  }
+  separacion: {
+    /** Encola la separación de la canción (también Reintentar y Re-separar). */
+    separar(cancionId: string): Promise<void>
+    /** Minutos estimados según el equipo y el modo vigente; `null` sin datos. */
+    estimar(cancionId: string): Promise<EstimacionCancion>
   }
   config: {
     obtener(): Promise<Config>
@@ -446,7 +536,19 @@ export interface ApiShinobi {
     /** Texto de "Copiar detalles" (ux/01 criterio 8). */
     detalles(): Promise<string>
     /** Minutos de separación `{ min, max }` según el perfil y modo vigentes; `null` sin datos. */
-    estimarSeparacion(duracionMs: number): Promise<EstimacionSeparacion>
+    estimarSeparacion(
+      duracionMs: number,
+      /** Modelo a estimar; por defecto el vigente (Ajustes pide Calidad estando en Rápido). */
+      modelo?: 'calidad' | 'rapido'
+    ): Promise<EstimacionSeparacion>
+    /**
+     * Consentimiento explícito del modelo Rápido y su descarga (0057). Responde cuando termina;
+     * el avance llega por `alProgreso` y `alCambiar`.
+     */
+    aceptarYUsarRapido(origen: OrigenRapido): Promise<void>
+    /** Descarga Calidad si falta y la fija como modo (Ajustes, 0074). Estado en `volverACalidad`. */
+    volverACalidad(): Promise<void>
+    cancelarVolverACalidad(): Promise<void>
     alProgreso(cb: (progreso: ProgresoRuntimeIpc) => void): () => void
     alCambiar(cb: (estado: EstadoRuntimeIpc) => void): () => void
   }
@@ -457,6 +559,11 @@ export interface ApiShinobi {
     salir(): Promise<void>
     /** Main pide confirmar el cierre mientras hay una instalación en curso. */
     alSolicitudCierre(cb: () => void): () => void
+  }
+  /** Avisos de trabajos terminados o fallidos y clic en la notificación del sistema (0072). */
+  avisos: {
+    alAviso(cb: (aviso: AvisoTrabajoIpc) => void): () => void
+    alAbrirCancion(cb: (evento: AbrirCancionIpc) => void): () => void
   }
   /** Devuelve la función para darse de baja. */
   alCambiarCancion(cb: (evento: EventoCancionIpc) => void): () => void

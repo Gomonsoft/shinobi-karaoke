@@ -4,6 +4,7 @@ import type {
   ProgresoRuntimeIpc,
   RequisitosRuntimeIpc
 } from '@shared/ipc'
+import { RAPIDO } from '../aviso-rapido/textos'
 import { PA } from './textos'
 
 /** Lógica pura de Primer arranque (sin React): decisión de pantalla, cifras y textos. */
@@ -63,6 +64,15 @@ export function formatearGb(bytes: number): string {
 export function formatearGbLibre(bytes: number): string {
   const r = Math.floor((bytes / 1e9) * 10) / 10
   return String(r).replace('.', ',')
+}
+
+/** `pa.req.descarga.generica`: menor (hacia abajo) y mayor (hacia arriba) descarga, en GB enteros. */
+export function textoDescargaGenerica(rango: readonly [number, number] | null): string {
+  if (rango === null) return PA.reqDescargaGenerica('1', '6')
+  return PA.reqDescargaGenerica(
+    String(Math.max(1, Math.floor(rango[0] / 1e9))),
+    String(Math.ceil(rango[1] / 1e9))
+  )
 }
 
 export const aMb = (bytes: number): number => Math.round(bytes / 1e6)
@@ -133,33 +143,59 @@ export function detallesEquipo(r: RequisitosRuntimeIpc, soporte: string | null):
 
 // --- Modo ---------------------------------------------------------------------------
 
+type EstimacionMin = {
+  min: number
+  max: number
+  origen?: 'medido_equipo' | 'referencia_medida' | 'estimado' | undefined
+} | null
+
+/** Intervalo redondeado para 4 minutos de audio: `[a, b]` en minutos enteros. */
+export function intervalo(e: { min: number; max: number }): [number, number] {
+  const a = Math.max(1, Math.round(e.min))
+  return [a, Math.max(a, Math.ceil(e.max))]
+}
+
+/** Cola de los mensajes de CPU: ": una canción de 4 minutos tardará entre {a} y {b} minutos." */
+function colaTiempo(e: EstimacionMin): string {
+  if (e === null) return '.'
+  const [a, b] = intervalo(e)
+  return `: una canción de 4 minutos tardará entre ${String(a)} y ${String(b)} minutos.`
+}
+
+/**
+ * Mensaje de modelo y dispositivo de B2 (`pa.modo.*`). Calidad, salvo tras aceptar Rápido en B4
+ * (`pa.modo.rapido.aceptado`, 0057); antes de aceptarlo nunca se menciona.
+ */
 export function mensajeModo(
   modo: 'calidad' | 'rapido' | null,
   perfil: 'cpu' | 'cuda' | 'mps' | null,
-  rebaja: 'memoria' | 'generico' | null
+  rebaja: 'memoria' | 'generico' | null,
+  estimacion: EstimacionMin = null
 ): string | null {
-  if (rebaja === 'memoria') return PA.modoRebajadoMemoria
-  if (rebaja === 'generico') return PA.modoRebajadoGenerico
-  if (modo === 'rapido') return PA.modoRapido
-  if (modo === 'calidad') return perfil === 'mps' ? PA.modoCalidadApple : PA.modoCalidadNvidia
-  return null
+  const cola = colaTiempo(estimacion)
+  if (modo === 'rapido') return PA.modoRapidoAceptado
+  if (rebaja === 'memoria') return PA.modoRebajadoMemoria(cola)
+  if (rebaja === 'generico') return PA.modoRebajadoGenerico(cola)
+  if (modo !== 'calidad') return null
+  if (perfil === 'mps') return PA.modoCalidadApple
+  return perfil === 'cpu' ? PA.modoCalidadCpu(cola) : PA.modoCalidadNvidia
 }
 
-/** Nombre del modo final para B3. */
+/** Modelo y dispositivo para `pa.listo.modelo` (B3). */
 export function nombreModoFinal(
   modo: 'calidad' | 'rapido' | null,
   perfil: 'cpu' | 'cuda' | 'mps' | null
 ): string | null {
-  if (modo === 'rapido') return 'Rápido'
-  if (modo === 'calidad')
-    return perfil === 'mps' ? 'Calidad (chip Apple)' : 'Calidad (tarjeta gráfica NVIDIA)'
-  return null
+  if (modo === 'rapido') return 'Rápido, con el procesador'
+  if (modo !== 'calidad') return null
+  if (perfil === 'mps') return 'Calidad, con el chip Apple'
+  return perfil === 'cpu' ? 'Calidad, con el procesador' : 'Calidad, con tu tarjeta gráfica NVIDIA'
 }
 
-export function textoTiempoListo(e: { min: number; max: number } | null): string | null {
+export function textoTiempoListo(e: EstimacionMin): string | null {
   if (e === null) return null
-  const a = Math.max(1, Math.round(e.min))
-  const b = Math.max(a, Math.ceil(e.max))
+  const [a, b] = intervalo(e)
+  if (e.origen === 'estimado') return PA.listoTiempoAprox(a, b)
   return a === b ? PA.listoTiempoIgual(a) : PA.listoTiempo(a, b)
 }
 
@@ -167,7 +203,9 @@ export function textoTiempoListo(e: { min: number; max: number } | null): string
 
 export function textoDeError(
   codigo: string,
-  espacioRequerido: number | null
+  espacioRequerido: number | null,
+  /** Fase que falló: en la de modelo, los servidores caídos son "todos" (`pa.error.servidor.todos`). */
+  fase?: string
 ): { titulo: string; cuerpo: string } {
   switch (codigo) {
     case 'SIN_CONEXION':
@@ -175,7 +213,7 @@ export function textoDeError(
     case 'SIN_ESPACIO':
       return PA.errorSinEspacio(espacioRequerido === null ? '10' : formatearGb(espacioRequerido))
     case 'SERVICIO_NO_DISPONIBLE':
-      return PA.errorServidor
+      return fase === 'modelo' ? PA.errorServidorTodos : PA.errorServidor
     case 'VERIFICACION_FALLIDA':
       return PA.errorVerificacion
     default:
@@ -191,6 +229,17 @@ export const NOMBRE_FASE: Record<FaseRuntime, string> = {
   motor: PA.faseMotor,
   componentes: PA.faseComponentes,
   modelo: PA.faseModelo
+}
+
+/** Nombre de la fase; la del modelo dice "(Rápido)" si se está descargando Rápido (`pa.fase.modelo.rapido`). */
+export const nombreFase = (f: FaseRuntime, modo: 'calidad' | 'rapido' | null): string =>
+  f === 'modelo' && modo === 'rapido' ? PA.faseModeloRapido : NOMBRE_FASE[f]
+
+/** Texto de la oferta de Rápido en B4: `rapido.oferta` o, con `SIN_ESPACIO`, `rapido.oferta.espacio`. */
+export function textoOfertaRapido(codigo: string, bytesRapido: number | null): string {
+  return codigo === 'SIN_ESPACIO' && bytesRapido !== null
+    ? RAPIDO.ofertaEspacio(`${String(Math.round(bytesRapido / 1e6))} MB`)
+    : RAPIDO.oferta
 }
 
 /** Acumulado del progreso que nunca retrocede (ux/01: las barras no bajan; fase máx. 99 %). */

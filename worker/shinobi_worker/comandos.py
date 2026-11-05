@@ -92,6 +92,12 @@ def descargar_youtube(args: dict[str, Any]) -> None:
     comando(args)
 
 
+def separar(args: dict[str, Any]) -> None:
+    from .separacion import separar as comando
+
+    comando(args)
+
+
 COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "version": version,
     "demo": demo,
@@ -99,4 +105,5 @@ COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "diagnostico": diagnostico,
     "info-youtube": info_youtube,
     "descargar-youtube": descargar_youtube,
+    "separar": separar,
 }

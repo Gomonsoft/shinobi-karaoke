@@ -42,7 +42,15 @@ const instalacionSchema = z
 
 const separacionSchema = z
   .object({
-    modo: z.enum(['automatico', 'calidad', 'rapido']).default('automatico'),
+    /**
+     * Modelo vigente. Calidad por defecto en todos los perfiles; Rápido solo con
+     * `rapido_aceptado`. Un `automatico` guardado por versiones anteriores se lee como Calidad.
+     */
+    modo: z
+      .preprocess((v) => (v === 'automatico' ? 'calidad' : v), modeloSeparacion)
+      .default('calidad'),
+    /** Fecha del consentimiento para usar el modelo Rápido (sus autores no declaran licencia). */
+    rapido_aceptado: z.iso.datetime().nullable().default(null),
     modelos_descargados: z.array(modeloSeparacion).default([]),
     /** Minutos de proceso por minuto de audio (media móvil). */
     factores_medidos: z.partialRecord(modeloSeparacion, z.number().positive()).default({})

@@ -5,7 +5,7 @@ export const PA = {
   bienvenidaCuerpo:
     'Antes de empezar, Shinobi Karaoke necesita descargar su motor de audio (lo que separa la voz de la música). Solo se hace una vez.',
   reqDescarga: (n: string) => `Descarga: unos ${n} GB para tu equipo`,
-  reqDescargaGenerica: 'Descarga: entre 0,5 y 4 GB según tu equipo',
+  reqDescargaGenerica: (a: string, b: string) => `Descarga: entre ${a} y ${b} GB según tu equipo`,
   reqTiempo: 'Tiempo: de 5 a 25 minutos, según tu conexión',
   reqEspacio: (n: string, m: string) =>
     `Espacio: necesitas al menos ${n} GB libres (tienes ${m} GB)`,
@@ -23,14 +23,16 @@ export const PA = {
   faseDiagnostico: 'Comprobando tu equipo…',
   faseModelo: 'Descargando el modelo de separación',
   modoCalidadNvidia:
-    'Tu equipo tiene una tarjeta gráfica NVIDIA: separaremos las pistas en modo Calidad.',
-  modoCalidadApple: 'Tu Mac tiene un chip Apple: separaremos las pistas en modo Calidad.',
-  modoRapido:
-    'Tu equipo no tiene una tarjeta gráfica compatible: separaremos las pistas en modo Rápido. Funciona bien, aunque puede quedar algo de voz de fondo.',
-  modoRebajadoMemoria:
-    'Tu tarjeta gráfica no tiene memoria suficiente para el modo Calidad: separaremos las pistas en modo Rápido. Funciona bien, aunque puede quedar algo de voz de fondo.',
-  modoRebajadoGenerico:
-    'No hemos podido usar tu tarjeta gráfica: separaremos las pistas en modo Rápido. Funciona bien, aunque puede quedar algo de voz de fondo.',
+    'Separaremos las pistas con el modelo Calidad usando tu tarjeta gráfica NVIDIA.',
+  modoCalidadApple: 'Separaremos las pistas con el modelo Calidad usando el chip Apple de tu Mac.',
+  modoCalidadCpu: (tiempo: string) =>
+    `Tu equipo no tiene una tarjeta gráfica compatible: separaremos las pistas con el modelo Calidad usando el procesador. Es más lento${tiempo}`,
+  modoRebajadoMemoria: (tiempo: string) =>
+    `Tu tarjeta gráfica no tiene memoria suficiente: separaremos las pistas con el modelo Calidad usando el procesador. Es más lento${tiempo}`,
+  modoRebajadoGenerico: (tiempo: string) =>
+    `No hemos podido usar tu tarjeta gráfica: separaremos las pistas con el modelo Calidad usando el procesador. Es más lento${tiempo}`,
+  modoRapidoAceptado: 'Separaremos las pistas con el modelo Rápido usando el procesador.',
+  faseModeloRapido: 'Descargando el modelo de separación (Rápido)',
   botonPausar: 'Pausar y salir',
   total: 'Total',
   calculandoTiempo: 'Calculando tiempo…',
@@ -45,10 +47,14 @@ export const PA = {
 
   listoTitulo: 'Todo listo',
   listoCuerpo: 'Shinobi Karaoke ya puede separar la voz de tus canciones.',
-  listoModo: (modo: string) => `Modo de separación: ${modo}.`,
+  listoModelo: (modelo: string) => `Modelo de separación: ${modelo}.`,
   listoTiempo: (a: number, b: number) =>
     `Una canción de 4 minutos tardará entre ${a} y ${b} minutos.`,
   listoTiempoIgual: (a: number) => `Una canción de 4 minutos tardará unos ${a} minutos.`,
+  listoTiempoAprox: (a: number, b: number) =>
+    `Una canción de 4 minutos tardará entre ${a} y ${b} minutos, aproximadamente. Lo ajustaremos tras tu primera canción.`,
+  listoRapido:
+    'Usas el modelo Rápido bajo tu responsabilidad. Cuando quieras, puedes volver al modelo Calidad desde Ajustes.',
   botonEmpezar: 'Empezar',
 
   reanudarTitulo: 'Continuamos donde lo dejamos',
@@ -71,9 +77,14 @@ export const PA = {
     titulo: 'Uno de los servidores de descarga no responde.',
     cuerpo: 'Suele ser temporal. Vuelve a intentarlo en unos minutos.'
   },
+  errorServidorTodos: {
+    titulo: 'Los servidores de descarga no responden.',
+    cuerpo: 'Suele ser temporal. Vuelve a intentarlo en unos minutos.'
+  },
   errorVerificacion: {
     titulo: 'El archivo descargado no es correcto.',
-    cuerpo: 'Lo descargaremos de nuevo.'
+    cuerpo:
+      'Lo hemos descargado dos veces y no coincide con el original. Vuelve a intentarlo más tarde; si se repite, copia los detalles y abre una incidencia en la web del proyecto.'
   },
   errorGenerico: {
     titulo: 'Algo salió mal durante la preparación.',

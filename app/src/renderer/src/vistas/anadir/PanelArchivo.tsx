@@ -11,7 +11,8 @@ import { detallesDeError } from '../biblioteca/errores'
 import { formatearDuracion } from '../biblioteca/tarjeta'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
-import { TEXTO, textoLarga, textoLeido } from './textos'
+import { AvisoLarga } from './AvisoLarga'
+import { TEXTO, textoLeido } from './textos'
 import estilos from './anadir.module.css'
 
 interface ErrorVista {
@@ -296,7 +297,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
           refTitulo={refTitulo}
           onIntroUltimo={() => void continuar()}
         />
-        {datos.larga && <AvisoEnLinea tipo="aviso">{textoLarga(duracion)}</AvisoEnLinea>}
+        {datos.larga && <AvisoLarga duracion={duracion} duracionMs={datos.duracionMs} />}
         {err && (
           <AvisoEnLinea
             tipo="error"

@@ -5,6 +5,7 @@ import { LineaPaso } from './LineaPaso'
 import { paso, resumenPrueba } from './resumenPrueba'
 import {
   datosDeTarjeta,
+  esReintentable,
   formatearDuracion,
   textoAriaTarjeta,
   textoEta,
@@ -319,6 +320,16 @@ describe('trabajo en vivo (0014)', () => {
     )
   })
 
+  it('espera de un reintento de red (bib.paso.reintento.red): sin barra y sin error', () => {
+    const d = datosDeTarjeta(resumenPrueba(), {
+      trabajo: trabajo({ paso: 'fuente' }),
+      progreso: { ...progreso(null, null), fase: 'reintentando' },
+      esperaS: 12
+    })
+    expect(d.linea).toEqual({ tipo: 'curso', texto: 'Reintentando en 12 s…' })
+    expect(d.textoEstado).not.toBe('Error')
+  })
+
   it('en cola (trabajo vivo): para separar y para descargar', () => {
     expect(linea({ trabajo: trabajo({ estado: 'en_cola', posicion: 1 }), progreso: null })).toEqual(
       { tipo: 'cola', texto: 'En cola para separar' }
@@ -376,5 +387,89 @@ describe('trabajo en vivo (0014)', () => {
     ).toBe('Separando 50 %')
     const lista = resumenPrueba({ estado: 'lista' })
     expect(datosDeTarjeta(lista, { trabajo: trabajo(), progreso: null }).linea).toBeNull()
+  })
+})
+
+describe('línea de paso de la separación y reintentos (0070, ux/02 criterio 18)', () => {
+  const trabajo: TrabajoIpc = {
+    id: 't',
+    cancionId: 'c1',
+    paso: 'separacion',
+    cola: 'pesada',
+    comando: 'demo',
+    estado: 'en_curso',
+    posicion: null,
+    resultado: null,
+    error: null,
+    progreso: null
+  }
+  const evento = (extra: Record<string, unknown>) => ({
+    id: 't',
+    cancionId: 'c1',
+    paso: 'separacion' as const,
+    fase: 'x',
+    valor: null,
+    etaSegundos: null,
+    ...extra
+  })
+
+  it('descargando_modelo: bib.paso.modelo con barra determinada y sin tiempo restante', () => {
+    const d = datosDeTarjeta(resumenPrueba(), {
+      trabajo,
+      progreso: evento({ fase: 'descargando_modelo', valor: 0.42, etaSegundos: 90 })
+    })
+    expect(d.linea).toEqual({ tipo: 'curso', texto: 'Descargando el modelo 42 %', barra: 42 })
+    expect(d.insignia).toBe('borrador')
+  })
+
+  it.each(['memoria', 'memoria_cpu'])('reintentando por %s: sin error', (motivo) => {
+    const d = datosDeTarjeta(resumenPrueba(), {
+      trabajo,
+      progreso: evento({ fase: 'reintentando', detalle: { motivo } })
+    })
+    expect(d.linea?.texto).toBe('Reintentando la separación…')
+    expect(d.linea?.tipo).toBe('curso')
+    expect(d.insignia).toBe('borrador')
+  })
+
+  it('reintentando por red (descarga): bib.paso.reintento.red con la cuenta atrás', () => {
+    const d = datosDeTarjeta(resumenPrueba(), {
+      trabajo: { ...trabajo, paso: 'fuente' },
+      progreso: evento({ paso: 'fuente', fase: 'reintentando', detalle: { motivo: 'red' } }),
+      esperaS: 5
+    })
+    expect(d.linea?.texto).toBe('Reintentando en 5 s…')
+    expect(d.linea?.barra).toBeUndefined()
+  })
+
+  it('una dañada por pistas con la separación en cola muestra "En cola para separar"', () => {
+    const danada = resumenPrueba({ danada: true, motivo: 'pistas' })
+    const d = datosDeTarjeta(danada, { trabajo: { ...trabajo, estado: 'en_cola' }, progreso: null })
+    expect(d.insignia).toBe('danada')
+    expect(d.linea?.texto).toBe('En cola para separar')
+  })
+
+  it('error reintentable → Reintentar; error de fuente no reintentable → Ver', () => {
+    const error = (codigo: string) =>
+      resumenPrueba({
+        pasos: {
+          fuente: paso('error', { error: { codigo, mensaje: '' } }),
+          separacion: paso('pendiente'),
+          letra: paso('pendiente'),
+          edicion: paso('pendiente')
+        }
+      })
+    expect(datosDeTarjeta(error('SIN_CONEXION')).accion).toBe('reintentar')
+    expect(datosDeTarjeta(error('VIDEO_NO_DISPONIBLE')).accion).toBe('ver')
+    expect(esReintentable(error('VIDEO_NO_DISPONIBLE'))).toBe(false)
+    const sep = resumenPrueba({
+      pasos: {
+        fuente: paso('completado'),
+        separacion: paso('error', { error: { codigo: 'MEMORIA_INSUFICIENTE', mensaje: '' } }),
+        letra: paso('pendiente'),
+        edicion: paso('pendiente')
+      }
+    })
+    expect(datosDeTarjeta(sep).accion).toBe('reintentar')
   })
 })

@@ -11,7 +11,7 @@
 > [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md) ·
 > [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md)
 >
-> Última revisión: 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -176,6 +176,8 @@ shinobi-karaoke/
 │       │   ├── trabajos/         # gestor (colas, ETA), cliente del worker, parser JSON Lines, registro del worker
 │       │   ├── runtime/          # (Fase 2) detección previa, gestor de instalación con uv, modelos, comprobación al arrancar, actualización de yt-dlp
 │       │   ├── fuente/           # (Fase 2) importación de archivo local y servicio de YouTube
+│       │   ├── separacion/       # (Fase 3) servicio de separación: encolar, args, pistas, reintentos, oferta de Rápido
+│       │   ├── avisos/           # (Fase 3) notificaciones del sistema, Dock y barra de tareas
 │       │   └── letras/           # (Fase 4) cliente LRCLIB, parsers LRC / LRC mejorado / Lyricsfile
 │       ├── preload/
 │       │   └── index.ts          # contextBridge con API tipada (sin exponer ipcRenderer)
@@ -224,6 +226,13 @@ shinobi-karaoke/
 - **Cierre de la app**: si hay trabajos, diálogo de confirmación (Fase 3; `trabajos.hayPendientes()` ya existe). Al salir se cancelan todos los trabajos (sin procesos hijos vivos), sus pasos quedan `interrumpido` (no `pendiente`) y se vuelcan las escrituras pendientes, con un plazo máximo (tarea 0021). Al reabrir, cualquier `en_curso` restante pasa también a `interrumpido`.
 - **Eventos**: `trabajo:cambio` (alta, cambio de posición en cola, fin con `resultado` `completado|error|cancelado|interrumpido`) y `trabajo:progreso` (≤ 4/s por trabajo). Los `args` del trabajo no se envían al renderer.
 - **Reintentos automáticos**: separación sin memoria → un reintento con bloques menores y, en GPU, otro en CPU, siempre con Calidad. Si persiste, error con la oferta de Rápido con consentimiento; **nunca se pasa a Rápido de forma automática** (ADR 0004, revisión 2026-11-05). descarga o consulta de YouTube con `YOUTUBE_BLOQUEADO` → actualizar yt-dlp (sin preguntar; cancelar la operación no aborta la actualización, y si se interrumpe al cerrar la app se repara en el siguiente arranque) y reintentar una vez; descargas de red → reintento con espera exponencial.
+- **Separación (Fase 3, ADR 0004 Revisión 2026-11-05 bis)**:
+  - salida en `pistas.tmp/`, que se mueve a `pistas/` al terminar;
+  - el main comprueba y, si falta, descarga el modelo dentro del trabajo (fase `descargando_modelo`);
+  - modo y dispositivo se leen al empezar el trabajo;
+  - progreso interpolado con el factor (`main/trabajos/progreso.ts`);
+  - política de reintentos por comando en el gestor, con la fase `reintentando` y `PROCESO_TERMINADO` para los procesos muertos por el sistema;
+  - servicio en `main/separacion/`.
 - **Arranque en frío del worker**: importar PyTorch y cargar el modelo cuesta 5–20 s por trabajo de separación; se acepta en el MVP (alternativa futura: worker persistente).
 
 ### Primer arranque

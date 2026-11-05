@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-05.
+Última actualización: 2026-11-05 (desglose de la Fase 3).
 
 ## Resumen
 
@@ -15,7 +15,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 0 | Fundamentos: decisiones técnicas, arquitectura, diseño de vistas | ✅ Cerrada |
 | 1 | Esqueleto: app, worker, persistencia, biblioteca | ✅ Cerrada |
 | 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (0040 ejecutada el 2026-11-05) |
-| 3 | Separación de voz e instrumental | ⏳ Siguiente |
+| 3 | Separación de voz e instrumental | ⏳ Siguiente (desglosada: 0055–0076) |
 | 4 | Letras | Pendiente |
 | 5 | Editor (sincronía y estilo) | Pendiente |
 | 6 | Reproductor a pantalla completa | Pendiente |
@@ -70,18 +70,33 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Pendiente**: abrir el issue a UVR (pregunta 0012).
 
-## Fase 3 — Separación de pistas ⏳
+## Fase 3 — Separación de pistas ⏳ (desglosada el 2026-11-05: tareas 0055–0076)
 **Objetivo**: obtener `voz.flac` e `instrumental.flac` de cada canción.
 
-- **Antes de empezar**: tareas 0055 (manifiesto: 4 GB en CPU, `bytes_disco` medidos, progreso de componentes) y 0056 (Calidad por defecto, sin elección de modo). **Al inicio**: 0057 (alternativa a Rápido con consentimiento, reutilizada por la separación y los Ajustes). **En paralelo**: 0058 (bytes de red y pico de disco en `runtime-real`).
-- Comando del worker `separar` sobre audio-separator, sin ffmpeg y forzando CPU en Apple Silicon (preguntas 0009 y 0010).
-- Trabajo en la cola pesada con progreso interpolado, tiempo restante, cancelación y reintentos automáticos.
-- Estimación previa ("Tardará unos N minutos"), "Re-separar pistas" y "Cancelar trabajo".
-- Vista de progreso completa para el paso de separación y panel de actividad.
+- **Antes de empezar**: 0055 (manifiesto: 4 GB en CPU, `bytes_disco` medidos, progreso de componentes) y 0056 (Calidad por defecto, sin elección de modo; en curso). **Al inicio**: 0057 (alternativa a Rápido con consentimiento) y 0059 (contratos compartidos), en paralelo. **En paralelo durante toda la fase**: 0058 (bytes de red y pico de disco en `runtime-real`) y 0073 (diálogo de cierre).
+- **Worker** (0060–0062): comando `separar` sobre una interfaz `Separador`, separador falso para las pruebas y adaptador de audio-separator sin ffmpeg (parche + `use_soundfile`), CPU forzada en Apple Silicon, stems renombrados a `voz.flac`/`instrumental.flac` y progreso por `tqdm`. Test "sin ffmpeg en el PATH" en la CI de los 3 SO y prueba `pesado` con el modelo real en `runtime-real`.
+- **Main** (0063–0067):
+  - reintentos automáticos según `reintentable` y progreso interpolado con el factor;
+  - servicio de separación en la cola pesada: se encola al completar la fuente, salida en `pistas.tmp/`, factor medido, limpieza al cancelar;
+  - reintentos por memoria (bloques más pequeños y, con NVIDIA, procesador), descarga del modelo que falta dentro del trabajo y oferta de Rápido tras `MEMORIA_INSUFICIENTE`/`MODELO_NO_DISPONIBLE`;
+  - estimación previa "Tardará unos N minutos".
+- **Interfaz** (0068–0074):
+  - vista de progreso de la separación (cola, fases, tiempo restante, cancelar, pendiente, errores, oferta de Rápido; terminado con escucha de las pistas);
+  - en la Biblioteca, "Reintentar" que relanza, "Cancelar trabajo" y "Re-separar pistas";
+  - panel de actividad, toasts y notificaciones del sistema, diálogo de cierre;
+  - Ajustes informativos con "Volver a Calidad".
+- **E2E** (0075–0076) con un separador falso, sin PyTorch, modelos ni red. La CI normal nunca descarga los modelos reales.
 - **Modelo Calidad en todos los equipos**, también solo CPU. El modelo Rápido solo se usa si el usuario lo acepta bajo su responsabilidad tras un fallo de Calidad (en el primer arranque, por memoria insuficiente o por modelo no disponible); nunca de forma automática ni como elección libre.
-- **Ajustes**: sin elección de modo. Informa del modelo en uso y, si es Rápido, ofrece **Volver a Calidad**. Incluye Acerca de (`ux/08`, cambios pendientes en la pregunta 0019 para el diseñador UX).
+- **Ajustes**: sin elección de modelo. Informan del modelo en uso y, si es Rápido, ofrecen **Volver a Calidad**. Incluyen Acerca de.
 
-**Decidido (pregunta 0018, usuario, 2026-11-05)**: modelo Calidad por defecto en todos los perfiles; Rápido solo como alternativa con consentimiento tras un fallo de Calidad (no elegible en Ajustes); 4 GB de espacio mínimo en CPU. Ya no queda pendiente la decisión del modelo según el modo.
+**Decidido (pregunta 0018, usuario, 2026-11-05)**: modelo Calidad por defecto en todos los perfiles; Rápido solo como alternativa con consentimiento tras un fallo de Calidad (no elegible en Ajustes); 4 GB de espacio mínimo en CPU.
+
+**Decidido (preguntas 0019–0021, 2026-11-05)**:
+- textos definitivos de la oferta de Rápido, de los reintentos y de Ajustes (diseñador UX);
+- re-separar con Calidad las canciones separadas con Rápido queda fuera del MVP;
+- detalles técnicos de "Rápido pendiente", de "Volver a Calidad" fuera de Ajustes, del origen de la estimación y de la descripción del equipo (arquitecto; ADR 0004, Revisión 2026-11-05 bis).
+
+**Sin preguntas abiertas en la fase.**
 
 ## Fase 4 — Letras
 **Objetivo**: tener la letra de la canción, con tiempos si es posible.

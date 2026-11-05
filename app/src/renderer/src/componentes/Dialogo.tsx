@@ -15,6 +15,10 @@ interface DialogoProps {
   acciones?: ReactNode
   /** Selector CSS del elemento que recibe el foco al abrir (por defecto, el primero enfocable). */
   enfoqueInicial?: string
+  /** `id` del contenido que describe el diálogo (`aria-describedby`). */
+  descripcionId?: string
+  /** Ancho propio (por defecto, el de `.dialogo`), p. ej. `32.5rem`. */
+  ancho?: string
 }
 
 /** Diálogos abiertos, el último arriba: solo el de arriba atiende Esc y Tab (diálogos anidados). */
@@ -27,7 +31,9 @@ export function Dialogo({
   onCancelar,
   children,
   acciones,
-  enfoqueInicial
+  enfoqueInicial,
+  descripcionId,
+  ancho
 }: DialogoProps) {
   const idTitulo = useId()
   const caja = useRef<HTMLDivElement>(null)
@@ -85,8 +91,10 @@ export function Dialogo({
         role="dialog"
         aria-modal="true"
         aria-labelledby={idTitulo}
+        aria-describedby={descripcionId}
         tabIndex={-1}
         className={estilos.dialogo}
+        style={ancho ? { width: ancho } : undefined}
       >
         <h2 id={idTitulo} className={estilos.dialogoTitulo}>
           {titulo}

@@ -1,0 +1,84 @@
+{
+  "argsValidos": {
+    "entrada": "/datos/biblioteca/cancion-1/fuente/mezcla.flac",
+    "salida_dir": "/datos/biblioteca/cancion-1/pistas.tmp",
+    "modelo": {
+      "id": "calidad",
+      "archivo": "melband_roformer_instrumental.ckpt",
+      "dir": "/datos/modelos"
+    },
+    "dispositivo": "cpu",
+    "bloques": "normal"
+  },
+  "argsValidosWindows": {
+    "entrada": "C:\\Users\\ana\\AppData\\Roaming\\Shinobi\\biblioteca\\c1\\fuente\\mezcla.flac",
+    "salida_dir": "C:\\Users\\ana\\AppData\\Roaming\\Shinobi\\biblioteca\\c1\\pistas.tmp",
+    "modelo": {
+      "id": "rapido",
+      "archivo": "UVR-MDX-NET-Inst_HQ_4.onnx",
+      "dir": "C:\\Shinobi\\modelos"
+    },
+    "dispositivo": "cuda",
+    "bloques": "pequenos"
+  },
+  "argsInvalidos": {
+    "entrada relativa": { "entrada": "fuente/mezcla.flac" },
+    "salida_dir vacía": { "salida_dir": "" },
+    "modelo desconocido": {
+      "modelo": { "id": "otro", "archivo": "a.ckpt", "dir": "/datos/modelos" }
+    },
+    "archivo con carpeta": {
+      "modelo": { "id": "calidad", "archivo": "../a.ckpt", "dir": "/datos/modelos" }
+    },
+    "dir relativo": { "modelo": { "id": "calidad", "archivo": "a.ckpt", "dir": "modelos" } },
+    "dispositivo mps": { "dispositivo": "mps" },
+    "bloques desconocidos": { "bloques": "grandes" },
+    "clave extra": { "extra": 1 }
+  },
+  "resultado": {
+    "voz": "voz.flac",
+    "instrumental": "instrumental.flac",
+    "modelo": {
+      "id": "calidad",
+      "archivo": "melband_roformer_instrumental.ckpt",
+      "version_audio_separator": "0.41.1"
+    },
+    "dispositivo": "cpu",
+    "segundos_separando": 281.4,
+    "segundos_total": 297.9
+  },
+  "eventos": {
+    "preparando": { "tipo": "progreso", "fase": "preparando", "valor": null },
+    "cargando_modelo": { "tipo": "progreso", "fase": "cargando_modelo", "valor": null },
+    "separando": {
+      "tipo": "progreso",
+      "fase": "separando",
+      "valor": 0.5,
+      "detalle": { "paso": 15, "total": 30 }
+    },
+    "guardando": { "tipo": "progreso", "fase": "guardando", "valor": null },
+    "descargando_modelo": {
+      "tipo": "progreso",
+      "fase": "descargando_modelo",
+      "valor": 0.25,
+      "detalle": { "bytes": 228000000, "total": 913000000 }
+    },
+    "reintentando": {
+      "tipo": "progreso",
+      "fase": "reintentando",
+      "valor": null,
+      "detalle": { "motivo": "memoria", "espera_s": 2 }
+    }
+  },
+  "escenario": {
+    "segundos": 3,
+    "pasos": 30,
+    "fallos": [
+      {
+        "cuando": { "dispositivo": "cuda", "intento": 1 },
+        "codigo": "MEMORIA_INSUFICIENTE",
+        "reintentable": true
+      }
+    ]
+  }
+}

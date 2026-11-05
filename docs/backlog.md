@@ -43,7 +43,7 @@ Proyecto base, comunicación con el worker, persistencia de canciones, sistema v
 
 Hecho tras cerrar 0005: ADR 0001/0002/0003/0004 y `arquitectura.md` actualizados; el borrador del manifiesto está en la tarea 0005 §9 (el archivo real se genera en la Fase 2).
 
-**Mediciones pendientes (no bloquean la Fase 2; necesarias antes de publicar)**: NVIDIA/CUDA en Windows y Linux (factor Calidad, VRAM, MB descargados y disco del venv); Windows y Linux sin GPU (factor Rápido/Calidad en CPU x86, `where`/`which ffmpeg` vacío, `taskkill /T /F`); Apple Silicon M2–M4 Pro/Max (CPU frente a MPS); escucha humana FLAC vs WAV y de la calidad con música actual. Cómo medirlo: tarea 0005, "Sin medir". El test "sin ffmpeg en el PATH" en los 3 SO va en la CI (0024 o primera tarea de la Fase 3).
+**Mediciones pendientes (no bloquean la Fase 2; necesarias antes de publicar)**: NVIDIA/CUDA en Windows y Linux (factor Calidad, VRAM, MB descargados y disco del venv); Windows y Linux sin GPU (factor Rápido/Calidad en CPU x86, `where`/`which ffmpeg` vacío, `taskkill /T /F`); Apple Silicon M2–M4 Pro/Max (CPU frente a MPS); escucha humana FLAC vs WAV y de la calidad con música actual. Cómo medirlo: tarea 0005, "Sin medir". El test "sin ffmpeg en el PATH" en los 3 SO va en la CI: tareas 0061/0062.
 
 ### Correcciones de la revisión de cierre (antes de empezar la Fase 2; pueden ir en paralelo con 0005)
 | Tarea | Título | Depende de | Estado |
@@ -108,26 +108,65 @@ Decisiones de detalle en el nuevo [ADR 0009](adr/0009-gestor-de-runtime-y-dobles
 
 Orden sugerido con dos o tres programadores: **(A) runtime** 0028/0029 → 0030 → 0031 ‖ 0032 ‖ 0033 → 0034 → 0035 ‖ 0036 → 0037 → 0039 (+ 0040); **(B) archivo local** 0041 → 0042 → 0044 ‖ 0045 → 0046 (0043 y 0038 en cualquier hueco); **(C) YouTube** 0047 → 0048 → 0049 → 0050 ‖ 0051 → 0053 (0052 en cualquier hueco; 0054 tras 0050). Los bloques B y C solo necesitan de A los contratos (0028, 0029) hasta 0050, que usa 0035.
 
-## Fase 3 — Separación de pistas
+## Fase 3 — Separación de pistas — desglosada (2026-11-05): tareas 0055–0076
 **Decisión del usuario ([0018](preguntas/0018-datos-reales-del-runtime-y-espacio-en-linux.md), 2026-11-05)**:
 - **Calidad en todos los perfiles**, también solo CPU.
 - **Rápido** solo con el consentimiento explícito del usuario (aviso de licencia no declarada, [0012](preguntas/0012-licencia-no-declarada-del-modelo-rapido.md)), solo tras un fallo definitivo de Calidad (no elegible en Ajustes, que permite volver a Calidad); nunca de forma automática.
 - **4 GB** de espacio en CPU.
 
-Revisiones 2026-11-05 en ADR [0004](adr/0004-separacion-voz-instrumental.md), [0006](adr/0006-persistencia-y-modelo-de-datos.md) y [0009](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md). Cambios de UX en [0019](preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md) (**diseñador UX**, abierta: B1–B4, `ux/04`, `ux/08`, aviso de riesgo de Rápido).
+Revisiones 2026-11-05 en ADR [0004](adr/0004-separacion-voz-instrumental.md), [0006](adr/0006-persistencia-y-modelo-de-datos.md) y [0009](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md). Detalles de implementación de la separación en la **Revisión 2026-11-05 bis** del ADR 0004 (salida en `pistas.tmp/`, modelo que falta descargado dentro del trabajo, reintentos por memoria, `PROCESO_TERMINADO`, progreso interpolado, "Rápido pendiente", pruebas sin PyTorch en la CI normal). UX respondida: [0019](preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md) y [0020](preguntas/0020-huecos-ux-de-la-separacion-fase-3.md) (diseñador UX; `ux/01`, `02`, `04` y `08` actualizadas). [0021](preguntas/0021-detalles-tecnicos-de-la-oferta-de-rapido-y-volver-a-calidad.md) respondida por el arquitecto. **Sin preguntas abiertas en la fase.**
 
-| Tarea | Título | Depende de | Cuándo | Estado |
-|-------|--------|-----------|--------|--------|
-| [0055](tareas/0055-manifiesto-espacio-requerido-y-bytes-medidos.md) | Manifiesto: `espacio_requerido` 4 GB en CPU, `bytes_disco` medidos, `bytes_cache` para el progreso | 0030, 0034, 0040 | Antes de la Fase 3 (‖ 0056) | Pendiente |
-| [0056](tareas/0056-modelo-calidad-por-defecto-y-modo-de-separacion.md) | Modelo Calidad por defecto; sin elección de modo; `rapido_aceptado` | 0029, 0034, 0035 | Antes de la Fase 3 | Pendiente |
-| [0057](tareas/0057-alternativa-al-modelo-rapido-con-consentimiento.md) | Alternativa al modelo Rápido con consentimiento (B4, API reutilizable y "Volver a Calidad") | 0056 (+ 0019 para los textos) | Al inicio de la Fase 3 | Pendiente |
-| [0058](tareas/0058-runtime-real-bytes-de-red-pico-de-disco-y-calidad-en-cpu.md) | `runtime-real`: bytes reales de descarga, pico de disco y Calidad en CPU | 0040, 0055, 0056 | Durante la Fase 3 (antes de la Fase 7) | Pendiente |
+**Pruebas**: la CI normal nunca instala PyTorch ni descarga modelos. Usa el separador falso (`SHINOBI_SEPARADOR_FALSO`) y un test de contrato del adaptador con el PATH sin ffmpeg en los 3 SO (0061/0062). El modelo real solo se usa en las pruebas `pesado` del workflow manual `runtime-real` (0062).
 
-Las tareas de separación (oferta de Rápido tras `MEMORIA_INSUFICIENTE`/`MODELO_NO_DISPONIBLE`) y de Ajustes (modelo en uso y "Volver a Calidad"), que se desglosarán en la Fase 3, reutilizan `aceptarYUsarRapido` y `volverACalidad` de 0057.
+| Tarea | Título | Depende de | ¿Paralelizable? | Estado |
+|-------|--------|-----------|-----------------|--------|
+| [0055](tareas/0055-manifiesto-espacio-requerido-y-bytes-medidos.md) | Manifiesto: `espacio_requerido` 4 GB en CPU, `bytes_disco` medidos, `bytes_cache` para el progreso | 0030, 0034, 0040 | **Antes de la Fase 3**; ‖ 0056 | Pendiente |
+| [0056](tareas/0056-modelo-calidad-por-defecto-y-modo-de-separacion.md) | Modelo Calidad por defecto; sin elección de modo; `rapido_aceptado` | 0029, 0034, 0035 | **Antes de la Fase 3**; ‖ 0055 | En curso |
+| [0057](tareas/0057-alternativa-al-modelo-rapido-con-consentimiento.md) | Alternativa al modelo Rápido con consentimiento (B4, `aviso-rapido`, API reutilizable, "Rápido pendiente", "Volver a Calidad") | 0056 | Al inicio; ‖ 0059 | Hecha |
+| [0058](tareas/0058-runtime-real-bytes-de-red-pico-de-disco-y-calidad-en-cpu.md) | `runtime-real`: bytes reales de descarga, pico de disco y Calidad en CPU | 0040, 0055, 0056 | Sí, durante toda la fase (coordinar con 0062) | Pendiente |
+| [0059](tareas/0059-contratos-compartidos-de-la-fase-3.md) | Contratos compartidos: protocolo de `separar`, IPC de separación, fases y reintentos | 0055, 0056 | ‖ 0057; desbloquea el resto | Pendiente |
+| [0060](tareas/0060-worker-comando-separar-y-separador-falso.md) | Worker: comando `separar`, interfaz `Separador` y separador falso | 0059 | ‖ 0063, 0064, 0067 | Pendiente |
+| [0061](tareas/0061-worker-adaptador-audio-separator.md) | Worker: adaptador audio-separator (sin ffmpeg, soundfile, CPU en Apple Silicon, stems, `tqdm`) + test de contrato | 0060 | ‖ 0065 | Pendiente |
+| [0062](tareas/0062-ci-separacion-sin-ffmpeg-y-prueba-pesada-real.md) | CI: "sin ffmpeg en el PATH" en los 3 SO y prueba `pesado` real en `runtime-real` | 0061, 0056 | ‖ 0065–0068 | Pendiente |
+| [0063](tareas/0063-gestor-reintentos-automaticos.md) | Gestor: reintentos automáticos según `reintentable`, fase `reintentando`, `PROCESO_TERMINADO` y reintento de red de YouTube | 0059 | ‖ 0060, 0064 | Pendiente |
+| [0064](tareas/0064-progreso-interpolado-y-eta-con-factor.md) | Progreso interpolado y ETA con el factor del manifiesto o el medido | 0059 | ‖ 0060, 0063 | Pendiente |
+| [0065](tareas/0065-main-servicio-de-separacion.md) | Main: servicio de separación (cola pesada, `pistas.tmp`, factor medido, limpieza, auto-encolar) | 0056, 0059, 0060, 0063, 0064 | ‖ 0061, 0062, 0067, 0068 | Pendiente |
+| [0066](tareas/0066-separacion-reintentos-modelo-y-oferta-de-rapido.md) | Separación: reintentos por memoria, modelo que falta y oferta de Rápido | 0057, 0065 | ‖ 0068–0072 | Pendiente |
+| [0067](tareas/0067-estimacion-previa-de-la-separacion.md) | Estimación previa "Tardará unos N minutos" (con `origen`) | 0056, 0059 | ‖ 0060, 0063, 0064 | Pendiente |
+| [0068](tareas/0068-vista-progreso-paso-de-separacion.md) | Vista de progreso: paso de separación (cola, fases, cancelar, pendiente, errores, oferta de Rápido) | 0045, 0057, 0059, 0067 | ‖ 0065, 0066 (API falsa) | Pendiente |
+| [0069](tareas/0069-vista-progreso-terminado-y-escucha.md) | Vista de progreso: terminado, duración real y escucha de voz/instrumental | 0068 | ‖ 0070, 0071, 0072 | Pendiente |
+| [0070](tareas/0070-biblioteca-reintentar-cancelar-trabajo-y-re-separar.md) | Biblioteca: "Reintentar" que relanza, "Cancelar trabajo", "Re-separar pistas" y línea de paso | 0059, 0068 (+ 0065) | ‖ 0069, 0071, 0072 | Pendiente |
+| [0071](tareas/0071-panel-de-actividad.md) | Panel de actividad (+ deuda del marco: parpadeo y doble `listar()`) | 0059, 0067, 0068 | ‖ 0069, 0070, 0072 | Pendiente |
+| [0072](tareas/0072-avisos-al-terminar-toasts-y-notificaciones.md) | Avisos al terminar: toasts, notificaciones, Dock y barra de tareas | 0059 (+ 0065) | ‖ 0069, 0070, 0071 | Pendiente |
+| [0073](tareas/0073-dialogo-de-cierre-con-trabajos.md) | Diálogo de cierre con trabajos pendientes | 0014, 0036 (Hechas) | **Sí, en cualquier momento** | Pendiente |
+| [0074](tareas/0074-vista-ajustes-separacion-informativa-y-volver-a-calidad.md) | Vista Ajustes: separación informativa, "Volver a Calidad", Acerca de y soporte | 0057, 0067 | ‖ 0068–0073 | Pendiente |
+| [0075](tareas/0075-e2e-separacion-con-separador-falso.md) | E2E: separación con el separador falso (feliz, cola, cancelar, cierre, panel, avisos) | 0065, 0068, 0069, 0071, 0072, 0073 | No (cierra el bloque principal) | Pendiente |
+| [0076](tareas/0076-e2e-errores-de-separacion-rapido-y-ajustes.md) | E2E: errores, reintentos, oferta de Rápido, Re-separar y "Volver a Calidad" | 0066, 0070, 0074, 0075 | No (cierra la fase) | Pendiente |
 
-- [ ] Separación en segundo plano con progreso (interfaz `Separador` con el parche sin ffmpeg y `use_soundfile=True` de `preguntas/0009`, CPU forzada en Apple Silicon de `preguntas/0010`, renombrado de stems, test "sin ffmpeg en el PATH"; modelo Calidad por defecto y Rápido solo con consentimiento según `preguntas/0018` y la tarea 0057; vista de progreso, **panel** del indicador de actividad —el indicador informativo y las líneas en vivo ya están, 0020—, avisos al terminar: toasts de fin/error y notificaciones del sistema).
-- [ ] Trabajos (deuda de 0014/0019/0020): reintentos automáticos según `reintentable` (`arquitectura.md` §6), estimación previa "Tardará unos N minutos", "Reintentar" que relanza el paso (hoy navega como "Continuar"), "Cancelar trabajo" y "Re-separar pistas" en el menú ⋯, diálogo de cierre con trabajos (`trabajos.hayPendientes()` ya existe).
-- [ ] Ajustes: modelo en uso (informativo) con "Volver a Calidad" si se usa Rápido, sin elección de modo, y Acerca de — `ux/08` tras `preguntas/0019`.
+**Orden sugerido con dos o tres programadores**:
+- **Antes**: 0055 ‖ 0056. Después, 0057 ‖ 0059.
+- **(A) Worker**: 0060 → 0061 → 0062. 0058 en cualquier hueco, coordinada con 0062.
+- **(B) Main**: 0063 ‖ 0064 ‖ 0067 → 0065 → 0066.
+- **(C) Interfaz**: 0068 (con la API falsa en cuanto estén 0057, 0059 y 0067) → 0069 ‖ 0070 ‖ 0071 ‖ 0072, y 0074.
+- **0073** en cualquier momento.
+- **Cierre**: 0075 → 0076.
+
+**Notas tras las respuestas a 0019/0020/0021 (2026-11-05)**:
+- **0056 está en curso y no se ha editado.** Su programador debe aplicar lo que pide la respuesta a [0019](preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md) ("Tareas que deben ajustarse → 0056"):
+  - sustituir los "textos provisionales" por `pa.modo.calidad.*` (incluido `.cpu`), `pa.modo.rebajado.*`, `pa.listo.modelo`, `pa.listo.tiempo(.aprox)` y `pa.req.descarga.generica` de `ux/01`;
+  - la rebaja no cambia los tamaños ni la barra total (criterio 5b);
+  - B1 con 4 GB en CPU (5c).
+  Para `pa.listo.tiempo.aprox` basta, hasta 0067, con la regla provisional de [0021](preguntas/0021-detalles-tecnicos-de-la-oferta-de-rapido-y-volver-a-calidad.md) §3: factor `null` en el manifiesto y ninguno medido.
+- **0057 ajustada**: textos definitivos del diálogo `aviso-rapido`, criterios 18–22 de `ux/01`, "Rápido pendiente" y estado de "Volver a Calidad" (0021 §1–§2).
+- **0058**: su criterio opcional de separar 60 s pasa a 0062.
+- **0054 (Hecha)**: el cambio de "modo" a "modelo en uso + dispositivo" en "Copiar información para soporte" lo hace 0074.
+- **README / página de descarga**: "entre 4 y 10 GB libres" (Parte A de `ux/01`); se comprueba en 0055.
+
+Deuda de fases anteriores que se salda aquí:
+- reintentos según `reintentable`, estimación previa, "Reintentar" que relanza y diálogo de cierre (0014/0019/0020 → 0063, 0067, 0070, 0073);
+- panel de actividad, parpadeo del título y doble `listar()` (0018/0020 → 0071);
+- E2E de eventos IPC y del indicador de actividad (→ 0075);
+- test "sin ffmpeg en el PATH" en los 3 SO (0005/0024 → 0061/0062).
 
 ## Fase 4 — Letras
 - [ ] Búsqueda de letra + entrada manual (conversores con la normalización de ADR 0005, revisión 2026-11-04: inicios repetidos +1 ms, ids únicos, `palabras: null`).

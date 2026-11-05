@@ -7,6 +7,7 @@ import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
+import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { LineaPaso } from './LineaPaso'
 import {
   datosDeTarjeta,
@@ -24,9 +25,22 @@ export interface AccionesTarjeta {
   editar(id: string): void
   editarDatos(id: string): void
   volverABorrador(id: string): void
+  /** Relanza el paso con error o interrumpido sin salir de la Biblioteca (0070). */
+  reintentar(id: string): void
+  /** Cancela el trabajo vivo: en cola sin diálogo, en curso con el diálogo del paso. */
+  cancelarTrabajo(id: string): void
+  /** Vuelve a separar una canción dañada por falta de pistas. */
+  resepararPistas(id: string): void
   mostrarEnCarpeta(id: string): void
   eliminar(id: string): void
 }
+
+const ETIQUETA_ACCION = {
+  reproducir: 'Reproducir',
+  continuar: 'Continuar',
+  reintentar: 'Reintentar',
+  ver: 'Ver'
+} as const
 
 interface TarjetaProps {
   resumen: ResumenCancionIpc
@@ -104,7 +118,8 @@ export function TarjetaCancion({
 }: TarjetaProps) {
   const titulo = tituloDeTarjeta(resumen)
   const raiz = useRef<HTMLElement>(null)
-  const d = datosDeTarjeta(resumen, vivo)
+  const esperaS = useCuentaAtras(vivo?.progreso ?? vivo?.trabajo.progreso, vivo?.trabajo.id)
+  const d = datosDeTarjeta(resumen, vivo ? { ...vivo, esperaS } : vivo)
   const lista = resumen.estado === 'lista' && !resumen.danada
   const duracion = formatearDuracion(resumen.duracionMs)
   const id = resumen.id
@@ -118,6 +133,7 @@ export function TarjetaCancion({
   }
   const alPrincipal = () => {
     if (d.accion === 'reproducir') acciones.reproducir(id)
+    else if (d.accion === 'reintentar') acciones.reintentar(id)
     else if (d.accion) acciones.continuar(id)
   }
 
@@ -148,6 +164,19 @@ export function TarjetaCancion({
       id: 'borrador',
       etiqueta: 'Volver a borrador',
       alSeleccionar: () => acciones.volverABorrador(id)
+    })
+  }
+  if (vivo) {
+    items.push({
+      id: 'cancelar-trabajo',
+      etiqueta: 'Cancelar trabajo',
+      alSeleccionar: () => acciones.cancelarTrabajo(id)
+    })
+  } else if (resumen.danada && resumen.motivo === 'pistas' && !resumen.sinMezcla) {
+    items.push({
+      id: 'resepararPistas',
+      etiqueta: 'Re-separar pistas',
+      alSeleccionar: () => acciones.resepararPistas(id)
     })
   }
   items.push({
@@ -235,14 +264,10 @@ export function TarjetaCancion({
               variante="secundario"
               tabIndex={-1}
               onClick={alPrincipal}
-              aria-label={`${d.accion === 'reproducir' ? 'Reproducir' : d.accion === 'continuar' ? 'Continuar' : 'Reintentar'} «${titulo}»`}
+              aria-label={`${ETIQUETA_ACCION[d.accion]} «${titulo}»`}
             >
               {d.accion === 'reproducir' && <Icono icono={Play} tamano={16} />}
-              {d.accion === 'reproducir'
-                ? 'Reproducir'
-                : d.accion === 'continuar'
-                  ? 'Continuar'
-                  : 'Reintentar'}
+              {ETIQUETA_ACCION[d.accion]}
             </Boton>
           </div>
         )}

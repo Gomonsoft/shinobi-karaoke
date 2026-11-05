@@ -9,6 +9,7 @@ import { DURACION_TERMINADO_MS } from './trabajos/useTrabajos'
 let cambioTrabajo: (t: TrabajoIpc) => void = () => undefined
 let progresoTrabajo: (p: EventoProgresoIpc) => void = () => undefined
 let trabajosIniciales: TrabajoIpc[] = []
+let llamadasListar = 0
 
 const trabajo = (extra: Partial<TrabajoIpc> = {}): TrabajoIpc => ({
   id: 't1',
@@ -34,17 +35,20 @@ let accionMenu: ((a: AccionMenu) => void) | null = null
 function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {}) {
   cambioTrabajo = () => undefined
   progresoTrabajo = () => undefined
+  llamadasListar = 0
   const config = configPredeterminada()
   config.instalacion.estado = instalacion
   accionMenu = null
   const api = {
     biblioteca: {
-      listar: () =>
-        Promise.resolve(
+      listar: () => {
+        llamadasListar++
+        return Promise.resolve(
           Array.from({ length: canciones }, (_, i) =>
             resumenPrueba({ id: `c${i}`, titulo: `Canción ${i}` })
           )
         )
+      }
     },
     config: { obtener: () => Promise.resolve(config) },
     sistema: { info: () => Promise.resolve({ youtube: false }) },
@@ -76,8 +80,11 @@ function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {})
           perfilPrevisto: 'cpu',
           perfil: null,
           motivoRebaja: null,
-          modo: 'rapido',
-          bytesRestantes: null
+          modo: 'calidad',
+          bytesRestantes: null,
+          rapidoPendiente: false,
+          ofrecerRapido: false,
+          volverACalidad: null
         }),
       requisitos: () =>
         Promise.resolve({
@@ -91,7 +98,7 @@ function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {})
           bytesDescarga: 700_000_000,
           espacioRequerido: 3_000_000_000,
           espacioLibre: 120_000_000_000,
-          modoPrevisto: 'rapido'
+          modoPrevisto: 'calidad'
         }),
       instalar: () => Promise.resolve(),
       alCambiar: () => () => undefined,
@@ -102,6 +109,7 @@ function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {})
       salir: () => Promise.resolve(),
       alSolicitudCierre: () => () => undefined
     },
+    avisos: { alAviso: () => () => undefined, alAbrirCancion: () => () => undefined },
     alAccionMenu: (cb: (a: AccionMenu) => void) => {
       accionMenu = cb
       return () => {
@@ -301,6 +309,24 @@ describe('indicador de actividad', () => {
 
     act(() => cambioTrabajo(trabajo({ id: 't1', estado: 'terminado', resultado: 'cancelado' })))
     expect(screen.getByText('1 en cola')).toBeInTheDocument()
+  })
+
+  it('biblioteca.listar() se llama una sola vez al montar App + Biblioteca (y no al navegar)', async () => {
+    await abrir()
+    expect(llamadasListar).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Ajustes' }))
+    fireEvent.click(screen.getByRole('button', { name: /Shinobi Karaoke/ }))
+    await act(async () => {})
+    expect(screen.getByRole('heading', { level: 1, name: 'Biblioteca' })).toBeInTheDocument()
+    expect(llamadasListar).toBe(1)
+  })
+
+  it('el botón de actividad abre el panel con el título de la canción', async () => {
+    trabajosIniciales = [trabajo()]
+    await abrir()
+    fireEvent.click(screen.getByRole('button', { name: '1 en curso' }))
+    expect(screen.getByRole('heading', { name: 'Actividad' })).toBeInTheDocument()
+    expect(screen.getByText(/Canción 0 — /)).toBeInTheDocument()
   })
 
   it('al terminar todos muestra "Terminado" 4 s y desaparece', async () => {

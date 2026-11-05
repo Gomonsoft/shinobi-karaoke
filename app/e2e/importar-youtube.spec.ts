@@ -53,7 +53,7 @@ function escribirConfig(datos: string, extra: Record<string, unknown>): void {
         fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
         perfil_hardware: 'cpu'
       },
-      separacion: { modelos_descargados: ['rapido'] },
+      separacion: { modelos_descargados: ['calidad'] },
       ...extra
     })
   )
@@ -130,6 +130,21 @@ async function añadir(v: Page, id: string, titulo?: string): Promise<void> {
   await expect(filaDescarga(v)).toContainText('Descargar de YouTube')
 }
 
+/**
+ * Cierra la app. La importación encadena la separación (0065) y, sin modelo, el trabajo puede seguir
+ * vivo al cerrar: entonces se confirma "Cerrar de todos modos" (0073).
+ */
+async function cerrar(app: ElectronApplication): Promise<void> {
+  const ventana = app.windows()[0]
+  const cierre = app.close()
+  await ventana
+    ?.getByRole('dialog')
+    .getByRole('button', { name: 'Cerrar de todos modos' })
+    .click({ timeout: 3000 })
+    .catch(() => undefined)
+  await cierre
+}
+
 test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
   test.describe.configure({ timeout: 90_000 })
 
@@ -160,7 +175,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         })
         .toBe('string')
     } finally {
-      await app.close()
+      await cerrar(app)
     }
 
     const app2 = await lanzar(env)
@@ -172,7 +187,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       await expect(campoUrl(v)).toBeVisible()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toHaveCount(0)
     } finally {
-      await app2.close()
+      await cerrar(app2)
     }
   })
 
@@ -198,7 +213,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       expect(registrosWorker(env.datos)).toEqual(antes)
       expect(canciones(env.datos)).toEqual([])
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -253,7 +268,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         `${id}/fuente/miniatura.jpg`
       )
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -280,7 +295,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       )
       expect(canciones(env.datos)).toEqual([])
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -300,7 +315,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       expect(leerCancion(env.datos, id!).pasos.fuente.estado).toBe('completado')
       expect(existsSync(join(env.falsos, `${BLOQ_UNA}.intentado`))).toBe(true)
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -325,7 +340,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         timeout: 60_000
       })
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -336,7 +351,10 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
     const v = await app.firstWindow()
     await añadir(v, NORMAL, 'Tema interrumpido')
     await expect(filaDescarga(v)).toContainText(/Descargando… \d+ %/, { timeout: 30_000 })
-    await app.close()
+    // Con un trabajo en curso, cerrar pide confirmación (0073): se confirma "Cerrar de todos modos".
+    const cierre = app.close()
+    await v.getByRole('dialog').getByRole('button', { name: 'Cerrar de todos modos' }).click()
+    await cierre
 
     ajustar(env.falsos, NORMAL, { ritmo: 1 })
     const app2 = await lanzar(env)
@@ -345,16 +363,20 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       const tarjeta = v2.getByRole('article', { name: /^Tema interrumpido,/ })
       await expect(tarjeta).toContainText('Interrumpido')
       await v2.getByRole('button', { name: 'Reintentar «Tema interrumpido»' }).click()
-      await expect(v2.getByText('La descarga se interrumpió')).toBeVisible()
-      await v2.getByRole('button', { name: 'Reintentar' }).click()
-      await expect(filaPreparar(v2)).toContainText('completado', { timeout: 60_000 })
+      // Desde 0070, Reintentar relanza el paso sin salir de la Biblioteca.
+      await expect(v2.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      await expect
+        .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
+          timeout: 60_000
+        })
+        .toBe('completado')
       const [id, ...resto] = canciones(env.datos)
       expect(resto).toEqual([])
       const json = leerCancion(env.datos, id!)
       expect(json.pasos.fuente.estado).toBe('completado')
       expect(existsSync(join(env.datos, 'biblioteca', id!, 'fuente', 'mezcla.flac'))).toBe(true)
     } finally {
-      await app2.close()
+      await cerrar(app2)
     }
   })
 
@@ -404,7 +426,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       await v.getByRole('button', { name: 'Volver a la biblioteca' }).click()
       await expect(v.getByRole('article')).toHaveCount(1)
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -430,7 +452,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       // Al terminar la actualización empieza sola y se completa.
       await expect(filaPreparar(v)).toContainText('completado', { timeout: 60_000 })
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 })

@@ -9,6 +9,11 @@ on:
         type: choice
         default: auto
         options: [auto, cpu, cuda, mps]
+      modelo:
+        description: "Modelo a instalar (calidad por defecto; rapido prueba la vía con consentimiento de la tarea 0057)"
+        type: choice
+        default: calidad
+        options: [calidad, rapido]
 
 permissions:
   contents: read
@@ -47,7 +52,8 @@ jobs:
         run: npm ci
 
       # El gestor real (0034) con SHINOBI_DATOS temporal; el script quita ffmpeg del PATH, instala motor,
-      # componentes, diagnóstico y modelo Rápido, y ejecuta demo y diagnostico con el lanzador de producción.
+      # componentes, diagnóstico y modelo (Calidad), mide el tráfico de red y el pico de disco (0058) y
+      # ejecuta demo y diagnostico con el lanzador de producción. Falla si pico + 0,5 GB > espacio_requerido.
       - name: Instalar el runtime y medir
         working-directory: app
         env:
@@ -55,16 +61,24 @@ jobs:
         run: >
           node --experimental-transform-types --disable-warning=ExperimentalWarning
           --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/instalar-runtime.mjs
-          --perfil "${{ inputs.perfil }}" --salida "${{ runner.temp }}/runtime-real-${{ matrix.os }}.json"
+          --perfil "${{ inputs.perfil }}" --modelo "${{ inputs.modelo }}" --salida "${{ runner.temp }}/runtime-real-${{ matrix.os }}.json"
 
       # El extra `separacion` instala PyTorch y audio-separator: pruebas con red y pesadas del worker.
-      - name: Pruebas con red y pesadas del worker
+      # Los `pesado` (0061/0062) usan el modelo Calidad que acaba de instalar el gestor
+      # (SHINOBI_MODELOS_DIR) y corren sin ffmpeg en el PATH (`sin_ffmpeg.py` falla si sigue visible).
+      - name: Pruebas con red del worker
         working-directory: worker
         env:
           SHINOBI_TESTS_RED: "1"
         run: |
           uv sync --locked --extra separacion
-          uv run pytest -m "red or pesado" -v
+          uv run pytest -m red -v
+
+      - name: Pruebas pesadas del worker (sin ffmpeg en el PATH)
+        working-directory: worker
+        env:
+          SHINOBI_MODELOS_DIR: ${{ runner.temp }}/shinobi-datos/modelos
+        run: uv run python scripts/sin_ffmpeg.py uv run pytest -m pesado -v
 
       - name: Artefacto con las mediciones
         if: always()
@@ -75,7 +89,7 @@ jobs:
           if-no-files-found: warn
 
   licencia-ffmpeg-av:
-    name: licencia del FFmpeg de PyAV (5 requisitos + darwin-x64)
+    name: licencia del FFmpeg de PyAV y bytes de descarga (5 requisitos)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -91,4 +105,20 @@ jobs:
         with:
           name: licencia-ffmpeg-av
           path: ${{ runner.temp }}/licencia-av.json
+          if-no-files-found: warn
+
+      # Bytes de descarga de cada archivo de requisitos, sin instalar nada (tarea 0058): suma del tamaño
+      # de la rueda compatible de cada paquete. Falla si algún paquete queda sin tamaño.
+      - name: Instalar packaging
+        if: always()
+        run: python -m pip install --disable-pip-version-check packaging
+      - name: Medir los bytes de descarga de las ruedas
+        if: always()
+        run: python worker/scripts/medir_descarga.py --json "${{ runner.temp }}/descarga-ruedas.json"
+      - name: Artefacto con los bytes de descarga
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: descarga-ruedas
+          path: ${{ runner.temp }}/descarga-ruedas.json
           if-no-files-found: warn

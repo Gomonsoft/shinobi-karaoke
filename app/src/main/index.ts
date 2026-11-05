@@ -6,6 +6,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  Notification,
   protocol,
   session,
   shell,
@@ -13,7 +14,7 @@ import {
 } from 'electron'
 import { estiloPredeterminado } from '@shared/estilo'
 import { CANALES } from '@shared/canales'
-import { TITULO_APP } from '@shared/titulo'
+import { ID_APP_WINDOWS, TITULO_APP } from '@shared/titulo'
 import { ServicioBiblioteca } from './biblioteca'
 import {
   ejecutarConCerrojo,
@@ -43,7 +44,7 @@ import {
 import { rutaDatos } from './rutas'
 import { leerTextoLegal } from './textoLegal'
 import { lanzadorDeApp } from './lanzadorApp'
-import { crearControlCierre } from './cierre'
+import { crearControlCierre, hayAlgoEnCurso } from './cierre'
 import {
   ActualizadorYtDlp,
   CerrojoLecturaEscritura,
@@ -59,6 +60,8 @@ import {
   type RuntimeReal
 } from './runtime'
 import { configurarWorker, ejecutar, GestorTrabajos } from './trabajos'
+import { crearPuertoModelos, entornoSeparadorFalso, ServicioSeparacion } from './separacion'
+import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 
 /** Servicio de configuración (0008); lo usarán los demás servicios y la IPC (0011). */
 export let servicioConfig: ServicioConfig | null = null
@@ -74,6 +77,12 @@ export let servicioYoutube: ServicioYoutube | null = null
 
 /** Runtime de audio (0034/0036): gestor de instalación y fachada de la IPC. `null` si falla el arranque. */
 export let runtime: RuntimeReal | null = null
+
+/** Servicio de separación (0065): cola pesada, pistas y factor medido. */
+export let servicioSeparacion: ServicioSeparacion | null = null
+
+/** Avisos del sistema al terminar o fallar un trabajo (0072). */
+let servicioAvisos: ServicioAvisos | null = null
 
 /** Actualización de yt-dlp y su cerrojo de lectura/escritura (0050). */
 export let actualizadorYtDlp: ActualizadorYtDlp | null = null
@@ -118,12 +127,25 @@ function origenRenderer(): string {
 }
 
 const controlCierre = crearControlCierre({
-  hayAlgoEnCurso: () => runtime?.servicio.instalando() ?? false,
+  // Instalación del runtime o trabajos de la cola (0073). Las consultas interactivas no cuentan.
+  hayAlgoEnCurso: () =>
+    hayAlgoEnCurso({
+      instalando: () => runtime?.servicio.instalando() ?? false,
+      hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false
+    }),
   pedirConfirmacion: () => {
     for (const v of BrowserWindow.getAllWindows())
       v.webContents.send(CANALES.eventos.solicitudCierre)
   },
-  pausar: () => runtime?.servicio.pausar() ?? Promise.resolve(),
+  // Tras confirmar, los trabajos se cancelan como `interrumpido` y no queda ningún proceso hijo.
+  // Sin `cancelarTodos()`: en macOS cerrar la ventana no sale de la app y el gestor debe seguir vivo.
+  pausar: async () => {
+    const g = gestorTrabajos
+    await Promise.allSettled([
+      runtime?.servicio.pausar(),
+      ...(g?.listar().map((t) => g.cancelar(t.id, 'cierre')) ?? [])
+    ])
+  },
   cerrarVentana: () => BrowserWindow.getAllWindows()[0]?.close(),
   salir: () => app.quit()
 })
@@ -146,6 +168,7 @@ function crearVentana(): BrowserWindow {
 
   // Con una instalación en curso, cerrar pide confirmación al renderer (0036).
   ventana.on('close', (evento) => controlCierre.alCerrarVentana(evento))
+  ventana.on('focus', () => servicioAvisos?.alRecuperarFoco())
   ventana.once('ready-to-show', () => ventana.show())
 
   const urlDev = process.env.ELECTRON_RENDERER_URL
@@ -174,6 +197,8 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 app.setName(TITULO_APP)
+// Windows: el id del instalador, necesario para las notificaciones (0072, arquitectura §6).
+if (process.platform === 'win32') app.setAppUserModelId(ID_APP_WINDOWS)
 // Perfil de Chromium separado de los datos del usuario (ADR 0006).
 app.setPath('userData', join(rutaDatos(), 'electron'))
 
@@ -233,6 +258,8 @@ if (instanciaUnica)
     if (servicioBiblioteca) {
       // El doble de yt-dlp solo se honra sin empaquetar (ADR 0009 §8); empaquetada se quita del entorno.
       if (app.isPackaged) delete process.env.SHINOBI_YTDLP_FALSO
+      // Igual con el doble del separador (0059): el main solo lo pasa al worker sin empaquetar.
+      if (app.isPackaged) delete process.env.SHINOBI_SEPARADOR_FALSO
       const { lanzador, modo } = lanzadorDeApp({
         empaquetada: app.isPackaged,
         dirRecursos: process.resourcesPath,
@@ -245,7 +272,11 @@ if (instanciaUnica)
       configurarWorker({
         lanzador: {
           ...lanzador,
-          env: { ...lanzador.env, ...entornoYtdlpFalso(process.env, app.isPackaged) }
+          env: {
+            ...lanzador.env,
+            ...entornoYtdlpFalso(process.env, app.isPackaged),
+            ...entornoSeparadorFalso(process.env, app.isPackaged)
+          }
         },
         // Con el venv como intérprete, sin instalación completa no se lanza ningún proceso (0035).
         ...(modo === 'produccion'
@@ -327,6 +358,8 @@ if (instanciaUnica)
         ejecutar,
         dirDatos: rutaDatos(),
         hayTrabajoVivo: (id) => gestorTrabajos?.listar().some((t) => t.cancionId === id) ?? false,
+        // Archivo local: al crear la canción se encadena la separación (0065).
+        alFuenteLista: (id) => void servicioSeparacion?.alCompletarFuente(id),
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'importacion', mensaje)
       })
     }
@@ -344,11 +377,39 @@ if (instanciaUnica)
           config: servicioConfig,
           registro,
           env: process.env,
-          falso: runtimeFalso
+          falso: runtimeFalso,
+          // La oferta de Rápido de la separación (0066); el servicio nace justo después.
+          ofertaSeparacionVigente: () => servicioSeparacion?.ofertaRapidoVigente() ?? false
         })
       } catch (e) {
         registro.escribir('error', 'arranque', `no se pudo preparar el runtime: ${String(e)}`)
       }
+    }
+    if (servicioConfig && servicioBiblioteca && gestorTrabajos && runtime) {
+      const rt = runtime
+      servicioSeparacion = new ServicioSeparacion({
+        biblioteca: servicioBiblioteca,
+        gestor: gestorTrabajos,
+        config: servicioConfig,
+        manifiesto: () => rt.manifiesto,
+        dirDatos: rutaDatos(),
+        estimarSeparacion: (d) => rt.servicio.estimarSeparacion(d),
+        modelos: crearPuertoModelos({
+          manifiesto: () => rt.manifiesto,
+          dirModelos: join(rutaDatos(), 'modelos'),
+          descargar: (id, señal, alProgreso) => rt.gestor.descargarModelo(id, señal, alProgreso)
+        }),
+        // `SHINOBI_INTENTO` solo con el separador falso y sin empaquetar (0060, 0066).
+        intentoEnEntorno: !app.isPackaged && Boolean(process.env.SHINOBI_SEPARADOR_FALSO),
+        alCambiarOferta: () => rt.servicio.refrescar(),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'separacion', mensaje)
+      })
+      // Restos de una sesión anterior: `pistas.tmp/` y `modelos/*.partial`.
+      await servicioSeparacion
+        .limpiarAlArrancar()
+        .catch((e: unknown) =>
+          registro.escribir('aviso', 'separacion', `no se pudo limpiar al arrancar: ${String(e)}`)
+        )
     }
     // Comprobación del runtime al arrancar (0035, ADR 0009 §6; cableada en 0037). Solo con el venv de
     // producción: en desarrollo y E2E la instalación "completa" es un dato de la configuración.
@@ -368,6 +429,35 @@ if (instanciaUnica)
         })
         .finally(() => rt.servicio.fijarVerificando(false))
       if (!hayQueVerificar) await comprobacion
+    }
+    if (servicioBiblioteca && gestorTrabajos) {
+      const biblioteca = servicioBiblioteca
+      // `SHINOBI_AVISOS_PRUEBAS` sustituye los puertos del sistema por un registro en E2E (0072).
+      const pruebas = puertosDePruebas({ env: process.env, empaquetada: app.isPackaged })
+      const puertos = pruebas ?? puertosDeElectron({ Notification, dock: app.dock })
+      const ventanaPrincipal = () => {
+        const v = BrowserWindow.getAllWindows()[0]
+        if (!v) return null
+        const real = ventanaDeElectron(v)
+        return pruebas ? pruebas.ventana(real) : real
+      }
+      servicioAvisos = new ServicioAvisos({
+        plataforma: process.platform,
+        ventana: ventanaPrincipal,
+        notificador: puertos.notificador,
+        dock: puertos.dock,
+        difundirAviso: (a) => {
+          for (const v of BrowserWindow.getAllWindows())
+            v.webContents.send(CANALES.eventos.avisoTrabajo, a)
+        },
+        difundirAbrir: (e) => {
+          for (const v of BrowserWindow.getAllWindows())
+            v.webContents.send(CANALES.eventos.abrirCancion, e)
+        },
+        obtenerCancion: (id) => biblioteca.obtener(id),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'avisos', mensaje)
+      })
+      gestorTrabajos.suscribir((t) => servicioAvisos?.alCambiarTrabajo(t))
     }
     const dirBiblioteca = join(rutaDatos(), 'biblioteca')
     protocol.handle(ESQUEMA_MEDIOS, (peticion) =>
@@ -390,6 +480,7 @@ if (instanciaUnica)
           confirmarCierre: () => controlCierre.confirmar(),
           salir: () => app.quit(),
           trabajos: gestorTrabajos,
+          ...(servicioSeparacion ? { separacion: servicioSeparacion } : {}),
           fuente: importacionArchivo,
           ...(servicioYoutube ? { youtube: servicioYoutube } : {}),
           elegirArchivoAudio: () =>
@@ -476,7 +567,10 @@ app.on('before-quit', (evento) => {
   // Primero se cancelan los trabajos (sin procesos hijos vivos, 0014) y luego se vuelca todo.
   const cierre = Promise.allSettled([
     gestorTrabajos?.cancelarTodos(),
+    // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).
+    runtime?.servicio.cerrar(),
     importacionArchivo?.cerrar(),
+    servicioSeparacion?.cerrar(),
     servicioYoutube?.cerrar(),
     // Espera a uv ≤ 10 s y después mata el árbol de procesos (0050).
     actualizadorYtDlp?.cerrar()

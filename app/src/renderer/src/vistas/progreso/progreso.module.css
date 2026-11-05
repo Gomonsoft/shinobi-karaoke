@@ -105,3 +105,94 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.modelo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+
+.infoBoton {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  width: 22rem;
+  max-width: 100%;
+  margin-top: var(--e-2);
+  padding: var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+  color: var(--texto-1);
+}
+
+.popover p {
+  margin: 0;
+}
+
+.escucha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+
+.escuchaTitulo {
+  margin: 0;
+  color: var(--texto-2);
+}
+
+.pista {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.botonPista {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-width: 9rem;
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+  color: var(--texto-1);
+  cursor: pointer;
+}
+
+.posicion {
+  flex: 1;
+  min-width: 8rem;
+  accent-color: var(--acento, currentColor);
+}
+
+.reloj {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  font-variant-numeric: tabular-nums;
+}
+
+.errorPista {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--texto-2);
+}

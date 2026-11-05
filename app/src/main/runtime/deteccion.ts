@@ -340,7 +340,7 @@ export async function calcularRequisitosPrevios(
         : null,
     espacioRequerido: req?.espacio_requerido ?? espacioRequeridoMaximo(deps.manifiesto),
     espacioLibre,
-    modoPrevisto: perfilSoportado === null ? null : perfilSoportado === 'cpu' ? 'rapido' : 'calidad'
+    modoPrevisto: perfilSoportado === null ? null : 'calidad'
   }
 }
 

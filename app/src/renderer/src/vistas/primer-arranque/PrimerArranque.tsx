@@ -8,8 +8,9 @@ import {
   decidirPantalla,
   mensajeModo,
   nombreModoFinal,
-  NOMBRE_FASE,
+  nombreFase,
   textoDeError,
+  textoOfertaRapido,
   textoTiempoListo,
   type Pantalla
 } from './modelo'
@@ -21,6 +22,8 @@ import {
   Reanudar,
   useLicencias
 } from './PantallasInicio'
+import { DialogoAvisoRapido } from '../aviso-rapido/DialogoAvisoRapido'
+import { RAPIDO } from '../aviso-rapido/textos'
 import { DialogoPausar, ErrorInstalacion, Instalando, TodoListo } from './PantallasInstalacion'
 import { PA } from './textos'
 import estilos from './primerArranque.module.css'
@@ -45,9 +48,11 @@ export function PrimerArranque() {
   const [iniciando, setIniciando] = useState(false)
   const [acumulado, setAcumulado] = useState(acumuladoVacio)
   const [pausa, setPausa] = useState<OrigenPausa | null>(null)
+  const [dialogoRapido, setDialogoRapido] = useState(false)
   const [anuncio, setAnuncio] = useState('')
   const [rebajaResaltada, setRebajaResaltada] = useState(false)
   const [estimacion, setEstimacion] = useState<EstimacionSeparacion>(null)
+  const estimacionRef = useRef<EstimacionSeparacion>(null)
   const licencias = useLicencias()
 
   const pantalla: Pantalla = decidirPantalla({ estado, requisitos, sesion, iniciando })
@@ -123,7 +128,7 @@ export function PrimerArranque() {
     rebajaPrevia.current = rebaja
     if (previa === undefined || previa !== null || rebaja === null || pantalla !== 'b2') return
     setRebajaResaltada(true)
-    setAnuncio(mensajeModo('rapido', null, rebaja) ?? '')
+    setAnuncio(mensajeModo('calidad', 'cpu', rebaja, estimacionRef.current) ?? '')
     const id = setTimeout(() => setRebajaResaltada(false), DURACION_REBAJA_MS)
     return () => clearTimeout(id)
   }, [rebaja, pantalla])
@@ -132,45 +137,91 @@ export function PrimerArranque() {
   // Cada efecto sincroniza la región `aria-live` (sistema externo) con un hito concreto.
   /* eslint-disable react-hooks/set-state-in-effect */
   const faseVisible = pantalla === 'b2' ? (acumulado.ultimo?.faseVisible ?? null) : null
+  const modoDescarga = acumulado.ultimo?.modo ?? null
   useEffect(() => {
-    if (faseVisible) setAnuncio(NOMBRE_FASE[faseVisible])
-  }, [faseVisible])
+    if (!faseVisible) return
+    // Con Rápido, el aviso de la descarga es `rapido.anuncio.descargando` (ux/01, criterio 22).
+    setAnuncio(
+      faseVisible === 'modelo' && modoDescarga === 'rapido'
+        ? RAPIDO.anuncioDescargando
+        : nombreFase(faseVisible, null)
+    )
+  }, [faseVisible, modoDescarga])
   const hito = pantalla === 'b2' ? Math.min(3, Math.floor(acumulado.total / 25)) : 0
   useEffect(() => {
     if (hito > 0) setAnuncio(PA.anuncioPorcentaje(hito * 25))
   }, [hito])
   const codigoError = pantalla === 'b4' ? (estado?.error?.codigo ?? 'GENERICO') : null
+  const faseError = pantalla === 'b4' ? (estado?.error?.fase ?? null) : null
+  const ofrecer = pantalla === 'b4' && estado?.ofrecerRapido === true
   useEffect(() => {
     if (codigoError === null) return
-    const t = textoDeError(codigoError, requisitos?.espacioRequerido ?? null)
-    setAnuncio(`${t.titulo} ${t.cuerpo}`)
-  }, [codigoError, requisitos])
+    const t = textoDeError(
+      codigoError,
+      requisitos?.espacioRequerido ?? null,
+      faseError ?? undefined
+    )
+    const oferta = ofrecer ? textoOfertaRapido(codigoError, requisitos?.bytesRapido ?? null) : ''
+    // El banner con la oferta se anuncia completo, una vez (ux/01, criterio 22).
+    setAnuncio(`${t.titulo} ${t.cuerpo} ${oferta}`.trim())
+  }, [codigoError, faseError, ofrecer, requisitos])
   useEffect(() => {
     if (pantalla === 'b3') setAnuncio(PA.listoTitulo)
   }, [pantalla])
 
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // B3: tiempo estimado de una canción de 4 minutos.
+  const perfilEstimacion = estado?.perfil ?? estado?.perfilPrevisto ?? null
+
+  // B2 (mensaje de CPU) y B3: tiempo estimado de una canción de 4 minutos.
   useEffect(() => {
-    if (pantalla !== 'b3') return
+    if (pantalla !== 'b3' && pantalla !== 'b2') return
     let activo = true
     api.runtime.estimarSeparacion(240_000).then(
-      (e) => activo && setEstimacion(e),
+      (e) => {
+        if (!activo) return
+        estimacionRef.current = e
+        setEstimacion(e)
+      },
       () => undefined
     )
     return () => {
       activo = false
     }
-  }, [pantalla, api])
+  }, [pantalla, api, rebaja, perfilEstimacion])
 
+  const rapidoPendiente = estado?.rapidoPendiente === true
   const lanzar = useCallback(() => {
     setSesion(true)
     setIniciando(true)
     setAcumulado((a) => ({ ...a, inicio: null }))
+    if (rapidoPendiente) {
+      // Ya aceptó Rápido y la descarga no terminó: se repite sin pedir otra vez el consentimiento
+      // (ux/01, criterio 21). Responde al terminar; un fallo de la descarga llega como estado (B4).
+      api.runtime.aceptarYUsarRapido('primer_arranque').catch((e: { codigo?: string }) => {
+        setIniciando(false)
+        if (e.codigo === 'ARGUMENTOS_NO_VALIDOS')
+          mostrarToast({ tipo: 'error', mensaje: PA.errorGenerico.titulo })
+      })
+      return
+    }
     api.runtime.instalar().catch(() => {
       setIniciando(false)
       mostrarToast({ tipo: 'error', mensaje: PA.errorGenerico.titulo })
+    })
+  }, [api, rapidoPendiente])
+
+  // "Usar el modelo Rápido" del diálogo es el consentimiento (ux/01, criterio 20).
+  const aceptarRapido = useCallback(() => {
+    setDialogoRapido(false)
+    setAnuncio(RAPIDO.anuncioDescargando)
+    setSesion(true)
+    setIniciando(true)
+    setAcumulado((a) => ({ ...a, inicio: null }))
+    api.runtime.aceptarYUsarRapido('primer_arranque').catch((e: { codigo?: string }) => {
+      setIniciando(false)
+      if (e.codigo === 'ARGUMENTOS_NO_VALIDOS')
+        mostrarToast({ tipo: 'error', mensaje: PA.errorGenerico.titulo })
     })
   }, [api])
 
@@ -239,9 +290,10 @@ export function PrimerArranque() {
         <Instalando
           fases={progreso ? progreso.estados : estado.fases}
           acumulado={acumulado}
-          mensajeModo={mensajeModo(modo, perfil, rebaja)}
+          mensajeModo={mensajeModo(modo, perfil, rebaja, estimacion)}
           rebajaResaltada={rebajaResaltada}
           alPausar={() => setPausa('local')}
+          modo={modo}
         />
       )
       break
@@ -250,18 +302,24 @@ export function PrimerArranque() {
         <TodoListo
           modo={nombreModoFinal(modo, perfil)}
           tiempo={textoTiempoListo(estimacion)}
+          rapido={modo === 'rapido'}
           alEmpezar={() => ir({ tipo: 'biblioteca' })}
         />
       )
       break
     case 'b4': {
-      const t = textoDeError(estado?.error?.codigo ?? '', requisitos?.espacioRequerido ?? null)
+      const codigo = estado?.error?.codigo ?? ''
+      const t = textoDeError(codigo, requisitos?.espacioRequerido ?? null, estado?.error?.fase)
       contenido = estado && (
         <ErrorInstalacion
           fases={estado.fases}
           acumulado={acumulado}
           titulo={t.titulo}
           cuerpo={t.cuerpo}
+          oferta={
+            estado.ofrecerRapido ? textoOfertaRapido(codigo, requisitos?.bytesRapido ?? null) : null
+          }
+          alRapido={() => setDialogoRapido(true)}
           alReintentar={lanzar}
           alSalir={() => void api.app.salir().catch(() => undefined)}
         />
@@ -287,6 +345,13 @@ export function PrimerArranque() {
         abierto={pausa !== null}
         alSeguir={() => setPausa(null)}
         alPausar={confirmarPausa}
+      />
+      <DialogoAvisoRapido
+        abierto={dialogoRapido}
+        motivo="preparar"
+        bytes={requisitos?.rapidoDescargado ? null : (requisitos?.bytesRapido ?? 0)}
+        alCancelar={() => setDialogoRapido(false)}
+        alAceptar={aceptarRapido}
       />
       {licencias.dialogo}
     </>

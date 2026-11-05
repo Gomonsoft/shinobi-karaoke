@@ -38,7 +38,11 @@ export const CANALES = {
     instalar: 'runtime:instalar',
     pausar: 'runtime:pausar',
     detalles: 'runtime:detalles',
-    estimarSeparacion: 'runtime:estimarSeparacion'
+    estimarSeparacion: 'runtime:estimarSeparacion',
+    /** Consentimiento y descarga del modelo Rápido (0057): la única vía que lo descarga. */
+    aceptarYUsarRapido: 'runtime:aceptarYUsarRapido',
+    volverACalidad: 'runtime:volverACalidad',
+    cancelarVolverACalidad: 'runtime:cancelarVolverACalidad'
   },
   app: {
     /** El renderer confirma el cierre pedido por `eventos.solicitudCierre` (0036). */
@@ -50,6 +54,12 @@ export const CANALES = {
     listar: 'trabajos:listar',
     cancelar: 'trabajos:cancelar',
     hayPendientes: 'trabajos:hayPendientes'
+  },
+  separacion: {
+    /** "Separar ahora", "Reintentar" y "Re-separar pistas" (0059; reglas de aceptación en 0065). */
+    separar: 'separacion:separar',
+    /** Estimación previa en minutos de una canción (0067). */
+    estimar: 'separacion:estimar'
   },
   eventos: {
     cancion: 'evento:cancion',
@@ -66,6 +76,10 @@ export const CANALES = {
     /** Main pide confirmar el cierre con una instalación en curso (0036). */
     solicitudCierre: 'app:solicitudCierre',
     /** La consulta de YouTube espera o provoca una actualización de yt-dlp (0050). */
-    estadoInfo: 'fuente:estadoInfo'
+    estadoInfo: 'fuente:estadoInfo',
+    /** Un trabajo terminó o falló: el renderer decide si muestra el toast (0072). */
+    avisoTrabajo: 'trabajo:aviso',
+    /** Clic en la notificación del sistema: abrir la canción (0072). */
+    abrirCancion: 'app:abrirCancion'
   }
 } as const

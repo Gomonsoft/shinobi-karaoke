@@ -1,4 +1,11 @@
-import { anuncio, formatearMB, instantanea, modeloDeProgreso, textoEtaLargo } from './modelo'
+import {
+  anuncio,
+  formatearDuracion,
+  formatearMB,
+  instantanea,
+  modeloDeProgreso,
+  textoEtaLargo
+} from './modelo'
 
 const base = {
   tipoFuente: 'youtube' as const,
@@ -53,5 +60,96 @@ describe('modelo de progreso', () => {
   it('cancelar solo con trabajo de YouTube', () => {
     expect(modeloDeProgreso({ ...base, vivo: vivo(0.1) }).cancelar).toBe('curso')
     expect(modeloDeProgreso({ ...base, tipoFuente: 'archivo' }).cancelar).toBeNull()
+  })
+
+  it('espera de un reintento de red: prog.reintento.red, sin barra, icono de curso y cancelar disponible', () => {
+    const m = modeloDeProgreso({ ...base, vivo: vivo(null, 'reintentando'), esperaS: 15 })
+    expect(m.filas[0]).toMatchObject({
+      icono: 'curso',
+      texto: 'Reintentando en 15 s…',
+      barra: null
+    })
+    expect(m.bloque).toEqual({ tipo: 'mientras' })
+    expect(m.cancelar).toBe('curso')
+  })
+
+  describe('separación', () => {
+    const entrada = {
+      ...base,
+      fuente: { estado: 'completado', error: null },
+      separacion: { estado: 'en_curso', error: null }
+    }
+    const sep = (fase: string, valor: number | null, extra = {}) =>
+      ({
+        trabajo: { id: 's', estado: 'en_curso', posicion: null, progreso: null, modo: 'calidad' },
+        progreso: { fase, valor, etaSegundos: null, ...extra }
+      }) as never
+    const fila = (m: ReturnType<typeof modeloDeProgreso>) => m.filas[m.filas.length - 1]!
+
+    it('terminada: duración real a la derecha, bloque terminado y anuncio "Terminado"', () => {
+      const hecha = { estado: 'completado', error: null, segundos: 108 }
+      const m = modeloDeProgreso({ ...entrada, separacion: hecha })
+      expect(fila(m)).toMatchObject({ icono: 'completado', dato: '1 min 48 s' })
+      expect(m.bloque).toEqual({ tipo: 'terminado' })
+      expect(modeloDeProgreso({ ...entrada, separacion: hecha, hayLetra: true }).bloque).toEqual({
+        tipo: 'terminado',
+        editor: true
+      })
+      const antes = modeloDeProgreso(entrada)
+      expect(anuncio(instantanea(antes), instantanea(m), m)).toBe('Terminado')
+    })
+
+    it('terminada sin duración guardada: sin dato', () => {
+      const m = modeloDeProgreso({ ...entrada, separacion: { estado: 'completado', error: null } })
+      expect(fila(m).dato).toBeNull()
+    })
+
+    it('formatearDuracion', () => {
+      expect(formatearDuracion(48.4)).toBe('48 s')
+      expect(formatearDuracion(120)).toBe('2 min')
+      expect(formatearDuracion(108)).toBe('1 min 48 s')
+    })
+
+    it('la barra de separando no retrocede (pisoSep) y solo cancela la separación', () => {
+      const m = modeloDeProgreso({ ...entrada, vivoSep: sep('separando', 0.3), pisoSep: 0.5 })
+      expect(fila(m)).toMatchObject({
+        barra: 50,
+        texto: 'Separando… 50 %',
+        eta: 'Calculando tiempo…'
+      })
+      expect(m.cancelar).toBe('curso')
+      expect(m.cancelarPaso).toBe('separacion')
+    })
+
+    it('anuncia el inicio de cada fase y los tramos, no los valores interpolados', () => {
+      const ant = modeloDeProgreso({ ...entrada, vivoSep: sep('cargando_modelo', null) })
+      const s0 = modeloDeProgreso({ ...entrada, vivoSep: sep('separando', 0.1) })
+      expect(anuncio(instantanea(ant), instantanea(s0), s0)).toBe('Separando la voz de la música.')
+      const s1 = modeloDeProgreso({ ...entrada, vivoSep: sep('separando', 0.3) })
+      expect(anuncio(instantanea(s0), instantanea(s1), s1)).toBe('Separar voz e instrumental: 25 %')
+      const s2 = modeloDeProgreso({ ...entrada, vivoSep: sep('separando', 0.32) })
+      expect(anuncio(instantanea(s1), instantanea(s2), s2)).toBeNull()
+      const g = modeloDeProgreso({ ...entrada, vivoSep: sep('guardando', null) })
+      expect(anuncio(instantanea(s2), instantanea(g), g)).toBe('Guardando las pistas…')
+    })
+
+    it('la oferta solo con ofrecerRapido y código ofertable', () => {
+      const err = (codigo: string, extra = {}) =>
+        modeloDeProgreso({
+          ...entrada,
+          separacion: { estado: 'error', error: { codigo, mensaje: '' } },
+          ...extra
+        }).bloque
+      expect(err('MEMORIA_INSUFICIENTE', { ofrecerRapido: true })).toMatchObject({
+        oferta: 'dialogo',
+        textoOferta: true
+      })
+      expect(err('SIN_ESPACIO', { ofrecerRapido: true })).toMatchObject({ oferta: null })
+      expect(err('MEMORIA_INSUFICIENTE')).toMatchObject({ oferta: null, textoOferta: false })
+      expect(err('MEMORIA_INSUFICIENTE', { rapidoPendiente: true })).toMatchObject({
+        oferta: 'directa',
+        reintentaRapido: true
+      })
+    })
   })
 })

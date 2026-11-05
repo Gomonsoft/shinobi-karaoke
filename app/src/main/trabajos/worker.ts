@@ -81,6 +81,8 @@ export interface OpcionesEjecucion {
   alProgreso?: (m: Progreso) => void
   alLog?: (m: Log) => void
   señal?: AbortSignal
+  /** Variables de entorno extra solo para este proceso (0066: `SHINOBI_INTENTO`). */
+  env?: Record<string, string>
 }
 
 export interface ConfigCliente {
@@ -138,7 +140,7 @@ export function crearClienteWorker(config: ConfigCliente) {
   function ejecutar(
     comando: string,
     args: Record<string, unknown>,
-    { alProgreso, alLog, señal }: OpcionesEjecucion = {}
+    { alProgreso, alLog, señal, env: envExtra }: OpcionesEjecucion = {}
   ): Promise<Record<string, unknown>> {
     return new Promise((resolver, rechazar) => {
       if (señal?.aborted) {
@@ -166,7 +168,8 @@ export function crearClienteWorker(config: ConfigCliente) {
               ...process.env,
               PYTHONUNBUFFERED: '1',
               PYTHONIOENCODING: 'utf-8',
-              ...lanzador.env
+              ...lanzador.env,
+              ...envExtra
             }
           }
         )
@@ -228,7 +231,7 @@ export function crearClienteWorker(config: ConfigCliente) {
       })
 
       let terminado = false
-      const finalizar = (codigoSalida: number | null): void => {
+      const finalizar = (codigoSalida: number | null, señalSalida: string | null = null): void => {
         if (terminado) return
         terminado = true
         cancelarKill()
@@ -242,13 +245,25 @@ export function crearClienteWorker(config: ConfigCliente) {
         const conDetalles = (e: ErrorTrabajo): ErrorTrabajo => (detalles ? { ...e, detalles } : e)
         if (errorWorker) return rechazar(conDetalles(errorWorker))
         if (codigoSalida === 0 && resultado) return resolver(resultado)
-        const motivo =
-          codigoSalida === 0
-            ? 'El worker terminó sin devolver resultado'
-            : `El worker terminó con código ${String(codigoSalida)} sin informar del error`
-        rechazar(conDetalles(error('ERROR_INTERNO', motivo)))
+        if (codigoSalida === 0) {
+          return rechazar(
+            conDetalles(error('ERROR_INTERNO', 'El worker terminó sin devolver resultado'))
+          )
+        }
+        // El sistema mató el proceso (p. ej. el OOM killer) o salió con error sin dejar línea de
+        // `error`, y el gestor no lo canceló: la política de cada comando decide qué hacer (0063).
+        const como = señalSalida
+          ? `por la señal ${señalSalida}`
+          : `con código ${String(codigoSalida)}`
+        rechazar(
+          conDetalles({
+            codigo: 'PROCESO_TERMINADO',
+            mensaje: `El worker terminó ${como} sin informar del error`,
+            reintentable: true
+          })
+        )
       }
-      hijo.on('close', (codigo) => finalizar(codigo))
+      hijo.on('close', (codigo, señal) => finalizar(codigo, señal))
     })
   }
 

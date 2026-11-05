@@ -14,6 +14,7 @@ import {
   type Diagnosticador,
   type ResultadoDiagnostico
 } from '../gestor'
+import { anotarVerificado } from '../modelos'
 import { ErrorRuntime, type EjecutorUv, type ResultadoUv } from '../uv'
 import { contenidoDiminuto, type EscenarioRuntimeFalso } from './escenario'
 
@@ -95,9 +96,13 @@ export function crearDoblesRuntime(o: {
 
   const fallos = new Map<string, number>()
   /** Lanza el fallo del escenario si toca en esta fase. */
-  const posibleFallo = (fase: 'motor' | 'componentes' | 'diagnostico' | 'modelo'): void => {
+  const posibleFallo = (
+    fase: 'motor' | 'componentes' | 'diagnostico' | 'modelo',
+    modelo?: string
+  ): void => {
     const f = escenario.fallo
     if (!f || f.fase !== fase) return
+    if (f.modelo !== undefined && modelo !== f.modelo) return
     const n = (fallos.get(fase) ?? 0) + 1
     fallos.set(fase, n)
     if (f.veces === 'siempre' || n <= f.veces) {
@@ -197,7 +202,7 @@ export function crearDoblesRuntime(o: {
         if (escenario.modelos === 'diminutos') {
           await dormir(ms, señal)
           if (señal?.aborted) throw new Error('cancelado')
-          if (escenario.fallo?.fase === 'modelo') posibleFallo('modelo')
+          posibleFallo('modelo', modelo.id)
           await fsp.writeFile(parcial, contenidoDiminuto(f.archivo))
         } else {
           // Archivo disperso que crece; el progreso lo notifica el propio bucle.
@@ -214,12 +219,14 @@ export function crearDoblesRuntime(o: {
           } finally {
             await fh.close()
           }
-          posibleFallo('modelo')
+          posibleFallo('modelo', modelo.id)
         }
         await fsp.rename(parcial, destino)
         antes += f.bytes
         alProgreso?.({ bytes: antes, total })
       }
+      // Como el descargador real: el modelo queda en `verificados.json` (0066 lo comprueba al separar).
+      await anotarVerificado(modelo, dirModelos)
     }
   }
 

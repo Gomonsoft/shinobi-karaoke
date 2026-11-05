@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -45,7 +46,12 @@ describe('escenario del runtime falso', () => {
 
   it('modelos diminutos: tamaño y SHA coherentes con el contenido', () => {
     const m = manifiestoParaEscenario(manifiesto, { modelos: 'diminutos' })
-    expect(m.modelos.every((x) => x.extra.length === 0 && x.bytes === 2048)).toBe(true)
+    expect(m.modelos.every((x) => x.bytes === 2048 && x.extra.every((e) => e.bytes === 2048))).toBe(
+      true
+    )
+    expect(m.modelos.find((x) => x.id === 'calidad')!.extra).toHaveLength(1)
+    const e = m.modelos.find((x) => x.id === 'calidad')!.extra[0]!
+    expect(e.sha256).toBe(createHash('sha256').update(contenidoDiminuto(e.archivo)).digest('hex'))
     expect(manifiestoParaEscenario(manifiesto, { modelos: 'reales' })).toBe(manifiesto)
     expect(contenidoDiminuto('a.bin').equals(contenidoDiminuto('a.bin'))).toBe(true)
     expect(contenidoDiminuto('a.bin').equals(contenidoDiminuto('b.bin'))).toBe(false)

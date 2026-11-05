@@ -15,8 +15,9 @@ import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
-import { aMb, enfocar, FASES, NOMBRE_FASE, textoEta, type AcumuladoProgreso } from './modelo'
+import { aMb, enfocar, FASES, nombreFase, textoEta, type AcumuladoProgreso } from './modelo'
 import { Logotipo } from './PantallasInicio'
+import { RAPIDO } from '../aviso-rapido/textos'
 import { PA } from './textos'
 import estilos from './primerArranque.module.css'
 
@@ -84,9 +85,11 @@ interface ListaFasesProps {
   acumulado: AcumuladoProgreso
   /** Solo en B4: sin barras ni cifras, el error va debajo. */
   sinProgreso?: boolean
+  /** Modelo que se descarga: con Rápido la fase del modelo lo dice. */
+  modo?: 'calidad' | 'rapido' | null
 }
 
-function ListaFases({ fases, acumulado, sinProgreso }: ListaFasesProps) {
+function ListaFases({ fases, acumulado, sinProgreso, modo = null }: ListaFasesProps) {
   const p = acumulado.ultimo
   return (
     <ol className={estilos.fases} aria-label={PA.instalandoTitulo}>
@@ -103,7 +106,7 @@ function ListaFases({ fases, acumulado, sinProgreso }: ListaFasesProps) {
             </span>
             <div className={estilos.faseCuerpo}>
               <div className={estilos.faseCabeza}>
-                <span>{NOMBRE_FASE[f]}</span>
+                <span>{nombreFase(f, modo)}</span>
                 {conCifra && p && (
                   <span className={estilos.cifra}>
                     {aMb(p.bytes)} MB de {aMb(p.total)} MB
@@ -113,7 +116,7 @@ function ListaFases({ fases, acumulado, sinProgreso }: ListaFasesProps) {
               {subestado && <span className={estilos.sub}>{PA.faseDiagnostico}</span>}
               {!sinProgreso && enCurso && !subestado && (
                 <BarraProgreso
-                  etiqueta={NOMBRE_FASE[f]}
+                  etiqueta={nombreFase(f, modo)}
                   valor={acumulado.fases[f]}
                   indeterminada={!p || p.faseVisible !== f || p.total === 0}
                 />
@@ -135,6 +138,7 @@ interface InstalandoProps {
   mensajeModo: string | null
   rebajaResaltada: boolean
   alPausar: () => void
+  modo?: 'calidad' | 'rapido' | null
 }
 
 export function Instalando({
@@ -142,7 +146,8 @@ export function Instalando({
   acumulado,
   mensajeModo,
   rebajaResaltada,
-  alPausar
+  alPausar,
+  modo = null
 }: InstalandoProps) {
   // Un reloj de 1 s: el tiempo restante sale a los 10 s y se refresca como mucho una vez por segundo.
   const [ahora, setAhora] = useState(() => Date.now())
@@ -158,7 +163,7 @@ export function Instalando({
       <h1 id="pa-titulo" className={`t-titulo ${estilos.titulo}`}>
         {PA.instalandoTitulo}
       </h1>
-      <ListaFases fases={fases} acumulado={acumulado} />
+      <ListaFases fases={fases} acumulado={acumulado} modo={modo} />
       <div className={estilos.total}>
         <BarraProgreso
           etiqueta={PA.total}
@@ -187,14 +192,20 @@ export function ErrorInstalacion({
   acumulado,
   titulo,
   cuerpo,
+  oferta = null,
   alReintentar,
+  alRapido,
   alSalir
 }: {
   fases: Record<FaseRuntime, EstadoFase>
   acumulado: AcumuladoProgreso
   titulo: string
   cuerpo: string
+  /** Línea `rapido.oferta`; solo con `ofrecerRapido` (0057). */
+  oferta?: string | null
   alReintentar: () => void
+  /** Abre el diálogo de consentimiento; solo se muestra el botón con `oferta`. */
+  alRapido?: () => void
   alSalir: () => void
 }) {
   return (
@@ -207,12 +218,14 @@ export function ErrorInstalacion({
       <div className={estilos.ancho}>
         <AvisoEnLinea tipo="error">
           <strong>{titulo}</strong> {cuerpo}
+          {oferta && <p className={estilos.oferta}>{oferta}</p>}
         </AvisoEnLinea>
       </div>
       <div className={estilos.acciones}>
         <Boton variante="primario" ref={enfocar} onClick={alReintentar}>
           {PA.botonReintentar}
         </Boton>
+        {oferta && alRapido && <Boton onClick={alRapido}>{RAPIDO.ofertaBoton}</Boton>}
         <Boton variante="fantasma" onClick={alSalir}>
           {PA.botonSalir}
         </Boton>
@@ -225,10 +238,13 @@ export function ErrorInstalacion({
 export function TodoListo({
   modo,
   tiempo,
+  rapido = false,
   alEmpezar
 }: {
   modo: string | null
   tiempo: string | null
+  /** Variante Rápido: añade `pa.listo.rapido` (ux/01, B3 con el modelo Rápido). */
+  rapido?: boolean
   alEmpezar: () => void
 }) {
   return (
@@ -241,8 +257,13 @@ export function TodoListo({
         {PA.listoTitulo}
       </h1>
       <p className={estilos.texto}>{PA.listoCuerpo}</p>
-      {modo && <p className={estilos.texto}>{PA.listoModo(modo)}</p>}
+      {modo && <p className={estilos.texto}>{PA.listoModelo(modo)}</p>}
       {tiempo && <p className={estilos.texto}>{tiempo}</p>}
+      {rapido && (
+        <div className={estilos.ancho}>
+          <AvisoEnLinea tipo="info">{PA.listoRapido}</AvisoEnLinea>
+        </div>
+      )}
       <Boton variante="primario" tamano="grande" ref={enfocar} onClick={alEmpezar}>
         {PA.botonEmpezar}
       </Boton>

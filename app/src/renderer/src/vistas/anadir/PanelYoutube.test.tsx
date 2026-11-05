@@ -59,6 +59,9 @@ function montar(o: Opciones = {}) {
       cancelarInfo: vi.fn().mockResolvedValue(undefined),
       confirmarYoutube: vi.fn().mockResolvedValue(resumenPrueba({ id: 'nueva' }))
     },
+    runtime: {
+      estimarSeparacion: vi.fn().mockResolvedValue({ min: 12, max: 16, origen: 'estimado' })
+    },
     alCambiarEstadoInfo: (cb: (ev: { consultaId: string; fase: string }) => void) => {
       estado = cb
       return () => {
@@ -226,7 +229,9 @@ describe('vista previa', () => {
       consulta: () => Promise.resolve(info({ duracionS: 760 }))
     })
     buscar(c)
-    expect(await screen.findByText(/Esta canción dura 12:40/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/Esta canción dura 12:40.*\(unos 14 minutos en tu equipo\)/)
+    ).toBeInTheDocument()
   })
 
   it('"Descargar y continuar" confirma y navega al progreso', async () => {

@@ -1,5 +1,5 @@
 # 0056 — Modelo Calidad por defecto en todos los perfiles y modo de separación interno (sin elección en Ajustes)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 y 2
 - Depende de: 0029, 0034, 0035 (Hechas); en paralelo con 0055
 - ADRs: 0004, 0006 y 0009 (Revisiones 2026-11-05)
@@ -44,4 +44,18 @@ Que el primer arranque descargue **siempre** el modelo Calidad, también en equi
 - [ ] `docs/ux` no se toca (es del diseñador). Si un texto de la spec contradice el comportamiento, se anota en las notas de esta tarea.
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+**Qué se hizo**
+- `shared/manifiesto.ts`: `modeloDelPerfil` -> `MODELO_POR_DEFECTO = 'calidad'`; `bytesTotalesInstalacion` suma siempre Calidad; nuevo `rangoDescargaPlataforma` (menor/mayor descarga para `pa.req.descarga.generica`).
+- `shared/config.ts`: `separacion.modo` = `calidad | rapido` (por defecto `calidad`; `automatico` guardado se lee como `calidad` con `z.preprocess`, sin subir `esquema`) y `separacion.rapido_aceptado` (datetime | null). `ipc.ts`: el renderer ya no puede actualizar `separacion` (test en `handlers.test.ts` y `config.test.ts`); `estimacionSeparacionSchema` gana `aproximada?` y `RequisitosRuntimeIpc` gana `rangoDescarga?`.
+- `configuracion/servicio.ts`: `modoSeparacionVigente` (Rápido solo con `modo` y `rapido_aceptado`) y `modoSeparacionEfectivo` (además exige el modelo descargado); se elimina la regla "sin perfil -> rapido".
+- `runtime/gestor.ts`: la fase de modelo descarga el modelo del modo vigente; la rebaja no cambia modelo ni totales; nuevo `descargarModelo(id)` que lanza `ErrorRuntime('ARGUMENTOS_NO_VALIDOS')` para `rapido` sin `rapido_aceptado` (la fase de modelo aplica la misma defensa); la comprobación barata y la verificación completa exigen el modelo vigente. `servicio.ts` y `deteccion.ts` (`modoPrevisto` siempre `calidad`) usan el modo vigente.
+- Instalaciones de desarrollo con solo Rápido: la comprobación barata devuelve `dañada/modelo` (B5 "Hay que reparar") y reparar descarga solo Calidad (tests en `arranque.test.ts`).
+- Renderer: textos definitivos de `ux/01` tras la respuesta a la pregunta 0019 (`pa.modo.calidad.*`, `pa.modo.rebajado.*` con el tiempo de 4 min, `pa.listo.modelo`, `pa.listo.tiempo.aprox`, `pa.req.descarga.generica` calculado del manifiesto). B2 pide la estimación también durante la instalación y al cambiar la rebaja. `AcercaDe`: sin "Automático".
+- `semilla.ts`, E2E y `instalar-runtime.mjs` (ya no fuerza `modo: 'rapido'`): Calidad. E2E 5 comprueba que la rebaja no cambia el total.
+
+**Cómo probarlo**: `npm run lint && npm run typecheck && npx prettier --check . && npx vitest run && npm run test:e2e` (con `SHINOBI_UV`). Resultado: lint, typecheck y format limpios; 1030 tests pasan (6 omitidos); E2E 36 pasan (1 omitido, YouTube con red).
+
+**Notas / deuda**
+- `ux/01` dice 6-15 min para CPU x86; el manifiesto da `[1.5, 4] x 4 = 6-16`, así que la UI muestra "entre 6 y 16" (sale del manifiesto).
+- La spec de `ux/08` (Ajustes sin elección de modo) y la oferta de Rápido (diálogo, banner B4, variante B2/B3) quedan para 0057 y la tarea de Ajustes; `nombreModoFinal` ya admite `rapido`.
+- Los textos `rapido.*`, `aceptarYUsarRapido` y `volverACalidad` no se implementan aquí (0057).

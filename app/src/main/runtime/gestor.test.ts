@@ -2,7 +2,13 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, mkdtempSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { manifiestoSchema, type Manifiesto, type PerfilHardware } from '../../shared'
+import {
+  manifiestoSchema,
+  requisitosDe,
+  type Manifiesto,
+  type PerfilHardware,
+  type RequisitosPerfil
+} from '../../shared'
 import { ServicioConfig } from '../configuracion'
 import { calcularRequisitosPrevios, type EspacioLibre } from './deteccion'
 import {
@@ -10,6 +16,7 @@ import {
   interpreteVenv,
   medidorReal,
   peticionPython,
+  type MedidorDirectorio,
   type DependenciasGestor,
   type Diagnosticador,
   type ProgresoRuntime,
@@ -210,7 +217,7 @@ describe('gestor de runtime', () => {
       error: null,
       fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' }
     })
-    expect(c.separacion.modelos_descargados).toEqual(['rapido'])
+    expect(c.separacion.modelos_descargados).toEqual(['calidad'])
     const marcador = JSON.parse(readFileSync(join(datos, 'runtime', 'instalado.json'), 'utf8'))
     expect(marcador).toMatchObject({ plataforma: 'linux-x64', perfil: 'cpu' })
     const ultimo = t.eventos.at(-1)
@@ -255,7 +262,7 @@ describe('gestor de runtime', () => {
     expect((await ok14.gestor.instalar()).estado).toBe('completa')
   })
 
-  it('rebaja cuda a cpu: el total baja y el porcentaje no retrocede', async () => {
+  it('rebaja cuda a cpu: sigue Calidad (el total no baja) y el porcentaje no retrocede', async () => {
     const t = await montar({
       gpu: true,
       diag: { perfil: 'cpu', gpu: 'RTX', vram_mb: 2000, motivo_rebaja: 'memoria' }
@@ -266,14 +273,120 @@ describe('gestor de runtime', () => {
     const despues = t.eventos.filter((e) => e.motivoRebaja === 'memoria')
     expect(antes.modo).toBe('calidad')
     expect(despues.length).toBeGreaterThan(0)
-    expect(despues[0]!.totalGlobal).toBeLessThan(antes.totalGlobal)
-    expect(despues[0]!.modo).toBe('rapido')
+    expect(despues[0]!.totalGlobal).toBe(antes.totalGlobal)
+    expect(despues[0]!.modo).toBe('calidad')
     expect(despues[0]!.porcentajeGlobal).toBeGreaterThanOrEqual(antes.porcentajeGlobal)
-    expect(t.descargas).toEqual(['rapido'])
+    expect(t.descargas).toEqual(['calidad'])
     expect(t.config.obtener().instalacion).toMatchObject({
       perfil_hardware: 'cpu',
       motivo_rebaja: 'memoria'
     })
+  })
+
+  it('perfil cpu sin consentimiento: descarga Calidad y nunca Rápido', async () => {
+    const t = await montar()
+    await t.gestor.instalar()
+    expect(t.descargas).toEqual(['calidad'])
+    expect(t.eventos.every((e) => e.modo === 'calidad')).toBe(true)
+  })
+
+  it('con modo rapido pero sin rapido_aceptado se sigue descargando Calidad', async () => {
+    const t = await montar()
+    await t.config.actualizar({ separacion: { modo: 'rapido' } })
+    await t.gestor.instalar()
+    expect(t.descargas).toEqual(['calidad'])
+  })
+
+  it('con modo rapido y consentimiento, la fase de modelo descarga Rápido', async () => {
+    const t = await montar()
+    await t.config.actualizar({
+      separacion: { modo: 'rapido', rapido_aceptado: '2026-11-05T10:00:00Z' }
+    })
+    await t.gestor.instalar()
+    expect(t.descargas).toEqual(['rapido'])
+  })
+
+  it('descargarModelo("rapido") sin rapido_aceptado lanza y no escribe nada en modelos/', async () => {
+    const t = await montar()
+    await expect(t.gestor.descargarModelo('rapido')).rejects.toMatchObject({
+      codigo: 'ARGUMENTOS_NO_VALIDOS'
+    })
+    expect(t.descargas).toEqual([])
+    expect(existsSync(join(datos, 'modelos', 'rapido'))).toBe(false)
+    expect(t.config.obtener().separacion.modelos_descargados).toEqual([])
+  })
+
+  it('descargarModelo("rapido") con rapido_aceptado lo descarga y lo registra', async () => {
+    const t = await montar()
+    await t.config.actualizar({ separacion: { rapido_aceptado: '2026-11-05T10:00:00Z' } })
+    await t.gestor.descargarModelo('rapido')
+    expect(t.descargas).toEqual(['rapido'])
+    expect(t.config.obtener().separacion.modelos_descargados).toEqual(['rapido'])
+  })
+
+  describe('instalar({ modelo: "rapido" }) tras el consentimiento (0057)', () => {
+    const FECHA = '2026-11-05T10:00:00Z'
+
+    it('sin rapido_aceptado se rechaza y no descarga ni cambia el modo', async () => {
+      const t = await montar()
+      await expect(t.gestor.instalar({ modelo: 'rapido' })).rejects.toMatchObject({
+        codigo: 'ARGUMENTOS_NO_VALIDOS'
+      })
+      expect(t.descargas).toEqual([])
+      expect(t.config.obtener().separacion.modo).toBe('calidad')
+    })
+
+    it('descarga Rápido, fija el modo solo al terminar y publica modo y total de Rápido', async () => {
+      const t = await montar()
+      await t.config.actualizar({ separacion: { rapido_aceptado: FECHA } })
+      const modos: string[] = []
+      t.gestor.suscribir(() => modos.push(t.config.obtener().separacion.modo))
+      expect(await t.gestor.instalar({ modelo: 'rapido' })).toEqual({ estado: 'completa' })
+      expect(t.descargas).toEqual(['rapido'])
+      const cfg = t.config.obtener()
+      expect(cfg.separacion).toMatchObject({ modo: 'rapido', rapido_aceptado: FECHA })
+      expect(cfg.separacion.modelos_descargados).toEqual(['rapido'])
+      expect(cfg.instalacion.estado).toBe('completa')
+      // Mientras se descarga, el modo guardado sigue siendo Calidad.
+      expect(modos.slice(0, -1).every((m) => m === 'calidad')).toBe(true)
+      expect(t.eventos.every((e) => e.modo === 'rapido')).toBe(true)
+      const modelo = t.eventos.find((e) => e.faseVisible === 'modelo' && e.total > 0)
+      expect(modelo?.total).toBe(manifiesto.modelos.find((m) => m.id === 'rapido')!.bytes)
+    })
+
+    it('si la descarga falla, el modo no cambia y el consentimiento se conserva', async () => {
+      const t = await montar({ fallaModelo: true })
+      await t.config.actualizar({ separacion: { rapido_aceptado: FECHA } })
+      const r = await t.gestor.instalar({ modelo: 'rapido' })
+      expect(r).toMatchObject({
+        estado: 'error',
+        error: { fase: 'modelo', codigo: 'SIN_CONEXION' }
+      })
+      expect(t.config.obtener().separacion).toMatchObject({
+        modo: 'calidad',
+        rapido_aceptado: FECHA,
+        modelos_descargados: []
+      })
+    })
+
+    it('tras fallar Calidad continúa solo con el modelo, sin repetir motor ni componentes', async () => {
+      const t = await montar({ fallaModelo: true })
+      await t.gestor.instalar()
+      const ordenesAntes = t.llamadas.length
+      await t.config.actualizar({ separacion: { rapido_aceptado: FECHA } })
+      t.deps.descargador = { descargar: async (m) => void t.descargas.push(m.id) }
+      expect(await t.gestor.instalar({ modelo: 'rapido' })).toEqual({ estado: 'completa' })
+      expect(t.llamadas.length).toBe(ordenesAntes)
+      expect(t.descargas.at(-1)).toBe('rapido')
+    })
+  })
+
+  it('descargarModelo informa del progreso', async () => {
+    const t = await montar()
+    const p: { bytes: number; total: number }[] = []
+    await t.gestor.descargarModelo('calidad', undefined, (x) => p.push(x))
+    expect(p.length).toBeGreaterThan(0)
+    expect(p.at(-1)?.bytes).toBe(p.at(-1)?.total)
   })
 
   it('fallo en componentes: reintento sin repetir el motor', async () => {
@@ -385,5 +498,52 @@ describe('gestor de runtime', () => {
     g.suscribir((p) => ev.push(p))
     await g.instalar()
     expect(ev.length).toBeLessThan(40)
+  })
+
+  it('el progreso de componentes se mide contra bytes_cache y se publica en bytes_descarga', async () => {
+    const t = await montar()
+    const req = requisitosDe(manifiesto, 'linux-x64', 'cpu') as RequisitosPerfil
+    const mani: Manifiesto = {
+      ...manifiesto,
+      runtime: {
+        ...manifiesto.runtime,
+        'linux-x64': {
+          ...manifiesto.runtime['linux-x64'],
+          cpu: { ...req, bytes_cache: req.bytes_descarga * 4 }
+        }
+      }
+    }
+    const medio = req.bytes_descarga * 2 // caché al 50 %
+    let enPip = false
+    const medidor: MedidorDirectorio = {
+      bytes: async (ruta) => (enPip && ruta.endsWith('cache-uv') ? medio : 0)
+    }
+    const ejecutorUv: EjecutorUv = {
+      async ejecutar(args, o) {
+        if (args[1] === 'pip') {
+          enPip = true
+          await new Promise((r) => setTimeout(r, 80))
+        }
+        return t.deps.ejecutorUv.ejecutar(args, o)
+      }
+    }
+    const previos = await t.deps.deteccion.requisitosPrevios()
+    const g = crearGestorRuntime({
+      ...t.deps,
+      manifiesto: mani,
+      medidor,
+      ejecutorUv,
+      deteccion: { requisitosPrevios: async () => previos }
+    })
+    const ev: ProgresoRuntime[] = []
+    g.suscribir((p) => ev.push(p))
+    await g.instalar()
+    const enCurso = ev.filter(
+      (p) =>
+        p.faseVisible === 'componentes' && !p.comprobando && p.estados.componentes === 'en_curso'
+    )
+    const maximo = Math.max(...enCurso.map((p) => p.bytes / p.total))
+    expect(maximo).toBeGreaterThan(0.45)
+    expect(maximo).toBeLessThan(0.55)
   })
 })

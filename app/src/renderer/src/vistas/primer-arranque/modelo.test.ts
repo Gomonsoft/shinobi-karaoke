@@ -5,7 +5,13 @@ import {
   decidirPantalla,
   formatearGb,
   formatearGbLibre,
+  mensajeModo,
+  nombreFase,
+  nombreModoFinal,
+  textoDeError,
+  textoDescargaGenerica,
   textoEta,
+  textoOfertaRapido,
   textoTiempoListo
 } from './modelo'
 
@@ -34,6 +40,29 @@ describe('cifras', () => {
       'Una canción de 4 minutos tardará unos 2 minutos.'
     )
     expect(textoTiempoListo(null)).toBeNull()
+    expect(textoTiempoListo({ min: 6, max: 14.2, origen: 'estimado' })).toBe(
+      'Una canción de 4 minutos tardará entre 6 y 15 minutos, aproximadamente. Lo ajustaremos tras tu primera canción.'
+    )
+  })
+
+  it('el mensaje de modelo es siempre Calidad y nunca anuncia Rápido', () => {
+    expect(mensajeModo('calidad', 'cpu', null, { min: 6, max: 15 })).toBe(
+      'Tu equipo no tiene una tarjeta gráfica compatible: separaremos las pistas con el modelo Calidad usando el procesador. Es más lento: una canción de 4 minutos tardará entre 6 y 15 minutos.'
+    )
+    expect(mensajeModo('calidad', 'cpu', 'memoria', null)).toMatch(
+      /modelo Calidad usando el procesador/
+    )
+    expect(mensajeModo('calidad', 'mps', null)).toMatch(/chip Apple/)
+    expect(mensajeModo('calidad', 'cuda', null)).toMatch(/NVIDIA/)
+    for (const p of ['cpu', 'cuda', 'mps'] as const)
+      expect(mensajeModo('calidad', p, null, { min: 1, max: 2 })).not.toMatch(/Rápido/)
+    expect(nombreModoFinal('calidad', 'cpu')).toBe('Calidad, con el procesador')
+  })
+
+  it('la descarga genérica redondea hacia abajo y hacia arriba', () => {
+    expect(textoDescargaGenerica([1_233_000_000, 5_350_000_000])).toBe(
+      'Descarga: entre 1 y 6 GB según tu equipo'
+    )
   })
 })
 
@@ -72,6 +101,9 @@ describe('decidirPantalla', () => {
     motivoRebaja: null,
     modo: null,
     bytesRestantes: null,
+    rapidoPendiente: false,
+    ofrecerRapido: false,
+    volverACalidad: null,
     ...extra
   })
   it('espera al estado y a los requisitos', () => {
@@ -90,5 +122,36 @@ describe('decidirPantalla', () => {
     expect(decidirPantalla({ estado: e, requisitos: null, sesion: true, iniciando: false })).toBe(
       'b3'
     )
+  })
+})
+
+describe('Rápido tras el consentimiento (0057)', () => {
+  it('mensajeModo dice Rápido solo con modo rapido, también con rebaja', () => {
+    expect(mensajeModo('rapido', 'cpu', null)).toBe(
+      'Separaremos las pistas con el modelo Rápido usando el procesador.'
+    )
+    expect(mensajeModo('rapido', 'cpu', 'memoria')).toContain('modelo Rápido')
+    expect(mensajeModo('calidad', 'cpu', null) ?? '').not.toContain('Rápido')
+  })
+
+  it('nombreFase: la fase del modelo dice (Rápido) solo al descargar Rápido', () => {
+    expect(nombreFase('modelo', 'rapido')).toBe('Descargando el modelo de separación (Rápido)')
+    expect(nombreFase('modelo', 'calidad')).toBe('Descargando el modelo de separación')
+    expect(nombreFase('motor', 'rapido')).toBe('Preparando el motor de audio')
+  })
+
+  it('textoDeError: servidores "todos" en la fase de modelo y verificación completa', () => {
+    expect(textoDeError('SERVICIO_NO_DISPONIBLE', null, 'modelo').titulo).toBe(
+      'Los servidores de descarga no responden.'
+    )
+    expect(textoDeError('SERVICIO_NO_DISPONIBLE', null, 'componentes').titulo).toBe(
+      'Uno de los servidores de descarga no responde.'
+    )
+    expect(textoDeError('VERIFICACION_FALLIDA', null).cuerpo).toContain('dos veces')
+  })
+
+  it('textoOfertaRapido: con SIN_ESPACIO dice cuánto ocupa Rápido', () => {
+    expect(textoOfertaRapido('SIN_ESPACIO', 59_074_342)).toContain('(59 MB)')
+    expect(textoOfertaRapido('VERIFICACION_FALLIDA', 59_074_342)).toContain('Si no puedes esperar')
   })
 })

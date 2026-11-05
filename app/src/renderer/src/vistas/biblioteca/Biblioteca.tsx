@@ -13,8 +13,10 @@ import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './Dia
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
 import { detallesDeError } from './errores'
 import { contarPorFiltro, filtrarCanciones, type FiltroBiblioteca } from './filtrado'
-import { tituloDeTarjeta, type TrabajoVivo } from './tarjeta'
-import { useBiblioteca } from './useBiblioteca'
+import { pasoConProblema, tituloDeTarjeta, type TrabajoVivo } from './tarjeta'
+import { tituloDeError } from './textosError'
+import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
+import { useBiblioteca, useBibliotecaCompartida, type BibliotecaDatos } from './useBiblioteca'
 import estilos from './biblioteca.module.css'
 
 function Esqueletos() {
@@ -66,6 +68,7 @@ type DialogoActivo =
   | { tipo: 'datos'; id: string; inicial: DatosEditables }
   | { tipo: 'borrador'; id: string }
   | { tipo: 'eliminar'; id: string }
+  | { tipo: 'cancelar'; id: string; paso: 'fuente' | 'separacion'; trabajoId: string }
 
 /** Trabajo activo de cada canción (el que está en curso tiene prioridad sobre el de la cola). */
 function trabajoVivoDe(
@@ -107,10 +110,19 @@ export function textoSinResultados(filtro: FiltroBiblioteca, texto: string): str
     : 'No tienes borradores. Las canciones que añadas aparecerán aquí hasta que las marques como listas.'
 }
 
-/** Vista Biblioteca (docs/ux/02): cargando, vacía y rejilla de tarjetas. */
+/** Vista Biblioteca (docs/ux/02): usa la biblioteca compartida de `App` o, sin ella, la suya. */
 export function Biblioteca() {
+  const compartida = useBibliotecaCompartida()
+  return compartida ? <VistaBiblioteca datos={compartida} /> : <BibliotecaPropia />
+}
+
+function BibliotecaPropia() {
+  return <VistaBiblioteca datos={useBiblioteca()} />
+}
+
+function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const { ir } = useNavegacion()
-  const { estado, lenta, canciones, reintentar } = useBiblioteca()
+  const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
   const estiloUsuario = useEstiloPredeterminado()
   const [activa, setActiva] = useState<string | null>(null)
@@ -208,6 +220,76 @@ export function Biblioteca() {
     vivosRef.current = vivos
   })
 
+  const cancionesRef = useRef(canciones)
+  useEffect(() => {
+    cancionesRef.current = canciones
+  })
+
+  /** Toast de error con el texto del código (`bib.toast.errorgenerico`) y "Copiar detalles". */
+  const avisarError = useCallback((err: unknown) => {
+    const codigo =
+      err && typeof err === 'object' && 'codigo' in err && typeof err.codigo === 'string'
+        ? err.codigo
+        : ''
+    mostrarToast({
+      tipo: 'error',
+      mensaje: tituloDeError(codigo),
+      accion: {
+        etiqueta: 'Copiar detalles',
+        alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+      }
+    })
+  }, [])
+
+  /** "Reintentar": relanza el paso que falló sin salir de la Biblioteca. */
+  const reintentarPaso = useCallback(
+    async (id: string) => {
+      const resumen = cancionesRef.current.find((c) => c.id === id)
+      const paso = resumen ? pasoConProblema(resumen) : null
+      try {
+        if (paso === 'fuente') await window.shinobi.fuente.reintentar(id)
+        else if (paso === 'separacion') await window.shinobi.separacion.separar(id)
+      } catch (err) {
+        avisarError(err)
+      }
+    },
+    [avisarError]
+  )
+
+  const resepararPistas = useCallback(
+    async (id: string) => {
+      try {
+        await window.shinobi.separacion.separar(id)
+      } catch (err) {
+        avisarError(err)
+      }
+    },
+    [avisarError]
+  )
+
+  const cancelarEnCurso = async (trabajoId: string) => {
+    setDialogo(null)
+    try {
+      await window.shinobi.trabajos.cancelar(trabajoId)
+    } catch (err) {
+      avisarError(err)
+    }
+  }
+
+  /** "Cancelar trabajo": en cola, sin diálogo; en curso, el diálogo del paso (0045/0068). */
+  const cancelarTrabajo = useCallback(
+    (id: string) => {
+      const t = trabajoVivoDe(id, vivosRef.current)?.trabajo
+      if (!t) return
+      if (t.estado === 'en_cola') {
+        window.shinobi.trabajos.cancelar(t.id).catch(avisarError)
+      } else {
+        setDialogo({ tipo: 'cancelar', id, paso: t.paso, trabajoId: t.id })
+      }
+    },
+    [avisarError]
+  )
+
   const continuar = useCallback(
     async (id: string) => {
       try {
@@ -233,10 +315,13 @@ export function Biblioteca() {
       editar: (id) => ir({ tipo: 'cancion', id, paso: 'editor' }),
       editarDatos: (id) => void abrirEditarDatos(id),
       volverABorrador: (id) => setDialogo({ tipo: 'borrador', id }),
+      reintentar: (id) => void reintentarPaso(id),
+      cancelarTrabajo,
+      resepararPistas: (id) => void resepararPistas(id),
       mostrarEnCarpeta: (id) => void window.shinobi.biblioteca.mostrarEnCarpeta(id),
       eliminar: (id) => setDialogo({ tipo: 'eliminar', id })
     }),
-    [ir, continuar, abrirEditarDatos]
+    [ir, continuar, abrirEditarDatos, reintentarPaso, cancelarTrabajo, resepararPistas]
   )
 
   const teclasRejilla = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -434,6 +519,21 @@ export function Biblioteca() {
           alCancelar={() => setDialogo(null)}
           alConfirmar={() => confirmarBorrador(dialogo.id)}
         />
+      )}
+      {dialogo?.tipo === 'cancelar' && dialogoResumen && (
+        <>
+          <DialogoCancelarDescarga
+            abierto={dialogo.paso === 'fuente'}
+            titulo={tituloDeTarjeta(dialogoResumen)}
+            alSeguir={() => setDialogo(null)}
+            alConfirmar={() => void cancelarEnCurso(dialogo.trabajoId)}
+          />
+          <DialogoCancelarSeparacion
+            abierto={dialogo.paso === 'separacion'}
+            alSeguir={() => setDialogo(null)}
+            alConfirmar={() => void cancelarEnCurso(dialogo.trabajoId)}
+          />
+        </>
       )}
       {dialogo?.tipo === 'eliminar' && dialogoResumen && (
         <DialogoConfirmar

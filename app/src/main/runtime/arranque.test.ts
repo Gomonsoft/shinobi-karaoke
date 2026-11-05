@@ -130,7 +130,7 @@ async function marcarCompleta(t: Awaited<ReturnType<typeof montar>>): Promise<vo
       perfil_hardware: 'cpu',
       version_manifiesto: manifiesto.version
     },
-    separacion: { modelos_descargados: ['rapido'] }
+    separacion: { modelos_descargados: ['calidad'] }
   })
 }
 
@@ -138,7 +138,7 @@ describe('comprobarAlArrancar: instalación completa (comprobación barata)', ()
   it('todo correcto: no hace nada y es rápida', async () => {
     crearVenv()
     escribirMarcador()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     await marcarCompleta(t)
     const t0 = performance.now()
@@ -151,7 +151,7 @@ describe('comprobarAlArrancar: instalación completa (comprobación barata)', ()
 
   it('falta el venv: dañada y motor y componentes pendientes', async () => {
     escribirMarcador()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     await marcarCompleta(t)
     expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'dañada', motivo: 'venv' })
@@ -164,7 +164,7 @@ describe('comprobarAlArrancar: instalación completa (comprobación barata)', ()
   it('marcador de otra versión del manifiesto: dañada, solo se repiten los componentes', async () => {
     crearVenv()
     escribirMarcador({ manifiesto_version: manifiesto.version + 1 })
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     await marcarCompleta(t)
     expect(await t.gestor.comprobarAlArrancar()).toEqual({
@@ -179,7 +179,7 @@ describe('comprobarAlArrancar: instalación completa (comprobación barata)', ()
 
   it('sin marcador: dañada', async () => {
     crearVenv()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     await marcarCompleta(t)
     expect(await t.gestor.comprobarAlArrancar()).toMatchObject({ motivo: 'marcador' })
@@ -188,7 +188,7 @@ describe('comprobarAlArrancar: instalación completa (comprobación barata)', ()
   it('falta el modelo (o su tamaño no coincide): dañada, solo el modelo pendiente', async () => {
     crearVenv()
     escribirMarcador()
-    for (const preparar of [() => undefined, () => escribirModelo('rapido', Buffer.from('x'))]) {
+    for (const preparar of [() => undefined, () => escribirModelo('calidad', Buffer.from('x'))]) {
       preparar()
       const t = await montar()
       await marcarCompleta(t)
@@ -220,7 +220,7 @@ describe('comprobarAlArrancar: no completa', () => {
   it('config.json recreado con runtime válido: completa sin descargar ni llamar a uv', async () => {
     crearVenv()
     escribirMarcador()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     expect(t.config.obtener().instalacion.estado).toBe('pendiente')
     expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'reutilizada' })
@@ -231,7 +231,7 @@ describe('comprobarAlArrancar: no completa', () => {
       version_manifiesto: manifiesto.version,
       fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' }
     })
-    expect(c.separacion.modelos_descargados).toEqual(['rapido'])
+    expect(c.separacion.modelos_descargados).toEqual(['calidad'])
     expect(t.descargas).toHaveLength(0)
     expect(t.uvLlamadas).toHaveLength(0)
     expect(t.diagLlamadas).toHaveLength(1)
@@ -242,7 +242,7 @@ describe('comprobarAlArrancar: no completa', () => {
   it('modelo corrupto (mismo tamaño, SHA distinto): solo queda pendiente el modelo', async () => {
     crearVenv()
     escribirMarcador()
-    escribirModelo('rapido', Buffer.alloc(CONTENIDO.length, 1))
+    escribirModelo('calidad', Buffer.alloc(CONTENIDO.length, 1))
     const t = await montar()
     expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'pendiente' })
     expect(t.config.obtener().instalacion).toMatchObject({
@@ -255,7 +255,7 @@ describe('comprobarAlArrancar: no completa', () => {
   it('el diagnóstico rebaja el perfil: se comprueba el modelo del perfil final', async () => {
     crearVenv()
     escribirMarcador()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar({
       diag: { perfil: 'cpu', gpu: null, vram_mb: null, motivo_rebaja: 'generico' }
     })
@@ -266,7 +266,7 @@ describe('comprobarAlArrancar: no completa', () => {
   it('diagnóstico fallido: componentes pendientes', async () => {
     crearVenv()
     escribirMarcador()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar({ diag: 'falla' })
     expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'pendiente' })
     expect(t.config.obtener().instalacion.fases.componentes).toBe('pendiente')
@@ -275,7 +275,7 @@ describe('comprobarAlArrancar: no completa', () => {
   it('marcador de otra versión del manifiesto: no se reutiliza (se instalará)', async () => {
     crearVenv()
     escribirMarcador({ manifiesto_version: manifiesto.version + 1 })
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'pendiente' })
     expect(t.diagLlamadas).toHaveLength(0)
@@ -285,11 +285,73 @@ describe('comprobarAlArrancar: no completa', () => {
   it('tras reutilizar, instalar() no hace nada: sin uv ni descargas', async () => {
     crearVenv()
     escribirMarcador()
-    escribirModelo('rapido')
+    escribirModelo('calidad')
     const t = await montar()
     await t.gestor.comprobarAlArrancar()
     expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
     expect(t.uvLlamadas.filter((a) => a[1] === 'pip')).toHaveLength(0)
     expect(t.descargas).toHaveLength(0)
+  })
+})
+
+describe('instalación de desarrollo previa (perfil cpu con solo Rápido, sin consentimiento)', () => {
+  async function conSoloRapido() {
+    crearVenv()
+    escribirMarcador()
+    escribirModelo('rapido')
+    const t = await montar()
+    await t.config.actualizar({
+      instalacion: {
+        estado: 'completa',
+        fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
+        perfil_hardware: 'cpu',
+        version_manifiesto: manifiesto.version
+      },
+      separacion: { modo: 'rapido', modelos_descargados: ['rapido'] }
+    })
+    return t
+  }
+
+  it('la comprobación barata falla por falta de Calidad (B5 "Hay que reparar")', async () => {
+    const t = await conSoloRapido()
+    expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'dañada', motivo: 'modelo' })
+    expect(t.config.obtener().instalacion).toMatchObject({
+      estado: 'dañada',
+      fases: { motor: 'completada', componentes: 'completada', modelo: 'pendiente' }
+    })
+  })
+
+  it('reparar descarga solo Calidad: ni uv ni Rápido', async () => {
+    const t = await conSoloRapido()
+    await t.gestor.comprobarAlArrancar()
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    expect(t.descargas).toEqual(['calidad'])
+    expect(t.uvLlamadas.filter((a) => a[1] === 'pip')).toHaveLength(0)
+    expect(t.config.obtener().separacion.modelos_descargados).toContain('calidad')
+  })
+})
+
+describe('instalación con solo Rápido y consentimiento (0057)', () => {
+  it('con modo rapido y rapido_aceptado la comprobación barata la da por buena (no dañada)', async () => {
+    crearVenv()
+    escribirMarcador()
+    escribirModelo('rapido')
+    const t = await montar()
+    await t.config.actualizar({
+      instalacion: {
+        estado: 'completa',
+        fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
+        perfil_hardware: 'cpu',
+        version_manifiesto: manifiesto.version
+      },
+      separacion: {
+        modo: 'rapido',
+        rapido_aceptado: '2026-11-05T10:00:00.000Z',
+        modelos_descargados: ['rapido']
+      }
+    })
+    expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'completa' })
+    expect(t.config.obtener().instalacion.estado).toBe('completa')
+    expect(t.descargas).toEqual([])
   })
 })

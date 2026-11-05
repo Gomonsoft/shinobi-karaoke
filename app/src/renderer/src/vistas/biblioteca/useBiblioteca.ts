@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ResumenCancionIpc } from '@shared/ipc'
 
 export const RETRASO_CARGA_LENTA_MS = 3000
@@ -12,6 +12,16 @@ export interface BibliotecaDatos {
   canciones: ResumenCancionIpc[]
   reintentar(): void
 }
+
+/**
+ * Biblioteca compartida (0071, deuda del marco 0018): `App` lee `listar()` una sola vez y la
+ * barra superior, el panel de actividad y la vista Biblioteca usan ese mismo estado. `null`
+ * fuera de `App` (pruebas de componentes sueltos): `Biblioteca` entonces lee la suya.
+ */
+export const BibliotecaContexto = createContext<BibliotecaDatos | null>(null)
+
+/** Datos de la biblioteca compartida, o `null` si no hay proveedor. */
+export const useBibliotecaCompartida = (): BibliotecaDatos | null => useContext(BibliotecaContexto)
 
 /**
  * Canciones de la biblioteca. Se leen al entrar en la vista y, después, los cambios en vivo

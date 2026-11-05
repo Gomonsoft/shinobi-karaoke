@@ -134,6 +134,17 @@ describe('ServicioBiblioteca', () => {
     expect(await readFile(join(carpeta, 'cancion.json'), 'utf8')).toBe(antes)
   })
 
+  it('dañada por pistas: sinMezcla solo si tampoco existe fuente/mezcla.flac (0070)', async () => {
+    await crear('p', FIXTURES.lista(), { pistas: false })
+    await crear('q', FIXTURES.lista(), { pistas: false })
+    await mkdir(join(biblio, 'q', 'fuente'), { recursive: true })
+    await writeFile(join(biblio, 'q', 'fuente', 'mezcla.flac'), 'x')
+    const s = new ServicioBiblioteca(datos)
+    await s.escanear()
+    expect(s.obtenerResumen('p')!.sinMezcla).toBe(true)
+    expect(s.obtenerResumen('q')!.sinMezcla).toBeUndefined()
+  })
+
   it('sin separación completada no exige pistas', async () => {
     await crear('n', FIXTURES.borradorRecienCreado(), { pistas: false })
     const s = new ServicioBiblioteca(datos)

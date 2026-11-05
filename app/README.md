@@ -26,6 +26,8 @@ Requisitos: Node 24 (`.nvmrc`) y npm. Desde esta carpeta: `npm install`.
 
 `SHINOBI_YTDLP_FALSO=<dir>` (solo pruebas; se ignora empaquetada): el worker usa un doble de yt-dlp que lee `<dir>/<id>.json` (y la miniatura `<id>.jpg`) y genera el audio "descargado". `SHINOBI_YTDLP_ACTUALIZAR_MS=<ms>` alarga la actualización simulada de yt-dlp. Los usa `e2e/importar-youtube.spec.ts` con una copia temporal de `e2e/fixtures/youtube/` (sin red). La prueba con red `e2e/youtube-red.spec.ts` solo se ejecuta con `SHINOBI_TESTS_RED=1` (descarga un vídeo CC BY real).
 
+`SHINOBI_SEPARADOR_FALSO=<escenario.json>` (solo pruebas; se ignora empaquetada): el comando `separar` del worker usa un doble que sigue el escenario (duración, pasos, fallos por dispositivo/bloques/intento, muerte por SIGKILL). El main pasa además `SHINOBI_INTENTO=<n>`. Esquema Zod y ejemplo en `src/shared/separacion.ts`; lo implementa la tarea 0060.
+
 ## Cliente del worker (`src/main/trabajos/worker.ts`)
 
 En desarrollo el worker se lanza con `uv run --project <repo>/worker python -m shinobi_worker`. `uv` se busca en este orden: opción `uv` de `resolverLanzador`, variable de entorno `SHINOBI_UV` (ruta al ejecutable) y `uv` del PATH. La versión de `uv` fijada es la **0.13.7** (única fuente: `UV_VERSION` en `.github/workflows/ci.yml`; es la que generó `worker/uv.lock`). Los tests de integración con el comando `demo` se omiten si no se encuentra `uv` (en CI nunca se omiten: el trabajo `app` instala `uv` y ejecuta `uv sync --locked` en `worker/`); con un `uv` fuera del PATH: `SHINOBI_UV=/ruta/a/uv npm test`.

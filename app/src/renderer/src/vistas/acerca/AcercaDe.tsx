@@ -5,6 +5,7 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import estilos from './acerca.module.css'
 import { DialogoAvisoYoutube } from './DialogoAvisoYoutube'
 import { DialogoTextoLegal } from './DialogoTextoLegal'
+import { modeloEfectivo } from '../ajustes/modelo'
 import { TEXTOS_ACERCA as T, WEB_PROYECTO } from './textos'
 
 type Config = Awaited<ReturnType<typeof window.shinobi.config.obtener>>
@@ -14,7 +15,6 @@ const NOMBRE_PERFIL = {
   cuda: 'GPU NVIDIA (CUDA)',
   mps: 'GPU Apple (MPS)'
 } as const
-const NOMBRE_MODO = { automatico: 'Automático', calidad: 'Calidad', rapido: 'Rápido' } as const
 
 const SIN_INSTALAR = 'sin instalar'
 const NOMBRE_SO: Record<string, string> = { darwin: 'macOS', win32: 'Windows', linux: 'Linux' }
@@ -25,6 +25,14 @@ function lineaSo(info: InfoSistema): string {
   if (!nombre || !info.versionSo) return info.so
   const arq = info.arquitectura ? ` · ${info.arquitectura}${info.emulada ? ' (emulada)' : ''}` : ''
   return `${nombre} ${info.versionSo}${arq}`
+}
+
+/** `calidad` o `rapido (aceptado el AAAA-MM-DD)`; `sin instalar` si aún no hay motor. */
+function lineaModelo(config: Config): string {
+  if (config.instalacion.perfil_hardware === null) return SIN_INSTALAR
+  if (modeloEfectivo(config) === 'calidad') return 'calidad'
+  const fecha = config.separacion.rapido_aceptado?.slice(0, 10)
+  return fecha ? `rapido (aceptado el ${fecha})` : 'rapido'
 }
 
 /**
@@ -38,7 +46,8 @@ export function infoSoporte(info: InfoSistema, config: Config): string {
     `Shinobi Karaoke ${info.version}`,
     `Sistema: ${lineaSo(info)}`,
     `Perfil de hardware: ${perfil ? NOMBRE_PERFIL[perfil] : SIN_INSTALAR}`,
-    `Modo de separación: ${NOMBRE_MODO[config.separacion.modo]}`,
+    `Modelo de separación: ${lineaModelo(config)}`,
+    `Dispositivo: ${perfil === 'cuda' || perfil === 'cpu' ? perfil : (perfil ?? SIN_INSTALAR)}`,
     `yt-dlp: ${info.ytdlp?.version ?? SIN_INSTALAR}`,
     `Última comprobación de yt-dlp: ${comprobacion ?? SIN_INSTALAR}`
   ].join('\n')

@@ -1,9 +1,20 @@
 /**
  * Solicitud de cierre (tarea 0036): con una instalación en curso, cerrar la ventana o salir no se
  * hace al momento; main pide confirmación al renderer (`app:solicitudCierre`) y solo actúa cuando
- * este responde con `app.confirmarCierre()`. Pensado para reutilizarlo en la Fase 3 (ux/04 §3):
- * basta con ampliar `hayAlgoEnCurso`.
+ * este responde con `app.confirmarCierre()`. Desde la 0073 también cubre los trabajos de la cola
+ * (ux/04 §3).
  */
+
+/** Qué impide cerrar sin preguntar: la instalación del runtime o algún trabajo de la cola. */
+export interface FuentesEnCurso {
+  instalando(): boolean
+  /** Trabajos en curso o en cola (`GestorTrabajos.hayPendientes`). No incluye consultas interactivas. */
+  hayTrabajos(): boolean
+}
+
+export function hayAlgoEnCurso(fuentes: FuentesEnCurso): boolean {
+  return fuentes.instalando() || fuentes.hayTrabajos()
+}
 
 export interface EventoCancelable {
   preventDefault(): void

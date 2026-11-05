@@ -87,3 +87,11 @@ jobs:
       - run: uv run pytest
       # Requisitos bloqueados por perfil al día (ADR 0009 §1): solo resuelve, sin descargar ruedas.
       - run: uv run python scripts/compilar_requisitos.py --comprobar
+      # Separación sin ffmpeg en el PATH (tarea 0062; ADR 0004, preguntas/0009 punto 4). Los runners traen
+      # ffmpeg: `sin_ffmpeg.py` lo quita del PATH y falla si sigue visible. Sin el extra `separacion`
+      # (ni PyTorch ni modelos): la separación usa un audio-separator de prueba (contrato) y el doble.
+      - name: Separación sin ffmpeg en el PATH
+        shell: bash
+        run: |
+          uv run python scripts/sin_ffmpeg.py uv run pytest tests/test_separacion_contrato.py tests/test_separar*.py -v
+          uv run python -c "import importlib.util,sys; sys.exit(importlib.util.find_spec('torch') is not None)"

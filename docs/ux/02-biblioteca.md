@@ -4,7 +4,7 @@
 - ADRs: [0006](../adr/0006-persistencia-y-modelo-de-datos.md), [0004](../adr/0004-separacion-voz-instrumental.md)
 - Restricciones: [arquitectura.md "Restricciones e implicaciones para UX" §2–§3](../arquitectura.md)
 - Sistema visual: [sistema-visual.md](sistema-visual.md)
-- Preguntas: [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) §8 y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) §4 (lista incompleta; respondidas); [0007](../preguntas/0007-textos-y-comportamientos-de-ui-no-definidos-fase-1.md) (textos de la Fase 1; respondida) y [0008](../preguntas/0008-ajustes-ui-tras-revision-fase-1.md) (cambios tras la revisión visual)
+- Preguntas: [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) §8 y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) §4 (lista incompleta; respondidas); [0007](../preguntas/0007-textos-y-comportamientos-de-ui-no-definidos-fase-1.md) (textos de la Fase 1; respondida) y [0008](../preguntas/0008-ajustes-ui-tras-revision-fase-1.md) (cambios tras la revisión visual); [0020](../preguntas/0020-huecos-ux-de-la-separacion-fase-3.md) (estados de separación de la Fase 3; respondida)
 - Revisión visual de la Fase 1: [revision-fase-1/](revision-fase-1/README.md) (2026-11-04)
 
 ## Objetivo
@@ -85,7 +85,10 @@ Se muestra el **primer paso no completado** con prioridad para trabajos activos 
 | Fuente pendiente **sin** trabajo vivo, archivo local | Falta preparar el audio | botón Continuar |
 | Fuente pendiente **sin** trabajo vivo, YouTube (descarga cancelada) | Falta descargar el audio | botón Continuar (abre la spec 03, wireframe E) |
 | Separación pendiente **sin** trabajo vivo | Falta separar las pistas | botón Continuar |
+| Separación descargando el modelo (fase `descargando_modelo`, [0020](../preguntas/0020-huecos-ux-de-la-separacion-fase-3.md) §2) | ⟳ Descargando el modelo 34 % | barra determinada, sin tiempo |
 | Separación cargando modelo | ⟳ Preparando la separación… | barra indeterminada |
+| Separación: reintento automático por memoria | ⟳ Reintentando la separación… | barra indeterminada |
+| Descarga de YouTube: espera antes de un reintento de red (0020 §4) | ⟳ Reintentando en {n} s… | sin barra; la cuenta atrás se actualiza cada segundo |
 | Separando | ⟳ Separando 42 % · quedan unos 3 min | barra |
 
 Tiempo restante en la tarjeta (`bib.eta`, forma corta): «quedan unos {n} min» (n ≥ 2) · «queda alrededor de 1 min» · «queda menos de 1 min». Sin estimación todavía no se muestra tiempo. «En cola» y los estados ⟳ (color `info`) **solo** con un trabajo vivo en el gestor; un paso `pendiente` persistido sin trabajo se muestra como «Falta …» en `texto-2` sin icono. El icono de «en cola» es `clock` (no ⏸, que sugiere una pausa del usuario).
@@ -167,6 +170,9 @@ Una canción `lista` en la que, tras editarla, hay líneas (no pausas) sin tiemp
 | `bib.paso.falta.descarga` | Falta descargar el audio |
 | `bib.paso.actualizando` | Actualizando el descargador… |
 | `bib.paso.falta.separacion` | Falta separar las pistas |
+| `bib.paso.modelo` | Descargando el modelo {n} % |
+| `bib.paso.reintento.memoria` | Reintentando la separación… |
+| `bib.paso.reintento.red` | Reintentando en {n} s… |
 | `bib.eta` | quedan unos {n} min · queda alrededor de 1 min · queda menos de 1 min |
 | `bib.dialogo.eliminar` | ¿Eliminar «{título}»? Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí. |
 | `bib.dialogo.eliminar.trabajo` | (se añade al texto de eliminar) Se cancelará la separación en curso. · Se cancelará la descarga en curso. |
@@ -203,3 +209,4 @@ Revisión 2026-11-04 de los textos escritos en las tareas 0019/0020 sin estar en
 15. La portada usa el estilo de la canción (fondo + fuente + color de letra) o, en canciones de YouTube sin estilo modificado (estilo igual al predeterminado de fábrica **o** al predeterminado vigente del usuario; deja de valer en cuanto se edita en el Editor), la miniatura con velo `rgba(0,0,0,0.5)` y el título en `texto-1`.
 16. Un borrador de YouTube con la fuente `pendiente` y sin trabajo vivo muestra «Falta descargar el audio» en `texto-2` sin icono y "Continuar", que abre el paso 1 (spec 03, wireframe E); durante la actualización automática de yt-dlp la línea de paso es «⟳ Actualizando el descargador…» con barra indeterminada ([0013](../preguntas/0013-huecos-ux-de-la-fase-2.md) §1, §4).
 17. Una canción de YouTube sin `fuente/miniatura.jpg` (o cuya miniatura no carga) usa la portada del estilo como cualquier otra canción, sin marcador ni aviso.
+18. Durante la fase `descargando_modelo` de una separación, la tarjeta muestra `bib.paso.modelo` con barra determinada; durante un reintento automático por memoria, `bib.paso.reintento.memoria`; durante la espera de un reintento de red de una descarga, `bib.paso.reintento.red` con la cuenta atrás. Ninguno se muestra como error. "Re-separar pistas" sigue disponible **solo** en canciones Dañadas sin pistas: no se ofrece para canciones separadas con el modelo Rápido ([0020](../preguntas/0020-huecos-ux-de-la-separacion-fase-3.md) §3).

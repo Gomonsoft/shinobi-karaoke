@@ -19,6 +19,21 @@ async function hasta(cond: () => boolean): Promise<void> {
   expect(cond()).toBe(true)
 }
 
+/**
+ * Espera con el bucle real (setImmediate), válida también con temporizadores falsos. Los tests
+ * sensibles al tiempo usan `vi.useFakeTimers` y avanzan el reloj a mano: `setTimeout` real puede
+ * disparar antes de lo medido con `Date.now()` (el reloj de libuv se cachea por iteración) y,
+ * con la suite en paralelo, ese desfase superaba el margen de las aserciones.
+ */
+async function hastaInmediato(cond: () => boolean): Promise<void> {
+  const limite = performance.now() + 5000
+  while (!cond() && performance.now() < limite) await new Promise((r) => setImmediate(r))
+  expect(cond()).toBe(true)
+}
+const relojFalso = (): void => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+}
+
 /** uv falso: cada llamada espera a que el test la resuelva o la cancelen por la señal. */
 function uvFalso() {
   interface Llamada {
@@ -227,12 +242,15 @@ describe('actualizarYtDlp', () => {
   })
 
   it('límite de 5 min: mata uv (señal) y lo trata como interrupción con el marcador', async () => {
+    relojFalso()
     const { act, uv } = montar({ limiteMs: 60 })
     const p = act.actualizar()
     const rechazo = expect(p).rejects.toMatchObject({ message: expect.stringContaining('5 min') })
-    await hasta(() => uv.llamadas.length === 1)
+    await hastaInmediato(() => uv.llamadas.length === 1)
+    await vi.advanceTimersByTimeAsync(59)
     expect(uv.llamadas[0]!.opciones.señal?.aborted).toBe(false)
-    await hasta(() => uv.llamadas[0]!.opciones.señal?.aborted === true)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(uv.llamadas[0]!.opciones.señal?.aborted).toBe(true)
     await rechazo
     expect(existsSync(rutaMarcadorYtdlp(dir))).toBe(true)
   })
@@ -248,13 +266,18 @@ describe('actualizarYtDlp', () => {
   })
 
   it('cerrar: espera a uv hasta el plazo y después lo mata', async () => {
+    relojFalso()
     const { act, uv } = montar({ esperaCierreMs: 30 })
     const p = act.actualizar()
     const rechazo = expect(p).rejects.toBeDefined()
-    await hasta(() => uv.llamadas.length === 1)
-    const t0 = Date.now()
-    await act.cerrar()
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(25)
+    await hastaInmediato(() => uv.llamadas.length === 1)
+    const c = act.cerrar()
+    // Temporizadores pendientes: el límite de la actualización y el plazo de cierre.
+    await hastaInmediato(() => vi.getTimerCount() === 2)
+    await vi.advanceTimersByTimeAsync(29)
+    expect(uv.llamadas[0]!.opciones.señal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await c
     expect(uv.llamadas[0]!.opciones.señal?.aborted).toBe(true)
     await rechazo
     expect(existsSync(rutaMarcadorYtdlp(dir))).toBe(true)
@@ -289,15 +312,19 @@ describe('actualizarYtDlp', () => {
   })
 
   it('en desarrollo es un no-op registrado que respeta el cerrojo, el marcador y el retardo', async () => {
+    relojFalso()
     const registrar = vi.fn()
     const alCompletar = vi.fn()
     const { act, uv } = montar({ noop: true, retardoNoopMs: 60, registrar, alCompletar })
-    const t0 = Date.now()
-    const p = act.actualizar()
-    await reposo()
+    let resuelto = false
+    const p = act.actualizar().finally(() => (resuelto = true))
+    // Temporizadores pendientes: el límite de la actualización y el retardo simulado.
+    await hastaInmediato(() => vi.getTimerCount() === 2)
     expect(await hayMarcadorYtdlp(dir)).toBe(true)
+    await vi.advanceTimersByTimeAsync(59)
+    expect(resuelto).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
     const r = await p
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(55)
     expect(r).toMatchObject({ noop: true, anterior: '2025.1.1', nueva: '2025.1.1' })
     expect(uv.llamadas).toHaveLength(0)
     expect(await hayMarcadorYtdlp(dir)).toBe(false)

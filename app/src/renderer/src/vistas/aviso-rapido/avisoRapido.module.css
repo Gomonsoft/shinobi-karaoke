@@ -1,0 +1,45 @@
+.motivo {
+  margin: 0 0 var(--e-2);
+  font-weight: 600;
+}
+
+.cuerpo {
+  margin: 0 0 var(--e-3);
+}
+
+.recuadro {
+  margin-bottom: var(--e-3);
+  padding: var(--e-3) var(--e-4);
+  border-left: 3px solid var(--aviso);
+  border-radius: var(--r-s);
+  background: var(--aviso-tenue);
+}
+
+.recuadroTitulo {
+  margin: 0 0 var(--e-2);
+  color: var(--aviso);
+  font-weight: 600;
+}
+
+.lista {
+  margin: 0 0 var(--e-2);
+  padding-left: var(--e-4);
+}
+
+.lista li {
+  margin-bottom: var(--e-1);
+}
+
+.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.alcance {
+  margin: 0;
+}

@@ -2,15 +2,15 @@ import { promises as fsp } from 'node:fs'
 import { join } from 'node:path'
 import {
   esCodigoError,
-  modeloDelPerfil,
   requisitosDe,
   type CodigoError,
+  type Config,
   type Manifiesto,
   type ModeloManifiesto,
   type PerfilHardware,
   type Plataforma
 } from '../../shared'
-import type { ServicioConfig } from '../configuracion'
+import { modoSeparacionVigente, type ServicioConfig } from '../configuracion'
 import { escribirJsonAtomico, leerJson } from '../persistencia'
 import type { RegistroApp } from '../registro/registroApp'
 import { EstimadorProgreso } from '../trabajos/progreso'
@@ -250,15 +250,33 @@ export interface DependenciasGestor {
 }
 
 export interface GestorRuntime {
-  /** Instala (o continúa). Llamadas concurrentes devuelven la misma promesa. */
-  instalar(): Promise<ResultadoInstalacion>
+  /**
+   * Instala (o continúa). Llamadas concurrentes devuelven la misma promesa. `modelo: 'rapido'`
+   * (solo con `rapido_aceptado`, 0057) descarga Rápido en la fase de modelo y, ya verificado, fija
+   * `separacion.modo = 'rapido'`.
+   */
+  instalar(opciones?: OpcionesInstalar): Promise<ResultadoInstalacion>
   reintentar(): Promise<ResultadoInstalacion>
   /** Cancela lo que esté en curso; resuelve cuando no queda ningún proceso hijo. */
   pausar(): Promise<void>
   instalando(): boolean
+  /**
+   * Descarga un modelo suelto, con progreso. `rapido` sin `rapido_aceptado` lanza
+   * `ARGUMENTOS_NO_VALIDOS`.
+   */
+  descargarModelo(
+    id: ModeloManifiesto['id'],
+    señal?: AbortSignal,
+    alProgreso?: (p: { bytes: number; total: number }) => void
+  ): Promise<void>
   /** Comprobación de arranque (ADR 0009 §6): barata si `completa`; verificación completa si no. */
   comprobarAlArrancar(): Promise<ResultadoComprobacion>
   suscribir(cb: (p: ProgresoRuntime) => void): () => void
+}
+
+export interface OpcionesInstalar {
+  /** Modelo que descarga la fase de modelo en vez del vigente (solo `rapido`, 0057). */
+  modelo?: ModeloManifiesto['id']
 }
 
 class Pausa extends Error {}
@@ -287,7 +305,49 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       () => false
     )
 
-  async function ejecutar(señal: AbortSignal): Promise<ResultadoInstalacion> {
+  /** Modelo del modo vigente: Calidad, o Rápido solo con `modo === 'rapido'` y consentimiento. */
+  function modeloVigente(cfg: Config = deps.config.obtener()): ModeloManifiesto | undefined {
+    const id = modoSeparacionVigente(cfg)
+    return deps.manifiesto.modelos.find((m) => m.id === id)
+  }
+
+  /** Defensa: Rápido nunca se descarga sin el consentimiento guardado. */
+  function exigirConsentimiento(id: ModeloManifiesto['id']): void {
+    if (id === 'rapido' && deps.config.obtener().separacion.rapido_aceptado === null)
+      throw new ErrorRuntime(
+        'ARGUMENTOS_NO_VALIDOS',
+        'El modelo Rápido solo se descarga con el consentimiento del usuario'
+      )
+  }
+
+  /** Descarga un modelo suelto (Rápido solo con consentimiento; lo usa 0057). */
+  async function descargarModelo(
+    id: ModeloManifiesto['id'],
+    señal?: AbortSignal,
+    alProgreso?: (p: { bytes: number; total: number }) => void
+  ): Promise<void> {
+    exigirConsentimiento(id)
+    const modelo = deps.manifiesto.modelos.find((m) => m.id === id)
+    if (!modelo) throw new ErrorRuntime('MODELO_NO_DISPONIBLE', `El manifiesto no tiene ${id}`)
+    await deps.descargador.descargar(modelo, {
+      dirModelos,
+      ...(señal ? { señal } : {}),
+      ...(alProgreso ? { alProgreso } : {}),
+      ...(deps.registro ? { registro: deps.registro } : {})
+    })
+    const lista = deps.config.obtener().separacion.modelos_descargados
+    await deps.config.actualizar({
+      separacion: { modelos_descargados: [...new Set([...lista, modelo.id])] }
+    })
+  }
+
+  async function ejecutar(
+    señal: AbortSignal,
+    forzado?: ModeloManifiesto['id']
+  ): Promise<ResultadoInstalacion> {
+    // Modelo de la fase de modelo: el pedido (Rápido tras el consentimiento) o el vigente.
+    const modeloObjetivo = (): ModeloManifiesto | undefined =>
+      forzado ? deps.manifiesto.modelos.find((m) => m.id === forzado) : modeloVigente()
     const cfg0 = deps.config.obtener()
     const previos = await deps.deteccion.requisitosPrevios()
     const plataforma = previos.plataforma
@@ -307,13 +367,10 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
     let motivo: MotivoRebaja | null = cfg0.instalacion.motivo_rebaja
     const totales: Record<FaseVisible, number> = { motor: 0, componentes: 0, modelo: 0 }
     const hechos: Record<FaseVisible, number> = { motor: 0, componentes: 0, modelo: 0 }
-    const modeloDe = (p: PerfilHardware): ModeloManifiesto | undefined =>
-      deps.manifiesto.modelos.find((m) => m.id === modeloDelPerfil(p))
     const recalcularTotales = (): void => {
       totales.motor = plataforma ? (deps.manifiesto.python.bytes_descarga[plataforma] ?? 0) : 0
       totales.componentes = req?.bytes_descarga ?? 0
-      const p = perfilFinal ?? perfilInstalado
-      const m = p ? modeloDe(p) : undefined
+      const m = modeloObjetivo()
       totales.modelo = m ? totalModelo(m) : 0
       for (const f of FASES_VISIBLES) if (estados[f] === 'completada') hechos[f] = totales[f]
     }
@@ -347,7 +404,6 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         etaMostrada = eta
         etaDesde = t
       }
-      const p = perfilFinal ?? perfilInstalado
       const evento: ProgresoRuntime = {
         faseVisible: faseActual,
         estados: { ...estados },
@@ -356,7 +412,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         totalGlobal,
         porcentajeGlobal: porcentaje,
         etaSegundos: etaMostrada,
-        modo: p === null ? null : modeloDelPerfil(p) === 'calidad' ? 'calidad' : 'rapido',
+        modo: forzado ?? modoSeparacionVigente(deps.config.obtener()),
         motivoRebaja: motivo,
         comprobando,
         verificando: false
@@ -457,7 +513,9 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
     const conMedicion = async <T>(
       fase: FaseVisible,
       medir: () => Promise<number>,
-      fn: () => Promise<T>
+      fn: () => Promise<T>,
+      /** Bytes que mide `medir` al terminar la fase (por defecto, los de la interfaz). */
+      denominador?: number
     ): Promise<T> => {
       let vivo = true
       let midiendo = false
@@ -468,7 +526,10 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         medir()
           .then((b) => {
             if (!vivo) return
-            hechos[fase] = Math.max(hechos[fase], Math.min(b, tope))
+            // Se convierte proporcionalmente a la cifra que ve el usuario (bytes_descarga).
+            const escalado =
+              denominador !== undefined && denominador > 0 ? (b * totales[fase]) / denominador : b
+            hechos[fase] = Math.max(hechos[fase], Math.min(escalado, tope))
             publicar()
           })
           .catch(() => undefined)
@@ -564,7 +625,9 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
                   '-r',
                   join(deps.raizRecursos, req.requisitos)
                 ])
-              }
+              },
+              // La caché de uv va descomprimida: su progreso se mide contra bytes_cache.
+              req.bytes_cache ?? req.bytes_descarga
             )
             const nuevo: Marcador = {
               manifiesto_version: deps.manifiesto.version,
@@ -602,7 +665,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
                 hardware: { gpu: d.gpu, vram_mb: d.vram_mb }
               }
             })
-            recalcularTotales() // si rebajó, el modelo es el Rápido y el total baja
+            recalcularTotales() // la rebaja cuda → cpu no cambia el modelo (Calidad): el total no baja
           } catch (e) {
             if (señal.aborted) throw new Pausa()
             const err = e as { codigo?: string; mensaje?: string; message?: string }
@@ -618,11 +681,10 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       }
 
       // ---- 5. Modelo --------------------------------------------------------
-      const finalPerfil = perfilFinal ?? perfilInstalado
-      const modelo = modeloDe(finalPerfil)
+      const modelo = modeloObjetivo()
       if (!modelo) {
         throw Object.assign(
-          new ErrorRuntime('MODELO_NO_DISPONIBLE', 'El manifiesto no tiene el modelo del perfil'),
+          new ErrorRuntime('MODELO_NO_DISPONIBLE', 'El manifiesto no tiene el modelo vigente'),
           {
             fase: 'modelo'
           }
@@ -636,6 +698,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         estados.modelo = 'pendiente'
         hechos.modelo = 0
         await fase('modelo', async () => {
+          exigirConsentimiento(modelo.id)
           await limpiarModelos(dirModelos)
           await comprobarEspacio(totalModelo(modelo) - (await deps.medidor.bytes(dirModelos)))
           await deps.descargador.descargar(modelo, {
@@ -654,6 +717,10 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         })
       }
 
+      // Rápido ya descargado y verificado: solo ahora pasa a ser el modo (0057).
+      if (forzado && modoSeparacionVigente(deps.config.obtener()) !== forzado) {
+        await deps.config.actualizar({ separacion: { modo: forzado } })
+      }
       await deps.config.actualizar({
         instalacion: {
           estado: 'completa',
@@ -724,16 +791,13 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       plataforma !== null && perfilPrev !== null
         ? requisitosDe(deps.manifiesto, plataforma, perfilPrev)
         : null
-    const modeloDe = (p: PerfilHardware): ModeloManifiesto | undefined =>
-      deps.manifiesto.modelos.find((m) => m.id === modeloDelPerfil(p))
     const marcador = await leerMarcador(dirRuntime)
     const hayVenv = await existe(python)
 
     // ---- completa: comprobación barata -------------------------------------
     if (cfg.instalacion.estado === 'completa') {
       let motivo: 'venv' | 'marcador' | 'modelo' | null = null
-      const final = cfg.instalacion.perfil_hardware ?? perfilPrev
-      const modelo = final ? modeloDe(final) : undefined
+      const modelo = modeloVigente(cfg)
       if (!hayVenv) motivo = 'venv'
       else if (
         plataforma === null ||
@@ -811,7 +875,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         log('info', `Verificación del runtime: diagnóstico fallido (${ahora() - t0} ms)`)
         return { resultado: 'pendiente' }
       }
-      const modelo = modeloDe(diag.perfil)
+      const modelo = modeloVigente(deps.config.obtener())
       const modeloOk = modelo !== undefined && validos.includes(modelo.id)
       await deps.config.actualizar({
         instalacion: {
@@ -839,11 +903,18 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
     }
   }
 
-  function instalar(): Promise<ResultadoInstalacion> {
+  function instalar(opciones: OpcionesInstalar = {}): Promise<ResultadoInstalacion> {
     if (actual) return actual
+    if (opciones.modelo) {
+      try {
+        exigirConsentimiento(opciones.modelo)
+      } catch (e) {
+        return Promise.reject(e instanceof Error ? e : new Error(String(e)))
+      }
+    }
     const ctrl = new AbortController()
     control = ctrl
-    actual = ejecutar(ctrl.signal).finally(() => {
+    actual = ejecutar(ctrl.signal, opciones.modelo).finally(() => {
       actual = null
       control = null
     })
@@ -852,7 +923,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
 
   return {
     instalar,
-    reintentar: instalar,
+    reintentar: () => instalar(),
     async pausar() {
       const en = actual
       if (!en) return
@@ -860,6 +931,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       await en.catch(() => undefined)
     },
     instalando: () => actual !== null,
+    descargarModelo,
     comprobarAlArrancar,
     suscribir(cb) {
       oyentes.add(cb)

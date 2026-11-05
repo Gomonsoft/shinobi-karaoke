@@ -47,7 +47,12 @@ export type EstadoPaso = (typeof ESTADOS_PASO)[number]
 export const errorPasoSchema = z.object({
   /** Código estable (errores.ts); se toleran desconocidos. */
   codigo: z.string().min(1),
-  mensaje: z.string()
+  mensaje: z.string(),
+  /**
+   * Solo `separacion` (0066): modelo con el que falló. La oferta del modelo Rápido exige
+   * `calidad`. Ausente en canciones anteriores: sin oferta.
+   */
+  modelo: z.enum(['calidad', 'rapido']).optional()
 })
 
 export const pasoSchema = z.object({
@@ -55,7 +60,9 @@ export const pasoSchema = z.object({
   actualizado: fechaIso.nullable(),
   error: errorPasoSchema.nullable(),
   /** 0–1; solo en pasos con trabajo en segundo plano. */
-  progreso: z.number().min(0).max(1).nullable().optional()
+  progreso: z.number().min(0).max(1).nullable().optional(),
+  /** Solo `separacion` completada: segundos reales que tardó (0069). Ausente en canciones antiguas. */
+  segundos: z.number().nonnegative().nullable().optional()
 })
 
 export const NOMBRES_PASO = ['fuente', 'separacion', 'letra', 'edicion'] as const

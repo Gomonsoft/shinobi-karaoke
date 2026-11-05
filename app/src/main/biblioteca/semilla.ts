@@ -154,7 +154,7 @@ export async function sembrar(
         fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
         perfil_hardware: 'cpu'
       },
-      separacion: { modelos_descargados: ['rapido'] }
+      separacion: { modelos_descargados: ['calidad'] }
     })
     await writeFile(rutaConfig, JSON.stringify(config, null, 2) + '\n')
   }

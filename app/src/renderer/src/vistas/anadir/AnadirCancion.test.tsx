@@ -39,6 +39,7 @@ function montar(
     iniciales?: DatosInicialesAnadir
     importar?: () => Promise<ImportacionLeidaIpc>
     elegida?: string | null
+    estimar?: () => Promise<{ min: number; max: number; origen: string } | null>
   } = {}
 ) {
   const api = {
@@ -52,6 +53,7 @@ function montar(
       confirmarArchivo: vi.fn().mockResolvedValue(resumenPrueba({ id: 'nueva' })),
       descartarImportacion: vi.fn().mockResolvedValue(undefined)
     },
+    runtime: { estimarSeparacion: vi.fn(o.estimar ?? (() => Promise.resolve(null))) },
     rutaDeArchivo: (f: File) => `/soltados/${f.name}`
   }
   window.shinobi = api as never
@@ -179,7 +181,21 @@ describe('AnadirCancion (archivo)', () => {
     await waitFor(() => expect(api.fuente.confirmarArchivo).toHaveBeenCalled())
   })
 
-  it('canción de más de 10 min: aviso sin cifra (0036 pendiente) y se puede continuar', async () => {
+  it('canción de más de 10 min: aviso con la cifra de la estimación y se puede continuar', async () => {
+    const { api } = montar({
+      importar: () => Promise.resolve(leida({ duracionMs: 760_000, larga: true })),
+      estimar: () => Promise.resolve({ min: 12, max: 16, origen: 'referencia_medida' })
+    })
+    await elegir()
+    expect(
+      await screen.findByText(
+        'Esta canción dura 12:40. Separarla tardará más de lo normal (unos 14 minutos en tu equipo).'
+      )
+    ).toBeInTheDocument()
+    expect(api.runtime.estimarSeparacion).toHaveBeenCalledWith(760_000)
+  })
+
+  it('canción de más de 10 min sin estimación: aviso sin cifra y se puede continuar', async () => {
     const { api } = montar({
       importar: () => Promise.resolve(leida({ duracionMs: 760_000, larga: true }))
     })

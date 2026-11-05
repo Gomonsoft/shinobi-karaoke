@@ -199,3 +199,8 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Línea de la oferta del modelo Rápido dentro del banner de B4 (0057). */
+.oferta {
+  margin: var(--e-2) 0 0;
+}

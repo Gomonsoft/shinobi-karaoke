@@ -52,3 +52,9 @@ def resultado(datos: dict[str, Any]) -> None:
 
 def error(codigo: str, mensaje: str, reintentable: bool = False) -> None:
     _emitir({"tipo": "error", "codigo": codigo, "mensaje": mensaje, "reintentable": reintentable})
+
+
+# Fases de progreso que emite `separar` (tarea 0059). Debe coincidir con `FASES_SEPARACION_WORKER`
+# de `app/src/shared/protocolo.ts` (lo comprueba un test de Vitest que lee este archivo). Las fases
+# `descargando_modelo` y `reintentando` las emite el proceso principal.
+FASES_SEPARACION = ("preparando", "cargando_modelo", "separando", "guardando")

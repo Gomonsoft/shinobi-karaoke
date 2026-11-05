@@ -3,7 +3,7 @@ import {
   bytesTotalesInstalacion,
   estimarMinutosSeparacion,
   manifiestoSchema,
-  modeloDelPerfil,
+  MODELO_POR_DEFECTO,
   requisitosDe,
   type Manifiesto
 } from './manifiesto'
@@ -98,11 +98,9 @@ describe('manifiestoSchema', () => {
   })
 })
 
-describe('modeloDelPerfil', () => {
-  it('cuda y mps → calidad; cpu → rapido', () => {
-    expect(modeloDelPerfil('cuda')).toBe('calidad')
-    expect(modeloDelPerfil('mps')).toBe('calidad')
-    expect(modeloDelPerfil('cpu')).toBe('rapido')
+describe('MODELO_POR_DEFECTO', () => {
+  it('es Calidad para todos los perfiles, también cpu', () => {
+    expect(MODELO_POR_DEFECTO).toBe('calidad')
   })
 })
 
@@ -121,9 +119,9 @@ describe('requisitosDe', () => {
 
 describe('bytesTotalesInstalacion', () => {
   const m = crearManifiesto()
-  it('Python + dependencias + modelo del perfil (con extras)', () => {
+  it('Python + dependencias + modelo Calidad (con extras), también en cpu', () => {
     expect(bytesTotalesInstalacion(m, 'darwin-arm64', 'mps')).toBe(24e6 + 296e6 + 913e6 + 944)
-    expect(bytesTotalesInstalacion(m, 'win32-x64', 'cpu')).toBe(30e6 + 283e6 + 59e6)
+    expect(bytesTotalesInstalacion(m, 'win32-x64', 'cpu')).toBe(30e6 + 283e6 + 913e6 + 944)
   })
   it('null si no está soportado', () => {
     expect(bytesTotalesInstalacion(m, 'linux-x64', 'cpu')).toBeNull()

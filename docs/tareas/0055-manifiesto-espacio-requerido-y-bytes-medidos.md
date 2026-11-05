@@ -1,5 +1,5 @@
 # 0055 — Manifiesto: `espacio_requerido` de 4 GB en CPU, `bytes_disco` medidos y `bytes_cache` para el progreso
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0030, 0034, 0040 (Hechas)
 - ADRs: 0009 (Revisiones 2026-11-05)
@@ -26,4 +26,10 @@ Llevar al manifiesto lo decidido en `preguntas/0018` (puntos 1 y 3) y corregir e
 - [ ] README "Requisitos del equipo" ya dice 4 GB: solo se comprueba que no contradice al manifiesto.
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- Manifiesto (`app/resources/runtime-manifest.json`): `espacio_requerido` 4 GB en `win32-x64.cpu` y `linux-x64.cpu`; `bytes_disco` y `bytes_cache` con los valores de la tarea (`cuda`: `bytes_cache: null`); `medido` y `version` sin cambios. Los `bytes_disco` de darwin pasan de 1280000000 a 1205000000.
+- `app/src/shared/manifiesto.ts`: campo opcional `bytes_cache` documentado en `requisitosPerfilSchema`.
+- `app/src/main/runtime/gestor.ts`: `conMedicion` acepta un `denominador` opcional; en `componentes` es `bytes_cache ?? bytes_descarga` y los bytes medidos se convierten proporcionalmente a `bytes_descarga` (tope 99 % como antes).
+- Tests: `gestor.test.ts` (bytes_cache = 4 x descarga, caché al 50 % publica ~50 %), `manifiestoReal.test.ts` (valores nuevos, linux-x64 + cpu pide 4 GB), `deteccion.test.ts` (4 GB).
+- Los 3 GB que quedan en `App.test.tsx`/`PrimerArranque.test.tsx` son fixtures de IPC independientes del manifiesto; el README ya decía 4 GB.
+- Verificación: lint, typecheck, format:check y Playwright (36 OK) pasan. En vitest solo fallan pruebas ligadas a la 0056 (Calidad por defecto en CPU), no a esta tarea.
+- Deuda: `medido` de Windows/Linux CPU sigue en `false` hasta 0058.

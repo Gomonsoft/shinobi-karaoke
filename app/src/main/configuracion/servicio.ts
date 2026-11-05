@@ -32,15 +32,23 @@ function fusionar(base: unknown, parcial: unknown): unknown {
 }
 
 /**
- * Modo de separación efectivo (ADR 0006): `modo` si no es `automatico`; si no,
- * el del perfil (`cuda`/`mps` → calidad, `cpu` → rapido). Sin perfil detectado
- * aún se elige el conservador (rapido).
+ * Modelo vigente (ADR 0004, Revisiones 2026-11-05): `calidad`, salvo que el usuario haya aceptado
+ * usar Rápido (`rapido_aceptado`) y lo tenga como `modo`. Nunca `rapido` sin consentimiento.
+ */
+export function modoSeparacionVigente(config: Config): ModoSeparacion {
+  const { modo, rapido_aceptado } = config.separacion
+  return modo === 'rapido' && rapido_aceptado !== null ? 'rapido' : 'calidad'
+}
+
+/**
+ * Modo de separación efectivo: el vigente, y Calidad si el vigente es Rápido pero ese modelo
+ * no está descargado.
  */
 export function modoSeparacionEfectivo(config: Config): ModoSeparacion {
-  const { modo } = config.separacion
-  if (modo !== 'automatico') return modo
-  const perfil = config.instalacion.perfil_hardware
-  return perfil === 'cuda' || perfil === 'mps' ? 'calidad' : 'rapido'
+  const modo = modoSeparacionVigente(config)
+  return modo === 'rapido' && !config.separacion.modelos_descargados.includes('rapido')
+    ? 'calidad'
+    : modo
 }
 
 export interface OpcionesServicioConfig {

@@ -88,6 +88,21 @@ Requisitos mínimos orientativos: 8 GB de RAM; para el perfil Calidad en GPU, �
   - El usuario puede querer escuchar voz e instrumental para comprobar el resultado.
 
 ## Revisiones
+- 2026-11-05 bis (desglose de la Fase 3, tareas 0059–0076; respuestas a [`preguntas/0020`](../preguntas/0020-huecos-ux-de-la-separacion-fase-3.md) y [`0021`](../preguntas/0021-detalles-tecnicos-de-la-oferta-de-rapido-y-volver-a-calidad.md)). Decisiones de detalle de la implementación:
+  1. **Salida temporal**: el worker escribe en `biblioteca/<id>/pistas.tmp/`. El main la mueve a `pistas/` solo al terminar bien, y la borra al cancelar, al fallar y al arrancar. "Re-separar" no toca las pistas anteriores hasta tener las nuevas.
+  2. **Modelo que falta al separar**: el main lo comprueba antes de lanzar el worker y lo vuelve a descargar dentro del mismo trabajo (fase `descargando_modelo`, reanudable). audio-separator nunca descarga modelos. Si la descarga falla → `MODELO_NO_DISPONIBLE` (con oferta de Rápido salvo `SIN_CONEXION`). Un checkpoint corrupto se borra y se descarga una vez.
+  3. **Reintentos por memoria**:
+     - intento 2: mismo modelo y dispositivo, con bloques pequeños (mitad de `segment_size`, `batch_size = 1`);
+     - intento 3, solo si era CUDA: CPU con bloques pequeños;
+     - un proceso muerto por el sistema sin línea de error (`PROCESO_TERMINADO`, p. ej. el OOM killer de Linux) cuenta como memoria.
+     - La oferta de Rápido solo aparece si el trabajo usaba Calidad.
+  4. **Modo y dispositivo** se leen cuando el trabajo **empieza**, no al encolarlo. El trabajo publica el modelo y el dispositivo realmente usados.
+  5. **Progreso**: el main interpola entre los eventos de `tqdm` con el ritmo esperado (duración × factor) y combina la ETA estimada con la observada (tarea 0064). El factor medido se guarda como media móvil (α = 0,5) solo si el trabajo no cambió de dispositivo.
+  6. **Rápido pendiente** (aceptado, pero su descarga no terminó): permite reintentar la descarga sin repetir el diálogo. Se deriva de `config.json` (`rapido_aceptado` + `modo === 'calidad'` + Rápido no descargado). **"Volver a Calidad"** es una operación del runtime (no un trabajo): se ve en su estado, no cuenta para el diálogo de cierre y se aborta al salir conservando el `.descarga`.
+  7. **Pruebas**:
+     - la CI normal no instala PyTorch ni descarga modelos. Usa un separador falso (`SHINOBI_SEPARADOR_FALSO`, solo sin empaquetar) y un test de contrato del adaptador con un `audio_separator` de prueba y el PATH sin ffmpeg en los 3 SO;
+     - la prueba con el audio-separator real y el modelo Calidad (`pesado`, también sin ffmpeg) corre en el workflow manual `runtime-real`, obligatorio antes de actualizar audio-separator, torch u onnxruntime.
+  8. **Re-separar** solo canciones dañadas sin pistas. Re-separar con Calidad las separadas con Rápido sigue fuera del MVP (`preguntas/0020` §3).
 - 2026-11-05 (decisiones del usuario en [`preguntas/0018`](../preguntas/0018-datos-reales-del-runtime-y-espacio-en-linux.md); sustituye la selección del modelo por perfil):
   1. **Modelo por defecto: Calidad (MelBand RoFormer, MIT) en todos los perfiles**, también solo CPU. El perfil (`cuda`/`mps`/`cpu`) decide solo **dónde** se ejecuta: CUDA si existe; en otro caso, CPU (Apple Silicon también, `preguntas/0010`). En el primer arranque siempre se descarga Calidad. Si el diagnóstico rebaja `cuda` → `cpu`, se separa con Calidad en CPU: rebajar ya no cambia el modelo.
   2. **Rápido (`UVR-MDX-NET-Inst_HQ_4`, licencia no declarada, `preguntas/0012`) solo con consentimiento explícito.**

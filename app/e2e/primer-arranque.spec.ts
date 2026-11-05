@@ -81,7 +81,7 @@ const leerConfig = (datos: string): ReturnType<typeof configPredeterminada> =>
 
 const BIENVENIDA = 'Hola. Vamos a preparar tu estudio de karaoke.'
 
-/** Artefactos de un runtime ya instalado (Linux x64, perfil cpu, modelo Rápido diminuto). */
+/** Artefactos de un runtime ya instalado (Linux x64, perfil cpu, modelo Calidad diminuto). */
 function instalarRuntimeEnDisco(datos: string, conModelo: boolean): void {
   const req = requisitosDe(manifiesto, 'linux-x64', 'cpu')
   if (!req) throw new Error('manifiesto sin linux-x64/cpu')
@@ -100,16 +100,19 @@ function instalarRuntimeEnDisco(datos: string, conModelo: boolean): void {
     })
   )
   if (conModelo) {
-    const rapido = manifiestoParaEscenario(manifiesto, { modelos: 'diminutos' }).modelos.find(
-      (m) => m.id === 'rapido'
+    const calidad = manifiestoParaEscenario(manifiesto, { modelos: 'diminutos' }).modelos.find(
+      (m) => m.id === 'calidad'
     )
-    if (!rapido) throw new Error('manifiesto sin modelo rápido')
+    if (!calidad) throw new Error('manifiesto sin modelo calidad')
     mkdirSync(join(datos, 'modelos'), { recursive: true })
-    writeFileSync(join(datos, 'modelos', rapido.archivo), contenidoDiminuto(rapido.archivo))
+    // El principal y sus archivos extra (el .yaml de Calidad), también diminutos.
+    for (const archivo of [calidad.archivo, ...calidad.extra.map((x) => x.archivo)]) {
+      writeFileSync(join(datos, 'modelos', archivo), contenidoDiminuto(archivo))
+    }
   }
 }
 
-/** Escribe un `config.json` con la instalación completa (perfil cpu, modelo Rápido). */
+/** Escribe un `config.json` con la instalación completa (perfil cpu, modelo Calidad). */
 function escribirConfigCompleta(datos: string): void {
   const config = configPredeterminada()
   config.instalacion.estado = 'completa'
@@ -121,7 +124,7 @@ function escribirConfigCompleta(datos: string): void {
     componentes: 'completada',
     modelo: 'completada'
   }
-  config.separacion.modelos_descargados = ['rapido']
+  config.separacion.modelos_descargados = ['calidad']
   mkdirSync(datos, { recursive: true })
   writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
 }
@@ -145,17 +148,19 @@ test('1. CPU, todo bien: B1 con las cifras del manifiesto, B2, B3 y la Bibliotec
     ]) {
       await expect(v.getByText(fase).first()).toBeVisible()
     }
-    await expect(v.getByText(/separaremos las pistas en modo Rápido/).first()).toBeVisible()
+    await expect(
+      v.getByText(/separaremos las pistas con el modelo Calidad usando el procesador/).first()
+    ).toBeVisible()
 
     await expect(v.getByRole('heading', { name: 'Todo listo' })).toBeVisible()
-    await expect(v.getByText('Modo de separación: Rápido.')).toBeVisible()
+    await expect(v.getByText('Modelo de separación: Calidad, con el procesador.')).toBeVisible()
     await v.getByRole('button', { name: 'Empezar' }).click()
     await expect(v.getByRole('heading', { name: 'Tu biblioteca está vacía' })).toBeVisible()
 
     const cfg = leerConfig(e.datos)
     expect(cfg.instalacion.estado).toBe('completa')
     expect(cfg.instalacion.perfil_hardware).toBe('cpu')
-    expect(cfg.separacion.modelos_descargados).toEqual(['rapido'])
+    expect(cfg.separacion.modelos_descargados).toEqual(['calidad'])
     expect(cuenta(e, 'uv', 'python install')).toBe(1)
     expect(cuenta(e, 'descarga')).toBe(1)
   } finally {
@@ -243,7 +248,7 @@ test('4. Pausar y salir durante el modelo cierra la app; al relanzar, B5 contin�
   }
 })
 
-test('5. Rebaja cuda -> cpu por memoria: aviso, el total baja y el porcentaje no retrocede', async () => {
+test('5. Rebaja cuda -> cpu por memoria: aviso, sigue Calidad (el total no baja) y el porcentaje no retrocede', async () => {
   const e = preparar('pa5', {
     plataforma: 'linux-x64',
     gpu: { nombre: 'NVIDIA GeForce RTX 3060', vramMb: 6144 },
@@ -264,7 +269,9 @@ test('5. Rebaja cuda -> cpu por memoria: aviso, el total baja y el porcentaje no
     })
     await v.getByRole('button', { name: 'Preparar Shinobi Karaoke' }).click()
     await expect(
-      v.getByText(/no tiene memoria suficiente para el modo Calidad/).first()
+      v
+        .getByText(/no tiene memoria suficiente: separaremos las pistas con el modelo Calidad/)
+        .first()
     ).toBeVisible()
     await expect(v.getByRole('heading', { name: 'Todo listo' })).toBeVisible()
 
@@ -273,8 +280,7 @@ test('5. Rebaja cuda -> cpu por memoria: aviso, el total baja y el porcentaje no
     )
     expect(eventos.length).toBeGreaterThan(3)
     const totales = eventos.map((x) => x.total).filter((t) => t > 0)
-    expect(Math.min(...totales)).toBeLessThan(Math.max(...totales)) // el total bajó
-    expect(totales[totales.length - 1]).toBe(Math.min(...totales))
+    expect(Math.min(...totales)).toBe(Math.max(...totales)) // la rebaja no cambia el modelo
     const pcts = eventos.map((x) => x.pct)
     for (let i = 1; i < pcts.length; i++) expect(pcts[i]).toBeGreaterThanOrEqual(pcts[i - 1] ?? 0)
     expect(leerConfig(e.datos).instalacion.motivo_rebaja).toBe('memoria')
@@ -332,6 +338,105 @@ test('8. Durante el primer arranque, Ctrl/Cmd+, y Ctrl/Cmd+N no navegan', async 
     await expect(v.getByRole('heading', { name: BIENVENIDA })).toBeVisible()
     await expect(v.getByRole('heading', { name: 'Ajustes' })).toHaveCount(0)
     await expect(v.getByRole('heading', { name: 'Añadir canción' })).toHaveCount(0)
+  } finally {
+    await app.close()
+  }
+})
+
+test('9. Calidad no se puede preparar (VERIFICACION_FALLIDA): B4 ofrece Rápido; Cancelar no cambia nada y aceptar termina con Rápido', async () => {
+  const e = preparar('pa9', {
+    fallo: { fase: 'modelo', modelo: 'calidad', codigo: 'VERIFICACION_FALLIDA', veces: 'siempre' }
+  })
+  const app = await lanzar(e)
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Preparar Shinobi Karaoke' }).click()
+    const aviso = v.getByRole('alert')
+    await expect(aviso).toContainText('El archivo descargado no es correcto.')
+    await expect(aviso).toContainText('Si no puedes esperar, hay otra opción: el modelo Rápido')
+    await expect(v.getByRole('button', { name: 'Reintentar' })).toBeFocused()
+
+    // Cancelar: no se guarda ni se descarga nada y el foco vuelve al botón de la oferta.
+    const oferta = v.getByRole('button', { name: 'Usar el modelo Rápido…' })
+    await oferta.click()
+    const dialogo = v.getByRole('dialog', { name: '¿Usar el modelo Rápido?' })
+    await expect(dialogo).toContainText('No hemos podido preparar el modelo Calidad.')
+    await expect(dialogo).toContainText('Sus autores (la comunidad UVR) no han declarado')
+    await expect(v.getByRole('button', { name: 'Cancelar' })).toBeFocused()
+    await v.getByRole('button', { name: 'Cancelar' }).click()
+    await expect(dialogo).toHaveCount(0)
+    await expect(oferta).toBeFocused()
+    expect(leerConfig(e.datos).separacion.rapido_aceptado).toBeNull()
+    expect(llamadas(e).filter((l) => l.t === 'descarga' && l.modelo === 'rapido')).toHaveLength(0)
+
+    // Aceptar: el consentimiento es pulsar el botón.
+    await oferta.click()
+    await v.getByRole('button', { name: 'Usar el modelo Rápido', exact: true }).click()
+    await expect(v.getByRole('heading', { name: 'Todo listo' })).toBeVisible()
+    await expect(v.getByText('Modelo de separación: Rápido, con el procesador.')).toBeVisible()
+    await expect(v.getByText(/Usas el modelo Rápido bajo tu responsabilidad/)).toBeVisible()
+    await v.getByRole('button', { name: 'Empezar' }).click()
+    await expect(v.getByRole('heading', { name: 'Tu biblioteca está vacía' })).toBeVisible()
+
+    const cfg = leerConfig(e.datos)
+    expect(cfg.instalacion.estado).toBe('completa')
+    expect(cfg.separacion.modo).toBe('rapido')
+    expect(cfg.separacion.rapido_aceptado).not.toBeNull()
+    expect(cfg.separacion.modelos_descargados).toEqual(['rapido'])
+    expect(llamadas(e).filter((l) => l.t === 'descarga' && l.modelo === 'rapido')).toHaveLength(1)
+  } finally {
+    await app.close()
+  }
+})
+
+test('10. Falla también la descarga de Rápido: B4 sin oferta y "Reintentar" termina sin repetir el diálogo', async () => {
+  // Fallan las dos primeras descargas: Calidad y, tras aceptar, Rápido.
+  const e = preparar('pa10', {
+    fallo: { fase: 'modelo', codigo: 'VERIFICACION_FALLIDA', veces: 2 }
+  })
+  const app = await lanzar(e)
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Preparar Shinobi Karaoke' }).click()
+    await expect(v.getByRole('button', { name: 'Usar el modelo Rápido…' })).toBeVisible()
+    await v.getByRole('button', { name: 'Usar el modelo Rápido…' }).click()
+    await v.getByRole('button', { name: 'Usar el modelo Rápido', exact: true }).click()
+
+    const aviso = v.getByRole('alert')
+    await expect(aviso).toContainText('El archivo descargado no es correcto.')
+    await expect(aviso).not.toContainText('Si no puedes esperar')
+    await expect(v.getByRole('button', { name: /Usar el modelo Rápido/ })).toHaveCount(0)
+    // El consentimiento ya consta y el modo sigue en Calidad hasta que Rápido se verifique.
+    const intermedio = leerConfig(e.datos)
+    expect(intermedio.separacion.rapido_aceptado).not.toBeNull()
+    expect(intermedio.separacion.modo).toBe('calidad')
+
+    await v.getByRole('button', { name: 'Reintentar' }).click()
+    await expect(v.getByRole('heading', { name: 'Todo listo' })).toBeVisible()
+    await expect(v.getByRole('dialog')).toHaveCount(0)
+    await expect(v.getByText('Modelo de separación: Rápido, con el procesador.')).toBeVisible()
+    const cfg = leerConfig(e.datos)
+    expect(cfg.separacion.modo).toBe('rapido')
+    expect(cfg.separacion.rapido_aceptado).toBe(intermedio.separacion.rapido_aceptado)
+    expect(llamadas(e).filter((l) => l.t === 'descarga' && l.modelo === 'rapido')).toHaveLength(2)
+  } finally {
+    await app.close()
+  }
+})
+
+test('11. SIN_CONEXION al descargar el modelo: B4 no ofrece Rápido', async () => {
+  const e = preparar('pa11', {
+    fallo: { fase: 'modelo', codigo: 'SIN_CONEXION', veces: 'siempre' }
+  })
+  const app = await lanzar(e)
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Preparar Shinobi Karaoke' }).click()
+    const aviso = v.getByRole('alert')
+    await expect(aviso).toContainText('Sin conexión a internet.')
+    await expect(aviso).not.toContainText('modelo Rápido')
+    await expect(v.getByRole('button', { name: /Usar el modelo Rápido/ })).toHaveCount(0)
+    expect(leerConfig(e.datos).separacion.rapido_aceptado).toBeNull()
   } finally {
     await app.close()
   }

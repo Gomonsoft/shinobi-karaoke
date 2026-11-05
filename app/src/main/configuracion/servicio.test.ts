@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ErrorDatosInvalidos, estiloPredeterminado, type Config } from '../../shared'
 import { RegistroArchivo, type RegistroApp } from '../registro'
 import { asegurarEstructuraDatos } from './estructura'
-import { modoSeparacionEfectivo, ServicioConfig } from './servicio'
+import { modoSeparacionVigente, ServicioConfig } from './servicio'
 
 let datos: string
 beforeEach(async () => {
@@ -34,7 +34,8 @@ describe('ServicioConfig', () => {
     const s = await ServicioConfig.abrir(datos)
     const c = await leerConfigDisco()
     expect(c.instalacion.estado).toBe('pendiente')
-    expect(c.separacion.modo).toBe('automatico')
+    expect(c.separacion.modo).toBe('calidad')
+    expect(c.separacion.rapido_aceptado).toBeNull()
     expect(c.reproductor.volumen).toBe(0.8)
     expect(c.estilo_predeterminado).toEqual(estiloPredeterminado())
     expect(s.obtener()).toEqual(c)
@@ -55,14 +56,14 @@ describe('ServicioConfig', () => {
     expect(c.instalacion.estado).toBe('completa')
     expect(c.instalacion.fases.motor).toBe('pendiente')
     expect(c.reproductor).toEqual({ volumen: 0.3, silenciado: false })
-    expect(c.separacion.modo).toBe('automatico')
+    expect(c.separacion.modo).toBe('calidad')
   })
 
   it('actualización parcial: fusiona en profundidad, escribe y devuelve el resultado', async () => {
     const s = await ServicioConfig.abrir(datos)
-    const r = await s.actualizar({ reproductor: { volumen: 0.5 }, separacion: { modo: 'calidad' } })
+    const r = await s.actualizar({ reproductor: { volumen: 0.5 }, separacion: { modo: 'rapido' } })
     expect(r.reproductor).toEqual({ volumen: 0.5, silenciado: false })
-    expect(r.separacion.modo).toBe('calidad')
+    expect(r.separacion.modo).toBe('rapido')
     expect(r.instalacion.estado).toBe('pendiente')
     expect(await leerConfigDisco()).toEqual(r)
     // Una instancia nueva ve lo escrito.
@@ -122,7 +123,7 @@ describe('ServicioConfig', () => {
   it('config.json ilegible sin copia: se aparta y se parte de los valores por defecto', async () => {
     await writeFile(join(datos, 'config.json'), '{ no es json')
     const s = await ServicioConfig.abrir(datos)
-    expect(s.obtener().separacion.modo).toBe('automatico')
+    expect(s.obtener().separacion.modo).toBe('calidad')
     expect(await readdir(datos)).toContain('config.json.danado')
   })
 
@@ -134,23 +135,45 @@ describe('ServicioConfig', () => {
 })
 
 describe('modoSeparacionEfectivo', () => {
-  it('respeta un modo explícito', async () => {
+  it('calidad por defecto en todos los perfiles, también cpu y sin perfil', async () => {
     const s = await ServicioConfig.abrir(datos)
-    await s.actualizar({ separacion: { modo: 'rapido' }, instalacion: { perfil_hardware: 'cuda' } })
-    expect(s.modoSeparacionEfectivo()).toBe('rapido')
-  })
-  it('automático: cuda/mps → calidad; cpu y sin perfil → rapido', async () => {
-    const s = await ServicioConfig.abrir(datos)
-    expect(s.modoSeparacionEfectivo()).toBe('rapido')
-    for (const [perfil, esperado] of [
-      ['cuda', 'calidad'],
-      ['mps', 'calidad'],
-      ['cpu', 'rapido']
-    ] as const) {
+    expect(s.modoSeparacionEfectivo()).toBe('calidad')
+    for (const perfil of ['cuda', 'mps', 'cpu'] as const) {
       await s.actualizar({ instalacion: { perfil_hardware: perfil } })
-      expect(s.modoSeparacionEfectivo()).toBe(esperado)
-      expect(modoSeparacionEfectivo(s.obtener())).toBe(esperado)
+      expect(s.modoSeparacionEfectivo()).toBe('calidad')
     }
+  })
+  it('un automático guardado se lee como calidad', async () => {
+    await writeFile(
+      join(datos, 'config.json'),
+      JSON.stringify({ esquema: 1, separacion: { modo: 'automatico' } })
+    )
+    const s = await ServicioConfig.abrir(datos)
+    expect(s.obtener().separacion.modo).toBe('calidad')
+    expect(s.modoSeparacionEfectivo()).toBe('calidad')
+  })
+  it('rapido sin consentimiento nunca es efectivo', async () => {
+    const s = await ServicioConfig.abrir(datos)
+    await s.actualizar({ separacion: { modo: 'rapido', modelos_descargados: ['rapido'] } })
+    expect(s.modoSeparacionEfectivo()).toBe('calidad')
+    expect(modoSeparacionVigente(s.obtener())).toBe('calidad')
+  })
+  it('rapido con consentimiento pero sin el modelo descargado → calidad', async () => {
+    const s = await ServicioConfig.abrir(datos)
+    await s.actualizar({ separacion: { modo: 'rapido', rapido_aceptado: '2026-11-05T10:00:00Z' } })
+    expect(modoSeparacionVigente(s.obtener())).toBe('rapido')
+    expect(s.modoSeparacionEfectivo()).toBe('calidad')
+  })
+  it('rapido con consentimiento y modelo descargado → rapido', async () => {
+    const s = await ServicioConfig.abrir(datos)
+    await s.actualizar({
+      separacion: {
+        modo: 'rapido',
+        rapido_aceptado: '2026-11-05T10:00:00Z',
+        modelos_descargados: ['rapido']
+      }
+    })
+    expect(s.modoSeparacionEfectivo()).toBe('rapido')
   })
 })
 

@@ -28,9 +28,12 @@ import { CODIGOS_ERROR, type Manifiesto, type ModeloManifiesto } from '../../../
  *   manifiesto, escritos como archivos dispersos (sin ocupar disco) a ritmo constante.
  * - `fallo`: la fase (`motor`, `componentes`, `diagnostico`, `modelo`) falla con `codigo`, `veces`
  *   veces (número) o `"siempre"`.
+ *   Con `modelo: "calidad"` (escenario "fallo del modelo Calidad") solo falla la descarga de Calidad
+ *   y la de Rápido, tras el consentimiento, funciona; el contador cuenta solo ese modelo.
  * - `diagnostico`: perfil que devuelve el diagnóstico (por defecto el previsto) y motivo de rebaja.
  * - `modelos`: `reales` (tamaños y SHA-256 del manifiesto, archivos dispersos) o `diminutos`
- *   (2 KiB con contenido determinista y SHA-256 válido: permiten la verificación completa).
+ *   (2 KiB, también los archivos extra, con contenido determinista y SHA-256 válido: permiten la
+ *   verificación completa y separar).
  * - `llamadas`: archivo JSONL donde los dobles anotan cada llamada (por defecto `llamadas.jsonl` junto
  *   al escenario).
  */
@@ -62,6 +65,8 @@ export const escenarioRuntimeFalsoSchema = z.strictObject({
   fallo: z
     .strictObject({
       fase: z.enum(['motor', 'componentes', 'diagnostico', 'modelo']),
+      /** Solo con `fase: "modelo"`: el fallo afecta únicamente a la descarga de ese modelo (0057). */
+      modelo: z.enum(['calidad', 'rapido']).optional(),
       codigo: z.enum(CODIGOS_ERROR),
       veces: z.union([z.number().int().positive(), z.literal('siempre')]).default(1)
     })
@@ -118,7 +123,12 @@ export function manifiestoParaEscenario(
   if (escenario.modelos === 'reales') return manifiesto
   const modelos: ModeloManifiesto[] = manifiesto.modelos.map((m) => {
     const c = contenidoDiminuto(m.archivo)
-    return { ...m, bytes: c.length, sha256: sha(c), extra: [] }
+    // Los extra (el .yaml de Calidad lo exige el worker al separar) también pasan a diminutos.
+    const extra = m.extra.map((e) => {
+      const ce = contenidoDiminuto(e.archivo)
+      return { ...e, bytes: ce.length, sha256: sha(ce) }
+    })
+    return { ...m, bytes: c.length, sha256: sha(c), extra }
   })
   return { ...manifiesto, modelos }
 }

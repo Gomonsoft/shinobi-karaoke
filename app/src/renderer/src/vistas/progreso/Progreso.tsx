@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Check,
   CircleX,
@@ -9,26 +9,44 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
-import type { ResumenCancionIpc, TrabajoIpc } from '@shared/ipc'
+import type {
+  EstadoRuntimeIpc,
+  EstimacionCancion,
+  RequisitosRuntimeIpc,
+  ResumenCancionIpc,
+  TrabajoIpc
+} from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { BarraProgreso } from '../../componentes/BarraProgreso'
 import { Boton } from '../../componentes/Boton'
-import { Dialogo } from '../../componentes/Dialogo'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
+import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { detallesDeError } from '../biblioteca/errores'
+import { DialogoAvisoRapido } from '../aviso-rapido/DialogoAvisoRapido'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
+import { Escucha } from './Escucha'
+import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from './DialogosCancelar'
+import { IndicadorModelo } from './IndicadorModelo'
 import {
   anuncio,
   instantanea,
   modeloDeProgreso,
   type IconoFila,
   type Instantanea,
-  type ModeloProgreso
+  type ModeloProgreso,
+  type ModoSeparacion
 } from './modelo'
-import { dialogoCancelarCuerpo, esErrorGenerico, TEXTO, textoDeError } from './textos'
+import {
+  esErrorGenerico,
+  esErrorGenericoSeparacion,
+  SEP,
+  TEXTO,
+  textoDeError,
+  textoDeErrorSeparacion
+} from './textos'
 import estilos from './progreso.module.css'
 
 const ICONOS: Record<IconoFila, LucideIcon> = {
@@ -109,7 +127,33 @@ function useDatos(id: string): Datos {
   return datos
 }
 
-function FilaSubpaso({ fila }: { fila: ModeloProgreso['filas'][number] }) {
+/** Estado vivo del runtime (modo vigente, oferta de Rápido); tolera una API sin `runtime`. */
+function useEstadoRuntime(): EstadoRuntimeIpc | null {
+  const [estado, setEstado] = useState<EstadoRuntimeIpc | null>(null)
+  useEffect(() => {
+    const api = window.shinobi.runtime
+    if (!api) return
+    let activo = true
+    const baja = api.alCambiar((e) => activo && setEstado(e))
+    api.estado().then(
+      (e) => activo && setEstado((actual) => actual ?? e),
+      () => undefined
+    )
+    return () => {
+      activo = false
+      baja()
+    }
+  }, [])
+  return estado
+}
+
+function FilaSubpaso({
+  fila,
+  extra
+}: {
+  fila: ModeloProgreso['filas'][number]
+  extra?: ReactNode
+}) {
   return (
     <li className={`${estilos.fila} ${estilos[`fila_${fila.icono}`]}`}>
       <span className={estilos.icono}>
@@ -140,18 +184,39 @@ function FilaSubpaso({ fila }: { fila: ModeloProgreso['filas'][number] }) {
             }
           />
         )}
+        {extra}
       </div>
     </li>
   )
 }
 
-/** Vista 04 en la Fase 2: subpasos de la fuente (descarga y preparación). La separación es de la Fase 3. */
+const mensajeToast = (err: unknown): { codigo: string; mensaje: string } => {
+  const e = err as { codigo?: unknown; mensaje?: unknown; message?: unknown }
+  return {
+    codigo: typeof e?.codigo === 'string' ? e.codigo : 'ERROR_INTERNO',
+    mensaje: typeof e?.mensaje === 'string' ? e.mensaje : String(e?.message ?? err)
+  }
+}
+
+/** Vista 04: subpasos de la fuente (descarga y preparación) y de la separación (Fase 3). */
 export function Progreso({ id }: { id: string }) {
   const { ir } = useNavegacion()
   const vivos = useTrabajosVivos()
   const datos = useDatos(id)
   const raiz = useRef<HTMLElement>(null)
   const [confirmando, setConfirmando] = useState(false)
+  const [confirmandoSep, setConfirmandoSep] = useState(false)
+  const [dialogoRapido, setDialogoRapido] = useState(false)
+  const [aceptando, setAceptando] = useState<{ bytes: number; total: number | null } | null>(null)
+  const [errorRapido, setErrorRapido] = useState<{ codigo: string; mensaje: string } | null>(null)
+  const [requisitos, setRequisitos] = useState<RequisitosRuntimeIpc | null>(null)
+  const [estimacion, setEstimacion] = useState<EstimacionCancion>(null)
+  const runtime = useEstadoRuntime()
+  const vistoSep = useRef<{ modo: ModoSeparacion | null; dispositivo: 'cpu' | 'cuda' | null }>({
+    modo: null,
+    dispositivo: null
+  })
+  const pisoSep = useRef<{ clave: string; valor: number } | null>(null)
   const [anunciado, setAnunciado] = useState('')
   const previa = useRef<Instantanea | null>(null)
   const piso = useRef<{ trabajo: string; valor: number } | null>(null)
@@ -164,6 +229,24 @@ export function Progreso({ id }: { id: string }) {
   }, [vivos.trabajos, id])
   const progreso = trabajo ? (vivos.progreso[trabajo.id] ?? null) : null
 
+  const trabajoSep: TrabajoIpc | undefined = useMemo(() => {
+    const suyos = vivos.trabajos.filter((t) => t.cancionId === id && t.paso === 'separacion')
+    return suyos.find((t) => t.estado === 'en_curso') ?? suyos[0]
+  }, [vivos.trabajos, id])
+  const progresoSep = trabajoSep ? (vivos.progreso[trabajoSep.id] ?? null) : null
+  const pSep = progresoSep ?? trabajoSep?.progreso ?? null
+  // La barra de la fase determinada de la separación (modelo o separando) no retrocede.
+  if (trabajoSep && pSep && (pSep.fase === 'separando' || pSep.fase === 'descargando_modelo')) {
+    const clave = `${trabajoSep.id}|${pSep.fase}`
+    if (
+      pSep.valor !== null &&
+      (pisoSep.current?.clave !== clave || pSep.valor > pisoSep.current.valor)
+    )
+      pisoSep.current = { clave, valor: pSep.valor }
+  }
+  if (trabajoSep?.modo) vistoSep.current.modo = trabajoSep.modo
+  if (trabajoSep?.dispositivo) vistoSep.current.dispositivo = trabajoSep.dispositivo
+
   // La barra no retrocede y los MB descargados se recuerdan para mostrarlos al completar.
   if (trabajo && progreso?.fase === 'descargando' && progreso.valor !== null) {
     if (piso.current?.trabajo !== trabajo.id || progreso.valor > piso.current.valor) {
@@ -171,13 +254,46 @@ export function Progreso({ id }: { id: string }) {
     }
   }
   const detalle = (progreso ?? trabajo?.progreso)?.detalle
-  if (detalle) bytes.current = detalle.total ?? detalle.bytes
+  if (detalle && 'bytes' in detalle) bytes.current = detalle.total ?? detalle.bytes
+  const esperaS = useCuentaAtras(progreso ?? trabajo?.progreso, trabajo?.id)
 
   const otra = vivos.trabajos.find(
     (t) => t.cola === 'ligera' && t.estado === 'en_curso' && t.id !== trabajo?.id
   )
+  const otraSep = vivos.trabajos.find(
+    (t) => t.paso === 'separacion' && t.estado === 'en_curso' && t.id !== trabajoSep?.id
+  )
   const resumen = datos.resumen
   const fuentePaso = resumen?.pasos?.fuente
+  const sepPaso = resumen?.pasos?.separacion
+  const modeloPistas = datos.cancion?.pistas?.modelo.perfil
+  const modo: ModoSeparacion =
+    aceptando !== null
+      ? 'rapido'
+      : (trabajoSep?.modo ??
+        vistoSep.current.modo ??
+        (modeloPistas === 'rapido' || modeloPistas === 'calidad' ? modeloPistas : null) ??
+        runtime?.modo ??
+        'calidad')
+  const dispositivo: 'cpu' | 'cuda' =
+    trabajoSep?.dispositivo ??
+    vistoSep.current.dispositivo ??
+    (runtime?.perfil === 'cuda' ? 'cuda' : 'cpu')
+
+  // Estimación previa (0067): al abrir y cuando cambia el modelo vigente.
+  const modoVigente = runtime?.modo ?? null
+  useEffect(() => {
+    const api = window.shinobi.separacion
+    if (!api) return
+    let activo = true
+    api.estimar(id).then(
+      (e) => activo && setEstimacion(e),
+      () => undefined
+    )
+    return () => {
+      activo = false
+    }
+  }, [id, modoVigente])
   const modelo = useMemo(
     () =>
       datos.estado === 'listo' && datos.cancion && fuentePaso
@@ -188,10 +304,43 @@ export function Progreso({ id }: { id: string }) {
             tituloOtra: otra && otra.cancionId ? (datos.titulos.get(otra.cancionId) ?? null) : null,
             colaOcupada: !!otra,
             bytesFinales: bytes.current,
-            piso: piso.current?.trabajo === trabajo?.id ? piso.current?.valor : undefined
+            piso: piso.current?.trabajo === trabajo?.id ? piso.current?.valor : undefined,
+            esperaS,
+            separacion: sepPaso,
+            vivoSep: trabajoSep ? { trabajo: trabajoSep, progreso: progresoSep } : null,
+            tituloOtraSep:
+              otraSep && otraSep.cancionId ? (datos.titulos.get(otraSep.cancionId) ?? null) : null,
+            estimacion: estimacion ? { min: estimacion.min, max: estimacion.max } : null,
+            modo,
+            ofrecerRapido: runtime?.ofrecerRapido === true,
+            rapidoPendiente: runtime?.rapidoPendiente === true,
+            aceptandoRapido: aceptando,
+            errorRapido,
+            hayLetra: datos.cancion.letra != null,
+            pisoSep:
+              pisoSep.current?.clave === `${trabajoSep?.id}|${pSep?.fase}`
+                ? pisoSep.current.valor
+                : undefined
           })
         : null,
-    [datos, fuentePaso, trabajo, progreso, otra]
+    [
+      datos,
+      fuentePaso,
+      sepPaso,
+      trabajo,
+      progreso,
+      otra,
+      esperaS,
+      trabajoSep,
+      progresoSep,
+      pSep,
+      otraSep,
+      estimacion,
+      modo,
+      runtime,
+      aceptando,
+      errorRapido
+    ]
   )
 
   useEffect(() => {
@@ -205,12 +354,32 @@ export function Progreso({ id }: { id: string }) {
   // Foco inicial al terminar de cargar (el marco ya dejó el foco en el título).
   const bloqueTipo = modelo?.bloque.tipo
   useEffect(() => {
-    if (!bloqueTipo || enfocada.current) return
-    enfocada.current = true
+    if (!bloqueTipo) return
     const activo = document.activeElement
-    if (activo && !(activo instanceof HTMLHeadingElement) && raiz.current?.contains(activo)) return
+    if (!enfocada.current) {
+      enfocada.current = true
+      if (activo && !(activo instanceof HTMLHeadingElement) && raiz.current?.contains(activo))
+        return
+    } else if (activo && activo !== document.body && raiz.current?.contains(activo)) {
+      // Cambio de bloque (p. ej. tras cancelar la separación): solo se mueve el foco si se perdió.
+      return
+    }
     raiz.current?.querySelector<HTMLElement>('[data-foco-inicial]')?.focus()
   }, [bloqueTipo])
+
+  // Tamaño de Rápido para el aviso de consentimiento: se pide cuando puede ofrecerse.
+  const hayOferta = modelo?.bloque.tipo === 'errorSeparacion' && modelo.bloque.oferta === 'dialogo'
+  useEffect(() => {
+    if (!hayOferta) return
+    let activo = true
+    window.shinobi.runtime?.requisitos({ recalcularEspacio: false }).then(
+      (r) => activo && setRequisitos(r),
+      () => undefined
+    )
+    return () => {
+      activo = false
+    }
+  }, [hayOferta])
 
   const titulo = resumen?.titulo ?? ''
   const cancelarDescarga = async () => {
@@ -227,6 +396,52 @@ export function Progreso({ id }: { id: string }) {
         }
       })
     }
+  }
+  const avisarFallo = (mensaje: string, err: unknown) =>
+    mostrarToast({
+      tipo: 'error',
+      mensaje,
+      accion: {
+        etiqueta: 'Copiar detalles',
+        alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+      }
+    })
+  const cancelarSeparacion = async () => {
+    if (!trabajoSep) return
+    try {
+      await window.shinobi.trabajos.cancelar(trabajoSep.id)
+    } catch (err) {
+      avisarFallo('No se pudo cancelar la separación.', err)
+    }
+  }
+  const separar = async () => {
+    try {
+      setErrorRapido(null)
+      await window.shinobi.separacion.separar(id)
+    } catch (err) {
+      avisarFallo('No se pudo volver a intentar la separación.', err)
+    }
+  }
+  /** Consentimiento ya dado (o aceptado ahora): descarga Rápido si falta y relanza la separación. */
+  const usarRapidoYSeparar = async () => {
+    setDialogoRapido(false)
+    setErrorRapido(null)
+    setAceptando({ bytes: 0, total: null })
+    const baja = window.shinobi.runtime.alProgreso((p) => {
+      if (p.faseVisible === 'modelo')
+        setAceptando({ bytes: p.bytes, total: p.total > 0 ? p.total : null })
+    })
+    try {
+      await window.shinobi.runtime.aceptarYUsarRapido('separacion')
+    } catch (err) {
+      baja()
+      setAceptando(null)
+      setErrorRapido(mensajeToast(err))
+      return
+    }
+    baja()
+    setAceptando(null)
+    await separar()
   }
   const reintentar = async () => {
     try {
@@ -262,6 +477,7 @@ export function Progreso({ id }: { id: string }) {
   )
 
   const bloque = modelo?.bloque
+  const mostrarModelo = !!trabajoSep || aceptando !== null || fuentePaso?.estado === 'completado'
   return (
     <section ref={raiz} className={estilos.vista} aria-labelledby="titulo-vista">
       <CabeceraCancion resumen={resumen} actual="progreso" />
@@ -283,7 +499,19 @@ export function Progreso({ id }: { id: string }) {
         <>
           <ul className={estilos.filas} aria-label="Subpasos">
             {modelo.filas.map((f) => (
-              <FilaSubpaso key={f.id} fila={f} />
+              <FilaSubpaso
+                key={f.id}
+                fila={f}
+                extra={
+                  f.id === 'separar' && mostrarModelo ? (
+                    <IndicadorModelo
+                      modo={modo}
+                      dispositivo={dispositivo}
+                      alIrAjustes={() => ir({ tipo: 'ajustes' })}
+                    />
+                  ) : undefined
+                }
+              />
             ))}
           </ul>
 
@@ -295,13 +523,33 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
-                  onClick={() => ir({ tipo: 'cancion', id, paso: 'letra' })}
+                  onClick={() =>
+                    ir({ tipo: 'cancion', id, paso: bloque.editor ? 'editor' : 'letra' })
+                  }
                 >
-                  {TEXTO.botonLetra}
+                  {bloque.editor ? SEP.botonEditor : TEXTO.botonLetra}
                 </Boton>
                 {volver}
               </div>
             </div>
+          )}
+
+          {bloque?.tipo === 'terminado' && (
+            <>
+              <Escucha cancionId={id} />
+              <div className={estilos.acciones}>
+                <Boton
+                  variante="primario"
+                  data-foco-inicial
+                  onClick={() =>
+                    ir({ tipo: 'cancion', id, paso: bloque.editor ? 'editor' : 'letra' })
+                  }
+                >
+                  {bloque.editor ? SEP.botonEditor : SEP.botonLetraFin}
+                </Boton>
+                {volver}
+              </div>
+            </>
           )}
 
           {bloque?.tipo === 'pendiente' && (
@@ -379,16 +627,101 @@ export function Progreso({ id }: { id: string }) {
             </>
           )}
 
+          {bloque?.tipo === 'pendienteSeparacion' && (
+            <>
+              <AvisoEnLinea
+                tipo="info"
+                accion={
+                  <Boton variante="primario" data-foco-inicial onClick={() => void separar()}>
+                    {SEP.separarAhora}
+                  </Boton>
+                }
+              >
+                <strong>{SEP.pendiente}</strong>
+                {bloque.estimacion && ` ${bloque.estimacion}.`}
+              </AvisoEnLinea>
+              <div className={estilos.acciones}>{volver}</div>
+            </>
+          )}
+
+          {bloque?.tipo === 'interrumpidoSeparacion' && (
+            <>
+              <AvisoEnLinea
+                tipo="aviso"
+                accion={
+                  <Boton variante="primario" data-foco-inicial onClick={() => void separar()}>
+                    {TEXTO.reintentar}
+                  </Boton>
+                }
+              >
+                <strong>{SEP.interrumpido}</strong> {SEP.interrumpidoCuerpo}
+              </AvisoEnLinea>
+              <div className={estilos.acciones}>{volver}</div>
+            </>
+          )}
+
+          {bloque?.tipo === 'errorSeparacion' && (
+            <>
+              <AvisoEnLinea
+                tipo="error"
+                accion={
+                  <div className={estilos.acciones}>
+                    <Boton
+                      variante="primario"
+                      data-foco-inicial
+                      onClick={() =>
+                        void (bloque.reintentaRapido ? usarRapidoYSeparar() : separar())
+                      }
+                    >
+                      {TEXTO.reintentar}
+                    </Boton>
+                    {bloque.oferta === 'dialogo' && (
+                      <Boton variante="secundario" onClick={() => setDialogoRapido(true)}>
+                        {SEP.usarRapido}
+                      </Boton>
+                    )}
+                    {bloque.oferta === 'directa' && (
+                      <Boton variante="secundario" onClick={() => void usarRapidoYSeparar()}>
+                        {SEP.usarRapidoDirecto}
+                      </Boton>
+                    )}
+                    {esErrorGenericoSeparacion(bloque.codigo) && (
+                      <Boton
+                        variante="fantasma"
+                        onClick={() =>
+                          void navigator.clipboard?.writeText(
+                            detallesDeError({ codigo: bloque.codigo, mensaje: bloque.mensaje })
+                          )
+                        }
+                      >
+                        {TEXTO.copiarDetalles}
+                      </Boton>
+                    )}
+                  </div>
+                }
+              >
+                <strong>{textoDeErrorSeparacion(bloque.codigo, bloque.modo).titulo}</strong>{' '}
+                {textoDeErrorSeparacion(bloque.codigo, bloque.modo).cuerpo}
+                {bloque.textoOferta && <> {SEP.ofertaRapido}</>}
+              </AvisoEnLinea>
+              <div className={estilos.acciones}>{volver}</div>
+            </>
+          )}
+
           {modelo.cancelar && (
             <div>
               <Boton
                 variante="fantasma"
                 onClick={() => {
-                  if (modelo.cancelar === 'cola') void cancelarDescarga()
+                  if (modelo.cancelar === 'cola')
+                    void (modelo.cancelarPaso === 'separacion'
+                      ? cancelarSeparacion()
+                      : cancelarDescarga())
+                  else if (modelo.cancelarPaso === 'separacion') setConfirmandoSep(true)
                   else setConfirmando(true)
                 }}
               >
-                {TEXTO.cancelarDescarga}
+                {modelo.cancelarPaso === 'separacion' ? SEP.cancelar : TEXTO.cancelarDescarga}
               </Boton>
             </div>
           )}
@@ -399,30 +732,35 @@ export function Progreso({ id }: { id: string }) {
         {anunciado}
       </div>
 
-      <Dialogo
+      <DialogoCancelarDescarga
         abierto={confirmando}
-        titulo="¿Cancelar la descarga?"
-        onCancelar={() => setConfirmando(false)}
-        enfoqueInicial="[data-seguir]"
-        acciones={
-          <>
-            <Boton data-seguir onClick={() => setConfirmando(false)}>
-              {TEXTO.seguirDescargando}
-            </Boton>
-            <Boton
-              variante="destructivo"
-              onClick={() => {
-                setConfirmando(false)
-                void cancelarDescarga()
-              }}
-            >
-              {TEXTO.cancelarDescarga}
-            </Boton>
-          </>
+        titulo={titulo}
+        alSeguir={() => setConfirmando(false)}
+        alConfirmar={() => {
+          setConfirmando(false)
+          void cancelarDescarga()
+        }}
+      />
+      <DialogoCancelarSeparacion
+        abierto={confirmandoSep}
+        alSeguir={() => setConfirmandoSep(false)}
+        alConfirmar={() => {
+          setConfirmandoSep(false)
+          void cancelarSeparacion()
+        }}
+      />
+      <DialogoAvisoRapido
+        abierto={dialogoRapido}
+        motivo={
+          modelo?.bloque.tipo === 'errorSeparacion' &&
+          modelo.bloque.codigo === 'MODELO_NO_DISPONIBLE'
+            ? 'descarga'
+            : 'memoria'
         }
-      >
-        <p>{dialogoCancelarCuerpo(titulo)}</p>
-      </Dialogo>
+        bytes={requisitos?.rapidoDescargado ? null : (requisitos?.bytesRapido ?? 0)}
+        alCancelar={() => setDialogoRapido(false)}
+        alAceptar={() => void usarRapidoYSeparar()}
+      />
     </section>
   )
 }

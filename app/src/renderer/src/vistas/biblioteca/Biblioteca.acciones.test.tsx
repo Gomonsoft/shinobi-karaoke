@@ -6,7 +6,7 @@ import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { TrabajosContexto, type EstadoTrabajos } from '../../trabajos/useTrabajos'
 import { Biblioteca, reiniciarFiltroDeSesion } from './Biblioteca'
 import { fixtures } from './fixturesApi'
-import { resumenPrueba } from './resumenPrueba'
+import { paso as pasoPrueba, resumenPrueba } from './resumenPrueba'
 
 const lista = resumenPrueba({ id: 'a', titulo: 'Canción lista', estado: 'lista' })
 const incompleta = resumenPrueba({
@@ -369,5 +369,189 @@ describe('Eliminar…', () => {
     expect(
       await screen.findByRole('dialog', { name: '¿Eliminar «Canción lista»?' })
     ).toBeInTheDocument()
+  })
+})
+
+describe('Reintentar, Cancelar trabajo y Re-separar pistas (0070)', () => {
+  const trabajo = (extra: Partial<TrabajoIpc> = {}): TrabajoIpc => ({
+    id: 't1',
+    cancionId: 'c',
+    paso: 'separacion',
+    cola: 'pesada',
+    comando: 'demo',
+    estado: 'en_curso',
+    posicion: null,
+    resultado: null,
+    error: null,
+    progreso: null,
+    ...extra
+  })
+  const conError = (paso: 'fuente' | 'separacion', codigo: string) =>
+    resumenPrueba({
+      id: 'c',
+      titulo: 'La flaca',
+      pasos: {
+        fuente: pasoPrueba(paso === 'fuente' ? 'error' : 'completado', {
+          error: paso === 'fuente' ? { codigo, mensaje: '' } : null
+        }),
+        separacion: pasoPrueba(paso === 'separacion' ? 'error' : 'pendiente', {
+          error: paso === 'separacion' ? { codigo, mensaje: '' } : null
+        }),
+        letra: pasoPrueba('pendiente'),
+        edicion: pasoPrueba('pendiente')
+      }
+    })
+  const api = () => {
+    const mocks = {
+      reintentar: vi.fn().mockResolvedValue(undefined),
+      separar: vi.fn().mockResolvedValue(undefined),
+      cancelar: vi.fn().mockResolvedValue(true)
+    }
+    return mocks
+  }
+  const instalar = (m: ReturnType<typeof api>) =>
+    Object.assign(window.shinobi, {
+      fuente: { reintentar: m.reintentar },
+      separacion: { separar: m.separar },
+      trabajos: { cancelar: m.cancelar }
+    })
+
+  it('Reintentar relanza la fuente de YouTube sin navegar', async () => {
+    const m = api()
+    const { ir } = montar([conError('fuente', 'SIN_CONEXION')])
+    instalar(m)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar «La flaca»' }))
+    await waitFor(() => expect(m.reintentar).toHaveBeenCalledWith('c'))
+    expect(ir).not.toHaveBeenCalled()
+  })
+
+  it('Reintentar relanza la separación sin navegar', async () => {
+    const m = api()
+    const { ir } = montar([conError('separacion', 'MEMORIA_INSUFICIENTE')])
+    instalar(m)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar «La flaca»' }))
+    await waitFor(() => expect(m.separar).toHaveBeenCalledWith('c'))
+    expect(ir).not.toHaveBeenCalled()
+  })
+
+  it('error no reintentable: Ver abre el progreso, sin relanzar', async () => {
+    const m = api()
+    const { ir } = montar([conError('fuente', 'VIDEO_NO_DISPONIBLE')], {
+      obtener: () => Promise.resolve(null)
+    })
+    instalar(m)
+    expect(await screen.findByRole('button', { name: 'Ver «La flaca»' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).toBeNull()
+    expect(m.reintentar).not.toHaveBeenCalled()
+    void ir
+  })
+
+  it('si el reintento falla: toast de error con el texto del código', async () => {
+    const m = api()
+    m.reintentar.mockRejectedValue({ codigo: 'SIN_CONEXION', mensaje: 'x' })
+    montar([conError('fuente', 'SIN_CONEXION')])
+    instalar(m)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reintentar «La flaca»' }))
+    expect(await screen.findByText('Sin conexión a internet')).toBeInTheDocument()
+  })
+
+  it('Cancelar trabajo en cola: sin diálogo', async () => {
+    const m = api()
+    montar(
+      [borrador],
+      {},
+      {
+        trabajos: [trabajo({ cancionId: 'c', estado: 'en_cola', posicion: 1 })],
+        progreso: {},
+        terminado: false
+      }
+    )
+    instalar(m)
+    await abrirMenu('La flaca')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Cancelar trabajo' }))
+    await waitFor(() => expect(m.cancelar).toHaveBeenCalledWith('t1'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it.each([
+    ['separacion', '¿Cancelar la separación?', 'Cancelar separación'],
+    ['fuente', '¿Cancelar la descarga?', 'Cancelar descarga']
+  ] as const)(
+    'Cancelar trabajo en curso (%s): diálogo y cancelación',
+    async (paso, titulo, boton) => {
+      const m = api()
+      montar(
+        [borrador],
+        {},
+        {
+          trabajos: [trabajo({ cancionId: 'c', paso })],
+          progreso: {},
+          terminado: false
+        }
+      )
+      instalar(m)
+      await abrirMenu('La flaca')
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Cancelar trabajo' }))
+      expect(await screen.findByRole('dialog', { name: titulo })).toBeInTheDocument()
+      expect(m.cancelar).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: boton }))
+      await waitFor(() => expect(m.cancelar).toHaveBeenCalledWith('t1'))
+    }
+  )
+
+  it('sin trabajo vivo no hay Cancelar trabajo', async () => {
+    montar([borrador])
+    await abrirMenu('La flaca')
+    expect(opciones()).not.toContain('Cancelar trabajo')
+  })
+
+  describe('Re-separar pistas', () => {
+    const sinPistas = resumenPrueba({
+      id: 'p',
+      titulo: 'Sin pistas',
+      danada: true,
+      motivo: 'pistas'
+    })
+
+    it('solo en dañadas por pistas con mezcla; llama a separar', async () => {
+      const m = api()
+      montar([sinPistas])
+      instalar(m)
+      await abrirMenu('Sin pistas')
+      expect(opciones()).toEqual(['Re-separar pistas', 'Mostrar en la carpeta', 'Eliminar…'])
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Re-separar pistas' }))
+      await waitFor(() => expect(m.separar).toHaveBeenCalledWith('p'))
+    })
+
+    it('no aparece en dañada por JSON, sin mezcla ni en una lista (p. ej. hecha con Rápido)', async () => {
+      montar([
+        danada,
+        { ...sinPistas, id: 'q', titulo: 'Sin mezcla', sinMezcla: true },
+        resumenPrueba({ id: 'r', titulo: 'Con Rápido', estado: 'lista' })
+      ])
+      await abrirMenu('Canción sin nombre')
+      expect(opciones()).not.toContain('Re-separar pistas')
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+      await abrirMenu('Sin mezcla')
+      expect(opciones()).not.toContain('Re-separar pistas')
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+      await abrirMenu('Con Rápido')
+      expect(opciones()).not.toContain('Re-separar pistas')
+    })
+
+    it('con la separación en cola la tarjeta dice "En cola para separar"', async () => {
+      montar(
+        [sinPistas],
+        {},
+        {
+          trabajos: [trabajo({ cancionId: 'p', estado: 'en_cola', posicion: 1 })],
+          progreso: {},
+          terminado: false
+        }
+      )
+      expect(await screen.findByText('En cola para separar')).toBeInTheDocument()
+      await abrirMenu('Sin pistas')
+      expect(opciones()).toEqual(['Cancelar trabajo', 'Mostrar en la carpeta', 'Eliminar…'])
+    })
   })
 })

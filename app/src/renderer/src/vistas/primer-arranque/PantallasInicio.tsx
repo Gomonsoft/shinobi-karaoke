@@ -26,7 +26,8 @@ import {
   formatearGbLibre,
   minimoMacos,
   nombreProcesador,
-  nombreSo
+  nombreSo,
+  textoDescargaGenerica
 } from './modelo'
 import { ENLACE_ACTUALIZAR_MACOS, PA } from './textos'
 import estilos from './primerArranque.module.css'
@@ -141,7 +142,7 @@ export function Bienvenida({
       <ul className={estilos.caja}>
         <Fila icono={Download}>
           {requisitos.bytesDescarga === null
-            ? PA.reqDescargaGenerica
+            ? textoDescargaGenerica(requisitos.rangoDescarga ?? null)
             : PA.reqDescarga(formatearGb(requisitos.bytesDescarga))}
         </Fila>
         <Fila icono={Clock}>{PA.reqTiempo}</Fila>

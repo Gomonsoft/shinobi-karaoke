@@ -130,7 +130,10 @@ describe('estado del paso', () => {
     expect(bib.estados('a')).toEqual(['en_curso'])
     worker.llamadas[0]!.resolver({ voz: 'pistas/voz.flac' })
     await reposo()
-    expect(alResultado).toHaveBeenCalledWith({ voz: 'pistas/voz.flac' })
+    expect(alResultado).toHaveBeenCalledWith(
+      { voz: 'pistas/voz.flac' },
+      { intento: 1, args: { cancionId: 'a' } }
+    )
     const ultimo = bib.cambios.at(-1)!.cambio
     expect(ultimo.pistas).toEqual({
       voz: 'pistas/voz.flac',
@@ -298,6 +301,49 @@ describe('progreso', () => {
     expect(bib.cambios.at(-1)!.cambio.pasos?.separacion?.progreso).toBeNull()
   })
 
+  it('interpola cada segundo con ritmoEsperado y persiste solo valores reales', async () => {
+    vi.useFakeTimers()
+    let t = 0
+    const w = crearWorkerFalso()
+    const g = new GestorTrabajos({ biblioteca: bib, ejecutar: w.ejecutar, ahora: () => t })
+    const eventos: EventoProgresoIpc[] = []
+    g.suscribirProgreso((e) => eventos.push(e))
+    g.encolar(peticion('a', 'pesada', { ritmoEsperado: { segundosFase: 228 } }))
+    await vi.advanceTimersByTimeAsync(0)
+    const paso = (n: number) =>
+      w.llamadas[0]!.alProgreso({
+        tipo: 'progreso',
+        fase: 'separando',
+        valor: n / 19,
+        detalle: { paso: n, total: 19 }
+      })
+    paso(0)
+    paso(1)
+    let n = eventos.length
+    for (let s = 0; s < 10; s++) {
+      t += 1000
+      await vi.advanceTimersByTimeAsync(1000)
+    }
+    expect(eventos.length).toBeGreaterThan(n)
+    for (const e of eventos) expect(e.valor!).toBeLessThan(2 / 19)
+    const valores = eventos.map((e) => e.valor!)
+    expect(valores.at(-1)).toBeGreaterThan(1 / 19)
+    for (let i = 1; i < valores.length; i++)
+      expect(valores[i]).toBeGreaterThanOrEqual(valores[i - 1]!)
+    // Persistido: solo el real (1/19 ≈ 5,3 %), no los interpolados.
+    const guardados = bib.cambios
+      .map((c) => c.cambio.pasos?.separacion)
+      .filter((p) => p && 'progreso' in p && typeof p.progreso === 'number')
+      .map((p) => p!.progreso as number)
+    expect(guardados.every((v) => v === 0 || Math.abs(v - 1 / 19) < 0.001)).toBe(true)
+    n = eventos.length
+    w.llamadas[0]!.resolver()
+    await vi.advanceTimersByTimeAsync(500)
+    n = eventos.length
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(eventos.length).toBe(n)
+  })
+
   it('el evento de progreso incluye ETA solo pasados 15 s de fase determinada', async () => {
     let t = 0
     const w = crearWorkerFalso()
@@ -461,5 +507,168 @@ describe('yt-dlp: mantenimiento y reintento automático (0050)', () => {
     worker.llamadas[0]!.fallar(bloqueo)
     await reposo(30)
     expect(actualizar).not.toHaveBeenCalled()
+  })
+})
+
+describe('reintentos automáticos (0063)', () => {
+  const error = (codigo = 'SIN_CONEXION') => ({ codigo, mensaje: 'x' })
+  const plan = (args: Record<string, unknown>, esperaMs = 5000) => ({
+    args,
+    esperaMs,
+    motivo: 'red' as const
+  })
+  /** Política: hasta 2 reintentos con espera creciente. */
+  const intentosPolitica: number[] = []
+  const politica = (
+    e: { codigo: string },
+    intento: number,
+    args: Record<string, unknown>
+  ): ReturnType<typeof plan> | null => {
+    intentosPolitica.push(intento)
+    return e.codigo === 'SIN_CONEXION' && intento <= 2
+      ? plan({ ...args, n: intento + 1 }, intento * 1000)
+      : null
+  }
+  beforeEach(() => {
+    intentosPolitica.length = 0
+  })
+
+  it('plan: mismo id, el paso sigue en_curso, intento sube, espera respetada y args nuevos', async () => {
+    vi.useFakeTimers()
+    const progresos: EventoProgresoIpc[] = []
+    gestor.suscribirProgreso((p) => progresos.push(p))
+    const descartar = vi.fn()
+    const t = gestor.encolar(
+      peticion('a', 'ligera', { politicaReintento: politica, alDescartar: descartar })
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(gestor.obtener(t.id)?.intento).toBe(1)
+    worker.llamadas[0]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(0)
+
+    const vivo = gestor.obtener(t.id)
+    expect(vivo).toMatchObject({ estado: 'en_curso', intento: 2 })
+    expect(vivo?.progreso).toMatchObject({
+      fase: 'reintentando',
+      valor: null,
+      detalle: { motivo: 'red', espera_s: 1 },
+      intento: 2
+    })
+    expect(progresos.at(-1)).toMatchObject({ id: t.id, fase: 'reintentando', intento: 2 })
+    expect(descartar).toHaveBeenCalledTimes(1)
+    expect(worker.llamadas).toHaveLength(1)
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso'])
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(worker.llamadas).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(worker.llamadas).toHaveLength(2)
+    expect(worker.llamadas[1]!.args).toMatchObject({ n: 2 })
+
+    const alResultado = vi.fn(() => ({}))
+    worker.llamadas[1]!.resolver({ ok: 1 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(alResultado).not.toHaveBeenCalled()
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'completado'])
+    expect(gestor.hayPendientes()).toBe(false)
+  })
+
+  it('el reintento no pierde el puesto: otro trabajo de la cola espera', async () => {
+    vi.useFakeTimers()
+    gestor.encolar(peticion('a', 'ligera', { politicaReintento: politica }))
+    const b = gestor.encolar(peticion('b', 'ligera'))
+    await vi.advanceTimersByTimeAsync(0)
+    worker.llamadas[0]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(500)
+    expect(gestor.obtener(b.id)?.estado).toBe('en_cola')
+    expect(worker.llamadas).toHaveLength(1)
+  })
+
+  it('alResultado recibe el intento y los args finales', async () => {
+    vi.useFakeTimers()
+    const alResultado = vi.fn(() => ({}))
+    gestor.encolar(peticion('a', 'ligera', { politicaReintento: politica, alResultado }))
+    await vi.advanceTimersByTimeAsync(0)
+    worker.llamadas[0]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(1000)
+    worker.llamadas[1]!.resolver({ ok: 1 })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(alResultado).toHaveBeenCalledWith(
+      { ok: 1 },
+      { intento: 2, args: { cancionId: 'a', n: 2 } }
+    )
+  })
+
+  it('política null: error definitivo con el comportamiento de siempre', async () => {
+    gestor.encolar(peticion('a', 'ligera', { politicaReintento: politica }))
+    await reposo()
+    worker.llamadas[0]!.fallar(error('VIDEO_NO_DISPONIBLE'))
+    await reposo()
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'error'])
+    expect(worker.llamadas).toHaveLength(1)
+  })
+
+  it('máximo de intentos: la política corta y el último error es el definitivo', async () => {
+    vi.useFakeTimers()
+    gestor.encolar(peticion('a', 'ligera', { politicaReintento: politica }))
+    await vi.advanceTimersByTimeAsync(0)
+    worker.llamadas[0]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(1000)
+    worker.llamadas[1]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(2000)
+    worker.llamadas[2]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(10)
+    expect(worker.llamadas).toHaveLength(3)
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'error'])
+    expect(intentosPolitica).toEqual([1, 2, 3])
+  })
+
+  it('alDescartar se llama entre intentos', async () => {
+    vi.useFakeTimers()
+    const descartar = vi.fn()
+    gestor.encolar(peticion('a', 'ligera', { politicaReintento: politica, alDescartar: descartar }))
+    await vi.advanceTimersByTimeAsync(0)
+    worker.llamadas[0]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(0)
+    expect(descartar).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    worker.llamadas[1]!.fallar(error())
+    await vi.advanceTimersByTimeAsync(0)
+    expect(descartar).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancelar durante la espera: sin proceso vivo, el paso vuelve a pendiente', async () => {
+    const t = gestor.encolar(
+      peticion('a', 'ligera', {
+        politicaReintento: () => plan({ cancionId: 'a' }, 60_000)
+      })
+    )
+    await reposo()
+    worker.llamadas[0]!.fallar(error())
+    await reposo()
+    expect(gestor.obtener(t.id)?.progreso?.fase).toBe('reintentando')
+    await gestor.cancelar(t.id)
+    expect(worker.llamadas).toHaveLength(1)
+    expect(gestor.hayPendientes()).toBe(false)
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'pendiente'])
+    expect(cambios.at(-1)).toMatchObject({ estado: 'terminado', resultado: 'cancelado' })
+  })
+
+  it('cerrar la app durante la espera: el paso queda interrumpido', async () => {
+    gestor.encolar(
+      peticion('a', 'ligera', { politicaReintento: () => plan({ cancionId: 'a' }, 60_000) })
+    )
+    await reposo()
+    worker.llamadas[0]!.fallar(error())
+    await reposo()
+    await gestor.cancelarTodos()
+    expect(bib.estados('a', 'fuente')).toEqual(['en_curso', 'interrumpido'])
+    expect(worker.llamadas).toHaveLength(1)
+  })
+
+  it('sin política, intento ausente y comportamiento intacto', async () => {
+    const t = gestor.encolar(peticion('a', 'ligera'))
+    await reposo()
+    expect(gestor.obtener(t.id)?.intento).toBeNull()
   })
 })

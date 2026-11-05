@@ -161,12 +161,44 @@ describe('ejecutar con worker falso', () => {
     expect(readFileSync(join(regs, archivo ?? ''), 'utf8')).toContain('linea 80')
   })
 
-  it('código ≠ 0 sin mensaje error → ERROR_INTERNO', async () => {
+  it('código ≠ 0 sin mensaje error → PROCESO_TERMINADO reintentable con el código', async () => {
     const c = ejecutarFalso(`process.stderr.write('boom\\n'); process.exit(3)`)
     const e = (await c.ejecutar('x', {}).catch((x: unknown) => x)) as ErrorTrabajo
-    expect(e.codigo).toBe('ERROR_INTERNO')
-    expect(e.reintentable).toBe(false)
+    expect(e.codigo).toBe('PROCESO_TERMINADO')
+    expect(e.reintentable).toBe(true)
+    expect(e.mensaje).toContain('código 3')
     expect(e.detalles).toBe('boom')
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'proceso muerto por SIGKILL sin cancelar → PROCESO_TERMINADO con la señal',
+    async () => {
+      const c = ejecutarFalso(`process.kill(process.pid, 'SIGKILL')`)
+      await expect(c.ejecutar('x', {})).rejects.toMatchObject({
+        codigo: 'PROCESO_TERMINADO',
+        reintentable: true,
+        mensaje: expect.stringContaining('SIGKILL') as string
+      })
+    }
+  )
+
+  it.skipIf(process.platform !== 'win32')(
+    'salida brusca con código 137 (Windows) → PROCESO_TERMINADO',
+    async () => {
+      const c = ejecutarFalso(`process.exit(137)`)
+      await expect(c.ejecutar('x', {})).rejects.toMatchObject({
+        codigo: 'PROCESO_TERMINADO',
+        mensaje: expect.stringContaining('137') as string
+      })
+    }
+  )
+
+  it('si el gestor lo cancela, sigue siendo CANCELADO (no PROCESO_TERMINADO)', async () => {
+    const c = ejecutarFalso(`setTimeout(() => {}, 30000)`)
+    const ac = new AbortController()
+    const p = c.ejecutar('x', {}, { señal: ac.signal })
+    setTimeout(() => ac.abort(), 200)
+    await expect(p).rejects.toMatchObject({ codigo: 'CANCELADO' })
   })
 
   it('salida 0 sin resultado → ERROR_INTERNO', async () => {

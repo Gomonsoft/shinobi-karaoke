@@ -308,9 +308,9 @@ describe('requisitos previos', () => {
       gpu: { nombre: 'RTX', vramMb: 8192 }
     })
   })
-  it('Linux sin GPU: cpu, Rápido, 3 GB', async () => {
+  it('Linux sin GPU: cpu, Calidad, 4 GB', async () => {
     const r = await calcular(sinGpu, env('linux', 'x64'))
-    expect(r).toMatchObject({ perfil: 'cpu', modoPrevisto: 'rapido', espacioRequerido: 3e9 })
+    expect(r).toMatchObject({ perfil: 'cpu', modoPrevisto: 'calidad', espacioRequerido: 4e9 })
     expect(r.bytesDescarga).toBeGreaterThan(434_000_000)
   })
   it.each([

@@ -6,7 +6,7 @@ import {
   PERFILES,
   bytesTotalesInstalacion,
   manifiestoSchema,
-  modeloDelPerfil,
+  MODELO_POR_DEFECTO,
   requisitosDe
 } from './manifiesto'
 
@@ -58,20 +58,33 @@ describe('runtime-manifest.json', () => {
     for (const { plataforma, perfil, datos } of combinaciones) {
       expect(manifiesto.python.bytes_descarga).toHaveProperty(plataforma)
       expect(datos.espacio_requerido).toBe(
-        { cpu: 3e9, mps: 4e9, cuda: 10e9 }[perfil as (typeof PERFILES)[number]]
+        { cpu: 4e9, mps: 4e9, cuda: 10e9 }[perfil as (typeof PERFILES)[number]]
       )
-      expect(manifiesto.modelos.some((m) => m.id === modeloDelPerfil(perfil as 'cpu'))).toBe(true)
+      expect(manifiesto.modelos.some((m) => m.id === MODELO_POR_DEFECTO)).toBe(true)
       expect(bytesTotalesInstalacion(manifiesto, plataforma, perfil as 'cpu')).toBeGreaterThan(
         datos.bytes_descarga
       )
     }
   })
 
-  it('solo darwin-arm64 está medido; los demás no tienen bytes_disco', () => {
-    for (const { plataforma, datos } of combinaciones) {
-      expect(datos.medido).toBe(plataforma === 'darwin-arm64')
-      expect(datos.bytes_disco === null).toBe(plataforma !== 'darwin-arm64')
+  it('solo darwin-arm64 está medido; bytes_disco y bytes_cache según 0055', () => {
+    const esperado: Record<string, [number | null, number | null]> = {
+      'darwin-arm64-mps': [1205e6, 1204e6],
+      'win32-x64-cpu': [1165e6, 1163e6],
+      'linux-x64-cpu': [1619e6, 1625e6],
+      'win32-x64-cuda': [null, null],
+      'linux-x64-cuda': [null, null]
     }
+    for (const { plataforma, perfil, datos } of combinaciones) {
+      expect(datos.medido).toBe(plataforma === 'darwin-arm64')
+      expect([datos.bytes_disco, datos.bytes_cache ?? null]).toEqual(
+        esperado[`${plataforma}-${perfil}`]
+      )
+    }
+  })
+
+  it('linux-x64 + cpu pide 4 GB de espacio', () => {
+    expect(requisitosDe(manifiesto, 'linux-x64', 'cpu')?.espacio_requerido).toBe(4e9)
   })
 
   it('macOS Intel no está soportado (preguntas/0015)', () => {

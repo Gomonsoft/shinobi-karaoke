@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CODIGOS_ERROR, esCodigoError } from './errores'
+import { CODIGOS_ERROR, CODIGOS_SOLO_MAIN, esCodigoError } from './errores'
 import {
   parsearLineaWorker,
   resultadoDescargarYoutubeSchema,
@@ -74,7 +74,10 @@ describe('catálogo de errores', () => {
     const bloque = /CODIGOS_ERROR\s*=\s*\(([^)]*)\)/.exec(py)?.[1] ?? ''
     const codigosPy = [...bloque.matchAll(/"([A-Z_]+)"/g)].map((m) => m[1])
     expect(codigosPy.length).toBeGreaterThan(0)
-    expect([...codigosPy].sort()).toEqual([...CODIGOS_ERROR].sort())
+    const delWorker = CODIGOS_ERROR.filter(
+      (c) => !(CODIGOS_SOLO_MAIN as readonly string[]).includes(c)
+    )
+    expect([...codigosPy].sort()).toEqual([...delWorker].sort())
   })
   it('esCodigoError', () => {
     expect(esCodigoError('SIN_CONEXION')).toBe(true)

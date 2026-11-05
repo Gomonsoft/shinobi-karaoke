@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { configPredeterminada, configSchema } from './config'
+import { configParcialRendererSchema } from './ipc'
 import { ESTILO_PREDETERMINADO } from './estilo'
 
 describe('configSchema (lectura tolerante)', () => {
@@ -17,7 +18,12 @@ describe('configSchema (lectura tolerante)', () => {
         version_manifiesto: null,
         hardware: { gpu: null, vram_mb: null }
       },
-      separacion: { modo: 'automatico', modelos_descargados: [], factores_medidos: {} },
+      separacion: {
+        modo: 'calidad',
+        rapido_aceptado: null,
+        modelos_descargados: [],
+        factores_medidos: {}
+      },
       reproductor: { volumen: 0.8, silenciado: false },
       aviso_youtube_aceptado: null,
       ultima_comprobacion_ytdlp: null,
@@ -57,6 +63,7 @@ describe('configSchema (lectura tolerante)', () => {
       },
       separacion: {
         modo: 'automatico',
+        rapido_aceptado: '2026-11-05T10:00:00Z',
         modelos_descargados: ['rapido'],
         factores_medidos: { rapido: 1.2 }
       },
@@ -66,7 +73,22 @@ describe('configSchema (lectura tolerante)', () => {
       estilo_predeterminado: ESTILO_PREDETERMINADO
     })
     expect(c.separacion.factores_medidos.rapido).toBe(1.2)
+    expect(c.separacion.modo).toBe('calidad') // 'automatico' se lee como Calidad
+    expect(c.separacion.rapido_aceptado).toBe('2026-11-05T10:00:00Z')
     expect(c.aviso_youtube_aceptado).toBe('2026-11-03T10:00:00Z')
+  })
+  it('el renderer no puede cambiar el modo ni el consentimiento de Rápido', () => {
+    expect(configParcialRendererSchema.safeParse({ separacion: { modo: 'rapido' } }).success).toBe(
+      false
+    )
+    expect(
+      configParcialRendererSchema.safeParse({
+        separacion: { rapido_aceptado: '2026-11-05T10:00:00Z' }
+      }).success
+    ).toBe(false)
+    expect(configParcialRendererSchema.safeParse({ reproductor: { volumen: 0.5 } }).success).toBe(
+      true
+    )
   })
   it('rechaza valores fuera de rango o de enumeraciones', () => {
     expect(configSchema.safeParse({ reproductor: { volumen: 1.5 } }).success).toBe(false)

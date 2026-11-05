@@ -55,8 +55,8 @@ export const textoLeido = (nombre: string, duracion: string): string =>
   `Audio leído: ${nombre} · ${duracion}`
 
 /**
- * `add.aviso.larga`. La cifra ("unos {n} minutos en tu equipo") depende de
- * `runtime.estimarSeparacion` (0036, aún sin hacer): sin ella se omite el paréntesis.
+ * `add.aviso.larga`. La cifra ("unos {n} minutos en tu equipo") viene de
+ * `runtime.estimarSeparacion` (0067); sin ella se omite el paréntesis.
  */
 export const textoLarga = (duracion: string, minutos: number | null = null): string =>
   `Esta canción dura ${duracion}. Separarla tardará más de lo normal` +

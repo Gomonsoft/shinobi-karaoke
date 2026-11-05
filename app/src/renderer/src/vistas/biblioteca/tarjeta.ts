@@ -1,6 +1,8 @@
 import { ESTILO_PREDETERMINADO, type Estilo } from '@shared/estilo'
 import type { EventoProgresoIpc, ResumenCancionIpc, TrabajoIpc } from '@shared/ipc'
 import type { EstadoInsignia } from '../../componentes/InsigniaEstado'
+import { textoReintentoRed } from '../../trabajos/useCuentaAtras'
+import { textoDeError } from '../progreso/textos'
 import { tituloDeError } from './textosError'
 
 /** Tipo de línea bajo la insignia; decide el icono y el color. */
@@ -17,9 +19,36 @@ export interface LineaPasoDatos {
 export interface TrabajoVivo {
   trabajo: TrabajoIpc
   progreso: EventoProgresoIpc | null
+  /** Segundos que faltan para el reintento de red en curso (cuenta atrás de la interfaz). */
+  esperaS?: number | null
 }
 
-export type AccionTarjeta = 'reproducir' | 'continuar' | 'reintentar'
+/** `ver`: error que repetir no arregla; abre la vista de progreso como "Continuar". */
+export type AccionTarjeta = 'reproducir' | 'continuar' | 'reintentar' | 'ver'
+
+/** `bib.paso.modelo` / `bib.paso.reintento.memoria`. */
+export const textoPasoModelo = (n: number): string => `Descargando el modelo ${n} %`
+export const TEXTO_REINTENTO_MEMORIA = 'Reintentando la separación…'
+
+/**
+ * Paso con error o interrumpido que "Reintentar" relanza (el primero, como la línea de paso), o
+ * `null` si no hay ninguno.
+ */
+export function pasoConProblema(r: ResumenCancionIpc): 'fuente' | 'separacion' | null {
+  for (const nombre of ['fuente', 'separacion'] as const) {
+    const e = r.pasos?.[nombre]?.estado
+    if (e === 'error' || e === 'interrumpido') return nombre
+  }
+  return null
+}
+
+/** ¿Repetir el paso lo arregla? Los errores de fuente no reintentables llevan a "Ver". */
+export function esReintentable(r: ResumenCancionIpc): boolean {
+  const p = pasoConProblema(r)
+  if (p !== 'fuente') return true
+  const paso = r.pasos?.fuente
+  return paso?.estado !== 'error' || textoDeError(paso.error?.codigo ?? '').reintentable
+}
 
 export interface DatosTarjeta {
   insignia: EstadoInsignia
@@ -58,7 +87,7 @@ export function textoEta(segundos: number | null | undefined): string | null {
  * Línea de un borrador con trabajo activo (docs/ux/02 "Línea de paso"). Cada actualización
  * en vivo prevalece sobre lo persistido en `cancion.json`.
  */
-function lineaDeTrabajo({ trabajo, progreso }: TrabajoVivo): LineaPasoDatos {
+function lineaDeTrabajo({ trabajo, progreso, esperaS }: TrabajoVivo): LineaPasoDatos {
   const separacion = trabajo.paso === 'separacion'
   if (trabajo.estado === 'en_cola') {
     return {
@@ -67,6 +96,27 @@ function lineaDeTrabajo({ trabajo, progreso }: TrabajoVivo): LineaPasoDatos {
     }
   }
   const fase = progreso?.fase ?? trabajo.progreso?.fase
+  if (!separacion && fase === 'reintentando' && esperaS) {
+    // `bib.paso.reintento.red`: sin barra, no es un error.
+    return { tipo: 'curso', texto: textoReintentoRed(esperaS) }
+  }
+  if (separacion && fase === 'descargando_modelo') {
+    // `bib.paso.modelo`: barra determinada, sin tiempo restante y nunca como error.
+    const d = progreso?.detalle ?? trabajo.progreso?.detalle
+    const v =
+      progreso?.valor ??
+      trabajo.progreso?.valor ??
+      (d && 'bytes' in d && d.total ? d.bytes / d.total : null)
+    return v === null
+      ? { tipo: 'curso', texto: 'Descargando el modelo…', barra: null }
+      : { tipo: 'curso', texto: textoPasoModelo(porcentaje(v)), barra: porcentaje(v) }
+  }
+  if (separacion && fase === 'reintentando') {
+    const d = progreso?.detalle ?? trabajo.progreso?.detalle
+    if (d && 'motivo' in d && d.motivo !== 'red') {
+      return { tipo: 'curso', texto: TEXTO_REINTENTO_MEMORIA, barra: null }
+    }
+  }
   if (!separacion && fase === 'actualizando') {
     return { tipo: 'curso', texto: 'Actualizando el descargador…', barra: null }
   }
@@ -130,7 +180,7 @@ export function lineaDeBorrador(
     if (paso?.estado === 'error') {
       return {
         linea: { tipo: 'error', texto: tituloDeError(paso.error?.codigo ?? '') },
-        accion: 'reintentar',
+        accion: esReintentable(r) ? 'reintentar' : 'ver',
         error: true
       }
     }
@@ -184,11 +234,16 @@ export function datosDeTarjeta(r: ResumenCancionIpc, vivo?: TrabajoVivo | null):
     return {
       insignia: 'danada',
       textoEstado: 'Dañada',
-      linea: {
-        tipo: 'error',
-        texto:
-          r.motivo === 'pistas' ? 'Faltan las pistas separadas' : 'No se puede abrir esta canción'
-      },
+      // Re-separando: la línea del trabajo ("En cola para separar", "Separando…") sustituye al aviso.
+      linea: vivo
+        ? lineaDeTrabajo(vivo)
+        : {
+            tipo: 'error',
+            texto:
+              r.motivo === 'pistas'
+                ? 'Faltan las pistas separadas'
+                : 'No se puede abrir esta canción'
+          },
       accion: null
     }
   }

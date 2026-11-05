@@ -510,7 +510,8 @@ export class ServicioBiblioteca {
       const ruta = rutaInterna(carpeta, cancion.fuente.miniatura)
       if (ruta && (await existe(ruta))) miniatura = ruta
     }
-    return { resumen: resumirCancion(id, cancion, miniatura, motivo), cancion }
+    const sinMezcla = motivo === 'pistas' && !(await existe(join(carpeta, 'fuente', 'mezcla.flac')))
+    return { resumen: resumirCancion(id, cancion, miniatura, motivo, sinMezcla), cancion }
   }
 
   /**
@@ -526,7 +527,13 @@ export class ServicioBiblioteca {
     const miniatura = anterior.resumen.miniatura
     const motivo = anterior.resumen.motivo === 'pistas' ? 'pistas' : null
     const entrada: Entrada = {
-      resumen: resumirCancion(id, candidata, miniatura, motivo),
+      resumen: resumirCancion(
+        id,
+        candidata,
+        miniatura,
+        motivo,
+        anterior.resumen.sinMezcla === true
+      ),
       cancion: candidata
     }
     this.indice.set(id, entrada)
@@ -579,7 +586,8 @@ export class ServicioBiblioteca {
       const ruta = rutaInterna(carpeta, cancion.fuente.miniatura)
       if (ruta && (await existe(ruta))) miniatura = ruta
     }
-    return { resumen: resumirCancion(id, cancion, miniatura, motivo), cancion }
+    const sinMezcla = motivo === 'pistas' && !(await existe(join(carpeta, 'fuente', 'mezcla.flac')))
+    return { resumen: resumirCancion(id, cancion, miniatura, motivo, sinMezcla), cancion }
   }
 
   private async interrumpirEnCurso(

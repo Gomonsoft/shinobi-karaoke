@@ -17,7 +17,8 @@ import {
   esperarCancelable,
   type ErrorTrabajo,
   type OpcionesEjecucion,
-  type PeticionTrabajo
+  type PeticionTrabajo,
+  type PoliticaReintento
 } from '../trabajos'
 
 /**
@@ -150,6 +151,21 @@ interface Consulta {
   miniatura: Buffer | null
   creada: number
   confirmando: boolean
+}
+
+/** Esperas de los reintentos de red de la descarga: 5, 15 y 45 s (arquitectura.md §6; 0063). */
+export const ESPERAS_REINTENTO_RED_MS = [5000, 15_000, 45_000] as const
+
+/**
+ * Política de reintento de `descargar-youtube`: solo los errores de red (`SIN_CONEXION`,
+ * `SERVICIO_NO_DISPONIBLE`) se repiten, hasta 3 veces con espera exponencial. `YOUTUBE_BLOQUEADO`
+ * sigue su flujo propio (actualizar yt-dlp, 0050) y el resto falla sin reintento.
+ */
+export const politicaReintentoDescarga: PoliticaReintento = (error, intento, args) => {
+  const espera = ESPERAS_REINTENTO_RED_MS[intento - 1]
+  if (espera === undefined) return null
+  if (error.codigo !== 'SIN_CONEXION' && error.codigo !== 'SERVICIO_NO_DISPONIBLE') return null
+  return { args, esperaMs: espera, motivo: 'red' }
 }
 
 const rutaRelativaSegura = (ruta: string): boolean =>
@@ -458,6 +474,7 @@ export class ServicioYoutube {
       cola: 'ligera',
       comando: 'descargar-youtube',
       args: { url, salida: carpeta },
+      politicaReintento: politicaReintentoDescarga,
       alResultado: (bruto) => {
         const r = resultadoDescargarYoutubeSchema.safeParse(bruto)
         if (!r.success || r.data.mezcla !== MEZCLA || !rutaRelativaSegura(r.data.mezcla)) {

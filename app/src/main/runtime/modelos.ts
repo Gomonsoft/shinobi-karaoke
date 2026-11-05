@@ -206,6 +206,62 @@ export async function modeloPresente(
   return true
 }
 
+/**
+ * Comprobación de la separación antes de lanzar el worker (ADR 0009 §4): ¿están el modelo y sus
+ * extras en `verificados.json` con el mismo tamaño y `mtime` que tienen en disco? No calcula
+ * SHA-256. `false` = hay que (re)descargar, que verifica y actualiza el índice.
+ */
+export async function modeloVerificado(
+  modelo: ModeloManifiesto,
+  dirModelos: string
+): Promise<boolean> {
+  const verificados = await leerVerificados(dirModelos)
+  for (const f of archivosDe(modelo)) {
+    let st
+    try {
+      st = await fsp.stat(join(dirModelos, f.archivo))
+    } catch {
+      return false
+    }
+    const v = verificados[f.archivo]
+    if (
+      !v ||
+      v.bytes !== st.size ||
+      v.bytes !== f.bytes ||
+      v.sha256 !== f.sha256 ||
+      v.mtimeMs !== Math.trunc(st.mtimeMs)
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+/** Borra el modelo (y sus extras) y sus entradas de `verificados.json`: checkpoint corrupto. */
+export async function borrarModelo(modelo: ModeloManifiesto, dirModelos: string): Promise<void> {
+  const verificados = await leerVerificados(dirModelos)
+  for (const f of archivosDe(modelo)) {
+    await fsp.rm(join(dirModelos, f.archivo), { force: true })
+    delete verificados[f.archivo]
+  }
+  await escribirJsonAtomico(join(dirModelos, ARCHIVO_VERIFICADOS), verificados).catch(
+    () => undefined
+  )
+}
+
+/** Anota en `verificados.json` los archivos del modelo tal como están en disco (dobles de prueba). */
+export async function anotarVerificado(
+  modelo: ModeloManifiesto,
+  dirModelos: string
+): Promise<void> {
+  const verificados = await leerVerificados(dirModelos)
+  for (const f of archivosDe(modelo)) {
+    const st = await fsp.stat(join(dirModelos, f.archivo))
+    verificados[f.archivo] = { bytes: f.bytes, sha256: f.sha256, mtimeMs: Math.trunc(st.mtimeMs) }
+  }
+  await escribirJsonAtomico(join(dirModelos, ARCHIVO_VERIFICADOS), verificados)
+}
+
 /** Borra los `*.partial` de audio-separator. No toca los `*.descarga` (reanudables). */
 export async function limpiarModelos(dirModelos: string): Promise<string[]> {
   let nombres: string[]

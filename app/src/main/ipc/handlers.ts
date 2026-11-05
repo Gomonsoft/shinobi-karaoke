@@ -14,7 +14,9 @@ import {
   type ImportacionLeidaIpc,
   type InfoYoutubeIpc,
   type EstadoRuntimeIpc,
+  type OrigenRapido,
   type EstimacionSeparacion,
+  type EstimacionCancion,
   type ProgresoRuntimeIpc,
   type RequisitosRuntimeIpc,
   type MetadatosEditables,
@@ -87,12 +89,22 @@ export interface RuntimeIpc {
   instalar(): void
   pausar(): Promise<void>
   detalles(): Promise<string>
-  estimarSeparacion(duracionMs: number): EstimacionSeparacion
+  estimarSeparacion(duracionMs: number, modelo?: 'calidad' | 'rapido'): EstimacionSeparacion
+  aceptarYUsarRapido(origen: OrigenRapido): Promise<void>
+  volverACalidad(): Promise<void>
+  cancelarVolverACalidad(): void
   alProgreso(cb: (progreso: ProgresoRuntimeIpc) => void): () => void
   alCambiar(cb: (estado: EstadoRuntimeIpc) => void): () => void
 }
 
+/** Servicio de separación (0065); mientras no exista, los canales responden `ERROR_INTERNO`. */
+export interface SeparacionIpc {
+  separar(cancionId: string): Promise<void>
+  estimar(cancionId: string): EstimacionCancion
+}
+
 export interface DependenciasIpc {
+  separacion?: SeparacionIpc
   runtime: RuntimeIpc
   /** Respuesta del renderer a la solicitud de cierre (`cierre.ts`). */
   confirmarCierre(): Promise<void>
@@ -185,6 +197,12 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       }
     }
 
+  /** Sin servicio (hasta 0065) el canal falla con `ERROR_INTERNO`. */
+  const separacion = (): SeparacionIpc => {
+    if (!deps.separacion) throw new Error('El servicio de separación no está disponible.')
+    return deps.separacion
+  }
+
   return {
     [CANALES.biblioteca.listar]: envolver(CANALES.biblioteca.listar, () =>
       biblioteca.listar().map(resumenParaRenderer)
@@ -262,8 +280,23 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, () => runtime.instalar()),
     [CANALES.runtime.pausar]: envolver(CANALES.runtime.pausar, () => runtime.pausar()),
     [CANALES.runtime.detalles]: envolver(CANALES.runtime.detalles, () => runtime.detalles()),
-    [CANALES.runtime.estimarSeparacion]: envolver(CANALES.runtime.estimarSeparacion, (ms) =>
-      runtime.estimarSeparacion(ms)
+    [CANALES.runtime.estimarSeparacion]: envolver(CANALES.runtime.estimarSeparacion, (ms, modelo) =>
+      runtime.estimarSeparacion(ms, modelo)
+    ),
+    [CANALES.separacion.separar]: envolver(CANALES.separacion.separar, (id) =>
+      separacion().separar(id)
+    ),
+    [CANALES.separacion.estimar]: envolver(CANALES.separacion.estimar, (id) =>
+      separacion().estimar(id)
+    ),
+    [CANALES.runtime.aceptarYUsarRapido]: envolver(CANALES.runtime.aceptarYUsarRapido, (origen) =>
+      runtime.aceptarYUsarRapido(origen)
+    ),
+    [CANALES.runtime.volverACalidad]: envolver(CANALES.runtime.volverACalidad, () =>
+      runtime.volverACalidad()
+    ),
+    [CANALES.runtime.cancelarVolverACalidad]: envolver(CANALES.runtime.cancelarVolverACalidad, () =>
+      runtime.cancelarVolverACalidad()
     ),
     [CANALES.app.confirmarCierre]: envolver(CANALES.app.confirmarCierre, () =>
       deps.confirmarCierre()

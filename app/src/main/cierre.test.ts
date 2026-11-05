@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { crearControlCierre } from './cierre'
+import { crearControlCierre, hayAlgoEnCurso } from './cierre'
 
 function preparar(enCurso: boolean) {
   const estado = { enCurso }
@@ -62,5 +62,29 @@ describe('solicitud de cierre', () => {
     await control.confirmar()
     expect(deps.pausar).toHaveBeenCalledOnce()
     expect(deps.cerrarVentana).toHaveBeenCalledOnce()
+  })
+})
+
+describe('hayAlgoEnCurso (0073)', () => {
+  const fuentes = (instalando: boolean, hayTrabajos: boolean) => ({
+    instalando: () => instalando,
+    hayTrabajos: () => hayTrabajos
+  })
+
+  it('un trabajo en curso o solo en cola cuenta; sin nada, no', () => {
+    expect(hayAlgoEnCurso(fuentes(false, true))).toBe(true)
+    expect(hayAlgoEnCurso(fuentes(false, false))).toBe(false)
+  })
+
+  it('la instalación del runtime sigue contando', () => {
+    expect(hayAlgoEnCurso(fuentes(true, false))).toBe(true)
+  })
+
+  it('con trabajos se frena el cierre y se pide confirmación', () => {
+    const { control, deps } = preparar(hayAlgoEnCurso(fuentes(false, true)))
+    const e = { preventDefault: vi.fn() }
+    control.alSalir(e)
+    expect(e.preventDefault).toHaveBeenCalledOnce()
+    expect(deps.pedirConfirmacion).toHaveBeenCalledOnce()
   })
 })

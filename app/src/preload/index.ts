@@ -41,6 +41,10 @@ const api: ApiShinobi = {
     alCambiar: (cb) => suscribir(CANALES.eventos.trabajo, cb),
     alProgreso: (cb) => suscribir(CANALES.eventos.trabajoProgreso, cb)
   },
+  separacion: {
+    separar: (cancionId) => invocar(CANALES.separacion.separar, cancionId),
+    estimar: (cancionId) => invocar(CANALES.separacion.estimar, cancionId)
+  },
   config: {
     obtener: () => invocar(CANALES.config.obtener),
     actualizar: (parcial) => invocar(CANALES.config.actualizar, parcial)
@@ -80,7 +84,11 @@ const api: ApiShinobi = {
     instalar: () => invocar(CANALES.runtime.instalar),
     pausar: () => invocar(CANALES.runtime.pausar),
     detalles: () => invocar(CANALES.runtime.detalles),
-    estimarSeparacion: (duracionMs) => invocar(CANALES.runtime.estimarSeparacion, duracionMs),
+    estimarSeparacion: (duracionMs, modelo) =>
+      invocar(CANALES.runtime.estimarSeparacion, duracionMs, modelo),
+    aceptarYUsarRapido: (origen) => invocar(CANALES.runtime.aceptarYUsarRapido, origen),
+    volverACalidad: () => invocar(CANALES.runtime.volverACalidad),
+    cancelarVolverACalidad: () => invocar(CANALES.runtime.cancelarVolverACalidad),
     alProgreso: (cb) => suscribir(CANALES.eventos.runtimeProgreso, cb),
     alCambiar: (cb) => suscribir(CANALES.eventos.runtimeCambio, cb)
   },
@@ -88,6 +96,10 @@ const api: ApiShinobi = {
     confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
     salir: () => invocar(CANALES.app.salir),
     alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, () => cb())
+  },
+  avisos: {
+    alAviso: (cb) => suscribir(CANALES.eventos.avisoTrabajo, cb),
+    alAbrirCancion: (cb) => suscribir(CANALES.eventos.abrirCancion, cb)
   },
   alCambiarCancion: (cb) => suscribir(CANALES.eventos.cancion, cb),
   alCambiarConfig: (cb) => suscribir(CANALES.eventos.config, cb),

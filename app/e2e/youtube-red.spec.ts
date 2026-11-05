@@ -25,7 +25,7 @@ test('aviso, vista previa y descarga real de un vídeo CC BY', async () => {
         fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
         perfil_hardware: 'cpu'
       },
-      separacion: { modelos_descargados: ['rapido'] }
+      separacion: { modelos_descargados: ['calidad'] }
     })
   )
   const env = { ...process.env, SHINOBI_DATOS: datos } as Record<string, string>

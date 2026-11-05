@@ -52,11 +52,13 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'alCambiarConfig',
       'alCambiarEstadoInfo',
       'app',
+      'avisos',
       'biblioteca',
       'config',
       'fuente',
       'runtime',
       'rutaDeArchivo',
+      'separacion',
       'sistema',
       'trabajos'
     ])

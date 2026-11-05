@@ -110,11 +110,11 @@ sequenceDiagram
     participant BG as Trabajos en 2º plano
     Note over U,App: Instalación (fuera de la app): descarga del instalador.<br/>Sin firma en el MVP (decisión 0001): guía para saltar SmartScreen/Gatekeeper.
     U->>App: Abre la app por primera vez
-    App->>U: Bienvenida: qué se descargará (~0,5–4 GB), cuánto tarda, requisitos
+    App->>U: Bienvenida: qué se descargará (~1–6 GB), cuánto tarda, requisitos
     U->>App: "Preparar Shinobi Karaoke"
     App->>BG: Instalar motor (uv, Python, dependencias, modelo)
     BG-->>App: Progreso por fases (3–25 min)
-    App->>U: "Todo listo" + modo de separación detectado (informativo)
+    App->>U: "Todo listo" + modelo Calidad y con qué se ejecuta (informativo)
     U->>App: "Empezar" → Biblioteca vacía
     U->>App: "+ Añadir canción"
     alt Archivo local

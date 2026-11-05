@@ -56,7 +56,9 @@ describe('AcercaDe', () => {
     ])
       expect(screen.getByRole('button', { name: n })).toBeTruthy()
     expect(
-      screen.getByText(/Letras: LRCLIB \(lrclib\.net\)\. Separación: audio-separator/)
+      screen.getByText(
+        /Letras: LRCLIB \(lrclib\.net\)\. Separación: audio-separator y MelBand RoFormer \(Kimberley Jensen\)/
+      )
     ).toBeTruthy()
   })
 
@@ -117,7 +119,7 @@ describe('AcercaDe', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copiar información para soporte' }))
     await waitFor(() => expect(screen.getByText('Información copiada')).toBeTruthy())
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      'Shinobi Karaoke 0.1.0\nSistema: Darwin 25\nPerfil de hardware: GPU NVIDIA (CUDA)\nModo de separación: Calidad\nyt-dlp: sin instalar\nÚltima comprobación de yt-dlp: sin instalar'
+      'Shinobi Karaoke 0.1.0\nSistema: Darwin 25\nPerfil de hardware: GPU NVIDIA (CUDA)\nModelo de separación: calidad\nDispositivo: cuda\nyt-dlp: sin instalar\nÚltima comprobación de yt-dlp: sin instalar'
     )
   })
 
@@ -138,7 +140,8 @@ describe('AcercaDe', () => {
       'Shinobi Karaoke 0.1.0',
       'Sistema: macOS 14.5 · arm64',
       'Perfil de hardware: GPU Apple (MPS)',
-      'Modo de separación: Automático',
+      'Modelo de separación: calidad',
+      'Dispositivo: mps',
       'yt-dlp: 2026.10.01',
       'Última comprobación de yt-dlp: 2026-11-01T09:00:00.000Z'
     ])
@@ -149,10 +152,23 @@ describe('AcercaDe', () => {
       { ...info, ytdlp: { version: null, ultimaComprobacion: null } },
       configPredeterminada()
     )
-    expect(t.split('\n')).toHaveLength(6)
+    expect(t.split('\n')).toHaveLength(7)
     expect(t).toContain('Perfil de hardware: sin instalar')
+    expect(t).toContain('Modelo de separación: sin instalar')
+    expect(t).toContain('Dispositivo: sin instalar')
     expect(t).toContain('yt-dlp: sin instalar')
     expect(t).toContain('Última comprobación de yt-dlp: sin instalar')
+  })
+
+  it('infoSoporte con Rápido incluye la fecha del consentimiento y el dispositivo', () => {
+    const c = configPredeterminada()
+    c.instalacion.perfil_hardware = 'cpu'
+    c.separacion.modo = 'rapido'
+    c.separacion.rapido_aceptado = '2026-11-05T10:00:00.000Z'
+    c.separacion.modelos_descargados = ['rapido']
+    const t = infoSoporte({ ...info, ytdlp: { version: null, ultimaComprobacion: null } }, c)
+    expect(t).toContain('Modelo de separación: rapido (aceptado el 2026-11-05)')
+    expect(t).toContain('Dispositivo: cpu')
   })
 
   it('infoSoporte marca la arquitectura emulada', () => {

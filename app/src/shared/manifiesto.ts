@@ -29,6 +29,12 @@ const requisitosPerfilSchema = z.object({
   bytes_descarga: bytes,
   /** `null` mientras no esté medido. */
   bytes_disco: bytes.nullable(),
+  /**
+   * Bytes que ocupa la caché de uv (descomprimida) al terminar de instalar los
+   * componentes. Solo sirve de denominador del progreso interno de esa fase;
+   * si falta, se usa `bytes_descarga`. `null` mientras no esté medido.
+   */
+  bytes_cache: bytes.nullable().optional(),
   espacio_requerido: bytes,
   medido: z.boolean()
 })
@@ -77,10 +83,11 @@ export type Manifiesto = z.infer<typeof manifiestoSchema>
 export type ModeloManifiesto = z.infer<typeof modeloManifiestoSchema>
 export type RequisitosPerfil = z.infer<typeof requisitosPerfilSchema>
 
-/** Modelo inicial de cada perfil (ADR 0009 §2): GPU/Apple Silicon → Calidad; CPU → Rápido. */
-export function modeloDelPerfil(perfil: PerfilHardware): ModeloId {
-  return perfil === 'cpu' ? 'rapido' : 'calidad'
-}
+/**
+ * Modelo de separación de todos los equipos (ADR 0004/0009, Revisiones 2026-11-05): Calidad, también
+ * en CPU. El perfil solo decide dónde se ejecuta. Rápido exige el consentimiento del usuario.
+ */
+export const MODELO_POR_DEFECTO = 'calidad' satisfies ModeloId
 
 /** Requisitos de la plataforma y el perfil, o `null` si no están soportados. */
 export function requisitosDe(
@@ -94,7 +101,7 @@ export function requisitosDe(
 }
 
 /**
- * Bytes que se descargan en total: Python + dependencias + modelo del perfil
+ * Bytes que se descargan en total: Python + dependencias + modelo Calidad
  * (con sus archivos extra). `null` si la plataforma/perfil no están soportados.
  */
 export function bytesTotalesInstalacion(
@@ -105,10 +112,27 @@ export function bytesTotalesInstalacion(
   const req = requisitosDe(manifiesto, plataforma, perfil)
   if (req === null) return null
   const p = plataformaSchema.parse(plataforma)
-  const modelo = manifiesto.modelos.find((m) => m.id === modeloDelPerfil(perfil))
+  const modelo = manifiesto.modelos.find((m) => m.id === MODELO_POR_DEFECTO)
   const python = manifiesto.python.bytes_descarga[p] ?? 0
   const bytesModelo = modelo ? modelo.bytes + modelo.extra.reduce((a, e) => a + e.bytes, 0) : 0
   return python + req.bytes_descarga + bytesModelo
+}
+
+/**
+ * Menor y mayor descarga total (Python + dependencias + modelo Calidad) de los perfiles de la
+ * plataforma; `null` si la plataforma no está en el manifiesto. Para el texto genérico de B1.
+ */
+export function rangoDescargaPlataforma(
+  manifiesto: Manifiesto,
+  plataforma: string
+): [number, number] | null {
+  const p = plataformaSchema.safeParse(plataforma)
+  if (!p.success) return null
+  const totales = PERFILES.map((perfil) =>
+    bytesTotalesInstalacion(manifiesto, p.data, perfil)
+  ).filter((t): t is number => t !== null)
+  if (totales.length === 0) return null
+  return [Math.min(...totales), Math.max(...totales)]
 }
 
 /**

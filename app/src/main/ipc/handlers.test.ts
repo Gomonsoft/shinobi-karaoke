@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CANALES, configPredeterminada, enlacePermitido, ErrorDatosInvalidos } from '../../shared'
+import {
+  CANALES,
+  CONTRATO,
+  configPredeterminada,
+  enlacePermitido,
+  ErrorDatosInvalidos
+} from '../../shared'
 import { ErrorBiblioteca, type EventoCancion, type ResumenCancion } from '../biblioteca'
 import { crearManejadores, registrarIpc, type DependenciasIpc, type IpcMainLike } from './handlers'
 
@@ -82,7 +88,10 @@ function crearDeps() {
       instalar: vi.fn(),
       pausar: vi.fn(() => Promise.resolve()),
       detalles: vi.fn(() => Promise.resolve('detalles')),
-      estimarSeparacion: vi.fn(() => ({ min: 1, max: 2 })),
+      estimarSeparacion: vi.fn(() => ({ min: 1, max: 2, origen: 'estimado' as const })),
+      aceptarYUsarRapido: vi.fn(() => Promise.resolve()),
+      volverACalidad: vi.fn(() => Promise.resolve()),
+      cancelarVolverACalidad: vi.fn(),
       alProgreso: vi.fn((cb: (p: unknown) => void) => {
         oyentesRtProgreso.push(cb)
         return () => oyentesRtProgreso.splice(0)
@@ -128,7 +137,10 @@ const estadoRt = {
   perfil: null,
   motivoRebaja: null,
   modo: 'calidad',
-  bytesRestantes: 1000
+  bytesRestantes: 1000,
+  rapidoPendiente: false,
+  ofrecerRapido: false,
+  volverACalidad: null
 }
 
 describe('manejadores IPC', () => {
@@ -284,12 +296,21 @@ describe('manejadores IPC', () => {
     const { deps } = crearDeps()
     const parcial = {
       reproductor: { volumen: 0.5 },
-      separacion: { modo: 'calidad' },
       aviso_youtube_aceptado: '2026-01-01T00:00:00.000Z'
     }
     const r = await crearManejadores(deps)[CANALES.config.actualizar]([parcial])
     expect(r.ok).toBe(true)
     expect(deps.config.actualizar).toHaveBeenCalledWith(parcial)
+  })
+
+  it('config.actualizar rechaza separacion.modo y separacion.rapido_aceptado', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    for (const separacion of [{ modo: 'rapido' }, { rapido_aceptado: '2026-11-05T10:00:00Z' }]) {
+      const r = await m[CANALES.config.actualizar]([{ separacion }])
+      expect(r.ok).toBe(false)
+    }
+    expect(deps.config.actualizar).not.toHaveBeenCalled()
   })
 
   it('traduce los errores a { codigo, mensaje } y oculta los desconocidos', async () => {
@@ -395,9 +416,52 @@ describe('runtime y cierre (0036)', () => {
     expect(deps.runtime.requisitos).toHaveBeenCalledWith(true)
     expect(await m[CANALES.runtime.estimarSeparacion]([240000])).toEqual({
       ok: true,
-      valor: { min: 1, max: 2 }
+      valor: { min: 1, max: 2, origen: 'estimado' }
     })
-    expect(deps.runtime.estimarSeparacion).toHaveBeenCalledWith(240000)
+    expect(deps.runtime.estimarSeparacion).toHaveBeenCalledWith(240000, undefined)
+  })
+
+  it('aceptarYUsarRapido valida el origen (sin "ajustes") y volverACalidad llega al servicio (0057)', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    for (const origen of ['primer_arranque', 'separacion']) {
+      expect(await m[CANALES.runtime.aceptarYUsarRapido]([origen])).toEqual({
+        ok: true,
+        valor: undefined
+      })
+      expect(deps.runtime.aceptarYUsarRapido).toHaveBeenLastCalledWith(origen)
+    }
+    for (const mal of [[], ['ajustes'], [1], ['separacion', 'x']]) {
+      expect(await m[CANALES.runtime.aceptarYUsarRapido](mal)).toMatchObject({
+        ok: false,
+        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+      })
+    }
+    expect(deps.runtime.aceptarYUsarRapido).toHaveBeenCalledTimes(2)
+    await m[CANALES.runtime.volverACalidad]([])
+    await m[CANALES.runtime.cancelarVolverACalidad]([])
+    expect(deps.runtime.volverACalidad).toHaveBeenCalledOnce()
+    expect(deps.runtime.cancelarVolverACalidad).toHaveBeenCalledOnce()
+  })
+
+  it('el error del servicio llega con su código (p. ej. sin oferta vigente)', async () => {
+    const { deps } = crearDeps()
+    vi.mocked(deps.runtime.aceptarYUsarRapido).mockRejectedValueOnce(
+      Object.assign(new Error('sin oferta'), { codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    )
+    const m = crearManejadores(deps)
+    expect(await m[CANALES.runtime.aceptarYUsarRapido](['separacion'])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'sin oferta' }
+    })
+  })
+
+  it('no hay otra vía de IPC que descargue el modelo Rápido', () => {
+    const canales = Object.values(CANALES.runtime) as string[]
+    expect(canales.filter((c) => /modelo|rapido|descarg/i.test(c))).toEqual([
+      CANALES.runtime.aceptarYUsarRapido
+    ])
+    expect(Object.keys(CONTRATO).filter((c) => /modelo|descargar/i.test(c))).toEqual([])
   })
 
   it('rechaza argumentos inválidos sin llamar al servicio', async () => {
@@ -437,12 +501,16 @@ describe('runtime y cierre (0036)', () => {
     for (const canal of [
       CANALES.runtime.instalar,
       CANALES.runtime.pausar,
+      CANALES.runtime.aceptarYUsarRapido,
+      CANALES.runtime.volverACalidad,
       CANALES.app.confirmarCierre,
       CANALES.app.salir
     ]) {
       expect(await manejadores.get(canal)?.('ajeno')).toMatchObject({ ok: false })
     }
     expect(deps.runtime.instalar).not.toHaveBeenCalled()
+    expect(deps.runtime.aceptarYUsarRapido).not.toHaveBeenCalled()
+    expect(deps.runtime.volverACalidad).not.toHaveBeenCalled()
     expect(deps.confirmarCierre).not.toHaveBeenCalled()
     expect(deps.salir).not.toHaveBeenCalled()
   })
@@ -499,7 +567,7 @@ describe('registrarIpc', () => {
       remitenteValido: (e) => e === 'mio',
       difundir
     })
-    expect(manejadores.size).toBe(32)
+    expect(manejadores.size).toBe(Object.keys(CONTRATO).length)
     expect(await manejadores.get(CANALES.sistema.info)?.('ajeno')).toMatchObject({ ok: false })
     expect(await manejadores.get(CANALES.sistema.info)?.('mio')).toMatchObject({ ok: true })
 
@@ -532,5 +600,37 @@ describe('registrarIpc', () => {
 
     deshacer()
     expect(manejadores.size).toBe(0)
+  })
+})
+
+describe('separación (0059)', () => {
+  it('sin servicio, separar y estimar responden ERROR_INTERNO; valida los argumentos', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    for (const canal of [CANALES.separacion.separar, CANALES.separacion.estimar]) {
+      expect(await m[canal](['abc'])).toEqual({
+        ok: false,
+        error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
+      })
+      expect(await m[canal]([])).toMatchObject({
+        ok: false,
+        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+      })
+    }
+  })
+
+  it('con servicio, delega en él', async () => {
+    const { deps } = crearDeps()
+    const separacion = {
+      separar: vi.fn().mockResolvedValue(undefined),
+      estimar: vi.fn().mockReturnValue({ min: 5, max: 6, origen: 'estimado' })
+    }
+    const m = crearManejadores({ ...deps, separacion })
+    expect(await m[CANALES.separacion.separar](['abc'])).toEqual({ ok: true, valor: undefined })
+    expect(await m[CANALES.separacion.estimar](['abc'])).toEqual({
+      ok: true,
+      valor: { min: 5, max: 6, origen: 'estimado' }
+    })
+    expect(separacion.separar).toHaveBeenCalledWith('abc')
   })
 })

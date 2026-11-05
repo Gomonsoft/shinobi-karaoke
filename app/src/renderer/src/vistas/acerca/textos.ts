@@ -3,7 +3,7 @@ export const TEXTOS_ACERCA = {
   titulo: 'Acerca de Shinobi Karaoke',
   version: (v: string) => `Versión ${v} · Software libre con licencia GPL-3.0 o posterior.`,
   creditos:
-    'Letras: LRCLIB (lrclib.net). Separación: audio-separator y modelos de la comunidad UVR.',
+    'Letras: LRCLIB (lrclib.net). Separación: audio-separator y MelBand RoFormer (Kimberley Jensen); modelo Rápido: comunidad UVR.',
   verLicencia: 'Ver licencia',
   verTerceros: 'Créditos y licencias de terceros',
   web: 'Web del proyecto',

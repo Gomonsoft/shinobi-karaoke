@@ -76,6 +76,8 @@ export interface DependenciasImportacion {
   dirDatos: string
   /** ¿Hay un trabajo vivo (en cola o en curso) de esa canción? (gestor de trabajos). */
   hayTrabajoVivo?: (cancionId: string) => boolean
+  /** Se llama tras crear la canción con la fuente completada (encadena la separación, 0065). */
+  alFuenteLista?: (cancionId: string) => void
   ahora?: () => Date
   registrar?: (nivel: 'aviso' | 'error', mensaje: string) => void
 }
@@ -249,6 +251,7 @@ export class ServicioImportacionArchivo {
         }
       })
       this.actual = null
+      this.deps.alFuenteLista?.(id)
       return resumen
     } catch (e) {
       // Si no se pudo materializar, la importación sigue viva para reintentar o descartar.

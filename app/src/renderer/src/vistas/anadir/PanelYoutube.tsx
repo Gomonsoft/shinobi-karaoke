@@ -20,7 +20,8 @@ import { formatearDuracion } from '../biblioteca/tarjeta'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { Miniatura } from './Miniatura'
-import { TEXTO, TEXTO_YT as YT, textoLarga } from './textos'
+import { AvisoLarga } from './AvisoLarga'
+import { TEXTO, TEXTO_YT as YT } from './textos'
 import estilos from './anadir.module.css'
 
 interface ErrorVista {
@@ -382,7 +383,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               onIntroUltimo={() => void continuar()}
             />
             {info.duracionS > UMBRAL_LARGA_S && (
-              <AvisoEnLinea tipo="aviso">{textoLarga(duracion)}</AvisoEnLinea>
+              <AvisoLarga duracion={duracion} duracionMs={Math.round(info.duracionS * 1000)} />
             )}
             <div className={estilos.acciones}>
               <Boton variante="fantasma" onClick={() => ir({ tipo: 'biblioteca' })}>

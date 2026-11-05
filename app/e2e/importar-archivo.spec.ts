@@ -63,7 +63,7 @@ function preparar(nombre: string): Entorno {
         fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
         perfil_hardware: 'cpu'
       },
-      separacion: { modelos_descargados: ['rapido'] }
+      separacion: { modelos_descargados: ['calidad'] }
     })
   )
   writeFileSync(falso, 'esto no es audio, es texto')
@@ -81,6 +81,21 @@ async function lanzar(datos: string, dialogo?: string): Promise<ElectronApplicat
       ...(dialogo ? { SHINOBI_DIALOGO_PRUEBAS: dialogo } : {})
     }
   })
+}
+
+/**
+ * Cierra la app. La importación encadena la separación (0065) y, sin modelo, el trabajo puede seguir
+ * vivo al cerrar: entonces se confirma "Cerrar de todos modos" (0073).
+ */
+async function cerrar(app: ElectronApplication): Promise<void> {
+  const ventana = app.windows()[0]
+  const cierre = app.close()
+  await ventana
+    ?.getByRole('dialog')
+    .getByRole('button', { name: 'Cerrar de todos modos' })
+    .click({ timeout: 3000 })
+    .catch(() => undefined)
+  await cierre
 }
 
 const subdirs = (d: string): string[] => (existsSync(d) ? readdirSync(d) : [])
@@ -121,7 +136,7 @@ test.describe('importar un archivo local', () => {
 
       const tarjeta = v.getByRole('article', { name: /^Tema importado,/ })
       await expect(tarjeta).toBeVisible()
-      await expect(tarjeta).toHaveAccessibleName(/Borrador\./)
+      // La separación se encadena sola al importar (0065); sin modelo falla, y aquí no se comprueba.
 
       const [id, ...resto] = canciones(datos)
       expect(resto).toEqual([])
@@ -139,7 +154,7 @@ test.describe('importar un archivo local', () => {
       expect(importando(datos)).toEqual([])
       expect(sha(wav)).toBe(shaAntes)
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -159,7 +174,7 @@ test.describe('importar un archivo local', () => {
       expect(canciones(datos)).toEqual([])
       expect(importando(datos)).toEqual([])
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -176,7 +191,7 @@ test.describe('importar un archivo local', () => {
       expect(canciones(datos)).toEqual([])
       expect(importando(datos)).toEqual([])
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -198,7 +213,7 @@ test.describe('importar un archivo local', () => {
       })
       await expect(v.getByLabel('Título')).toHaveValue('Mi tema de prueba')
     } finally {
-      await app.close()
+      await cerrar(app)
     }
   })
 
@@ -211,7 +226,7 @@ test.describe('importar un archivo local', () => {
     await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
       timeout: 30_000
     })
-    await app.close()
+    await cerrar(app)
 
     const app2 = await lanzar(datos)
     try {
@@ -220,7 +235,7 @@ test.describe('importar un archivo local', () => {
       expect(canciones(datos)).toEqual([])
       expect(importando(datos)).toEqual([])
     } finally {
-      await app2.close()
+      await cerrar(app2)
     }
   })
 })

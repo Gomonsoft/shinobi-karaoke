@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { MODELOS_SEPARACION } from './manifiesto'
 
 /** Mensajes JSON Lines del worker (arquitectura.md, "Protocolo JSON Lines"). */
 export const mensajeProgresoSchema = z.object({
@@ -58,7 +59,7 @@ export function parsearLineaWorker(linea: string): ResultadoParseoLinea {
  * - `preparando`: lectura/normalización del audio (indeterminada o 0–1).
  * - `descargando`: descarga del audio de YouTube (`detalle.bytes`/`detalle.total`).
  * - `actualizando`: actualización de yt-dlp.
- * Las anteriores (`diagnostico`, `cargando_modelo`, `separando`, `guardando`) siguen igual.
+ * Las de la separación (Fase 3) están en `FASES_SEPARACION_WORKER` y `FASES_SEPARACION_MAIN`.
  * El campo es una cadena abierta: una fase desconocida se tolera.
  */
 export const FASES_PROGRESO = [
@@ -68,7 +69,9 @@ export const FASES_PROGRESO = [
   'actualizando',
   'cargando_modelo',
   'separando',
-  'guardando'
+  'guardando',
+  'descargando_modelo',
+  'reintentando'
 ] as const
 
 export type FaseProgreso = (typeof FASES_PROGRESO)[number]
@@ -134,3 +137,110 @@ export const resultadoDiagnosticoSchema = z.object({
 })
 
 export type ResultadoDiagnostico = z.infer<typeof resultadoDiagnosticoSchema>
+
+// --- Comando `separar` (Fase 3, tarea 0059) ---
+
+/** Ruta absoluta POSIX (`/…`), de Windows (`C:\…`, `C:/…`) o UNC (`\\servidor\…`). */
+const RUTA_ABSOLUTA = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/
+
+export const rutaAbsolutaSchema = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((r) => RUTA_ABSOLUTA.test(r), 'La ruta debe ser absoluta')
+
+export const DISPOSITIVOS_SEPARACION = ['cpu', 'cuda'] as const
+export const BLOQUES_SEPARACION = ['normal', 'pequenos'] as const
+
+export type DispositivoSeparacion = (typeof DISPOSITIVOS_SEPARACION)[number]
+export type BloquesSeparacion = (typeof BLOQUES_SEPARACION)[number]
+
+/**
+ * Argumentos de `separar`. El worker los valida con las mismas reglas
+ * (`worker/shinobi_worker/argumentos_separar.py`).
+ * - `entrada`: `fuente/mezcla.flac` (FLAC PCM 16 bits, 44,1 kHz, estéreo).
+ * - `salida_dir`: `biblioteca/<id>/pistas.tmp/`; el main la crea y la vacía.
+ * - `modelo.dir`: carpeta `modelos/` del directorio de datos (siempre explícita: `model_file_dir`).
+ */
+export const argsSepararSchema = z.strictObject({
+  entrada: rutaAbsolutaSchema,
+  salida_dir: rutaAbsolutaSchema,
+  modelo: z.strictObject({
+    id: z.enum(MODELOS_SEPARACION),
+    /** Nombre de archivo del checkpoint (sin carpetas). */
+    archivo: z
+      .string()
+      .min(1)
+      .max(255)
+      .refine((a) => !/[\\/]/.test(a), 'Debe ser un nombre de archivo'),
+    dir: rutaAbsolutaSchema
+  }),
+  dispositivo: z.enum(DISPOSITIVOS_SEPARACION),
+  bloques: z.enum(BLOQUES_SEPARACION)
+})
+
+export type ArgsSeparar = z.infer<typeof argsSepararSchema>
+
+/**
+ * Fases de progreso que emite el worker en `separar`:
+ * `preparando`, `cargando_modelo` y `guardando` indeterminadas; `separando` 0–1 con
+ * `detalle: { paso, total }`. La lista debe coincidir con `FASES_SEPARACION` de
+ * `worker/shinobi_worker/protocolo.py` (test de paridad).
+ */
+export const FASES_SEPARACION_WORKER = [
+  'preparando',
+  'cargando_modelo',
+  'separando',
+  'guardando'
+] as const
+
+/**
+ * Fases que añade el proceso principal: `descargando_modelo` (0–1, `detalle: { bytes, total }`) y
+ * `reintentando` (indeterminada, `detalle: { motivo, espera_s? }`).
+ */
+export const FASES_SEPARACION_MAIN = ['descargando_modelo', 'reintentando'] as const
+
+export type FaseSeparacion =
+  (typeof FASES_SEPARACION_WORKER)[number] | (typeof FASES_SEPARACION_MAIN)[number]
+
+export const MOTIVOS_REINTENTO = ['memoria', 'memoria_cpu', 'red'] as const
+export type MotivoReintento = (typeof MOTIVOS_REINTENTO)[number]
+
+export const detalleSeparandoSchema = z.object({
+  paso: z.number().int().nonnegative(),
+  total: z.number().int().positive()
+})
+export const detalleDescargandoModeloSchema = z.object({
+  bytes: z.number().nonnegative(),
+  total: z.number().nonnegative().nullable()
+})
+export const detalleReintentandoSchema = z.object({
+  motivo: z.enum(MOTIVOS_REINTENTO),
+  espera_s: z.number().nonnegative().optional()
+})
+
+/** `datos` del resultado de `separar`; las rutas son relativas a `salida_dir`. */
+export const resultadoSepararSchema = z.object({
+  voz: z.literal('voz.flac'),
+  instrumental: z.literal('instrumental.flac'),
+  modelo: z.object({
+    id: z.enum(MODELOS_SEPARACION),
+    archivo: z.string().min(1),
+    version_audio_separator: z.string().min(1)
+  }),
+  dispositivo: z.enum(DISPOSITIVOS_SEPARACION),
+  segundos_separando: z.number().nonnegative(),
+  segundos_total: z.number().nonnegative()
+})
+
+export type ResultadoSeparar = z.infer<typeof resultadoSepararSchema>
+
+/** Códigos que puede emitir `separar` (sin códigos nuevos en el worker). */
+export const ERRORES_SEPARAR = [
+  'MEMORIA_INSUFICIENTE',
+  'MODELO_NO_DISPONIBLE',
+  'SIN_ESPACIO',
+  'FORMATO_NO_SOPORTADO',
+  'ARGUMENTOS_NO_VALIDOS',
+  'ERROR_INTERNO'
+] as const
