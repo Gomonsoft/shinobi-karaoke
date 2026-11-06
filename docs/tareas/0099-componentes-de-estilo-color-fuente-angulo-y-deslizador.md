@@ -1,5 +1,5 @@
 # 0099 — Componentes base: selector de color, selector de fuente, dial de ángulo y deslizador
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: — (**puede empezar ya**); usa los *tokens* y componentes de 0015/0016
 - ADRs: 0006 (fuentes incluidas), 0007 (sin librerías de UI)
@@ -13,7 +13,7 @@
 - Un `<select>` nativo no muestra cada opción con su fuente en todas las plataformas: por eso el selector de fuente es un *listbox* propio.
 
 ## Criterios de aceptación
-- [ ] **`SelectorColor`**:
+- [x] **`SelectorColor`**:
   ```ts
   interface Props { etiqueta: string; valor: string; sugeridos: readonly string[]
     alCambiar(hex: string, origen: 'hex' | 'nativo' | 'sugerido'): void; id?: string }
@@ -22,18 +22,18 @@
   - campo hex con validación `^#[0-9A-Fa-f]{6}$`: un valor inválido muestra borde `error` y "Usa el formato #RRGGBB.", y **no** llama a `alCambiar`; Esc restaura el valor;
   - 8 muestras sugeridas como `radiogroup` con nombre accesible = hex;
   - durante el arrastre del selector nativo (`input`) llama a `alCambiar` en cada evento (el *reducer* agrupa los cambios en un paso).
-- [ ] **`SelectorFuente`**:
+- [x] **`SelectorFuente`**:
   - botón que abre un *listbox* en portal (como `MenuContextual`);
   - cada opción muestra su nombre y "¿Cantamos? Ñandú" en su propia `font-family` y `font-weight`;
   - teclado: ↑/↓, Inicio/Fin, búsqueda por letra, Intro y Esc;
   - `aria-activedescendant`;
   - `alCambiar(familia)`.
-- [ ] **`DialAngulo`**:
+- [x] **`DialAngulo`**:
   - campo numérico 0–359 (fuera de rango se ajusta con módulo 360) y dial circular arrastrable con `role="slider"`, `aria-valuemin=0`, `aria-valuemax=359`, `aria-valuenow`;
   - ←/→ ±15° y Mayús ±1°;
   - `alCambiar(grados, { arrastrando: boolean })`.
-- [ ] **`Deslizador`**: `input type="range"` con estilo del sistema y `aria-valuetext` configurable; ↑/↓ y ←/→ ±5 %; lo usan el volumen (0–1) y la barra de tiempo del editor.
-- [ ] Todos:
+- [x] **`Deslizador`**: `input type="range"` con estilo del sistema y `aria-valuetext` configurable; ↑/↓ y ←/→ ±5 %; lo usan el volumen (0–1) y la barra de tiempo del editor.
+- [x] Todos:
   - foco visible (§7);
   - objetivos ≥ 32 px;
   - sin dependencias nuevas;
@@ -48,4 +48,6 @@ npm run dev   # #/muestrario
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- Los cuatro controles se añadieron al Muestrario y tienen pruebas de teclado, accesibilidad, entrada hex y estilo de las fuentes. El deslizador aplica pasos del 5 % con flechas.
+- Pasaron lint, TypeScript, formato, Vitest, build y Playwright (69 pasadas, 2 omitidas).

@@ -7,6 +7,11 @@ import { Boton } from '../componentes/Boton'
 import { BotonIcono } from '../componentes/BotonIcono'
 import { ControlSegmentado } from '../componentes/ControlSegmentado'
 import { Dialogo } from '../componentes/Dialogo'
+import { SelectorColor } from '../componentes/SelectorColor'
+import { SelectorFuente } from '../componentes/SelectorFuente'
+import { DialAngulo } from '../componentes/DialAngulo'
+import { Deslizador } from '../componentes/Deslizador'
+import { SUGERIDOS_FONDO } from '../karaoke/colores'
 import { Icono } from '../componentes/Icono'
 import { InsigniaEstado, type EstadoInsignia } from '../componentes/InsigniaEstado'
 import { MenuContextual } from '../componentes/MenuContextual'
@@ -86,6 +91,7 @@ export function Muestrario() {
       <MuestrarioFuentes />
 
       <Componentes />
+      <ControlesEditor />
     </main>
   )
 }
@@ -267,5 +273,35 @@ function Componentes() {
         </Dialogo>
       </section>
     </>
+  )
+}
+
+function ControlesEditor() {
+  const [color, setColor] = useState<string>('#1B1033')
+  const [fuente, setFuente] = useState('Atkinson Hyperlegible Next')
+  const [angulo, setAngulo] = useState(135)
+  const [volumen, setVolumen] = useState(0.8)
+  return (
+    <section aria-labelledby="m-editor">
+      <h2 id="m-editor" className="t-subtitulo">
+        Controles del editor
+      </h2>
+      <div style={{ display: 'grid', gap: 'var(--e-4)', maxWidth: '30rem' }}>
+        <SelectorColor
+          etiqueta="Fondo"
+          valor={color}
+          sugeridos={SUGERIDOS_FONDO}
+          alCambiar={setColor}
+        />
+        <SelectorFuente valor={fuente} alCambiar={setFuente} />
+        <DialAngulo valor={angulo} alCambiar={setAngulo} />
+        <Deslizador
+          etiqueta="Volumen"
+          valor={volumen}
+          textoValor={`${Math.round(volumen * 100)} %`}
+          alCambiar={setVolumen}
+        />
+      </div>
+    </section>
   )
 }

@@ -435,3 +435,79 @@
 .itemDestructivo {
   color: var(--error);
 }
+
+/* ---------- Controles del editor ---------- */
+.filaColor {
+  display: flex;
+  align-items: end;
+  gap: var(--e-2);
+}
+.filaColor .entrada {
+  min-width: 0;
+}
+.sugeridosColor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-1);
+}
+.muestraColor {
+  flex: 0 0 var(--objetivo-minimo);
+  width: var(--objetivo-minimo);
+  height: var(--objetivo-minimo);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+}
+.muestraColor[aria-checked='true'] {
+  border: 2px solid var(--acento-texto);
+}
+.botonFuente {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  text-align: left;
+}
+.opcionFuente {
+  min-height: var(--objetivo-minimo);
+  height: auto;
+  justify-content: space-between;
+  padding-block: var(--e-1);
+}
+.opcionFuente[data-activa='true'] {
+  background: var(--fondo-3-hover);
+}
+.dial {
+  position: relative;
+  flex: 0 0 3rem;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--borde-control);
+  border-radius: 50%;
+  background: var(--fondo-2);
+  cursor: grab;
+  touch-action: none;
+}
+.dial:active {
+  cursor: grabbing;
+}
+.aguja {
+  position: absolute;
+  inset: var(--e-1);
+  pointer-events: none;
+}
+.aguja::after {
+  position: absolute;
+  top: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 45%;
+  border-radius: var(--r-s);
+  background: var(--acento-texto);
+  content: '';
+}
+.deslizador {
+  display: block;
+  width: 100%;
+  min-height: var(--objetivo-minimo);
+  accent-color: var(--acento);
+}

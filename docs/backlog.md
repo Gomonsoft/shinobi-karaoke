@@ -242,7 +242,7 @@ Spec `ux/06` reescrita por el diseñador UX (48 criterios). [0024](preguntas/002
 | [0096](tareas/0096-modelo-puro-de-render-de-la-letra.md) | Modelo puro de render de la letra | — | **Empieza ya** | — | Hecha |
 | [0097](tareas/0097-contraste-y-utilidades-de-color.md) | Contraste del estilo y utilidades de color | — | **Empieza ya** | — | Hecha |
 | [0098](tareas/0098-componente-pantalla-letra.md) | Componente `PantallaLetra` (vista previa y reproductor) | 0096 | ‖ resto | `Muestrario.tsx` | Pendiente |
-| [0099](tareas/0099-componentes-de-estilo-color-fuente-angulo-y-deslizador.md) | Selector de color, de fuente, dial de ángulo y deslizador | — | **Empieza ya** (cuidado con 0100) | `componentes.module.css`, `Muestrario.tsx` | Pendiente |
+| [0099](tareas/0099-componentes-de-estilo-color-fuente-angulo-y-deslizador.md) | Selector de color, de fuente, dial de ángulo y deslizador | — | **Empieza ya** (cuidado con 0100) | `componentes.module.css`, `Muestrario.tsx` | Hecha |
 | [0100](tareas/0100-popover-y-deuda-de-componentes-base.md) | Popover y deuda de 0016 (`inert`, tooltip en bordes, *type-ahead*) | — | **Empieza ya** (cuidado con 0099) | `componentes.module.css`, `Muestrario.tsx` | Pendiente |
 | [0101](tareas/0101-stepper-paso-actual-completado.md) | Stepper: ✓ en el paso actual completado y subrayado (0024) | — | **Empieza ya; pequeña** | `CabeceraCancion.tsx`, `e2e/letras.spec.ts` | Pendiente |
 | [0102](tareas/0102-vista-letra-texto-demasiado-largo.md) | Vista Letra: texto demasiado largo (`ux/05` §10) | — | **Empieza ya; pequeña** | — | Pendiente |
