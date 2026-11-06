@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-05 (desglose de la Fase 5: ADR 0010, tareas 0090–0111).
+Última actualización: 2026-11-06 (cierre de la Fase 5).
 
 ## Resumen
 
@@ -17,8 +17,8 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (0040 ejecutada el 2026-11-05) |
 | 3 | Separación de voz e instrumental | ✅ Cerrada (0058 y 0062 esperan `runtime-real` en GitHub) |
 | 4 | Letras | ✅ Cerrada (0077–0089) |
-| 5 | Editor (sincronía y estilo) | ⏳ Desglosada (0090–0111) |
-| 6 | Reproductor a pantalla completa | Pendiente |
+| 5 | Editor (sincronía y estilo) | ✅ Cerrada (0090–0110; 0111 manual pendiente) |
+| 6 | Reproductor a pantalla completa | ⏳ Siguiente |
 | 7 | Empaquetado y distribución | Pendiente |
 
 ```mermaid
@@ -123,7 +123,7 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Resuelto al empezar la Fase 5**: pregunta 0024 (✓ de Letra en el stepper, tarea 0101) y el texto de 512 KB (`ux/05` §10, tarea 0102).
 
-## Fase 5 — Editor ⏳ (desglosada el 2026-11-05: tareas 0090–0111, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md))
+## Fase 5 — Editor ✅ (cerrada el 2026-11-06: tareas 0090–0110, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md))
 **Objetivo**: ajustar la sincronía y el aspecto del karaoke (`ux/06`, reescrita para la fase).
 
 - Sincronía **"al ritmo"** por línea:
@@ -141,6 +141,8 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 **Preguntas**: 0024, 0025 y [0026](preguntas/0026-textos-pendientes-del-editor-fase-5.md) respondidas; ninguna abierta.
 
 **Orden**: 0090 y 10 tareas independientes en paralelo → 0091, 0093, 0098, 0103 y 0104 → 0105 (vista) → 0106 → 0107, en paralelo con 0108 y 0109 → E2E 0110 y prueba manual 0111. Detalle en [`backlog.md`](backlog.md).
+
+**Resultado**: editor completo con sincronía al ritmo, ajuste fino, estilo con contraste, autoguardado y marcar como lista. Detalle en [`informe-fase-5.md`](informe-fase-5.md). Pendiente: prueba manual 0111 y pregunta 0029.
 
 ## Fase 6 — Reproductor
 **Objetivo**: cantar (`ux/07`).

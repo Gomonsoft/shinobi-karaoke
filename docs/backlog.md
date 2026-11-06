@@ -209,7 +209,7 @@ Deuda que se salda aquí:
 - `hayLetra` de Progreso con `contarLineas` y motivos provisionales del stepper (0043/0068 → 0087);
 - el test de `archivo.test.ts` que escribía un `letra.json` aparte (→ 0083).
 
-## Fase 5 — Editor — **desglosada (2026-11-05)**: tareas 0090–0111
+## Fase 5 — Editor — **cerrada (2026-11-06)**: tareas 0090–0110 hechas; 0111 manual pendiente; pregunta 0029 abierta
 **Decisiones técnicas** en el nuevo [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md), con revisiones de los ADR 0005 y 0006:
 - **Audio**: Web Audio con `AudioBuffer` decodificado bajo demanda (como mucho 2, LRU). La velocidad baja el tono (sin *spike* de `preservesPitch`).
 - **Reloj**: `getOutputTimestamp` para las pulsaciones.
