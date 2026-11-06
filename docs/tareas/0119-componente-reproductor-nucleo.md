@@ -1,5 +1,5 @@
 # 0119 — Componente `Reproductor`: capa, audio, letra, controles que se ocultan, teclado, indicador breve, voz guía, pantalla completa y pantalla encendida
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112, 0116, 0117, 0118
 - ADRs: 0011 (§1–§4), 0010 (§1 teclado en fase de captura, §4 render), 0008
@@ -101,4 +101,7 @@ npm run dev    # Muestrario → Reproductor (API falsa), revisión visual
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- `Reproductor` mantiene la vista de origen montada y dibuja la capa modal con letra, audio, controles, voz guía, teclado, indicador y pantalla completa. Libera audio, pantalla encendida y toasts al desmontarse.
+- `Controles` separa las franjas superior e inferior y mantiene la letra fuera de la zona central. La pausa mantiene la letra congelada con el reloj del motor.
+- Los anuncios, estados finales, errores y desplazamiento se conectaron en la tarea 0120. La integración del editor se completa en 0122.
+- Pasaron 40 pruebas dirigidas del modelo, atajos y reproductor; ESLint y Prettier dirigidos están en verde. Typecheck global pasó.

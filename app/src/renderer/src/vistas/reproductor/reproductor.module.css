@@ -1,0 +1,272 @@
+.raiz {
+  position: fixed;
+  z-index: 45;
+  inset: 0;
+  overflow: hidden;
+  color: #fff;
+  background: var(--fondo-0);
+  container-type: size;
+}
+
+.raiz:focus {
+  outline: none;
+}
+
+.sinCursor {
+  cursor: none;
+}
+
+.letra {
+  position: absolute;
+  inset: 0;
+}
+
+.franja {
+  position: absolute;
+  inset-inline: 0;
+  padding-inline: clamp(8px, 2vw, 32px);
+  transition:
+    opacity 200ms ease,
+    visibility 200ms;
+}
+
+.oculta {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.superior {
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 4px 20px;
+  background: linear-gradient(rgb(0 0 0 / 60%) 0 calc(100% - 16px), transparent);
+}
+
+.nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.identidad {
+  min-width: 0;
+  text-align: right;
+}
+
+.aviso,
+.pantallaError h2 svg {
+  color: var(--aviso);
+}
+
+.inferior {
+  bottom: 0;
+  display: grid;
+  gap: 4px;
+  padding-block: 16px 4px;
+  background: linear-gradient(transparent, rgb(0 0 0 / 70%) 16px 100%);
+}
+
+.barra {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.barra input {
+  min-width: 0;
+  width: 100%;
+}
+
+.fila,
+.grupo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fila {
+  justify-content: space-between;
+}
+
+.grupo:last-child {
+  margin-inline-start: auto;
+}
+
+.voz {
+  margin-inline-end: clamp(4px, 2vw, 24px);
+}
+
+.nivelVoz {
+  width: clamp(40px, 10vw, 96px);
+}
+
+.volumen {
+  width: clamp(48px, 12vw, 120px);
+}
+
+.porcentaje {
+  min-width: 5ch;
+  text-align: right;
+}
+
+.atenuado {
+  color: #ccc;
+}
+
+.control {
+  color: #fff;
+  background: transparent;
+}
+
+.control:hover:not(:disabled) {
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+}
+
+.control svg {
+  width: 28px;
+  height: 28px;
+}
+
+.pildora {
+  border-radius: 999px;
+  padding: 0.35em 0.7em;
+  color: #fff;
+  background: rgb(0 0 0 / 60%);
+  pointer-events: none;
+}
+
+.indicador,
+.original {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.indicador {
+  top: 12%;
+  font-size: max(20px, 3cqh);
+}
+
+.original {
+  top: 5%;
+  max-width: 55%;
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .franja {
+    transition: none;
+  }
+}
+
+.salir {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--r-m);
+  padding-inline: 8px;
+  font: inherit;
+}
+
+.pantallaFinal,
+.pantallaError {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: var(--e-5);
+  text-align: center;
+}
+
+.pantallaFinal {
+  color: var(--k-color);
+  background: var(--k-fondo);
+  font-family: var(--k-fuente), sans-serif;
+  font-weight: var(--k-peso);
+}
+
+.tituloFinal {
+  font-size: max(32px, 7.5cqh);
+}
+
+.artistaFinal {
+  font-size: max(16px, 3.75cqh);
+}
+
+.tituloFinal,
+.artistaFinal {
+  text-shadow: 0 0.04em 0.12em rgb(0 0 0 / 55%);
+}
+
+.accionesFinal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--e-3);
+  margin-block-start: var(--e-5);
+}
+
+.botonFinal,
+.cuentaFinal {
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+}
+
+.botonFinal {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: var(--e-2);
+  padding-inline: var(--e-4);
+  border: 0;
+  border-radius: var(--r-m);
+  font: inherit;
+}
+
+.botonFinal:hover {
+  background: rgb(0 0 0 / 76%);
+}
+
+.cuentaFinal {
+  margin-block-start: var(--e-3);
+  padding: 0.5em 1em;
+  border-radius: var(--r-pildora);
+}
+
+.pantallaError {
+  background: var(--fondo-0);
+  color: var(--texto-1);
+}
+
+.pantallaError h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.pantallaError p {
+  max-width: 54ch;
+  color: var(--texto-2);
+}
+
+.tablaAtajos {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tablaAtajos :is(th, td) {
+  padding: var(--e-2);
+  border-bottom: 1px solid var(--borde);
+  text-align: left;
+}

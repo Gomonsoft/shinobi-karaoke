@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { estiloPredeterminado } from '@shared/estilo'
 import { FUENTES_REGISTRO } from '@shared/fuentes'
 import { letra, linea } from '@shared/__fixtures__'
@@ -22,6 +23,8 @@ import { MenuContextual } from '../componentes/MenuContextual'
 import { Popover } from '../componentes/Popover'
 import { Tooltip } from '../componentes/Tooltip'
 import { mostrarToast } from '../componentes/gestorToasts'
+import { Reproductor, type CancionReproductor } from './reproductor/Reproductor'
+import type { EstadoMotorReproductor } from '../karaoke/motorReproductor'
 import { MuestrarioFuentes } from './MuestrarioFuentes'
 
 const SUPERFICIES = ['fondo-0', 'fondo-1', 'fondo-2', 'fondo-3', 'borde', 'borde-control']
@@ -97,6 +100,7 @@ export function Muestrario() {
 
       <Componentes />
       <ControlesEditor />
+      <MuestrarioReproductor />
       <PreviasKaraoke />
     </main>
   )
@@ -364,6 +368,124 @@ function PreviasKaraoke() {
           )
         })}
       </div>
+    </section>
+  )
+}
+
+const cancionReproductorMuestrario: CancionReproductor = {
+  id: 'muestrario-reproductor',
+  titulo: 'Canción de ejemplo',
+  artista: 'Shinobi Karaoke',
+  duracionMs: 30_000,
+  gananciaDb: 0,
+  letra: letra([
+    linea('r1', 'El viento mueve las luces', 2000),
+    linea('r2', 'sobre el río de papel', 6000),
+    linea('r3', 'y la ciudad despierta', 10_000)
+  ]),
+  estilo: estiloPredeterminado(),
+  lineasSinSincronizar: 0
+}
+
+function MuestrarioReproductor() {
+  const [abierto, setAbierto] = useState(false)
+  const apiAnterior = useRef<typeof window.shinobi | null>(null)
+  const completa = useRef(false)
+  const oyentesPantalla = useRef(new Set<(activa: boolean) => void>())
+  const oyentesMotor = useRef(new Set<(estado: EstadoMotorReproductor) => void>())
+  const estadoMotor = useRef<EstadoMotorReproductor>({
+    listo: true,
+    cargando: false,
+    sonando: true,
+    finalizado: false,
+    duracionMs: 30_000,
+    vozDisponible: true,
+    errorPrincipal: null,
+    errorVoz: null
+  })
+  const volumen = {
+    volumen: 0.8,
+    silenciado: false,
+    volumenVoz: 0.3,
+    vozSilenciada: true,
+    cambiar: () => undefined
+  }
+
+  function fabricarMotor() {
+    return {
+      cargar: async () => undefined,
+      reproducir: async () => {
+        estadoMotor.current = { ...estadoMotor.current, sonando: true }
+        for (const oyente of oyentesMotor.current) oyente(estadoMotor.current)
+      },
+      pausar: () => {
+        estadoMotor.current = { ...estadoMotor.current, sonando: false }
+        for (const oyente of oyentesMotor.current) oyente(estadoMotor.current)
+      },
+      buscar: () => undefined,
+      posicionMs: () => 0,
+      fijarVolumen: () => undefined,
+      fijarVoz: () => undefined,
+      estado: () => estadoMotor.current,
+      suscribir: (oyente: (estado: EstadoMotorReproductor) => void) => {
+        oyentesMotor.current.add(oyente)
+        oyente(estadoMotor.current)
+        return () => oyentesMotor.current.delete(oyente)
+      },
+      destruir: () => undefined
+    } as never
+  }
+
+  function cambiarPantalla(activa: boolean): void {
+    completa.current = activa
+    for (const oyente of oyentesPantalla.current) oyente(activa)
+  }
+
+  function abrir(): void {
+    const api = window.shinobi
+    apiAnterior.current = api
+    window.shinobi = {
+      ...api,
+      ventana: {
+        modoReproductor: async (activo) => cambiarPantalla(activo),
+        fijarPantallaCompleta: async (activa) => cambiarPantalla(activa),
+        estaEnPantallaCompleta: async () => completa.current,
+        evitarReposo: async () => undefined,
+        alCambiarPantallaCompleta: (cb) => {
+          oyentesPantalla.current.add(cb)
+          return () => oyentesPantalla.current.delete(cb)
+        }
+      }
+    }
+    setAbierto(true)
+  }
+
+  function cerrar(): void {
+    flushSync(() => setAbierto(false))
+    if (apiAnterior.current) window.shinobi = apiAnterior.current
+    apiAnterior.current = null
+  }
+
+  return (
+    <section aria-labelledby="m-reproductor">
+      <h2 id="m-reproductor" className="t-subtitulo">
+        Reproductor
+      </h2>
+      <p>Prueba la capa a pantalla completa con audio y controles simulados.</p>
+      <Boton variante="primario" onClick={abrir}>
+        Abrir reproductor de ejemplo
+      </Boton>
+      {abierto && (
+        <Reproductor
+          cancion={cancionReproductorMuestrario}
+          origen="biblioteca"
+          modo="karaoke"
+          desdeMs={0}
+          volumen={volumen}
+          alSalir={cerrar}
+          crearMotor={fabricarMotor}
+        />
+      )}
     </section>
   )
 }
