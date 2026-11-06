@@ -1,5 +1,5 @@
 # 0137 — Workflow `empaquetado.yml`: probar los instaladores
-- Estado: En curso
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0136
 - ADRs: 0013 §3
@@ -47,3 +47,8 @@ gh workflow run empaquetado.yml --ref <rama>    # CON RED
 - Verificación local con `npx vitest run workflow-empaquetado` desde `app`, además de lint, chequeo de tipos, formato de los archivos de código y sintaxis Bash. Para la validación conjunta con 0136, revisar las tablas de los jobs y los registros de desinstalación, sandbox y FUSE cuando se resuelva [0038](../preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md).
 - La suite completa de Vitest se interrumpió tras registrar fallos en integraciones del worker y de LRCLIB en este entorno. La prueba de textos legales falló durante esa ejecución y pasó al repetirla por separado.
 - Queda pendiente confirmar los resultados en los runners y trasladarlos al ADR 0013 §3 y a las preguntas 0042 y 0043.
+
+
+### Primera ejecución en GitHub — 2026-11-06
+
+La ejecución 42291261968 del commit `724e9d1` pasó sus seis pruebas de instalador. NSIS se instaló y desinstaló en Windows Server conservando `config.json`; el humo pasó. Los DMG se montaron y probaron en macOS 15 y 26 arm64. Los paquetes .deb se instalaron y retiraron en Ubuntu 24.04 y 26.04 conservando datos y sin `--no-sandbox`. AppImage se ejecutó directamente con FUSE en Ubuntu 24.04; con la restricción activa apareció `--no-sandbox`, y con ella desactivada no apareció. SmartScreen, Gatekeeper con cuarentena, macOS 14 y el primer arranque real quedan para 0139.

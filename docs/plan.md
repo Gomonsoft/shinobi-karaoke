@@ -190,7 +190,7 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Orden**: 0127, 0128, 0134 y 0138 a la vez → 0129 ‖ 0131 ‖ 0132 (0133 en paralelo) → 0130 → 0135 → 0136 → 0137; 0140 y 0141 cuando responda el diseñador; prueba manual 0139. Detalle en [`backlog.md`](backlog.md).
 
-**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La Fase 8 recoge la validación pendiente de 0133, 0136, 0137, 0139 y 0140. 0142 queda reservada para la publicación.
+**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La primera ejecución de 0136 y 0137 pasó en GitHub. La Fase 8 continúa con 0133, 0139 y 0140. 0142 queda reservada para la publicación.
 
 **Verificación local**. Lint, tipos y formato correctos. Vitest: 1858 pruebas aprobadas y 12 omitidas. Worker: 327 aprobadas y 7 deseleccionadas. Playwright: 91 aprobadas y 2 omitidas en serie, tras los tiempos agotados de la primera ejecución en paralelo.
 

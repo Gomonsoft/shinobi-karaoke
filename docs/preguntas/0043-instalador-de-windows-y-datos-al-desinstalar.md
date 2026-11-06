@@ -38,3 +38,6 @@ Textos tal como están en `ux/09`: instalador por usuario y sin borrado de datos
 - Paso 4 de Windows: en lugar de "Sigue el instalador", algo como "El instalador no pregunta nada: se instala solo y abre la app al terminar. No necesita permisos de administrador".
 - Desinstalar: "tus canciones seguirán ahí" es correcto siempre. "El motor de audio" solo si la nueva versión no lo cambia; matízalo.
 - ⟦R0043⟧ se resuelve con esto, pendiente de la confirmación real de P13.
+
+### Medición de 0137 — 2026-11-06
+En la ejecución 42291261968, Windows NSIS y Ubuntu 24.04/26.04 conservaron `config.json` con el mismo SHA-256 tras la desinstalación. La prueba manual de canciones y motor completos sigue en 0139.

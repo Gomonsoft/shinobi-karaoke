@@ -361,8 +361,8 @@ Deuda que se salda aquí:
 | [0132](tareas/0132-avisos-de-terceros-de-las-dependencias-js.md) | Avisos: dependencias JS y `uv` | 0127 | ‖ 0129, 0131 | Sí | — | `THIRD_PARTY_NOTICES.md`, `package.json` (scripts) | Hecha |
 | [0130](tareas/0130-configuracion-de-electron-builder.md) | `electron-builder.yml`, *fuses* y firma | 0127, 0129 | No | Sí | Empaquetar | `package.json` (scripts) | Hecha |
 | [0135](tareas/0135-prueba-de-humo-de-la-app-empaquetada.md) | Prueba de humo `e2e-paquete` | 0127, 0130 | ‖ 0131 | Se ejecuta aparte | Paso `humo-worker` | `package.json` (scripts) | Hecha |
-| [0136](tareas/0136-workflow-construir-y-probar-desempaquetado.md) | Workflow: construir, verificar, humo desempaquetado, artefactos, tamaños | 0128–0132, 0135 | No | Test del YAML | Sí | `empaquetado.yml` | En curso |
-| [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | En curso |
+| [0136](tareas/0136-workflow-construir-y-probar-desempaquetado.md) | Workflow: construir, verificar, humo desempaquetado, artefactos, tamaños | 0128–0132, 0135 | No | Test del YAML | Sí | `empaquetado.yml` | Hecha |
+| [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | Hecha |
 | [0140](tareas/0140-icono-de-la-app-en-los-instaladores.md) | Icono | 0130 y [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | — | — | — | En curso |
 | [0141](tareas/0141-texto-de-b6b-menu-apple-sin-caracter-privado.md) | B6b: "menú Apple" sin carácter de uso privado | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | Sí | — | `primer-arranque/textos.ts` | Hecha |
 | [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual P1–P16, Gatekeeper, primer arranque real y capturas | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | Bloqueada |
