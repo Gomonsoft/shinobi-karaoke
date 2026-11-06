@@ -5,6 +5,7 @@
  */
 
 export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error'] as const
+export const TITULO_MOTOR_INCOMPLETO = 'Hay que reparar el motor de audio'
 export type TipoAvisoTrabajo = (typeof TIPOS_AVISO_TRABAJO)[number]
 
 /** Vista de la canción a la que lleva el aviso. */
@@ -65,6 +66,7 @@ export function tituloErrorAviso(
   codigo: string,
   modo: 'calidad' | 'rapido' = 'calidad'
 ): string {
+  if (codigo === 'RUNTIME_NO_DISPONIBLE') return `${TITULO_MOTOR_INCOMPLETO}.`
   if (paso === 'fuente') return ERRORES_DESCARGA[codigo] ?? GENERICO_DESCARGA
   if (codigo === 'MEMORIA_INSUFICIENTE') return MEMORIA[modo]
   return ERRORES_SEPARACION[codigo] ?? GENERICO_SEPARACION

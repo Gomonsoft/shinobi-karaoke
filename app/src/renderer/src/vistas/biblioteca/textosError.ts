@@ -1,3 +1,5 @@
+import { TITULO_MOTOR_INCOMPLETO } from '@shared/avisos'
+
 /** Títulos visibles de los códigos de error (docs/ux/00-mapa-de-vistas.md §7). */
 const TITULOS: Record<string, string> = {
   SIN_CONEXION: 'Sin conexión a internet',
@@ -10,6 +12,7 @@ const TITULOS: Record<string, string> = {
   YOUTUBE_BLOQUEADO: 'YouTube no permite la descarga ahora mismo',
   MEMORIA_INSUFICIENTE: 'Tu equipo se quedó sin memoria',
   MODELO_NO_DISPONIBLE: 'Falta el modelo de separación',
+  RUNTIME_NO_DISPONIBLE: TITULO_MOTOR_INCOMPLETO,
   LETRA_NO_ENCONTRADA: 'No encontramos la letra',
   INSTRUMENTAL: 'Esta canción es instrumental',
   SERVICIO_NO_DISPONIBLE: 'El servicio de letras no responde'

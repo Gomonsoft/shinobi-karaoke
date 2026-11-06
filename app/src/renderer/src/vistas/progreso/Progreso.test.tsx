@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Cancion } from '@shared/cancion'
 import type { EventoProgresoIpc, TrabajoIpc } from '@shared/ipc'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
@@ -34,6 +34,7 @@ interface Opciones {
   tipo?: 'archivo' | 'youtube'
   fuente?: ReturnType<typeof paso>
   trabajos?: TrabajoIpc[]
+  trabajosApi?: { cancelar?: ReturnType<typeof vi.fn> }
   progreso?: EventoProgresoIpc[]
   fuenteApi?: { reintentar: ReturnType<typeof vi.fn> }
   otras?: { id: string; titulo: string }[]
@@ -75,7 +76,11 @@ function montar(o: Opciones = {}) {
       listar: () => Promise.resolve([resumen, ...otras]),
       obtener: () => Promise.resolve(cancion)
     },
-    trabajos: { cancelar },
+    trabajos: {
+      listar: () => Promise.resolve(o.trabajos ?? []),
+      cancelar,
+      ...o.trabajosApi
+    },
     alCambiarCancion: () => () => undefined,
     fuente: o.fuenteApi,
     separacion: {
@@ -284,6 +289,135 @@ const trabajoSep = (extra: Partial<TrabajoIpc> = {}): TrabajoIpc =>
   })
 const progSep = (extra: Partial<EventoProgresoIpc> = {}): EventoProgresoIpc =>
   prog({ id: 's1', paso: 'separacion', fase: 'separando', valor: 0.42, ...extra })
+
+describe('Progreso: reparar el motor de audio', () => {
+  const motorIncompleto = paso('error', {
+    error: { codigo: 'RUNTIME_NO_DISPONIBLE', mensaje: 'Falta audio_separator' }
+  })
+  const reparar = () => screen.findByRole('button', { name: 'Reparar el motor de audio' })
+
+  it('muestra el error, ofrece copiar sus detalles y enfoca Reparar sin oferta de Rápido', async () => {
+    montar({
+      separacion: motorIncompleto,
+      runtime: { estado: 'dañada', ofrecerRapido: true, rapidoPendiente: true }
+    })
+    const boton = await reparar()
+    expect(boton).toHaveFocus()
+    const aviso = screen.getByRole('alert')
+    expect(aviso).toHaveTextContent(
+      'Hay que reparar el motor de audio. Falta una parte del motor que separa la voz de la música. Al repararlo se descarga de nuevo lo que falta; después, vuelve a separar esta canción.'
+    )
+    expect(within(aviso).getByRole('button', { name: 'Copiar detalles' })).toBeInTheDocument()
+    expect(within(aviso).queryByRole('button', { name: 'Reintentar' })).toBeNull()
+    expect(within(aviso).queryByRole('button', { name: /Usar el modelo Rápido/ })).toBeNull()
+  })
+
+  it('con el motor reparado reintenta separar incluso si Rápido quedó pendiente', async () => {
+    const { separar } = montar({
+      separacion: motorIncompleto,
+      runtime: { estado: 'completa', rapidoPendiente: true }
+    })
+    expect(await screen.findByText('El motor de audio ya está reparado.')).toBeInTheDocument()
+    const boton = screen.getByRole('button', { name: 'Reintentar' })
+    expect(boton).toHaveFocus()
+    fireEvent.click(boton)
+    expect(separar).toHaveBeenCalledWith('c1')
+  })
+
+  it('actualiza el banner en vivo al reparar el motor', async () => {
+    let emitir: ((e: { estado: 'completa' }) => void) | undefined
+    montar({
+      separacion: motorIncompleto,
+      runtime: { estado: 'dañada' },
+      runtimeApi: {
+        alCambiar: (cb: typeof emitir) => {
+          emitir = cb
+          return () => undefined
+        }
+      }
+    })
+    await reparar()
+    act(() => emitir?.({ estado: 'completa' }))
+    expect(await screen.findByText('El motor de audio ya está reparado.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Reparar el motor de audio' })).toBeNull()
+  })
+
+  it('sin trabajos vivos abre el primer arranque directamente', async () => {
+    const { ir, cancelar } = montar({
+      separacion: motorIncompleto,
+      trabajos: [trabajo({ cancionId: 'otra', estado: 'terminado' })]
+    })
+    fireEvent.click(await reparar())
+    await waitFor(() => expect(ir).toHaveBeenCalledWith({ tipo: 'primer-arranque' }))
+    expect(cancelar).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('nombra los dos trabajos y espera su cancelación solo después de confirmar', async () => {
+    let terminar!: (ok: boolean) => void
+    const cancelar = vi.fn(
+      () =>
+        new Promise<boolean>((resolver) => {
+          terminar = resolver
+        })
+    )
+    cancelar.mockResolvedValueOnce(true)
+    const { ir } = montar({
+      separacion: motorIncompleto,
+      trabajos: [
+        trabajo({ id: 'descarga', cancionId: 'c2' }),
+        trabajo({ id: 'separar', cancionId: 'c3', estado: 'en_cola', paso: 'separacion' })
+      ],
+      otras: [
+        { id: 'c2', titulo: 'Faro' },
+        { id: 'c3', titulo: 'Luna' }
+      ],
+      trabajosApi: { cancelar }
+    })
+    const boton = await reparar()
+    fireEvent.click(boton)
+    const dialogo = () => screen.findByRole('dialog', { name: '¿Reparar el motor de audio ahora?' })
+    const modal = await dialogo()
+    expect(modal).toHaveTextContent(
+      'Hay 2 trabajos sin terminar («Faro» — Descargar de YouTube, «Luna» — Separar voz e instrumental).'
+    )
+    const seguir = within(modal).getByRole('button', { name: 'Seguir trabajando' })
+    expect(seguir).toHaveFocus()
+    fireEvent.click(seguir)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(cancelar).not.toHaveBeenCalled()
+    expect(ir).not.toHaveBeenCalled()
+
+    fireEvent.click(boton)
+    fireEvent.click(within(await dialogo()).getByRole('button', { name: 'Reparar ahora' }))
+    expect(cancelar.mock.calls).toEqual([['descarga'], ['separar']])
+    expect(ir).not.toHaveBeenCalled()
+    await act(async () => terminar(true))
+    expect(ir).toHaveBeenCalledWith({ tipo: 'primer-arranque' })
+  })
+
+  it('abre el primer arranque a los cinco segundos aunque no responda una cancelación', async () => {
+    const cancelar = vi.fn(() => new Promise<boolean>(() => undefined))
+    const { ir } = montar({
+      separacion: motorIncompleto,
+      trabajos: [trabajo({ cancionId: 'otra' })],
+      trabajosApi: { cancelar }
+    })
+    fireEvent.click(await reparar())
+    const confirmar = await screen.findByRole('button', { name: 'Reparar ahora' })
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(confirmar)
+      await act(async () => vi.advanceTimersByTimeAsync(4999))
+      expect(ir).not.toHaveBeenCalled()
+      await act(async () => vi.advanceTimersByTimeAsync(1))
+      expect(ir).toHaveBeenCalledWith({ tipo: 'primer-arranque' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 
 describe('Progreso: separación', () => {
   it('en cola con posición, título de la otra y estimación previa; cancelar sin diálogo', async () => {

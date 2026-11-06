@@ -1,3 +1,5 @@
+import { TITULO_MOTOR_INCOMPLETO } from '@shared/avisos'
+
 /** Textos de la vista de progreso (docs/ux/04 y 03: `add.error.*`, `add.interrumpido`). */
 
 export const TEXTO = {
@@ -78,6 +80,26 @@ export interface TextoErrorSeparacion {
   cuerpo: string
 }
 
+export const REPARACION_MOTOR = {
+  reparar: 'Reparar el motor de audio',
+  error: {
+    titulo: `${TITULO_MOTOR_INCOMPLETO}.`,
+    cuerpo:
+      'Falta una parte del motor que separa la voz de la música. Al repararlo se descarga de nuevo lo que falta; después, vuelve a separar esta canción.'
+  },
+  reparado: {
+    titulo: 'El motor de audio ya está reparado.',
+    cuerpo: 'Vuelve a separar esta canción.'
+  },
+  tituloDialogo: '¿Reparar el motor de audio ahora?',
+  seguir: 'Seguir trabajando',
+  confirmar: 'Reparar ahora',
+  cuerpoDialogo: (trabajos: readonly string[]): string => {
+    const cantidad = trabajos.length === 1 ? '1 trabajo' : `${trabajos.length} trabajos`
+    return `Hay ${cantidad} sin terminar (${trabajos.join(', ')}). Si reparas ahora, se cancelarán y tendrás que repetirlos. Tu letra y tu estilo están guardados.`
+  }
+} as const
+
 const ERRORES_SEPARACION: Record<string, TextoErrorSeparacion> = {
   SIN_CONEXION: {
     titulo: 'Sin conexión a internet.',
@@ -112,13 +134,19 @@ const MEMORIA: Record<'calidad' | 'rapido', TextoErrorSeparacion> = {
 /** Texto del banner de error de la separación; `modo` = el modelo con el que se separaba. */
 export function textoDeErrorSeparacion(
   codigo: string,
-  modo: 'calidad' | 'rapido'
+  modo: 'calidad' | 'rapido',
+  motorReparado = false
 ): TextoErrorSeparacion {
   if (codigo === 'MEMORIA_INSUFICIENTE') return MEMORIA[modo]
+  if (codigo === 'RUNTIME_NO_DISPONIBLE') {
+    return motorReparado ? REPARACION_MOTOR.reparado : REPARACION_MOTOR.error
+  }
   return ERRORES_SEPARACION[codigo] ?? GENERICO_SEPARACION
 }
 export const esErrorGenericoSeparacion = (codigo: string): boolean =>
-  codigo !== 'MEMORIA_INSUFICIENTE' && !(codigo in ERRORES_SEPARACION)
+  codigo !== 'MEMORIA_INSUFICIENTE' &&
+  codigo !== 'RUNTIME_NO_DISPONIBLE' &&
+  !(codigo in ERRORES_SEPARACION)
 
 export const dialogoCancelarCuerpo = (titulo: string): string =>
   `«${titulo}» se quedará en tu biblioteca como borrador, sin audio. Podrás descargarla de nuevo cuando quieras.`

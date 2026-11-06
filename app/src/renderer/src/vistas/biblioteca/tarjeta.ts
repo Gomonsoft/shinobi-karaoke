@@ -42,11 +42,12 @@ export function pasoConProblema(r: ResumenCancionIpc): 'fuente' | 'separacion' |
   return null
 }
 
-/** ¿Repetir el paso lo arregla? Los errores de fuente no reintentables llevan a "Ver". */
+/** ¿Repetir el paso lo arregla? Los errores no reintentables llevan a "Ver". */
 export function esReintentable(r: ResumenCancionIpc): boolean {
   const p = pasoConProblema(r)
+  const paso = p ? r.pasos?.[p] : null
+  if (paso?.estado === 'error' && paso.error?.codigo === 'RUNTIME_NO_DISPONIBLE') return false
   if (p !== 'fuente') return true
-  const paso = r.pasos?.fuente
   return paso?.estado !== 'error' || textoDeError(paso.error?.codigo ?? '').reintentable
 }
 

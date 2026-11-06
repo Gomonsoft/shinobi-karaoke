@@ -472,4 +472,21 @@ describe('línea de paso de la separación y reintentos (0070, ux/02 criterio 18
     })
     expect(datosDeTarjeta(sep).accion).toBe('reintentar')
   })
+
+  it.each(['fuente', 'separacion'] as const)('motor incompleto en %s: ofrece Ver', (nombrePaso) => {
+    const resumen = resumenPrueba({
+      pasos: {
+        fuente: paso('completado'),
+        separacion: paso('pendiente'),
+        letra: paso('pendiente'),
+        edicion: paso('pendiente'),
+        [nombrePaso]: paso('error', { error: { codigo: 'RUNTIME_NO_DISPONIBLE', mensaje: '' } })
+      }
+    })
+    expect(esReintentable(resumen)).toBe(false)
+    expect(datosDeTarjeta(resumen)).toMatchObject({
+      accion: 'ver',
+      linea: { tipo: 'error', texto: 'Hay que reparar el motor de audio' }
+    })
+  })
 })

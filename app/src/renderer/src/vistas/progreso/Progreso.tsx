@@ -31,6 +31,7 @@ import { DialogoAvisoRapido } from '../aviso-rapido/DialogoAvisoRapido'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { Escucha } from './Escucha'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from './DialogosCancelar'
+import { DialogoReparar } from './DialogoReparar'
 import { IndicadorModelo } from './IndicadorModelo'
 import {
   anuncio,
@@ -44,6 +45,7 @@ import {
 import {
   esErrorGenerico,
   esErrorGenericoSeparacion,
+  REPARACION_MOTOR,
   SEP,
   TEXTO,
   textoDeError,
@@ -71,6 +73,19 @@ const NOMBRE_ICONO: Record<IconoFila, string> = {
 /** `fuente.reintentar(id)` (0049); acceso opcional por si la API falsa de un test no lo trae. */
 const apiFuente = () =>
   window.shinobi.fuente as { reintentar(cancionId: string): Promise<void> } | undefined
+
+const MAX_ESPERA_CANCELACION_MS = 5000
+
+function nombreDeTrabajo(t: TrabajoIpc, titulos: ReadonlyMap<string, string>): string {
+  const paso =
+    t.paso === 'separacion'
+      ? TEXTO.separar
+      : t.comando === 'descargar-youtube'
+        ? TEXTO.descargar
+        : TEXTO.preparar
+  const titulo = titulos.get(t.cancionId)
+  return titulo ? `«${titulo}» — ${paso}` : paso
+}
 
 interface Datos {
   estado: 'cargando' | 'listo' | 'error'
@@ -208,6 +223,9 @@ export function Progreso({ id }: { id: string }) {
   const raiz = useRef<HTMLElement>(null)
   const [confirmando, setConfirmando] = useState(false)
   const [confirmandoSep, setConfirmandoSep] = useState(false)
+  const [trabajosAlReparar, setTrabajosAlReparar] = useState<TrabajoIpc[]>([])
+  const [cancelandoParaReparar, setCancelandoParaReparar] = useState(false)
+  const consultandoTrabajos = useRef(false)
   const [dialogoRapido, setDialogoRapido] = useState(false)
   const [aceptando, setAceptando] = useState<{ bytes: number; total: number | null } | null>(null)
   const [errorRapido, setErrorRapido] = useState<{ codigo: string; mensaje: string } | null>(null)
@@ -354,7 +372,10 @@ export function Progreso({ id }: { id: string }) {
   }, [modelo])
 
   // Foco inicial al terminar de cargar (el marco ya dejó el foco en el título).
-  const bloqueTipo = modelo?.bloque.tipo
+  const bloque = modelo?.bloque
+  const bloqueTipo = bloque?.tipo
+  const errorMotor = bloque?.tipo === 'errorSeparacion' && bloque.codigo === 'RUNTIME_NO_DISPONIBLE'
+  const motorReparado = errorMotor && runtime?.estado === 'completa'
   useEffect(() => {
     if (!bloqueTipo) return
     const activo = document.activeElement
@@ -367,7 +388,7 @@ export function Progreso({ id }: { id: string }) {
       return
     }
     raiz.current?.querySelector<HTMLElement>('[data-foco-inicial]')?.focus()
-  }, [bloqueTipo])
+  }, [bloqueTipo, motorReparado])
 
   // Tamaño de Rápido para el aviso de consentimiento: se pide cuando puede ofrecerse.
   const hayOferta = modelo?.bloque.tipo === 'errorSeparacion' && modelo.bloque.oferta === 'dialogo'
@@ -408,6 +429,39 @@ export function Progreso({ id }: { id: string }) {
         alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
       }
     })
+  const abrirReparacion = async () => {
+    if (consultandoTrabajos.current) return
+    consultandoTrabajos.current = true
+    try {
+      const trabajos = (await window.shinobi.trabajos.listar()).filter(
+        (t) => t.estado === 'en_curso' || t.estado === 'en_cola'
+      )
+      if (!raiz.current) return
+      if (trabajos.length === 0) ir({ tipo: 'primer-arranque' })
+      else setTrabajosAlReparar(trabajos)
+    } catch (err) {
+      avisarFallo('No se pudieron comprobar los trabajos pendientes.', err)
+    } finally {
+      consultandoTrabajos.current = false
+    }
+  }
+  const confirmarReparacion = async () => {
+    if (cancelandoParaReparar) return
+    setCancelandoParaReparar(true)
+    let temporizador: ReturnType<typeof setTimeout> | undefined
+    try {
+      const limite = new Promise<void>((resolver) => {
+        temporizador = setTimeout(resolver, MAX_ESPERA_CANCELACION_MS)
+      })
+      await Promise.race([
+        Promise.allSettled(trabajosAlReparar.map((t) => window.shinobi.trabajos.cancelar(t.id))),
+        limite
+      ])
+    } finally {
+      clearTimeout(temporizador)
+    }
+    if (raiz.current) ir({ tipo: 'primer-arranque' })
+  }
   const cancelarSeparacion = async () => {
     if (!trabajoSep) return
     try {
@@ -478,13 +532,24 @@ export function Progreso({ id }: { id: string }) {
     ir({ tipo: 'cancion', id, paso: editor ? 'editor' : 'letra' })
   }
 
+  const motorPorReparar = errorMotor && !motorReparado
+  const textoErrorSep =
+    bloque?.tipo === 'errorSeparacion'
+      ? textoDeErrorSeparacion(bloque.codigo, bloque.modo, motorReparado)
+      : null
+  const accionErrorSep = () => {
+    if (motorPorReparar) return abrirReparacion()
+    if (!errorMotor && bloque?.tipo === 'errorSeparacion' && bloque.reintentaRapido) {
+      return usarRapidoYSeparar()
+    }
+    return separar()
+  }
   const volver = (
     <Boton variante="secundario" onClick={() => ir({ tipo: 'biblioteca' })}>
       {TEXTO.botonBiblioteca}
     </Boton>
   )
 
-  const bloque = modelo?.bloque
   const mostrarModelo = !!trabajoSep || aceptando !== null || fuentePaso?.estado === 'completado'
   return (
     <section ref={raiz} className={estilos.vista} aria-labelledby="titulo-vista">
@@ -664,7 +729,7 @@ export function Progreso({ id }: { id: string }) {
             </>
           )}
 
-          {bloque?.tipo === 'errorSeparacion' && (
+          {bloque?.tipo === 'errorSeparacion' && textoErrorSep && (
             <>
               <AvisoEnLinea
                 tipo="error"
@@ -673,11 +738,9 @@ export function Progreso({ id }: { id: string }) {
                     <Boton
                       variante="primario"
                       data-foco-inicial
-                      onClick={() =>
-                        void (bloque.reintentaRapido ? usarRapidoYSeparar() : separar())
-                      }
+                      onClick={() => void accionErrorSep()}
                     >
-                      {TEXTO.reintentar}
+                      {motorPorReparar ? REPARACION_MOTOR.reparar : TEXTO.reintentar}
                     </Boton>
                     {bloque.oferta === 'dialogo' && (
                       <Boton variante="secundario" onClick={() => setDialogoRapido(true)}>
@@ -689,9 +752,9 @@ export function Progreso({ id }: { id: string }) {
                         {SEP.usarRapidoDirecto}
                       </Boton>
                     )}
-                    {esErrorGenericoSeparacion(bloque.codigo) && (
+                    {(motorPorReparar || esErrorGenericoSeparacion(bloque.codigo)) && (
                       <Boton
-                        variante="fantasma"
+                        variante={motorPorReparar ? 'secundario' : 'fantasma'}
                         onClick={() =>
                           void navigator.clipboard?.writeText(
                             detallesDeError({ codigo: bloque.codigo, mensaje: bloque.mensaje })
@@ -704,8 +767,7 @@ export function Progreso({ id }: { id: string }) {
                   </div>
                 }
               >
-                <strong>{textoDeErrorSeparacion(bloque.codigo, bloque.modo).titulo}</strong>{' '}
-                {textoDeErrorSeparacion(bloque.codigo, bloque.modo).cuerpo}
+                <strong>{textoErrorSep.titulo}</strong> {textoErrorSep.cuerpo}
                 {bloque.textoOferta && <> {SEP.ofertaRapido}</>}
               </AvisoEnLinea>
               <div className={estilos.acciones}>{volver}</div>
@@ -752,6 +814,14 @@ export function Progreso({ id }: { id: string }) {
           setConfirmandoSep(false)
           void cancelarSeparacion()
         }}
+      />
+      <DialogoReparar
+        trabajos={trabajosAlReparar.map((t) => nombreDeTrabajo(t, datos.titulos))}
+        cancelando={cancelandoParaReparar}
+        alSeguir={() => {
+          if (!cancelandoParaReparar) setTrabajosAlReparar([])
+        }}
+        alConfirmar={() => void confirmarReparacion()}
       />
       <DialogoAvisoRapido
         abierto={dialogoRapido}

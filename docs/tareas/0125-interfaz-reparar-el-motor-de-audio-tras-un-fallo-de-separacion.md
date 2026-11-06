@@ -1,5 +1,5 @@
 # 0125 — Interfaz: error `RUNTIME_NO_DISPONIBLE` con "Reparar el motor de audio", confirmación con trabajos activos, variante "ya reparado" y tarjeta con [Ver] (+ E2E)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 3 (deuda que se salda en la Fase 6)
 - Depende de: 0124 (código `RUNTIME_NO_DISPONIBLE` del worker, `marcarDanada`, separador falso con ese código)
 - ADRs: 0009 (Revisión 2026-11-06)
@@ -93,4 +93,8 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test e2e/sepa
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- Biblioteca y avisos comparten el título del error. La tarjeta ofrece «Ver» para el código tanto en Fuente como en Separación. Queda abierta la [pregunta 0034](../preguntas/0034-reparacion-del-motor-tras-un-error-de-fuente.md) sobre el texto y la acción del banner si falla Fuente.
+- Progreso muestra la acción de reparar o reintentar según el estado vivo del motor. La confirmación enumera los trabajos, cancela todos tras confirmar y espera como máximo cinco segundos. Los avisos de trabajos y las notificaciones del sistema respetan el bloqueo de navegación de Primer arranque.
+- El Primer arranque existente muestra B5 a mitad de sesión y vuelve a la Biblioteca tras «Empezar». No hizo falta ajustar la vista.
+- Verificados 118 tests dirigidos de Vitest, los 14 E2E de errores de separación y los 2 E2E del motor incompleto con dobles, incluido el regreso a la Biblioteca después de completar la reparación. Formato verificado en todos los archivos de la tarea.
