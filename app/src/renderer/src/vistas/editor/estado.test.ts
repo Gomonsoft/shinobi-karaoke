@@ -1,0 +1,131 @@
+import { describe, expect, it } from 'vitest'
+import { letra, linea, pausa } from '@shared/__fixtures__'
+import { estiloPredeterminado } from '@shared/estilo'
+import {
+  estadoInicial,
+  puedeDeshacer,
+  puedeRehacer,
+  reducirEditor,
+  ultimaMarcaDeSesion
+} from './estado'
+
+function editor() {
+  return estadoInicial(
+    {
+      estilo: estiloPredeterminado(),
+      letra: letra([
+        ...[1, 2, 3].map((i) => linea(String(i), `Verso ${i}`, null)),
+        pausa('p'),
+        ...[4, 5, 6].map((i) => linea(String(i), `Verso ${i}`, null))
+      ])
+    },
+    null
+  )
+}
+
+describe('sesión de sincronía', () => {
+  it('marca seis líneas saltando la pausa y permite deshacer las dos últimas', () => {
+    let e = reducirEditor(editor(), { tipo: 'entrar_sync', desdeId: null })
+    expect(e.seleccion).toBe('1')
+    for (let i = 1; i <= 6; i++) {
+      e = reducirEditor(e, { tipo: 'marcar', ms: i * 1000, ahora: i * 1000 })
+    }
+    expect(e.sync.siguiente).toBeNull()
+    expect(ultimaMarcaDeSesion(e)).toEqual({ id: '6', ms: 6000 })
+    e = reducirEditor(reducirEditor(e, { tipo: 'deshacer_marca' }), { tipo: 'deshacer_marca' })
+    expect(e.sync.siguiente).toBe('5')
+    expect(e.actual.letra.lineas.at(-2)?.inicio_ms).toBeNull()
+    e = reducirEditor(e, { tipo: 'marcar', ms: 5500, ahora: 7000 })
+    expect(e.sync.siguiente).toBe('6')
+    expect(ultimaMarcaDeSesion(e)).toEqual({ id: '5', ms: 5500 })
+    expect(puedeRehacer(e)).toBe(false)
+  })
+
+  it('marca y fija fin al soltar en una entrada, limitada por el vecino', () => {
+    let e = editor()
+    e.actual.letra.lineas[1]!.inicio_ms = 4000
+    e = reducirEditor(e, { tipo: 'entrar_sync', desdeId: '1' })
+    e = reducirEditor(e, { tipo: 'marcar', ms: 2000, ahora: 0 })
+    e = reducirEditor(e, { tipo: 'fin_al_soltar', id: '1', ms: 4500, duracionMs: 30000 })
+    expect(e.pasado).toHaveLength(1)
+    expect(e.actual.letra.lineas[0]).toMatchObject({ inicio_ms: 2000, fin_ms: 4000 })
+    e = reducirEditor(e, { tipo: 'deshacer_marca' })
+    expect(e.actual.letra.lineas[0]).toMatchObject({ inicio_ms: null, fin_ms: null })
+    e = reducirEditor(e, { tipo: 'rehacer' })
+    expect(ultimaMarcaDeSesion(e)).toEqual({ id: '1', ms: 2000 })
+    expect(e.actual.letra.lineas[0]?.fin_ms).toBe(4000)
+  })
+
+  it('avisa al marcar pronto y bloquea los ajustes finos y de estilo durante la pasada', () => {
+    let e = reducirEditor(editor(), { tipo: 'entrar_sync', desdeId: null })
+    e = reducirEditor(e, { tipo: 'marcar', ms: 1000, ahora: 0 })
+    e = reducirEditor(e, { tipo: 'marcar', ms: 1000, ahora: 1 })
+    expect(e.aviso).toMatchObject({ tipo: 'limite', limite: { tipo: 'demasiado_pronto' }, id: '2' })
+    expect(e.sync.siguiente).toBe('2')
+    expect(reducirEditor(e, { tipo: 'borrar_tiempos', ahora: 2 })).toBe(e)
+    expect(reducirEditor(e, { tipo: 'mover_seleccion', sentido: -1 })).toBe(e)
+    expect(reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: 10, ahora: 2 })).toBe(e)
+    const estilo = { ...e.actual.estilo, fondo: { tipo: 'solido', color: '#112233' } as const }
+    expect(reducirEditor(e, { tipo: 'estilo', estilo, clave: 'fondo.tipo', ahora: 2 })).toBe(e)
+    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 2 })
+    expect(e.actual.letra.offset_ms).toBe(100)
+    expect(reducirEditor(e, { tipo: 'salir_sync' }).seleccion).toBe('2')
+  })
+})
+
+describe('historial de la visita', () => {
+  it('agrupa ajustes y cambios de color, deshace y rehace sin mutar', () => {
+    let e = editor()
+    e.actual.letra.lineas[0]!.inicio_ms = 1000
+    e = reducirEditor(e, { tipo: 'seleccionar', id: '1' })
+    const inicial = e
+    function congelar(o: unknown): void {
+      if (o && typeof o === 'object') {
+        Object.values(o).forEach(congelar)
+        Object.freeze(o)
+      }
+    }
+    for (let i = 0; i < 5; i++) {
+      congelar(e)
+      e = reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: 10, ahora: i * 200 })
+    }
+    expect(e.pasado).toHaveLength(1)
+    expect(e.version).toBe(5)
+    expect(e.cambiosEnVisita).toBe(true)
+    expect(inicial.actual.letra.lineas[0]?.inicio_ms).toBe(1000)
+    e = reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: 10, ahora: 2000 })
+    expect(e.pasado).toHaveLength(2)
+    for (const [i, color] of ['#FFFFFF', '#222222', '#333333'].entries()) {
+      const estilo = { ...e.actual.estilo, letra: { ...e.actual.estilo.letra, color } }
+      e = reducirEditor(e, { tipo: 'estilo', estilo, clave: 'letra.color', ahora: 2100 + i * 300 })
+    }
+    expect(e.pasado).toHaveLength(3)
+    const editada = e.actual
+    e = reducirEditor(e, { tipo: 'deshacer' })
+    expect(puedeDeshacer(e)).toBe(true)
+    expect(puedeRehacer(e)).toBe(true)
+    expect(e.actual.estilo.letra.color).toBe('#FFFFFF')
+    expect(reducirEditor(e, { tipo: 'rehacer' }).actual).toEqual(editada)
+    expect(
+      reducirEditor(e, { tipo: 'cargar', instantanea: editada, seleccion: '1' })
+    ).toMatchObject({
+      pasado: [],
+      futuro: [],
+      cambiosEnVisita: false,
+      version: 0
+    })
+  })
+
+  it('limita el historial y avisa cuando descarta palabras', () => {
+    let e = editor()
+    e.actual.letra.lineas[0]!.inicio_ms = 1000
+    e.actual.letra.lineas[0]!.palabras = [{ texto: 'Verso', inicio_ms: 1000, fin_ms: 2400 }]
+    e = reducirEditor(e, { tipo: 'seleccionar', id: '2' })
+    e = reducirEditor(e, { tipo: 'fijar_inicio', ms: 2000, ahora: 0 })
+    expect(e.aviso).toMatchObject({ tipo: 'consecuencias', palabrasDescartadas: ['1'] })
+    for (let i = 0; i < 205; i++) {
+      e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 10, ahora: i * 1200 })
+    }
+    expect(e.pasado).toHaveLength(200)
+  })
+})

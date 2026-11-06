@@ -1,5 +1,5 @@
 # 0093 — Interfaz (puro): estado del editor, deshacer/rehacer y sesión de "Sincronizar al ritmo"
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0092
 - ADRs: 0010 (§3)
@@ -17,7 +17,7 @@
 Un *reducer* puro con el estado editable, el historial y la sesión de sincronía. La vista solo despacha acciones y reacciona a los avisos: tooltip de límite, toasts de palabras y fines, y saltos de reproducción.
 
 ## Criterios de aceptación
-- [ ] Tipos y API:
+- [x] Tipos y API:
   ```ts
   export interface Instantanea { letra: Letra; estilo: Estilo }
   export interface EntradaHistorial { antes: Instantanea; clave: string; en: number; sesionSync: number | null; marcaId?: string }
@@ -55,7 +55,7 @@ Un *reducer* puro con el estado editable, el historial y la sesión de sincroní
   export function ultimaMarcaDeSesion(e: EstadoEditor): { id: string; ms: number } | null
   export const puedeDeshacer = (e: EstadoEditor) => boolean; export const puedeRehacer = (e: EstadoEditor) => boolean
   ```
-- [ ] **Reglas**:
+- [x] **Reglas**:
   - Las acciones de tiempos actúan sobre `seleccion`, que debe ser una línea; sin ella no hacen nada.
   - **Durante el modo** (`sync.activo`) se ignoran: `ajustar_*`, `fijar_*`, `fin_automatico`, `borrar_tiempos`, `mover_seleccion` y `estilo` (criterio 18). El desplazamiento sí funciona.
   - Un resultado con `limite` produce `aviso = { tipo: 'limite', … }`. Uno con `palabrasDescartadas` o `finesAutomaticos` no vacíos produce `aviso = { tipo: 'consecuencias', … }`. Ambos incrementan `n`.
@@ -84,8 +84,8 @@ Un *reducer* puro con el estado editable, el historial y la sesión de sincroní
   - `deshacer` / `rehacer`: estándar. Suben `version`, no tocan `sync.activo` y conservan la `seleccion` si la línea sigue existiendo.
   - `salir_sync`: `activo = false` y `seleccion = siguiente ?? seleccion`.
   - `cargar`: estado nuevo y sin historial (al entrar y tras `LETRA_DESACTUALIZADA`).
-- [ ] Puro: no llama a `Date.now()` (el tiempo llega en `ahora`) y no muta (test con congelado).
-- [ ] Tests:
+- [x] Puro: no llama a `Date.now()` (el tiempo llega en `ahora`) y no muta (test con congelado).
+- [x] Tests:
   - sesión de 6 líneas con una pausa: marcar todas, `deshacer_marca` ×2 y remarcar;
   - marca + fin al soltar → un solo deshacer quita ambos;
   - fin al soltar más allá del siguiente → fijado en el tope;
@@ -106,4 +106,6 @@ npx vitest run src/renderer/src/vistas/editor/estado.test.ts
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- El reducer conserva instantáneas e historial de hasta 200 pasos, agrupa ráfagas, conserva la identidad de marcas al rehacer y permite unir la marca con su fin.
+- Las pruebas cubren sesiones, límites, historial, avisos y entradas congeladas. Verificación completa del bloque 2 en verde (1625 Vitest y 69 E2E).
