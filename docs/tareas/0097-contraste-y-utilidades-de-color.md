@@ -1,5 +1,5 @@
 # 0097 — Karaoke (puro): contraste del estilo y utilidades de color
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: — (**puede empezar ya**)
 - ADRs: 0010 (§4 "Contraste"), 0006 (formato del estilo)
@@ -14,12 +14,12 @@
 Evaluar el contraste según sistema-visual §9 y ofrecer las acciones rápidas del panel Estilo, en funciones puras.
 
 ## Criterios de aceptación
-- [ ] `colores.ts`:
+- [x] `colores.ts`:
   - `SUGERIDOS_FONDO` y `SUGERIDOS_LETRA`: los 8 + 8 de §8, en ese orden;
   - `variarLuminosidad30(hex)`, regla definitiva de `ux/06` "Variante de luminosidad" (`preguntas/0026` §2): el mismo color en HSL con el **mismo tono y saturación** y la luminosidad cambiada **+30 puntos si L ≤ 70** o **−30 puntos si L > 70**; se redondea a `#RRGGBB`. Se usa al pasar a degradado y en "+ Añadir color". Ejemplos (con tolerancia de ±1 por canal): `#1B1033` → `#5935A7`, `#000000` → `#4D4D4D` y `#FFFFFF` → `#B3B3B3`;
   - `repartirParadas(colores: string[])`: posiciones 0, 1/(n−1), …, 1;
   - `aSolido(fondo)` y `aDegradado(fondo)`, con las reglas de `ux/06` (a degradado: el color sólido + `variarLuminosidad30(color sólido)`, ángulo 135; a sólido: el primer color).
-- [ ] `contraste.ts`:
+- [x] `contraste.ts`:
   - `luminancia(hex)` y `ratio(a, b)` WCAG 2.x;
   - `muestrasFondo(fondo)`: 1 color si es sólido; 11 colores interpolados en sRGB (0 %, 10 %, …, 100 %) si es degradado, entre paradas por posición;
   - `peorRatio(color, fondo)`;
@@ -39,7 +39,7 @@ Evaluar el contraste según sistema-visual §9 y ofrecer las acciones rápidas d
     - la de mayor peor-ratio entre `#FFFFFF` y `#111111`, y la otra solo si supera 3:1;
     - si ninguna supera 3:1, ambas, con `sugerirFondo: true`;
   - `sugerirResaltado(estilo)`: entre `SUGERIDOS_LETRA` con ΔE ≥ 25 respecto a la letra, el de mayor peor-ratio con el fondo; si ninguno cumple ΔE ≥ 25, el de mayor peor-ratio.
-- [ ] Tests con los ejemplos del criterio 30 de `ux/06`:
+- [x] Tests con los ejemplos del criterio 30 de `ux/06`:
   - el estilo predeterminado → `ok`;
   - letra `#5A1E6E` sobre el predeterminado → aviso `letra` con `['blanca']` como primera acción;
   - resaltado `#F2F3F7` con letra `#FFFFFF` → aviso `diferencia`.
@@ -57,4 +57,6 @@ npx vitest run src/renderer/src/karaoke/contraste.test.ts
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- Utilidades de paletas, variante HSL y paradas uniformes. La evaluación aplica WCAG, 11 muestras sRGB y CIE76 D65, con sugerencias por peor contraste.
+- Las pruebas cubren los umbrales, las referencias y las variantes. En la verificación conjunta con 0096 pasaron lint, TypeScript, formato, Vitest (1579 pasadas, 12 omitidas), build y Playwright (69 pasadas, 2 omitidas).
