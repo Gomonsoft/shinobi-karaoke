@@ -383,7 +383,7 @@ describe('Progreso: reparar el motor de audio', () => {
       'Hay 2 trabajos sin terminar («Faro» — Descargar de YouTube, «Luna» — Separar voz e instrumental).'
     )
     const seguir = within(modal).getByRole('button', { name: 'Seguir trabajando' })
-    expect(seguir).toHaveFocus()
+    await waitFor(() => expect(seguir).toHaveFocus())
     fireEvent.click(seguir)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(cancelar).not.toHaveBeenCalled()
