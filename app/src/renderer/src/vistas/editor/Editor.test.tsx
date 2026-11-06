@@ -166,7 +166,9 @@ it('recarga una visita desactualizada en pausa, vacía historial y no reintenta'
   const primero = await screen.findByRole('option', { name: /^Línea 1,/ })
   fallar('letras.guardarTiempos', 'LETRA_DESACTUALIZADA')
   fireEvent.keyDown(primero, { key: '.' })
-  expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeEnabled()
+  // Esperar a que React aplique el cambio: en la CI de Linux la aserción
+  // síncrona se adelantaba al render.
+  await waitFor(() => expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeEnabled())
   await screen.findByText(/La letra ha cambiado fuera del editor/, {}, { timeout: 2500 })
   expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
   expect(screen.getByRole('button', { name: /^Rehacer/ })).toBeDisabled()
