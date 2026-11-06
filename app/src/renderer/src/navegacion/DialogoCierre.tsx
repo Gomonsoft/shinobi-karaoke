@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Boton } from '../componentes/Boton'
 import { Dialogo } from '../componentes/Dialogo'
 import type { Vista } from './estado'
+import { vaciarAlCerrar } from './salida'
 import { cuerpoCierre, TEXTO_CIERRE } from './textosCierre'
 
 interface Datos {
@@ -37,7 +38,8 @@ export function DialogoCierre({ vista }: Props) {
           // Sin lista no se puede nombrar nada, pero main ya sabe que hay algo en curso.
         }
         if (trabajos.length === 0) {
-          void api.app.confirmarCierre()
+          await vaciarAlCerrar()
+          await api.app.confirmarCierre()
           return
         }
         const ids = [...new Set(trabajos.map((t) => t.cancionId))]
@@ -76,6 +78,7 @@ export function DialogoCierre({ vista }: Props) {
 
   async function alCerrar(): Promise<void> {
     setDatos(null)
+    await vaciarAlCerrar()
     await window.shinobi.app.confirmarCierre()
   }
 }

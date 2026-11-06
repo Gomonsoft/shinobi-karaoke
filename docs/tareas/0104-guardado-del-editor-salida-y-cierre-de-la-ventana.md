@@ -1,5 +1,5 @@
 # 0104 — Guardado del editor: autoguardado con *debounce*, vaciado al salir, diálogo si falla y cierre de la ventana
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 5
 - Depende de: 0090 (canales), 0092 (`aPeticionTiempos`)
 - ADRs: 0010 (§2 "Guardado y *debounce*" y "Cerrar la ventana"), 0006, 0008
@@ -25,7 +25,7 @@
 Que ningún cambio del editor se pierda al salir por cualquier vía ni al cerrar la ventana, con un indicador fiable y reintentos.
 
 ## Criterios de aceptación
-- [ ] **`guardado.ts`**: clase `GuardadoEditor`:
+- [x] **`guardado.ts`**: clase `GuardadoEditor`:
   ```ts
   new GuardadoEditor({ cancionId, api: { guardarTiempos, guardarEstilo }, debounceMs = 1000, maxEsperaMs = 2000, reintentoMs = 5000,
     temporizador?: { setTimeout, clearTimeout }, alEstado(e: { estado: 'guardado' | 'guardando' | 'error'; error?: ErrorIpc }): void,
@@ -43,23 +43,23 @@ Que ningún cambio del editor se pierda al salir por cualquier vía ni al cerrar
   - si falla: `error`, reintento cada `reintentoMs` con la última instantánea y un solo aviso por racha (el toast lo muestra el hook);
   - con `LETRA_DESACTUALIZADA` no reintenta: llama a `alDesactualizada()` y descarta los tiempos pendientes (el estilo se sigue guardando);
   - `vaciar` con un fallo → `false`.
-- [ ] **`useGuardadoEditor(cancionId, titulo)`**:
+- [x] **`useGuardadoEditor(cancionId, titulo)`**:
   - envuelve la clase y expone `{ estado, cambiarLetra, cambiarEstilo, vaciar }`;
   - muestra el toast `edi.toast.errorguardar` "No se pudieron guardar los cambios de «{título}». Lo seguimos intentando." con [Copiar detalles] (copia `codigo: mensaje`) una vez por racha;
   - llama a `window.shinobi.app.guardadoPendiente(true|false)` cuando cambia `hayPendiente() || error`;
   - registra la guarda de salida y el vaciado de cierre (siguientes puntos) y los quita al desmontar.
-- [ ] **Guarda de salida** (`navegacion/salida.ts` + `App.tsx` + `estado.ts`):
+- [x] **Guarda de salida** (`navegacion/salida.ts` + `App.tsx` + `estado.ts`):
   - `Navegacion` añade `registrarGuardaSalida(fn: (destino: Vista) => Promise<boolean>): () => void`;
   - el `navegar` de `App` espera a la guarda registrada (si la hay) antes de cambiar de vista; con `false` no navega;
   - la guarda del editor llama a `vaciar()`. Si `true`, navega. Si `false`, muestra el diálogo `edi.dialogo.salir` (título "No se pudieron guardar los últimos cambios.", texto "Si sales ahora, perderás lo que has cambiado en los últimos segundos.", [Quedarme en el editor] con el foco inicial y [Salir sin guardarlos] destructivo), y solo navega con el segundo;
   - no se piden otras confirmaciones.
-- [ ] **Cierre de la ventana**:
+- [x] **Cierre de la ventana**:
   - `salida.ts` exporta `registrarVaciadoAlCerrar(fn: () => Promise<boolean>)` y `vaciarAlCerrar(topeMs = 2000): Promise<void>` (espera al vaciado o al tope, lo que llegue antes);
   - `DialogoCierre.tsx` llama a `await vaciarAlCerrar()` justo antes de cada `app.confirmarCierre()`;
   - en el main, `DependenciasIpc.fijarGuardadoPendiente` (0090) guarda un booleano, y `hayAlgoEnCurso` del control de cierre lo incluye (`main/index.ts`).
   Así una ventana con cambios pendientes y sin trabajos pide `solicitudCierre`, el renderer vacía (≤ 2 s) y confirma. Con trabajos se ve antes el diálogo de 0073.
   - Test en `cierre.test.ts`: con guardado pendiente, `alCerrarVentana` cancela el evento y pide confirmación.
-- [ ] Tests de `guardado.ts` con temporizadores falsos:
+- [x] Tests de `guardado.ts` con temporizadores falsos:
   - *debounce* de 1 s;
   - espera máxima de 2 s con cambios continuos;
   - última instantánea gana;
@@ -67,7 +67,7 @@ Que ningún cambio del editor se pierda al salir por cualquier vía ni al cerrar
   - `LETRA_DESACTUALIZADA`;
   - `vaciar` con y sin fallo;
   - un cambio en vuelo se reenvía.
-- [ ] Test de `App`/navegación: con una guarda que devuelve `false`, `ir` no cambia la vista; con `true`, sí.
+- [x] Test de `App`/navegación: con una guarda que devuelve `false`, `ir` no cambia la vista; con `true`, sí.
 
 ## Verificación
 ```bash
@@ -77,4 +77,7 @@ npx vitest run src/renderer/src/vistas/editor src/renderer/src/navegacion src/re
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- GuardadoEditor agrupa cambios con plazos de 1 y 2 s, serializa los envíos por campo, reintenta cada 5 s y descarta tiempos desactualizados sin descartar el estilo. El hook lee el identificador de visita vigente (0027).
+- La salida se protege con una guarda y un diálogo si falla el vaciado. Al cerrar la ventana se intenta el vaciado hasta 2 s y el cierre confirmado evita volver a interceptarse.
+- Pasaron las pruebas de temporizadores, navegación y cierre, además de la verificación completa del bloque 2 (1625 Vitest y 69 E2E).

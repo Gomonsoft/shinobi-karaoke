@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { ContenedorToasts } from './componentes/Toasts'
 import { DialogoCierre } from './navegacion/DialogoCierre'
 import { Marco } from './navegacion/Marco'
@@ -9,6 +9,7 @@ import {
   type Navegacion,
   type Vista
 } from './navegacion/estado'
+import { crearNavegacionGuardada } from './navegacion/salida'
 import { useArrastrarArchivo } from './navegacion/useArrastrarArchivo'
 import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
 import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
@@ -61,8 +62,9 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
   // Conservador: mientras carga o ante un error se mantiene el botón de la barra.
   const vacia = biblioteca.estado === 'listo' && biblioteca.canciones.length === 0
   const trabajos = useEstadoTrabajos()
-  const navegar = useCallback((v: Vista) => ir(v), [])
-  const navegacion = useMemo<Navegacion>(() => ({ vista, ir: navegar }), [vista, navegar])
+  const [salida] = useState(() => crearNavegacionGuardada(ir))
+  const navegar = salida.ir
+  const navegacion = useMemo<Navegacion>(() => ({ vista, ...salida }), [vista, salida])
   useAtajosGlobales(vista, navegar)
   useArrastrarArchivo(vista, navegar)
   useAvisosTrabajos(vista, navegar)

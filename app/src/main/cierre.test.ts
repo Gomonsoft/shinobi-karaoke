@@ -88,3 +88,26 @@ describe('hayAlgoEnCurso (0073)', () => {
     expect(deps.pedirConfirmacion).toHaveBeenCalledOnce()
   })
 })
+
+it('pide vaciado con guardado pendiente y permite el cierre confirmado si el renderer agotó su plazo', async () => {
+  const pedirConfirmacion = vi.fn()
+  const cierreConfirmado = { preventDefault: vi.fn() }
+  const control = crearControlCierre({
+    hayAlgoEnCurso: () =>
+      hayAlgoEnCurso({
+        instalando: () => false,
+        hayTrabajos: () => false,
+        guardadoPendiente: () => true
+      }),
+    pedirConfirmacion,
+    pausar: async () => undefined,
+    cerrarVentana: () => control.alCerrarVentana(cierreConfirmado),
+    salir: vi.fn()
+  })
+  const evento = { preventDefault: vi.fn() }
+  control.alCerrarVentana(evento)
+  expect(evento.preventDefault).toHaveBeenCalledOnce()
+  expect(pedirConfirmacion).toHaveBeenCalledOnce()
+  await control.confirmar()
+  expect(cierreConfirmado.preventDefault).not.toHaveBeenCalled()
+})

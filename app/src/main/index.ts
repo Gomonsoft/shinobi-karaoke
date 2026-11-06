@@ -130,12 +130,15 @@ function origenRenderer(): string {
   })
 }
 
+let guardadoEditorPendiente = false
+
 const controlCierre = crearControlCierre({
   // Instalación del runtime o trabajos de la cola (0073). Las consultas interactivas no cuentan.
   hayAlgoEnCurso: () =>
     hayAlgoEnCurso({
       instalando: () => runtime?.servicio.instalando() ?? false,
-      hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false
+      hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
+      guardadoPendiente: () => guardadoEditorPendiente
     }),
   pedirConfirmacion: () => {
     for (const v of BrowserWindow.getAllWindows())
@@ -177,6 +180,9 @@ function crearVentana(): BrowserWindow {
 
   // Con una instalación en curso, cerrar pide confirmación al renderer (0036).
   ventana.on('close', (evento) => controlCierre.alCerrarVentana(evento))
+  ventana.on('closed', () => {
+    guardadoEditorPendiente = false
+  })
   ventana.on('focus', () => servicioAvisos?.alRecuperarFoco())
   ventana.once('ready-to-show', () => ventana.show())
 
@@ -513,7 +519,12 @@ if (instanciaUnica)
         {
           biblioteca: servicioBiblioteca,
           runtime: runtime.servicio,
-          confirmarCierre: () => controlCierre.confirmar(),
+          confirmarCierre: async () => {
+            await controlCierre.confirmar()
+          },
+          fijarGuardadoPendiente: (pendiente) => {
+            guardadoEditorPendiente = pendiente
+          },
           salir: () => app.quit(),
           trabajos: gestorTrabajos,
           ...(servicioSeparacion ? { separacion: servicioSeparacion } : {}),

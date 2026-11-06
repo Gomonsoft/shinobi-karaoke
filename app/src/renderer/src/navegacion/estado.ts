@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { GuardaSalida } from './salida'
 
 /** Pasos del espacio de canción (docs/ux/00 §2): 1 Fuente, 2 Separación, 3 Letra, 4 Editor. */
 export type PasoCancion = 'fuente' | 'progreso' | 'letra' | 'editor'
@@ -55,6 +56,7 @@ export function vistaInicial(estadoInstalacion: string): Vista {
 export interface Navegacion {
   vista: Vista
   ir(vista: Vista): void
+  registrarGuardaSalida?(fn: GuardaSalida): () => void
 }
 
 export const NavegacionContexto = createContext<Navegacion | null>(null)

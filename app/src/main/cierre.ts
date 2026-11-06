@@ -10,10 +10,11 @@ export interface FuentesEnCurso {
   instalando(): boolean
   /** Trabajos en curso o en cola (`GestorTrabajos.hayPendientes`). No incluye consultas interactivas. */
   hayTrabajos(): boolean
+  guardadoPendiente?(): boolean
 }
 
 export function hayAlgoEnCurso(fuentes: FuentesEnCurso): boolean {
-  return fuentes.instalando() || fuentes.hayTrabajos()
+  return fuentes.instalando() || fuentes.hayTrabajos() || (fuentes.guardadoPendiente?.() ?? false)
 }
 
 export interface EventoCancelable {
@@ -42,10 +43,13 @@ export interface ControlCierre {
 
 export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
   let pendiente: 'ventana' | 'salir' | null = null
+  let confirmando = false
+  let reentrada = false
 
   function interceptar(evento: EventoCancelable, intencion: 'ventana' | 'salir'): void {
-    if (!deps.hayAlgoEnCurso()) return
+    if (reentrada || !deps.hayAlgoEnCurso()) return
     evento.preventDefault()
+    if (confirmando) return
     pendiente = intencion
     deps.pedirConfirmacion()
   }
@@ -58,9 +62,16 @@ export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
       const intencion = pendiente
       if (intencion === null) return
       pendiente = null
-      await deps.pausar()
-      if (intencion === 'salir') deps.salir()
-      else deps.cerrarVentana()
+      confirmando = true
+      try {
+        await deps.pausar()
+        reentrada = true
+        if (intencion === 'salir') deps.salir()
+        else deps.cerrarVentana()
+      } finally {
+        reentrada = false
+        confirmando = false
+      }
     }
   }
 }
