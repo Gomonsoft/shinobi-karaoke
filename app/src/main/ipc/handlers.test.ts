@@ -661,6 +661,7 @@ describe('separación (0059)', () => {
 })
 
 describe('IPC del editor', () => {
+  const sesionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
   const peticion: GuardarTiempos = {
     cancionId: 'abc',
     offset_ms: 0,
@@ -672,11 +673,12 @@ describe('IPC del editor', () => {
     const manejadores = crearManejadores(deps)
     const guardar = manejadores[CANALES.letras.guardarTiempos]
     const error = { ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } }
-    expect(await guardar([{ ...peticion, offset_ms: 30_001 }])).toMatchObject(error)
-    expect(await guardar([{ ...peticion, offset_ms: -30_001 }])).toMatchObject(error)
+    expect(await guardar([{ ...peticion, offset_ms: 30_001 }, sesionId])).toMatchObject(error)
+    expect(await guardar([{ ...peticion, offset_ms: -30_001 }, sesionId])).toMatchObject(error)
     expect(
-      await guardar([{ ...peticion, tiempos: [{ ...peticion.tiempos[0], texto: 'x' }] }])
+      await guardar([{ ...peticion, tiempos: [{ ...peticion.tiempos[0], texto: 'x' }] }, sesionId])
     ).toMatchObject(error)
+    expect(await guardar([peticion, 'uuid inválido'])).toMatchObject(error)
     const estilo = estiloPredeterminado()
     estilo.letra.color = '#FFF'
     expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject(
@@ -697,11 +699,11 @@ describe('IPC del editor', () => {
       fijarGuardadoPendiente
     })
     const estilo = estiloPredeterminado()
-    expect(await manejadores[CANALES.letras.guardarTiempos]([peticion])).toMatchObject({
+    expect(await manejadores[CANALES.letras.guardarTiempos]([peticion, sesionId])).toMatchObject({
       ok: true,
       valor: { miniatura: 'shinobi-media://abc/fuente/miniatura.jpg' }
     })
-    expect(guardarTiempos).toHaveBeenCalledWith(peticion)
+    expect(guardarTiempos).toHaveBeenCalledWith(peticion, sesionId)
     expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject({
       ok: true
     })
@@ -722,7 +724,7 @@ describe('IPC del editor', () => {
       ok: false,
       error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
     })
-    expect(await manejadores[CANALES.letras.guardarTiempos]([peticion])).toMatchObject({
+    expect(await manejadores[CANALES.letras.guardarTiempos]([peticion, sesionId])).toMatchObject({
       ok: false,
       error: { codigo: 'ERROR_INTERNO' }
     })

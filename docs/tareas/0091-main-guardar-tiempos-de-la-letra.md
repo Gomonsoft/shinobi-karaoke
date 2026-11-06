@@ -1,10 +1,10 @@
 # 0091 — Main: `ServicioLetras.guardarTiempos` (tiempos y desplazamiento sin tocar el texto)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 5
 - Depende de: 0090
 - ADRs: 0010 (§2), 0006 (invariantes de la letra, escritor único, Revisión 2026-11-05), 0005 (`finEfectivo`, palabras)
 - Spec UX: docs/ux/06-editor.md ("Guardado, borrador y lista", criterio 13)
-- Archivos: `app/src/main/letras/servicio.ts` y `app/src/main/letras/servicio.test.ts`. **No toca archivos compartidos.**
+- Archivos: `app/src/main/letras/servicio.ts` y `app/src/main/letras/servicio.test.ts`. La revisión 0027 añade apertura y cierre de visita en el contrato IPC, preload y main.
 - Paralelizable con: todas las tareas de interfaz y dominio de la fase (0092–0101).
 
 ## Contexto para quien implementa
@@ -21,21 +21,21 @@
 Persistir los tiempos y el desplazamiento global que produce el editor, sin poder cambiar textos, ids, tipos ni orden, conservando un único escritor de `letra`.
 
 ## Criterios de aceptación
-- [ ] `guardarTiempos(p)` sustituye el *stub* de 0090. Reglas, en este orden y todas síncronas:
+- [x] `guardarTiempos(p)` sustituye el *stub* de 0090. Reglas, en este orden y todas síncronas:
   1. `biblioteca.obtener(p.cancionId)` es `null` (no existe o está dañada) → `ARGUMENTOS_NO_VALIDOS` "La canción no existe o está dañada."
   2. La canción no tiene letra, o `p.tiempos.length !== letra.lineas.length`, o algún `p.tiempos[i].id !== letra.lineas[i].id` → `ErrorBiblioteca('LETRA_DESACTUALIZADA', 'La letra ha cambiado desde que se abrió el editor.')`.
   3. Por elemento `i`, sobre una copia de `letra.lineas[i]`:
      - **línea**: `inicio_ms` y `fin_ms` se toman de `p`. `palabras`:
        - `null` en `p` → `null`;
-       - si no, la guardada debe ser no nula, con la misma longitud y el mismo `texto` en cada posición; los tiempos se toman de `p`. Si no, `ARGUMENTOS_NO_VALIDOS` "Las palabras no coinciden con la letra guardada.";
-     - **pausa**: `inicio_ms` debe ser el guardado o `null`, `fin_ms` el guardado o `null`, y `palabras` `null`. Si no, `ARGUMENTOS_NO_VALIDOS`.
+       - si no, la referencia de la visita debe tener la misma longitud y el mismo `texto` en cada posición; los tiempos se desplazan junto al inicio de la línea. Si no, `ARGUMENTOS_NO_VALIDOS` "Las palabras no coinciden con la letra guardada.";
+     - **pausa**: `inicio_ms` y `fin_ms` deben ser los de la referencia de visita o `null`, y `palabras` `null`. Si no, `ARGUMENTOS_NO_VALIDOS`.
   4. Nueva letra `{ origen, lrclib_id }` (los guardados), `offset_ms: p.offset_ms` y las líneas resultantes, validada con `letraSchema.safeParse`. Si falla → `ARGUMENTOS_NO_VALIDOS` "Los tiempos no son válidos." con el primer problema en el registro (`registro` si el servicio lo tiene; si no, sin registro).
   5. Si `JSON.stringify` de la nueva letra es igual al de la guardada → se devuelve el resumen actual sin escribir (`biblioteca.obtenerResumen`).
   6. Si no → `escribir(id, nueva, 0)`, sin *debounce*.
-- [ ] No cambia `estado`: una `lista` sigue `lista` aunque queden líneas sin inicio (`incompleta` se deriva, ADR 0006). `pasos.letra` sigue `completado` y se actualiza `actualizado`, porque se reutiliza `escribir`.
-- [ ] Se acepta con la separación en curso y no pisa `pasos.separacion` (lo garantiza `actualizar` con cambio parcial). Hay un test con una canción `en_curso` y un `actualizar` de progreso intercalado.
-- [ ] **Orden**: un test llama `guardarTiempos` (todas las líneas con inicio) y, sin esperar, `biblioteca.marcarLista`. La canción queda `lista` y `cancion.json` en disco tiene los tiempos nuevos tras `flushTodo()`.
-- [ ] Tests (Vitest, directorio temporal, como los de 0083):
+- [x] No cambia `estado`: una `lista` sigue `lista` aunque queden líneas sin inicio (`incompleta` se deriva, ADR 0006). `pasos.letra` sigue `completado` y se actualiza `actualizado`, porque se reutiliza `escribir`.
+- [x] Se acepta con la separación en curso y no pisa `pasos.separacion` (lo garantiza `actualizar` con cambio parcial). Hay un test con una canción `en_curso` y un `actualizar` de progreso intercalado.
+- [x] **Orden**: un test llama `guardarTiempos` (todas las líneas con inicio) y, sin esperar, `biblioteca.marcarLista`. La canción queda `lista` y `cancion.json` en disco tiene los tiempos nuevos tras `flushTodo()`.
+- [x] Tests (Vitest, directorio temporal, como los de 0083):
   - éxito: dos llamadas seguidas → `cancion.json` queda con la última;
   - desplazamiento `offset_ms` −250 guardado;
   - mover una línea con palabras (palabras desplazadas) y borrar sus tiempos (`palabras: null`);
@@ -45,7 +45,7 @@ Persistir los tiempos y el desplazamiento global que produce el editor, sin pode
   - inicios no crecientes → `ARGUMENTOS_NO_VALIDOS` sin escribir;
   - sin cambios → no escribe (espía de `actualizar`);
   - canción `lista` que pierde un inicio → sigue `lista` y `incompleta: true` en el resumen.
-- [ ] El JSDoc de la clase actualiza la lista de métodos: "Único escritor de `letra`: guardar, editarTexto, guardarTiempos".
+- [x] El JSDoc de la clase actualiza la lista de métodos: "Único escritor de `letra`: guardar, editarTexto, guardarTiempos".
 
 ## Verificación
 ```bash
@@ -55,4 +55,6 @@ npx vitest run src/main/letras src/main/biblioteca
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- El servicio valida la visita, conserva texto y procedencia, y escribe tiempos al momento a través de la biblioteca. El UUID y la referencia temporal se incorporan al IPC según 0027 y se liberan al cerrar.
+- Las pruebas cubren restauración de palabras y pausas tras un guardado confirmado, validaciones, escrituras intercaladas con separación y el paso a Lista. Pasaron lint, TypeScript, formato, Vitest, build y Playwright (69 pasadas, 2 omitidas). Se repitió la suite tras un fallo transitorio de una prueba de reproducción de Progreso.

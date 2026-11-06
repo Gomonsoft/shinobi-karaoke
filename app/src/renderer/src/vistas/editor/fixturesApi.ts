@@ -95,6 +95,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
 } {
   const cancion = structuredClone(opciones.cancion ?? cancionSinSincronizar())
   const config = structuredClone(opciones.config ?? configPredeterminada())
+  let sesionActiva: string | null = null
   const llamadas: { metodo: string; args: unknown[] }[] = []
   const fallos = new Map<string, { codigo: CodigoError; veces: number }>()
   const oyentes = new Set<Parameters<ApiShinobi['alCambiarCancion']>[0]>()
@@ -185,12 +186,22 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       }
     },
     letras: {
-      async guardarTiempos(peticion) {
-        registrar('letras.guardarTiempos', peticion)
+      async abrirEdicion(id) {
+        registrar('letras.abrirEdicion', id)
+        sesionActiva = id === cancion.id ? crypto.randomUUID() : null
+        return sesionActiva ? { cancion: structuredClone(cancion), sesionId: sesionActiva } : null
+      },
+      async cerrarEdicion(id) {
+        registrar('letras.cerrarEdicion', id)
+        if (sesionActiva === id) sesionActiva = null
+      },
+      async guardarTiempos(peticion, sesionId) {
+        registrar('letras.guardarTiempos', peticion, sesionId)
         exigirId(peticion.cancionId)
         const { letra } = cancion
         const { tiempos, offset_ms } = peticion
         if (
+          sesionId !== sesionActiva ||
           !letra ||
           letra.lineas.length !== tiempos.length ||
           letra.lineas.some((linea, i) => linea.id !== tiempos[i]?.id)

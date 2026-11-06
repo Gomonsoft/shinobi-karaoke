@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import {
   contarLineas,
   estadoPasoLetra,
   letraSchema,
+  type EdicionLetraIpc,
   type ElementoLetra,
   type Letra
 } from '../../shared'
@@ -65,7 +67,7 @@ export function decodificarTextoLetra(bytes: Uint8Array): string | null {
 }
 
 /**
- * Único escritor de `cancion.json#letra` y `pasos.letra` (0083; ADR 0006, Revisión 2026-11-05).
+ * Único escritor de `letra`: guardar, editarTexto, guardarTiempos (ADR 0006 y 0010).
  * Escribe siempre con `ServicioBiblioteca.actualizar`, que emite `evento:cancion`.
  */
 export class ServicioLetras {
@@ -73,6 +75,8 @@ export class ServicioLetras {
   private readonly dialogo: DialogoArchivos
   private readonly ahora: () => Date
   private readonly debounceMs: number
+  private visita: { id: string; cancionId: string; referencia: Letra | null } | null = null
+  private readonly escriturasTiempos = new Map<string, Promise<ResumenCancion>>()
 
   constructor(opciones: OpcionesServicioLetras) {
     this.biblioteca = opciones.biblioteca
@@ -102,6 +106,7 @@ export class ServicioLetras {
       throw noValido('La letra no es válida.')
     }
     if (contarLineas(letra) < 1) throw noValido('La letra necesita al menos una línea.')
+    this.invalidarEdicionDe(peticion.cancionId)
     return this.escribir(peticion.cancionId, letra, 0)
   }
 
@@ -129,6 +134,7 @@ export class ServicioLetras {
     if (contarLineas(nueva) === 0 && cancion.estado === 'lista') {
       throw noValido('Una canción lista necesita al menos una línea de letra.')
     }
+    this.invalidarEdicionDe(peticion.cancionId)
     return this.escribir(peticion.cancionId, nueva, this.debounceMs)
   }
 
@@ -177,9 +183,103 @@ export class ServicioLetras {
     }
   }
 
-  async guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancion> {
-    void peticion
-    throw new ErrorBiblioteca('ERROR_INTERNO', 'guardarTiempos: pendiente de 0091')
+  abrirEdicion(cancionId: string): EdicionLetraIpc | null {
+    this.liberarEdicion()
+    const cancion = this.biblioteca.obtener(cancionId)
+    if (!cancion) return null
+    const sesionId = randomUUID()
+    this.visita = { id: sesionId, cancionId, referencia: structuredClone(cancion.letra) }
+    return { cancion, sesionId }
+  }
+
+  cerrarEdicion(sesionId: string): void {
+    if (this.visita?.id === sesionId) this.liberarEdicion()
+  }
+
+  liberarEdicion(): void {
+    this.visita = null
+  }
+
+  private invalidarEdicionDe(cancionId: string): void {
+    if (this.visita?.cancionId === cancionId) this.liberarEdicion()
+  }
+
+  /** Valida la visita y encola la escritura sin ceder el turno entre lectura y actualización. */
+  async guardarTiempos(peticion: GuardarTiempos, sesionId: string): Promise<ResumenCancion> {
+    const { cancionId, offset_ms, tiempos } = peticion
+    const cancion = this.biblioteca.obtener(cancionId)
+    if (!cancion) throw noValido('La canción no existe o está dañada.')
+    const { letra } = cancion
+    const visita = this.visita
+    const referencia = visita?.referencia
+    if (
+      visita?.id !== sesionId ||
+      visita.cancionId !== cancionId ||
+      !letra ||
+      !referencia ||
+      letra.lineas.length !== tiempos.length ||
+      referencia.lineas.length !== tiempos.length ||
+      letra.lineas.some(
+        (linea, i) => linea.id !== tiempos[i]?.id || linea.id !== referencia.lineas[i]?.id
+      )
+    ) {
+      throw new ErrorBiblioteca(
+        'LETRA_DESACTUALIZADA',
+        'La letra ha cambiado desde que se abrió el editor.'
+      )
+    }
+
+    const lineas = letra.lineas.map((linea, i): ElementoLetra => {
+      const inicial = referencia.lineas[i]!
+      const { inicio_ms, fin_ms, palabras } = tiempos[i]!
+      if (linea.tipo === 'pausa') {
+        if (
+          palabras !== null ||
+          (inicio_ms !== null && inicio_ms !== inicial.inicio_ms) ||
+          (fin_ms !== null && fin_ms !== inicial.fin_ms)
+        )
+          throw noValido('Los tiempos de la pausa no coinciden con la letra guardada.')
+        return { ...linea, inicio_ms, fin_ms, palabras: null }
+      }
+      if (palabras === null) return { ...linea, inicio_ms, fin_ms, palabras }
+      const originales = inicial.palabras
+      if (
+        !originales ||
+        originales.length !== palabras.length ||
+        inicio_ms === null ||
+        inicial.inicio_ms === null
+      ) {
+        throw noValido('Las palabras no coinciden con la letra guardada.')
+      }
+      const delta = inicio_ms - inicial.inicio_ms
+      const validadas = originales.map((original, j) => {
+        const nueva = palabras[j]!
+        if (
+          nueva.texto !== original.texto ||
+          nueva.inicio_ms !== original.inicio_ms + delta ||
+          nueva.fin_ms !== original.fin_ms + delta
+        ) {
+          throw noValido('Las palabras no coinciden con la letra guardada.')
+        }
+        return { texto: original.texto, inicio_ms: nueva.inicio_ms, fin_ms: nueva.fin_ms }
+      })
+      return { ...linea, inicio_ms, fin_ms, palabras: validadas }
+    })
+
+    const nueva = letraSchema.safeParse({ ...letra, offset_ms, lineas })
+    if (!nueva.success) throw noValido('Los tiempos no son válidos.')
+    const resumen = this.biblioteca.obtenerResumen(cancionId)
+    if (resumen && JSON.stringify(nueva.data) === JSON.stringify(letra)) {
+      return this.escriturasTiempos.get(cancionId) ?? resumen
+    }
+    const escritura = this.escribir(cancionId, nueva.data, 0)
+    this.escriturasTiempos.set(cancionId, escritura)
+    try {
+      return await escritura
+    } finally {
+      if (this.escriturasTiempos.get(cancionId) === escritura)
+        this.escriturasTiempos.delete(cancionId)
+    }
   }
 
   private escribir(id: string, letra: Letra, debounceMs: number): Promise<ResumenCancion> {

@@ -73,14 +73,20 @@ Hay que decidir:
   - con `SHINOBI_SILENCIAR_AUDIO=1`, y solo sin empaquetar, el main silencia la ventana con `webContents.setAudioMuted(true)`.
 
 ### 2. Escritura: opción A
-- **`letras.guardarTiempos({ cancionId, offset_ms, tiempos })`**, en `ServicioLetras`, que sigue siendo el único escritor de `letra`:
+- **Referencia de la visita** (revisión de [0027](../preguntas/0027-restaurar-tiempos-despues-del-autoguardado.md)):
+  - `letras.abrirEdicion(cancionId)` devuelve `{ cancion, sesionId }` desde la misma lectura del índice. Devuelve `null` si la canción no se puede obtener. `ServicioLetras` crea un UUID opaco y guarda en memoria la referencia de letra de esa instantánea. Hay como máximo una visita activa en la ventana única. Al abrir otra se descarta la anterior.
+  - `letras.cerrarEdicion(sesionId)` libera la referencia si corresponde a la visita activa. Es idempotente. Al salir del editor, se resuelve primero el vaciado pendiente o se confirma el descarte y después se cierra la visita. Al cerrar la ventana se libera la referencia que quede.
+  - Una sustitución de letra o una edición efectiva de su texto invalida la referencia de esa canción al aplicar el cambio al índice. La validación previa al cambio y la edición sin cambios conservan la visita. Los cambios de estilo y separación tampoco la invalidan.
+- **`letras.guardarTiempos({ cancionId, offset_ms, tiempos }, sesionId)`**, en `ServicioLetras`, que sigue siendo el único escritor de `letra`:
   - `tiempos` trae un elemento por cada elemento de la letra guardada, en el mismo orden y con el mismo `id`: `{ id, inicio_ms, fin_ms, palabras }`;
   - el main copia de lo guardado `tipo`, `texto`, `origen`, `lrclib_id` y el texto de las palabras; solo cambian tiempos y `offset_ms`;
-  - las palabras pueden pasar a `null` o desplazarse, pero no aparecer donde no había ni cambiar de texto;
-  - una pausa solo puede conservar su inicio o perderlo;
+  - las palabras pueden quedar en `null`. Una lista de palabras debe corresponder en cantidad, texto y orden a la de la línea en la referencia. Cada inicio y fin se desplaza por el mismo delta que el inicio de la línea respecto a esa referencia. Esto permite restaurarlas aunque la escritura anterior las haya quitado;
+  - una pausa admite `inicio_ms` y `fin_ms` de la referencia o `null`, y siempre `palabras: null`;
   - se valida con `letraSchema` y se escribe sin *debounce* (el *debounce* está en el renderer);
-  - si ids, número u orden no coinciden con lo guardado, el error es el código nuevo **`LETRA_DESACTUALIZADA`**, que solo genera el main: el editor recarga la canción;
+  - si la visita ya no corresponde a la canción, la letra falta o sus elementos ya no coinciden en identidad y orden, el main responde **`LETRA_DESACTUALIZADA`**. El editor descarta los tiempos pendientes, abre una visita con la canción actual y vacía el historial. El estilo pendiente se sigue guardando;
   - el cálculo es síncrono hasta llamar a `actualizar`, igual que `editarTexto` (0083). Así dos llamadas seguidas, o una seguida de `marcarLista`, se aplican en orden.
+  - una escritura ya encolada conserva su turno si se cierra la visita o cambia el texto. Los envíos posteriores de la visita invalidada se rechazan antes de encolar.
+- Zod valida el identificador de canción, el UUID de visita y los tiempos en el proceso principal (ADR 0008). El UUID es un segundo argumento IPC. `GuardarTiempos` y `aPeticionTiempos` conservan su forma de instantánea.
 - **`biblioteca.guardarEstilo(id, estilo)`**: `ServicioBiblioteca.actualizar(id, { estilo })`, sin *debounce*.
 - **`biblioteca.marcarLista(id)`**: expone el `ServicioBiblioteca.marcarLista` que ya existe (0010), con `ARGUMENTOS_NO_VALIDOS` si falta algo.
 - "Usar este estilo en canciones nuevas" usa `config.actualizar({ estilo_predeterminado })`, que ya existe.
@@ -147,6 +153,10 @@ Hay que decidir:
   - "Cargando audio…" la primera vez que se escucha cada pista (< 1 s en canciones de 4 min);
   - cambiar a una pista ya usada es inmediato si sigue en memoria y, si no, se vuelve a decodificar;
   - el botón "Probar a pantalla completa" llega en la Fase 6.
+
+## Revisiones
+
+- 2026-11-05 ([0027](../preguntas/0027-restaurar-tiempos-despues-del-autoguardado.md)). Se conserva en el main la referencia temporal de la visita para restaurar palabras y pausas después del autoguardado. El historial sigue en el renderer y el esquema de disco conserva la versión 1. La 0091 incorpora `abrirEdicion`, `cerrarEdicion` y el UUID obligatorio en `guardarTiempos`, con los ajustes de IPC, preload y doble de pruebas de 0090. La 0104 liga el envío de tiempos a la visita y la 0105 abre y cierra esa visita. En 0110 se comprueba la restauración después de que el borrado se haya guardado en disco.
 
 ## Fuentes
 - `AudioContext.getOutputTimestamp()` (MDN, consultado el 2026-11-05): https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/getOutputTimestamp

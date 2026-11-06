@@ -40,6 +40,10 @@ export { CANALES } from './canales'
 
 export const idCancionSchema = z.string().min(1).max(200)
 
+const idSesionEdicionSchema = z.uuid()
+const edicionLetraSchema = z.object({ cancion: cancionSchema, sesionId: idSesionEdicionSchema })
+export type EdicionLetraIpc = z.infer<typeof edicionLetraSchema>
+
 const textoCorto = z.string().max(500)
 
 export const metadatosEditablesSchema = z.strictObject({
@@ -477,9 +481,11 @@ export const CONTRATO = {
     res: resumenCancionSchema
   },
   [CANALES.letras.guardarTiempos]: {
-    args: z.tuple([guardarTiemposSchema]),
+    args: z.tuple([guardarTiemposSchema, idSesionEdicionSchema]),
     res: resumenCancionSchema
   },
+  [CANALES.letras.abrirEdicion]: { args: unId, res: edicionLetraSchema.nullable() },
+  [CANALES.letras.cerrarEdicion]: { args: z.tuple([idSesionEdicionSchema]), res: z.void() },
   [CANALES.letras.leerArchivo]: { args: vacio, res: archivoLetraLeidoSchema },
   [CANALES.app.guardadoPendiente]: { args: z.tuple([z.boolean()]), res: z.void() },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
@@ -532,7 +538,11 @@ export interface ApiShinobi {
     /** Aplica el diff del texto sobre la letra guardada. */
     editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancionIpc>
     /** Sustituye tiempos y desplazamiento sin tocar el texto; LETRA_DESACTUALIZADA si la letra cambió. */
-    guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancionIpc>
+    guardarTiempos(peticion: GuardarTiempos, sesionId: string): Promise<ResumenCancionIpc>
+    /** Abre la visita y devuelve la canción que sirve como referencia del historial. */
+    abrirEdicion(cancionId: string): Promise<EdicionLetraIpc | null>
+    /** Libera la referencia de la visita si sigue siendo la activa. */
+    cerrarEdicion(sesionId: string): Promise<void>
     /** Diálogo nativo `.lrc`/`.txt`; no guarda (ver `guardar` con `origen: 'archivo'`). */
     leerArchivo(): Promise<ArchivoLetraLeido>
   }

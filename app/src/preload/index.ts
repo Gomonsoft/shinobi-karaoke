@@ -51,7 +51,10 @@ const api: ApiShinobi = {
     buscar: (peticion) => invocar(CANALES.letras.buscar, peticion),
     guardar: (letra) => invocar(CANALES.letras.guardar, letra),
     editarTexto: (peticion) => invocar(CANALES.letras.editarTexto, peticion),
-    guardarTiempos: (peticion) => invocar(CANALES.letras.guardarTiempos, peticion),
+    guardarTiempos: (peticion, sesionId) =>
+      invocar(CANALES.letras.guardarTiempos, peticion, sesionId),
+    abrirEdicion: (id) => invocar(CANALES.letras.abrirEdicion, id),
+    cerrarEdicion: (sesionId) => invocar(CANALES.letras.cerrarEdicion, sesionId),
     leerArchivo: () => invocar(CANALES.letras.leerArchivo)
   },
   config: {

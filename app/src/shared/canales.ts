@@ -69,6 +69,9 @@ export const CANALES = {
   letras: {
     // Cambia los tiempos y el desplazamiento sin cambiar el texto (0090).
     guardarTiempos: 'letras:guardarTiempos',
+    // Referencia de visita para restaurar tiempos (0091, 0027).
+    abrirEdicion: 'letras:abrirEdicion',
+    cerrarEdicion: 'letras:cerrarEdicion',
     /** Búsqueda en LRCLIB (0082). */
     buscar: 'letras:buscar',
     /** Sustituye la letra entera (0083). */

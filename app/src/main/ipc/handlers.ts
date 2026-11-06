@@ -24,6 +24,7 @@ import {
   type ResultadoBusquedaLetra,
   type GuardarLetra,
   type GuardarTiempos,
+  type EdicionLetraIpc,
   type Estilo,
   type EditarTextoLetra,
   type ArchivoLetraLeido,
@@ -117,7 +118,9 @@ export interface LetrasIpc {
   buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
   guardar(letra: GuardarLetra): Promise<ResumenCancion>
   editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancion>
-  guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancion>
+  guardarTiempos(peticion: GuardarTiempos, sesionId: string): Promise<ResumenCancion>
+  abrirEdicion(id: string): EdicionLetraIpc | null
+  cerrarEdicion(sesionId: string): void
   leerArchivo(): Promise<ArchivoLetraLeido>
 }
 
@@ -236,8 +239,14 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) =>
       resumenParaRenderer(await letras().editarTexto(p))
     ),
-    [CANALES.letras.guardarTiempos]: envolver(CANALES.letras.guardarTiempos, async (p) =>
-      resumenParaRenderer(await letras().guardarTiempos(p))
+    [CANALES.letras.guardarTiempos]: envolver(CANALES.letras.guardarTiempos, async (p, sesionId) =>
+      resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
+    ),
+    [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) =>
+      letras().abrirEdicion(id)
+    ),
+    [CANALES.letras.cerrarEdicion]: envolver(CANALES.letras.cerrarEdicion, (id) =>
+      letras().cerrarEdicion(id)
     ),
     [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () =>
       letras().leerArchivo()

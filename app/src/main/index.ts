@@ -491,6 +491,9 @@ if (instanciaUnica)
           { env: process.env, empaquetada: app.isPackaged }
         )
       })
+      app.on('browser-window-created', (_evento, ventana) => {
+        ventana.once('closed', () => servicioLetras.liberarEdicion())
+      })
       const clienteLrclib = crearClienteLrclib({
         fetch: (url, init) => net.fetch(url, init),
         version: app.getVersion(),
@@ -519,7 +522,9 @@ if (instanciaUnica)
           letras: {
             buscar: (p) => busqueda.buscar(p),
             guardar: (p) => servicioLetras.guardar(p),
-            guardarTiempos: (peticion) => servicioLetras.guardarTiempos(peticion),
+            abrirEdicion: (id) => servicioLetras.abrirEdicion(id),
+            cerrarEdicion: (id) => servicioLetras.cerrarEdicion(id),
+            guardarTiempos: (peticion, id) => servicioLetras.guardarTiempos(peticion, id),
             editarTexto: (p) => servicioLetras.editarTexto(p),
             leerArchivo: () => servicioLetras.leerArchivo()
           },

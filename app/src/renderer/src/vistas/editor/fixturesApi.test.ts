@@ -25,6 +25,7 @@ describe('fixtures del editor', () => {
   it('persiste los tiempos y rechaza ids desactualizados', async () => {
     const cancion = cancionSinSincronizar()
     const { api } = apiEditorFalsa({ cancion })
+    const visita = await api.letras.abrirEdicion!(cancion.id)
     const tiempos = cancion.letra!.lineas.map(({ id }, i) => ({
       id,
       inicio_ms: i * 1000,
@@ -32,13 +33,15 @@ describe('fixtures del editor', () => {
       palabras: null
     }))
     const peticion = { cancionId: cancion.id, offset_ms: -500, tiempos }
-    await expect(api.letras.guardarTiempos!(peticion)).resolves.toMatchObject({
+    await expect(api.letras.guardarTiempos!(peticion, visita!.sesionId)).resolves.toMatchObject({
       lineasSinSincronizar: 0
     })
     await expect(api.biblioteca.obtener!(cancion.id)).resolves.toMatchObject({
       letra: { offset_ms: -500, lineas: tiempos.map((t) => expect.objectContaining(t)) }
     })
-    await expect(api.letras.guardarTiempos!({ ...peticion, tiempos: [] })).rejects.toMatchObject({
+    await expect(
+      api.letras.guardarTiempos!({ ...peticion, tiempos: [] }, visita!.sesionId)
+    ).rejects.toMatchObject({
       codigo: 'LETRA_DESACTUALIZADA'
     })
   })
