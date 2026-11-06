@@ -40,7 +40,11 @@ export class GuardadoEditor {
   private readonly reloj: NonNullable<Opciones['temporizador']>
 
   constructor(private readonly opciones: Opciones) {
-    this.reloj = opciones.temporizador ?? { setTimeout, clearTimeout }
+    // Envueltos: `window.setTimeout` llamado como método de otro objeto lanza "Illegal invocation".
+    this.reloj = opciones.temporizador ?? {
+      setTimeout: ((f: () => void, ms?: number) => setTimeout(f, ms)) as typeof setTimeout,
+      clearTimeout: ((t?: Temporizador) => clearTimeout(t)) as typeof clearTimeout
+    }
   }
 
   cambiarLetra(letra: Letra): void {

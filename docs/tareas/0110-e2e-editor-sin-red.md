@@ -1,5 +1,5 @@
 # 0110 — E2E del editor sin red (semilla con audio de 30 s, audio de Chromium silenciado)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 5
 - Depende de: 0091, 0095, 0101, 0102, 0105–0109
 - ADRs: 0010 (§1 "Pruebas"), 0009 §8 (dobles y variables `SHINOBI_*` solo sin empaquetar)
@@ -56,4 +56,8 @@ npx playwright test
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- `app/e2e/editor.spec.ts` (10 pruebas, sin fixtures nuevas: siembra con `sembrar()` en un temporal, `SHINOBI_SILENCIAR_AUDIO=1` y `SHINOBI_LRCLIB_URL` a un puerto cerrado para no tocar la red). Cubre: sincronizar en una pasada (12 Intro) y marcar como lista (toast, foco, resalte, `estado: lista`); mantener Intro para el fin y Retroceso; ajuste fino Alt+→, límite contra la siguiente, deshacer/rehacer, desplazamiento `.` y Restablecer; Estilo (aviso de contraste con punto en la pestaña, «Usar letra blanca», Bangers, estilo en disco); canción separándose; lista incompleta («Falta 1 línea», popover y «Salir igualmente»); toast «Borrador guardado.» solo con cambios; corregir la letra (stepper, tiempos conservados); cierre de ventana con cambios pendientes; más de 5000 renglones.
+- **Fallos reales de la app que destapó el E2E (corregidos):** `EscuchaComprobacion` (0106) y `GuardadoEditor` (0104) guardaban `{ setTimeout, clearTimeout }` en un objeto y los llamaban como métodos (`this.reloj.clearTimeout(...)`): en Chromium lanza «Illegal invocation». Con la app compilada, pulsar S fallaba y el autoguardado del editor no guardaba nada; los tests unitarios pasaban porque inyectan temporizadores falsos. Ahora se envuelven en funciones (`escuchaComprobacion.ts`, `guardado.ts`) y hay un test de `EscuchaComprobacion` con el reloj real.
+- Notas de la semilla y el entorno: 1) la id 11 tiene el JSON dañado a propósito, así que `idDe(datos, titulo)` de `fixtures/separacion.ts` falla con la semilla; el spec usa ids fijos `5eed0000-…-0000000000NN`. 2) Las tarjetas 17–19 quedan al final de la Biblioteca y los menús (tarjeta, selector de fuente) se cierran con el `scroll` que provoca Playwright: el spec filtra por título con el buscador y elige la fuente por teclado. 3) La canción 18 (separando al 42 %) llega al editor como separación interrumpida (la app la reconcilia al arrancar), por lo que el E2E comprueba «Disponible cuando se separen las pistas» y el popover con «Separar las pistas»/«Ir a Separación»: pregunta 0029 (no bloquea). 4) El botón «Marcar como lista» usa `aria-disabled`, de ahí el `click({ force: true })`. 4b) Los 5001 renglones se pegan con el portapapeles real (`clipboard.writeText` desde main + Ctrl/Cmd+V): `fill` lanza un evento por renglón y tarda ~25 s. 5) Audio: en macOS con Chromium silenciado el reloj avanza bien (sincronizar, mantener y retroceso estables); no se ha podido comprobar Linux sin dispositivo de audio aquí: si fallara en la CI, añadir el sink nulo de PulseAudio (`pactl load-module module-null-sink`) y avisar al arquitecto con una pregunta.
+- Probar: `cd app && export SHINOBI_UV="$(which uv)" && npm run build && npx playwright test e2e/editor.spec.ts`.
+- Deuda: el «punto de aviso» y el toast «Borrador guardado.» quedan cubiertos solo por el E2E (no hay test de integración a nivel `Editor`). No se verifican milisegundos (0111).

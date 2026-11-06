@@ -4,9 +4,9 @@ Estado al **2026-11-06**, rama `fase-5-editor` (subida a GitHub; `main` no la in
 
 | Estado | Tareas |
 |---|---|
-| ✅ Hechas (20) | 0090–0109 (0108 y 0109 pendientes de commit) |
-| ⏳ Pendientes (2) | **0110** E2E del editor sin red · **0111** prueba manual de precisión (la hace una persona: no implementar) |
-| ❓ Pregunta abierta | **0028** (para arquitecto, no bloquea): total de canciones de la semilla del editor |
+| ✅ Hechas (21) | 0090–0110 (0108–0110 pendientes de commit) |
+| ⏳ Pendientes (1) | **0111** prueba manual de precisión (la hace una persona: no implementar) |
+| ❓ Pregunta abierta | **0029** (para arquitecto, no bloquea): la semilla «Editor: separando» llega interrumpida al editor, sin porcentaje |
 
 ## Prompt para continuar con Claude Code
 
@@ -29,7 +29,7 @@ PREPARACIÓN:
 TRABAJO, en este orden:
 1. Lanza al agente "arquitecto" para responder docs/preguntas/0028 (márcala Respondida).
 2. Lanza al agente "programador" para terminar 0108 y 0109 partiendo del commit WIP (revisar el código existente, no rehacerlo) (pueden ir en paralelo; ambos tocan vistas/editor/Editor.tsx solo añadiendo; 0109 además navegacion/estado.ts y Biblioteca.tsx).
-3. Después, 0110 (E2E del editor sin red).
+3. 0110 (E2E del editor sin red) ya está hecha.
 4. No implementes 0111 (prueba manual).
 
 REGLAS PARA QUE SE PUEDA REANUDAR SI SE CORTA LA SESIÓN (obligatorias):

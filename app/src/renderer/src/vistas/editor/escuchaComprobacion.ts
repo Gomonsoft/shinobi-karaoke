@@ -14,7 +14,11 @@ export class EscuchaComprobacion {
 
   constructor(
     private readonly motor: Puerto,
-    private readonly reloj: Temporizador = { setTimeout, clearTimeout }
+    // Envueltos: `window.setTimeout` llamado como método de otro objeto lanza "Illegal invocation".
+    private readonly reloj: Temporizador = {
+      setTimeout: ((f: () => void, ms?: number) => setTimeout(f, ms)) as typeof setTimeout,
+      clearTimeout: ((t?: ReturnType<typeof setTimeout>) => clearTimeout(t)) as typeof clearTimeout
+    }
   ) {}
 
   escuchar(centroMs: number, campo: 'inicio' | 'fin'): void {

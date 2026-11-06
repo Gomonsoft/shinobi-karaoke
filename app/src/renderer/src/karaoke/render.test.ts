@@ -75,13 +75,21 @@ describe('modelo de render', () => {
     })
   })
 
-  it('resuelve mil fotogramas de una letra de 5000 líneas en menos de 200 ms', () => {
-    const l = letra(Array.from({ length: 5000 }, (_, i) => linea(String(i), 'Nube', i * 300)))
-    const ctx = { ...contexto, duracionMs: 5000 * 300 }
-    const inicio = performance.now()
-    let ultimo: string | undefined
-    for (let i = 0; i < 1000; i++) ultimo = fotogramaEn(l, i * 1500, ctx).actual?.id
-    expect(performance.now() - inicio).toBeLessThan(200)
-    expect(ultimo).toBe('4995')
+  it('resuelve mil fotogramas de una letra de 5000 líneas sin degradarse con el tamaño', () => {
+    // Sin límite fijo ajustado (inestable bajo carga): límite holgado y comparación de complejidad.
+    const medir = (n: number): { ms: number; ultimo: string | undefined } => {
+      const l = letra(Array.from({ length: n }, (_, i) => linea(String(i), 'Nube', i * 300)))
+      const ctx = { ...contexto, duracionMs: n * 300 }
+      const inicio = performance.now()
+      let ultimo: string | undefined
+      for (let i = 0; i < 1000; i++) ultimo = fotogramaEn(l, (i * 1500) % (n * 300), ctx).actual?.id
+      return { ms: performance.now() - inicio, ultimo }
+    }
+    const pequeno = medir(500)
+    const grande = medir(5000)
+    expect(grande.ultimo).toBe('4995')
+    expect(grande.ms).toBeLessThan(2000)
+    // Un algoritmo lineal por fotograma sería ~10 veces más lento con 10 veces más líneas.
+    expect(grande.ms).toBeLessThan(Math.max(pequeno.ms, 25) * 8)
   })
 })

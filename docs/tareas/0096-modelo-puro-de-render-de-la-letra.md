@@ -63,3 +63,4 @@ npx vitest run src/renderer/src/karaoke/render.test.ts
 
 - El modelo de render calcula título, línea actual y siguiente, barrido, palabras e indicador de entrada. Usa un índice débil por letra y duración, con búsqueda binaria y fines efectivos en caché.
 - Pasaron las pruebas de render, incluida la medición de 1000 fotogramas con 5000 líneas. En la verificación conjunta con 0097 pasaron lint, TypeScript, formato, Vitest, build y Playwright (69 pasadas, 2 omitidas).
+- Mantenimiento: el test de rendimiento de `render.test.ts` (límite fijo de 200 ms) falló con 228 ms bajo carga. Ahora usa un límite holgado (2 s) y compara la escala entre 500 y 5000 líneas (un algoritmo lineal por fotograma sería ~10 veces más lento), como en `editar.test.ts`.

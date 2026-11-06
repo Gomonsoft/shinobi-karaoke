@@ -62,3 +62,17 @@ it('limita el fragmento y no interrumpe una reproducción ajena', async () => {
   expect(motor.reproducir).toHaveBeenCalledExactlyOnceWith({ desdeMs: 0, hastaMs: 2500 })
   escucha.cancelar()
 })
+
+it('con el reloj real cancela sin lanzar "Illegal invocation" con los temporizadores por defecto', () => {
+  const motor = {
+    estado: () => ({ sonando: false, duracionMs: 1000 }),
+    posicionMs: () => 0,
+    reproducir: async () => undefined,
+    pausar: () => undefined,
+    buscar: () => undefined,
+    suscribir: () => () => undefined
+  } as unknown as ConstructorParameters<typeof EscuchaComprobacion>[0]
+  const escucha = new EscuchaComprobacion(motor)
+  escucha.escuchar(500, 'inicio')
+  expect(() => escucha.cancelar()).not.toThrow()
+})
