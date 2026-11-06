@@ -1,5 +1,5 @@
 # 0123 — E2E del reproductor sin red
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0113, 0114, 0115, 0116, 0119, 0120, 0121, 0122
 - ADRs: 0011, 0010 (E2E con audio silenciado)
@@ -77,4 +77,6 @@ npx playwright test          # toda la batería
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- Se añadieron cinco recorridos sin red: reproducción desde Biblioteca con atajos y vuelta con foco/búsqueda, letra incompleta, pantalla final, instrumental ausente con tarjeta dañada y prueba original desde el editor con desplazamiento/deshacer.
+- Pasaron los cinco E2E dirigidos y la batería completa: 84 Playwright pasan y 2 de red se omiten. En Linux se usa pantalla completa simulada; la revisión en TV y los tres sistemas sigue en la prueba manual 0126.
+- La verificación global de Vitest pasó con 1.803 tests y 12 omitidos; build, lint, typecheck y formato en verde.

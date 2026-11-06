@@ -18,7 +18,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 3 | Separación de voz e instrumental | ✅ Cerrada (0058 y 0062 esperan `runtime-real` en GitHub) |
 | 4 | Letras | ✅ Cerrada (0077–0089) |
 | 5 | Editor (sincronía y estilo) | ✅ Cerrada (0090–0110; 0111 manual pendiente) |
-| 6 | Reproductor a pantalla completa | ⏳ Desglosada (0112–0126) |
+| 6 | Reproductor a pantalla completa | ✅ Cerrada (0112–0125; 0126 manual pendiente) |
 | 7 | Empaquetado y distribución | Pendiente |
 
 ```mermaid
@@ -156,9 +156,11 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 - Legible a unos 5 m en un televisor de 55" (sin tope de tamaño de letra).
 - Deuda: un motor de audio incompleto ya no dice "Algo salió mal": ofrece "Reparar el motor de audio".
 
-**Preguntas**: 0029 y 0031 respondidas (arquitecto); 0030 decidida por el usuario (voz guía); [0032](preguntas/0032-textos-de-motor-de-audio-incompleto.md) respondida (diseñador UX). Sin preguntas abiertas.
+**Preguntas**: 0029 y 0031 respondidas (arquitecto); 0030 decidida por el usuario (voz guía); [0032](preguntas/0032-textos-de-motor-de-audio-incompleto.md) respondida (diseñador UX). Queda abierta [0034](preguntas/0034-reparacion-del-motor-tras-un-error-de-fuente.md), no bloquea el reproductor ni la reparación tras un fallo de separación.
 
 **Orden**: 0112, 0115, 0116, 0117 y 0124 a la vez → 0113 ‖ 0114 ‖ 0118 → 0119 (núcleo) → 0120 ‖ 0121 ‖ 0122 → E2E 0123 y prueba manual 0126 (0125 en cualquier hueco tras 0124). Detalle en [`backlog.md`](backlog.md).
+
+**Resultado**: reproductor completo con voz guía, controles, pantalla final y recuperación de errores; apertura superpuesta desde la Biblioteca y el editor; reparación del motor de audio incompleto. Ver [`informe-fase-6.md`](informe-fase-6.md). Pendiente únicamente la prueba manual 0126 en TV y tres sistemas.
 
 ## Fase 7 — Empaquetado y distribución
 **Objetivo**: que un usuario no técnico pueda instalarla.
