@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, win32 } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clavePlataforma, descargarUv, esVersionEsperada } from './descargar-uv.mjs'
 
@@ -54,40 +54,52 @@ function prepararDescarga() {
 }
 
 describe('descargarUv', () => {
-  it('extrae el ZIP de Windows con tar real desde el temporal y rutas internas portables', async () => {
-    const zip = Buffer.from(
-      'UEsDBBQAAAAAACNyZl2XgDt2EQAAABEAAAAgAAAAdXYteDg2XzY0LXBjLXdpbmRvd3MtbXN2Yy91di5leGViaW5hcmlvIGRlIHBydWViYVBLAQIUAxQAAAAAACNyZl2XgDt2EQAAABEAAAAgAAAAAAAAAAAAAACAAQAAAAB1di14ODZfNjQtcGMtd2luZG93cy1tc3ZjL3V2LmV4ZVBLBQYAAAAAAQABAE4AAABPAAAAAAA=',
-      'base64'
-    )
-    const binario = manifiestoReal.binarios['win32-x64']!
-    const ejecutarComando = vi.fn(
-      (comando: string, argumentos: string[], opciones?: { cwd?: string }) => {
-        if (comando === 'tar') {
-          expect(argumentos).toEqual(['-xf', binario.archivo, 'uv-x86_64-pc-windows-msvc/uv.exe'])
-          expect(opciones?.cwd).toBeTruthy()
-          return execFileSync(comando, argumentos, { cwd: opciones?.cwd, encoding: 'utf8' })
+  it.each([false, ...(process.platform === 'win32' ? [true] : [])])(
+    'extrae ZIP con tar de System32 (ejecución real: %s)',
+    async (real) => {
+      const zip = Buffer.from(
+        'UEsDBBQAAAAAACNyZl2XgDt2EQAAABEAAAAgAAAAdXYteDg2XzY0LXBjLXdpbmRvd3MtbXN2Yy91di5leGViaW5hcmlvIGRlIHBydWViYVBLAQIUAxQAAAAAACNyZl2XgDt2EQAAABEAAAAgAAAAAAAAAAAAAACAAQAAAAB1di14ODZfNjQtcGMtd2luZG93cy1tc3ZjL3V2LmV4ZVBLBQYAAAAAAQABAE4AAABPAAAAAAA=',
+        'base64'
+      )
+      const binario = manifiestoReal.binarios['win32-x64']!
+      const ejecutarComando = vi.fn(
+        (comando: string, argumentos: string[], opciones?: { cwd?: string }) => {
+          if (
+            comando === win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
+          ) {
+            expect(argumentos).toEqual(['-xf', binario.archivo, 'uv-x86_64-pc-windows-msvc/uv.exe'])
+            expect(opciones?.cwd).toBeTruthy()
+            if (real)
+              return execFileSync(comando, argumentos, { cwd: opciones?.cwd, encoding: 'utf8' })
+            const extraido = join(opciones!.cwd!, 'uv-x86_64-pc-windows-msvc', 'uv.exe')
+            mkdirSync(dirname(extraido), { recursive: true })
+            writeFileSync(extraido, 'binario de prueba')
+            return ''
+          }
+          return comando.includes(join('resources', 'bin')) ? '' : 'uv ' + manifiestoReal.version
         }
-        return comando.includes(join('resources', 'bin')) ? '' : 'uv ' + manifiestoReal.version
-      }
-    )
-    const resultado = await descargarUv({
-      plataforma: 'win32',
-      arquitectura: 'x64',
-      raizApp,
-      manifiesto: {
-        ...manifiestoReal,
-        binarios: {
-          ...manifiestoReal.binarios,
-          'win32-x64': { ...binario, sha256: createHash('sha256').update(zip).digest('hex') }
-        }
-      },
-      fetchImpl: async () => new Response(zip),
-      ejecutarComando
-    })
+      )
+      const resultado = await descargarUv({
+        plataforma: 'win32',
+        arquitectura: 'x64',
+        raizApp,
+        manifiesto: {
+          ...manifiestoReal,
+          binarios: {
+            ...manifiestoReal.binarios,
+            'win32-x64': { ...binario, sha256: createHash('sha256').update(zip).digest('hex') }
+          }
+        },
+        fetchImpl: async () => new Response(zip),
+        ejecutarComando
+      })
 
-    expect(readFileSync(resultado.ruta, 'utf8')).toBe('binario de prueba')
-    expect(ejecutarComando.mock.calls.filter(([comando]) => comando === 'tar')).toHaveLength(1)
-  })
+      expect(readFileSync(resultado.ruta, 'utf8')).toBe('binario de prueba')
+      expect(
+        ejecutarComando.mock.calls.filter(([comando]) => comando.endsWith('tar.exe'))
+      ).toHaveLength(1)
+    }
+  )
 
   it('descarga, comprueba el SHA-256 antes de extraer, verifica versión y deja el ejecutable', async () => {
     const dobles = prepararDescarga()
@@ -136,6 +148,28 @@ describe('descargarUv', () => {
 
     expect(dobles.extraer).not.toHaveBeenCalled()
     expect(existsSync(destino)).toBe(false)
+  })
+
+  it('rechaza el ZIP de Windows antes de invocar tar si el SHA-256 no coincide', async () => {
+    const ejecutarComando = vi.fn<(comando: string) => string>(() => '')
+    const binario = manifiestoReal.binarios['win32-x64']!
+    await expect(
+      descargarUv({
+        plataforma: 'win32',
+        arquitectura: 'x64',
+        raizApp,
+        manifiesto: {
+          ...manifiestoReal,
+          binarios: {
+            ...manifiestoReal.binarios,
+            'win32-x64': { ...binario, sha256: '0'.repeat(64) }
+          }
+        },
+        fetchImpl: async () => new Response(bytesArchivo),
+        ejecutarComando
+      })
+    ).rejects.toThrow('SHA-256 incorrecto')
+    expect(ejecutarComando.mock.calls.some(([comando]) => comando.endsWith('tar.exe'))).toBe(false)
   })
 
   it('una plataforma sin entrada no descarga nada', async () => {
