@@ -16,7 +16,7 @@ export default defineConfig({
           name: 'node',
           globals: true,
           environment: 'node',
-          include: ['src/shared/**/*.test.ts', 'src/main/**/*.test.ts']
+          include: ['src/shared/**/*.test.ts', 'src/main/**/*.test.ts', 'scripts/**/*.test.ts']
         }
       },
       {

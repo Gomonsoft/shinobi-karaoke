@@ -6,7 +6,16 @@ import jsxA11y from 'eslint-plugin-jsx-a11y'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'node_modules/**', '.datos-dev/**', 'test-results/**'] },
+  {
+    ignores: [
+      'release/**',
+      'out/**',
+      'dist/**',
+      'node_modules/**',
+      '.datos-dev/**',
+      'test-results/**'
+    ]
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

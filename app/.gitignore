@@ -3,3 +3,6 @@ out/
 test-results/
 .datos-dev/
 coverage/
+release/
+resources/bin/uv
+resources/bin/uv.exe

@@ -1,5 +1,5 @@
 # 0127 — Dependencias de empaquetado, metadatos y ajustes del repositorio
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: 0012 §1, §2
@@ -25,10 +25,10 @@ Dejar `app/` lista para las demás tareas de la Fase 7, sin empaquetar todavía.
 - `tsconfig.node.json` incluye `e2e-paquete/**/*`, `scripts/**/*.ts` y `playwright.paquete.config.ts`.
 
 ## Criterios de aceptación
-- [ ] `npm ls --omit=dev --depth=0` muestra solo `zod` y `yaml`.
-- [ ] El renderer sigue compilando con `lucide-react` como dependencia de desarrollo.
-- [ ] `npx playwright test` y `npm test` no cambian de resultado.
-- [ ] `ci.yml` no se toca.
+- [x] `npm ls --omit=dev --depth=0` muestra solo `zod` y `yaml`.
+- [x] El renderer sigue compilando con `lucide-react` como dependencia de desarrollo.
+- [x] `npx playwright test` y `npm test` no cambian de resultado.
+- [x] `ci.yml` no se toca.
 
 ## Verificación
 ```bash
@@ -41,4 +41,10 @@ npm run build
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+Se añadieron las cuatro devDependencies exactas (electron-builder 26.18.0, @electron/fuses 2.1.3, @electron/asar 4.3.1, license-checker-rseidelsohn 5.0.1) y se movió lucide-react a devDependencies (el renderer lo empaqueta Vite, por lo que no se necesita en runtime). En dependencies quedan zod y yaml. Se añadieron author, homepage, repository y desktopName tras license; version no cambia. release/ queda ignorado en git, Prettier y ESLint; resources/bin/uv y uv.exe en git. Vitest (proyecto node) incluye scripts/**/*.test.ts y tsconfig.node.json incluye e2e-paquete, scripts/**/*.ts y playwright.paquete.config.ts. ci.yml no se tocó.
+
+Archivos: app/package.json, app/package-lock.json, app/.gitignore, app/.prettierignore, app/eslint.config.mjs (Prettier reformateó el array de ignores), app/vitest.config.mts, app/tsconfig.node.json.
+
+Verificación: lint, typecheck y format:check limpios; npm ls --omit=dev --depth=0 muestra solo yaml y zod; npm audit --omit=dev: 0 vulnerabilidades; npm run build correcto. npm test: en la primera pasada falló Reproductor.estados.test.tsx (prueba de tiempo sensible a la carga) y pasó al repetir el archivo (10/10); el resto pasó.
+
+Deuda técnica: npm avisa de que electron-winstaller (install script select-7z-arch.js) no está cubierto por allowScripts; lo decidirá la tarea 0130 si hace falta.
