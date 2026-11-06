@@ -80,6 +80,7 @@ describe('verificar-paquete', () => {
       plataforma: 'linux',
       leerFuses: async () => fuses,
       listarAsar: () => listaAsar,
+      comprobarEjecutable: () => true,
       ejecutar: () => 'uv 0.13.7'
     })
 
@@ -93,7 +94,17 @@ describe('verificar-paquete', () => {
 
   it('falla con la ruta concreta cuando falta uv', async () => {
     rmSync(join(recursos, 'bin/uv'))
-    await expect(verificar()).rejects.toThrow('resources/bin/uv')
+    await expect(verificar()).rejects.toThrow(join('resources', 'bin', 'uv'))
+  })
+
+  it('rechaza uv si no es ejecutable en la plataforma del paquete', async () => {
+    await expect(
+      verificarPaquete({
+        entrada: temporal,
+        plataforma: 'linux',
+        comprobarEjecutable: () => false
+      })
+    ).rejects.toThrow('no es ejecutable')
   })
 
   it('falla cuando un archivo de requisitos no coincide con el SHA-256 del manifiesto', async () => {

@@ -1,5 +1,5 @@
 # 0129 — Descarga de `uv` por plataforma con SHA-256 verificado
-- Estado: Hecha
+- Estado: En curso (corrección de extracción en Windows)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0127
 - ADRs: 0012 §6; 0009 §3
@@ -55,3 +55,7 @@ La prueba `descargar-uv.test.ts` cubre hash correcto e incorrecto (sin extracci�
 Verificación sin red: siete pruebas de `descargar-uv` pasan. Vitest completo pasa serializado (`npm test -- --maxWorkers=1`): 132 suites aprobadas, 1 omitida; 1820 pruebas aprobadas, 12 omitidas. La ejecución serial evitó varias carreras esporádicas del renderer que aparecieron en ejecuciones paralelas. También pasan lint, typecheck, format:check y build.
 
 Verificación real solicitada: `npm run uv:descargar` descargó el artefacto oficial para `darwin-arm64`; el SHA-256 coincidió y `./resources/bin/uv --version` devolvió `uv 0.13.7 (316c827e0 2026-11-03 aarch64-apple-darwin)`. `git status` no muestra `resources/bin/uv`; el binario está ignorado.
+
+**Corrección de Windows (2026-11-06).** Ante el fallo de `tar` descrito en el run 42286381986 (`Cannot connect to C: resolve failed`), se ejecuta `tar` con el temporal como `cwd` y el nombre relativo del archivo, evitando que el prefijo de unidad se interprete como host. Los nombres de miembros usan `/` en todos los sistemas. La prueba sin red extrae un ZIP mínimo con `tar` real y comprueba argumentos y contenido; incluye el caso de plataforma Windows también cuando se ejecuta en otro SO. No se añadieron dependencias.
+
+Verificación de la corrección: 8 pruebas de `descargar-uv` aprobadas en macOS; lint, typecheck y format:check aprobados. La suite completa no se pudo completar: las pruebas de YouTube que lanzan el worker fallan al no poder escribir en `~/.cache/uv` dentro del sandbox; con una caché temporal vacía y sin red falta `hatchling`. Queda pendiente repetir la suite con la caché preparada y validar la descarga en Windows mediante el workflow. No se pudo consultar el log del run desde este entorno por falta de conexión a la API de GitHub.

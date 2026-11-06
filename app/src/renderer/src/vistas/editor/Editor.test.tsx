@@ -95,7 +95,7 @@ afterEach(() => {
 it('abre un borrador sin tiempos en Voz, selecciona la primera línea y enfoca Sincronizar', async () => {
   montar()
   const boton = await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
-  expect(boton).toHaveFocus()
+  await waitFor(() => expect(boton).toHaveFocus())
   expect(screen.getByRole('option', { name: /^Línea 1, sin sincronizar/ })).toHaveAttribute(
     'aria-selected',
     'true'
