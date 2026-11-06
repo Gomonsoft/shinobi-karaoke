@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 interface Paso {
+  id?: string
   uses?: string
   run?: string
   with?: Record<string, unknown>
@@ -84,5 +85,23 @@ describe('workflow manual de empaquetado', () => {
     expect(probar.steps.some(({ uses }) => uses?.startsWith('actions/download-artifact@'))).toBe(
       true
     )
+  })
+
+  it('comprueba la instalación NSIS de un clic y conserva los datos al desinstalar', () => {
+    const paso = flujo.jobs['probar-instalador']!.steps.find(({ id }) => id === 'nsis')!.run!
+    const paquete = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8')
+    ) as {
+      name: string
+    }
+    expect(paso).toContain(`Programs\\${paquete.name}`)
+    expect(paso).toContain("'Shinobi Karaoke.exe'")
+    expect(paso).toContain("'Uninstall Shinobi Karaoke.exe'")
+    expect(paso).toContain('-PathType Leaf')
+    expect(paso).toContain('npm run test:paquete')
+    expect(paso).toContain('node scripts/humo-instalador.mjs datos')
+    expect(paso).toContain('Get-FileHash -LiteralPath $config')
+    expect(paso).toContain("throw 'El ejecutable sigue instalado'")
+    expect(paso).toContain("throw 'La desinstalación alteró los datos'")
   })
 })
