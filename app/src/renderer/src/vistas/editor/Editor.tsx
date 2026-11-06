@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
-import type { Letra } from '@shared/letra'
+import { finEfectivo, type Letra } from '@shared/letra'
 import {
   contador,
   indiceLineaActual,
   lineaVecina,
+  numeroDeLinea,
   primeraSinInicio,
+  tiempoGuardado,
   tiempoMostrado
 } from '@shared/letras/tiempos'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
@@ -28,7 +30,14 @@ import { ListaLineas } from './ListaLineas'
 import { PanelEstilo } from './PanelEstilo'
 import { PanelSincronia } from './PanelSincronia'
 import { Transporte, type SeparacionEditor } from './Transporte'
-import { estadoInicial, puedeDeshacer, puedeRehacer, reducirEditor } from './estado'
+import { EscuchaComprobacion } from './escuchaComprobacion'
+import {
+  estadoInicial,
+  puedeDeshacer,
+  puedeRehacer,
+  reducirEditor,
+  type AccionEditor
+} from './estado'
 import { E } from './textos'
 import { useAtajosEditor } from './useAtajosEditor'
 import { useGuardadoEditor } from './useGuardadoEditor'
@@ -215,6 +224,28 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     }
   }, [audio?.duracionMs])
 
+  const [escucharAjustes, setEscucharAjustes] = useState(true)
+  const escucha = useMemo(() => (motor ? new EscuchaComprobacion(motor) : null), [motor])
+  useEffect(() => () => escucha?.cancelar(), [escucha])
+
+  useEffect(() => {
+    const aviso = edicion.aviso
+    if (aviso?.tipo !== 'consecuencias') return
+    const accion = { etiqueta: 'Deshacer', alAccionar: () => despachar({ tipo: 'deshacer' }) }
+    for (const id of aviso.palabrasDescartadas) {
+      if (letra.lineas.some((el) => el.id === id && el.tipo === 'linea')) {
+        mostrarToast({ tipo: 'aviso', mensaje: E.toastPalabras(numeroDeLinea(letra, id)), accion })
+      }
+    }
+    for (const id of aviso.finesAutomaticos) {
+      if (letra.lineas.some((el) => el.id === id && el.tipo === 'linea')) {
+        mostrarToast({ tipo: 'info', mensaje: E.toastFinAuto(numeroDeLinea(letra, id)), accion })
+      }
+    }
+    // Un aviso solo se anuncia una vez, aunque el usuario siga editando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edicion.aviso])
+
   const sonando = audio?.sonando ?? false
   const duracionMs = audio?.duracionMs ?? metadatos.duracion_ms
   const obtenerTiempoAudio = useCallback(() => motor?.posicionMs() ?? 0, [motor])
@@ -256,10 +287,12 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
 
   function buscar(ms: number) {
     if (!motor) return
+    escucha?.cancelar()
     motor.buscar(ms)
     setPosicion(motor.posicionMs())
   }
   function alternar() {
+    escucha?.cancelar()
     if (sonando) motor?.pausar()
     else void motor?.reproducir()
   }
@@ -267,6 +300,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     if (pista === 'original' || separacion.disponible) void motor?.usarPista(pista)
   }
   function escuchar(id: string) {
+    escucha?.cancelar()
     if (!edicion.sync.activo) void motor?.reproducir({ desdeMs: desdeLinea(letra, id) })
   }
   function seleccionar(id: string, enfocar = false) {
@@ -276,6 +310,40 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       setFocoLinea((n) => n + 1)
     }
   }
+
+  function cambiarTiempo(campo: 'inicio' | 'fin', accion: AccionEditor) {
+    const actualizado = reducirEditor(edicion, accion)
+    despachar(accion)
+    if (!escucharAjustes || actualizado.version === edicion.version || !edicion.seleccion) return
+    const nueva = actualizado.actual.letra
+    const ms =
+      campo === 'inicio'
+        ? nueva.lineas.find((e) => e.id === edicion.seleccion)?.inicio_ms
+        : finEfectivo(nueva, edicion.seleccion, duracionMs)
+    if (ms != null) escucha?.escuchar(tiempoMostrado(ms, nueva.offset_ms), campo)
+  }
+  function ajustar(campo: 'inicio' | 'fin', deltaMs: number) {
+    const ahora = performance.now()
+    cambiarTiempo(
+      campo,
+      campo === 'inicio'
+        ? { tipo: 'ajustar_inicio', deltaMs, ahora }
+        : { tipo: 'ajustar_fin', deltaMs, duracionMs, ahora }
+    )
+  }
+  function fijar(campo: 'inicio' | 'fin', msAudio = obtenerTiempoAudio()) {
+    const ms = tiempoGuardado(msAudio, letra.offset_ms)
+    const ahora = performance.now()
+    cambiarTiempo(
+      campo,
+      campo === 'inicio'
+        ? { tipo: 'fijar_inicio', ms, ahora }
+        : { tipo: 'fijar_fin', ms, duracionMs, ahora }
+    )
+  }
+  const desplazar = (deltaMs: number) =>
+    despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now() })
+  const borrar = () => despachar({ tipo: 'borrar_tiempos', ahora: performance.now() })
 
   useAtajosEditor(edicion.sync.activo, (accion) => {
     switch (accion.tipo) {
@@ -301,6 +369,23 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         break
       case 'rehacer':
         despachar({ tipo: 'rehacer' })
+        break
+      case 'ajustar_inicio':
+      case 'ajustar_fin':
+        ajustar(accion.tipo === 'ajustar_inicio' ? 'inicio' : 'fin', accion.deltaMs)
+        break
+      case 'fijar_inicio':
+      case 'fijar_fin':
+        fijar(accion.tipo === 'fijar_inicio' ? 'inicio' : 'fin')
+        break
+      case 'escuchar_linea':
+        if (edicion.seleccion) escuchar(edicion.seleccion)
+        break
+      case 'desplazar':
+        desplazar(accion.deltaMs)
+        break
+      case 'borrar_tiempos':
+        borrar()
         break
       case 'atajos':
         setDialogoAtajos(true)
@@ -421,7 +506,25 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
           <div className={estilos.panel}>
             {pestana === 'sincronia' ? (
               <section aria-label="Ajuste de sincronía">
-                <PanelSincronia />
+                <PanelSincronia
+                  edicion={edicion}
+                  duracionMs={duracionMs}
+                  escucharAjustes={escucharAjustes}
+                  fijarEscucharAjustes={setEscucharAjustes}
+                  ajustar={ajustar}
+                  fijar={fijar}
+                  finAutomatico={() =>
+                    despachar({ tipo: 'fin_automatico', ahora: performance.now() })
+                  }
+                  escuchar={() => {
+                    if (edicion.seleccion) escuchar(edicion.seleccion)
+                  }}
+                  borrar={borrar}
+                  desplazar={desplazar}
+                  fijarDesplazamiento={(ms) =>
+                    despachar({ tipo: 'fijar_desplazamiento', ms, ahora: performance.now() })
+                  }
+                />
               </section>
             ) : (
               <aside aria-label="Estilo">

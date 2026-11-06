@@ -18,7 +18,9 @@ const motor = vi.hoisted(() => ({
   buscar: vi.fn(),
   pausar: vi.fn(),
   reproducir: vi.fn(async () => undefined),
-  fijarVelocidad: vi.fn()
+  fijarVelocidad: vi.fn(),
+  suscribir: vi.fn(() => () => undefined),
+  estado: () => ({ sonando: false, duracionMs: 30_000 })
 }))
 
 vi.mock('../../karaoke/useMotorAudio', () => ({
@@ -114,4 +116,52 @@ it('mantiene menos de 100 opciones montadas para una letra de mil líneas', asyn
   montar(cancion)
   await screen.findByRole('listbox', { name: 'Líneas' })
   await waitFor(() => expect(screen.getAllByRole('option').length).toBeLessThan(100))
+})
+
+it('I aplica el desplazamiento, y deshacer restaura palabras descartadas por un ajuste', async () => {
+  const c = cancionSincronizadaLrclib()
+  const l = c.letra!
+  l.offset_ms = 250
+  l.lineas[0]!.palabras = [{ texto: 'Baila', inicio_ms: 2000, fin_ms: 4200 }]
+  const { llamadas } = montar(c)
+  const segunda = await screen.findByRole('option', { name: /^Línea 2,/ })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Escuchar al ajustar' }))
+  fireEvent.click(segunda)
+  fireEvent.keyDown(segunda, { key: 'i' })
+  expect(screen.getByRole('option', { name: /^Línea 2, 00:04.20/ })).toBeVisible()
+  await waitFor(
+    () => {
+      const llamada = llamadas.find((l) => l.metodo === 'letras.guardarTiempos')
+      expect(llamada?.args[0]).toMatchObject({
+        tiempos: expect.arrayContaining([expect.objectContaining({ id: 'l2', inicio_ms: 3950 })])
+      })
+    },
+    { timeout: 2500 }
+  )
+  expect(screen.getByText(/La línea 1 ya no se resaltará palabra a palabra/)).toBeVisible()
+  const aviso = screen
+    .getByText(/La línea 1 ya no se resaltará palabra a palabra/)
+    .closest('[data-testid=toast]')!
+  fireEvent.click(aviso.querySelector('button')!)
+  expect(screen.getByRole('option', { name: /^Línea 2, 00:05.25/ })).toBeVisible()
+})
+
+it('recarga una visita desactualizada en pausa, vacía historial y no reintenta', async () => {
+  const { fallar, llamadas } = montar(cancionSincronizadaLrclib())
+  const primero = await screen.findByRole('option', { name: /^Línea 1,/ })
+  fallar('letras.guardarTiempos', 'LETRA_DESACTUALIZADA')
+  fireEvent.keyDown(primero, { key: '.' })
+  expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeEnabled()
+  await screen.findByText(/La letra ha cambiado fuera del editor/, {}, { timeout: 2500 })
+  expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
+  expect(screen.getByRole('button', { name: /^Rehacer/ })).toBeDisabled()
+  expect(screen.getByRole('option', { name: /^Línea 1, 00:02.00/ })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  expect(motor.pausar).toHaveBeenCalledOnce()
+  expect(motor.buscar).not.toHaveBeenCalled()
+  await waitFor(() => expect(screen.getByText('Guardado', { exact: true })).toBeVisible())
+  expect(llamadas.filter((l) => l.metodo === 'letras.guardarTiempos')).toHaveLength(1)
+  expect(llamadas.filter((l) => l.metodo === 'letras.abrirEdicion')).toHaveLength(2)
 })

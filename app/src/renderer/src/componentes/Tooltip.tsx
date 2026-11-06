@@ -61,7 +61,9 @@ export function Tooltip({
     return () => clearTimeout(timer)
   }, [clave, ms])
   const temporal = clave !== undefined && clave !== caducada
-  const visible = !suprimir && (temporal || ((forzar === true || porRaton || porFoco) && !cerrado))
+  const visible =
+    !suprimir &&
+    (clave !== undefined ? temporal : (forzar === true || porRaton || porFoco) && !cerrado)
 
   useLayoutEffect(() => {
     if (!visible) return
