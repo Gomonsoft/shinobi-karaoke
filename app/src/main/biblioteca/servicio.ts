@@ -159,8 +159,24 @@ export class ServicioBiblioteca {
   }
 
   comprobarPistas(id: string): Promise<ResumenCancion | null> {
-    // TODO 0114: comprobar las pistas en disco.
-    return Promise.resolve(this.obtenerResumen(id))
+    return this.enSerie(id, async () => {
+      const anterior = this.indice.get(id)
+      if (!anterior?.cancion) return null
+      const entrada = await this.entradaDe(id, anterior.cancion)
+      const { resumen } = entrada
+      if (
+        resumen.danada === anterior.resumen.danada &&
+        resumen.motivo === anterior.resumen.motivo &&
+        resumen.sinMezcla === anterior.resumen.sinMezcla
+      ) {
+        return anterior.resumen
+      }
+      this.indice.set(id, entrada)
+      if (resumen.motivo === 'pistas')
+        this.registro.escribir('error', MODULO, `canción dañada (${id}): faltan pistas`)
+      this.emitir({ id, resumen })
+      return resumen
+    })
   }
 
   obtenerResumen(id: string): ResumenCancion | null {

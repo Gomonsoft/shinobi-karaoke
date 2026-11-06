@@ -69,6 +69,39 @@ async function cancionLista(s: ServicioBiblioteca): Promise<string> {
   return r.id
 }
 
+describe('comprobarPistas', () => {
+  it.each(['instrumental.flac', 'voz.flac'])('detecta que falta %s sin escribir', async (pista) => {
+    const s = servicio()
+    const id = await cancionLista(s)
+    const cancionJson = join(biblio, id, 'cancion.json')
+    const antes = await readFile(cancionJson, 'utf8')
+    eventos.length = 0
+    await rm(join(biblio, id, 'pistas', pista))
+
+    const resumen = await s.comprobarPistas(id)
+    expect(resumen).toMatchObject({ estado: 'lista', danada: true, motivo: 'pistas' })
+    expect(s.obtenerResumen(id)).toEqual(resumen)
+    expect(await s.comprobarPistas(id)).toEqual(resumen)
+    expect(eventos).toEqual([{ id, resumen }])
+    expect(await readFile(cancionJson, 'utf8')).toBe(antes)
+
+    await writeFile(join(biblio, id, 'pistas', pista), silencioFlac(1))
+    expect(await s.comprobarPistas(id)).toMatchObject({ estado: 'lista', danada: false })
+    expect(eventos).toHaveLength(2)
+  })
+
+  it('devuelve null sin emitir si la canción no existe o tiene JSON ilegible', async () => {
+    const s = servicio()
+    const id = 'danada'
+    await mkdir(join(biblio, id))
+    await writeFile(join(biblio, id, 'cancion.json'), '{')
+    await s.escanear()
+    expect(await s.comprobarPistas(id)).toBeNull()
+    expect(await s.comprobarPistas('ausente')).toBeNull()
+    expect(eventos).toEqual([])
+  })
+})
+
 describe('importación preparada', () => {
   it('prepara, materializa de forma atómica y emite el evento', async () => {
     const s = servicio()

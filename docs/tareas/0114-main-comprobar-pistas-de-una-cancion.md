@@ -1,5 +1,5 @@
 # 0114 — Main: `ServicioBiblioteca.comprobarPistas(id)` (Dañada sin reiniciar)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112
 - ADRs: 0011 (§5), 0006 (canción Dañada)
@@ -29,4 +29,6 @@ cd app && npm run lint && npm run typecheck && npm run format:check && npm test
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- La comprobación se serializa con las escrituras, recalcula el resumen, lo actualiza y emite solo si cambian los campos de daño. No escribe el JSON ni altera el estado Lista.
+- Tanto la falta de instrumental como la falta de voz producen el motivo derivado `pistas`, porque `detectarDanada` requiere ambas pistas.
+- Verificado con 74 pruebas de biblioteca e IPC. La verificación global de la app está en curso.
