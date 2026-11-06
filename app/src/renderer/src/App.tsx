@@ -2,14 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { ContenedorToasts } from './componentes/Toasts'
 import { DialogoCierre } from './navegacion/DialogoCierre'
 import { Marco } from './navegacion/Marco'
-import {
-  NavegacionContexto,
-  TITULOS_VISTA,
-  vistaInicial,
-  type Navegacion,
-  type Vista
-} from './navegacion/estado'
+import { NavegacionContexto, vistaInicial, type Navegacion, type Vista } from './navegacion/estado'
 import { crearNavegacionGuardada } from './navegacion/salida'
+import { CapaReproductor, ProveedorReproductor } from './navegacion/reproductor'
 import { useArrastrarArchivo } from './navegacion/useArrastrarArchivo'
 import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
 import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
@@ -17,7 +12,6 @@ import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
 import { Biblioteca } from './vistas/biblioteca/Biblioteca'
 import { BibliotecaContexto, useBiblioteca } from './vistas/biblioteca/useBiblioteca'
 import { Ajustes } from './vistas/ajustes/Ajustes'
-import { Marcador } from './vistas/Marcadores'
 import { AnadirCancion } from './vistas/anadir/AnadirCancion'
 import { ResumenFuente } from './vistas/anadir/ResumenFuente'
 import { Progreso } from './vistas/progreso/Progreso'
@@ -51,8 +45,6 @@ function Contenido({ vista }: { vista: Vista }) {
       return <Editor key={vista.id} id={vista.id} />
     case 'ajustes':
       return <Ajustes />
-    default:
-      return <Marcador titulo={TITULOS_VISTA[vista.tipo]} />
   }
 }
 
@@ -74,9 +66,12 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
     <NavegacionContexto.Provider value={navegacion}>
       <TrabajosContexto.Provider value={trabajos}>
         <BibliotecaContexto.Provider value={biblioteca}>
-          <Marco bibliotecaVacia={vacia}>
-            <Contenido vista={vista} />
-          </Marco>
+          <ProveedorReproductor>
+            <Marco bibliotecaVacia={vacia}>
+              <Contenido vista={vista} />
+            </Marco>
+            <CapaReproductor />
+          </ProveedorReproductor>
           <DialogoCierre vista={vista} />
         </BibliotecaContexto.Provider>
       </TrabajosContexto.Provider>

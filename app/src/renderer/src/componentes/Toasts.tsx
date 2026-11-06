@@ -39,6 +39,7 @@ function ToastItem({ toast }: { toast: Toast }) {
               cerrarToast(toast.id)
             }}
           >
+            {toast.accion.icono && <Icono icono={toast.accion.icono} tamano={16} />}
             {toast.accion.etiqueta}
           </Boton>
         )}

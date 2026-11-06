@@ -115,6 +115,16 @@ describe('useAvisosTrabajos', () => {
     act(() => abrir!({ cancionId: 'c9', destino: 'editor' }))
     expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c9', paso: 'editor' })
   })
+
+  it('un toast anterior o una notificación no permiten salir de Primer arranque', () => {
+    const ir = vi.fn()
+    const { rerender } = render(<Sonda vista={biblioteca} ir={ir} />)
+    act(() => aviso!(ok))
+    rerender(<Sonda vista={{ tipo: 'primer-arranque' }} ir={ir} />)
+    act(() => screen.getByRole('button', { name: 'Abrir' }).click())
+    act(() => abrir!({ cancionId: 'c9', destino: 'editor' }))
+    expect(ir).not.toHaveBeenCalled()
+  })
 })
 
 describe('textos de aviso en sintonía con la vista de progreso', () => {
@@ -128,7 +138,13 @@ describe('textos de aviso en sintonía con la vista de progreso', () => {
     ]) {
       expect(tituloErrorAviso('fuente', c)).toBe(textoDeError(c).titulo)
     }
-    for (const c of ['SIN_CONEXION', 'SIN_ESPACIO', 'MODELO_NO_DISPONIBLE', 'X']) {
+    for (const c of [
+      'SIN_CONEXION',
+      'SIN_ESPACIO',
+      'MODELO_NO_DISPONIBLE',
+      'RUNTIME_NO_DISPONIBLE',
+      'X'
+    ]) {
       expect(tituloErrorAviso('separacion', c)).toBe(textoDeErrorSeparacion(c, 'calidad').titulo)
     }
     for (const m of ['calidad', 'rapido'] as const) {

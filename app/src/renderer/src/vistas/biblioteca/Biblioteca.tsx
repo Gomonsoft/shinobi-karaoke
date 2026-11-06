@@ -7,6 +7,7 @@ import { Boton } from '../../componentes/Boton'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
+import { useReproductor } from '../../navegacion/reproductor'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
@@ -126,6 +127,7 @@ const RESALTE_MS = 2000
 
 function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const { ir, vista } = useNavegacion()
+  const { abrir } = useReproductor()
   const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
@@ -356,7 +358,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
 
   const acciones = useMemo<AccionesTarjeta>(
     () => ({
-      reproducir: (id) => ir({ tipo: 'reproductor', id }),
+      reproducir: abrir,
       continuar: (id) => void continuar(id),
       editar: (id) => ir({ tipo: 'cancion', id, paso: 'editor' }),
       editarDatos: (id) => void abrirEditarDatos(id),
@@ -367,7 +369,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       mostrarEnCarpeta: (id) => void window.shinobi.biblioteca.mostrarEnCarpeta(id),
       eliminar: (id) => setDialogo({ tipo: 'eliminar', id })
     }),
-    [ir, continuar, abrirEditarDatos, reintentarPaso, cancelarTrabajo, resepararPistas]
+    [ir, abrir, continuar, abrirEditarDatos, reintentarPaso, cancelarTrabajo, resepararPistas]
   )
 
   const teclasRejilla = (e: KeyboardEvent<HTMLDivElement>) => {

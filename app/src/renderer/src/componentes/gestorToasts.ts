@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import type { TipoAviso } from './AvisoEnLinea'
 
 export const MAX_TOASTS = 3
@@ -6,6 +7,7 @@ export const DURACION_TOAST_MS = 6000
 
 export interface AccionToast {
   etiqueta: string
+  icono?: LucideIcon
   alAccionar: () => void
 }
 export interface Toast {

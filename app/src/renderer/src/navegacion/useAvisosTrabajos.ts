@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { AvisoTrabajoIpc } from '@shared/avisos'
+import type { AbrirCancionIpc, AvisoTrabajoIpc } from '@shared/avisos'
 import { mostrarToast } from '../componentes/gestorToasts'
 import type { Vista } from './estado'
 
@@ -25,19 +25,23 @@ export function useAvisosTrabajos(vista: Vista, ir: (v: Vista) => void): void {
 
   useEffect(() => {
     let pendientes: AvisoTrabajoIpc[] = []
+    const abrirCancion = (e: AbrirCancionIpc): void => {
+      if (vistaRef.current.tipo === 'primer-arranque') return
+      irRef.current({
+        tipo: 'cancion',
+        id: e.cancionId,
+        paso: e.destino === 'editor' ? 'editor' : 'progreso'
+      })
+    }
     const mostrar = (a: AvisoTrabajoIpc): void => {
+      if (vistaRef.current.tipo === 'primer-arranque') return
       if (estaEnSuProgreso(vistaRef.current, a.cancionId)) return
       mostrarToast({
         tipo: a.tipo === 'error' ? 'error' : 'exito',
         mensaje: a.texto,
         accion: {
           etiqueta: a.etiqueta,
-          alAccionar: () =>
-            irRef.current({
-              tipo: 'cancion',
-              id: a.cancionId,
-              paso: a.destino === 'editor' ? 'editor' : 'progreso'
-            })
+          alAccionar: () => abrirCancion(a)
         }
       })
     }
@@ -51,13 +55,7 @@ export function useAvisosTrabajos(vista: Vista, ir: (v: Vista) => void): void {
       lista.forEach(mostrar)
     }
     const bajaAviso = window.shinobi.avisos.alAviso(alAviso)
-    const bajaAbrir = window.shinobi.avisos.alAbrirCancion((e) =>
-      irRef.current({
-        tipo: 'cancion',
-        id: e.cancionId,
-        paso: e.destino === 'editor' ? 'editor' : 'progreso'
-      })
-    )
+    const bajaAbrir = window.shinobi.avisos.alAbrirCancion(abrirCancion)
     window.addEventListener('focus', alFoco)
     return () => {
       bajaAviso()

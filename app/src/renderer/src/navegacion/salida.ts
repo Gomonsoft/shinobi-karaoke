@@ -8,18 +8,22 @@ export function crearNavegacionGuardada(navegar: (v: Vista) => void) {
   let esperando = false
 
   return {
-    ir(destino: Vista): void {
+    ir(destino: Vista, alNavegar?: () => void): void {
       if (esperando) return
       const actual = guarda
       if (!actual) {
         navegar(destino)
+        alNavegar?.()
         return
       }
       esperando = true
       void Promise.resolve()
         .then(() => actual(destino))
         .then((aceptar) => {
-          if (aceptar && guarda === actual) navegar(destino)
+          if (aceptar && guarda === actual) {
+            navegar(destino)
+            alNavegar?.()
+          }
         })
         .catch(() => undefined)
         .finally(() => {

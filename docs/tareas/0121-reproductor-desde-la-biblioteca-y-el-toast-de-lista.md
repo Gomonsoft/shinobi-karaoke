@@ -1,5 +1,5 @@
 # 0121 — Reproductor desde la Biblioteca y desde el toast «lista para cantar» (capa a nivel de App)
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 6
 - Depende de: 0119 (y 0120 para los errores; se puede empezar con 0119 y cerrar cuando 0120 esté)
 - ADRs: 0011 (§4 "Capa de la Biblioteca", §5)
@@ -58,4 +58,7 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- El proveedor de App monta la capa encima de la Biblioteca. El anfitrión muestra el estilo y el título del resumen mientras lee la canción y la configuración en paralelo. Un 404 de cualquiera de las dos pistas pide comprobar los archivos y el cierre devuelve el foco a la tarjeta sin cambiar filtros.
+- El toast «lista para cantar» abre la misma capa. Si se pulsa tras cambiar de vista, usa la navegación guardada para volver a la Biblioteca y solo abre cuando esa navegación se acepta.
+- La prueba de integración cubre búsqueda, foco, bloqueo de atajos y menú, retención de avisos y comprobación de pistas. El E2E de Biblioteca usa el diálogo real en lugar del marcador. Pasaron 34 tests dirigidos, la verificación global y la batería completa de Playwright.

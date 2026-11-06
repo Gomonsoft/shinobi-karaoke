@@ -4,6 +4,7 @@ import { aPeticionTiempos } from '@shared/letras/tiempos'
 import { ContenedorToasts } from '../../componentes/Toasts'
 import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
+import { ReproductorContexto } from '../../navegacion/reproductor'
 import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
 import {
   apiEditorFalsa,
@@ -31,18 +32,21 @@ async function montar(
   const resumen = (await api.biblioteca.listar!())[0]!
   const letra = opciones.letra ?? cancion.letra!
   const ir = vi.fn<(vista: Vista) => void>()
+  const abrir = vi.fn<(id: string) => void>()
   const vaciar = vi.fn<() => Promise<boolean>>().mockResolvedValue(true)
   const alEnfocarPrimera = vi.fn()
   const vista: Vista = { tipo: 'cancion', id: cancion.id, paso: 'editor' }
   const contenido = (separacion: SeparacionEditor) => (
     <NavegacionContexto.Provider value={{ vista, ir }}>
-      <BotonLista
-        resumen={resumen}
-        letra={letra}
-        separacion={separacion}
-        vaciar={vaciar}
-        alEnfocarPrimera={alEnfocarPrimera}
-      />
+      <ReproductorContexto.Provider value={{ abrir, abierto: null }}>
+        <BotonLista
+          resumen={resumen}
+          letra={letra}
+          separacion={separacion}
+          vaciar={vaciar}
+          alEnfocarPrimera={alEnfocarPrimera}
+        />
+      </ReproductorContexto.Provider>
       <ContenedorToasts />
     </NavegacionContexto.Provider>
   )
@@ -52,6 +56,7 @@ async function montar(
     resumen,
     letra,
     ir,
+    abrir,
     vaciar,
     alEnfocarPrimera,
     cambiarSeparacion: (s: SeparacionEditor) => vistaRenderizada.rerender(contenido(s))
@@ -106,9 +111,9 @@ describe('Marcar como lista', () => {
     expect(alEnfocarPrimera).toHaveBeenCalledOnce()
   })
 
-  it('vacía los cambios, marca como Lista y vuelve con foco y toast sin acción', async () => {
+  it('vacía los cambios, marca como Lista y vuelve con foco y toast para reproducir', async () => {
     const cancion = cancionSinSincronizar()
-    const { api, letra, llamadas, vaciar, ir } = await montar(cancion, {
+    const { api, letra, llamadas, vaciar, ir, abrir } = await montar(cancion, {
       letra: cancionSincronizadaLrclib().letra
     })
     const visita = (await api.letras.abrirEdicion!(cancion.id))!
@@ -132,6 +137,9 @@ describe('Marcar como lista', () => {
       'ir'
     ])
     expect(screen.getByText(`«${cancion.metadatos.titulo}» está lista para cantar.`)).toBeVisible()
+    expect(abrir).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Reproducir' }))
+    expect(abrir).toHaveBeenCalledExactlyOnceWith(cancion.id)
     expect(screen.queryByRole('button', { name: 'Reproducir' })).not.toBeInTheDocument()
   })
 

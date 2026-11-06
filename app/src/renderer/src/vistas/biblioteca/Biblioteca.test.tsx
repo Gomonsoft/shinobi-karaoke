@@ -5,6 +5,7 @@ import { Biblioteca, reiniciarFiltroDeSesion } from './Biblioteca'
 import { marcarProgresoVisto, olvidarProgresosVistos } from '../../navegacion/progresoVisto'
 import { paso, resumenPrueba } from './resumenPrueba'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
+import { ReproductorContexto } from '../../navegacion/reproductor'
 import { RETRASO_CARGA_LENTA_MS } from './useBiblioteca'
 
 beforeEach(() => reiniciarFiltroDeSesion())
@@ -15,6 +16,7 @@ function montar(
   enfocar?: Extract<Vista, { tipo: 'biblioteca' }>['enfocar']
 ) {
   const ir = vi.fn<(v: Vista) => void>()
+  const abrir = vi.fn<(id: string) => void>()
   let emitir: (e: EventoCancionIpc) => void = () => undefined
   const api = fixtures({
     biblioteca,
@@ -27,10 +29,12 @@ function montar(
   ;(window as unknown as { shinobi: ApiShinobi }).shinobi = api
   const { unmount } = render(
     <NavegacionContexto.Provider value={{ vista: { tipo: 'biblioteca', enfocar }, ir }}>
-      <Biblioteca />
+      <ReproductorContexto.Provider value={{ abrir, abierto: null }}>
+        <Biblioteca />
+      </ReproductorContexto.Provider>
     </NavegacionContexto.Provider>
   )
-  return { ir, api, unmount, emitir: (e: EventoCancionIpc) => act(() => emitir(e)) }
+  return { ir, abrir, api, unmount, emitir: (e: EventoCancionIpc) => act(() => emitir(e)) }
 }
 
 const lista = resumenPrueba({ id: 'a', titulo: 'Bohemian Rhapsody', estado: 'lista' })
@@ -144,13 +148,14 @@ describe('tarjetas', () => {
   })
 
   it('Lista: portada y Reproducir abren el reproductor con el id', async () => {
-    const { ir } = montar([lista])
+    const { abrir, ir } = montar([lista])
     const t = await screen.findByRole('article')
     fireEvent.click(within(t).getByRole('button', { name: 'Bohemian Rhapsody', hidden: true }))
-    expect(ir).toHaveBeenLastCalledWith({ tipo: 'reproductor', id: 'a' })
+    expect(abrir).toHaveBeenLastCalledWith('a')
     fireEvent.click(within(t).getByRole('button', { name: 'Reproducir «Bohemian Rhapsody»' }))
     fireEvent.click(t.querySelector('[data-boton-redondo]')!)
-    expect(ir).toHaveBeenCalledTimes(3)
+    expect(abrir).toHaveBeenCalledTimes(3)
+    expect(ir).not.toHaveBeenCalled()
   })
 
   it('Borrador: Continuar navega con vistaAlContinuar', async () => {
@@ -249,12 +254,12 @@ describe('tarjetas', () => {
   })
 
   it('Intro actúa como la portada y Espacio como la acción principal', async () => {
-    const { ir } = montar([lista])
+    const { abrir } = montar([lista])
     const t = await screen.findByRole('article')
-    t.focus()
+    act(() => t.focus())
     fireEvent.keyDown(t, { key: 'Enter' })
     fireEvent.keyDown(t, { key: ' ' })
-    expect(ir).toHaveBeenCalledTimes(2)
+    expect(abrir).toHaveBeenCalledTimes(2)
   })
 
   it('una sola tarjeta tiene tabindex 0 y las flechas mueven el foco', async () => {

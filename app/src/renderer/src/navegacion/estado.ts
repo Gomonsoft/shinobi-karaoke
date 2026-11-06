@@ -22,29 +22,26 @@ export type Vista =
   | { tipo: 'anadir'; archivo?: string; iniciales?: DatosInicialesAnadir }
   | { tipo: 'cancion'; id: string; paso: PasoCancion }
   | { tipo: 'ajustes' }
-  | { tipo: 'reproductor'; id: string }
 
 export type TipoVista = Vista['tipo']
 
 /** Vistas sin barra superior (docs/ux/00 §2). */
-export const VISTAS_SIN_BARRA: readonly TipoVista[] = ['primer-arranque', 'reproductor']
+export const VISTAS_SIN_BARRA: readonly TipoVista[] = ['primer-arranque']
 
 /** Vistas desde las que Esc devuelve a la Biblioteca. */
-export const VISTAS_CON_ESC: readonly TipoVista[] = ['anadir', 'cancion', 'ajustes', 'reproductor']
+export const VISTAS_CON_ESC: readonly TipoVista[] = ['anadir', 'cancion', 'ajustes']
 
 export const TITULOS_VISTA: Record<TipoVista, string> = {
   'primer-arranque': 'Primer arranque',
   biblioteca: 'Biblioteca',
   anadir: 'Añadir canción',
   cancion: 'Canción',
-  ajustes: 'Ajustes',
-  reproductor: 'Reproductor'
+  ajustes: 'Ajustes'
 }
 
 /** Clave estable de la vista (cambia al cambiar de vista, de canción o de paso). */
 export function claveVista(v: Vista): string {
   if (v.tipo === 'cancion') return `cancion:${v.id}:${v.paso}`
-  if (v.tipo === 'reproductor') return `reproductor:${v.id}`
   return v.tipo
 }
 
@@ -55,7 +52,7 @@ export function vistaInicial(estadoInstalacion: string): Vista {
 
 export interface Navegacion {
   vista: Vista
-  ir(vista: Vista): void
+  ir(vista: Vista, alNavegar?: () => void): void
   registrarGuardaSalida?(fn: GuardaSalida): () => void
 }
 

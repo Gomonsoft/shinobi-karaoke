@@ -55,11 +55,15 @@ test('con la semilla se ven las canciones esperadas con su insignia y su línea'
       v.getByRole('banner').getByRole('button', { name: 'Añadir canción' })
     ).toBeVisible()
 
-    // Clic en la portada de una Lista abre el reproductor (marcador por ahora).
+    // La capa deja montada la Biblioteca y devuelve el foco a la misma tarjeta.
     await tarjeta('Canción lista')
       .getByRole('button', { name: 'Canción lista', exact: true })
       .click()
-    await expect(v.getByRole('heading', { level: 1, name: 'Reproductor' })).toBeVisible()
+    const reproductor = v.getByRole('dialog', { name: 'Reproductor de «Canción lista»' })
+    await expect(reproductor).toBeVisible()
+    await v.keyboard.press('Escape')
+    await expect(reproductor).toHaveCount(0)
+    await expect(tarjeta('Canción lista')).toBeFocused()
   } finally {
     await app.close()
   }

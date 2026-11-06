@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Play } from 'lucide-react'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import { contador } from '@shared/letras/tiempos'
@@ -7,6 +8,7 @@ import { Popover } from '../../componentes/Popover'
 import estilosBoton from '../../componentes/componentes.module.css'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
+import { useReproductor } from '../../navegacion/reproductor'
 import { DialogoConfirmar } from '../biblioteca/DialogosCancion'
 import { detallesDeError } from '../biblioteca/errores'
 import { tituloDeTarjeta } from '../biblioteca/tarjeta'
@@ -35,6 +37,7 @@ function avisarError(mensaje: string, error: unknown) {
 /** Acción principal del editor. Las líneas sin inicio se consultan en la edición local. */
 export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimera }: Props) {
   const { ir } = useNavegacion()
+  const { abrir } = useReproductor()
   const ancla = useRef<HTMLButtonElement>(null)
   const [popover, setPopover] = useState<'faltas' | 'incompleta' | null>(null)
   const [ocupado, setOcupado] = useState(false)
@@ -68,7 +71,8 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
       ir({ tipo: 'biblioteca', enfocar: { id, resaltar: true } })
       mostrarToast({
         tipo: 'exito',
-        mensaje: `«${tituloDeTarjeta(guardada)}» está lista para cantar.`
+        mensaje: `«${tituloDeTarjeta(guardada)}» está lista para cantar.`,
+        accion: { etiqueta: 'Reproducir', icono: Play, alAccionar: () => abrir(id) }
       })
     } catch (error) {
       avisarError('No se pudo marcar la canción como lista.', error)

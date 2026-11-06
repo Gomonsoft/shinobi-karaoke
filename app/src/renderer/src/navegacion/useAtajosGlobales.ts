@@ -22,8 +22,8 @@ export function destinoDeAtajo(accion: AccionAtajo, vista: Vista): Vista | null 
     if (vista.tipo === 'biblioteca' || vista.tipo === 'cancion') return { tipo: 'anadir' }
     return null
   }
-  // Ajustes: todas salvo primer arranque y reproductor.
-  if (vista.tipo === 'primer-arranque' || vista.tipo === 'reproductor') return null
+  // Ajustes: todas salvo primer arranque.
+  if (vista.tipo === 'primer-arranque') return null
   return vista.tipo === 'ajustes' ? null : { tipo: 'ajustes' }
 }
 
