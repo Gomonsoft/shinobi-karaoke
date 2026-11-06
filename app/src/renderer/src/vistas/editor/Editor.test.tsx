@@ -108,6 +108,21 @@ it('Esc cierra el diálogo de atajos antes de volver a la Biblioteca', async () 
   expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca' })
 })
 
+it('S entra en Sincronizar al ritmo con cuenta atrás y Esc la cancela sin marcar', async () => {
+  const { ir } = montar()
+  const boton = await screen.findByRole('button', { name: /Sincronizar al ritmo/ })
+  fireEvent.keyDown(boton, { key: 's' })
+  expect(await screen.findByRole('region', { name: 'Sincronizando al ritmo' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Deshacer (Retroceso)' })).toBeDisabled()
+  expect(screen.getByRole('radio', { name: 'Estilo' })).toHaveAttribute('aria-disabled', 'true')
+  fireEvent.keyDown(window, { key: 'Escape' })
+  await waitFor(() =>
+    expect(screen.queryByRole('region', { name: 'Sincronizando al ritmo' })).toBeNull()
+  )
+  expect(ir).not.toHaveBeenCalled()
+  expect(motor.reproducir).not.toHaveBeenCalled()
+})
+
 it('mantiene menos de 100 opciones montadas para una letra de mil líneas', async () => {
   const cancion = cancionSincronizadaLrclib()
   cancion.letra = letra(

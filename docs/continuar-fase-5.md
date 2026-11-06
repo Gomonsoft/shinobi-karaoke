@@ -4,8 +4,8 @@ Estado al **2026-11-06**, rama `fase-5-editor` (subida a GitHub; `main` no la in
 
 | Estado | Tareas |
 |---|---|
-| ✅ Hechas (17) | 0090–0106, un commit por tarea |
-| 🔧 En curso (3) | **0107** sincronizar al ritmo · **0108** panel Estilo · **0109** marcar como lista / vuelta a la Biblioteca — trabajo parcial de Codex guardado en el commit `WIP: tareas 0107–0109`; en ese punto lint, typecheck, format:check y Vitest (1678) pasaban |
+| ✅ Hechas (18) | 0090–0107, un commit por tarea |
+| 🔧 En curso (2) | **0108** panel Estilo · **0109** marcar como lista / vuelta a la Biblioteca — trabajo parcial de Codex guardado en el commit `WIP: tareas 0107–0109` |
 | ⏳ Pendientes (2) | **0110** E2E del editor sin red · **0111** prueba manual de precisión (la hace una persona: no implementar) |
 | ❓ Pregunta abierta | **0028** (para arquitecto, no bloquea): total de canciones de la semilla del editor |
 
@@ -29,7 +29,7 @@ PREPARACIÓN:
 
 TRABAJO, en este orden:
 1. Lanza al agente "arquitecto" para responder docs/preguntas/0028 (márcala Respondida).
-2. Lanza al agente "programador" para terminar 0107 partiendo del commit WIP (revisar el código existente, no rehacerlo). Cuando termine, 0108 y 0109 (pueden ir en paralelo; ambos tocan vistas/editor/Editor.tsx solo añadiendo; 0109 además navegacion/estado.ts y Biblioteca.tsx).
+2. Lanza al agente "programador" para terminar 0108 y 0109 partiendo del commit WIP (revisar el código existente, no rehacerlo) (pueden ir en paralelo; ambos tocan vistas/editor/Editor.tsx solo añadiendo; 0109 además navegacion/estado.ts y Biblioteca.tsx).
 3. Después, 0110 (E2E del editor sin red).
 4. No implementes 0111 (prueba manual).
 

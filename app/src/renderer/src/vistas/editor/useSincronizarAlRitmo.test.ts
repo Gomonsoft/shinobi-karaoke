@@ -135,6 +135,31 @@ it('mantiene para fijar fin, advierte si se pulsa pronto, rebobina y pausa al pe
   expect(result.current.edicion.sync.activo).toBe(true)
 })
 
+it('mantener menos de 300 ms deja el fin automático y Retroceso sin marcas no hace nada', () => {
+  const { result, motor } = montar()
+  act(() => result.current.sync.entrar())
+  act(() => vi.advanceTimersByTime(3000))
+  expect(result.current.sync.hayMarca).toBe(false)
+  motor.reproducir.mockClear()
+  act(() => result.current.sync.deshacer())
+  expect(motor.reproducir).not.toHaveBeenCalled()
+  act(() => result.current.sync.marcar(2000, 'teclado'))
+  act(() => result.current.sync.soltar(2299, 'teclado'))
+  expect(result.current.edicion.actual.letra.lineas[0]?.fin_ms).toBeNull()
+  expect(result.current.sync.hayMarca).toBe(true)
+})
+
+it('no marca si el motor no suena y Esc/terminar pausa y avisa a la vista', () => {
+  const { result, motor, alSalir } = montar()
+  act(() => result.current.sync.entrar())
+  act(() => result.current.sync.marcar(1000, 'teclado'))
+  expect(result.current.edicion.actual.letra.lineas[0]?.inicio_ms).toBeNull()
+  act(() => vi.advanceTimersByTime(3000))
+  act(() => result.current.sync.terminar())
+  expect(motor.pausar).toHaveBeenCalled()
+  expect(alSalir).toHaveBeenCalledOnce()
+})
+
 it('el reducer marca 1000 líneas sin superar 10 ms por marca en promedio', () => {
   const l = letra(Array.from({ length: 1000 }, (_, i) => linea(String(i), `Verso ${i}`, null)))
   let e = estadoInicial({ letra: l, estilo: estiloPredeterminado() }, '0')
