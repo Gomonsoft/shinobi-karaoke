@@ -13,6 +13,7 @@
   - 17 «Editor: pista de clics», letra sin tiempos y pistas;
   - 18 «Editor: separando»;
   - 19 «Editor: lista incompleta».
+- Total de la semilla (pregunta 0028): **18 entradas**, porque no existe el id 9 y las ids 10 (sin pistas) y 11 (JSON inválido) están dañadas a propósito. Si una prueba cuenta tarjetas, espera 18 (17 si una se ha borrado, etc.). Tras marcar como lista la 17 en *Borradores*, el recuento del filtro baja en 1. No se rellena el id 9. Si `fixtures/editor.ts` necesita canciones nuevas, se crean en el directorio temporal de la prueba y no se añaden a la semilla compartida. Si hubiera que añadirlas a la semilla, usarían ids desde el 20 y habría que actualizar los recuentos de los E2E de Biblioteca.
 - Audio: lánzalo con `SHINOBI_SILENCIAR_AUDIO=1` (0094). Chromium usa una salida falsa si no hay dispositivo, y el reloj avanza igual. **No se comprueba la precisión en ms** (eso es 0094 y 0111): solo orden, rangos amplios y persistencia.
 - Leer `cancion.json` del disco al final de cada prueba (`<datos>/biblioteca/<id>/cancion.json`) para comprobar lo guardado.
 
