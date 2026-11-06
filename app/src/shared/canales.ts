@@ -10,9 +10,16 @@ export const CANALES = {
     // Guardado y estado de la canción desde el editor (0090).
     guardarEstilo: 'biblioteca:guardarEstilo',
     marcarLista: 'biblioteca:marcarLista',
+    comprobarPistas: 'biblioteca:comprobarPistas',
     volverABorrador: 'biblioteca:volverABorrador',
     eliminar: 'biblioteca:eliminar',
     mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta'
+  },
+  ventana: {
+    modoReproductor: 'ventana:modoReproductor',
+    fijarPantallaCompleta: 'ventana:fijarPantallaCompleta',
+    estaEnPantallaCompleta: 'ventana:estaEnPantallaCompleta',
+    evitarReposo: 'ventana:evitarReposo'
   },
   config: {
     obtener: 'config:obtener',
@@ -84,6 +91,7 @@ export const CANALES = {
   eventos: {
     cancion: 'evento:cancion',
     config: 'evento:config',
+    pantallaCompleta: 'ventana:pantallaCompleta',
     /** Cambio de estado o de posición en la cola de un trabajo (0014). */
     trabajo: 'trabajo:cambio',
     /** Progreso de un trabajo, ≤ 4 por segundo y trabajo (0014). */

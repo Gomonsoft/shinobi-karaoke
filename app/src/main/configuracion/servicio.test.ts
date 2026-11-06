@@ -55,14 +55,38 @@ describe('ServicioConfig', () => {
     const c = s.obtener()
     expect(c.instalacion.estado).toBe('completa')
     expect(c.instalacion.fases.motor).toBe('pendiente')
-    expect(c.reproductor).toEqual({ volumen: 0.3, silenciado: false })
+    expect(c.reproductor).toEqual({
+      volumen: 0.3,
+      silenciado: false,
+      voz_guia: 0.3,
+      voz_guia_silenciada: true
+    })
     expect(c.separacion.modo).toBe('calidad')
+  })
+
+  it.each(['volumen', 'voz_guia'])('recupera config con %s fuera de rango', async (campo) => {
+    const ruta = join(datos, 'config.json')
+    const invalido = JSON.stringify({ esquema: 1, reproductor: { [campo]: 2 } })
+    await writeFile(ruta, invalido)
+    const config = (await ServicioConfig.abrir(datos)).obtener()
+    expect(config.reproductor).toEqual({
+      volumen: 0.8,
+      silenciado: false,
+      voz_guia: 0.3,
+      voz_guia_silenciada: true
+    })
+    expect(await readFile(ruta + '.danado', 'utf8')).toBe(invalido)
   })
 
   it('actualización parcial: fusiona en profundidad, escribe y devuelve el resultado', async () => {
     const s = await ServicioConfig.abrir(datos)
     const r = await s.actualizar({ reproductor: { volumen: 0.5 }, separacion: { modo: 'rapido' } })
-    expect(r.reproductor).toEqual({ volumen: 0.5, silenciado: false })
+    expect(r.reproductor).toEqual({
+      volumen: 0.5,
+      silenciado: false,
+      voz_guia: 0.3,
+      voz_guia_silenciada: true
+    })
     expect(r.separacion.modo).toBe('rapido')
     expect(r.instalacion.estado).toBe('pendiente')
     expect(await leerConfigDisco()).toEqual(r)

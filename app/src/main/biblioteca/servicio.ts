@@ -158,6 +158,11 @@ export class ServicioBiblioteca {
     return c ? structuredClone(c) : null
   }
 
+  comprobarPistas(id: string): Promise<ResumenCancion | null> {
+    // TODO 0114: comprobar las pistas en disco.
+    return Promise.resolve(this.obtenerResumen(id))
+  }
+
   obtenerResumen(id: string): ResumenCancion | null {
     return this.indice.get(id)?.resumen ?? null
   }

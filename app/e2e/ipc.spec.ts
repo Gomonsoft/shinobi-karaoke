@@ -61,7 +61,8 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'rutaDeArchivo',
       'separacion',
       'sistema',
-      'trabajos'
+      'trabajos',
+      'ventana'
     ])
     expect([r.ipcRenderer, r.require, r.process]).toEqual(['undefined', 'undefined', 'undefined'])
   } finally {

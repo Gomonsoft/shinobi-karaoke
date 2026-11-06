@@ -1,5 +1,6 @@
 import { ESTILO_PREDETERMINADO, type Estilo } from '@shared/estilo'
 import type { ApiShinobi } from '@shared/ipc'
+import { ventanaFalsa } from './ventanaFalsa'
 
 type Parcial = {
   listar: ApiShinobi['biblioteca']['listar']
@@ -18,16 +19,18 @@ export function fixtures({
   biblioteca,
   estiloPredeterminado = ESTILO_PREDETERMINADO,
   alCambiarConfig
-}: Parcial): ApiShinobi {
+}: Parcial): ApiShinobi & { ventana: ReturnType<typeof ventanaFalsa> } {
   return {
+    ventana: ventanaFalsa(),
     biblioteca: {
       listar,
       obtener: () => Promise.resolve(null),
+      comprobarPistas: async (id: string) => (await listar()).find((c) => c.id === id) ?? null,
       mostrarEnCarpeta: () => Promise.resolve(),
       ...biblioteca
     },
     config: { obtener: () => Promise.resolve({ estilo_predeterminado: estiloPredeterminado }) },
     alCambiarConfig: alCambiarConfig ?? (() => () => undefined),
     alCambiarCancion: alCambiarCancion ?? (() => () => undefined)
-  } as unknown as ApiShinobi
+  } as unknown as ApiShinobi & { ventana: ReturnType<typeof ventanaFalsa> }
 }

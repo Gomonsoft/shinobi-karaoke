@@ -57,10 +57,16 @@ const separacionSchema = z
   })
   .prefault({})
 
+export const VOLUMEN_VOZ_PREDETERMINADO = 0.3
+export const VOZ_SILENCIADA_PREDETERMINADA = true
+
 const reproductorSchema = z
   .object({
     volumen: z.number().min(0).max(1).default(0.8),
-    silenciado: z.boolean().default(false)
+    silenciado: z.boolean().default(false),
+    /** Volumen propio de la voz guía, aplicado antes del volumen general. */
+    voz_guia: z.number().min(0).max(1).default(VOLUMEN_VOZ_PREDETERMINADO),
+    voz_guia_silenciada: z.boolean().default(VOZ_SILENCIADA_PREDETERMINADA)
   })
   .prefault({})
 

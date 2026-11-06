@@ -8,6 +8,7 @@ import {
   type CodigoError
 } from '@shared/index'
 import type { ApiShinobi, ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
+import { ventanaFalsa } from '../biblioteca/ventanaFalsa'
 
 export function cancionSincronizadaLrclib(): Cancion {
   const cancion = cancionLista()
@@ -74,10 +75,11 @@ export function cancionListaIncompleta(): Cancion {
 
 type ApiEditor = {
   [K in 'biblioteca' | 'letras' | 'app' | 'trabajos']: Partial<ApiShinobi[K]>
-} & Pick<ApiShinobi, 'config' | 'alCambiarCancion'>
+} & Pick<ApiShinobi, 'config' | 'alCambiarCancion'> & { ventana: ReturnType<typeof ventanaFalsa> }
 
 type OpcionesApiEditor = {
   cancion?: Cancion
+  danada?: boolean
   config?: Awaited<ReturnType<ApiShinobi['config']['obtener']>>
   trabajos?: Awaited<ReturnType<ApiShinobi['trabajos']['listar']>>
 }
@@ -131,7 +133,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       },
       lineasSinSincronizar: pendientes,
       incompleta: cancion.estado === 'lista' && pendientes > 0,
-      danada: false,
+      danada: opciones.danada ?? false,
       motivo: null
     }
   }
@@ -151,10 +153,15 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   }
 
   const api: ApiEditor = {
+    ventana: ventanaFalsa(),
     biblioteca: {
       async listar() {
         registrar('biblioteca.listar')
         return [resumen()]
+      },
+      async comprobarPistas(id) {
+        registrar('biblioteca.comprobarPistas', id)
+        return id === cancion.id ? resumen() : null
       },
       async obtener(id) {
         registrar('biblioteca.obtener', id)

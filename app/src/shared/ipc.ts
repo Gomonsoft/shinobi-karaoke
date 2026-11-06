@@ -170,7 +170,9 @@ export const configParcialRendererSchema = z.strictObject({
   reproductor: z
     .strictObject({
       volumen: z.number().min(0).max(1).optional(),
-      silenciado: z.boolean().optional()
+      silenciado: z.boolean().optional(),
+      voz_guia: z.number().min(0).max(1).optional(),
+      voz_guia_silenciada: z.boolean().optional()
     })
     .optional(),
   // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
@@ -384,9 +386,15 @@ export type RespuestaIpc<T> = { ok: true; valor: T } | { ok: false; error: Error
 
 const vacio = z.tuple([])
 const unId = z.tuple([idCancionSchema])
+const unBooleano = z.tuple([z.boolean()])
 
 /** Canal -> esquemas de argumentos (tupla) y de respuesta. */
 export const CONTRATO = {
+  [CANALES.ventana.modoReproductor]: { args: unBooleano, res: z.void() },
+  [CANALES.ventana.fijarPantallaCompleta]: { args: unBooleano, res: z.void() },
+  [CANALES.ventana.estaEnPantallaCompleta]: { args: vacio, res: z.boolean() },
+  [CANALES.ventana.evitarReposo]: { args: unBooleano, res: z.void() },
+  [CANALES.biblioteca.comprobarPistas]: { args: unId, res: resumenCancionSchema.nullable() },
   [CANALES.biblioteca.listar]: { args: vacio, res: z.array(resumenCancionSchema) },
   [CANALES.biblioteca.obtener]: { args: unId, res: cancionSchema.nullable() },
   [CANALES.biblioteca.actualizarMetadatos]: {
@@ -510,9 +518,21 @@ export interface ApiShinobi {
     guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancionIpc>
     /** Pasa a lista si las pistas y la sincronía están completas. */
     marcarLista(id: string): Promise<ResumenCancionIpc>
+    /** Vuelve a comprobar las pistas de la canción, que puede pasar a Dañada. */
+    comprobarPistas(id: string): Promise<ResumenCancionIpc | null>
     volverABorrador(id: string): Promise<ResumenCancionIpc>
     eliminar(id: string): Promise<void>
     mostrarEnCarpeta(id: string): Promise<void>
+  }
+  ventana: {
+    /** Activa la pantalla completa o restaura el estado previo al salir. */
+    modoReproductor(activo: boolean): Promise<void>
+    fijarPantallaCompleta(activa: boolean): Promise<void>
+    estaEnPantallaCompleta(): Promise<boolean>
+    /** Mantiene la pantalla encendida mientras suena. */
+    evitarReposo(activo: boolean): Promise<void>
+    /** Cambios reales de pantalla completa, incluidos los del sistema. */
+    alCambiarPantallaCompleta(cb: (activa: boolean) => void): () => void
   }
   trabajos: {
     /** Trabajos en curso y en cola (los terminados solo llegan por `alCambiar`). */

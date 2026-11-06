@@ -155,9 +155,10 @@ function useVolumenEditor(inicial: Config['reproductor']) {
     [escribir]
   )
 
-  function cambiar(cambio: Config['reproductor']) {
-    pendiente.current = cambio
-    setReproductor(cambio)
+  function cambiar(cambio: Pick<Config['reproductor'], 'volumen' | 'silenciado'>) {
+    const actualizado = { ...reproductor, ...cambio }
+    pendiente.current = actualizado
+    setReproductor(actualizado)
     temporizador.current ??= setTimeout(escribir, 500)
   }
 

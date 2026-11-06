@@ -41,6 +41,7 @@ function crearDeps() {
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
       guardarEstilo: vi.fn((id: string) => Promise.resolve(resumen(id))),
       marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      comprobarPistas: vi.fn((id: string) => Promise.resolve(resumen(id))),
       volverABorrador: vi.fn((id: string) => Promise.resolve(resumen(id))),
       eliminar: vi.fn(() => Promise.resolve()),
       mostrarEnCarpeta: vi.fn(() => Promise.resolve()),
@@ -148,6 +149,56 @@ const estadoRt = {
 }
 
 describe('manejadores IPC', () => {
+  it('valida argumentos y remitente del modo reproductor y difunde la pantalla completa', async () => {
+    const { deps } = crearDeps()
+    const manejadores = new Map<string, (e: unknown, ...a: unknown[]) => unknown>()
+    const difundir = vi.fn()
+    const modoReproductor = vi.fn()
+    const baja = vi.fn()
+    let emitir: ((activa: boolean) => void) | undefined
+    const desregistrar = registrarIpc(
+      { handle: (c, f) => void manejadores.set(c, f), removeHandler: () => undefined },
+      {
+        ...deps,
+        ventana: {
+          modoReproductor,
+          fijarPantallaCompleta: vi.fn(),
+          estaEnPantallaCompleta: () => false,
+          evitarReposo: vi.fn(),
+          suscribir(cb) {
+            emitir = cb
+            return baja
+          }
+        }
+      },
+      { remitenteValido: (e) => e === 'mio', difundir }
+    )
+    const modo = manejadores.get(CANALES.ventana.modoReproductor)!
+    for (const [origen, valor] of [
+      ['mio', 'si'],
+      ['ajeno', true]
+    ]) {
+      expect(await modo(origen, valor)).toMatchObject({
+        ok: false,
+        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+      })
+    }
+    expect(modoReproductor).not.toHaveBeenCalled()
+    expect(await modo('mio', true)).toMatchObject({ ok: true })
+    expect(modoReproductor).toHaveBeenCalledWith(true)
+    emitir?.(true)
+    expect(difundir).toHaveBeenCalledWith(CANALES.eventos.pantallaCompleta, true)
+    desregistrar()
+    expect(baja).toHaveBeenCalledOnce()
+  })
+
+  it('comprueba las pistas de la canción y devuelve su resumen', async () => {
+    const { deps } = crearDeps()
+    const comprobar = crearManejadores(deps)[CANALES.biblioteca.comprobarPistas]
+    expect(await comprobar(['abc'])).toMatchObject({ ok: true, valor: { id: 'abc' } })
+    expect(deps.biblioteca.comprobarPistas).toHaveBeenCalledWith('abc')
+  })
+
   it('listar devuelve URLs shinobi-media y nunca rutas absolutas', async () => {
     const { deps } = crearDeps()
     const r = await crearManejadores(deps)[CANALES.biblioteca.listar]([])

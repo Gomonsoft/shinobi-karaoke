@@ -32,9 +32,17 @@ const api: ApiShinobi = {
       invocar(CANALES.biblioteca.actualizarMetadatos, id, metadatos),
     guardarEstilo: (id, estilo) => invocar(CANALES.biblioteca.guardarEstilo, id, estilo),
     marcarLista: (id) => invocar(CANALES.biblioteca.marcarLista, id),
+    comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
     mostrarEnCarpeta: (id) => invocar(CANALES.biblioteca.mostrarEnCarpeta, id)
+  },
+  ventana: {
+    modoReproductor: (activo) => invocar(CANALES.ventana.modoReproductor, activo),
+    fijarPantallaCompleta: (activa) => invocar(CANALES.ventana.fijarPantallaCompleta, activa),
+    estaEnPantallaCompleta: () => invocar(CANALES.ventana.estaEnPantallaCompleta),
+    evitarReposo: (activo) => invocar(CANALES.ventana.evitarReposo, activo),
+    alCambiarPantallaCompleta: (cb) => suscribir(CANALES.eventos.pantallaCompleta, cb)
   },
   trabajos: {
     listar: () => invocar(CANALES.trabajos.listar),

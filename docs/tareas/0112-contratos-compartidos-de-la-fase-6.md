@@ -1,5 +1,5 @@
 # 0112 — Contratos compartidos de la Fase 6: canales `ventana.*`, `biblioteca.comprobarPistas`, voz guía en `config.reproductor` y API falsas
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: — (Fase 5 cerrada). **Primera de la fase.**
 - ADRs: 0011 (§1, §2, §3 "Configuración", §5), 0008 (punto 4: Zod + remitente), 0006
@@ -86,4 +86,8 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- Main valida las cuatro operaciones de ventana con Zod y el control de remitente. El preload expone solo operaciones tipadas y una suscripción que elimina el evento de Electron.
+- `comprobarPistas` devuelve un resumen seguro o `null`. La revisión de archivos en disco corresponde a 0114.
+- Una configuración anterior obtiene 30 % para la voz guía y comienza silenciada. Un valor inválido sigue la misma recuperación que el volumen general: se usa la copia de seguridad válida o se aparta el archivo y se escriben los valores de fábrica.
+- Los dobles de Biblioteca y Editor exponen pantalla completa simulada y el estado de reposo. El Editor conserva los campos de voz al cambiar su volumen hasta que 0118 unifique el hook.
+- Lint, tipos, formato y build en verde. En Vitest pasaron 1711 pruebas y se omitieron 12; la prueba del editor que pulsaba S antes de habilitar el botón se estabilizó y pasó en su suite (8 de 8). Playwright pasó 78 pruebas con 2 omitidas y la prueba del puente IPC pasó tras actualizar su lista de espacios de nombres.

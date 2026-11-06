@@ -32,7 +32,7 @@ vi.mock('../../karaoke/useMotorAudio', () => ({
 
 function montar(cancion = cancionSinSincronizar()) {
   const falso = apiEditorFalsa({ cancion })
-  window.shinobi = falso.api as typeof window.shinobi
+  window.shinobi = falso.api as unknown as typeof window.shinobi
   const ir = vi.fn()
   const utils = render(
     <NavegacionContexto.Provider
@@ -111,6 +111,7 @@ it('Esc cierra el diálogo de atajos antes de volver a la Biblioteca', async () 
 it('S entra en Sincronizar al ritmo con cuenta atrás y Esc la cancela sin marcar', async () => {
   const { ir } = montar()
   const boton = await screen.findByRole('button', { name: /Sincronizar al ritmo/ })
+  await waitFor(() => expect(boton).toBeEnabled())
   fireEvent.keyDown(boton, { key: 's' })
   expect(await screen.findByRole('region', { name: 'Sincronizando al ritmo' })).toBeVisible()
   expect(screen.getByRole('button', { name: 'Deshacer (Retroceso)' })).toBeDisabled()

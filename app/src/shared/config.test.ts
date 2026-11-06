@@ -24,7 +24,7 @@ describe('configSchema (lectura tolerante)', () => {
         modelos_descargados: [],
         factores_medidos: {}
       },
-      reproductor: { volumen: 0.8, silenciado: false },
+      reproductor: { volumen: 0.8, silenciado: false, voz_guia: 0.3, voz_guia_silenciada: true },
       aviso_youtube_aceptado: null,
       ultima_comprobacion_ytdlp: null,
       estilo_predeterminado: ESTILO_PREDETERMINADO
@@ -46,7 +46,12 @@ describe('configSchema (lectura tolerante)', () => {
       componentes: 'pendiente',
       modelo: 'pendiente'
     })
-    expect(c.reproductor).toEqual({ volumen: 0.3, silenciado: false })
+    expect(c.reproductor).toEqual({
+      volumen: 0.3,
+      silenciado: false,
+      voz_guia: 0.3,
+      voz_guia_silenciada: true
+    })
   })
   it('acepta el ejemplo del ADR 0006', () => {
     const c = configSchema.parse({
@@ -67,7 +72,7 @@ describe('configSchema (lectura tolerante)', () => {
         modelos_descargados: ['rapido'],
         factores_medidos: { rapido: 1.2 }
       },
-      reproductor: { volumen: 0.8, silenciado: false },
+      reproductor: { volumen: 0.8, silenciado: false, voz_guia: 0.3, voz_guia_silenciada: true },
       aviso_youtube_aceptado: '2026-11-03T10:00:00Z',
       ultima_comprobacion_ytdlp: '2026-11-01T09:00:00Z',
       estilo_predeterminado: ESTILO_PREDETERMINADO

@@ -47,6 +47,7 @@ export interface BibliotecaIpc {
   ): Promise<ResumenCancion>
   guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion>
   marcarLista(id: string): Promise<ResumenCancion>
+  comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
   eliminar(id: string): Promise<void>
   mostrarEnCarpeta(id: string): Promise<void>
@@ -124,7 +125,16 @@ export interface LetrasIpc {
   leerArchivo(): Promise<ArchivoLetraLeido>
 }
 
+export interface VentanaIpc {
+  modoReproductor(activo: boolean): void
+  fijarPantallaCompleta(activa: boolean): void
+  estaEnPantallaCompleta(): boolean
+  evitarReposo(activo: boolean): void
+  suscribir(cb: (activa: boolean) => void): () => void
+}
+
 export interface DependenciasIpc {
+  ventana?: VentanaIpc
   letras?: LetrasIpc
   separacion?: SeparacionIpc
   runtime: RuntimeIpc
@@ -250,6 +260,27 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () =>
       letras().leerArchivo()
+    ),
+    [CANALES.ventana.modoReproductor]: envolver(CANALES.ventana.modoReproductor, (activo) =>
+      deps.ventana?.modoReproductor(activo)
+    ),
+    [CANALES.ventana.fijarPantallaCompleta]: envolver(
+      CANALES.ventana.fijarPantallaCompleta,
+      (activa) => deps.ventana?.fijarPantallaCompleta(activa)
+    ),
+    [CANALES.ventana.estaEnPantallaCompleta]: envolver(
+      CANALES.ventana.estaEnPantallaCompleta,
+      () => deps.ventana?.estaEnPantallaCompleta() ?? false
+    ),
+    [CANALES.ventana.evitarReposo]: envolver(CANALES.ventana.evitarReposo, (activo) =>
+      deps.ventana?.evitarReposo(activo)
+    ),
+    [CANALES.biblioteca.comprobarPistas]: envolver(
+      CANALES.biblioteca.comprobarPistas,
+      async (id) => {
+        const resumen = await biblioteca.comprobarPistas(id)
+        return resumen ? resumenParaRenderer(resumen) : null
+      }
     ),
     [CANALES.biblioteca.listar]: envolver(CANALES.biblioteca.listar, () =>
       biblioteca.listar().map(resumenParaRenderer)
@@ -394,6 +425,9 @@ export function registrarIpc(
       return manejadores[canal](args)
     })
   }
+  const bajaPantallaCompleta = deps.ventana?.suscribir((activa) =>
+    opciones.difundir(CANALES.eventos.pantallaCompleta, activa)
+  )
   const bajaCancion = deps.biblioteca.suscribir((e) =>
     opciones.difundir(CANALES.eventos.cancion, eventoParaRenderer(e))
   )
@@ -409,6 +443,7 @@ export function registrarIpc(
     opciones.difundir(CANALES.eventos.runtimeCambio, e)
   )
   return () => {
+    bajaPantallaCompleta?.()
     bajaRtProgreso()
     bajaRtCambio()
     bajaCancion()

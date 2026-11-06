@@ -27,7 +27,7 @@ async function montar(
 ) {
   const falsa = apiEditorFalsa({ cancion })
   const api = falsa.api
-  window.shinobi = api as ApiShinobi
+  window.shinobi = api as unknown as ApiShinobi
   const resumen = (await api.biblioteca.listar!())[0]!
   const letra = opciones.letra ?? cancion.letra!
   const ir = vi.fn<(vista: Vista) => void>()
@@ -173,7 +173,7 @@ describe('Hecho y volver a borrador', () => {
   it('confirma el retorno a borrador y conserva letra y estilo', async () => {
     const cancion = cancionLista()
     const { api } = apiEditorFalsa({ cancion })
-    window.shinobi = api as ApiShinobi
+    window.shinobi = api as unknown as ApiShinobi
     const resumen = (await api.biblioteca.listar!())[0]!
     const cerrar = vi.fn()
     render(<DialogoVolverABorradorEditor resumen={resumen} alCerrar={cerrar} />)
