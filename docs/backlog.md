@@ -245,7 +245,7 @@ Spec `ux/06` reescrita por el diseñador UX (48 criterios). [0024](preguntas/002
 | [0099](tareas/0099-componentes-de-estilo-color-fuente-angulo-y-deslizador.md) | Selector de color, de fuente, dial de ángulo y deslizador | — | **Empieza ya** (cuidado con 0100) | `componentes.module.css`, `Muestrario.tsx` | Hecha |
 | [0100](tareas/0100-popover-y-deuda-de-componentes-base.md) | Popover y deuda de 0016 (`inert`, tooltip en bordes, *type-ahead*) | — | **Empieza ya** (cuidado con 0099) | `componentes.module.css`, `Muestrario.tsx` | Hecha |
 | [0101](tareas/0101-stepper-paso-actual-completado.md) | Stepper: ✓ en el paso actual completado y subrayado (0024) | — | **Empieza ya; pequeña** | `CabeceraCancion.tsx`, `e2e/letras.spec.ts` | Hecha |
-| [0102](tareas/0102-vista-letra-texto-demasiado-largo.md) | Vista Letra: texto demasiado largo (`ux/05` §10) | — | **Empieza ya; pequeña** | — | Pendiente |
+| [0102](tareas/0102-vista-letra-texto-demasiado-largo.md) | Vista Letra: texto demasiado largo (`ux/05` §10) | — | **Empieza ya; pequeña** | — | Hecha |
 | [0103](tareas/0103-cabecera-del-espacio-de-cancion-para-el-editor.md) | Cabecera para el editor: guardado, incompleta, ⟲⟳, ⋯ | 0100, 0101 | ‖ 0104 | `CabeceraCancion.tsx` | Pendiente |
 | [0104](tareas/0104-guardado-del-editor-salida-y-cierre-de-la-ventana.md) | Guardado del editor: *debounce*, vaciado al salir, diálogo y cierre de la ventana | 0090, 0092 | ‖ 0103 | `App.tsx`, `navegacion/estado.ts`, `DialogoCierre.tsx`, `main/index.ts`, `main/cierre.ts` | Pendiente |
 | [0105](tareas/0105-vista-editor-estructura-lista-y-transporte.md) | Vista Editor: estructura, lista, transporte, vista previa y atajos base | 0090, 0093, 0094, 0098, 0099, 0103, 0104 | No (núcleo) | `App.tsx` | Pendiente |

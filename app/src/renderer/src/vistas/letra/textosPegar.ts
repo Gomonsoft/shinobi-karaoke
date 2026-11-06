@@ -11,7 +11,8 @@ export const TEXTO_PEGAR = {
     `${n === 1 ? '1 línea' : `${n} líneas`} · se sincronizarán en el editor`,
   lrc: 'Hemos detectado tiempos de sincronía y los conservaremos.',
   ignoradas: (n: number): string => `Ignoraremos ${renglones(n)} sin tiempo.`,
-  demasiado: 'El texto es demasiado largo (máximo 512 KB).',
+  demasiado:
+    'Este texto es demasiado largo para ser una letra. Comprueba que has pegado solo la letra de la canción.',
   volver: 'Volver a los resultados'
 } as const
 

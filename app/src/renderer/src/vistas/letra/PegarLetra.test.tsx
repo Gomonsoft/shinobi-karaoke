@@ -329,3 +329,34 @@ describe('Letra: diálogo de sustituir', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+
+it.each(
+  ['é'.repeat((512 * 1024) / 2 + 1), '[00:00] uno\n'.repeat(5000) + 'otro'].map((texto, i) => ({
+    texto,
+    limite: i === 0 ? 'bytes' : 'renglones'
+  }))
+)(
+  'al superar el límite de $limite oculta el contador y recupera la vista al corregir',
+  async ({ texto }) => {
+    const { area, llamadas } = await abrirB()
+    escribir(area, texto)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Este texto es demasiado largo para ser una letra. Comprueba que has pegado solo la letra de la canción.'
+    )
+    expect(screen.queryByText(/se sincronizarán en el editor/)).toBeNull()
+    expect(screen.queryByText(/Hemos detectado tiempos/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Usar esta letra' })).toBeDisabled()
+    fireEvent.keyDown(area, { key: 'Enter', ctrlKey: true })
+    expect(guardados(llamadas)).toHaveLength(0)
+    escribir(area, 'Un verso')
+    expect(await screen.findByText(/1 línea · se sincronizarán/)).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+  }
+)
+
+it('los textos de la vista Letra no muestran unidades de almacenamiento', async () => {
+  const modulos = import.meta.glob<Record<string, unknown>>('./textos*.ts', { eager: true })
+  for (const modulo of Object.values(modulos)) {
+    expect(JSON.stringify(modulo)).not.toContain('KB')
+  }
+})

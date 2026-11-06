@@ -9,6 +9,7 @@ import { AreaTexto } from '../../componentes/Campos'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import type { ConfirmarSustituir } from './sustituir'
 import { TEXTO } from './textos'
+import { textoSuperaLimites } from './limiteTexto'
 import { TEXTO_PEGAR } from './textosPegar'
 import estilos from './letra.module.css'
 
@@ -21,6 +22,8 @@ interface Conversion {
 
 /** Toda la conversión es del renderer (preguntas/0023 §1): LRC con tiempos o texto plano. */
 function convertir(texto: string): Conversion {
+  const demasiado = { lineas: [], esLrc: false, ignoradas: 0, demasiado: true }
+  if (textoSuperaLimites(texto)) return demasiado
   try {
     const generarId = (): string => crypto.randomUUID()
     if (esLrc(texto)) {
@@ -34,7 +37,7 @@ function convertir(texto: string): Conversion {
       demasiado: false
     }
   } catch {
-    return { lineas: [], esLrc: false, ignoradas: 0, demasiado: true }
+    return demasiado
   }
 }
 
@@ -110,13 +113,18 @@ export function PegarLetra({
         data-foco-inicial
         onChange={(e) => onTexto(e.target.value)}
       />
-      <p role="status" className={estilos.total}>
-        {TEXTO_PEGAR.contador(n)}
-      </p>
-      {previa.demasiado && <AvisoEnLinea tipo="error">{TEXTO_PEGAR.demasiado}</AvisoEnLinea>}
-      {previa.esLrc && <AvisoEnLinea tipo="info">{TEXTO_PEGAR.lrc}</AvisoEnLinea>}
-      {previa.esLrc && previa.ignoradas > 0 && (
-        <AvisoEnLinea tipo="info">{TEXTO_PEGAR.ignoradas(previa.ignoradas)}</AvisoEnLinea>
+      {previa.demasiado ? (
+        <AvisoEnLinea tipo="error">{TEXTO_PEGAR.demasiado}</AvisoEnLinea>
+      ) : (
+        <>
+          <p role="status" className={estilos.total}>
+            {TEXTO_PEGAR.contador(n)}
+          </p>
+          {previa.esLrc && <AvisoEnLinea tipo="info">{TEXTO_PEGAR.lrc}</AvisoEnLinea>}
+          {previa.esLrc && previa.ignoradas > 0 && (
+            <AvisoEnLinea tipo="info">{TEXTO_PEGAR.ignoradas(previa.ignoradas)}</AvisoEnLinea>
+          )}
+        </>
       )}
       <div className={estilos.alternativa}>
         <Boton variante="fantasma" onClick={onVolver}>

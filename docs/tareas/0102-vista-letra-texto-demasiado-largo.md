@@ -1,5 +1,5 @@
 # 0102 — Vista Letra: texto demasiado largo (`let.pegar.demasiado` y `let.error.demasiadoLarga`)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: — (**puede empezar ya; tarea pequeña**)
 - ADRs: 0005 (límites de 512 KB y 5000 elementos)
@@ -13,18 +13,18 @@
 - La UX lo corrige (`ux/05` §10): "KB" no se muestra y los textos dicen qué hacer.
 
 ## Criterios de aceptación
-- [ ] **B** (`textosPegar.ts`): `demasiado` pasa a ser `let.pegar.demasiado`: "Este texto es demasiado largo para ser una letra. Comprueba que has pegado solo la letra de la canción.".
+- [x] **B** (`textosPegar.ts`): `demasiado` pasa a ser `let.pegar.demasiado`: "Este texto es demasiado largo para ser una letra. Comprueba que has pegado solo la letra de la canción.".
   - Se muestra como aviso `error` en línea bajo el área, tanto si se superan los 512 KB (UTF-8) como los 5000 renglones;
   - con el aviso visible **no** se muestran el contador de líneas ni los avisos de LRC, y "Usar esta letra" queda inactivo;
   - el aviso desaparece en cuanto el texto vuelve a caber.
-- [ ] **C** (`textosElegida.ts`): clave nueva `demasiadoLarga` = `let.error.demasiadoLarga`: "El texto es demasiado largo para ser una letra. Este cambio no se ha guardado.".
+- [x] **C** (`textosElegida.ts`): clave nueva `demasiadoLarga` = `let.error.demasiadoLarga`: "El texto es demasiado largo para ser una letra. Este cambio no se ha guardado.".
   - Antes de llamar a `editarTexto`, el componente comprueba el tamaño en el cliente: bytes UTF-8 > `MAX_BYTES_TEXTO_LETRA` (de `shared/letrasBusqueda.ts`), o renglones que superen el límite de elementos (`MAX_ELEMENTOS_LETRA`; los renglones vacíos cuentan como posibles pausas, así que basta contar renglones).
   - Si lo supera: muestra el aviso `error` bajo el área, **no** llama a `editarTexto`, no borra lo escrito y no sale el toast genérico.
   - Si `editarTexto` respondiera igualmente `ARGUMENTOS_NO_VALIDOS` por tamaño, se muestra el mismo aviso.
   - Al salir de la vista se conserva la última letra guardada (no se fuerza ningún guardado).
-- [ ] El texto "512 KB" no aparece en la interfaz: hay un test que busca "KB" en los textos de `vistas/letra/` y no lo encuentra.
-- [ ] Al importar un archivo demasiado grande se mantiene `let.error.archivo` (sin cambios).
-- [ ] Tests de B y C para los dos límites (bytes y renglones) y para la desaparición del aviso.
+- [x] El texto "512 KB" no aparece en la interfaz: hay un test que busca "KB" en los textos de `vistas/letra/` y no lo encuentra.
+- [x] Al importar un archivo demasiado grande se mantiene `let.error.archivo` (sin cambios).
+- [x] Tests de B y C para los dos límites (bytes y renglones) y para la desaparición del aviso.
 
 ## Verificación
 ```bash
@@ -34,4 +34,6 @@ npx vitest run src/renderer/src/vistas/letra
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- Se validan los bytes UTF-8 y el total de renglones al pegar o editar. Los textos de la interfaz explican cómo corregirlo y la vista C conserva lo escrito sin enviar un guardado inválido.
+- Pasaron las pruebas de ambos límites, de recuperación y de guardado rechazado, además de la verificación completa conjunta de 0100–0102.

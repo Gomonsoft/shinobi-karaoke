@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type Ref } from 'react'
 import { X } from 'lucide-react'
 import { contarLineas, type Letra } from '@shared/letra'
 import { aplicarTextoEditado, letraATexto } from '@shared/letras'
-import type { ResumenCancionIpc } from '@shared/ipc'
+import type { ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
@@ -10,6 +10,7 @@ import { AreaTexto } from '../../componentes/Campos'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { hayMarcasDeTiempo, huella, sincroniaActual, tieneLineas } from './modeloElegida'
 import { TEXTO } from './textos'
+import { textoSuperaLimites } from './limiteTexto'
 import { TEXTO_IMPORTAR } from './textosPegar'
 import { TEXTO_ELEGIDA as T } from './textosElegida'
 import estilos from './letra.module.css'
@@ -51,6 +52,8 @@ export function LetraElegida({
   const [letra, setLetra] = useState<Letra>(letraInicial)
   const [texto, setTexto] = useState(() => letraATexto(letraInicial))
   const [errorLista, setErrorLista] = useState(false)
+  const [demasiadoLarga, setDemasiadoLarga] = useState(false)
+  const limite = useRef(false)
   const refArea = useRef<HTMLTextAreaElement>(null)
   const refTexto = useRef(texto)
   // Último texto que el main ya tiene (o está recibiendo); `refTexto` ≠ esto = cambios pendientes.
@@ -70,7 +73,7 @@ export function LetraElegida({
     if (temporizador.current) clearTimeout(temporizador.current)
     temporizador.current = null
     const enviado = refTexto.current
-    if (enviado === guardado.current) return
+    if (enviado === guardado.current || limite.current) return
     const previo = guardado.current
     guardado.current = enviado
     try {
@@ -81,10 +84,21 @@ export function LetraElegida({
       setLetra(nueva)
       setErrorLista(false)
       onResumenRef.current(resumen)
-    } catch {
+    } catch (e) {
       if (guardado.current === enviado) guardado.current = previo
       if (!montado.current) return
-      if (!tieneLineas(enviado) && refEstado.current === 'lista') setErrorLista(true)
+      const error = e as Partial<ErrorIpc> | null
+      if (
+        error?.codigo === 'ARGUMENTOS_NO_VALIDOS' &&
+        /demasiado (?:largo|grande)|supera|m[aá]s de \d+ (?:KB|elementos|renglones)/i.test(
+          error.mensaje ?? ''
+        )
+      ) {
+        if (refTexto.current === enviado) {
+          limite.current = true
+          setDemasiadoLarga(true)
+        }
+      } else if (!tieneLineas(enviado) && refEstado.current === 'lista') setErrorLista(true)
       else mostrarToast({ tipo: 'error', mensaje: TEXTO.errorGuardar })
     }
   }, [cancionId])
@@ -95,7 +109,7 @@ export function LetraElegida({
     return () => {
       montado.current = false
       if (temporizador.current) clearTimeout(temporizador.current)
-      if (refTexto.current !== guardado.current) {
+      if (refTexto.current !== guardado.current && !limite.current) {
         void window.shinobi.letras
           .editarTexto({ cancionId, texto: refTexto.current })
           .catch(() => undefined)
@@ -136,9 +150,11 @@ export function LetraElegida({
   const alEscribir = (valor: string): void => {
     refTexto.current = valor
     setTexto(valor)
+    limite.current = textoSuperaLimites(valor)
+    setDemasiadoLarga(limite.current)
     if (errorLista && tieneLineas(valor)) setErrorLista(false)
     if (temporizador.current) clearTimeout(temporizador.current)
-    temporizador.current = setTimeout(() => void guardar(), ESPERA_MS)
+    temporizador.current = limite.current ? null : setTimeout(() => void guardar(), ESPERA_MS)
   }
 
   const n = contarLineas(letra)
@@ -184,6 +200,7 @@ export function LetraElegida({
         spellCheck={false}
       />
 
+      {demasiadoLarga && <AvisoEnLinea tipo="error">{T.demasiadoLarga}</AvisoEnLinea>}
       {errorLista && <AvisoEnLinea tipo="aviso">{T.errorListaSinLineas}</AvisoEnLinea>}
       {hayMarcasDeTiempo(texto) && <AvisoEnLinea tipo="info">{T.marcas}</AvisoEnLinea>}
       <AvisoEnLinea tipo="info">{T.aviso}</AvisoEnLinea>

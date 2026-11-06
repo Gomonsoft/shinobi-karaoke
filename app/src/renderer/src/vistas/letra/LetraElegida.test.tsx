@@ -330,3 +330,42 @@ describe('Letra elegida (C): botones y cambios externos', () => {
     expect(a.value).toBe(antes)
   })
 })
+
+it.each([
+  { texto: 'é'.repeat((512 * 1024) / 2 + 1), limite: 'bytes' },
+  { texto: 'línea\n'.repeat(5000) + 'otra', limite: 'renglones' }
+])(
+  'el límite de $limite conserva el texto sin enviar IPC y se limpia al corregir',
+  async ({ texto }) => {
+    const { editarTexto, unmount } = montar()
+    const campo = await area()
+    fireEvent.change(campo, { target: { value: texto } })
+    fireEvent.blur(campo)
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'El texto es demasiado largo para ser una letra. Este cambio no se ha guardado.'
+    )
+    expect(campo).toHaveValue(texto)
+    expect(editarTexto).not.toHaveBeenCalled()
+    fireEvent.change(campo, { target: { value: 'Solo un verso' } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.blur(campo)
+    await waitFor(() => expect(editarTexto).toHaveBeenCalledTimes(1))
+    fireEvent.change(campo, { target: { value: texto } })
+    unmount()
+    expect(editarTexto).toHaveBeenCalledTimes(1)
+  }
+)
+
+it('muestra el aviso de tamaño si main rechaza un guardado por ese motivo', async () => {
+  const { editarTexto, unmount } = montar()
+  editarTexto.mockRejectedValueOnce({
+    codigo: 'ARGUMENTOS_NO_VALIDOS',
+    mensaje: 'El texto supera el límite.'
+  })
+  const campo = await area()
+  fireEvent.change(campo, { target: { value: 'Un verso nuevo' } })
+  fireEvent.blur(campo)
+  expect(await screen.findByRole('alert')).toHaveTextContent('Este cambio no se ha guardado.')
+  unmount()
+  expect(editarTexto).toHaveBeenCalledTimes(1)
+})

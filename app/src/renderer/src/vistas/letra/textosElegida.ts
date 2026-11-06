@@ -12,6 +12,7 @@ export const TEXTO_ELEGIDA = {
   actual: (origen: string, sync: string, n: number): string =>
     `Letra actual · ${origen} · ${sync} · ${n === 1 ? '1 línea' : `${n} líneas`}`,
   vacia: 'Sin letra todavía. Escribe o pega aquí la letra, o busca otra.',
+  demasiadoLarga: 'El texto es demasiado largo para ser una letra. Este cambio no se ha guardado.',
   errorListaSinLineas:
     'Una canción lista necesita al menos una línea de letra. Este cambio no se ha guardado.',
   aviso:
