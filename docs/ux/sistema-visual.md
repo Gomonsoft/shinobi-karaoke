@@ -90,6 +90,7 @@ Tamaño mínimo de texto en la interfaz: **13 px**. Respetar el zoom de Electron
 | **Botón fantasma** | Sin fondo, texto `texto-2` → `texto-1` en hover. Para "Volver", "Borrar búsqueda", "Ver todas" y "Cancelar" fuera de diálogos. En los **diálogos**, "Cancelar" usa el **secundario** (revisión Fase 1). | ídem |
 | **Botón destructivo** | Fondo `error-tenue`, texto y borde `error`. Solo en diálogos de confirmación. | ídem |
 | **Botón icono** | 36 × 36 px (44 en reproductor), `r-m`, fondo transparente → `fondo-3` en hover. | ídem + "activo" (icono `acento-texto`) |
+| **Control de volumen** | Botón icono (silenciar) + deslizador horizontal (pista 4 px, tirador 16 px, `role="slider"`, flechas ±10 %) + porcentaje opcional `t-tiempo` de ancho fijo. Silenciado: icono tachado (`volume-x` / `mic-off`) y deslizador y cifra en `texto-2`, conservando el valor. En el reproductor hay dos: **volumen general** (120 px, sin cifra) y **voz guía** (etiqueta "Voz" + 96 px + cifra), separados 24 px (spec 07). Sobre las franjas del reproductor: pista `rgba(255,255,255,0.35)`, relleno y tirador `#FFFFFF`. | normal / foco / silenciado / no disponible (`aria-disabled`, tooltip del motivo) |
 | **Campo de texto** | Alto 36 px, fondo `fondo-2`, borde 1 px `borde-control`, `r-s`, etiqueta visible encima (`t-pequeno`, `texto-2`), ayuda debajo (`texto-3`). | foco (borde `foco` 2 px) / error (borde `error` + mensaje con icono debajo, `aria-describedby`) / solo lectura |
 | **Área de texto** | Igual que campo; para pegar letra. Fuente de interfaz 15 px, interlínea 24 px. | ídem |
 | **Selector de color** | Muestra de color 32 × 32 px + valor `#RRGGBB` editable + selector nativo al hacer clic + fila de **8 muestras sugeridas** de la paleta de karaoke (§8). | foco / valor no válido ("Usa el formato #RRGGBB") |
@@ -148,7 +149,7 @@ Compartidos por la vista previa del editor y el reproductor (la vista previa los
 
 | Elemento | Valor |
 |----------|-------|
-| Línea actual — tamaño | `clamp(32px, 7.5vh, 140px)` (≈ 81 px en 1080p, ≈ 54 px en 720p) |
+| Línea actual — tamaño | `max(32px, 7.5vh)` (≈ 81 px en 1080p, ≈ 54 px en 720p, 162 px con 2160 px CSS de alto). Sin tope en píxeles desde la Fase 6: el tope anterior de 140 px encogía la letra en televisores 4K con escalado 100 % (spec 07 §"Legibilidad a distancia") |
 | Línea siguiente — tamaño | 70 % de la actual, mismo color de letra (sin transparencia, para no perder contraste) |
 | Peso | El único peso incluido de la familia (ver 0004) |
 | Interlínea | 1,2 |
@@ -158,7 +159,7 @@ Compartidos por la vista previa del editor y el reproductor (la vista previa los
 | Sombra | `0 0.04em 0.12em rgba(0,0,0,0.55)` (mejora legibilidad sobre degradados; no se usa contorno) |
 | Resaltado | Barrido progresivo de izquierda a derecha con `color_resaltado` (por palabra si la letra trae tiempos por palabra; el editor del MVP no los crea, [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md)) |
 | Transición entre líneas | La siguiente sube a la posición actual en 200 ms (instantánea con movimiento reducido) |
-| Indicador de entrada | Si faltan ≥ 4 s para la próxima línea tras una pausa (o al inicio), se muestran 3 puntos `●●●` en `color_resaltado` sobre la siguiente línea que se apagan uno por segundo en los 3 s previos |
-| Pantalla de título | Antes de la primera línea: título (tamaño actual) y artista (50 %) centrados, en `letra.color`, hasta 4 s antes de la primera línea |
-| Aviso sobre el fondo del estilo | Para mensajes del reproductor que aparecen sobre el fondo de la canción (p. ej. `rep.incompleta`, spec 07): píldora con fondo `rgba(0,0,0,0.6)`, texto `#FFFFFF` en `t-cuerpo`, icono en `aviso`, radio completo, padding 8 × 16 px. Nunca en la franja central 25 %–75 % mientras se canta |
+| Indicador de entrada | Antes de la **primera línea** (siempre, sea cual sea el hueco desde 0) y antes de toda línea cuyo hueco desde el fin efectivo de la anterior es ≥ 4 s: 3 puntos `●●●` en `color_resaltado` sobre la siguiente línea, que se apagan uno por segundo en los 3 s previos |
+| Pantalla de título | Antes de la primera línea: título (tamaño actual) y artista (50 %) centrados, en `letra.color`, hasta 4 s antes de la primera línea. En el reproductor, si la primera línea entra antes de 6 s, un silencio previo garantiza ≥ 2 s de título (spec 07 §"Inicio y silencio previo") |
+| Aviso sobre el fondo del estilo | Para mensajes del reproductor que aparecen sobre el fondo de la canción (p. ej. `rep.incompleta`, indicador breve, etiquetas de pista; spec 07): píldora con fondo `rgba(0,0,0,0.6)`, texto `#FFFFFF` de `max(t-cuerpo, 2.2vh)` (indicador breve: `max(20px, 3vh)`), icono en `aviso`, radio completo, padding 0,5 × 1 em. Nunca en la franja central 25 %–75 % mientras se canta |
 | Fin del barrido | En el fin efectivo de la línea (`finEfectivo`, ADR 0005); las pausas no se dibujan |

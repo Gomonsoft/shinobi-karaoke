@@ -209,7 +209,7 @@ Deuda que se salda aquí:
 - `hayLetra` de Progreso con `contarLineas` y motivos provisionales del stepper (0043/0068 → 0087);
 - el test de `archivo.test.ts` que escribía un `letra.json` aparte (→ 0083).
 
-## Fase 5 — Editor — **cerrada (2026-11-06)**: tareas 0090–0110 hechas; 0111 manual pendiente; pregunta 0029 abierta
+## Fase 5 — Editor — **cerrada (2026-11-06)**: tareas 0090–0110 hechas; 0111 manual pendiente; pregunta 0029 respondida en la Fase 6
 **Decisiones técnicas** en el nuevo [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md), con revisiones de los ADR 0005 y 0006:
 - **Audio**: Web Audio con `AudioBuffer` decodificado bajo demanda (como mucho 2, LRU). La velocidad baja el tono (sin *spike* de `preservesPitch`).
 - **Reloj**: `getOutputTimestamp` para las pulsaciones.
@@ -276,9 +276,65 @@ Deuda de fases anteriores que se salda aquí:
 - texto de 512 KB (0085 → 0102).
 `jsonAtomico` con el principal corrupto (0007): se vigila en 0110 (autoguardado intenso); sin tarea propia.
 
-## Fase 6 — Reproductor
-- [ ] Reproducción a pantalla completa desde la biblioteca (reutiliza `MotorAudio` y `PantallaLetra` de la Fase 5).
-- [ ] "Probar a pantalla completa" desde el editor (criterio 42 de `ux/06`) y [▶ Reproducir] en el toast `bib.toast.lista` (`preguntas/0025` §1).
+## Fase 6 — Reproductor — **desglosada (2026-11-06)**: tareas 0112–0126
+**Decisiones técnicas** en el nuevo [ADR 0011](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md), con revisiones de los ADR 0008 (se retira el permiso `fullscreen`), 0009 (motor incompleto) y 0010:
+- **Pantalla completa de la ventana** desde el main (`setFullScreen`), con el estado previo restaurado al salir. Esc sale con una pulsación y el zoom del menú se desactiva.
+- **Pantalla encendida** con `powerSaveBlocker` mientras suena.
+- **Capa, no vista**: el reproductor se abre encima de la Biblioteca o del editor, sin desmontarlos. Se elimina la vista `reproductor`.
+- **`MotorReproductor`**: instrumental + **voz guía** (`voz.flac`) sincronizados, con volumen de voz propio y recordado (`config.reproductor.voz_guia`/`voz_guia_silenciada`; decisión del usuario en [0030](preguntas/0030-voz-original-en-el-reproductor.md)). Silencio previo con posiciones negativas y errores por tipo. El editor libera su audio mientras prueba.
+- **Dañada al momento** con `biblioteca.comprobarPistas`.
+- `●●●` siempre antes de la primera línea y letra sin tope de 140 px, también en la vista previa del editor.
+
+**Preguntas**:
+- [0029](preguntas/0029-estado-de-la-semilla-separando-en-el-editor.md) respondida (la 18 se renombra en 0115);
+- [0031](preguntas/0031-detalles-tecnicos-del-reproductor-fase-6.md) respondida;
+- [0030](preguntas/0030-voz-original-en-el-reproductor.md) respondida por el usuario: voz guía;
+- [0032](preguntas/0032-textos-de-motor-de-audio-incompleto.md) respondida por el diseñador UX. Reparar cancela los demás trabajos: la reinstalación toca el entorno que usan todos los procesos del worker (tarea 0125).
+
+**Pruebas**:
+- sin red ni modelos;
+- E2E con audio silenciado y pantalla completa simulada (`SHINOBI_PANTALLA_COMPLETA_SIMULADA`, solo sin empaquetar), más una prueba con la ventana real en Windows/macOS;
+- prueba manual en TV y en los 3 SO (0126).
+
+| Tarea | Título | Depende de | ¿Paralelizable? | Archivos compartidos | Estado |
+|-------|--------|-----------|-----------------|----------------------|--------|
+| [0112](tareas/0112-contratos-compartidos-de-la-fase-6.md) | Contratos: `ventana.*`, `biblioteca.comprobarPistas`, voz guía en `config.reproductor`, API falsas | — | **Primera**; ‖ 0115–0118, 0124 | `canales.ts`, `ipc.ts`, `config.ts`, preload, `handlers.ts`, API falsas | Pendiente |
+| [0113](tareas/0113-main-modo-reproductor-pantalla-completa-y-reposo.md) | Main: modo reproductor (pantalla completa, estado previo, zoom) y pantalla encendida | 0112 | ‖ 0114–0122 | `main/index.ts`, `menu.ts`, `seguridad.ts` | Pendiente |
+| [0114](tareas/0114-main-comprobar-pistas-de-una-cancion.md) | Main: `comprobarPistas` (Dañada sin reiniciar) | 0112 | ‖ todo | — | Pendiente |
+| [0115](tareas/0115-semilla-del-reproductor-y-nombre-de-la-cancion-18.md) | Semilla: canciones 20 y 21; la 18 renombrada (0029) | — | **Empieza ya** | `semilla.ts`, `e2e/editor.spec.ts` (`T18`) | Pendiente |
+| [0116](tareas/0116-render-entrada-de-la-primera-linea-y-pantalla-letra-sin-tope.md) | Render: `●●●` antes de la 1.ª línea, tiempos negativos, sin tope de 140 px, aviso bajo el título | — | **Empieza ya** | `karaoke/render.ts`, `PantallaLetra` (los usa el editor) | Pendiente |
+| [0117](tareas/0117-motor-del-reproductor-con-voz-guia-y-silencio-previo.md) | `MotorReproductor` (voz guía, silencio previo, final, errores) + `MotorAudio.liberarAudio()` | — | **Empieza ya** | `karaoke/motorAudio.ts` (un método) | Pendiente |
+| [0118](tareas/0118-modelo-atajos-y-textos-del-reproductor-volumen-compartido-y-toasts-retenidos.md) | Modelo, atajos y textos del reproductor; `useVolumenCompartido`; toasts retenidos | 0112 (campos de voz) | ‖ 0113–0117 | `Editor.tsx` (hook de volumen), `gestorToasts.ts` | Pendiente |
+| [0119](tareas/0119-componente-reproductor-nucleo.md) | Componente `Reproductor`: capa, audio, letra, controles, teclado, indicador, voz guía, pantalla completa | 0112, 0116, 0117, 0118 | No (núcleo) | `Muestrario.tsx` (añadir) | Pendiente |
+| [0120](tareas/0120-reproductor-final-errores-incompleta-atajos-y-desplazamiento.md) | Reproductor: final, errores, lista incompleta, atajos (F1), desplazamiento, anuncios | 0119 | ‖ 0121, 0122 | — (`vistas/reproductor/`) | Pendiente |
+| [0121](tareas/0121-reproductor-desde-la-biblioteca-y-el-toast-de-lista.md) | Desde la Biblioteca y el toast «lista» (capa en `App`; se quita la vista `reproductor`) | 0119 (+ 0120) | ‖ 0120, 0122 | `App.tsx`, `navegacion/estado.ts`, `useAtajosGlobales.ts`, `Biblioteca.tsx`, `BotonLista.tsx` | Pendiente |
+| [0122](tareas/0122-editor-probar-a-pantalla-completa.md) | Editor: "Probar a pantalla completa" (F), desplazamiento como un paso de deshacer, vuelta | 0117–0120 | ‖ 0121 | `Editor.tsx`, `vistas/editor/estado.ts`, `atajos.ts` | Pendiente |
+| [0123](tareas/0123-e2e-reproductor-sin-red.md) | E2E del reproductor sin red | 0113–0116, 0119–0122 | No (cierra la fase) | — | Pendiente |
+| [0124](tareas/0124-motor-de-audio-incompleto-runtime-no-disponible.md) | Deuda: motor incompleto → `RUNTIME_NO_DISPONIBLE`, `dañada` y `--reinstall` | — | **Empieza ya** | `config.ts` (bloque `instalacion`), `main/index.ts` (1 línea) | Pendiente |
+| [0125](tareas/0125-interfaz-reparar-el-motor-de-audio-tras-un-fallo-de-separacion.md) | Deuda: error con "Reparar el motor de audio" (confirmación que cancela los trabajos, variante "ya reparado", tarjeta con [Ver]) + E2E | 0124 | ‖ 0119–0123 | — | Pendiente |
+| [0126](tareas/0126-prueba-manual-del-reproductor-en-tv-y-en-los-tres-so.md) | Prueba manual: TV a 5 m, sincronía, voz guía, pantalla completa y pantalla encendida (3 SO) | 0115, 0119–0122 | ‖ 0123; manual | — | Pendiente |
+
+**Orden sugerido con tres o cuatro programadores**:
+- **Ya, en paralelo**: 0112, 0115, 0116, 0117 y 0124.
+- **(A) Main**: 0112 → 0113 ‖ 0114.
+- **(B) Piezas de interfaz**: 0118 (tras 0112), en paralelo con 0116 y 0117.
+- **Núcleo**: 0119.
+- **Después**: 0120 ‖ 0121 ‖ 0122. 0122 necesita la parte de desplazamiento de 0120 para cerrarse.
+- **Deuda**: 0124 → 0125, en cualquier hueco.
+- **Cierre**: 0123 y 0126 (manual).
+
+Los archivos compartidos van en este orden:
+- `shared/config.ts`: 0112 ‖ 0124 (bloques distintos);
+- `main/index.ts`: 0113 ‖ 0124 (bloques distintos);
+- `Editor.tsx`: 0118 → 0122;
+- `App.tsx` y `navegacion/estado.ts`: solo 0121;
+- `karaoke/render.ts` y `PantallaLetra`: solo 0116;
+- `karaoke/motorAudio.ts`: solo 0117.
+
+Deuda que se salda aquí:
+- "Probar a pantalla completa", tecla F y [▶ Reproducir] del toast (Fase 5 → 0121, 0122);
+- motor incompleto como `ERROR_INTERNO` (2026-11-06 → 0124, 0125);
+- nombre de la canción 18 de la semilla (0029 → 0115).
 
 ## Fase 7 — Empaquetado y distribución
 | Tarea | Título | Depende de | Estado |

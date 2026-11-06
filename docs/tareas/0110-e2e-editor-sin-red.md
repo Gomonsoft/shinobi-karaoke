@@ -38,7 +38,7 @@
 - [ ] **Marcar como lista** (canción 17 sincronizada):
   - vuelve a la Biblioteca con la tarjeta enfocada, la clase de resalte presente y el toast "«Editor: pista de clics» está lista para cantar.";
   - `estado: "lista"` en disco.
-- [ ] **No disponible** (canción 18): Voz e Instrumental inactivos con "Disponible cuando termine la separación (42 %)"; el popover de "Marcar como lista" muestra el motivo de la separación.
+- [ ] **No disponible** (canción 18): Voz e Instrumental inactivos con "Disponible cuando termine la separación (42 %)"; el popover de "Marcar como lista" muestra el motivo de la separación. *(Sustituido por la respuesta a [0029](../preguntas/0029-estado-de-la-semilla-separando-en-el-editor.md): con la semilla, la canción llega como separación interrumpida y el E2E comprueba «Disponible cuando se separen las pistas» y «Separar las pistas»/«Ir a Separación»; el porcentaje queda en los tests de componente.)*
 - [ ] **Lista incompleta** (canción 19): la insignia dice "Falta 1 línea"; la primera pulsación de "Hecho" abre el popover y [Salir igualmente] vuelve a la Biblioteca.
 - [ ] **Borrador guardado**: entrar en un borrador, cambiar algo y salir con ‹ Biblioteca → toast "Borrador guardado."; entrar y salir sin cambios → sin toast.
 - [ ] **Corregir la letra** → vista Letra en C con el stepper "Letra" con ✓ y `aria-current="step"` (0024); al volver, las líneas no modificadas conservan su tiempo.

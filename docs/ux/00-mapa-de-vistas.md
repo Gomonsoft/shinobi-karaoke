@@ -12,7 +12,7 @@
 | 4 | **Progreso del pipeline** (descarga, preparación, separación) | [04-progreso-pipeline.md](04-progreso-pipeline.md) | Paso 2 del espacio de canción + componentes globales (indicador de actividad, tarjeta) | Confirmar la fuente; "Continuar" de un borrador en ese paso; panel de actividad |
 | 5 | **Letra** (buscar en LRCLIB, elegir, pegar/importar, revisar) | [05-letra.md](05-letra.md) | Paso 3 del espacio de canción | Vista de progreso ("Buscar la letra mientras tanto"), stepper, "Continuar" |
 | 6 | **Editor** (sincronía + estilo + vista previa) | [06-editor.md](06-editor.md) | Paso 4 del espacio de canción | Letra ("Ir al editor"), stepper, "Continuar"/"Editar" desde la biblioteca |
-| 7 | **Reproductor** a pantalla completa | [07-reproductor.md](07-reproductor.md) | Superpuesta, pantalla completa | "Reproducir" en la biblioteca; "Probar a pantalla completa" en el editor |
+| 7 | **Reproductor** a pantalla completa | [07-reproductor.md](07-reproductor.md) | Superpuesta (la Biblioteca o el Editor siguen montados debajo), pantalla completa | "Reproducir" en la biblioteca (tarjeta, menú ⋯, toast «lista para cantar»); "Probar a pantalla completa" o F en el editor |
 | 8 | **Ajustes y Acerca de** | [08-ajustes-y-acerca.md](08-ajustes-y-acerca.md) | Vista secundaria | Botón ⚙ de la barra superior |
 
 Diálogos transversales (definidos en las specs que los originan): aviso legal de YouTube (03), confirmar cierre con trabajos (04), eliminar canción (02), volver a borrador (02/06), atajos de teclado (06/07).
@@ -89,7 +89,7 @@ flowchart TD
     EDI -- "Probar a pantalla completa" --> REP[7 · Reproductor]
     REP -- "Esc" --> EDI
 
-    BIB -- "▶ Reproducir (Lista)" --> REP2[7 · Reproductor]
+    BIB -- "▶ Reproducir (Lista)<br/>o toast «lista para cantar»" --> REP2[7 · Reproductor]
     REP2 -- "Esc / fin" --> BIB
     BIB -- "Continuar (Borrador)<br/>abre el paso actual" --> PROG & LET & EDI
     BIB -- "⋯ Editar (Lista)" --> EDI
@@ -184,6 +184,7 @@ Los códigos estables de `arquitectura.md §3` se traducen así (detalle y accio
 | `YOUTUBE_BLOQUEADO` | 03, 04 | "YouTube no permite la descarga ahora mismo" |
 | `MEMORIA_INSUFICIENTE` | 04 | "Tu equipo se quedó sin memoria" |
 | `MODELO_NO_DISPONIBLE` | 04 | "Falta el modelo de separación" |
+| `RUNTIME_NO_DISPONIBLE` | 01, 04 | "Hay que reparar el motor de audio" (acción [Reparar el motor de audio] en la vista de progreso; la tarjeta ofrece [Ver]) |
 | `interrumpido` (estado) | 02, 03, 04 | "Se interrumpió" |
 | `LETRA_NO_ENCONTRADA` | 05 | "No encontramos la letra" |
 | `INSTRUMENTAL` | 05 | "Esta canción es instrumental" |

@@ -59,10 +59,10 @@ Usuario/tarea principal: "Quiero cantar X" (reproducir) o "Quiero terminar/crear
 | Elemento | Comportamiento |
 |----------|----------------|
 | **+ Añadir canción** (primario, barra superior) | Abre la vista 03. Atajo Ctrl/Cmd+N. |
-| **Filtros** (control segmentado) | Todas / Listas / Borradores, con recuento. Persisten durante la sesión (la búsqueda, no: se vacía al volver a la vista). Las canciones **Dañadas** solo aparecen en *Todas* (no cuentan en Listas ni en Borradores); las listas incompletas cuentan en *Listas*. |
+| **Filtros** (control segmentado) | Todas / Listas / Borradores, con recuento. Persisten durante la sesión (la búsqueda, no: se vacía al volver a la vista; salir del reproductor no cuenta como volver, porque la Biblioteca se queda debajo y conserva la búsqueda). Las canciones **Dañadas** solo aparecen en *Todas* (no cuentan en Listas ni en Borradores); las listas incompletas cuentan en *Listas*. |
 | **Buscar** | Filtra en vivo por título y artista (sin distinguir mayúsculas ni tildes: "cancion" encuentra "Canción"). Ctrl/Cmd+F enfoca. Esc vacía el campo. |
 | **Tarjeta — clic en la portada / Intro con la tarjeta enfocada** | Lista → **Reproductor** (spec 07) directamente. Borrador → acción "Continuar". Dañada → abre el menú de recuperación. |
-| **▶ Reproducir** (botón de la tarjeta Lista y botón redondo superpuesto en la portada al pasar el ratón/enfocar) | Abre el reproductor a pantalla completa y empieza a sonar sin más pasos. |
+| **▶ Reproducir** (botón de la tarjeta Lista y botón redondo superpuesto en la portada al pasar el ratón/enfocar) | Abre el reproductor a pantalla completa y empieza a sonar sin más pasos (spec 07 §"Entrada"; si la primera línea entra antes de 6 s, tras un breve silencio con la pantalla de título). La Biblioteca se queda debajo: al salir del reproductor se conservan filtro, búsqueda y desplazamiento, y el foco vuelve a la tarjeta. Lo mismo hacen *Reproducir* del menú ⋯ y [▶ Reproducir] del toast `bib.toast.lista`. |
 | **Continuar** (Borrador) | Abre la vista del paso actual (tabla de [00-mapa-de-vistas §3](00-mapa-de-vistas.md)). |
 | **Reintentar** (Borrador con paso en error o interrumpido) | Relanza el trabajo del paso (fuente o separación) sin salir de la biblioteca; la tarjeta pasa a "En cola"/"En curso". También hay "Continuar" en el menú ⋯. |
 | **⋯ Menú de la tarjeta** | Lista: *Reproducir*, *Editar* (abre Editor), *Editar datos* (título/artista/álbum, diálogo), *Volver a borrador*, *Mostrar en la carpeta*, *Eliminar…*. Borrador: *Continuar*, *Editar datos*, *Cancelar trabajo* (si hay uno en curso o en cola), *Mostrar en la carpeta*, *Eliminar…*. Dañada: *Re-separar pistas* (si solo faltan pistas), *Mostrar en la carpeta*, *Eliminar…*. Abre también con la tecla Menú o Mayús+F10 sobre la tarjeta. |
@@ -92,7 +92,7 @@ Se muestra el **primer paso no completado** con prioridad para trabajos activos 
 | Separando | ⟳ Separando 42 % · quedan unos 3 min | barra |
 
 Tiempo restante en la tarjeta (`bib.eta`, forma corta): «quedan unos {n} min» (n ≥ 2) · «queda alrededor de 1 min» · «queda menos de 1 min». Sin estimación todavía no se muestra tiempo. «En cola» y los estados ⟳ (color `info`) **solo** con un trabajo vivo en el gestor; un paso `pendiente` persistido sin trabajo se muestra como «Falta …» en `texto-2` sin icono. El icono de «en cola» es `clock` (no ⏸, que sugiere una pausa del usuario).
-| Error de fuente o separación | ✕ {título del error} | botón Reintentar (o "Ver" si no es reintentable) |
+| Error de fuente o separación | ✕ {título del error} | botón Reintentar (o "Ver" si no es reintentable; p. ej. `RUNTIME_NO_DISPONIBLE` siempre muestra "Ver", spec 04) |
 | Interrumpido | ⚠ Interrumpido | botón Reintentar |
 | Sin letra | Falta la letra | botón Continuar |
 | Letra sin sincronizar del todo | Faltan {n} líneas por sincronizar | botón Continuar |
@@ -130,6 +130,7 @@ Una canción `lista` en la que, tras editarla, hay líneas (no pausas) sin tiemp
 | **Lista** | Insignia `exito` "✓ Lista". Botón "▶ Reproducir" (secundario con icono; en la portada, botón redondo 48 px). |
 | **Lista incompleta** | Como Lista + línea `aviso` "⚠ Faltan {n} líneas por sincronizar" (§"Lista incompleta"). |
 | **Éxito tras marcar como lista** | Al volver del editor, la tarjeta recibe el foco, se desplaza hasta quedar visible, se resalta durante 2 s (borde 2 px `exito`; sin transición con movimiento reducido) y aparece el toast "«{título}» está lista para cantar. [▶ Reproducir]". Si el filtro activo la ocultaría (*Borradores*), el filtro pasa a *Todas*. Detalle en spec 06 §"Volver a la Biblioteca". |
+| **Vuelta desde el reproductor** | Filtro, búsqueda y desplazamiento como estaban; foco en la tarjeta; sin toast. Los toasts que llegaron mientras se cantaba aparecen ahora (spec 07 §"Salida"). |
 | **Vuelta desde el editor** | Borrador con cambios en esa visita: toast `edi.toast.borrador` ("Borrador guardado."). "Hecho" en una Lista: tarjeta enfocada, sin resalte ni toast. Spec 06. |
 | **Lista recién eliminada** | Toast con el nombre; no hay "deshacer" en la app (se recupera desde la papelera del sistema). |
 
@@ -195,7 +196,7 @@ Revisión 2026-11-04 de los textos escritos en las tareas 0019/0020 sin estar en
 1. Al abrir la app con la instalación completa se muestra la Biblioteca con todas las canciones de `biblioteca/`, ordenadas por fecha de modificación descendente.
 2. Cada tarjeta muestra título, artista, duración (m:ss), insignia de estado con icono y texto (Lista / Borrador / Dañada) y, en borradores, la línea de paso según la tabla (singular con n = 1; las pausas no cuentan).
 2b. Una canción Lista con líneas sin inicio (indicador derivado `incompleta`) mantiene la insignia "✓ Lista", el botón "▶ Reproducir" y su sitio en el filtro *Listas*, y muestra la línea `bib.lista.incompleta` en color `aviso` con icono; al sincronizar todas las líneas la línea desaparece en vivo.
-3. En una canción Lista, un único clic en la portada o en "Reproducir" abre el reproductor a pantalla completa y empieza a sonar en menos de 1 s (spec 07).
+3. En una canción Lista, un único clic en la portada, en "Reproducir" (tarjeta, menú ⋯ o toast `bib.toast.lista`) o Intro con la tarjeta enfocada abre el reproductor a pantalla completa con su pantalla de título en < 200 ms y el instrumental suena en < 1 s (más el silencio previo si la primera línea entra antes de 6 s; spec 07, criterios 1, 2 y 6). Al salir del reproductor se conservan filtro, búsqueda y desplazamiento y el foco está en la tarjeta; si el reproductor no encontró el instrumental, la tarjeta ya aparece como Dañada (spec 07, criterio 22).
 4. En un borrador, "Continuar" abre la vista del paso actual según la tabla de [00-mapa-de-vistas §3](00-mapa-de-vistas.md).
 5. Las tarjetas con trabajos activos actualizan porcentaje y tiempo restante en vivo (≥ 1 vez cada 2 s) sin mover el foco ni reordenarse.
 6. Un borrador con un paso `error` o `interrumpido` muestra el aviso y un botón "Reintentar" que relanza el trabajo desde la propia biblioteca.

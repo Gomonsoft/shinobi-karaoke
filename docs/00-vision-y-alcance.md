@@ -36,6 +36,7 @@ Detalle en [`01-pipeline.md`](01-pipeline.md).
 
 ### 5. Reproductor
 - Pantalla completa: instrumental + letra sincronizada con el estilo definido.
+- **Voz guía** opcional: la voz separada suena sobre el instrumental con su propio volumen (de nada a mucha guía) y una tecla para silenciarla; el nivel se recuerda (decisión del usuario, pregunta 0030).
 
 ## Fuera de alcance (MVP)
 - Cuentas de usuario, nube, sincronización entre dispositivos.

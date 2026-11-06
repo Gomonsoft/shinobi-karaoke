@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-06 (cierre de la Fase 5).
+Última actualización: 2026-11-06 (desglose de la Fase 6).
 
 ## Resumen
 
@@ -18,7 +18,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 3 | Separación de voz e instrumental | ✅ Cerrada (0058 y 0062 esperan `runtime-real` en GitHub) |
 | 4 | Letras | ✅ Cerrada (0077–0089) |
 | 5 | Editor (sincronía y estilo) | ✅ Cerrada (0090–0110; 0111 manual pendiente) |
-| 6 | Reproductor a pantalla completa | ⏳ Siguiente |
+| 6 | Reproductor a pantalla completa | ⏳ Desglosada (0112–0126) |
 | 7 | Empaquetado y distribución | Pendiente |
 
 ```mermaid
@@ -142,16 +142,23 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Orden**: 0090 y 10 tareas independientes en paralelo → 0091, 0093, 0098, 0103 y 0104 → 0105 (vista) → 0106 → 0107, en paralelo con 0108 y 0109 → E2E 0110 y prueba manual 0111. Detalle en [`backlog.md`](backlog.md).
 
-**Resultado**: editor completo con sincronía al ritmo, ajuste fino, estilo con contraste, autoguardado y marcar como lista. Detalle en [`informe-fase-5.md`](informe-fase-5.md). Pendiente: prueba manual 0111 y pregunta 0029.
+**Resultado**: editor completo con sincronía al ritmo, ajuste fino, estilo con contraste, autoguardado y marcar como lista. Detalle en [`informe-fase-5.md`](informe-fase-5.md). Pendiente: prueba manual 0111. Pregunta 0029 respondida al empezar la Fase 6.
 
-## Fase 6 — Reproductor
-**Objetivo**: cantar (`ux/07`).
+## Fase 6 — Reproductor (desglosada el 2026-11-06: tareas 0112–0126, [ADR 0011](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md))
+**Objetivo**: cantar (`ux/07`, puesta al día para la fase).
 
-- Pantalla completa desde la Biblioteca con un clic, sobre el motor de audio y el render de la Fase 5.
-- "Probar a pantalla completa" desde el editor y [▶ Reproducir] en el toast de canción lista.
-- Instrumental y letra sincronizada: línea actual y siguiente, cuenta atrás antes de cada entrada.
-- Controles que se ocultan solos, atajos de teclado y volumen recordado.
-- Legible a unos 5 m en un televisor de 55".
+- Desde la Biblioteca (tarjeta, menú ⋯ o el toast «lista para cantar»), un clic abre el reproductor **encima** de la Biblioteca: la ventana pasa a pantalla completa y al salir vuelve a como estaba. Esc sale con una pulsación.
+- **Instrumental con voz guía**: la voz separada suena a un volumen propio, se silencia con una tecla y el nivel se recuerda (decisión del usuario, pregunta 0030).
+- Letra sincronizada: línea actual y siguiente, `●●●` antes de cada entrada. Si la letra empieza enseguida, hay unos segundos de silencio con el título para prepararse.
+- Controles que se ocultan solos, atajos de teclado, volumen compartido con el editor, pantalla final con vuelta automática y pantalla que no se apaga mientras suena.
+- Si faltan las pistas, se avisa y la canción pasa a Dañada al momento.
+- **Desde el editor**: "Probar a pantalla completa" (o F) sin perder nada del editor. El desplazamiento que se ajusta allí se deshace de una vez.
+- Legible a unos 5 m en un televisor de 55" (sin tope de tamaño de letra).
+- Deuda: un motor de audio incompleto ya no dice "Algo salió mal": ofrece "Reparar el motor de audio".
+
+**Preguntas**: 0029 y 0031 respondidas (arquitecto); 0030 decidida por el usuario (voz guía); [0032](preguntas/0032-textos-de-motor-de-audio-incompleto.md) respondida (diseñador UX). Sin preguntas abiertas.
+
+**Orden**: 0112, 0115, 0116, 0117 y 0124 a la vez → 0113 ‖ 0114 ‖ 0118 → 0119 (núcleo) → 0120 ‖ 0121 ‖ 0122 → E2E 0123 y prueba manual 0126 (0125 en cualquier hueco tras 0124). Detalle en [`backlog.md`](backlog.md).
 
 ## Fase 7 — Empaquetado y distribución
 **Objetivo**: que un usuario no técnico pueda instalarla.

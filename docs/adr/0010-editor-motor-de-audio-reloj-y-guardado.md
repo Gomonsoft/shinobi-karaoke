@@ -157,6 +157,7 @@ Hay que decidir:
 ## Revisiones
 
 - 2026-11-05 ([0027](../preguntas/0027-restaurar-tiempos-despues-del-autoguardado.md)). Se conserva en el main la referencia temporal de la visita para restaurar palabras y pausas después del autoguardado. El historial sigue en el renderer y el esquema de disco conserva la versión 1. La 0091 incorpora `abrirEdicion`, `cerrarEdicion` y el UUID obligatorio en `guardarTiempos`, con los ajustes de IPC, preload y doble de pruebas de 0090. La 0104 liga el envío de tiempos a la visita y la 0105 abre y cierra esa visita. En 0110 se comprueba la restauración después de que el borrado se haya guardado en disco.
+- 2026-11-06 (Fase 6, [ADR 0011](0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md)). El reproductor **no** usa `MotorAudio`: tiene un `MotorReproductor` propio que reproduce el instrumental y la voz a la vez, con ganancias separadas (voz guía, pregunta 0030), y admite posiciones negativas para el silencio previo. `MotorAudio` solo gana `liberarAudio()`, para que el editor libere sus buffers mientras "Probar a pantalla completa" está abierto. `render.ts` muestra siempre `●●●` antes de la primera línea, y `PantallaLetra` pierde el tope de 140 px (sistema-visual §10). El volumen del editor pasa a `karaoke/useVolumenCompartido.ts`. Lo de "Fuera de esta fase" queda resuelto en la Fase 6.
 
 ## Fuentes
 - `AudioContext.getOutputTimestamp()` (MDN, consultado el 2026-11-05): https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/getOutputTimestamp

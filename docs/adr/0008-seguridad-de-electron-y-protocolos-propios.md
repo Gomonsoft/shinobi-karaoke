@@ -50,6 +50,7 @@ Se mantienen como están: `SHINOBI_DATOS` también en builds empaquetados (útil
 ## Revisiones
 - 2026-11-04: creado en la revisión de cierre de la Fase 1 (tareas 0021 y 0022).
 - 2026-11-04: pregunta 0011 — el origen de medios se detecta por `Origin` o `request.referrer` (punto 2); nuevo punto 10 (aislamiento por sesión para contenido no confiable). Sin tarea nueva.
+- 2026-11-06 (ADR 0011, tarea 0113): el reproductor pone la **ventana** a pantalla completa desde el main (`BrowserWindow.setFullScreen`) y no usa la API Fullscreen del DOM. Se retira `fullscreen` de los permisos concedidos del punto 5: solo queda `clipboard-sanitized-write`. Los canales nuevos `ventana.*` y `biblioteca.comprobarPistas` siguen las reglas del punto 4 (Zod y remitente).
 
 ## Fuentes
 - Electron — Security checklist (contexto aislado, sandbox, permisos, navegación, `file://` frente a protocolos propios, validar el remitente de IPC): https://www.electronjs.org/docs/latest/tutorial/security

@@ -315,6 +315,7 @@ B6b solo la ven los Mac con chip Apple en macOS 11–13 (todos pueden actualizar
 | Interrumpido / reanudación | B5 al reabrir; también si se pierde la conexión y se recupera, B4 → Reintentar. |
 | Actualización de yt-dlp (arranques posteriores) | **Automática, nunca se ofrece ni se pregunta** ([0013](../preguntas/0013-huecos-ux-de-la-fase-2.md) §1). La semanal es invisible. La que sigue a un bloqueo de YouTube solo se ve como texto de reintento en la operación que la provocó (`add.reintento.ytdlp` en spec 03, `prog.reintento.ytdlp` en spec 04). |
 | Instalación dañada en un arranque posterior (falta el venv o el modelo) | Se vuelve a B5 con título "Hay que reparar el motor de audio" y botón "Reparar". |
+| Instalación dañada a mitad de sesión (separación con `RUNTIME_NO_DISPONIBLE`) | Desde [Reparar el motor de audio] de la vista de progreso (spec 04) se abre la misma B5 "Hay que reparar el motor de audio", con los mismos textos y sin acceso a otras vistas hasta terminar. B3 → "Empezar" vuelve a la Biblioteca (no vacía: con las canciones del usuario). Si el usuario cierra la app en B5, al reabrir arranca en B5 (`dañada`). |
 | Verificando una instalación existente | B0 (3–5 s), luego Biblioteca o B5. |
 | Plataforma no compatible | B6. |
 | macOS por debajo del mínimo (procesador compatible) | B6b. |
@@ -414,6 +415,7 @@ B6b solo la ven los Mac con chip Apple en macOS 11–13 (todos pueden actualizar
 10. Los lectores de pantalla reciben anuncios en cada cambio de fase, cada 25 % del total, en error y al terminar (no en cada evento de progreso).
 11. "Empezar" abre la Biblioteca en estado vacío (spec 02).
 12. Si en un arranque posterior falta el entorno o el modelo, se muestra la variante "Hay que reparar el motor de audio" en lugar de la Biblioteca.
+12b. Abierta a mitad de sesión desde [Reparar el motor de audio] (spec 04, `RUNTIME_NO_DISPONIBLE`), B5 muestra `pa.reparar.titulo` y `pa.reparar.cuerpo`; al terminar, "Empezar" abre la Biblioteca con las canciones existentes.
 13. La guía de instalación (Parte A) está publicada en la página de descarga/README con los textos de los botones de sistema indicados y una captura por SO antes de la primera versión pública.
 14. Si hay que verificar una instalación existente (estado distinto de `completa` con marcador válido), se muestra B0 sin botones: nada visible salvo fondo y logotipo los primeros 300 ms, después `pa.comprobando.*` con barra indeterminada y, a los 15 s, `pa.comprobando.lento`. Si la verificación pasa, se abre directamente la Biblioteca (sin B3); si falta solo el modelo, B5 "Continuamos donde lo dejamos"; si el entorno no vale o la verificación falla de forma inesperada, B5 "Hay que reparar el motor de audio". Cerrar la ventana durante B0 cierra la app sin diálogo.
 15. En una plataforma sin requisitos en el manifiesto se muestra B6 (no B1 ni B4): banner `error` con `pa.nocompat.cuerpo` y `pa.nocompat.equipo`, botones "Pedir soporte para mi equipo", "Copiar detalles" y "Salir" (foco inicial), enlace Licencias; no existe "Preparar" ni acceso a otras vistas.

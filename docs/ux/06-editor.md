@@ -5,7 +5,7 @@
 - Restricciones: [arquitectura.md §7 y "Restricciones e implicaciones para UX" §5–§6](../arquitectura.md)
 - Sistema visual: [sistema-visual.md §6–§10](sistema-visual.md) (componentes, foco, estilo predeterminado, reglas de contraste, valores fijos de render)
 - Preguntas: [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md) (usuario: **sincronía solo por línea** en el MVP), [0004](../preguntas/0004-fuentes-tipograficas-incluidas-y-del-sistema.md) (solo fuentes incluidas), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (pausas, fin automático, precisión del toque, lista incompleta), [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (stepper y volver a Letra), [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) (detalles técnicos de la Fase 5; respondida: pantalla completa en la Fase 6, desplazamiento ±30 s, el tono baja con la velocidad, un solo volumen, API de guardado), [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md) (letra recargada y regla de "color más claro"; respondida)
-- Revisión: 2026-11-05, puesta al día para la Fase 5 (ver "Cambios de esta revisión" al final).
+- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final).
 
 ## Objetivo
 Dejar la letra **a tiempo** con la música y darle un **estilo** propio con las opciones mínimas del MVP (fondo, color de letra, color de lo ya cantado, fuente), viendo el resultado en todo momento, y marcar la canción como **lista**.
@@ -258,7 +258,7 @@ Si hay varios ⚠ se muestran todos, en el orden de la tabla. Cada acción rápi
 
 ### Vista previa
 - Área 16:9 con el motor de render compartido con el reproductor y los valores fijos de [sistema-visual §10](sistema-visual.md) escalados a su alto; fondo y fuente del estilo actual. Se actualiza en < 100 ms tras cada cambio de estilo, tiempo o desplazamiento.
-- **Reproduciendo**: dibuja lo que vería el reproductor en esa posición (línea actual y siguiente, barrido o resaltado por palabra, indicador de entrada `●●●`, pantalla de título antes de la primera línea). Las líneas sin inicio se omiten; las pausas no se dibujan. No muestra el aviso `rep.incompleta`.
+- **Reproduciendo**: dibuja lo que vería el reproductor en esa posición (línea actual y siguiente, barrido o resaltado por palabra, indicador de entrada `●●●`, pantalla de título antes de la primera línea; `●●●` siempre antes de la primera línea, desde la Fase 6, sistema-visual §10). Sin el silencio previo del reproductor, que solo existe a pantalla completa. Las líneas sin inicio se omiten; las pausas no se dibujan. No muestra el aviso `rep.incompleta`.
 - **En pausa**: muestra la línea seleccionada (aunque no tenga tiempo) con la **mitad resaltada** y la siguiente línea debajo, para juzgar ambos colores. Si no hay selección, la primera línea.
 - Es decorativa para lectores de pantalla (`aria-hidden`), con una descripción `edi.previa.aria` en la región.
 
@@ -278,13 +278,16 @@ Si hay varios ⚠ se muestran todos, en el orden de la tabla. Cada acción rápi
 ### Volver a la Biblioteca tras "Marcar como lista"
 1. La Biblioteca se abre con el filtro de la sesión; si es *Borradores* (ocultaría la canción), pasa a *Todas*. La búsqueda ya está vacía (spec 02).
 2. La tarjeta de la canción se desplaza hasta quedar visible, recibe el foco y se resalta 2 s con borde 2 px `exito` (aparece y desaparece con 200 ms de fundido; sin fundido con movimiento reducido).
-3. Toast `bib.toast.lista` "«{título}» está lista para cantar." con [▶ Reproducir], que abre el reproductor (spec 07) como el botón de la tarjeta. En la Fase 5 (sin reproductor) el toast sale **sin** [▶ Reproducir]; la acción llega con la Fase 6 ([0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) §1).
+3. Toast `bib.toast.lista` "«{título}» está lista para cantar." con [▶ Reproducir], que abre el reproductor (spec 07) como el botón de la tarjeta y cierra el toast (desde la Fase 6; en la Fase 5 salía sin acción, [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) §1). Como tiene acción, no desaparece solo a los 6 s (sistema-visual §6).
 
 ### Probar a pantalla completa
-- Botón bajo la vista previa o **F**. Abre el reproductor (spec 07) desde el tiempo mostrado de la línea seleccionada − 3 s (o desde la posición actual si la línea no tiene inicio), con el estilo actual y el desplazamiento actual.
-- Suena el instrumental si existe; si no, la mezcla original con la etiqueta `edi.probar.original` siempre visible.
-- Esc vuelve al editor en la misma posición, en pausa. Un cambio de desplazamiento hecho allí (, / .) se guarda en la canción y se ve al volver.
-- **Fase 6** ([0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) §1): llega con el reproductor. En la Fase 5 el botón no se muestra (tampoco su hueco en los wireframes A y B) y la tecla F no hace nada ni aparece en el diálogo de atajos.
+Llega con la Fase 6 ([0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) §1). Detalle del lado del reproductor en spec 07 §"Prueba desde el editor".
+- Botón secundario con icono ⛶ bajo la vista previa (ancho de la vista previa en A, alineado a la izquierda en B) o **F**. Vacía el guardado pendiente (como al salir; si falla, `edi.dialogo.salir` con "Quedarme en el editor" y "Salir sin guardarlos" = abrir igualmente) y abre el reproductor **encima** del editor, que se queda montado: no se pierden el historial de deshacer, la selección, la pista ni la velocidad.
+- Usa la letra, el estilo y el desplazamiento **en memoria** del editor. Empieza en `máx(0, tiempo mostrado de la línea seleccionada − 3 s)`, o en la posición actual si la línea no tiene inicio. Siempre a 1×.
+- Suena el instrumental si la separación está completada; si no, la mezcla original con la etiqueta `rep.original` siempre visible.
+- **Disponibilidad**: inactivo (como el resto) durante el modo sincronizar y en el estado "Error de audio". Sin ninguna línea con inicio: `aria-disabled="true"`, sigue enfocable y muestra el tooltip `edi.probar.sinlineas`; F no hace nada. Mientras carga el audio del editor sí se puede pulsar (el reproductor muestra su propio "Cargando…").
+- **, / .** en el reproductor cambian el desplazamiento; cada cambio pasa al estado del editor (se autoguarda igual) y todos los de una misma prueba son **un** paso de deshacer.
+- **Al volver** (Esc, ✕ o pantalla final del reproductor): en pausa, con el cabezal en la posición en que estaba el reproductor; la línea seleccionada pasa a ser la que sonaba (o la última que había empezado) y la lista se desplaza hasta ella (si no había empezado ninguna, la selección no cambia); misma pista y velocidad que antes; foco en "Probar a pantalla completa".
 
 ## Atajos de teclado
 Diálogo "Atajos de teclado" con **F1** o **?** (y desde ⋯). Los atajos de una tecla no actúan con el foco en un campo de texto (tiempos, hex, ángulo, desplazamiento). Las flechas **sin modificador** las usa el control enfocado si las necesita (barra de tiempo, volumen, dial, controles segmentados, selector de fuente); con Alt, Ctrl/Cmd o Mayús son siempre del editor salvo en campos de texto. Todos llaman a `preventDefault` para que el sistema no los use (p. ej. Alt + ← no navega).
@@ -307,7 +310,7 @@ Diálogo "Atajos de teclado" con **F1** o **?** (y desde ⋯). Los atajos de una
 | , / . | Desplazamiento de toda la letra −/+ 100 ms |
 | 1 / 2 / 3 | Escuchar Original / Voz / Instrumental |
 | Ctrl/Cmd + Z · Ctrl/Cmd + Mayús + Z (Ctrl + Y) | Deshacer · Rehacer |
-| F | Probar a pantalla completa (desde la Fase 6) |
+| F | Probar a pantalla completa |
 | F1 / ? | Atajos de teclado |
 
 Notas: el fin usa Ctrl/Cmd y no Ctrl + Alt porque Ctrl + Alt + flechas gira la pantalla con algunos controladores gráficos de Windows. Los corchetes `[ ]` de la versión anterior se sustituyen por `, .` porque en el teclado español exigen AltGr.
@@ -439,7 +442,9 @@ Notas: el fin usa Ctrl/Cmd y no Ctrl + Alt porque Ctrl + Alt + flechas gira la p
 | `edi.lista.incompleta` | Lista · ⚠ Faltan {n} líneas · (n = 1) Lista · ⚠ Falta 1 línea |
 | `edi.hecho.incompleta` | Esta canción está lista, pero faltan {n} líneas por sincronizar. Al cantarla no aparecerán. — [Sincronizar ahora] [Salir igualmente] · (n = 1) …pero falta 1 línea por sincronizar. Al cantarla no aparecerá. |
 | `edi.boton.probar` | Probar a pantalla completa |
-| `edi.probar.original` | Vista previa con la canción original (la separación aún no ha terminado) |
+| `edi.probar.original` | Sustituida por `rep.original` (spec 07): «Vista previa con la canción original: aún no hay pista instrumental.» |
+| `edi.probar.sinlineas` | Sincroniza al menos una línea para probarla. |
+| `edi.probar.tooltip` | Probar a pantalla completa (F) |
 | `edi.error.audio` | No se puede reproducir el audio de esta canción. — [Ver en Biblioteca] |
 | `edi.sinletra` | Esta canción aún no tiene letra. — [Buscar la letra] |
 | `edi.aria.linea` | Línea {n}, {tiempo}, {texto} · (sin inicio) Línea {n}, sin sincronizar, {texto} |
@@ -471,7 +476,7 @@ Formato de números: coma decimal ("0,5×", "+0,25 s"), tiempos `mm:ss.cc` con p
 15. Mantener Intro ≥ 300 ms fija el fin de esa línea al soltar (limitado al siguiente elemento con tiempo); soltar antes deja el fin automático.
 16. Retroceso deshace la última marca de la pasada, devuelve "Siguiente" a esa línea y salta a 3 s antes de la marca deshecha; sin marcas no hace nada.
 17. Clic en una fila durante el modo la convierte en "Siguiente"; perder el foco de la ventana pausa; Esc sale conservando lo marcado y deja seleccionada la línea que era "Siguiente"; al final de la canción el modo termina solo.
-18. Durante el modo, el panel Estilo, el ajuste fino, Supr, I/O/L, ↑/↓ (y, desde la Fase 6, "Probar a pantalla completa") no responden, y la vista previa resalta en vivo.
+18. Durante el modo, el panel Estilo, el ajuste fino, Supr, I/O/L, ↑/↓, "Probar a pantalla completa" y F no responden, y la vista previa resalta en vivo.
 19. Con salida Bluetooth no se exige precisión: al salir del modo por primera vez en la sesión aparece `edi.ayuda.bluetooth`, cerrable y que no vuelve a salir en la sesión.
 
 **Ajuste fino, fin y desplazamiento**
@@ -501,13 +506,13 @@ Formato de números: coma decimal ("0,5×", "+0,25 s"), tiempos `mm:ss.cc` con p
 35. Salir del editor por cualquier vía vacía el guardado pendiente antes de navegar y no pide confirmación; solo si ese guardado falla aparece `edi.dialogo.salir`, con el foco en "Quedarme en el editor".
 36. Al volver a la Biblioteca desde un borrador con cambios en la visita aparece `edi.toast.borrador`; sin cambios, ninguno.
 37. "Marcar como lista" solo cambia el estado si la separación está completada, hay ≥ 1 línea y todas las líneas tienen inicio; si no, es `aria-disabled` y al pulsarlo o enfocarlo muestra el popover con cada motivo (en curso con %, en cola, separar con [Ir a Separación], líneas con [Ir a la primera]), actualizado en vivo.
-38. Tras marcar como lista, la Biblioteca enfoca la tarjeta, la desplaza a la vista, la resalta 2 s con borde `exito`, pasa el filtro a *Todas* si era *Borradores* y muestra `bib.toast.lista` (en la Fase 5 sin acción; con [▶ Reproducir] desde la Fase 6).
+38. Tras marcar como lista, la Biblioteca enfoca la tarjeta, la desplaza a la vista, la resalta 2 s con borde `exito`, pasa el filtro a *Todas* si era *Borradores* y muestra `bib.toast.lista` con [▶ Reproducir], que abre el reproductor (en la Fase 5 salía sin acción).
 39. En una Lista, "Hecho" vuelve a la Biblioteca con la tarjeta enfocada; si está incompleta, la primera pulsación muestra `edi.hecho.incompleta` con sus dos acciones y el estado guardado no cambia.
 40. "Volver a borrador…" del menú ⋯ (solo en Lista) pide la confirmación de spec 02 y deja la canción en borrador sin salir del editor ni cambiar letra o estilo.
 41. Los estados de la tabla (sin sincronizar, ya sincronizada, cargando audio, separación en curso/pendiente, error de audio) se muestran con sus textos; el banner `edi.banner.yasync` se cierra con ✕ o con el primer cambio de tiempos.
 
 **Pantalla completa y teclado**
-42. (Se verifica en la Fase 6; en la Fase 5 el botón no aparece y F no hace nada.) "Probar a pantalla completa" (o F) abre el reproductor desde la línea seleccionada − 3 s con el estilo y el desplazamiento actuales, con el instrumental o la mezcla y la etiqueta `edi.probar.original`; Esc vuelve al editor en la misma posición y en pausa.
+42. (Fase 6.) "Probar a pantalla completa" (o F) vacía el guardado y abre el reproductor desde `máx(0, línea seleccionada − 3 s)` con la letra, el estilo y el desplazamiento en memoria, con el instrumental o la mezcla y la etiqueta `rep.original`; sin ninguna línea con inicio es `aria-disabled` con `edi.probar.sinlineas`; Esc vuelve al editor en pausa, con el cabezal en la posición del reproductor, la línea que sonaba seleccionada, la misma pista, velocidad e historial, y el foco en el botón; los cambios de , / . hechos en el reproductor se ven, se autoguardan y se deshacen en un paso (spec 07, criterios 27–30).
 43. Todas las acciones son operables con teclado; F1 o ? abren el diálogo de atajos con la tabla de esta spec; los atajos de una tecla no actúan en campos de texto y Alt + ← no provoca navegación.
 44. La lista expone a lectores de pantalla `edi.aria.linea` por línea, las pausas como separadores y solo se anuncian los hitos indicados en "Accesibilidad".
 45. Con una letra de 1000 líneas la lista se desplaza con fluidez y marcar una línea actualiza fila, contador y vista previa sin retraso perceptible (< 100 ms).
@@ -528,6 +533,12 @@ Respecto a la versión de la Fase 0, sin cambiar el alcance:
 - Estilo: paradas siempre ordenadas, acciones de contraste cuando ni blanco ni negro bastan, "Usar este estilo…" inactivo si ya es el predeterminado.
 - Criterios renumerados (1–45).
 - Tras las respuestas a [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) y [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md): "Probar a pantalla completa", la tecla F y la acción [▶ Reproducir] del toast pasan a la Fase 6; tooltip de velocidad con una sola variante (el tono baja); un solo volumen; API de guardado de ADR 0010; recarga por `LETRA_DESACTUALIZADA` con `edi.toast.recargada`; regla de la variante de luminosidad (L ± 30 en HSL). Criterios 46–48 añadidos.
+
+### Revisión 2026-11-06 (Fase 6)
+- "Probar a pantalla completa" y F activos: vaciado del guardado, reproductor encima del editor con la instantánea en memoria, disponibilidad (`edi.probar.sinlineas`), desplazamiento desde el reproductor como un paso de deshacer y vuelta con cabezal y selección en la línea que sonaba.
+- `edi.probar.original` sustituida por `rep.original`; `bib.toast.lista` con [▶ Reproducir].
+- La vista previa muestra `●●●` siempre antes de la primera línea (mismo cambio de render que el reproductor).
+- Criterios 18, 38 y 42 actualizados.
 
 ## Fuera del MVP — ampliación futura: sincronía por palabra
 Decisión del usuario ([0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md)): el MVP solo ofrece herramientas **por línea**; las palabras con tiempos que lleguen de LRCLIB o de un LRC mejorado se **muestran** (◆ en la fila, resaltado por palabra en la vista previa) y se **conservan**, pero no se editan. Esta sección **no se implementa en el MVP**; describe cómo ampliar el diseño en una versión posterior sin rehacer la vista:

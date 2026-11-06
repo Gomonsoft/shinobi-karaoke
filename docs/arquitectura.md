@@ -10,9 +10,10 @@
 > [0007 Herramientas de desarrollo](adr/0007-herramientas-de-desarrollo-y-calidad.md) ·
 > [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md) ·
 > [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md) ·
-> [0010 Editor: audio, reloj y guardado](adr/0010-editor-motor-de-audio-reloj-y-guardado.md)
+> [0010 Editor: audio, reloj y guardado](adr/0010-editor-motor-de-audio-reloj-y-guardado.md) ·
+> [0011 Reproductor: pantalla completa, voz guía y capas](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md)
 >
-> Última revisión: 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -22,7 +23,7 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | Componente | Proceso | Tecnología | Responsabilidades |
 |-----------|---------|-----------|-------------------|
 | **Renderer (UI)** | Renderer de Electron (sandbox, `contextIsolation`) | React + TS | Vistas: primer arranque, biblioteca, añadir canción, progreso, letra, editor, reproductor a pantalla completa. Reproducción y render de letra sincronizada (Web Audio + DOM/CSS). No toca el disco ni la red directamente. |
-| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4; en la Fase 5, `letras.guardarTiempos`, `biblioteca.guardarEstilo`, `biblioteca.marcarLista` y `app.guardadoPendiente`), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
+| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4; en la Fase 5, `letras.guardarTiempos`, `biblioteca.guardarEstilo`, `biblioteca.marcarLista` y `app.guardadoPendiente`; en la Fase 6, `ventana.*` (modo reproductor, pantalla completa, pantalla encendida) y `biblioteca.comprobarPistas`), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
 | **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/` con índice en memoria (id = nombre de carpeta), CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor, vía `main/persistencia/`), reglas de estado (ADR 0006), eventos `cancion:cambiada`. |
 | **Servicio de configuración y registro** | Main | TS | `config.json` (lectura tolerante, actualización parcial validada, suscripciones), estructura del directorio de datos y registro rotado `registros/app.log`. |
 | **Gestor de trabajos** | Main | TS | Cola de trabajos en segundo plano, lanzamiento del worker, lectura de JSON Lines, progreso/ETA, cancelación (matar árbol de procesos), recuperación de trabajos interrumpidos. |
@@ -180,17 +181,18 @@ shinobi-karaoke/
 │       │   ├── fuente/           # (Fase 2) importación de archivo local y servicio de YouTube
 │       │   ├── separacion/       # (Fase 3) servicio de separación: encolar, args, pistas, reintentos, oferta de Rápido
 │       │   ├── avisos/           # (Fase 3) notificaciones del sistema, Dock y barra de tareas
-│       │   └── letras/           # (Fase 4) cliente LRCLIB, búsqueda y candidatos, Lyricsfile (yaml), servicio de letras (guardar, editar, importar)
+│       │   ├── letras/           # (Fase 4) cliente LRCLIB, búsqueda y candidatos, Lyricsfile (yaml), servicio de letras (guardar, editar, importar)
+│       │   └── ventana/          # (Fase 6) modo reproductor: pantalla completa con estado previo, zoom del menú, powerSaveBlocker
 │       ├── preload/
 │       │   └── index.ts          # contextBridge con API tipada (sin exponer ipcRenderer)
 │       └── renderer/
 │           ├── index.html        # CSP
 │           └── src/
-│               ├── vistas/       # biblioteca/ (Fase 1), Muestrario (solo dev); PrimerArranque, AnadirCancion, Letra, Editor, Reproductor
+│               ├── vistas/       # biblioteca/ (Fase 1), Muestrario (solo dev); PrimerArranque, AnadirCancion, Letra, Editor, reproductor/ (componente, modelo, atajos, capa de la Biblioteca)
 │               ├── componentes/  # componentes base (0016), CSS Module con tokens
-│               ├── navegacion/   # estado de navegación propio, marco, atajos, indicador de actividad, arrastrar archivos
+│               ├── navegacion/   # estado de navegación propio, marco, atajos, indicador de actividad, arrastrar archivos, capa del reproductor (Fase 6)
 │               ├── trabajos/     # estado de trabajos vivos (useTrabajos)
-│               ├── karaoke/      # estilo → CSS; motorAudio, reloj, render, PantallaLetra, contraste (Fase 5; reproductor en la 6)
+│               ├── karaoke/      # estilo → CSS; motorAudio (editor), motorReproductor (Fase 6: instrumental + voz guía), reloj, render, PantallaLetra, contraste, useVolumenCompartido
 │               └── estilos/      # tokens del sistema visual (variables CSS) y @font-face (las de la letra se generan desde shared/fuentes.ts)
 ├── worker/                       # worker Python
 │   ├── pyproject.toml            # dependencias: yt-dlp[default], deno, av, soundfile, pyloudnorm, audio-separator[...]
@@ -256,11 +258,18 @@ Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acce
 
 ## 7. Reproducción y render de la letra
 - Motor compartido por **editor y reproductor** (`renderer/src/karaoke/`).
-- Audio con **Web Audio API**: el FLAC se decodifica en un `AudioBuffer` (~80–90 MB en memoria para 4 min, aceptable), `GainNode` con `ganancia_db`. Reloj = `AudioContext.currentTime` corregido con `outputLatency`, más `letra.offset_ms`. El reproductor reproduce **solo el instrumental**; el editor puede alternar mezcla original / voz / instrumental.
+- Audio con **Web Audio API**: el FLAC se decodifica en un `AudioBuffer` (~80–90 MB en memoria para 4 min, aceptable), `GainNode` con `ganancia_db`. Reloj = `AudioContext.currentTime` corregido con `outputLatency`, más `letra.offset_ms`. El reproductor reproduce el **instrumental con la voz guía** a un volumen propio (Fase 6); el editor puede alternar mezcla original / voz / instrumental.
 - Render en **DOM + CSS** con `requestAnimationFrame`: línea actual y siguiente(s); resaltado por palabra o barrido progresivo de línea (ADR 0005) usando capas con `clip-path`/`background-clip: text`; fondo con `linear-gradient`. Valores fijos de render en `docs/ux/sistema-visual.md` §10. Fin de cada línea con `finEfectivo` (ADR 0005); las líneas sin inicio se omiten; las pausas no se dibujan.
-- Pistas: "Original" = `fuente/mezcla.flac`, "Voz", "Instrumental". El reproductor usa el instrumental (o la mezcla en la vista previa desde el editor si aún no hay pistas). Volumen del usuario en `config.reproductor` (se aplica tras `ganancia_db`).
+- Pistas: "Original" = `fuente/mezcla.flac`, "Voz", "Instrumental". El reproductor usa el instrumental más la voz guía (o la mezcla en la vista previa desde el editor si aún no hay pistas). Volumen del usuario en `config.reproductor` (`volumen`, `silenciado`, `voz_guia`, `voz_guia_silenciada`; se aplica tras `ganancia_db`).
 - **Toque al ritmo**: tiempo de la pulsación = `KeyboardEvent.timeStamp` → tiempo del `AudioContext` (`getOutputTimestamp()`) − latencia de salida → tiempo de canción según la velocidad. Velocidades < 1× cambian el tono en el MVP (ADR 0005).
-- Pantalla completa con la Fullscreen API / `BrowserWindow.setFullScreen`.
+- **Reproductor (Fase 6, [ADR 0011](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md))**:
+  - **Capa, no vista**: el componente `vistas/reproductor/Reproductor.tsx` se monta como capa modal (`aria-modal`, resto `inert`) encima de la Biblioteca (contexto `navegacion/reproductor.tsx` en `App`) o del editor ("Probar a pantalla completa"). La vista de origen no se desmonta.
+  - **Pantalla completa de la ventana** desde el main (`main/ventana/modoReproductor.ts`, `setFullScreen`). Al salir restaura el estado previo (normal, maximizada o pantalla completa), y el zoom del menú queda desactivado mientras tanto. Esc llega a la página: una pulsación sale. Sin API Fullscreen del DOM.
+  - **Pantalla encendida**: `powerSaveBlocker('prevent-display-sleep')` mientras suena.
+  - **Audio**: `karaoke/motorReproductor.ts`. Instrumental y voz guía (`voz.flac`) arrancan en el mismo instante del `AudioContext` con ganancias separadas (`config.reproductor.voz_guia`/`voz_guia_silenciada`, decisión del usuario en `preguntas/0030`). En la vista previa sin pistas suena la mezcla original. Las posiciones negativas sirven para el silencio previo (`6 s − t1` si la primera línea entra antes de 6 s). Errores por pista: `no_encontrada`/`lectura`/`decodificacion`.
+  - **Dañada al momento**: `biblioteca.comprobarPistas(id)` si el instrumental no se encuentra.
+  - **Desde el editor**: el editor libera sus buffers (`MotorAudio.liberarAudio()`) y pasa su instantánea en memoria. El desplazamiento `,`/`.` es un solo paso de deshacer, y al volver el editor busca la posición del reproductor.
+  - Toasts retenidos mientras el reproductor está abierto (`retenerToasts`).
 - **Editor (Fase 5, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md))**:
   - **Audio**: `karaoke/motorAudio.ts`. Las pistas se decodifican bajo demanda (`fetch` de `shinobi-media://` + `decodeAudioData`), con un máximo de 2 `AudioBuffer` (LRU), `playbackRate` para la velocidad y `GainNode` con `ganancia_db` × volumen del usuario.
   - **Reloj**: `karaoke/reloj.ts`. Con `getOutputTimestamp()` el instante oído es `contextTime + (tEvento − performanceTime)/1000`, sin restar otra vez la latencia; sin él, se usa `currentTime − (outputLatency + baseLatency)`. Tiempo de canción = anclaje + Δctx × velocidad.
@@ -275,7 +284,7 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 - CSP en `renderer/index.html`: `default-src 'self'`, `script-src 'self'` (sin `unsafe-eval`), `style-src 'self' 'unsafe-inline'`, `media-src`/`img-src`/`connect-src` admiten `shinobi-media:`, `object-src 'none'`, `base-uri 'none'`, `form-action 'none'`. El renderer nunca inserta HTML sin escapar.
 - Origen del renderer: `shinobi-app://app` en producción (no `file://`) y el servidor de Vite en desarrollo (tarea 0022). `shinobi-media://` solo sirve 4 rutas por canción dentro de `biblioteca/<id>/` (`realpath`, sin symlinks que escapen) y su CORS solo admite ese origen.
 - IPC: todos los argumentos se validan con Zod en main; errores como `{ codigo, mensaje }` sin detalles internos; remitente comprobado (ventana de la app y *frame* principal del origen del renderer, tarea 0021).
-- Navegación y ventanas nuevas bloqueadas en todos los `webContents`; enlaces externos solo a la lista blanca `ENLACES_PERMITIDOS` (`lrclib.net`, `github.com/Gomonsoft/shinobi-karaoke`, `support.apple.com/es-es/108382` para B6b), tanto por IPC como por navegación; sin `<webview>`; permisos de Chromium denegados salvo pantalla completa y escribir en el portapapeles; una sola instancia de la app.
+- Navegación y ventanas nuevas bloqueadas en todos los `webContents`; enlaces externos solo a la lista blanca `ENLACES_PERMITIDOS` (`lrclib.net`, `github.com/Gomonsoft/shinobi-karaoke`, `support.apple.com/es-es/108382` para B6b), tanto por IPC como por navegación; sin `<webview>`; permisos de Chromium denegados salvo escribir en el portapapeles (`fullscreen` se retira en la Fase 6: la pantalla completa la pide el main); una sola instancia de la app.
 - Empaquetado con *fuses* restrictivos (ADR 0008, tarea 0025).
 - Las URLs de YouTube se validan en main antes de pasarlas al worker; argumentos siempre como JSON (nunca concatenados en un shell; `shell: false`).
 - Sin telemetría.
@@ -351,7 +360,7 @@ Implicaciones:
 - **Contraste**: la app no impide combinaciones ilegibles (letra/resaltado/fondo); la UX puede querer avisos de contraste o paletas sugeridas.
 - **Autoguardado** continuo: no hay pérdida de cambios; "Guardar borrador" es una acción de tranquilidad/salida, no un requisito técnico.
 - **Marcar como lista** solo es posible si: existen ambas pistas y todas las líneas (no pausas) tienen tiempo de inicio. La UX debe explicar qué falta cuando no se puede. Una canción lista no vuelve sola a borrador (indicador derivado "incompleta").
-- **Reproductor**: solo instrumental + letra + estilo, a pantalla completa; reproducción inmediata. Volumen igualado entre canciones (normalización de sonoridad).
+- **Reproductor**: instrumental + voz guía con volumen propio (silenciable; `preguntas/0030`) + letra + estilo, a pantalla completa; reproducción inmediata. Volumen igualado entre canciones (normalización de sonoridad).
 
 ### 6. Fuentes tipográficas
 - **Decidido** (`preguntas/0004`): 8 familias **SIL OFL** incluidas, un peso cada una (Atkinson Hyperlegible Next, Nunito, Montserrat, Oswald, Lora, Playfair Display, Bangers, Noto Sans), WOFF2, ~1,5–2,5 MB en total; sin CJK. Sin fuentes del sistema en el MVP (el esquema reserva `origen: "sistema"`).
