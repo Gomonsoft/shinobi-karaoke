@@ -19,7 +19,7 @@ test('con la semilla se ven las canciones esperadas con su insignia y su línea'
   const app = await lanzar(datos)
   try {
     const v = await app.firstWindow()
-    await expect(v.getByRole('article')).toHaveCount(15)
+    await expect(v.getByRole('article')).toHaveCount(18)
     const tarjeta = (titulo: string) => v.getByRole('article', { name: new RegExp(`^${titulo},`) })
 
     await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Lista\.$/)

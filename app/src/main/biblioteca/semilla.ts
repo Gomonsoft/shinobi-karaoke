@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { FIXTURES, linea } from '../../shared/__fixtures__'
+import { FIXTURES, letra, linea, pausa } from '../../shared/__fixtures__'
 import {
   estiloPredeterminado,
   FUENTES_REGISTRO,
@@ -9,7 +9,7 @@ import {
   type Estilo,
   type Letra
 } from '../../shared'
-import { silencioFlac } from './flac'
+import { pulsosFlac, silencioFlac, silencioFlacSegundos } from './flac'
 
 export interface ResultadoSemilla {
   creadas: string[]
@@ -52,6 +52,7 @@ interface Plan {
   jsonCrudo?: string
   /** Miniatura JPEG de `scripts/fixtures/` que se copia a `fuente/miniatura.jpg`. */
   miniatura?: string
+  audio?: () => Buffer
 }
 
 /** Carpeta de las miniaturas generadas (tarea 0052); la semilla se ejecuta siempre desde `app/`. */
@@ -127,6 +128,41 @@ function plan(): Plan[] {
     const c = f.sinLetra()
     return { ...c, letra, pasos: { ...c.pasos, letra: f.lista().pasos.letra } }
   }
+  const clics = conLetra(
+    letra(Array.from({ length: 12 }, (_, i) => linea(`clic${i + 1}`, `Clic ${i + 1}`, null)))
+  )
+  clics.letra!.lineas.splice(6, 0, pausa('pausa-clics'))
+  const textoSeparando = [
+    'Amanece sobre el río',
+    'La brisa mueve la vela',
+    'Remamos hasta el puente',
+    'El puente guarda un secreto',
+    'El agua dobla las luces',
+    'Se despierta la ciudad'
+  ]
+  const separando = conLetra(
+    letra(textoSeparando.map((texto, i) => linea(`s${i + 1}`, texto, 2000 + i * 4000)))
+  )
+  separando.pasos.separacion = f.separando().pasos.separacion
+  separando.pistas = null
+  const incompleta = f.lista()
+  const textoIncompleta = [
+    'Piedras de sal',
+    'Orilla de espuma',
+    'Bajo las nubes',
+    'Se pierde la luna',
+    'Abre los ojos',
+    'Enciende la vela',
+    'Cuenta las olas',
+    'Hasta que vuelva'
+  ]
+  incompleta.letra = letra(
+    textoIncompleta.map((texto, i) => linea(`i${i + 1}`, texto, i === 3 ? null : 2000 + i * 3500))
+  )
+  const editor = (n: number, cancion: Cancion, titulo: string, audio: () => Buffer): Plan => {
+    cancion.metadatos.duracion_ms = 30_000
+    return { ...con(n, cancion, titulo, 'Shinobi Pruebas', n), audio }
+  }
   const danadaPistas = con(10, f.lista(), 'Sin pistas', 'Artista dañado', 9)
   return [
     con(1, f.lista(), 'Canción lista', 'Artista Uno', 1),
@@ -151,7 +187,12 @@ function plan(): Plan[] {
       'Letra pegada sin sincronizar',
       'Artista Dieciséis',
       16
-    )
+    ),
+    editor(17, clics, 'Editor: pista de clics', () =>
+      pulsosFlac({ segundos: 30, periodoMs: 2000, desfaseMs: 2000 })
+    ),
+    editor(18, separando, 'Editor: separando', () => silencioFlacSegundos(30)),
+    editor(19, incompleta, 'Editor: lista incompleta', () => silencioFlacSegundos(30))
   ]
 }
 
@@ -195,7 +236,7 @@ export async function sembrar(
     await writeFile(rutaConfig, JSON.stringify(config, null, 2) + '\n')
   }
 
-  const audio = silencioFlac()
+  const silencio = silencioFlac()
   for (const p of plan()) {
     const carpeta = join(biblioteca, p.id)
     if (await existe(carpeta)) {
@@ -204,6 +245,7 @@ export async function sembrar(
     }
     await mkdir(join(carpeta, 'fuente'), { recursive: true })
     await mkdir(join(carpeta, 'pistas'), { recursive: true })
+    const audio = p.audio?.() ?? silencio
     await writeFile(join(carpeta, 'fuente', 'mezcla.flac'), audio)
     if (p.miniatura) {
       await writeFile(

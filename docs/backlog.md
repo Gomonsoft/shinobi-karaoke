@@ -238,7 +238,7 @@ Spec `ux/06` reescrita por el diseñador UX (48 criterios). [0024](preguntas/002
 | [0092](tareas/0092-operaciones-puras-de-tiempos-del-editor.md) | Operaciones puras de tiempos (`marcarInicioLinea`, límites, formatos) | — | **Empieza ya** | — | Hecha |
 | [0093](tareas/0093-estado-del-editor-historial-y-sesion-de-sincronia.md) | Estado del editor, deshacer/rehacer y sesión de sincronía | 0092 | ‖ 0094–0102 | — | Pendiente |
 | [0094](tareas/0094-reloj-y-motor-de-audio-web-audio.md) | Reloj de pulsaciones y motor de audio (Web Audio) | — | **Empieza ya** | `main/index.ts` (3 líneas) | Hecha |
-| [0095](tareas/0095-audio-de-prueba-largo-pista-de-clics-y-semilla-del-editor.md) | FLAC largo, pista de clics y canciones del editor en la semilla | — | **Empieza ya** | `semilla.ts` | Pendiente |
+| [0095](tareas/0095-audio-de-prueba-largo-pista-de-clics-y-semilla-del-editor.md) | FLAC largo, pista de clics y canciones del editor en la semilla | — | **Empieza ya** | `semilla.ts` | Hecha |
 | [0096](tareas/0096-modelo-puro-de-render-de-la-letra.md) | Modelo puro de render de la letra | — | **Empieza ya** | — | Pendiente |
 | [0097](tareas/0097-contraste-y-utilidades-de-color.md) | Contraste del estilo y utilidades de color | — | **Empieza ya** | — | Pendiente |
 | [0098](tareas/0098-componente-pantalla-letra.md) | Componente `PantallaLetra` (vista previa y reproductor) | 0096 | ‖ resto | `Muestrario.tsx` | Pendiente |

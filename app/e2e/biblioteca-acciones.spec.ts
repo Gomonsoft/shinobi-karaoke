@@ -25,12 +25,12 @@ test('filtros con recuento (la lista incompleta cuenta en Listas) y búsqueda si
   const app = await lanzar(datos)
   try {
     const v = await app.firstWindow()
-    await expect(v.getByRole('article')).toHaveCount(15)
-    await expect(v.getByRole('radio', { name: 'Todas 15' })).toBeVisible()
-    // 3 listas (una incompleta), 10 borradores (con las de error e interrumpida) y 2 dañadas fuera de ambos.
+    await expect(v.getByRole('article')).toHaveCount(18)
+    await expect(v.getByRole('radio', { name: 'Todas 18' })).toBeVisible()
+    // 4 listas (dos incompletas), 12 borradores y 2 dañadas fuera de ambos.
     await v.getByRole('radio', { name: /^Listas \d+$/ }).click()
-    await expect(v.getByRole('radio', { name: 'Listas 3' })).toBeChecked()
-    await expect(v.getByRole('article')).toHaveCount(3)
+    await expect(v.getByRole('radio', { name: 'Listas 4' })).toBeChecked()
+    await expect(v.getByRole('article')).toHaveCount(4)
     await expect(v.getByRole('article', { name: /^Lista incompleta,/ })).toHaveCount(1)
 
     await v.getByRole('radio', { name: /^Todas/ }).click()
@@ -39,7 +39,7 @@ test('filtros con recuento (la lista incompleta cuenta en Listas) y búsqueda si
     await v.getByRole('searchbox').fill('zzz')
     await expect(v.getByText('No hay canciones que coincidan con «zzz».')).toBeVisible()
     await v.getByRole('button', { name: 'Borrar búsqueda' }).click()
-    await expect(v.getByRole('article')).toHaveCount(15)
+    await expect(v.getByRole('article')).toHaveCount(18)
   } finally {
     await app.close()
   }
@@ -52,7 +52,7 @@ test('volver a borrador y eliminar una canción de la semilla', async () => {
   try {
     const v = await app.firstWindow()
     const tarjeta = (titulo: string) => v.getByRole('article', { name: new RegExp(`^${titulo},`) })
-    await expect(v.getByRole('article')).toHaveCount(15)
+    await expect(v.getByRole('article')).toHaveCount(18)
 
     // Volver a borrador (diálogo de confirmación).
     const lista = tarjeta('Canción lista')
@@ -77,7 +77,7 @@ test('volver a borrador y eliminar una canción de la semilla', async () => {
     await expect(dialogo).toBeVisible()
     await dialogo.getByRole('button', { name: 'Eliminar' }).click()
     await expect(v.getByText('«Borrador sin letra» se movió a la papelera.')).toBeVisible()
-    await expect(v.getByRole('article')).toHaveCount(14)
+    await expect(v.getByRole('article')).toHaveCount(17)
     expect(existsSync(join(datos, 'biblioteca', id))).toBe(false)
     expect(readdirSync(join(datos, 'papelera')).some((n) => n.startsWith(`${id}-`))).toBe(true)
   } finally {
@@ -101,7 +101,7 @@ test('si la papelera falla: toast de error con "Copiar detalles" y la carpeta si
       .click()
     await expect(v.getByText('No se pudo mover «Borrador sin letra» a la papelera.')).toBeVisible()
     await expect(v.getByRole('button', { name: 'Copiar detalles' })).toBeVisible()
-    await expect(v.getByRole('article')).toHaveCount(15)
+    await expect(v.getByRole('article')).toHaveCount(18)
     expect(existsSync(join(datos, 'biblioteca', id))).toBe(true)
   } finally {
     await app.close()

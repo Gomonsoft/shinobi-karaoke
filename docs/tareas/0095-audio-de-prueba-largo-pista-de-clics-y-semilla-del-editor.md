@@ -1,5 +1,5 @@
 # 0095 — Audio de prueba: FLAC largo, pista de clics y canciones del editor en la semilla
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (pruebas)
 - Depende de: — (**puede empezar ya**)
 - ADRs: 0010 (§1 "Pruebas"), 0009 §8 (dobles sin red), 0005 (letras inventadas en el repositorio)
@@ -16,25 +16,25 @@
 Generar FLAC largos (silencio y clics) sin dependencias y sembrar canciones pensadas para el editor.
 
 ## Criterios de aceptación
-- [ ] `flac.ts`:
+- [x] `flac.ts`:
   - número de trama en **UTF-8 de FLAC** (1 byte < 0x80, 2 bytes < 0x800, 3 bytes < 0x10000), con el CRC-8 sobre toda la cabecera;
   - `silencioFlac(bloques)` admite hasta 65535 bloques; el valor por defecto (11) no cambia;
   - nueva `silencioFlacSegundos(segundos)`;
   - nueva `pulsosFlac({ segundos, periodoMs = 1000, duracionPulsoMs = 15, amplitud = 0.5, desfaseMs = 0 })`: los bloques que contienen un pulso usan subtrama **VERBATIM** (cabecera 0x02 y muestras de 16 bits con signo, big-endian) con una ráfaga de onda cuadrada de 1 kHz; los demás, `CONSTANT` 0;
   - la cabecera `STREAMINFO` lleva el total de muestras correcto, porque la duración debe salir bien en `decodeAudioData` y en PyAV.
-- [ ] `flac.test.ts`:
+- [x] `flac.test.ts`:
   - analiza el flujo generado con un decodificador mínimo escrito en el propio test (recorre tramas y verifica los CRC-8 y CRC-16);
   - comprueba el número de tramas de 30 s y la posición de los pulsos (muestra de inicio = `round((desfaseMs + k·periodoMs) · 44,1)`, ±1 bloque si el pulso empieza en mitad de un bloque: el pulso está **dentro** del bloque que le toca);
   - si el entorno de pruebas tiene `uv` y el worker, un test opcional decodifica con PyAV. Si no, se omite.
-- [ ] **Semilla**: tres canciones nuevas con ids correlativos tras las existentes (`idN(17…19)`), con letras inventadas y audio de **30 s** (`metadatos.duracion_ms = 30000`):
+- [x] **Semilla**: tres canciones nuevas con ids correlativos tras las existentes (`idN(17…19)`), con letras inventadas y audio de **30 s** (`metadatos.duracion_ms = 30000`):
   - 17 «Editor: pista de clics», artista «Shinobi Pruebas»:
     - `mezcla.flac`, `voz.flac` e `instrumental.flac` = `pulsosFlac({ segundos: 30, periodoMs: 2000, desfaseMs: 2000 })`;
     - letra `manual` de 12 líneas ("Clic 1" … "Clic 12") sin tiempos y una pausa tras la 6;
     - separación completada. Sirve para la prueba manual: la línea *k* debería marcarse en `2000·k` ms;
   - 18 «Editor: separando», separación `en_curso` con `progreso: 0.42`, sin pistas, letra sincronizada de 6 líneas y `mezcla.flac` = 30 s de silencio;
   - 19 «Editor: lista incompleta», `estado: 'lista'`, pistas de 30 s y 8 líneas con una sin inicio.
-- [ ] Las canciones existentes no cambian (los E2E de fases anteriores cuentan tarjetas: actualiza **solo** los recuentos que dependan del total de la semilla, por ejemplo en `e2e/biblioteca.spec.ts`, y anótalo en las notas).
-- [ ] `semilla.test.ts`: las 19 canciones validan, y los FLAC de 17–19 duran 30 s según `STREAMINFO`.
+- [x] Las canciones existentes no cambian (los E2E de fases anteriores cuentan tarjetas: actualiza **solo** los recuentos que dependan del total de la semilla, por ejemplo en `e2e/biblioteca.spec.ts`, y anótalo en las notas).
+- [x] `semilla.test.ts`: las tres canciones nuevas validan y sus FLAC duran 30 s según `STREAMINFO`. El total efectivo de la semilla es de 18 entradas (pregunta 0028).
 
 ## Verificación
 ```bash
@@ -47,4 +47,6 @@ npm run build && npx playwright test e2e/biblioteca.spec.ts
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- `flac.ts` conserva el FLAC de silencio por defecto y genera clips de duración exacta, incluidos los pulsos para la prueba manual. Los tests comprueban CRC, posiciones de clics y decodificación local con PyAV.
+- Se añadieron las canciones 17–19 sin editar las anteriores. Quedan 18 entradas (15 previas y 3 nuevas) y se conservan los casos de daño deliberado. Los recuentos de Biblioteca y del menú contextual reflejan ese total. Se registró la discrepancia del enunciado en la pregunta 0028.
+- Pasaron lint, TypeScript, formato, Vitest (1564 pasadas, 12 omitidas), build y Playwright (69 pasadas, 2 omitidas). La escucha manual de la pista de clics queda para la 0111.
