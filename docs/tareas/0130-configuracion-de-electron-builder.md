@@ -1,5 +1,5 @@
 # 0130 — Configuración de electron-builder, *fuses* y firma
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0127, 0129
 - ADRs: 0012 §2, §3, §4; 0008 §9; 0001
@@ -42,4 +42,10 @@ npm run build && npm run uv:descargar && npm run empaquetar:dir   # CON RED
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+Se añadió `app/electron-builder.yml` con los destinos NSIS x64, DMG arm64, AppImage y `.deb` x64, recursos externos, `publish: null`, firma desactivada y los ocho fuses del ADR 0012. Se excluye `**/src/**` del asar: el primer paquete real mostró que `zod` incluye sus fuentes TypeScript, que la tarea 0131 prohíbe distribuir. Se añadieron los comandos `empaquetar` y `empaquetar:dir` y seis tests de contrato que leen el YAML con `yaml` y comparan `appId` y `productName` con los contratos compartidos.
+
+Archivos: `app/electron-builder.yml`, `app/scripts/electron-builder.test.ts`, `app/package.json`.
+
+Verificación: Node 24; `npx vitest run electron-builder` (6/6), lint, typecheck, format:check, build y `npm run empaquetar:dir` correctos. Se generó `release/mac-arm64/Shinobi Karaoke.app`; `npx @electron/fuses read --app` mostró los ocho fuses esperados y `npm run paquete:verificar -- release/mac-arm64` pasó, incluida firma ad hoc, integridad del asar, mínimo 13.0 y arquitectura arm64. El empaquetado requiere acceso a GitHub para descargar Electron.
+
+Deuda: la máquina disponible es macOS arm64; la generación de NSIS, AppImage y `.deb` se verifica en sus runners de workflow (0136–0137). El icono de Electron se mantiene hasta 0140.

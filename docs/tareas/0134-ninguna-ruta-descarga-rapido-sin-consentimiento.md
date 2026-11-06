@@ -1,5 +1,5 @@
 # 0134 — Comprobar que ninguna ruta descarga Rápido sin `rapido_aceptado`
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: 0004 (Revisiones), 0009 (Revisión 2026-11-05)
@@ -40,4 +40,19 @@ npm run lint && npm run typecheck
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+No apareció ninguna ruta que descargue Rápido sin consentimiento; no se modificó código de producción. Se añadió `app/src/main/runtime/consentimientoRapido.test.ts` para cubrir los dos puntos de entrada del gestor y la contraprueba de descarga después de guardar la fecha de consentimiento.
+
+| # | Ruta comprobada | Evidencia |
+|---|---|---|
+| 1 | `gestor.descargarModelo('rapido')` | `consentimientoRapido.test.ts`: sin fecha rechaza con `ARGUMENTOS_NO_VALIDOS` y no llama al descargador; con fecha lo llama y registra el modelo. Refuerzo en `gestor.test.ts`. |
+| 2 | `gestor.instalar({ modelo: 'rapido' })` | `consentimientoRapido.test.ts`: rechaza antes de iniciar el runtime. `gestor.test.ts` añade la contraprueba tras aceptar. |
+| 3 | Instalación normal y comprobación de configuración con `modo: rapido` pero sin consentimiento | `gestor.test.ts`: instalación normal descarga Calidad; `configuracion/servicio.test.ts` valida que el modo vigente vuelve a Calidad. |
+| 4 | `runtime.aceptarYUsarRapido` sin oferta vigente y con oferta | `runtime/servicio.test.ts`: sin oferta rechaza y no guarda consentimiento; con oferta válida guarda el consentimiento antes de iniciar la descarga, tanto en primer arranque como tras fallo de separación. |
+| 5 | Separación: modelo que falta o hay que reparar | `separacion/servicio.test.ts` verifica que el modo sin consentimiento usa Calidad; `servicio.reintentos.test.ts` cubre el fallback si falta Rápido y la descarga de reparación del modelo seleccionado. El modo que llega a `asegurarModelo`/`repararModelo` se calcula con `modoSeparacionVigente`. |
+| 6 | Rápido pendiente al iniciar | `runtime/servicio.test.ts`: el estado solo indica pendiente si existe fecha de consentimiento, modo Calidad y modelo Rápido no descargado. |
+| 7 | Modelo ausente en el worker | `worker/tests/test_separacion_contrato.py::test_modelo_ausente_no_descarga`: devuelve `MODELO_NO_DISPONIBLE` sin cargar audio-separator. `app/src/main/index.ts` siempre crea e inyecta `crearPuertoModelos` en la app. |
+| 8 | `scripts/instalar-runtime.mjs --modelo rapido` | La opción expresa la petición explícita del usuario; el script escribe primero `modo: rapido` y `rapido_aceptado`. La comprobación del script empaquetado corresponde a 0131, tal como indica esta tarea. |
+
+Archivos: `app/src/main/runtime/consentimientoRapido.test.ts`; sin cambios en producción.
+
+Verificación: `npx vitest run consentimientoRapido gestor.test.ts runtime/servicio.test.ts separacion/servicio.test.ts separacion/servicio.reintentos.test.ts` (139 aprobadas), `uv run pytest tests/test_separacion_contrato.py -k modelo_ausente_no_descarga` (1 aprobada), lint, typecheck y format:check pasan.

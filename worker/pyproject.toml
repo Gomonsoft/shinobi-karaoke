@@ -30,6 +30,10 @@ dev = ["pytest", "ruff"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# ADR 0014: mantener en sincronía con requisitos/exclusiones.txt.
+[tool.uv]
+exclude-dependencies = ["diffq", "diffq-fixed"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["shinobi_worker"]
 

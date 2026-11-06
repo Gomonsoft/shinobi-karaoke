@@ -1,5 +1,5 @@
 # 0131 — Verificación del contenido, *fuses* y firma del paquete
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0127 (la lógica); 0130 (para ejecutarla contra un paquete real)
 - ADRs: 0012 §3, §4; 0008 §9; 0009 §2
@@ -66,4 +66,10 @@ node scripts/verificar-paquete.mjs release/linux-unpacked   # requiere 0130
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+Se creó `scripts/verificar-paquete.mjs` con CLI `node scripts/verificar-paquete.mjs <dir o .app> [--json <salida>]`. Comprueba recursos requeridos, SHA-256 de todos los archivos de requisitos citados por el manifiesto, fuentes OFL/WOFF2, ejecutable y versión de `uv`, entradas prohibidas, archivos requeridos del asar, dependencias de ejecución permitidas, los nueve fuses y, en macOS, sello ad hoc, integridad de asar, `LSMinimumSystemVersion` y arquitectura arm64. La lista de entradas prohibidas es una constante exportada. Las lecturas del asar y los fuses se inyectan en pruebas; el CLI incluye el tamaño desempaquetado y admite informe JSON.
+
+Archivos: `app/scripts/verificar-paquete.mjs`, `app/scripts/verificar-paquete.d.mts`, `app/scripts/verificar-paquete.test.ts`, `app/package.json`.
+
+Verificación sin red: `npx vitest run verificar-paquete` (18/18), incluyendo árbol válido, falta `uv`, hash incorrecto, carpetas/archivos prohibidos, React, dependencias no permitidas y fuse incorrecto/desconocido. Contra el paquete real macOS arm64 de 0130, `npm run paquete:verificar -- release/mac-arm64 --json /tmp/verificacion-mac.json` pasó: 304 514 051 bytes, 595 entradas en asar, los nueve fuses y firma/integridad/arquitectura correctas. El informe JSON se escribió correctamente.
+
+Deuda: la comprobación del nombre del ejecutable Windows, el perfil AppArmor y la estructura Linux se ejecutará en los runners respectivos (0136–0137), al no ser posible construir esas plataformas en este Mac.

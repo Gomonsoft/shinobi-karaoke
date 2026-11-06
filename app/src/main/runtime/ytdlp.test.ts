@@ -69,6 +69,7 @@ function montar(extra: Partial<ConstructorParameters<typeof ActualizadorYtDlp>[0
   const versiones = ['2025.1.1', '2025.2.2']
   const act = new ActualizadorYtDlp({
     dirRuntime: dir,
+    rutaExclusiones: join(dir, 'exclusiones.txt'),
     plataforma: 'linux',
     ejecutorUv: uv.ejecutor,
     cerrojo,
@@ -143,6 +144,8 @@ describe('actualizarYtDlp', () => {
       'install',
       '--python',
       join(dir, 'venv', 'bin', 'python'),
+      '--excludes',
+      join(dir, 'exclusiones.txt'),
       '-U',
       'yt-dlp[default]',
       'deno'

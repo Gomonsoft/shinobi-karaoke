@@ -115,7 +115,7 @@ export const PA = {
     `Shinobi Karaoke necesita macOS ${min} o posterior y tu Mac tiene macOS ${version}.`,
   macosGratis: 'Todos los Mac con chip Apple pueden actualizar gratis.',
   macosPasos:
-    'Para actualizar: menú Apple () → Ajustes del Sistema (o Preferencias del Sistema) → Actualización de software. Antes, conviene hacer una copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke.',
+    'Para actualizar: menú Apple (la manzana de la esquina de la pantalla) → Ajustes del Sistema (o Configuración del Sistema) → General → Actualización de Software. Antes, conviene hacer una copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke.',
   macosAyuda: 'Cómo actualizar macOS',
 
   botonCopiar: 'Copiar detalles',

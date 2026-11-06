@@ -1,7 +1,7 @@
 # 0038 — ¿Cómo lanzamos el workflow la primera vez y quién hace la prueba manual?
 - De: arquitecto
 - Para: usuario
-- Estado: Abierta
+- Estado: Parcialmente respondida (ejecución autorizada, prueba manual pendiente)
 - Bloquea: el cierre de 0136 y 0137 (su ejecución en GitHub) y la tarea 0139 (prueba manual y capturas). **No bloquea** escribir el código de ninguna tarea.
 
 ## Contexto
@@ -26,3 +26,7 @@ Cada ejecución completa consume minutos de macOS, que en un repositorio privado
 El código se escribe y se prueba en local. 0136 y 0137 quedan `En curso` hasta poder ejecutarse. 0139 queda `Bloqueada`.
 
 ## Respuesta
+
+El usuario aprobó fusionar la implementación de la Fase 7 y subirla a `main`. El primer empaquetado interno se lanza desde esa rama. Las validaciones de instaladores, runtime e icono y la prueba manual pasan a la **Fase 8 — Empaquetado, parte 2**.
+
+Queda por confirmar quién ejecuta la prueba manual y qué equipos están disponibles. La publicación sigue su propio proceso en 0142.

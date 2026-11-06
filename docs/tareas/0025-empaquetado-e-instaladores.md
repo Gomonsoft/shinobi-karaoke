@@ -34,7 +34,7 @@ Mezclaba configuración, licencias, CI, documentación y una prueba manual con r
 | README "Descargar" e `INSTALAR.md` | 0138 (sin versión, E0), 0142 (con versión, E1) |
 | Línea de requisitos, botón de macOS, "¿Qué Mac tengo?", Gatekeeper y "¿Sigue sin abrirse?" | 0138, 0142 (texto de `ux/09`) |
 | **`ux/09` criterio 14**: corregir "~1–2 GB" en la tabla de requisitos del README | 0138 |
-| **`ux/09` §5**: prueba manual P1–P14 | 0139 |
+| **`ux/09` §5**: prueba manual P1–P16 | 0139 |
 | Una captura por SO antes de la primera versión pública (criterio 13) | 0139 (`ux/09` §7), 0142 (la exige) |
 | Enlaces a la última *Release* | 0142, bloqueada por `preguntas/0035` |
 

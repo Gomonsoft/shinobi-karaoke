@@ -134,14 +134,18 @@ def adaptador(esc, monkeypatch, sin_ffmpeg):
 def correr(adaptador, tmp_path, *, modelo_id="calidad", dispositivo="cpu", bloques="normal"):
     modelos = tmp_path / "modelos"
     modelos.mkdir(exist_ok=True)
-    (modelos / "m.ckpt").write_bytes(b"x")
+    archivo = {
+        "calidad": "vocals_mel_band_roformer.ckpt",
+        "rapido": "UVR-MDX-NET-Inst_HQ_4.onnx",
+    }[modelo_id]
+    (modelos / archivo).write_bytes(b"x")
     salida = tmp_path / "salida"
     salida.mkdir(exist_ok=True)
     eventos = []
     adaptador.SeparadorReal().separar(
         tmp_path / "mezcla.flac",
         salida,
-        {"id": modelo_id, "archivo": "m.ckpt", "dir": str(modelos)},
+        {"id": modelo_id, "archivo": archivo, "dir": str(modelos)},
         dispositivo,
         bloques,
         lambda f, v, d: eventos.append((f, v, d)),
@@ -156,7 +160,7 @@ def test_parche_sin_ffmpeg_y_parametros(adaptador, esc, tmp_path):
     assert esc.kwargs["model_file_dir"] == str(tmp_path / "modelos")
     assert esc.kwargs["output_dir"] == str(salida)
     assert "mdxc_params" not in esc.kwargs and "mdx_params" not in esc.kwargs
-    assert esc.cargado == "m.ckpt"
+    assert esc.cargado == "vocals_mel_band_roformer.ckpt"
 
 
 def test_renombra_stems_de_calidad(adaptador, esc, tmp_path):
@@ -284,7 +288,11 @@ def test_modelo_ausente_no_descarga(adaptador, esc, tmp_path):
         adaptador.SeparadorReal().separar(
             tmp_path / "x.flac",
             tmp_path,
-            {"id": "calidad", "archivo": "no.ckpt", "dir": str(tmp_path / "modelos")},
+            {
+                "id": "calidad",
+                "archivo": "vocals_mel_band_roformer.ckpt",
+                "dir": str(tmp_path / "modelos"),
+            },
             "cpu",
             "normal",
             lambda *a: None,
@@ -306,3 +314,28 @@ def test_aviso_si_la_version_no_es_la_fijada(esc, monkeypatch, sin_ffmpeg, capsy
     mod = importlib.import_module("shinobi_worker.separacion_real")
     assert mod.VERSION_AUDIO_SEPARATOR == "9.9.9"
     assert '"warning"' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("modelo_id", "archivo"),
+    [
+        ("calidad", "htdemucs.yaml"),
+        ("rapido", "ajeno.onnx"),
+        ("rapido", "vocals_mel_band_roformer.ckpt"),
+        ("demucs", "UVR-MDX-NET-Inst_HQ_4.onnx"),
+        ("calidad", "./vocals_mel_band_roformer.ckpt"),
+    ],
+)
+def test_modelo_ajeno_no_llega_a_audio_separator(adaptador, esc, tmp_path, modelo_id, archivo):
+    (tmp_path / archivo).write_bytes(b"x")
+    with pytest.raises(ErrorWorker, match="fuera del catálogo") as e:
+        adaptador.SeparadorReal().separar(
+            tmp_path / "x.flac",
+            tmp_path,
+            {"id": modelo_id, "archivo": archivo, "dir": str(tmp_path)},
+            "cpu",
+            "normal",
+            lambda *a: None,
+        )
+    assert e.value.codigo == "MODELO_NO_DISPONIBLE"
+    assert esc.kwargs == {}

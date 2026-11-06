@@ -51,3 +51,22 @@ def test_los_archivos_versionados_llevan_la_cabecera_del_script():
         primeras = archivo.read_text(encoding="utf-8").splitlines()[:4]
         assert primeras[0].startswith("# Archivo generado por")
         assert "uv pip compile" in primeras[2]
+
+
+def test_compilacion_copia_exclusiones_y_conserva_entorno_macos(monkeypatch):
+    import subprocess
+    import tomllib
+
+    def ejecutar(orden, *, cwd, capture_output, text):
+        ruta = orden[orden.index("--excludes") + 1]
+        exclusiones = (cwd / ruta).read_text(encoding="utf-8").splitlines()
+        config = tomllib.loads((cwd / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["uv"]
+        assert exclusiones == config["exclude-dependencies"] == ["diffq", "diffq-fixed"]
+        assert config["environments"] == [cr.ENTORNO_MACOS_ARM64]
+        (cwd / "salida.txt").write_text("paquete==1\n", encoding="utf-8")
+        return subprocess.CompletedProcess(orden, 0)
+
+    monkeypatch.setattr(cr.subprocess, "run", ejecutar)
+    monkeypatch.setattr(cr, "_version_uv", lambda uv: "0.13.7")
+    macos = next(p for p in cr.PERFILES if p.nombre == "darwin-arm64-mps")
+    assert cr._separar(cr._generar(macos, "uv", None, False)) == "paquete==1\n"

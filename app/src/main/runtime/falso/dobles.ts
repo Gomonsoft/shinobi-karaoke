@@ -165,6 +165,7 @@ export function crearDoblesRuntime(o: {
         await fsp.rm(dirCache, { recursive: true, force: true })
         return resultado()
       }
+      if (a === 'run' && b === '--offline') return resultado()
       throw new ErrorRuntime('ERROR_INTERNO', `uv falso: orden no prevista (${orden.join(' ')})`)
     }
   }

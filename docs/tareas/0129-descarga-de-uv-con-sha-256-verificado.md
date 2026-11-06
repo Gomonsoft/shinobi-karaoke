@@ -1,5 +1,5 @@
 # 0129 — Descarga de `uv` por plataforma con SHA-256 verificado
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0127
 - ADRs: 0012 §6; 0009 §3
@@ -48,4 +48,10 @@ npm run uv:descargar               # CON RED
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+Se añadió `uv-binarios.json` con uv 0.13.7 y los tres hashes fijados por ADR 0012 §6. `descargar-uv.mjs` selecciona solo Windows x64, macOS arm64 o Linux x64; descarga a una carpeta temporal, calcula SHA-256 antes de extraer con `tar` del sistema, verifica `uv --version`, y copia únicamente `uv`/`uv.exe` a `resources/bin/`. El ejecutable recibe permiso de ejecución en macOS/Linux. Si la versión correcta ya está instalada, no descarga de nuevo; hash o versión inválidos fallan con diagnóstico y limpian temporales/binario destino. Se añadió `descargar-uv.d.mts` para tipar el módulo MJS usado por la prueba TypeScript, sin dependencia nueva.
+
+La prueba `descargar-uv.test.ts` cubre hash correcto e incorrecto (sin extracción), versión incorrecta, plataforma no admitida, idempotencia, los tres destinos/hash y sincronía con `UV_VERSION` de ambos workflows.
+
+Verificación sin red: siete pruebas de `descargar-uv` pasan. Vitest completo pasa serializado (`npm test -- --maxWorkers=1`): 132 suites aprobadas, 1 omitida; 1820 pruebas aprobadas, 12 omitidas. La ejecución serial evitó varias carreras esporádicas del renderer que aparecieron en ejecuciones paralelas. También pasan lint, typecheck, format:check y build.
+
+Verificación real solicitada: `npm run uv:descargar` descargó el artefacto oficial para `darwin-arm64`; el SHA-256 coincidió y `./resources/bin/uv --version` devolvió `uv 0.13.7 (316c827e0 2026-11-03 aarch64-apple-darwin)`. `git status` no muestra `resources/bin/uv`; el binario está ignorado.

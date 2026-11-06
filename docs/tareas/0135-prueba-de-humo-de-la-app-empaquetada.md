@@ -1,5 +1,5 @@
 # 0135 — Prueba de humo de la app empaquetada (`e2e-paquete`)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0130 (para ejecutarla); 0127
 - ADRs: 0013 §2, §3, §4; 0008; 0009 §6, §8
@@ -55,11 +55,11 @@ Perfil: `win32-x64`/`cpu`, `linux-x64`/`cpu`, `darwin-arm64`/`mps`. Si el equipo
 **`humo-worker.mjs`** (**con red**: `uv` descarga Python): con `resources/bin/uv`, ejecuta `uv run --no-project --isolated --python 3.12 python -m shinobi_worker demo --args '{"segundos":1}'`, con `PYTHONPATH=resources/worker` y `PYTHONDONTWRITEBYTECODE=1`. Debe emitir `resultado` y no crear `__pycache__`. Validado en la prueba de concepto en Linux.
 
 ## Criterios de aceptación
-- [ ] Ninguna línea nueva en `src/`.
-- [ ] `npx playwright test` no ejecuta estas pruebas; `npm run test:e2e` no cambia.
-- [ ] Los 6 casos pasan en local contra `release/linux-unpacked` (o el equivalente del SO del programador; en WSL, con `SHINOBI_PAQUETE_PERFIL=cuda` si detecta NVIDIA).
-- [ ] Sin audio real ni contenido con copyright: la semilla genera FLAC sintéticos.
-- [ ] Directorios temporales con limpieza tolerante a archivos bloqueados en Windows.
+- [x] Ninguna línea nueva en `src/`.
+- [x] `npx playwright test` no ejecuta estas pruebas; `npm run test:e2e` no cambia.
+- [x] Los 6 casos pasan en local contra `release/linux-unpacked` (o el equivalente del SO del programador; en WSL, con `SHINOBI_PAQUETE_PERFIL=cuda` si detecta NVIDIA).
+- [x] Sin audio real ni contenido con copyright: la semilla genera FLAC sintéticos.
+- [x] Directorios temporales con limpieza tolerante a archivos bloqueados en Windows.
 
 ## Verificación
 ```bash
@@ -70,4 +70,22 @@ SHINOBI_PAQUETE_BIN="$PWD/release/linux-unpacked/shinobi-karaoke" \
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+La configuración aislada `app/playwright.paquete.config.ts` ejecuta seis casos con `npm run test:paquete`. `app/e2e-paquete/lanzar.ts` abre el binario real, lee el puerto de DevTools de stderr y se conecta por CDP. Al terminar cierra la conexión y el árbol de procesos. `runtimeEnDisco.ts` lee el manifiesto del artefacto y prepara la semilla, el marcador y los modelos dispersos. Los casos negativos arrancan sin CDP y comprueban en disco que el proceso principal llegó a ejecutar la comprobación del runtime.
+
+`app/scripts/humo-worker.mjs` ejecuta `demo` con el `uv` incluido y comprueba el resultado JSON Lines y la ausencia de bytecode. Acepta la carpeta de recursos como argumento opcional. También la localiza a partir de `SHINOBI_PAQUETE_BIN` o del directorio desempaquetado habitual de cada plataforma.
+
+Verificación local con Node 24.22.1 y el paquete existente de macOS arm64 con manifiesto v1:
+
+```bash
+cd app
+SHINOBI_PAQUETE_BIN="$PWD/release/mac-arm64/Shinobi Karaoke.app/Contents/MacOS/Shinobi Karaoke" npm run test:paquete
+node scripts/humo-worker.mjs
+```
+
+- Los seis casos pasaron. Electron necesitó ejecutarse fuera del sandbox de herramientas para abrir la ventana.
+- El humo del worker emitió `resultado` y dejó el paquete sin bytecode. Se usó el Python 3.12 local con `UV_PYTHON_INSTALL_DIR` y `UV_OFFLINE=1`.
+- `npx playwright test --list` enumeró los 93 casos habituales. Sin `SHINOBI_PAQUETE_BIN`, el humo falló con el mensaje previsto.
+- `npm run typecheck`, `npm run lint` y `npm run format:check` pasaron.
+- La suite general de Vitest fuera del sandbox registró 1823 aprobados, 13 omitidos y 28 fallos fuera de 0135, entre ellos el test de textos legales y tiempos de espera en pruebas de runtime y renderer.
+
+Se repitió con el paquete reconstruido para el manifiesto v2. Pasaron el verificador de contenido, fuses y firma, los seis casos de humo (24,9 s) y el `demo` del worker con Python local. Queda la ejecución en Windows y Linux en 0136–0137.

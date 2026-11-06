@@ -59,6 +59,7 @@ import {
   iniciarMantenimientoYtdlp,
   plataformaReal,
   resolverUv,
+  rutasRecursosRuntime,
   versionSistema,
   versionYtDlp,
   type RuntimeReal
@@ -331,6 +332,15 @@ if (instanciaUnica)
       const retardoNoop = Number(process.env.SHINOBI_YTDLP_ACTUALIZAR_MS)
       actualizadorYtDlp = new ActualizadorYtDlp({
         dirRuntime,
+        rutaExclusiones: join(
+          rutasRecursosRuntime({
+            empaquetada: app.isPackaged,
+            dirRecursos: process.resourcesPath,
+            dirApp: app.getAppPath()
+          }).rutaCodigoWorker,
+          'requisitos',
+          'exclusiones.txt'
+        ),
         plataforma: process.platform,
         ejecutorUv: crearEjecutorUv({
           uv: resolverUv({

@@ -336,7 +336,7 @@ Deuda que se salda aquí:
 - motor incompleto como `ERROR_INTERNO` (2026-11-06 → 0124, 0125);
 - nombre de la canción 18 de la semilla (0029 → 0115).
 
-## Fase 7 — Empaquetado y distribución — **desglosada (2026-11-06)**: tareas 0127–0142
+## Fase 7 — Empaquetado, parte 1 — **implementación cerrada (2026-11-06)**
 **Decisiones técnicas** en los nuevos [ADR 0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) y [ADR 0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md):
 - **electron-builder 26.18.0** con *fuses* en `electronFuses` (mismo orden que `afterPack`), firma `mac.identity: "-"` sin *hardened runtime* y AppImage con runtime estático: no necesita `libfuse2`.
 - **`uv` 0.13.7** descargado en el build con SHA-256 fijado.
@@ -351,21 +351,21 @@ Deuda que se salda aquí:
 
 | Tarea | Título | Depende de | ¿Paralelizable? | Tests sin red | Red en | Archivos compartidos | Estado |
 |-------|--------|-----------|-----------------|---------------|--------|----------------------|--------|
-| [0127](tareas/0127-dependencias-metadatos-y-ajustes-del-repositorio-para-empaquetar.md) | Dependencias, metadatos e ignorados | — | **Primera** | Sí | `npm install` | `package.json`, `package-lock.json`, `vitest.config.mts`, `tsconfig.node.json` | En curso |
-| [0128](tareas/0128-worker-sin-bytecode-en-produccion.md) | Worker sin *bytecode* en producción | — | **Empieza ya** | Sí | — | `trabajos/worker.ts`, `runtime/gestor.ts` | Pendiente |
-| [0134](tareas/0134-ninguna-ruta-descarga-rapido-sin-consentimiento.md) | Ninguna ruta descarga Rápido sin consentimiento | — | **Empieza ya** | Sí | — | `runtime/gestor.ts` si hay que corregir (tras 0128) | Pendiente |
-| [0138](tareas/0138-readme-e-instalar-sin-version-publicada.md) | README e `INSTALAR.md`, estado E0, y "~1–2 GB" corregido | — | **Empieza ya** | Sí | — | `README.md` | Pendiente |
-| [0133](tareas/0133-avisos-de-terceros-de-las-dependencias-python.md) | Avisos: dependencias Python | — | ‖ 0132 en código | Sí | Script | `THIRD_PARTY_NOTICES.md` (tras 0132) | Pendiente |
-| [0129](tareas/0129-descarga-de-uv-con-sha-256-verificado.md) | Descarga de `uv` con SHA-256 | 0127 | ‖ 0131, 0132 | Sí | Script | `package.json` (scripts) | Pendiente |
-| [0131](tareas/0131-verificacion-del-contenido-fuses-y-firma-del-paquete.md) | Verificación de contenido, *fuses* y firma | 0127 (0130 para probar con un paquete real) | ‖ 0129, 0132 | Sí | — | `package.json` (scripts) | Pendiente |
-| [0132](tareas/0132-avisos-de-terceros-de-las-dependencias-js.md) | Avisos: dependencias JS y `uv` | 0127 | ‖ 0129, 0131 | Sí | — | `THIRD_PARTY_NOTICES.md`, `package.json` (scripts) | Pendiente |
-| [0130](tareas/0130-configuracion-de-electron-builder.md) | `electron-builder.yml`, *fuses* y firma | 0127, 0129 | No | Sí | Empaquetar | `package.json` (scripts) | Pendiente |
-| [0135](tareas/0135-prueba-de-humo-de-la-app-empaquetada.md) | Prueba de humo `e2e-paquete` | 0127, 0130 | ‖ 0131 | Se ejecuta aparte | Paso `humo-worker` | `package.json` (scripts) | Pendiente |
-| [0136](tareas/0136-workflow-construir-y-probar-desempaquetado.md) | Workflow: construir, verificar, humo desempaquetado, artefactos, tamaños | 0128–0132, 0135 | No | Test del YAML | Sí | `empaquetado.yml` | Pendiente |
-| [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | Pendiente |
-| [0140](tareas/0140-icono-de-la-app-en-los-instaladores.md) | Icono | 0130 y [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | — | — | — | Pendiente |
-| [0141](tareas/0141-texto-de-b6b-menu-apple-sin-caracter-privado.md) | B6b: "menú Apple" sin carácter de uso privado | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | Sí | — | `primer-arranque/textos.ts` | Pendiente |
-| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual P1–P14, Gatekeeper, primer arranque real y capturas | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | Bloqueada |
+| [0127](tareas/0127-dependencias-metadatos-y-ajustes-del-repositorio-para-empaquetar.md) | Dependencias, metadatos e ignorados | — | **Primera** | Sí | `npm install` | `package.json`, `package-lock.json`, `vitest.config.mts`, `tsconfig.node.json` | Hecha |
+| [0128](tareas/0128-worker-sin-bytecode-en-produccion.md) | Worker sin *bytecode* en producción | — | **Empieza ya** | Sí | — | `trabajos/worker.ts`, `runtime/gestor.ts` | Hecha |
+| [0134](tareas/0134-ninguna-ruta-descarga-rapido-sin-consentimiento.md) | Ninguna ruta descarga Rápido sin consentimiento | — | **Empieza ya** | Sí | — | `runtime/gestor.ts` si hay que corregir (tras 0128) | Hecha |
+| [0138](tareas/0138-readme-e-instalar-sin-version-publicada.md) | README e `INSTALAR.md`, estado E0, y "~1–2 GB" corregido | — | **Empieza ya** | Sí | — | `README.md` | Hecha |
+| [0133](tareas/0133-avisos-de-terceros-de-las-dependencias-python.md) | Avisos: dependencias Python | — | ‖ 0132 en código | Sí | Script | `THIRD_PARTY_NOTICES.md` (tras 0132) | En curso |
+| [0129](tareas/0129-descarga-de-uv-con-sha-256-verificado.md) | Descarga de `uv` con SHA-256 | 0127 | ‖ 0131, 0132 | Sí | Script | `package.json` (scripts) | Hecha |
+| [0131](tareas/0131-verificacion-del-contenido-fuses-y-firma-del-paquete.md) | Verificación de contenido, *fuses* y firma | 0127 (0130 para probar con un paquete real) | ‖ 0129, 0132 | Sí | — | `package.json` (scripts) | Hecha |
+| [0132](tareas/0132-avisos-de-terceros-de-las-dependencias-js.md) | Avisos: dependencias JS y `uv` | 0127 | ‖ 0129, 0131 | Sí | — | `THIRD_PARTY_NOTICES.md`, `package.json` (scripts) | Hecha |
+| [0130](tareas/0130-configuracion-de-electron-builder.md) | `electron-builder.yml`, *fuses* y firma | 0127, 0129 | No | Sí | Empaquetar | `package.json` (scripts) | Hecha |
+| [0135](tareas/0135-prueba-de-humo-de-la-app-empaquetada.md) | Prueba de humo `e2e-paquete` | 0127, 0130 | ‖ 0131 | Se ejecuta aparte | Paso `humo-worker` | `package.json` (scripts) | Hecha |
+| [0136](tareas/0136-workflow-construir-y-probar-desempaquetado.md) | Workflow: construir, verificar, humo desempaquetado, artefactos, tamaños | 0128–0132, 0135 | No | Test del YAML | Sí | `empaquetado.yml` | En curso |
+| [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | En curso |
+| [0140](tareas/0140-icono-de-la-app-en-los-instaladores.md) | Icono | 0130 y [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | — | — | — | En curso |
+| [0141](tareas/0141-texto-de-b6b-menu-apple-sin-caracter-privado.md) | B6b: "menú Apple" sin carácter de uso privado | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | Sí | — | `primer-arranque/textos.ts` | Hecha |
+| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual P1–P16, Gatekeeper, primer arranque real y capturas | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | Bloqueada |
 | [0142](tareas/0142-primera-version-publica.md) | Primera versión pública. **Fuera de lo que se implementa ahora** | Todas y [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md), [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md), [0037](preguntas/0037-autoactualizacion-de-la-app.md), [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) | No | — | Sí | `README.md` | Bloqueada |
 
 **Orden sugerido con tres programadores**:
@@ -390,13 +390,25 @@ Archivos compartidos, en este orden:
 | [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md) Repositorio público y publicación. **Hoy es privado** | usuario | 0142 |
 | [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md) Número de versión | usuario | 0142 |
 | [0037](preguntas/0037-autoactualizacion-de-la-app.md) Autoactualización | usuario | Nada; condiciona 0142 |
-| [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) Primera ejecución del workflow y prueba manual | usuario | Cierre de 0136 y 0137; 0139 |
+| [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) Primera ejecución del workflow y prueba manual | ejecución autorizada; equipos por confirmar | 0139 |
 | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) Icono y texto de B6b | respondida | — |
 | [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) Control inteligente de aplicaciones | usuario | 0142 |
 | [0045](preguntas/0045-appimage-sin-sandbox-en-ubuntu.md) AppImage sin sandbox en Ubuntu 24.04+ | usuario | 0142 |
 | [0040](preguntas/0040-nombres-de-instaladores-y-enlaces-de-descarga.md) Nombres | respondida | — |
+| [0046](preguntas/0046-licencia-no-comercial-de-diffq.md) Licencia de DiffQ | respondida en ADR 0014 | 0133 sigue en validación |
 | [0041](preguntas/0041-gatekeeper-con-firma-ad-hoc.md), [0042](preguntas/0042-appimage-fuse-y-sandbox-en-linux.md), [0043](preguntas/0043-instalador-de-windows-y-datos-al-desinstalar.md) | respondidas; a medir en 0137 y 0139 | — |
 
 **Para el diseñador**: las respuestas a 0040–0043 indican cambios en `ux/09`: valores de los nombres, sin comandos de `libfuse2`, Mac con chip Apple y macOS ≤ 12, paso 4 de Windows y "Desinstalar".
 
 **Sin dependencia de esta fase**: las preguntas 0033 y 0034 siguen abiertas y no afectan al empaquetado.
+
+## Fase 8 — Empaquetado, parte 2: verificación
+
+Se conservan los identificadores y los criterios de aceptación de la Fase 7. La implementación del workflow ya está preparada.
+
+| Tareas | Verificación pendiente | Requisito |
+|---|---|---|
+| 0136, 0137 | Construcción, humo e instalación en GitHub. Registrar los cuatro artefactos, tamaños y resultados por runner | Primera ejecución en `main` autorizada en 0038 |
+| 0140, 0139 | Icono, instalación manual P1–P16, primer arranque y capturas | Artefactos y equipos disponibles |
+| 0133, 0058, 0062 | Inferencia sin DiffQ en Windows y Linux CPU/CUDA, caché y pico de disco | `runtime-real` y equipos NVIDIA para CUDA |
+| 0142 | Primera publicación | Decisiones y pruebas de la lista de publicación, más orden expresa |

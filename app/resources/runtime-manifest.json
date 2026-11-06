@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "python": {
     "version": "3.12.16",
     "bytes_descarga": {
@@ -12,8 +12,8 @@
     "darwin-arm64": {
       "mps": {
         "requisitos": "worker/requisitos/darwin-arm64-mps.txt",
-        "sha256_requisitos": "f6b1a6992ead22e39f6b54f9f469cfbbc85a1b27933cae86c01e2a939331cde5",
-        "bytes_descarga": 345477613,
+        "sha256_requisitos": "e096e2d03668c6e36183ef19ef0d10aa54606b5f92be6f46d5650e96eee0209a",
+        "bytes_descarga": 342175235,
         "bytes_disco": 1205000000,
         "bytes_cache": 1204000000,
         "espacio_requerido": 4000000000,
@@ -23,8 +23,8 @@
     "win32-x64": {
       "cpu": {
         "requisitos": "worker/requisitos/win32-x64-cpu.txt",
-        "sha256_requisitos": "3183043ff1833055445fe8f802c747c479a90dfecd3dcd7a0353317cc488ea23",
-        "bytes_descarga": 363144055,
+        "sha256_requisitos": "a91e61d22314494ee7de6b759cba387ad31b8b568c8dc5108c19dda7618b4b67",
+        "bytes_descarga": 360162380,
         "bytes_disco": 1165000000,
         "bytes_cache": 1163000000,
         "espacio_requerido": 4000000000,
@@ -32,8 +32,8 @@
       },
       "cuda": {
         "requisitos": "worker/requisitos/win32-x64-cuda.txt",
-        "sha256_requisitos": "60350782528fbcf3f24cc276b4bd302ff091511f4d8cc8a2facea117bd7f79cc",
-        "bytes_descarga": 2998097525,
+        "sha256_requisitos": "d68bac25dd3baf9bc5df52f5ccaa27f43efb48154124c1059453283c1e10f7eb",
+        "bytes_descarga": 2995115850,
         "bytes_disco": null,
         "bytes_cache": null,
         "espacio_requerido": 10000000000,
@@ -43,8 +43,8 @@
     "linux-x64": {
       "cpu": {
         "requisitos": "worker/requisitos/linux-x64-cpu.txt",
-        "sha256_requisitos": "d3dddca2032de3f7fcda1b6a0a8fad06a432d0eac56bedb93ebf05ec093a325a",
-        "bytes_descarga": 489199411,
+        "sha256_requisitos": "d3413d2fcd4ab7f042040d0865cd82bbae630102ca8e4dba944bc0ec68ae98be",
+        "bytes_descarga": 485624148,
         "bytes_disco": 1619000000,
         "bytes_cache": 1625000000,
         "espacio_requerido": 4000000000,
@@ -52,8 +52,8 @@
       },
       "cuda": {
         "requisitos": "worker/requisitos/linux-x64-cuda.txt",
-        "sha256_requisitos": "64a34d8eb49ba481c716d118d2f7efc2d5f1c86c6db09c926b7ca8736df44944",
-        "bytes_descarga": 4230069811,
+        "sha256_requisitos": "98b837d18a03c6538bdfb652bf522fb646e270ae064151ed2e3d6e9534335515",
+        "bytes_descarga": 4226494548,
         "bytes_disco": null,
         "bytes_cache": null,
         "espacio_requerido": 10000000000,

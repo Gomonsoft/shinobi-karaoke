@@ -1,5 +1,5 @@
 # 0127 — Dependencias de empaquetado, metadatos y ajustes del repositorio
-- Estado: En curso (falta ejecutar `npx playwright test`: la ejecución se interrumpió por falta de memoria en el equipo)
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: 0012 §1, §2
@@ -49,4 +49,4 @@ Verificación: lint, typecheck y format:check limpios; npm ls --omit=dev --depth
 
 Deuda técnica: npm avisa de que electron-winstaller (install script select-7z-arch.js) no está cubierto por allowScripts; lo decidirá la tarea 0130 si hace falta.
 
-**Revisión de la sesión principal (2026-11-06).** La tarea vuelve a `En curso`: su criterio de que los E2E no cambian de resultado sigue sin comprobarse. Sobre `5d554da`, `npm test` dio tres resultados: 1 fallo (`Ajustes.test.tsx`), 2 fallos (`Editor.test.tsx`, `Reproductor.estados.test.tsx`) y 0 fallos. Fallan pruebas distintas en cada pasada, lo que apunta a inestabilidad y no a esta tarea, pero `develop` no tiene ningún ajuste para ello y no se ha comparado con `839ff89`.
+**Cierre (2026-11-06).** En Node 24.22.1, lint, typecheck, format:check, `npm test`, `npm run build` y `npx playwright test --workers=1` terminaron correctamente. Playwright: 91 aprobados y 2 omitidos por depender de red. Ejecutarlo con un solo worker evitó el límite de memoria del equipo. `npm audit --omit=dev --audit-level=high` reportó 0 vulnerabilidades en la revisión previa. No se modificó `ci.yml`.

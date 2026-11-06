@@ -1,5 +1,5 @@
 # 0137 — Workflow `empaquetado.yml`: probar los instaladores
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0136
 - ADRs: 0013 §3
@@ -31,7 +31,7 @@ El resumen de la ejecución termina con una tabla: forma, runner, nivel, tamaño
 - [ ] Se confirman o corrigen en el ADR 0013 los puntos "sin confirmar": ventana en Windows y macOS, `/dev/fuse`, `macos-15` arm64.
 - [ ] Respuesta a `preguntas/0042` actualizada con el resultado real del `.deb` y del AppImage en Ubuntu 24.04.
 - [ ] Respuesta a `preguntas/0043` actualizada con la conservación de datos real.
-- [ ] Hasta la primera ejecución en GitHub queda en `En curso`.
+- [x] Hasta la primera ejecución en GitHub queda en `En curso`.
 
 ## Verificación
 ```bash
@@ -40,4 +40,10 @@ gh workflow run empaquetado.yml --ref <rama>    # CON RED
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- `probar-instalador` descarga por versión, SHA corto y SO el artefacto de `construir`. La matriz ejecuta el humo de 0135 en NSIS, DMG, `.deb` y AppImage. El `.deb` de Ubuntu 26.04 es informativo.
+- En Windows y Linux se arranca con la ruta de datos predeterminada y se compara el SHA-256 de `config.json` antes y después de desinstalar. En macOS se comprueba la copia de la app tras desmontar el DMG y se registra `spctl` como dato informativo.
+- `app/scripts/humo-instalador.mjs` reutiliza el lanzador CDP de 0135. En Linux lee los argumentos del proceso principal y los renderers en `/proc`. Para AppImage toma el manifiesto y `uv` del AppDir en ejecución para que el humo pueda preparar sus datos. El ejecutable de todas las pruebas sigue siendo el AppImage descargado. La extracción se permite únicamente tras detectar un error de FUSE y se registra por pasada. La pasada B restaura el ajuste de AppArmor al salir.
+- Verificación local con `npx vitest run workflow-empaquetado` desde `app`, además de lint, chequeo de tipos, formato de los archivos de código y sintaxis Bash. Para la validación conjunta con 0136, revisar las tablas de los jobs y los registros de desinstalación, sandbox y FUSE cuando se resuelva [0038](../preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md).
+- La suite completa de Vitest se interrumpió tras registrar fallos en integraciones del worker y de LRCLIB en este entorno. La prueba de textos legales falló durante esa ejecución y pasó al repetirla por separado.
+- Queda pendiente confirmar los resultados en los runners y trasladarlos al ADR 0013 §3 y a las preguntas 0042 y 0043.

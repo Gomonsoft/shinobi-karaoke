@@ -1,5 +1,5 @@
 # 0138 — README e `INSTALAR.md` en el estado "sin versión"
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: 0012
@@ -40,4 +40,10 @@ cd app && npx vitest run guia-instalacion
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+README quedó en estado E0, sin enlaces de descarga, con el enlace a `INSTALAR.md` y el rango de descarga del primer arranque actualizado a 1–6 GB. Se creó `INSTALAR.md` desde el texto de `ux/09`, retirando marcadores y comentarios. La spec aún conserva en una respuesta antigua la mención de FUSE; siguiendo el ajuste técnico de 0042 y el contrato de esta tarea, la guía solo indica probar el `.deb` o abrir una incidencia cuando AppImage no abre. La guía mantiene el aviso provisional y una línea de captura pendiente por sistema.
+
+Se añadió `app/scripts/guia-instalacion.test.ts`: comprueba estado E0, ausencia de enlaces de descarga y marcadores, consistencia de requisitos y compatibilidad Intel, encabezados y anclas internas, texto de macOS 14, avisos de macOS, referencias de seguridad y capturas pendientes.
+
+Archivos: `README.md`, `INSTALAR.md`, `app/scripts/guia-instalacion.test.ts` y `app/package.json` (ya incluye `scripts/**/*.test.ts` por 0127).
+
+Verificación: las seis pruebas de `guia-instalacion` pasan; `npm test` completo pasa (130 archivos aprobados, 1 omitido; 1810 pruebas aprobadas, 12 omitidas); lint, typecheck, format:check y build pasan. Las pruebas usan solo contenido estático y no requieren red.

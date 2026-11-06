@@ -1,5 +1,5 @@
 # 0141 — B6b: "menú Apple" sin carácter de uso privado
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (primer arranque)
 - Depende de: —
 - ADRs: —
@@ -21,9 +21,9 @@ Aplicar el texto que decida el diseñador en código y tests. El texto no lo eli
 `textos.ts` y su test o el de `PantallasInicio`; `e2e/primer-arranque.spec.ts` si cita el texto.
 
 ## Criterios de aceptación
-- [ ] `macosPasos` idéntico a `pa.macos.pasos` de la spec actualizada.
-- [ ] Test: ningún texto de `primer-arranque/textos.ts` contiene caracteres de uso privado (U+E000–U+F8FF).
-- [ ] Búsqueda de U+F8FF en `app/src` y en la documentación: sin resultados, salvo que se justifique.
+- [x] `macosPasos` idéntico a `pa.macos.pasos` de la spec actualizada.
+- [x] Test: ningún texto de `primer-arranque/textos.ts` contiene caracteres de uso privado (U+E000–U+F8FF).
+- [x] Búsqueda de U+F8FF en `app/src` y en la documentación: sin resultados, salvo que se justifique.
 
 ## Verificación
 ```bash
@@ -32,4 +32,11 @@ grep -rnP "\xEF\xA3\xBF" src
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+Se aplicó literalmente `pa.macos.pasos` de la spec en `textos.ts`. La prueba de B6b en
+`PrimerArranque.test.tsx` comprueba el párrafo completo y `textos.test.ts` comprueba el
+archivo fuente para cubrir también las plantillas en funciones. La prueba E2E existente
+no fija ese texto.
+
+Verificación desde `app/`: `npx vitest run primer-arranque` (60 pruebas), lint, typecheck
+y format:check correctos. La búsqueda de U+F8FF en `app/src` y `docs` quedó vacía.
+Sin deuda específica de B6b.

@@ -1,5 +1,5 @@
 # 0132 — Avisos de terceros: dependencias JS y `uv`
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0127
 - ADRs: 0012 §7; 0002
@@ -43,4 +43,12 @@ npm run licencias:comprobar
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+Se creó `app/scripts/licencias-js.mjs`: genera mapas de fuentes en un directorio temporal, extrae paquetes de rutas POSIX/Windows (incluidos nombres con ámbito), los une con el árbol de `npm ls --omit=dev --all`, y obtiene versiones, licencias y textos completos con `license-checker-rseidelsohn`. Falla ante paquetes no registrados, licencias no admitidas o textos ausentes. El bloque es estable, ordenado y queda entre marcadores; `--comprobar` lo regenera en memoria y compara el archivo. También se fijaron los scripts `licencias` y `licencias:comprobar`.
+
+Se añadieron los textos oficiales Apache-2.0 y MIT de Astral en la etiqueta `uv` 0.13.7 (`app/resources/licencias/`); el texto MIT confirma © 2025 Astral Software Inc. `THIRD_PARTY_NOTICES.md` ahora lista las seis dependencias distribuidas hoy (`lucide-react`, `react`, `react-dom`, `scheduler`, `yaml`, `zod`), sus textos completos, los dos textos de licencia de `uv` y dónde consultar los avisos de Electron. Se quitaron la frase de React como única dependencia y la lista pendiente. `leerTextoLegal` oculta solo las líneas de marcadores para no mostrarlas en el diálogo como HTML.
+
+Archivos: `app/scripts/licencias-js.mjs`, `app/scripts/licencias-js.d.mts`, `app/scripts/licencias-js.test.ts`, `app/resources/licencias/LICENSE-APACHE.txt`, `app/resources/licencias/LICENSE-MIT.txt`, `app/package.json`, `app/src/main/textoLegal.ts`, `app/src/main/textoLegal.test.ts`, `THIRD_PARTY_NOTICES.md`.
+
+Verificación: `npx vitest run licencias-js textoLegal` (10/10), `npm run licencias`, `npm run licencias:comprobar`, lint, typecheck y format:check pasan. La suite completa serial con permisos para fixtures locales: 134 archivos aprobados, 1 omitido, 1 test fallido por una carrera en `Editor.test.tsx` (motor de prueba aún no había recibido opciones); repetido aislado, el archivo pasó 12/12. Los tests de las licencias y `textoLegal` pasan.
+
+Deuda: la verificación completa en Linux y Windows queda para CI (0136–0137); no se añadieron paquetes.

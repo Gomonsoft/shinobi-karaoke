@@ -1,7 +1,7 @@
 # 0142 — Primera versión pública (estado E1)
 - Estado: Bloqueada (por `preguntas/0035` y `0036`; `0037` y `0044` condicionan el contenido). **Fuera de lo que se implementa en esta fase.**
 - Paso del pipeline: 0 (distribución)
-- Depende de: 0134, 0136, 0137, 0138, 0139, 0140, 0141
+- Depende de: 0133, 0134, 0136, 0137, 0138, 0139, 0140, 0141
 - ADRs: 0012, 0013
 - Spec UX: docs/ux/09-descarga-e-instalacion.md (§1.2, §3, §4; estado E1; criterios 2, 8–10, 13)
 - ¿Red?: sí. Publica en GitHub: **solo con la orden expresa del usuario**.
@@ -15,7 +15,9 @@ Recoger, para no perderlo, todo lo que hace falta antes de publicar. **No se imp
 - [ ] `preguntas/0037`: autoactualización.
 - [ ] `preguntas/0044` respondida e incorporada.
 - [ ] 0134: tabla de rutas sin descargas de Rápido sin consentimiento.
-- [ ] 0139 completa: P1–P14, Gatekeeper, primer arranque real, capturas.
+- [ ] `preguntas/0045` respondida e incorporada.
+- [ ] 0133 completa: inventario y validación del runtime sin DiffQ según el ADR 0014.
+- [ ] 0139 completa: P1–P16, Gatekeeper, primer arranque real, capturas.
 - [ ] Mediciones de `docs/plan.md` hechas o aceptadas como pendientes por el usuario.
 - [ ] Decidido el trato de 0111 y 0126, pruebas manuales aún pendientes.
 - [ ] Consulta a UVR sobre el modelo Rápido: abierta o descartada de forma consciente (`preguntas/0012`).

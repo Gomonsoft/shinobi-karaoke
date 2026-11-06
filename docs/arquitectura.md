@@ -252,7 +252,7 @@ Detalle de requisitos por perfil, manifiesto, directorio `runtime/`, descarga de
 Secuencia del gestor de runtime, cada fase reanudable e idempotente (en la UI se agrupan en 3 fases visibles, `docs/ux/01-primer-arranque.md`):
 1. Detección básica de plataforma.
 2. `uv python install 3.12` → `uv venv` en `runtime/`.
-3. `uv pip install --require-hashes -r worker/requisitos/<plataforma>-<perfil>.txt` (requisitos fijados por perfil, ADR 0009 §1; incluye yt-dlp[default] y Deno) → marcador `runtime/instalado.json` → `uv cache clean`.
+3. `uv pip install --require-hashes --excludes worker/requisitos/exclusiones.txt -r worker/requisitos/<plataforma>-<perfil>.txt` instala los requisitos fijados por perfil, incluidos yt-dlp y Deno. El gestor comprueba la ausencia de DiffQ antes de escribir `runtime/instalado.json` y limpiar la caché de uv (ADR 0009 y ADR 0014).
 4. `python -m shinobi_worker diagnostico` → confirma el perfil de hardware (CUDA / MPS / CPU; solo puede rebajar `cuda` → `cpu`, que cambia dónde se ejecuta pero no el modelo), guardado en `config.json`.
 5. Descarga (en main, reanudable con `Range`) y verificación SHA-256 del modelo **Calidad** en `modelos/`. Si falla de forma definitiva por verificación, servidores o espacio, B4 ofrece Rápido con consentimiento (ADR 0009, revisión 2026-11-05). al arrancar se borran los `*.partial` de audio-separator.
 

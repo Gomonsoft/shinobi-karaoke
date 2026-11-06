@@ -16,5 +16,10 @@ export interface OpcionesTextoLegal {
 export function leerTextoLegal(tipo: TextoLegal, o: OpcionesTextoLegal): Promise<string> {
   const archivo = ARCHIVOS[tipo]
   if (!archivo) return Promise.reject(new Error('Texto legal desconocido'))
-  return readFile(join(o.empaquetada ? o.dirRecursos : o.raizRepo, archivo), 'utf8')
+  return readFile(join(o.empaquetada ? o.dirRecursos : o.raizRepo, archivo), 'utf8').then(
+    (texto) =>
+      tipo === 'terceros'
+        ? texto.replace(/^<!-- (?:inicio|fin):dependencias-(?:js|python) -->\r?\n?/gm, '')
+        : texto
+  )
 }

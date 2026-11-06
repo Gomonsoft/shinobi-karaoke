@@ -2,7 +2,7 @@
 
 - Paso del pipeline: 0 (distribución)
 - ADRs: [0001](../adr/0001-plataforma-y-stack.md), [0006](../adr/0006-persistencia-y-modelo-de-datos.md) (ubicación de los datos), [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md)
-- Tarea que lo publica: [0025](../tareas/0025-empaquetado-e-instaladores.md). Sustituye al detalle de la Parte A de [01-primer-arranque.md](01-primer-arranque.md); criterios 13 y 17 de esa spec.
+- Fase 7: [0138](../tareas/0138-readme-e-instalar-sin-version-publicada.md) prepara E0, [0137](../tareas/0137-workflow-probar-los-instaladores.md) cubre las comprobaciones automatizadas y [0139](../tareas/0139-prueba-manual-de-instalacion-y-capturas.md) cubre la prueba manual. La primera publicación (0142) queda pendiente. Esta spec sustituye al detalle de la Parte A de [01-primer-arranque.md](01-primer-arranque.md) y desarrolla sus criterios 13 y 17.
 - Decisiones que respeta: sin firma ([0001](../preguntas/0001-firma-de-codigo-instaladores.md)); macOS 14 o posterior solo con chip Apple ([0015](../preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md), [0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md)); Mac Intel no compatible ([0016](../preguntas/0016-mac-intel-fuera-del-mvp.md)); sin web propia, README e `INSTALAR.md` ([0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md), Seguimiento); modelo Rápido solo con consentimiento ([0019](../preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md)).
 - Preguntas respondidas por el arquitecto e incorporadas: [0040](../preguntas/0040-nombres-de-instaladores-y-enlaces-de-descarga.md), [0041](../preguntas/0041-gatekeeper-con-firma-ad-hoc.md), [0042](../preguntas/0042-appimage-fuse-y-sandbox-en-linux.md), [0043](../preguntas/0043-instalador-de-windows-y-datos-al-desinstalar.md) (ADR 0012). Lo que no se ha podido ejecutar sigue en la prueba manual (§5).
 - Preguntas abiertas para el usuario: [0035](../preguntas/0035-repositorio-publico-y-primera-publicacion.md) (repositorio y primera versión), [0044](../preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) (Control inteligente de aplicaciones) y [0045](../preguntas/0045-appimage-sin-sandbox-en-ubuntu.md) (AppImage sin sandbox). [0036](../preguntas/0036-numero-de-version-y-politica-de-versiones.md) y [0037](../preguntas/0037-autoactualizacion-de-la-app.md) no cambian ningún texto de hoy.
@@ -24,7 +24,7 @@ No hay web propia. Hay tres textos, todos en Markdown de GitHub. **Markdown no e
 | Estado | Cuándo | Qué se muestra |
 |--------|--------|----------------|
 | **E0 — Sin versión** | No hay ninguna *Release* publicada (**es el estado de la Fase 7**) | §1.1 en el README; aviso E0 al principio de `INSTALAR.md`. **Ningún enlace de descarga** |
-| **E1 — Con versión** | Existe al menos una *Release* pública con los cuatro instaladores | §1.2 en el README, sin aviso E0 |
+| **E1 — Con versión** | Existe al menos una *Release* pública con los instaladores aprobados para publicar | §1.2 en el README, sin aviso E0 y con los enlaces de los instaladores publicados |
 | **Guía provisional** | Queda algún ⟦P⟧ o ⟦R⟧ de este documento sin resolver | Aviso "guía provisional" al principio de `INSTALAR.md` |
 | Vacío / cargando | No aplican: son textos estáticos | — |
 | Error | No aplica a la página; los fallos del usuario se cubren en "¿Sigue sin abrirse?" | — |
@@ -222,7 +222,7 @@ Cuando veas **Todo listo**, pulsa **Empezar** y ya podrás añadir tu primera ca
 
 ### En Linux
 
-- **El AppImage no abre, o sale un error que menciona «FUSE» o «sandbox»:** prueba el archivo `.deb` si tu sistema lo admite y, si no, [cuéntanoslo](https://github.com/Gomonsoft/shinobi-karaoke/issues). ⟦P16⟧
+- **El AppImage no abre:** prueba el archivo `.deb` si tu sistema lo admite y, si no, [cuéntanoslo](https://github.com/Gomonsoft/shinobi-karaoke/issues). ⟦P16⟧
 - **La app dice «Tu equipo no es compatible todavía»:** tu equipo tiene un procesador ARM, y por ahora solo funciona en los de 64 bits (x64).
 
 ### Si nada de esto te ayuda
@@ -251,7 +251,13 @@ Para encontrarla, antes de desinstalar, abre la app y entra en **Ajustes → Abr
 
 **Por qué no se menciona el modelo Rápido por su nombre:** la guía no debe presentarlo como opción previa (criterio 5 de la spec 01). La frase "nunca descarga un modelo distinto sin preguntarte antes" basta para no ocultar que existe esa posibilidad.
 
-**Cifras de "Después de instalar":** salen de `app/resources/runtime-manifest.json` y de la spec 01 (`pa.req.descarga.generica`, `pa.req.tiempo`). Si el manifiesto cambia, se actualizan aquí y en la guía. No se publica el tamaño del instalador hasta medirlo (tarea 0025).
+**Cifras de "Después de instalar":** salen de `app/resources/runtime-manifest.json` y de la spec 01 (`pa.req.descarga.generica`, `pa.req.tiempo`). Si el manifiesto cambia, se actualizan aquí y en la guía. El tamaño que se publique debe corresponder al instalador definitivo.
+
+**Compatibilidad y pruebas de la guía**
+
+- **Mac (0041).** El paquete lleva firma *ad hoc*, sin Developer ID. Probar con un DMG descargado en el navegador en un Mac real, incluido macOS 14. La guía indica arrastrar la app a Aplicaciones. En macOS 13, un Mac con chip Apple puede llegar al aviso de actualización B6b. En macOS 12 o anterior lo rechaza el sistema.
+- **Linux (0042).** El motor requiere glibc 2.28 o posterior. El AppImage usa FUSE del sistema para montarse, con un runtime que prescinde de `libfuse2` y `libfuse2t64`. El mensaje «El AppImage no abre» cubre también los errores de FUSE. En Ubuntu 24.04 se debe comprobar el arranque del `.deb` con el perfil de AppArmor y el del AppImage con la restricción activa. El AppImage puede arrancar sin el sandbox del sistema automáticamente. La publicación y el texto para ese caso siguen sujetos a 0045.
+- **Windows (0043).** NSIS instala por usuario y abre la app al terminar. 0137 y P13 verifican el instalador real. Las pruebas de desinstalación cubren Windows y `.deb`. Al reinstalar, se conservan las canciones y se reutiliza el motor si el manifiesto es el mismo. Si cambian sus requisitos o modelos, B5 prepara y descarga solo la parte necesaria.
 
 ## §3. Notas de cada *Release*
 
@@ -282,6 +288,8 @@ Si quieres comprobar la descarga, las sumas de verificación están en `SHA256SU
 
 Estos enlaces no pasan por la app: no afectan a `ENLACES_PERMITIDOS`.
 
+0040 fija los nombres de los archivos sin versión. La versión figura en la *Release*, en Acerca de y en el artefacto del workflow (`shinobi-karaoke-<versión>-<sha corto>-<so>`). En Fase 7 el workflow genera `SHA256SUMS-<so>.txt` por plataforma. En E1 la *Release* incluye el `SHA256SUMS.txt` unificado que citan las notas de §3.
+
 ## §5. Textos del sistema y prueba manual
 
 Las páginas de Apple confirman que **los nombres cambian según el idioma** (España frente a México), y dentro de una misma página difieren el texto y la captura. Por eso la guía da las dos variantes. Hay que probar con el instalador real, en español de España **y** de México o Latinoamérica, y dejar solo lo que aparezca de verdad.
@@ -304,10 +312,10 @@ Las páginas de Apple confirman que **los nombres cambian según el idioma** (Es
 | P12 | Mensaje real del Control inteligente de aplicaciones | Microsoft confirma el bloqueo, no el texto de la ventana | Windows 11 con la función activada |
 | P13 | Instalador de un clic (sin preguntas ni administrador, accesos directos, abre la app al terminar), desinstalar y reinstalar en Windows | Sale de la configuración de electron-builder (0043); el instalador no se ha ejecutado. Rutas de desinstalación de Microsoft. Tareas 0137 y 0139 | Windows 10 y 11 |
 | P14 | "Ir" → "Ir a la carpeta…" | Sin comprobar en una fuente oficial | macOS |
-| P15 | Alerta "está dañada" con la firma *ad hoc* | No debería aparecer si el sello es válido, pero nada de macOS se ha ejecutado (0041). **Si aparece sin salida, se detiene la publicación en macOS y se eleva al usuario**; la guía no incluye Terminal | macOS 14, 15 y actual (0139) |
+| P15 | Alerta "está dañada" con la firma *ad hoc* | Si aparece, comprobar el sello en el Mac de destino. **Si el sello es válido y la alerta no ofrece salida, se detiene la publicación en macOS y se eleva al usuario** (0041) | macOS 14, 15 y actual (0139) |
 | P16 | AppImage y `.deb` en Ubuntu 24.04 con la restricción de AppArmor; "Probado en Ubuntu 24.04"; errores de FUSE | Sale del código de las plantillas y de WSL2 sin AppArmor (0042). Sin ejecutar con la restricción. Si no se llega a probar, se quita "Probado en Ubuntu 24.04" | Ubuntu 24.04 (0137 y 0139) |
 
-Cada resultado se anota en las notas de la tarea 0139 (SO, versión, idioma y texto literal), y después se quitan las variantes que no aparezcan.
+La prueba manual de 0139 abarca P1–P16 según esta spec. Cada resultado se anota en las notas de la tarea 0139 (SO, versión, idioma y texto literal), y después se quitan las variantes que no aparezcan.
 
 ### Confirmados en fuentes oficiales (2026-11-06)
 
@@ -369,7 +377,7 @@ Las capturas se hacen **con el instalador real**, en la prueba manual. No se usa
 ## Criterios de aceptación
 
 1. Sin ninguna *Release* publicada, el README muestra §1.1: dice que aún no hay versión, incluye los requisitos y **no contiene ningún enlace de descarga**, ni `releases/latest`. `INSTALAR.md` lleva el aviso E0.
-2. Con una *Release*, el README muestra §1.2 sin el aviso E0, con exactamente cuatro enlaces de descarga, y cada uno descarga su archivo en una sesión sin autenticar.
+2. Con una *Release* pública, el README muestra §1.2 sin el aviso E0. Cada enlace descarga su archivo en una sesión sin autenticar y usa el nombre exacto de §4. Antes de pasar a E1, se ajustan §1.2 y §3 si la decisión de publicación cambia los cuatro archivos previstos.
 3. El enlace de macOS dice exactamente "Descargar para Mac con chip Apple". Justo debajo, y fuera de elementos plegables, están el requisito completo y "¿Qué Mac tengo?".
 4. La línea de requisitos y "Los Mac con procesador Intel no son compatibles por ahora." aparecen en el README y en `INSTALAR.md`, con el mismo texto en ambos.
 5. Linux ofrece el `.deb` para Ubuntu, Debian y Linux Mint, y el AppImage para el resto (salvo que 0045 decida otra cosa); la guía no incluye comandos de `libfuse2` ni `--no-sandbox`. Ni el README ni la guía usan scripts o insignias que intenten detectar el SO o el procesador.
@@ -382,3 +390,5 @@ Las capturas se hacen **con el instalador real**, en la prueba manual. No se usa
 12. "Después de instalar" coincide con la Parte B de la spec 01 (nombres de botones, tiempo) y con el manifiesto vigente (rango de descarga, espacio).
 13. Todas las URL externas responden sin autenticar y llevan a la página indicada en una comprobación hecha el día de la publicación; la fecha se anota en la tarea 0142.
 14. La tabla "Requisitos del equipo" del README ya no dice "~1–2 GB" (§1.3).
+15. P13 comprueba en Windows que el instalador arranca sin pedir permisos de administrador, crea accesos en Inicio y en el escritorio y abre la app al terminar. En Windows y con el `.deb`, se comprueba que tras desinstalar y reinstalar siguen las canciones, se reutiliza el motor con el mismo manifiesto y B5 descarga solo lo necesario si cambia el motor.
+16. La guía remite al `.deb` o a incidencias si el AppImage no abre. «Probado en Ubuntu 24.04» solo aparece en §1.2 si P16 registra la prueba. La guía indica arrastrar la app a Aplicaciones y P15 registra la comprobación del sello si aparece «está dañada».

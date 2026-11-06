@@ -1,4 +1,4 @@
-# 0139 — Prueba manual de instalación (P1–P14) y capturas
+# 0139 — Prueba manual de instalación (P1–P16) y capturas
 - Estado: Bloqueada (por `preguntas/0038`: quién, con qué equipos; y por los artefactos de 0136)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0136, 0137, 0138; icono (0140) para las capturas definitivas
@@ -32,6 +32,8 @@ Anotar SO, versión, idioma y **texto literal**, y quitar de la guía las varian
 | P12 | Mensaje del Control inteligente de aplicaciones | Windows 11 con la función activada |
 | P13 | Desinstalar con la app real | Windows 10 y 11 |
 | P14 | "Ir" → "Ir a la carpeta…" | macOS |
+| P15 | Alerta «está dañada» con firma *ad hoc*. Si aparece, comprobar el sello en el Mac de destino y registrar si la alerta ofrece una salida | macOS 14, 15 y actual |
+| P16 | Arranque del AppImage y el `.deb` con la restricción de AppArmor activa. Registrar si interviene FUSE y si aparece `--no-sandbox` | Ubuntu 24.04 |
 
 ## Parte 2 — Comprobaciones técnicas
 - [ ] **Gatekeeper** (`preguntas/0041`): en macOS 14, 15 y actual, texto y botones de la alerta. **Si aparece "está dañada" sin "Abrir igualmente"**: se detiene y se escala (0041 punto 3).
@@ -56,7 +58,7 @@ Anotar SO, versión, idioma y **texto literal**, y quitar de la guía las varian
 - [ ] Según las reglas de §7: sin datos personales, recuadro de 3 px, 800 px de ancho como máximo.
 
 ## Criterios de aceptación
-- [ ] Tabla de resultados P1–P14 en las notas, con los no aplicables justificados.
+- [ ] Tabla de resultados P1–P16 en las notas, con los no aplicables justificados.
 - [ ] Mediciones del plan: bytes de descarga reales y pico de disco (0058), separación con Calidad en Windows y Linux CPU, NVIDIA y otros chips Apple. Las que no se puedan medir se anotan como pendientes y las valora la 0142.
 - [ ] Preguntas 0041–0043 actualizadas con los datos reales.
 - [ ] Lista de cambios para el diseñador en `ux/09`, sin editar la spec desde esta tarea.
