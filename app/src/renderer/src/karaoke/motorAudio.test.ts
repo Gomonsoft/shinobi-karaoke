@@ -176,4 +176,42 @@ describe('MotorAudio', () => {
     motor.fijarVolumen(-1)
     expect(ganancia.gain.value).toBe(0)
   })
+
+  it('libera el audio y aborta una carga, conservando pista, posición y velocidad', async () => {
+    const { motor, ctx, cargar, fuentes } = doble()
+    await motor.usarPista('instrumental')
+    motor.fijarVelocidad(0.75)
+    await motor.reproducir({ desdeMs: 5000 })
+    ctx.currentTime = 2.04
+    const pendiente = respuestaPendiente()
+    cargar.mockReturnValueOnce(pendiente.promise)
+    const cambio = motor.usarPista('voz')
+    motor.liberarAudio()
+
+    expect(fuentes[0]?.stop).toHaveBeenCalledOnce()
+    expect(cargar.mock.calls.at(-1)?.[1]?.signal?.aborted).toBe(true)
+    expect(motor.estado()).toMatchObject({
+      pista: 'instrumental',
+      velocidad: 0.75,
+      cargandoPista: null,
+      sonando: false
+    })
+    expect(motor.posicionMs()).toBeCloseTo(5750)
+
+    pendiente.resolve(new Response())
+    await cambio
+    await motor.usarPista('instrumental')
+    expect(cargar.mock.calls.map(([url]) => url)).toEqual([
+      urlPista('prueba', 'instrumental'),
+      urlPista('prueba', 'voz'),
+      urlPista('prueba', 'instrumental')
+    ])
+    expect(motor.posicionMs()).toBeCloseTo(5750)
+
+    motor.liberarAudio()
+    await motor.reproducir()
+    expect(cargar).toHaveBeenCalledTimes(4)
+    expect(fuentes.at(-1)?.start).toHaveBeenCalledWith(2.04, 5.75)
+    expect(motor.estado().sonando).toBe(true)
+  })
 })

@@ -47,6 +47,7 @@ export class MotorAudio {
   private reproduccion: Reproduccion | null = null
   private posicionEnPausa = 0
   private solicitudReproduccion = 0
+  private audioLiberado = false
   private destruido = false
 
   constructor(private readonly opciones: OpcionesMotor) {
@@ -127,6 +128,7 @@ export class MotorAudio {
 
     const reproduccion = this.reproduccion
     const posicion = this.posicionMs()
+    this.audioLiberado = false
     this.buffers.delete(pista)
     this.buffers.set(pista, buffer)
     if (this.buffers.size > this.maxBuffers) {
@@ -154,9 +156,14 @@ export class MotorAudio {
   }
 
   async reproducir(opciones: { desdeMs?: number; hastaMs?: number } = {}): Promise<void> {
-    const contexto = this.contexto
-    if (this.destruido || !contexto || this.actual.duracionMs === null) return
+    if (this.destruido) return
     const solicitud = ++this.solicitudReproduccion
+    if (this.audioLiberado && !this.carga) {
+      await this.usarPista(this.actual.pista)
+      if (solicitud !== this.solicitudReproduccion) return
+    }
+    const contexto = this.contexto
+    if (!contexto || this.actual.duracionMs === null) return
     try {
       if (contexto.state !== 'running') await contexto.resume()
     } catch {
@@ -276,6 +283,19 @@ export class MotorAudio {
       reproduccion.finMs,
       msCancionEn(Math.max(ctx, reproduccion.anclaje.ctxInicio), reproduccion.anclaje)
     )
+  }
+
+  /** Libera el audio de la escucha durante la prueba a pantalla completa. */
+  liberarAudio(): void {
+    if (this.destruido) return
+    this.posicionEnPausa = this.posicionMs()
+    this.solicitudReproduccion++
+    this.detenerFuente()
+    this.carga?.abort()
+    this.carga = null
+    this.buffers.clear()
+    this.audioLiberado = true
+    this.publicar({ sonando: false, cargando: false, cargandoPista: null })
   }
 
   destruir(): void {
