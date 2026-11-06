@@ -8,6 +8,8 @@ import audio_prueba as ap
 import pytest
 import soundfile as sf
 
+from shinobi_worker import protocolo
+from shinobi_worker.__main__ import main
 from shinobi_worker.protocolo import FASES_SEPARACION
 
 FIXTURES = json.loads(
@@ -104,6 +106,36 @@ def test_fixture_de_escenario_es_valido(caso):
     assert p.returncode == 0, p.stderr
 
 
+def test_motor_incompleto_al_importar_separador(caso, monkeypatch, capsys):
+    args, _ = caso
+    monkeypatch.delenv("SHINOBI_SEPARADOR_FALSO", raising=False)
+    monkeypatch.setitem(sys.modules, "audio_separator", None)
+    monkeypatch.delitem(sys.modules, "shinobi_worker.separacion_real", raising=False)
+    monkeypatch.setattr(protocolo, "iniciar", lambda: None)
+
+    assert main(["separar", "--args", json.dumps(args)]) == 1
+    error = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert error == {
+        "tipo": "error",
+        "codigo": "RUNTIME_NO_DISPONIBLE",
+        "mensaje": "Falta un componente del motor de audio: audio_separator",
+        "reintentable": False,
+    }
+
+
+def test_separador_falso_puede_simular_motor_incompleto(caso):
+    args, tmp = caso
+    esc = escenario(
+        tmp,
+        fallos=[{"cuando": {}, "codigo": "RUNTIME_NO_DISPONIBLE", "reintentable": False}],
+    )
+
+    p, msgs = ejecutar(args, esc)
+    assert p.returncode == 1
+    assert msgs[-1]["codigo"] == "RUNTIME_NO_DISPONIBLE"
+    assert msgs[-1]["reintentable"] is False
+
+
 def test_entrada_wav_float_no_soportada(caso):
     args, tmp = caso
     wav = ap.wav(tmp / "f.wav", ap.tono(3), subtipo="FLOAT")
@@ -180,12 +212,6 @@ def test_argumentos_invalidos(caso):
     assert msgs[-1]["codigo"] == "ARGUMENTOS_NO_VALIDOS"
     p, msgs = ejecutar({"entrada": "x"})
     assert msgs[-1]["codigo"] == "ARGUMENTOS_NO_VALIDOS"
-
-
-def test_sin_doble_el_real_no_disponible_es_error_interno(caso):
-    args, _ = caso
-    p, msgs = ejecutar(args)
-    assert msgs[-1]["tipo"] == "error" and msgs[-1]["codigo"] == "ERROR_INTERNO"
 
 
 def test_error_inesperado_es_error_interno_con_log(caso, monkeypatch, capsys):

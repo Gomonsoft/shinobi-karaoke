@@ -11,6 +11,7 @@ const modeloSeparacion = z.enum(['calidad', 'rapido'])
 const instalacionSchema = z
   .object({
     estado: z.enum(['pendiente', 'en_curso', 'completa', 'dañada']).default('pendiente'),
+    reinstalar_componentes: z.boolean().default(false),
     fases: z
       .object({
         motor: faseSchema.default('pendiente'),

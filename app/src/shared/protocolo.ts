@@ -239,6 +239,7 @@ export type ResultadoSeparar = z.infer<typeof resultadoSepararSchema>
 export const ERRORES_SEPARAR = [
   'MEMORIA_INSUFICIENTE',
   'MODELO_NO_DISPONIBLE',
+  'RUNTIME_NO_DISPONIBLE',
   'SIN_ESPACIO',
   'FORMATO_NO_SOPORTADO',
   'ARGUMENTOS_NO_VALIDOS',

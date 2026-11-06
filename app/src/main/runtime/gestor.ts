@@ -271,6 +271,7 @@ export interface GestorRuntime {
   ): Promise<void>
   /** Comprobación de arranque (ADR 0009 §6): barata si `completa`; verificación completa si no. */
   comprobarAlArrancar(): Promise<ResultadoComprobacion>
+  marcarDanada(motivo: 'componentes'): Promise<void>
   suscribir(cb: (p: ProgresoRuntime) => void): () => void
 }
 
@@ -298,6 +299,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
 
   let actual: Promise<ResultadoInstalacion> | null = null
   let control: AbortController | null = null
+  let invalidacion: Promise<void> | null = null
 
   const existe = (r: string): Promise<boolean> =>
     fsp.access(r).then(
@@ -348,7 +350,9 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
     // Modelo de la fase de modelo: el pedido (Rápido tras el consentimiento) o el vigente.
     const modeloObjetivo = (): ModeloManifiesto | undefined =>
       forzado ? deps.manifiesto.modelos.find((m) => m.id === forzado) : modeloVigente()
+    if (invalidacion) await invalidacion
     const cfg0 = deps.config.obtener()
+    const reinstalarComponentes = cfg0.instalacion.reinstalar_componentes
     const previos = await deps.deteccion.requisitosPrevios()
     const plataforma = previos.plataforma
     const perfilInstalado = previos.perfil
@@ -429,6 +433,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       await deps.config.actualizar({
         instalacion: {
           fases: { [f]: e },
+          ...(f === 'componentes' && e === 'completada' ? { reinstalar_componentes: false } : {}),
           error:
             e === 'error'
               ? { codigo: extra.codigo ?? 'ERROR_INTERNO', mensaje: extra.mensaje ?? '', fase: f }
@@ -590,7 +595,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       }
 
       // ---- 3-4. Componentes y diagnóstico ----------------------------------
-      const marcador = await leerMarcador(dirRuntime)
+      const marcador = reinstalarComponentes ? null : await leerMarcador(dirRuntime)
       const marcadorValido =
         marcador !== null &&
         marcador.manifiesto_version === deps.manifiesto.version &&
@@ -622,6 +627,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
                   '--require-hashes',
                   '--index-strategy',
                   'unsafe-best-match',
+                  ...(reinstalarComponentes ? ['--reinstall'] : []),
                   '-r',
                   join(deps.raizRecursos, req.requisitos)
                 ])
@@ -791,7 +797,8 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       plataforma !== null && perfilPrev !== null
         ? requisitosDe(deps.manifiesto, plataforma, perfilPrev)
         : null
-    const marcador = await leerMarcador(dirRuntime)
+    // Si la app se cerró después de guardar el diagnóstico, un marcador residual no se reutiliza.
+    const marcador = cfg.instalacion.reinstalar_componentes ? null : await leerMarcador(dirRuntime)
     const hayVenv = await existe(python)
 
     // ---- completa: comprobación barata -------------------------------------
@@ -903,6 +910,29 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
     }
   }
 
+  function marcarDanada(motivo: 'componentes'): Promise<void> {
+    if (invalidacion) return invalidacion
+    if (deps.config.obtener().instalacion.estado !== 'completa') return Promise.resolve()
+    const marcador = join(dirRuntime, 'instalado.json')
+    invalidacion = deps.config
+      .actualizar({
+        instalacion: {
+          estado: 'dañada',
+          fases: { [motivo]: 'pendiente' },
+          error: null,
+          reinstalar_componentes: true
+        }
+      })
+      .then(async () => {
+        await fsp.rm(`${marcador}.bak`, { force: true })
+        await fsp.rm(marcador, { force: true })
+      })
+      .finally(() => {
+        invalidacion = null
+      })
+    return invalidacion
+  }
+
   function instalar(opciones: OpcionesInstalar = {}): Promise<ResultadoInstalacion> {
     if (actual) return actual
     if (opciones.modelo) {
@@ -933,6 +963,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
     instalando: () => actual !== null,
     descargarModelo,
     comprobarAlArrancar,
+    marcarDanada,
     suscribir(cb) {
       oyentes.add(cb)
       return () => oyentes.delete(cb)

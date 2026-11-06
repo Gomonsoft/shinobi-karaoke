@@ -85,6 +85,8 @@ export interface DependenciasServicioSeparacion {
   intentoEnEntorno?: boolean
   /** Se llama cuando puede haber cambiado la oferta de Rápido (el runtime refresca su estado). */
   alCambiarOferta?(): void
+  /** Un proceso de separación detectó que faltan componentes del motor. */
+  alMotorIncompleto?(): void
 }
 
 const MEMORIA = new Set(['MEMORIA_INSUFICIENTE', 'PROCESO_TERMINADO'])
@@ -112,6 +114,14 @@ export class ServicioSeparacion {
     // YouTube: al completar la fuente se encadena la separación (el paso ya está escrito).
     this.baja = deps.gestor.suscribir((t) => {
       if (t.estado === 'terminado' && t.paso === 'separacion') this.deps.alCambiarOferta?.()
+      if (
+        t.estado === 'terminado' &&
+        t.comando === 'separar' &&
+        t.resultado === 'error' &&
+        t.error?.codigo === 'RUNTIME_NO_DISPONIBLE'
+      ) {
+        this.deps.alMotorIncompleto?.()
+      }
       if (
         t.estado === 'terminado' &&
         t.paso === 'fuente' &&

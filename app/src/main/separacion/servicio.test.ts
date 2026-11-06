@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServicioBiblioteca } from '../biblioteca'
 import { GestorTrabajos, type EjecutarWorker } from '../trabajos'
 import { ALFA_FACTOR, entornoSeparadorFalso, ServicioSeparacion } from './servicio'
@@ -29,6 +29,7 @@ let llamadas: Llamada[]
 let gestor: GestorTrabajos
 let config: ReturnType<typeof configEnMemoria>
 let servicio: ServicioSeparacion
+const alMotorIncompleto = vi.fn()
 
 function resultado(extra: Record<string, unknown> = {}) {
   return {
@@ -83,11 +84,13 @@ function montar(parcialConfig = {}): void {
     config,
     manifiesto: () => manifiesto,
     dirDatos: datos,
-    estimarSeparacion: () => null
+    estimarSeparacion: () => null,
+    alMotorIncompleto
   })
 }
 
 beforeEach(async () => {
+  alMotorIncompleto.mockClear()
   datos = await nuevoDirDatos()
   montar()
 })
@@ -165,6 +168,23 @@ describe('separar: reglas de aceptación', () => {
     const id = await cancionConFuente(biblioteca, datos)
     await expect(servicio.separar(id)).rejects.toMatchObject({ codigo: 'RUNTIME_NO_DISPONIBLE' })
     expect(gestor.listar()).toEqual([])
+    expect(alMotorIncompleto).not.toHaveBeenCalled()
+  })
+
+  it('notifica una vez un motor incompleto detectado por el worker, sin reintentar ni ofrecer Rápido', async () => {
+    const id = await cancionConFuente(biblioteca, datos)
+    await servicio.separar(id)
+    const l = await arrancado()
+    expect(alMotorIncompleto).not.toHaveBeenCalled()
+
+    l.fallar('RUNTIME_NO_DISPONIBLE')
+    await esperarHasta(() => gestor.listar().length === 0)
+    expect(alMotorIncompleto).toHaveBeenCalledTimes(1)
+    expect(llamadas).toHaveLength(1)
+    expect(biblioteca.obtener(id)?.pasos.separacion.error).toMatchObject({
+      codigo: 'RUNTIME_NO_DISPONIBLE'
+    })
+    expect(servicio.ofertaRapidoVigente(id)).toBe(false)
   })
 
   it('acepta paso en error o interrumpido, y completado solo con las pistas perdidas', async () => {

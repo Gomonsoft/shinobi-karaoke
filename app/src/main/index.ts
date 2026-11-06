@@ -419,6 +419,17 @@ if (instanciaUnica)
         // `SHINOBI_INTENTO` solo con el separador falso y sin empaquetar (0060, 0066).
         intentoEnEntorno: !app.isPackaged && Boolean(process.env.SHINOBI_SEPARADOR_FALSO),
         alCambiarOferta: () => rt.servicio.refrescar(),
+        alMotorIncompleto: () => {
+          void rt.servicio
+            .marcarDanada('componentes')
+            .catch((e: unknown) =>
+              registro.escribir(
+                'error',
+                'runtime',
+                `no se pudo marcar el motor como dañado: ${String(e)}`
+              )
+            )
+        },
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'separacion', mensaje)
       })
       // Restos de una sesión anterior: `pistas.tmp/` y `modelos/*.partial`.

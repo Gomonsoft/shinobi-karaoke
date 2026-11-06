@@ -1,5 +1,5 @@
 # 0124 — Motor de audio incompleto al separar: `RUNTIME_NO_DISPONIBLE`, instalación `dañada` y reinstalación de componentes
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 3 (separación; deuda detectada en desarrollo el 2026-11-06, se salda en la Fase 6)
 - Depende de: — (empieza ya). Si 0112 está en curso, coordinad `shared/config.ts` (bloques distintos: `instalacion` aquí, `reproductor` allí).
 - ADRs: 0009 (Revisión 2026-11-06), 0004
@@ -46,4 +46,7 @@ cd ../app && npm run lint && npm run typecheck && npm run format:check && npm te
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- El worker traduce el `ImportError` del separador a `RUNTIME_NO_DISPONIBLE`. El separador falso y el esquema de escenarios aceptan el mismo código. El test del motor incompleto bloquea la importación de `audio_separator` para que el resultado no dependa de los paquetes instalados.
+- `ServicioSeparacion` notifica el error terminal al runtime. El gestor guarda el diagnóstico, invalida el marcador y su respaldo, y usa `--reinstall` en la fase de componentes. Si falla o se interrumpe esa fase, el diagnóstico se conserva hasta completarla. El servicio difunde el cambio mediante su suscripción a la configuración.
+- Verificados lint, tipos y formato de la app, y 118 tests de Vitest en los módulos afectados. Ruff, formato y pytest del worker en verde (313 aprobados, 7 excluidos por marcas). Pendiente la verificación completa de la app.

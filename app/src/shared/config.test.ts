@@ -10,6 +10,7 @@ describe('configSchema (lectura tolerante)', () => {
       esquema: 1,
       instalacion: {
         estado: 'pendiente',
+        reinstalar_componentes: false,
         fases: { motor: 'pendiente', componentes: 'pendiente', modelo: 'pendiente' },
         perfil_hardware: null,
         perfil_previsto: null,
@@ -41,6 +42,7 @@ describe('configSchema (lectura tolerante)', () => {
       reproductor: { volumen: 0.3 }
     })
     expect(c.instalacion.estado).toBe('completa')
+    expect(c.instalacion.reinstalar_componentes).toBe(false)
     expect(c.instalacion.fases).toEqual({
       motor: 'completada',
       componentes: 'pendiente',

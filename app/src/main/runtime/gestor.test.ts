@@ -172,6 +172,60 @@ async function montar(esc: Escenario = {}, id = 'cpu' as PerfilHardware) {
 
 const ordenes = (l: string[][]): string[] => l.map((a) => a.slice(1, 3).join(' '))
 
+describe('motor de audio incompleto', () => {
+  it('invalida el marcador y reinstala solo componentes', async () => {
+    const t = await montar()
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    expect(t.llamadas.find((a) => a[1] === 'pip')).not.toContain('--reinstall')
+
+    const marcador = join(datos, 'runtime', 'instalado.json')
+    writeFileSync(`${marcador}.bak`, readFileSync(marcador))
+    const primera = t.gestor.marcarDanada('componentes')
+    expect(t.gestor.marcarDanada('componentes')).toBe(primera)
+    await primera
+    expect(t.config.obtener().instalacion).toMatchObject({
+      estado: 'dañada',
+      fases: { motor: 'completada', componentes: 'pendiente', modelo: 'completada' },
+      error: null,
+      reinstalar_componentes: true
+    })
+    expect(existsSync(marcador)).toBe(false)
+    expect(existsSync(`${marcador}.bak`)).toBe(false)
+
+    t.llamadas.length = 0
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    expect(ordenes(t.llamadas)).toEqual(['pip install', 'cache clean'])
+    expect(t.llamadas[0]).toContain('--reinstall')
+    expect(t.descargas).toEqual(['calidad'])
+    expect(t.config.obtener().instalacion.reinstalar_componentes).toBe(false)
+    expect(existsSync(marcador)).toBe(true)
+  })
+
+  it('conserva el diagnóstico tras fallar el instalador y omite un marcador residual al arrancar', async () => {
+    const t = await montar({ fallos: { '--reinstall': 'connection refused' } })
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    const marcador = join(datos, 'runtime', 'instalado.json')
+    const anterior = readFileSync(marcador)
+    await t.gestor.marcarDanada('componentes')
+    writeFileSync(marcador, anterior)
+
+    expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'pendiente' })
+    expect(t.config.obtener().instalacion.estado).toBe('dañada')
+    expect(await t.gestor.instalar()).toMatchObject({ estado: 'error' })
+    expect(t.config.obtener().instalacion.reinstalar_componentes).toBe(true)
+    expect(await t.gestor.reintentar()).toEqual({ estado: 'completa' })
+    expect(t.config.obtener().instalacion.reinstalar_componentes).toBe(false)
+  })
+
+  it('no cambia una instalación que aún no está completa', async () => {
+    const t = await montar()
+    const inicial = t.config.obtener()
+    await t.gestor.marcarDanada('componentes')
+    expect(t.config.obtener()).toEqual(inicial)
+    expect(t.llamadas).toEqual([])
+  })
+})
+
 describe('peticionPython', () => {
   it('arquitectura explícita', () => {
     expect(peticionPython('3.12.16', 'macos', 'arm64')).toBe('cpython-3.12.16-macos-aarch64-none')

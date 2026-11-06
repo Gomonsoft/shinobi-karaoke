@@ -71,9 +71,12 @@ def crear_separador(entorno: Mapping[str, str]) -> Separador:
         return SeparadorFalso(Path(escenario), intento)
     try:
         from .separacion_real import SeparadorReal  # tarea 0061
+
+        return SeparadorReal()
     except ImportError as e:
-        raise ErrorWorker("ERROR_INTERNO", f"El separador real no esta disponible: {e}") from e
-    return SeparadorReal()
+        raise ErrorWorker(
+            "RUNTIME_NO_DISPONIBLE", f"Falta un componente del motor de audio: {e.name or e}"
+        ) from e
 
 
 def _intento(texto: str | None) -> int | None:

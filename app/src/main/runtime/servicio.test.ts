@@ -33,6 +33,12 @@ function preparar(
       return Promise.resolve({ estado: 'completa' as const }).finally(() => (instalando = false))
     }),
     pausar: vi.fn(() => Promise.resolve()),
+    marcarDanada: vi.fn((motivo: 'componentes') => {
+      cfg.instalacion.estado = 'dañada'
+      cfg.instalacion.fases[motivo] = 'pendiente'
+      for (const cb of oyentes) cb(cfg)
+      return Promise.resolve()
+    }),
     instalando: () => instalando,
     suscribir: vi.fn(() => () => undefined),
     descargarModelo: vi.fn(
@@ -94,6 +100,26 @@ function preparar(
 }
 
 describe('servicio de runtime (0036)', () => {
+  it('delega el diagnóstico de componentes y difunde el cambio de configuración', async () => {
+    const { servicio, gestor } = preparar((c) => {
+      c.instalacion.estado = 'completa'
+      c.instalacion.fases.componentes = 'completada'
+    })
+    const alCambiar = vi.fn()
+    servicio.alCambiar(alCambiar)
+
+    await servicio.marcarDanada('componentes')
+    expect(gestor.marcarDanada).toHaveBeenCalledWith('componentes')
+    await vi.waitFor(() =>
+      expect(alCambiar).toHaveBeenCalledWith(
+        expect.objectContaining({
+          estado: 'dañada',
+          fases: expect.objectContaining({ componentes: 'pendiente' })
+        })
+      )
+    )
+  })
+
   it('estado pendiente con perfil previsto: modo y bytes restantes', async () => {
     const { servicio } = preparar((c) => {
       c.instalacion.perfil_previsto = 'mps'

@@ -35,7 +35,7 @@ export const MARGEN_ESPACIO_RAPIDO = 100e6
 /** Subconjunto del gestor (0034) que usa la fachada. */
 export type GestorParaServicio = Pick<
   GestorRuntime,
-  'instalar' | 'pausar' | 'instalando' | 'suscribir' | 'descargarModelo'
+  'instalar' | 'pausar' | 'instalando' | 'suscribir' | 'descargarModelo' | 'marcarDanada'
 >
 
 export interface ServicioRuntime {
@@ -47,6 +47,7 @@ export interface ServicioRuntime {
   requisitos(recalcularEspacio: boolean): Promise<RequisitosRuntimeIpc>
   /** Lanza la instalación y vuelve al momento. */
   instalar(): void
+  marcarDanada(motivo: 'componentes'): Promise<void>
   pausar(): Promise<void>
   detalles(): Promise<string>
   estimarSeparacion(duracionMs: number, modelo?: 'calidad' | 'rapido'): EstimacionSeparacion
@@ -454,6 +455,7 @@ export function crearServicioRuntime(deps: DependenciasServicioRuntime): Servici
       await deps.gestor.pausar()
       notificar()
     },
+    marcarDanada: (motivo) => deps.gestor.marcarDanada(motivo),
     aceptarYUsarRapido,
     volverACalidad,
     cancelarVolverACalidad() {
