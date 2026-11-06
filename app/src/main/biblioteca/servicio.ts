@@ -302,6 +302,11 @@ export class ServicioBiblioteca {
     return this.guardar(id, candidata, opciones.debounceMs ?? 0)
   }
 
+  /** Autoguardado del estilo desde el editor (0090, ADR 0010 §2). */
+  guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion> {
+    return this.actualizar(id, { estilo })
+  }
+
   /** Solo si `puedeMarcarseLista`; deja `pasos.edicion` completado. */
   async marcarLista(id: string): Promise<ResumenCancion> {
     const previa = this.exigirCancion(id)

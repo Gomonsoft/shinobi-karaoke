@@ -3,7 +3,7 @@ import { CANALES } from './canales'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
 import { cancionSchema, ESTADOS_PASO, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
-import { estiloSchema } from './estilo'
+import { estiloSchema, type Estilo } from './estilo'
 import { configSchema } from './config'
 import { MODELOS_SEPARACION, perfilSchema, plataformaSchema } from './manifiesto'
 import {
@@ -18,11 +18,13 @@ import {
   busquedaLetraSchema,
   editarTextoLetraSchema,
   guardarLetraSchema,
+  guardarTiemposSchema,
   resultadoBusquedaLetraSchema,
   type ArchivoLetraLeido,
   type BusquedaLetra,
   type EditarTextoLetra,
   type GuardarLetra,
+  type GuardarTiempos,
   type ResultadoBusquedaLetra
 } from './letrasBusqueda'
 
@@ -387,6 +389,11 @@ export const CONTRATO = {
     args: z.tuple([idCancionSchema, metadatosEditablesSchema]),
     res: resumenCancionSchema
   },
+  [CANALES.biblioteca.guardarEstilo]: {
+    args: z.tuple([idCancionSchema, estiloSchema]),
+    res: resumenCancionSchema
+  },
+  [CANALES.biblioteca.marcarLista]: { args: unId, res: resumenCancionSchema },
   [CANALES.biblioteca.volverABorrador]: { args: unId, res: resumenCancionSchema },
   [CANALES.biblioteca.eliminar]: { args: unId, res: z.void() },
   [CANALES.biblioteca.mostrarEnCarpeta]: { args: unId, res: z.void() },
@@ -469,7 +476,12 @@ export const CONTRATO = {
     args: z.tuple([editarTextoLetraSchema]),
     res: resumenCancionSchema
   },
+  [CANALES.letras.guardarTiempos]: {
+    args: z.tuple([guardarTiemposSchema]),
+    res: resumenCancionSchema
+  },
   [CANALES.letras.leerArchivo]: { args: vacio, res: archivoLetraLeidoSchema },
+  [CANALES.app.guardadoPendiente]: { args: z.tuple([z.boolean()]), res: z.void() },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
   [CANALES.app.salir]: { args: vacio, res: z.void() }
 } as const
@@ -488,6 +500,10 @@ export interface ApiShinobi {
     listar(): Promise<ResumenCancionIpc[]>
     obtener(id: string): Promise<Cancion | null>
     actualizarMetadatos(id: string, metadatos: MetadatosEditables): Promise<ResumenCancionIpc>
+    /** Escribe al momento; el debounce lo hace el editor. */
+    guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancionIpc>
+    /** Pasa a lista si las pistas y la sincronía están completas. */
+    marcarLista(id: string): Promise<ResumenCancionIpc>
     volverABorrador(id: string): Promise<ResumenCancionIpc>
     eliminar(id: string): Promise<void>
     mostrarEnCarpeta(id: string): Promise<void>
@@ -515,6 +531,8 @@ export interface ApiShinobi {
     guardar(letra: GuardarLetra): Promise<ResumenCancionIpc>
     /** Aplica el diff del texto sobre la letra guardada. */
     editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancionIpc>
+    /** Sustituye tiempos y desplazamiento sin tocar el texto; LETRA_DESACTUALIZADA si la letra cambió. */
+    guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancionIpc>
     /** Diálogo nativo `.lrc`/`.txt`; no guarda (ver `guardar` con `origen: 'archivo'`). */
     leerArchivo(): Promise<ArchivoLetraLeido>
   }
@@ -586,6 +604,8 @@ export interface ApiShinobi {
   }
   app: {
     /** Responde a `alSolicitudCierre`: main pausa la instalación y cierra. No responder = seguir. */
+    /** Avisa de cambios del editor sin escribir antes de cerrar. */
+    guardadoPendiente(pendiente: boolean): Promise<void>
     confirmarCierre(): Promise<void>
     /** Sale de la aplicación (en macOS, `window.close()` deja la app en el Dock). */
     salir(): Promise<void>

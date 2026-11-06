@@ -80,3 +80,14 @@ describe('estiloSchema', () => {
     expect(FUENTES_INCLUIDAS).toHaveLength(8)
   })
 })
+
+it.each([
+  { posiciones: [0, 1], valida: true },
+  { posiciones: [0, 1 / 3, 2 / 3, 1], valida: true },
+  { posiciones: [0, 0.5, 0.5, 1], valida: true },
+  { posiciones: [1, 0], valida: false }
+])('valida el orden de las paradas $posiciones', ({ posiciones, valida }) => {
+  const e = estilo()
+  e.fondo.paradas = posiciones.map((posicion) => ({ color: '#112233', posicion }))
+  expect(estiloSchema.safeParse(e).success).toBe(valida)
+})

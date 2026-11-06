@@ -1,5 +1,5 @@
 # 0090 — Contratos de la Fase 5: IPC del editor (`guardarTiempos`, `guardarEstilo`, `marcarLista`, `guardadoPendiente`), `LETRA_DESACTUALIZADA`, orden de paradas y API falsa del editor
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 5
 - Depende de: — (Fases 0–4 cerradas). **Es la primera tarea de la fase**: las tareas de main e interfaz (0091, 0103–0110) dependen de ella.
 - ADRs: 0010 (§2, incluido "Guardado y debounce"), 0006 (escritor único, formato del estilo), 0008 (validación IPC con Zod)
@@ -24,7 +24,7 @@
 Dejar declarados, validados y enchufados los canales nuevos del editor, para que el main (0091) y la interfaz (0103+) trabajen en paralelo. También el código de error nuevo, la validación de orden de las paradas y una API falsa del editor para los tests del renderer.
 
 ## Criterios de aceptación
-- [ ] **Esquema `guardarTiemposSchema`** en `app/src/shared/letrasBusqueda.ts` (exportado también desde `shared/index.ts` si allí se reexporta `letrasBusqueda`):
+- [x] **Esquema `guardarTiemposSchema`** en `app/src/shared/letrasBusqueda.ts` (exportado también desde `shared/index.ts` si allí se reexporta `letrasBusqueda`):
   ```ts
   export const tiempoElementoSchema = z.strictObject({
     id: z.string().min(1).max(200),
@@ -41,32 +41,32 @@ Dejar declarados, validados y enchufados los canales nuevos del editor, para que
   export type GuardarTiempos = z.infer<typeof guardarTiemposSchema>
   ```
   `palabraSchema` se importa de `./letra`. Los invariantes (inicios crecientes, etc.) **no** se validan aquí: los valida el main al combinar con la letra guardada (0091).
-- [ ] **Canales** en `canales.ts`, con comentario de una línea que cite 0090:
+- [x] **Canales** en `canales.ts`, con comentario de una línea que cite 0090:
   - `letras.guardarTiempos: 'letras:guardarTiempos'`;
   - `biblioteca.guardarEstilo: 'biblioteca:guardarEstilo'`;
   - `biblioteca.marcarLista: 'biblioteca:marcarLista'`;
   - `app.guardadoPendiente: 'app:guardadoPendiente'`: el editor avisa de que tiene cambios sin escribir (cierre de la ventana, ADR 0010 §2).
-- [ ] **`CONTRATO`** en `ipc.ts`:
+- [x] **`CONTRATO`** en `ipc.ts`:
   - `letras.guardarTiempos`: `args: z.tuple([guardarTiemposSchema])`, `res: resumenCancionSchema`;
   - `biblioteca.guardarEstilo`: `args: z.tuple([idCancionSchema, estiloSchema])`, `res: resumenCancionSchema`;
   - `biblioteca.marcarLista`: `args: unId`, `res: resumenCancionSchema`;
   - `app.guardadoPendiente`: `args: z.tuple([z.boolean()])`, `res: z.void()`.
-- [ ] **`ApiShinobi`** con JSDoc:
+- [x] **`ApiShinobi`** con JSDoc:
   - `letras.guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancionIpc>`: "Sustituye tiempos y desplazamiento sin tocar el texto; LETRA_DESACTUALIZADA si la letra cambió";
   - `biblioteca.guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancionIpc>`: "Escribe al momento; el debounce lo hace el editor";
   - `biblioteca.marcarLista(id: string): Promise<ResumenCancionIpc>`;
   - `app.guardadoPendiente(pendiente: boolean): Promise<void>`.
   Y los cuatro métodos en el preload.
-- [ ] **Errores** (`shared/errores.ts`): `'LETRA_DESACTUALIZADA'` en `CODIGOS_ERROR` y en `CODIGOS_SOLO_MAIN`, con su explicación en el comentario: "la letra guardada ya no tiene los mismos elementos que envía el editor (0090/0091); el editor recarga". Si hay un test que compara `CODIGOS_ERROR` con `worker/shinobi_worker/errores.py` descontando `CODIGOS_SOLO_MAIN`, debe seguir pasando sin tocar el worker.
-- [ ] **Estilo** (`shared/estilo.ts`, deuda de 0006): `fondoDegradado` añade `.refine` o `superRefine` con el mensaje "Las paradas del degradado deben ir en orden de posición": exige que `paradas[i].posicion >= paradas[i-1].posicion`. Tests en `shared/estilo.test.ts`:
+- [x] **Errores** (`shared/errores.ts`): `'LETRA_DESACTUALIZADA'` en `CODIGOS_ERROR` y en `CODIGOS_SOLO_MAIN`, con su explicación en el comentario: "la letra guardada ya no tiene los mismos elementos que envía el editor (0090/0091); el editor recarga". Si hay un test que compara `CODIGOS_ERROR` con `worker/shinobi_worker/errores.py` descontando `CODIGOS_SOLO_MAIN`, debe seguir pasando sin tocar el worker.
+- [x] **Estilo** (`shared/estilo.ts`, deuda de 0006): `fondoDegradado` añade `.refine` o `superRefine` con el mensaje "Las paradas del degradado deben ir en orden de posición": exige que `paradas[i].posicion >= paradas[i-1].posicion`. Tests en `shared/estilo.test.ts`:
   - acepta `[0, 1]`, `[0, 1/3, 2/3, 1]` y `[0, 0.5, 0.5, 1]`;
   - rechaza `[1, 0]`.
   Además, la semilla (`main/biblioteca/semilla.ts`, `estiloVariado`) y las fixtures de `shared/__fixtures__` siguen validando: lo comprueban los tests que ya existen.
-- [ ] **Handlers** (`main/ipc/handlers.ts`):
+- [x] **Handlers** (`main/ipc/handlers.ts`):
   - `BibliotecaIpc` añade `guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion>` y `marcarLista(id: string): Promise<ResumenCancion>`;
   - `LetrasIpc` añade `guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancion>`.
   `app.guardadoPendiente` llama a una dependencia nueva y opcional `DependenciasIpc.fijarGuardadoPendiente?(pendiente: boolean): void`, que 0104 conecta con el control de cierre; mientras tanto no hace nada. Los canales de biblioteca y letras se registran con `envolver` y devuelven `resumenParaRenderer(...)`. Sin servicio de letras, `letras.guardarTiempos` responde `ERROR_INTERNO`, como los demás canales `letras.*`.
-- [ ] **`ServicioBiblioteca.guardarEstilo(id, estilo)`** en `main/biblioteca/servicio.ts`:
+- [x] **`ServicioBiblioteca.guardarEstilo(id, estilo)`** en `main/biblioteca/servicio.ts`:
   ```ts
   /** Autoguardado del estilo desde el editor (0090, ADR 0010 §2). */
   guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion> {
@@ -74,19 +74,19 @@ Dejar declarados, validados y enchufados los canales nuevos del editor, para que
   }
   ```
   Escribe sin *debounce*: el *debounce* lo hace el editor (ADR 0010 §2). Test: el estilo queda en `cancion.json` y sale el evento `cancion`. Una canción inexistente o dañada da `ARGUMENTOS_NO_VALIDOS`, igual que `actualizar`.
-- [ ] **`ServicioLetras.guardarTiempos`**: solo un *stub* en esta tarea, que 0091 sustituye. Para que compile:
+- [x] **`ServicioLetras.guardarTiempos`**: solo un *stub* en esta tarea, que 0091 sustituye. Para que compile:
   ```ts
   async guardarTiempos(_p: GuardarTiempos): Promise<ResumenCancion> {
     throw new ErrorBiblioteca('ERROR_INTERNO', 'guardarTiempos: pendiente de 0091')
   }
   ```
   Si 0091 ya está hecha al empezar, no se toca.
-- [ ] **`main/index.ts`**: si `registrarIpc` recibe la biblioteca por una interfaz y hace falta pasar algo más, se cablea. Lo normal es que no haya que tocarlo.
-- [ ] **Tests de handlers** (`main/ipc/handlers.test.ts`):
+- [x] **`main/index.ts`**: si `registrarIpc` recibe la biblioteca por una interfaz y hace falta pasar algo más, se cablea. Lo normal es que no haya que tocarlo.
+- [x] **Tests de handlers** (`main/ipc/handlers.test.ts`):
   - validación: `offset_ms` fuera de ±30000, `tiempos` con un campo extra y estilo con `#FFF` → `ARGUMENTOS_NO_VALIDOS`;
   - éxito de los tres canales con dobles;
   - `marcarLista` propaga `ARGUMENTOS_NO_VALIDOS` del servicio.
-- [ ] **API falsa del editor** para los tests del renderer: `app/src/renderer/src/vistas/editor/fixturesApi.ts`. Sigue el estilo de `vistas/letra/fixturesApi.ts`.
+- [x] **API falsa del editor** para los tests del renderer: `app/src/renderer/src/vistas/editor/fixturesApi.ts`. Sigue el estilo de `vistas/letra/fixturesApi.ts`.
   - `apiEditorFalsa(opciones)` devuelve `{ api: ApiShinobi parcial, llamadas: Array<{ metodo, args }>, emitirCambio(resumen), fallar(metodo, codigo, veces?) }` e implementa:
     - `biblioteca.listar`, `obtener`, `guardarEstilo`, `marcarLista` y `volverABorrador`;
     - `letras.guardarTiempos`, que aplica de verdad los tiempos sobre su copia y responde `LETRA_DESACTUALIZADA` si los ids no coinciden;
@@ -110,4 +110,8 @@ npx vitest run src/shared src/main/ipc src/main/biblioteca src/renderer/src/vist
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- Los cuatro canales del editor están tipados, validados en main y conectados en el preload. `guardarEstilo` escribe al momento y emite el resumen de la canción.
+- `LETRA_DESACTUALIZADA` es exclusivo de main. Zod valida el orden no decreciente de las paradas del degradado.
+- El doble `apiEditorFalsa` tiene seis canciones inventadas de 30 s, permite simular escrituras y fallos y emite cambios de biblioteca.
+- Queda para la 0091 la escritura de tiempos. La 0104 conecta la señal de guardado pendiente con el cierre.
+- Verificado con lint, TypeScript, formato, Vitest (1541 pasadas, 12 omitidas), build y Playwright (69 pasadas, 2 omitidas). Las suites que lanzan Electron o el worker se ejecutaron fuera del sandbox.

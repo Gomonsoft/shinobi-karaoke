@@ -321,3 +321,17 @@ describe('eliminar y mostrar en carpeta', () => {
     await expect(s.eliminar(id)).rejects.toThrow(ErrorBiblioteca)
   })
 })
+
+it('guarda el estilo inmediatamente y emite el resumen', async () => {
+  const s = servicio()
+  const { id } = await s.crear(datosNuevos())
+  eventos.length = 0
+  const estilo = structuredClone(ESTILO_PREDETERMINADO)
+  const resumen = await s.guardarEstilo(id, estilo)
+  expect((await leerDisco(id)).estilo).toEqual(estilo)
+  expect(resumen.estilo).toEqual(estilo)
+  expect(eventos).toEqual([{ id, resumen }])
+  await expect(s.guardarEstilo('inexistente', estilo)).rejects.toMatchObject({
+    codigo: 'ARGUMENTOS_NO_VALIDOS'
+  })
+})

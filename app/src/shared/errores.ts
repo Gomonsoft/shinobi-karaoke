@@ -25,7 +25,8 @@ export const CODIGOS_ERROR = [
   'CANCELADO',
   'DEMO_FALLO',
   'PROCESO_TERMINADO',
-  'ARCHIVO_SIN_LETRA'
+  'ARCHIVO_SIN_LETRA',
+  'LETRA_DESACTUALIZADA'
 ] as const
 
 /**
@@ -35,8 +36,14 @@ export const CODIGOS_ERROR = [
  * `prog.error.generico`; en `separar` el main lo convierte en `MEMORIA_INSUFICIENTE` (0066).
  * `ARCHIVO_SIN_LETRA`: el archivo elegido en `letras.leerArchivo` no contiene letra legible (0077;
  * la interfaz lo muestra con `let.error.archivo`).
+ * `LETRA_DESACTUALIZADA`: la letra guardada ya no tiene los mismos elementos que envía
+ * el editor (0090/0091); el editor recarga.
  */
-export const CODIGOS_SOLO_MAIN = ['PROCESO_TERMINADO', 'ARCHIVO_SIN_LETRA'] as const
+export const CODIGOS_SOLO_MAIN = [
+  'PROCESO_TERMINADO',
+  'ARCHIVO_SIN_LETRA',
+  'LETRA_DESACTUALIZADA'
+] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]
 

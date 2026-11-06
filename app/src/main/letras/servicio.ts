@@ -19,6 +19,7 @@ import {
   sincroniaDe,
   type ArchivoLetraLeido,
   type EditarTextoLetra,
+  type GuardarTiempos,
   type GuardarLetra
 } from '../../shared/letrasBusqueda'
 import { ErrorBiblioteca } from '../biblioteca/operaciones'
@@ -174,6 +175,11 @@ export class ServicioLetras {
       sincronia: sincroniaDe(lineas),
       ignoradas
     }
+  }
+
+  async guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancion> {
+    void peticion
+    throw new ErrorBiblioteca('ERROR_INTERNO', 'guardarTiempos: pendiente de 0091')
   }
 
   private escribir(id: string, letra: Letra, debounceMs: number): Promise<ResumenCancion> {

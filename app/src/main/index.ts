@@ -514,6 +514,7 @@ if (instanciaUnica)
           letras: {
             buscar: (p) => busqueda.buscar(p),
             guardar: (p) => servicioLetras.guardar(p),
+            guardarTiempos: (peticion) => servicioLetras.guardarTiempos(peticion),
             editarTexto: (p) => servicioLetras.editarTexto(p),
             leerArchivo: () => servicioLetras.leerArchivo()
           },

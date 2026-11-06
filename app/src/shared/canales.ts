@@ -7,6 +7,9 @@ export const CANALES = {
     listar: 'biblioteca:listar',
     obtener: 'biblioteca:obtener',
     actualizarMetadatos: 'biblioteca:actualizarMetadatos',
+    // Guardado y estado de la canción desde el editor (0090).
+    guardarEstilo: 'biblioteca:guardarEstilo',
+    marcarLista: 'biblioteca:marcarLista',
     volverABorrador: 'biblioteca:volverABorrador',
     eliminar: 'biblioteca:eliminar',
     mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta'
@@ -45,6 +48,8 @@ export const CANALES = {
     cancelarVolverACalidad: 'runtime:cancelarVolverACalidad'
   },
   app: {
+    // El editor tiene cambios sin escribir (0090).
+    guardadoPendiente: 'app:guardadoPendiente',
     /** El renderer confirma el cierre pedido por `eventos.solicitudCierre` (0036). */
     confirmarCierre: 'app:confirmarCierre',
     /** Sale de la aplicación (`app.quit()`), también en macOS donde cerrar la ventana no basta. */
@@ -62,6 +67,8 @@ export const CANALES = {
     estimar: 'separacion:estimar'
   },
   letras: {
+    // Cambia los tiempos y el desplazamiento sin cambiar el texto (0090).
+    guardarTiempos: 'letras:guardarTiempos',
     /** Búsqueda en LRCLIB (0082). */
     buscar: 'letras:buscar',
     /** Sustituye la letra entera (0083). */

@@ -23,6 +23,8 @@ import {
   type BusquedaLetra,
   type ResultadoBusquedaLetra,
   type GuardarLetra,
+  type GuardarTiempos,
+  type Estilo,
   type EditarTextoLetra,
   type ArchivoLetraLeido,
   CODIGOS_ERROR,
@@ -42,6 +44,8 @@ export interface BibliotecaIpc {
     id: string,
     cambio: { metadatos: { titulo: string; artista: string; album: string | null } }
   ): Promise<ResumenCancion>
+  guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion>
+  marcarLista(id: string): Promise<ResumenCancion>
   volverABorrador(id: string): Promise<ResumenCancion>
   eliminar(id: string): Promise<void>
   mostrarEnCarpeta(id: string): Promise<void>
@@ -113,6 +117,7 @@ export interface LetrasIpc {
   buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
   guardar(letra: GuardarLetra): Promise<ResumenCancion>
   editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancion>
+  guardarTiempos(peticion: GuardarTiempos): Promise<ResumenCancion>
   leerArchivo(): Promise<ArchivoLetraLeido>
 }
 
@@ -121,6 +126,7 @@ export interface DependenciasIpc {
   separacion?: SeparacionIpc
   runtime: RuntimeIpc
   /** Respuesta del renderer a la solicitud de cierre (`cierre.ts`). */
+  fijarGuardadoPendiente?(pendiente: boolean): void
   confirmarCierre(): Promise<void>
   /** Sale de la aplicación (`app.quit()`). */
   salir(): void
@@ -230,6 +236,9 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) =>
       resumenParaRenderer(await letras().editarTexto(p))
     ),
+    [CANALES.letras.guardarTiempos]: envolver(CANALES.letras.guardarTiempos, async (p) =>
+      resumenParaRenderer(await letras().guardarTiempos(p))
+    ),
     [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () =>
       letras().leerArchivo()
     ),
@@ -242,6 +251,13 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.biblioteca.actualizarMetadatos]: envolver(
       CANALES.biblioteca.actualizarMetadatos,
       async (id, metadatos) => resumenParaRenderer(await biblioteca.actualizar(id, { metadatos }))
+    ),
+    [CANALES.biblioteca.guardarEstilo]: envolver(
+      CANALES.biblioteca.guardarEstilo,
+      async (id, estilo) => resumenParaRenderer(await biblioteca.guardarEstilo(id, estilo))
+    ),
+    [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) =>
+      resumenParaRenderer(await biblioteca.marcarLista(id))
     ),
     [CANALES.biblioteca.volverABorrador]: envolver(CANALES.biblioteca.volverABorrador, async (id) =>
       resumenParaRenderer(await biblioteca.volverABorrador(id))
@@ -326,6 +342,9 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.runtime.cancelarVolverACalidad]: envolver(CANALES.runtime.cancelarVolverACalidad, () =>
       runtime.cancelarVolverACalidad()
+    ),
+    [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
+      deps.fijarGuardadoPendiente?.(pendiente)
     ),
     [CANALES.app.confirmarCierre]: envolver(CANALES.app.confirmarCierre, () =>
       deps.confirmarCierre()

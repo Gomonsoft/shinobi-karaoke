@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { elementoLetraSchema, type ElementoLetra } from './letra'
+import { elementoLetraSchema, palabraSchema, type ElementoLetra } from './letra'
 
 /**
  * Contratos de la búsqueda e importación de letras (Fase 4, 0077; ADR 0005 Revisión 2026-11-05).
@@ -89,6 +89,21 @@ export const guardarLetraSchema = z
     path: ['lineas']
   })
 export type GuardarLetra = z.infer<typeof guardarLetraSchema>
+
+export const tiempoElementoSchema = z.strictObject({
+  id: z.string().min(1).max(200),
+  inicio_ms: z.number().int().min(0).nullable(),
+  fin_ms: z.number().int().min(0).nullable(),
+  palabras: z.array(palabraSchema).min(1).max(500).nullable()
+})
+
+export const OFFSET_MAXIMO_MS = 30_000
+export const guardarTiemposSchema = z.strictObject({
+  cancionId: z.string().min(1).max(200),
+  offset_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS),
+  tiempos: z.array(tiempoElementoSchema).max(MAX_ELEMENTOS_LETRA)
+})
+export type GuardarTiempos = z.infer<typeof guardarTiemposSchema>
 
 export const editarTextoLetraSchema = z.strictObject({
   cancionId: z.string().min(1).max(200),

@@ -4,6 +4,8 @@ import {
   CONTRATO,
   configPredeterminada,
   enlacePermitido,
+  estiloPredeterminado,
+  type GuardarTiempos,
   ErrorDatosInvalidos
 } from '../../shared'
 import { ErrorBiblioteca, type EventoCancion, type ResumenCancion } from '../biblioteca'
@@ -37,6 +39,8 @@ function crearDeps() {
       listar: vi.fn(() => [resumen('abc', '/ruta/absoluta/miniatura.jpg'), resumen('d')]),
       obtener: vi.fn(() => null),
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      guardarEstilo: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
       volverABorrador: vi.fn((id: string) => Promise.resolve(resumen(id))),
       eliminar: vi.fn(() => Promise.resolve()),
       mostrarEnCarpeta: vi.fn(() => Promise.resolve()),
@@ -653,5 +657,74 @@ describe('separación (0059)', () => {
       valor: { candidatos: [], instrumental: true }
     })
     expect(buscar).toHaveBeenCalledWith(peticion)
+  })
+})
+
+describe('IPC del editor', () => {
+  const peticion: GuardarTiempos = {
+    cancionId: 'abc',
+    offset_ms: 0,
+    tiempos: [{ id: 'l1', inicio_ms: 1200, fin_ms: null, palabras: null }]
+  }
+
+  it('rechaza desplazamiento, campos extra y color inválidos antes de llamar al servicio', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    const guardar = manejadores[CANALES.letras.guardarTiempos]
+    const error = { ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } }
+    expect(await guardar([{ ...peticion, offset_ms: 30_001 }])).toMatchObject(error)
+    expect(await guardar([{ ...peticion, offset_ms: -30_001 }])).toMatchObject(error)
+    expect(
+      await guardar([{ ...peticion, tiempos: [{ ...peticion.tiempos[0], texto: 'x' }] }])
+    ).toMatchObject(error)
+    const estilo = estiloPredeterminado()
+    estilo.letra.color = '#FFF'
+    expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject(
+      error
+    )
+    expect(deps.biblioteca.guardarEstilo).not.toHaveBeenCalled()
+  })
+
+  it('delega escrituras y cambios de estado y devuelve un resumen seguro', async () => {
+    const { deps } = crearDeps()
+    const guardarTiempos = vi.fn(async (p: GuardarTiempos) =>
+      resumen(p.cancionId, '/ruta/absoluta.jpg')
+    )
+    const fijarGuardadoPendiente = vi.fn()
+    const manejadores = crearManejadores({
+      ...deps,
+      letras: { guardarTiempos } as unknown as DependenciasIpc['letras'],
+      fijarGuardadoPendiente
+    })
+    const estilo = estiloPredeterminado()
+    expect(await manejadores[CANALES.letras.guardarTiempos]([peticion])).toMatchObject({
+      ok: true,
+      valor: { miniatura: 'shinobi-media://abc/fuente/miniatura.jpg' }
+    })
+    expect(guardarTiempos).toHaveBeenCalledWith(peticion)
+    expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject({
+      ok: true
+    })
+    expect(deps.biblioteca.guardarEstilo).toHaveBeenCalledWith('abc', estilo)
+    expect(await manejadores[CANALES.biblioteca.marcarLista](['abc'])).toMatchObject({ ok: true })
+    expect(deps.biblioteca.marcarLista).toHaveBeenCalledWith('abc')
+    expect(await manejadores[CANALES.app.guardadoPendiente]([true])).toMatchObject({ ok: true })
+    expect(fijarGuardadoPendiente).toHaveBeenCalledWith(true)
+  })
+
+  it('propaga errores de la biblioteca y señala un servicio de letras ausente', async () => {
+    const { deps } = crearDeps()
+    deps.biblioteca.marcarLista.mockRejectedValueOnce(
+      new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', 'Faltan líneas.')
+    )
+    const manejadores = crearManejadores(deps)
+    expect(await manejadores[CANALES.biblioteca.marcarLista](['abc'])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    expect(await manejadores[CANALES.letras.guardarTiempos]([peticion])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ERROR_INTERNO' }
+    })
   })
 })

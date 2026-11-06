@@ -14,11 +14,17 @@ const fondoSolido = z.object({
   color: colorHex
 })
 
-const fondoDegradado = z.object({
-  tipo: z.literal('degradado'),
-  angulo_grados: z.number().int().min(0).max(359),
-  paradas: z.array(paradaSchema).min(2).max(4)
-})
+const fondoDegradado = z
+  .object({
+    tipo: z.literal('degradado'),
+    angulo_grados: z.number().int().min(0).max(359),
+    paradas: z.array(paradaSchema).min(2).max(4)
+  })
+  .refine(
+    ({ paradas }) =>
+      paradas.every((parada, i) => parada.posicion >= (paradas[i - 1]?.posicion ?? 0)),
+    { message: 'Las paradas del degradado deben ir en orden de posición', path: ['paradas'] }
+  )
 
 export const fondoSchema = z.discriminatedUnion('tipo', [fondoSolido, fondoDegradado])
 

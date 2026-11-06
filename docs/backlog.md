@@ -233,7 +233,7 @@ Spec `ux/06` reescrita por el diseñador UX (48 criterios). [0024](preguntas/002
 
 | Tarea | Título | Depende de | ¿Paralelizable? | Archivos compartidos | Estado |
 |-------|--------|-----------|-----------------|----------------------|--------|
-| [0090](tareas/0090-contratos-compartidos-de-la-fase-5.md) | Contratos: IPC del editor, `LETRA_DESACTUALIZADA`, orden de paradas, API falsa | — | **Primera**; ‖ 0092–0102 | `canales.ts`, `ipc.ts`, `errores.ts`, `estilo.ts`, preload, `handlers.ts` | Pendiente |
+| [0090](tareas/0090-contratos-compartidos-de-la-fase-5.md) | Contratos: IPC del editor, `LETRA_DESACTUALIZADA`, orden de paradas, API falsa | — | **Primera**; ‖ 0092–0102 | `canales.ts`, `ipc.ts`, `errores.ts`, `estilo.ts`, preload, `handlers.ts` | Hecha |
 | [0091](tareas/0091-main-guardar-tiempos-de-la-letra.md) | Main: `ServicioLetras.guardarTiempos` | 0090 | ‖ interfaz | — | Pendiente |
 | [0092](tareas/0092-operaciones-puras-de-tiempos-del-editor.md) | Operaciones puras de tiempos (`marcarInicioLinea`, límites, formatos) | — | **Empieza ya** | — | Pendiente |
 | [0093](tareas/0093-estado-del-editor-historial-y-sesion-de-sincronia.md) | Estado del editor, deshacer/rehacer y sesión de sincronía | 0092 | ‖ 0094–0102 | — | Pendiente |

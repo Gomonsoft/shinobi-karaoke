@@ -127,6 +127,11 @@ export function apiLetrasFalsa(opciones: OpcionesApiLetrasFalsa = {}): {
       await espera()
       return resumen(p.cancionId)
     },
+    async guardarTiempos(p) {
+      llamadas.push({ canal: 'guardarTiempos', args: [p] })
+      await espera()
+      return resumen(p.cancionId)
+    },
     async leerArchivo() {
       llamadas.push({ canal: 'leerArchivo', args: [] })
       await espera()
