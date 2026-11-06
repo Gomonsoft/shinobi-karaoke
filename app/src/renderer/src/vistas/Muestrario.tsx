@@ -1,4 +1,8 @@
 import { useRef, useState } from 'react'
+import { estiloPredeterminado } from '@shared/estilo'
+import { FUENTES_REGISTRO } from '@shared/fuentes'
+import { letra, linea } from '@shared/__fixtures__'
+import { PantallaLetra } from '../karaoke/PantallaLetra'
 import { Copy, Pencil, Play, Settings, Trash2 } from 'lucide-react'
 import { AreaTexto, CampoTexto } from '../componentes/Campos'
 import { AvisoEnLinea } from '../componentes/AvisoEnLinea'
@@ -93,6 +97,7 @@ export function Muestrario() {
 
       <Componentes />
       <ControlesEditor />
+      <PreviasKaraoke />
     </main>
   )
 }
@@ -316,6 +321,48 @@ function ControlesEditor() {
           textoValor={`${Math.round(volumen * 100)} %`}
           alCambiar={setVolumen}
         />
+      </div>
+    </section>
+  )
+}
+
+const letraMuestrario = letra([
+  linea('m1', 'El viento mueve las luces sobre la ciudad', 1000),
+  linea('m2', '¿Cantamos? Ñandú', 5000)
+])
+
+function PreviasKaraoke() {
+  return (
+    <section aria-labelledby="m-karaoke">
+      <h2 id="m-karaoke" className="t-subtitulo">
+        Render de karaoke
+      </h2>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(17rem, 1fr))',
+          gap: 'var(--e-3)'
+        }}
+      >
+        {FUENTES_REGISTRO.map(({ familia }) => {
+          const estilo = estiloPredeterminado()
+          estilo.letra.fuente.familia = familia
+          return (
+            <figure key={familia} style={{ margin: 0 }}>
+              <figcaption>{familia}</figcaption>
+              <div style={{ aspectRatio: '16 / 9' }}>
+                <PantallaLetra
+                  letra={letraMuestrario}
+                  estilo={estilo}
+                  duracionMs={30_000}
+                  titulo="Ejemplo de karaoke"
+                  artista="Shinobi"
+                  reproduciendo={false}
+                />
+              </div>
+            </figure>
+          )
+        })}
       </div>
     </section>
   )

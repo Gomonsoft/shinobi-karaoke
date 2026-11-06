@@ -1,5 +1,5 @@
 # 0098 — Karaoke: componente `PantallaLetra` (render DOM/CSS compartido por vista previa y reproductor)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 6
 - Depende de: 0096
 - ADRs: 0010 (§4), 0006 (estilo → CSS), 0005
@@ -16,7 +16,7 @@
 Dibujar la letra con el estilo de la canción y los valores fijos de §10, a 60 fps, sin re-renderizar React por fotograma.
 
 ## Criterios de aceptación
-- [ ] Props:
+- [x] Props:
   ```ts
   interface PantallaLetraProps {
     letra: Letra; estilo: Estilo; duracionMs: number; titulo: string; artista: string
@@ -30,7 +30,7 @@ Dibujar la letra con el estilo de la canción y los valores fijos de §10, a 60 
     className?: string
   }
   ```
-- [ ] Render:
+- [x] Render:
   - fondo con `fondoCss(estilo.fondo)`;
   - línea actual centrada al 45 % del alto, con tamaño `clamp(32px, 7.5cqh, 140px)`;
   - siguiente al 70 % del tamaño, debajo, separada 0,6 × el tamaño actual, mismo color y sin transparencia;
@@ -40,16 +40,16 @@ Dibujar la letra con el estilo de la canción y los valores fijos de §10, a 60 
   - barrido de izquierda a derecha con `color_resaltado`, mediante una capa superpuesta recortada (`clip-path: inset(0 calc(100% - var(--progreso)) 0 0)`) o `background-clip: text`, por línea o por palabra;
   - la siguiente sube a la posición actual en 200 ms, de forma instantánea con `prefers-reduced-motion` (el barrido **no** se desactiva);
   - pantalla de título (título al tamaño actual, artista al 50 %) e indicador `●●●` en `color_resaltado`.
-- [ ] **Bucle**: con `reproduciendo`, un `requestAnimationFrame` llama a `obtenerTiempoAudio()`, calcula `fotogramaEn` y solo actualiza variables CSS (`--progreso`, el progreso de cada palabra) y el texto cuando cambia `claveTransicion`. Sin `reproduciendo`, no hay bucle. Un cambio de `estilo`, `letra` o `idEstatico` se pinta en el siguiente fotograma (< 100 ms).
-- [ ] Accesibilidad: el área es `aria-hidden="true"` (la descripción la pone quien la usa, `edi.previa.aria`) y admite el anillo de foco doble de §7 si se hace enfocable.
-- [ ] `estiloCss.ts` añade `variablesEstilo(estilo): Record<string, string>` (`--k-color`, `--k-resaltado`, `--k-fuente`, `--k-peso`, `--k-fondo`) con test.
-- [ ] Tests (jsdom, con `requestAnimationFrame` falso):
+- [x] **Bucle**: con `reproduciendo`, un `requestAnimationFrame` llama a `obtenerTiempoAudio()`, calcula `fotogramaEn` y solo actualiza variables CSS (`--progreso`, el progreso de cada palabra) y el texto cuando cambia `claveTransicion`. Sin `reproduciendo`, no hay bucle. Un cambio de `estilo`, `letra` o `idEstatico` se pinta en el siguiente fotograma (< 100 ms).
+- [x] Accesibilidad: el área es `aria-hidden="true"` (la descripción la pone quien la usa, `edi.previa.aria`) y admite el anillo de foco doble de §7 si se hace enfocable.
+- [x] `estiloCss.ts` añade `variablesEstilo(estilo): Record<string, string>` (`--k-color`, `--k-resaltado`, `--k-fuente`, `--k-peso`, `--k-fondo`) con test.
+- [x] Tests (jsdom, con `requestAnimationFrame` falso):
   - en pausa muestra la línea seleccionada a mitad;
   - con un reloj simulado, el texto cambia de línea y `--progreso` avanza;
   - la fuente y los colores salen del estilo;
   - con `matchMedia('(prefers-reduced-motion: reduce)')` no hay clase de transición;
   - al desmontar se cancela el `requestAnimationFrame`.
-- [ ] Revisión visual en el Muestrario (`npm run dev` → `#/muestrario`): las 8 fuentes y una línea larga que se parte en 2 renglones. Se adjunta una captura en las notas.
+- [x] Revisión visual en el Muestrario (`npm run dev` → `#/muestrario`): las 8 fuentes y una línea larga que se parte en 2 renglones. Se adjunta una captura en las notas.
 
 ## Verificación
 ```bash
@@ -60,4 +60,7 @@ npm run dev   # #/muestrario
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- PantallaLetra renderiza con DOM/CSS, actualiza el barrido en RAF y solo cambia la estructura con la transición o el indicador. Aplica fuente, fondo, sombra y preferencias de movimiento.
+- [Captura del Muestrario en Electron](../ux/revision-fase-5/0098-muestrario.png). A escala pequeña puede verse un tercer renglón al alcanzar el mínimo del 75 %, como prevé la tarea.
+- Pasaron los tests de render y la verificación completa del bloque 2 (1625 Vitest y 69 E2E).
