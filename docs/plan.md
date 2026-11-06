@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-06 (desglose de la Fase 6).
+Última actualización: 2026-11-06 (desglose de la Fase 7).
 
 ## Resumen
 
@@ -19,7 +19,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 4 | Letras | ✅ Cerrada (0077–0089) |
 | 5 | Editor (sincronía y estilo) | ✅ Cerrada (0090–0110; 0111 manual pendiente) |
 | 6 | Reproductor a pantalla completa | ✅ Cerrada (0112–0125; 0126 manual pendiente) |
-| 7 | Empaquetado y distribución | Pendiente |
+| 7 | Empaquetado y distribución | Desglosada (0127–0142); sin publicar |
 
 ```mermaid
 flowchart LR
@@ -162,14 +162,31 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Resultado**: reproductor completo con voz guía, controles, pantalla final y recuperación de errores; apertura superpuesta desde la Biblioteca y el editor; reparación del motor de audio incompleto. Ver [`informe-fase-6.md`](informe-fase-6.md). Pendiente únicamente la prueba manual 0126 en TV y tres sistemas.
 
-## Fase 7 — Empaquetado y distribución
-**Objetivo**: que un usuario no técnico pueda instalarla.
+## Fase 7 — Empaquetado y distribución (desglosada el 2026-11-06: tareas 0127–0142, [ADR 0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) y [ADR 0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md))
+**Objetivo**: que un usuario no técnico pueda instalarla. **En esta fase se construyen y prueban los instaladores, pero no se publican.**
 
-- **electron-builder** con *fuses* de seguridad (ADR 0008): NSIS (Windows), **DMG arm64** (macOS) y AppImage/.deb (Linux).
-- Worker, requisitos y manifiesto empaquetados en `resources/`.
-- Sección "Descargar" en el README, apuntando a las Releases, y guía `INSTALAR.md` para superar los avisos de una app sin firma.
-- Modelo Rápido: **se puede publicar** porque no se descarga sin el consentimiento explícito del usuario, que acepta el aviso de licencia no declarada (pregunta 0018; sustituye a la condición anterior de la pregunta 0012). Si UVR responde con una licencia incompatible, se retira la oferta. El issue a UVR sigue siendo recomendable.
-- Mediciones pendientes antes de publicar: bytes de descarga reales y pico de disco (tarea 0058), separación con Calidad en Windows y Linux CPU, NVIDIA y otros chips Apple.
+- **Instaladores** con electron-builder y los *fuses* de seguridad del ADR 0008:
+  - Windows 10/11 x64: NSIS por usuario, de un clic;
+  - macOS 14 o posterior, solo chip Apple: DMG con firma *ad hoc*;
+  - Linux x64: `.deb` (recomendado en Ubuntu, Debian y Mint) y AppImage (el resto).
+- **Contenido**: worker, requisitos, manifiesto, `uv` con SHA-256 verificado, licencias, avisos y fuentes OFL. Nada de `spikes/`, tests ni `.datos-dev`: lo comprueba un script.
+- **Workflow solo manual**: guarda los instaladores como artefactos durante 14 días. No crea *Releases* y no cambia el CI automático.
+- **Prueba de humo** contra el instalador real, sin modelos ni código de pruebas en la app. Cada runner declara hasta dónde llegó: instalado, desempaquetado o solo construido.
+- **README e `INSTALAR.md`** en el estado "sin versión" (`ux/09`): **sin enlaces de descarga**.
+- **Prueba manual** P1–P14, Gatekeeper, SmartScreen y primer arranque real, con capturas: lo que ningún runner puede hacer.
+- **Modelo Rápido**: se puede publicar porque no se descarga sin el consentimiento explícito del usuario, que acepta el aviso de licencia no declarada (pregunta 0018; sustituye a la condición anterior de la pregunta 0012). Tarea 0134: lo comprueba ruta por ruta. Si UVR responde con una licencia incompatible, se retira la oferta. El issue a UVR sigue siendo recomendable.
+- **Antes de publicar** (tarea 0142, fuera de esta fase hasta que decidas): repositorio público, mediciones pendientes (bytes de descarga reales y pico de disco de 0058; separación con Calidad en Windows y Linux CPU, NVIDIA y otros chips Apple), capturas e icono.
+
+**Lo que necesito que decidas**:
+- [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md): cuándo se hace público el repositorio (**hoy es privado**) y cómo se publica. Bloquea 0142.
+- [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md): número de versión. Bloquea 0142.
+- [0037](preguntas/0037-autoactualizacion-de-la-app.md): autoactualización. Provisional: no.
+- [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md): cómo lanzar el workflow por primera vez y quién hace la prueba manual, con qué equipos. Bloquea el cierre de 0136 y 0137, y 0139.
+- [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md): Control inteligente de aplicaciones de Windows 11. Bloquea 0142.
+
+**Para el diseñador**: [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) (icono y texto de B6b), y aplicar a `ux/09` las respuestas a 0040–0043.
+
+**Orden**: 0127, 0128, 0134 y 0138 a la vez → 0129 ‖ 0131 ‖ 0132 (0133 en paralelo) → 0130 → 0135 → 0136 → 0137; 0140 y 0141 cuando responda el diseñador; prueba manual 0139. Detalle en [`backlog.md`](backlog.md).
 
 ---
 

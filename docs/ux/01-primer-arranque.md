@@ -15,37 +15,15 @@ Usuario/tarea principal: abrir Shinobi Karaoke por primera vez y dejarlo listo p
 
 ## Parte A — Fuera de la app: guía de instalación (instaladores sin firmar)
 
-El MVP se publica con **instaladores sin firmar** (decisión del usuario en la [pregunta 0001](../preguntas/0001-firma-de-codigo-instaladores.md)). La app no puede ayudar antes de abrirse, así que la guía vive en la **página de descarga / README** del proyecto (la redacta el programador a partir de este texto; las capturas se hacen cuando exista el instalador).
+El MVP se publica con **instaladores sin firmar** (decisión del usuario en la [pregunta 0001](../preguntas/0001-firma-de-codigo-instaladores.md)). La app no puede ayudar antes de abrirse, así que la guía vive en la sección "Descargar" del README y en `INSTALAR.md` (sin web propia, [0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md), Seguimiento).
 
-### Estructura de la página "Instalar Shinobi Karaoke"
-1. Botones de descarga por SO, detectando el SO del visitante y mostrando su botón primero. El de macOS se llama **"Descargar para Mac con chip Apple"** y, debajo, siempre visible (no se oculta ni se cambia según el navegador: Safari dice "Intel" también en los Mac con chip Apple, así que no se puede detectar):
-   > Para Mac con chip Apple (M1 o posterior) y macOS 14 Sonoma o posterior. Los Mac con procesador Intel no son compatibles por ahora.
-   >
-   > **¿Qué Mac tengo?** Abre el menú Apple () → **Acerca de este Mac**. Si pone **Chip** (Apple M1, M2…), es compatible. Si pone **Procesador** (Intel…), todavía no.
-2. Requisitos en una línea: "Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 4 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez". Debajo, en texto secundario: "Los Mac con procesador Intel no son compatibles por ahora."
-3. Bloque "¿Por qué mi ordenador me avisa?":
-   > Shinobi Karaoke es gratuito y lo hacen voluntarios. Todavía no pagamos el certificado que usan Windows y macOS para reconocer a los desarrolladores, así que tu sistema te mostrará un aviso la primera vez. Es normal. Te explicamos cómo continuar.
-4. Pasos por SO, cada uno con captura y el texto **exacto** del botón del sistema resaltado:
+**El texto final, los estados (sin versión / con versión), las capturas y las fuentes están en [09-descarga-e-instalacion.md](09-descarga-e-instalacion.md).** Esta parte solo resume su estructura y conserva la numeración que citan otros documentos:
 
-**Windows (SmartScreen)**
-1. Abre el instalador descargado.
-2. Si aparece "Windows protegió su PC", pulsa **Más información**.
-3. Pulsa **Ejecutar de todas formas**.
-4. Sigue el instalador.
-
-**macOS (Gatekeeper)**
-1. Abre el archivo `.dmg` y arrastra Shinobi Karaoke a **Aplicaciones**.
-2. Abre la app. Si macOS dice que no se puede abrir, pulsa **Aceptar** (o **Listo**).
-3. Ve a **Ajustes del Sistema → Privacidad y seguridad**, baja hasta el mensaje sobre Shinobi Karaoke y pulsa **Abrir igualmente**. Confirma con tu contraseña.
-4. (Alternativa solo en macOS 14 Sonoma: clic derecho sobre la app → **Abrir** → **Abrir**. En macOS 15 o posterior no existe; usa el paso 3.)
-   Solo hace falta la primera vez.
-
-**Linux**
-- AppImage: dale permiso de ejecución (clic derecho → Propiedades → Permitir ejecutar como programa) y ábrela. `.deb`: ábrelo con tu instalador de software.
-
-5. Enlace "¿Sigue sin abrirse?" → sección de problemas frecuentes (enlace a issues del repositorio). Incluye, para macOS:
-   - **"macOS dice que la app no es compatible con este Mac"** (o no se abre en absoluto): tu Mac tiene procesador Intel; Shinobi Karaoke solo funciona, por ahora, en Mac con chip Apple. Puedes pedir que lo soportemos en las incidencias del proyecto.
-   - **"La app se abre pero dice «Necesitas actualizar macOS»"**: tu Mac tiene chip Apple pero una versión de macOS anterior a la 14. Actualízalo gratis (menú Apple → Ajustes del Sistema → General → Actualización de software) y vuelve a abrir la app.
+1. **Descargas por SO**, en orden fijo, sin detectar el SO del visitante (Markdown no puede). La de macOS se llama **"Descargar para Mac con chip Apple"**, con el requisito y **"¿Qué Mac tengo?"** siempre visibles debajo (Safari dice "Intel" también en los Mac con chip Apple, así que tampoco se podría detectar). Spec 09 §1.
+2. **Requisitos en una línea**: "Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 4 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez". Debajo: "Los Mac con procesador Intel no son compatibles por ahora." Spec 09 §1 y §2.
+3. **Bloque "¿Por qué mi equipo me avisa?"**. Spec 09 §2.
+4. **Pasos por SO** (SmartScreen, Gatekeeper en macOS 14 frente a macOS 15 o posterior, AppImage y `.deb`), con el texto de los botones del sistema y una captura por SO. Spec 09 §2 y §7.
+5. **"¿Sigue sin abrirse?"**, con las dos entradas de macOS ("no es compatible con este Mac", que distingue **Chip** de **Procesador** Intel, y «Necesitas actualizar macOS»). Spec 09 §2.
 6. Si en una versión posterior al MVP se firman los instaladores de algún SO, se elimina la sección de ese SO.
 
 ---
@@ -268,9 +246,10 @@ flowchart TD
 │   │   Todos los Mac con chip Apple pueden actualizar gratis.         │   │
 │   └──────────────────────────────────────────────────────────────────┘   │
 │                                                                          │
-│   Para actualizar: menú Apple () → Ajustes del Sistema (o Preferencias  │
-│   del Sistema) → Actualización de software. Antes, conviene hacer una    │
-│   copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke.   │
+│   Para actualizar: menú Apple (la manzana de la esquina de la pantalla)  │
+│   → Ajustes del Sistema (o Configuración del Sistema) → General →        │
+│   Actualización de Software. Antes, conviene hacer una copia de          │
+│   seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke.            │
 │                                                                          │
 │   [ Cómo actualizar macOS ↗ ]  [ Copiar detalles ]  [ Salir ]            │
 │        (secundario)               (secundario)       (primario)          │
@@ -278,7 +257,7 @@ flowchart TD
 │                 Shinobi Karaoke es software libre (GPL-3.0) · Licencias  │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
-B6b solo la ven los Mac con chip Apple en macOS 11–13 (todos pueden actualizar gratis). Los Mac Intel no se soportan en el MVP ([0016](../preguntas/0016-mac-intel-fuera-del-mvp.md), opción C): reciben **B6 general**, nunca B6b, sea cual sea su versión de macOS (en la práctica ni siquiera abren la app, porque solo se publica el DMG para chip Apple; B6 cubre builds de desarrollo o x64). Si en el futuro se soportan los Mac Intel con otro mínimo, B6b ya admite un `{min}` por procesador, pero su texto `pa.macos.gratis` habría que revisarlo (no todos los Mac Intel pueden actualizar).
+B6b solo la ven los Mac con chip Apple en macOS 13 (todos pueden actualizar gratis). Con macOS 12 o anterior, el sistema no llega a abrir la app (`LSMinimumSystemVersion` de Electron es 13.0, [0041](../preguntas/0041-gatekeeper-con-firma-ad-hoc.md)); ese caso lo cubre la guía (spec 09). Los Mac Intel no se soportan en el MVP ([0016](../preguntas/0016-mac-intel-fuera-del-mvp.md), opción C): reciben **B6 general**, nunca B6b, sea cual sea su versión de macOS (en la práctica ni siquiera abren la app, porque solo se publica el DMG para chip Apple; B6 cubre builds de desarrollo o x64). Si en el futuro se soportan los Mac Intel con otro mínimo, B6b ya admite un `{min}` por procesador, pero su texto `pa.macos.gratis` habría que revisarlo (no todos los Mac Intel pueden actualizar).
 
 ### Componentes e interacciones
 | Elemento | Comportamiento |
@@ -395,7 +374,7 @@ B6b solo la ven los Mac con chip Apple en macOS 11–13 (todos pueden actualizar
 | `pa.macos.titulo` | Necesitas actualizar macOS |
 | `pa.macos.cuerpo` | Shinobi Karaoke necesita macOS {min} o posterior y tu Mac tiene macOS {version}. ({min} con nombre: "14 (Sonoma)"; {version} tal como la da el sistema) |
 | `pa.macos.gratis` | Todos los Mac con chip Apple pueden actualizar gratis. |
-| `pa.macos.pasos` | Para actualizar: menú Apple () → Ajustes del Sistema (o Preferencias del Sistema) → Actualización de software. Antes, conviene hacer una copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke. |
+| `pa.macos.pasos` | Para actualizar: menú Apple (la manzana de la esquina de la pantalla) → Ajustes del Sistema (o Configuración del Sistema) → General → Actualización de Software. Antes, conviene hacer una copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke. (Sin carácter de uso privado; [0039](../preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md)) |
 | `pa.macos.ayuda` | Cómo actualizar macOS |
 | `pa.boton.copiar` | Copiar detalles |
 | `pa.eta` | quedan unos {n} minutos · menos de 1 minuto · Calculando tiempo… |
@@ -416,13 +395,13 @@ B6b solo la ven los Mac con chip Apple en macOS 11–13 (todos pueden actualizar
 11. "Empezar" abre la Biblioteca en estado vacío (spec 02).
 12. Si en un arranque posterior falta el entorno o el modelo, se muestra la variante "Hay que reparar el motor de audio" en lugar de la Biblioteca.
 12b. Abierta a mitad de sesión desde [Reparar el motor de audio] (spec 04, `RUNTIME_NO_DISPONIBLE`), B5 muestra `pa.reparar.titulo` y `pa.reparar.cuerpo`; al terminar, "Empezar" abre la Biblioteca con las canciones existentes.
-13. La guía de instalación (Parte A) está publicada en la página de descarga/README con los textos de los botones de sistema indicados y una captura por SO antes de la primera versión pública.
+13. La guía de instalación (Parte A) está publicada en el README y en `INSTALAR.md` según la [spec 09](09-descarga-e-instalacion.md), con los textos de los botones de sistema comprobados en la prueba manual y las capturas C-WIN, C-MAC y C-LIN (una por SO) antes de la primera versión pública. Mientras no exista una versión, se publica el estado "sin versión" de la spec 09, sin enlaces de descarga ni capturas inventadas.
 14. Si hay que verificar una instalación existente (estado distinto de `completa` con marcador válido), se muestra B0 sin botones: nada visible salvo fondo y logotipo los primeros 300 ms, después `pa.comprobando.*` con barra indeterminada y, a los 15 s, `pa.comprobando.lento`. Si la verificación pasa, se abre directamente la Biblioteca (sin B3); si falta solo el modelo, B5 "Continuamos donde lo dejamos"; si el entorno no vale o la verificación falla de forma inesperada, B5 "Hay que reparar el motor de audio". Cerrar la ventana durante B0 cierra la app sin diálogo.
 15. En una plataforma sin requisitos en el manifiesto se muestra B6 (no B1 ni B4): banner `error` con `pa.nocompat.cuerpo` y `pa.nocompat.equipo`, botones "Pedir soporte para mi equipo", "Copiar detalles" y "Salir" (foco inicial), enlace Licencias; no existe "Preparar" ni acceso a otras vistas.
 15b. En un Mac con chip Apple y macOS < 14 (p. ej. 13.6) se muestra B6b, no B6 ni B1: banner `aviso` con `pa.macos.cuerpo` (con `{min}` = "14 (Sonoma)" y la versión real) y `pa.macos.gratis`, texto `pa.macos.pasos`, botones "Cómo actualizar macOS" (abre la página de Apple en el navegador), "Copiar detalles" y "Salir" (foco inicial); sin "Preparar" ni "Pedir soporte para mi equipo". Con macOS 14.0 se muestra B1. Un Mac Intel muestra B6 general con cualquier versión de macOS (p. ej. 13.6 → B6, no B6b; `preguntas/0016`, opción C).
 15c. `pa.nocompat.equipo` usa los nombres legibles de la tabla de componentes; en macOS incluye la versión y `chip Apple`/`procesador Intel` (nunca `arm64`/`x64` en crudo).
 16. La app nunca pregunta ni ofrece actualizar yt-dlp: la actualización semanal no muestra nada y la provocada por un bloqueo solo cambia el texto de la operación en curso (specs 03 y 04).
-17. La página de descarga dice en el botón de macOS "Descargar para Mac con chip Apple", muestra siempre debajo el requisito (chip Apple, macOS 14 o posterior, Intel no compatible por ahora) y "¿Qué Mac tengo?", la línea de requisitos de la Parte A §2 y, en "¿Sigue sin abrirse?", las dos entradas de macOS. No intenta detectar Intel desde el navegador.
+17. Con una versión publicada, la sección "Descargar" del README dice en el enlace de macOS "Descargar para Mac con chip Apple" y muestra siempre debajo el requisito (chip Apple, macOS 14 o posterior, Intel no compatible por ahora) y "¿Qué Mac tengo?". El README, en cualquier estado, y `INSTALAR.md` llevan la línea de requisitos de la Parte A §2, y "¿Sigue sin abrirse?" tiene las dos entradas de macOS. No se intenta detectar el SO ni el procesador desde el navegador (criterios de la [spec 09](09-descarga-e-instalacion.md)).
 18. B4 muestra "Usar el modelo Rápido…" (secundario, junto a "Reintentar", que sigue siendo primario y foco inicial) **solo** si el estado del runtime trae `ofrecerRapido`: fallo definitivo de la fase de modelo por verificación, por servidores no disponibles en todas las URLs o por `SIN_ESPACIO` con espacio para Rápido (con `rapido.oferta.espacio`). Con `SIN_CONEXION` o en otras fases no aparece.
 19. "Usar el modelo Rápido…" abre el diálogo `aviso-rapido` con el motivo, el cuerpo, las tres viñetas del aviso (licencia no declarada, descarga desde su origen con el tamaño, responsabilidad del usuario), el enlace a créditos y `rapido.alcance`; foco inicial en "Cancelar". Cancelar, Esc o cerrar no guardan nada ni descargan nada y devuelven el foco a "Usar el modelo Rápido…". El enlace abre el diálogo de créditos encima y, al cerrarlo, el foco vuelve al enlace.
 20. Al pulsar "Usar el modelo Rápido", B2 muestra la fase del modelo en curso con `pa.fase.modelo.rapido` y "X MB de 59 MB" (tamaño del manifiesto) y el mensaje `pa.modo.rapido.aceptado`; la barra total no retrocede. Al terminar se muestra B3 con `pa.listo.modelo` (Rápido, con el procesador), el tiempo de Rápido y `pa.listo.rapido`. `config.json` queda con `rapido_aceptado` y `modo: 'rapido'`.

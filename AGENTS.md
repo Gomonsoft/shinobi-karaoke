@@ -41,7 +41,7 @@ Hay tres roles con sus instrucciones en `.codex/agents/` (y su equivalente para 
 - **No introduzcas librerías, servicios ni patrones fuera de los ADR.** Si hace falta algo nuevo, no lo añadas: crea una pregunta.
 - **Ante una duda, no supongas.** Crea `docs/preguntas/NNNN-titulo.md` (siguiente número libre) con `Para: arquitecto` (técnica), `Para: disenador-ux` (interfaz) o `Para: usuario` (producto). Si bloquea, marca la tarea `Bloqueada` y para; si no, toma la opción más conservadora, anótala en la pregunta y sigue.
 - **Archivos compartidos** (`app/src/shared/ipc.ts`, `canales.ts`, `app/src/preload/index.ts`, `app/src/main/index.ts`, `app/src/main/ipc/handlers.ts`, `app/src/renderer/src/App.tsx`): cambios mínimos y aditivos; respeta el orden indicado en `docs/backlog.md` si varias tareas los tocan.
-- Seguridad de Electron (ADR 0008): todo lo que llega por IPC se valida con Zod en main; el renderer nunca recibe rutas absolutas (usa `shinobi-media://`); las variables `SHINOBI_*` de pruebas se ignoran con la app empaquetada.
+- Seguridad de Electron (ADR 0008): todo lo que llega por IPC se valida con Zod en main; el renderer nunca recibe rutas absolutas (usa `shinobi-media://`); las variables `SHINOBI_*` de pruebas se ignoran con la app empaquetada (excepción deliberada: `SHINOBI_DATOS`, ADR 0008).
 - Los tests normales **no usan red ni descargan modelos**. Lo que necesite red va marcado (`red`/`pesado` en pytest, `SHINOBI_TESTS_RED=1` en Vitest/Playwright) y se omite por defecto.
 - Fixtures: **solo audio generado y letras inventadas**. Nunca contenido con copyright.
 - **No formatees globalmente** (`prettier --write .` / `ruff format .`): formatea solo tus archivos.

@@ -1,14 +1,48 @@
 # 0025 — Empaquetado: electron-builder, *fuses* e instaladores sin firma
-- Estado: Pendiente
+- Estado: **Desglosada** (2026-11-06) en las tareas 0127–0142; se cierra cuando se cierren. No se implementa como unidad.
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0022, 0024 (y el gestor de runtime de la Fase 2 para probar el primer arranque empaquetado: 0035, 0038)
-- ADRs: 0001, 0002, 0008
-- Spec UX: docs/ux/01-primer-arranque.md (Parte A: instalación sin firma; criterios 13 y 17)
+- ADRs: 0001, 0002, 0008, 0012, 0013
+- Spec UX: docs/ux/09-descarga-e-instalacion.md (sustituye al detalle de la Parte A de docs/ux/01-primer-arranque.md; criterios 13 y 17 de esa spec)
 
 ## Objetivo
 Generar instaladores de la app para Windows, macOS y Linux según el ADR 0001 (no estaba planificado en ninguna fase: deuda de 0002), con la configuración de seguridad del ADR 0008.
 
-## Criterios de aceptación
+## Desglose: a qué tarea va cada criterio
+Mezclaba configuración, licencias, CI, documentación y una prueba manual con requisitos y dependencias de red distintos. Ningún criterio se pierde:
+
+| Criterio original | Tarea |
+|---|---|
+| `electron-builder.yml`: NSIS por usuario, DMG arm64, firma *ad hoc*, AppImage y deb, campos de firma desactivados | 0130 |
+| Sin subir `LSMinimumSystemVersion` | 0130 (configuración), 0131 (comprobación) |
+| `appId`, nombre de producto y `AppUserModelID` coherentes | 0130 (test), 0139 (notificación real) |
+| App en asar; `resources/fonts` | 0130, 0131 |
+| `uv` por plataforma con SHA-256 verificado | 0129 (descarga), 0130 y 0131 (paquete) |
+| Código del worker, `pyproject.toml` y `uv.lock` fuera del asar | 0130, 0131 |
+| Nada de `spikes/`, tests ni `.datos-dev` | 0131 |
+| *Fuses* del ADR 0008 aplicados | 0130 (con `electronFuses`, no en `afterPack`: ADR 0012 §3), 0131 (lectura) |
+| La app arranca con los *fuses* | 0135 |
+| `LICENSE`, `THIRD_PARTY_NOTICES.md` y `OFL.txt` en el paquete | 0130, 0131, 0135 (lectura real) |
+| Dependencias JS en los avisos, con herramienta de licencias | 0132 |
+| Dependencias Python transitivas ("se revisarán al empaquetar") | 0133 |
+| CI manual o por etiqueta, artefactos del workflow | 0136 (solo manual: ADR 0013) |
+| Prueba de humo E2E contra la app empaquetada en Linux | 0135, 0136 y 0137, ampliada a los 3 SO según lo que permita cada runner |
+| Tamaño de cada instalador anotado | 0136 |
+| Worker en `resources/worker`, requisitos y `runtime-manifest.json` | 0130, 0131 |
+| `LICENSE` y `THIRD_PARTY_NOTICES.md` en `process.resourcesPath` | 0130, 0131 |
+| Ninguna ruta descarga Rápido sin `rapido_aceptado` | 0134 |
+| README "Descargar" e `INSTALAR.md` | 0138 (sin versión, E0), 0142 (con versión, E1) |
+| Línea de requisitos, botón de macOS, "¿Qué Mac tengo?", Gatekeeper y "¿Sigue sin abrirse?" | 0138, 0142 (texto de `ux/09`) |
+| **`ux/09` criterio 14**: corregir "~1–2 GB" en la tabla de requisitos del README | 0138 |
+| **`ux/09` §5**: prueba manual P1–P14 | 0139 |
+| Una captura por SO antes de la primera versión pública (criterio 13) | 0139 (`ux/09` §7), 0142 (la exige) |
+| Enlaces a la última *Release* | 0142, bloqueada por `preguntas/0035` |
+
+Trabajo añadido por el desglose: 0127 (dependencias y metadatos), 0128 (worker sin *bytecode*, necesario para no romper la firma), 0140 (icono), 0141 (texto de B6b).
+
+Los criterios siguientes se conservan como referencia. **Mandan las tareas y los ADR 0012 y 0013.** Por ejemplo: la "página de descarga" y la Parte A de `ux/01` están ahora en `ux/09`, sin botones con detección de SO.
+
+## Criterios de aceptación (originales)
 - [ ] `app/electron-builder.yml`: NSIS por usuario x64 (Windows), **solo DMG arm64** (Mac Intel no compatible en el MVP, decisión del usuario en `preguntas/0016`, opción C; sin subir `LSMinimumSystemVersion`: la app comprueba macOS ≥ 14 y muestra B6b, `preguntas/0015`) con firma *ad hoc* (macOS), AppImage + deb x64 (Linux). Campos de firma presentes y desactivados. `appId`, nombre de producto "Shinobi Karaoke" y `AppUserModelID` coherentes (necesario para notificaciones en Windows, `arquitectura.md` §6).
 - [ ] Contenido: app en asar; `resources/fonts`; binario `uv` por plataforma en `resources/bin/` (descargado en el build, con SHA-256 verificado); código fuente de `worker/shinobi_worker` + `pyproject.toml` + `uv.lock` como recurso fuera del asar. Nada de `spikes/`, tests ni `.datos-dev`.
 - [ ] *Fuses* (ADR 0008 punto 9) aplicados con `@electron/fuses` en `afterPack`, y prueba de que la app empaquetada arranca con ellos.
