@@ -71,3 +71,36 @@ describe('Dialogo', () => {
     expect(disparador).toHaveFocus()
   })
 })
+
+it('deja inerte la app y, con dos diálogos, solo el superior recibe el foco', () => {
+  function DosDialogos() {
+    const [segundo, setSegundo] = useState(false)
+    return (
+      <>
+        <button>Fuera</button>
+        <Dialogo abierto titulo="Principal" onCancelar={() => undefined}>
+          <button onClick={() => setSegundo(true)}>Abrir otro</button>
+        </Dialogo>
+        <Dialogo abierto={segundo} titulo="Secundario" onCancelar={() => setSegundo(false)}>
+          <button>Cerrar con Esc</button>
+        </Dialogo>
+      </>
+    )
+  }
+  const { container, unmount } = render(<DosDialogos />)
+  const fuera = screen.getByText('Fuera')
+  const abrir = screen.getByRole('button', { name: 'Abrir otro' })
+  expect(container).toHaveAttribute('inert')
+  fuera.focus()
+  fireEvent.keyDown(fuera, { key: 'Tab' })
+  expect(abrir).toHaveFocus()
+  fireEvent.click(abrir)
+  expect(abrir.closest('[inert]')).not.toBeNull()
+  const cerrar = screen.getByRole('button', { name: 'Cerrar con Esc' })
+  expect(cerrar).toHaveFocus()
+  fireEvent.keyDown(cerrar, { key: 'Escape' })
+  expect(abrir.closest('[inert]')).toBeNull()
+  expect(abrir).toHaveFocus()
+  unmount()
+  expect(container).not.toHaveAttribute('inert')
+})

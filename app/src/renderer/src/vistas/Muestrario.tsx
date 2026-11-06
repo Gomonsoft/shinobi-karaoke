@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Copy, Pencil, Play, Settings, Trash2 } from 'lucide-react'
 import { AreaTexto, CampoTexto } from '../componentes/Campos'
 import { AvisoEnLinea } from '../componentes/AvisoEnLinea'
@@ -15,6 +15,7 @@ import { SUGERIDOS_FONDO } from '../karaoke/colores'
 import { Icono } from '../componentes/Icono'
 import { InsigniaEstado, type EstadoInsignia } from '../componentes/InsigniaEstado'
 import { MenuContextual } from '../componentes/MenuContextual'
+import { Popover } from '../componentes/Popover'
 import { Tooltip } from '../componentes/Tooltip'
 import { mostrarToast } from '../componentes/gestorToasts'
 import { MuestrarioFuentes } from './MuestrarioFuentes'
@@ -110,6 +111,8 @@ function Componentes() {
   const [segmento, setSegmento] = useState('solido')
   const [dialogo, setDialogo] = useState(false)
   const [cargando, setCargando] = useState(false)
+  const [popover, setPopover] = useState(false)
+  const anclaPopover = useRef<HTMLButtonElement>(null)
   return (
     <>
       <section aria-labelledby="m-botones">
@@ -253,7 +256,19 @@ function Componentes() {
           <Boton variante="primario" onClick={() => setDialogo(true)}>
             Abrir diálogo
           </Boton>
+          <Boton ref={anclaPopover} onClick={() => setPopover(true)} aria-expanded={popover}>
+            Mostrar requisitos
+          </Boton>
         </div>
+        <Popover
+          abierto={popover}
+          ancla={anclaPopover}
+          alCerrar={() => setPopover(false)}
+          titulo="Para continuar falta"
+          etiqueta="Requisitos"
+        >
+          <Boton onClick={() => setPopover(false)}>Revisar la letra</Boton>
+        </Popover>
         <Dialogo
           abierto={dialogo}
           titulo="¿Eliminar la canción?"

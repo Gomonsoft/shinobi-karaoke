@@ -206,3 +206,24 @@ describe('calcularPosicionMenu', () => {
     })
   })
 })
+
+it('busca por letra sin distinguir mayúsculas ni acentos y cicla entre coincidencias', () => {
+  render(
+    <MenuContextual
+      etiqueta="Opciones"
+      items={[
+        { id: 'a', etiqueta: 'Álbum', alSeleccionar: () => {} },
+        { id: 'b', etiqueta: 'Añadir', alSeleccionar: () => {} },
+        { id: 'c', etiqueta: 'Editar', alSeleccionar: () => {} }
+      ]}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Opciones' }))
+  const primero = screen.getByRole('menuitem', { name: 'Álbum' })
+  const segundo = screen.getByRole('menuitem', { name: 'Añadir' })
+  expect(primero).toHaveFocus()
+  fireEvent.keyDown(primero, { key: 'A' })
+  expect(segundo).toHaveFocus()
+  fireEvent.keyDown(segundo, { key: 'á' })
+  expect(primero).toHaveFocus()
+})

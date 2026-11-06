@@ -168,6 +168,18 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
     } else if (e.key === 'Tab') {
       setAbierto(false)
       return
+    } else if (/^\p{L}$/u.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const normalizar = (texto: string) =>
+        texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+      const letra = normalizar(e.key)
+      for (let paso = 1; paso <= items.length; paso++) {
+        const siguiente = (i + paso) % items.length
+        if (normalizar(items[siguiente]?.textContent?.trim() ?? '').startsWith(letra)) {
+          destino = siguiente
+          break
+        }
+      }
+      if (destino === -1) return
     } else return
     e.preventDefault()
     items[destino]?.focus()

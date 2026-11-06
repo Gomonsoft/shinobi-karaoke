@@ -15,13 +15,13 @@
   display: inline-flex;
 }
 .tooltip {
-  position: absolute;
-  z-index: 30;
-  bottom: calc(100% + var(--e-2));
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
+  z-index: 31;
+  top: 0;
+  left: 0;
+  visibility: hidden;
   width: max-content;
-  max-width: 18rem;
+  max-width: min(18rem, calc(100vw - 2 * var(--e-2)));
   padding: var(--e-1) var(--e-2);
   border-radius: var(--r-s);
   background: var(--fondo-3);
@@ -510,4 +510,20 @@
   width: 100%;
   min-height: var(--objetivo-minimo);
   accent-color: var(--acento);
+}
+
+.popover {
+  position: fixed;
+  z-index: 30;
+  max-width: min(26rem, calc(100vw - 2 * var(--e-2)));
+  overflow-y: auto;
+  padding: var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-3);
+  box-shadow: var(--elevacion);
+}
+.popoverTitulo {
+  margin: 0 0 var(--e-2);
+  font-size: var(--t-cuerpo-fuerte);
 }
