@@ -1,8 +1,19 @@
 import { useState } from 'react'
-import { Check, ChevronLeft, Circle, CircleX, RefreshCw, TriangleAlert } from 'lucide-react'
+import {
+  Check,
+  ChevronLeft,
+  Circle,
+  CircleX,
+  RefreshCw,
+  RotateCcw,
+  RotateCw,
+  TriangleAlert
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { Boton } from '../../componentes/Boton'
+import { BotonIcono } from '../../componentes/BotonIcono'
+import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
 import { Icono } from '../../componentes/Icono'
 import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { Tooltip } from '../../componentes/Tooltip'
@@ -27,6 +38,21 @@ interface CabeceraCancionProps {
   resumen: ResumenCancionIpc | null
   /** Paso de la vista que muestra la cabecera. */
   actual: PasoCancion
+  guardado?: 'guardado' | 'guardando' | 'error'
+  incompleta?: number
+  historial?: {
+    puedeDeshacer: boolean
+    puedeRehacer: boolean
+    alDeshacer(): void
+    alRehacer(): void
+  }
+  menu?: ItemMenu[]
+}
+
+const ESTADO_GUARDADO = {
+  guardado: { texto: 'Guardado', icono: Check },
+  guardando: { texto: 'Guardando…', icono: RefreshCw },
+  error: { texto: 'No se pudo guardar', icono: TriangleAlert }
 }
 
 function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
@@ -71,7 +97,14 @@ function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
  * Cabecera compartida del espacio de canción (docs/ux/00 §2): "‹ Biblioteca", título · artista,
  * estado de guardado y stepper de 4 pasos.
  */
-export function CabeceraCancion({ resumen, actual }: CabeceraCancionProps) {
+export function CabeceraCancion({
+  resumen,
+  actual,
+  guardado,
+  incompleta = 0,
+  historial,
+  menu
+}: CabeceraCancionProps) {
   const { ir } = useNavegacion()
   const { trabajos, progreso } = useTrabajosVivos()
 
@@ -89,6 +122,8 @@ export function CabeceraCancion({ resumen, actual }: CabeceraCancionProps) {
     })
   }
 
+  const estado = guardado ? ESTADO_GUARDADO[guardado] : null
+  const mac = /Mac/i.test(navigator.platform)
   return (
     <div className={estilos.cabecera}>
       <div className={estilos.fila}>
@@ -110,10 +145,50 @@ export function CabeceraCancion({ resumen, actual }: CabeceraCancionProps) {
         </p>
         {resumen !== null &&
           (resumen.estado === 'lista' ? (
-            <InsigniaEstado estado="lista" />
+            <span className={estilos.insigniaLista}>
+              <InsigniaEstado estado="lista" />
+              {incompleta > 0 && (
+                <span className={estilos.incompleta}>
+                  <span aria-hidden="true">·</span>
+                  <Icono icono={TriangleAlert} tamano={14} />
+                  {incompleta === 1 ? 'Falta 1 línea' : `Faltan ${incompleta} líneas`}
+                </span>
+              )}
+            </span>
           ) : (
-            <InsigniaEstado estado="borrador" texto="Borrador · guardado ✓" />
+            <InsigniaEstado
+              estado="borrador"
+              texto={guardado ? undefined : 'Borrador · guardado ✓'}
+            />
           ))}
+        {estado && (
+          <span
+            role="status"
+            className={`${estilos.guardado} ${guardado ? estilos[guardado] : ''}`}
+          >
+            <Icono icono={estado.icono} tamano={14} />
+            {estado.texto}
+          </span>
+        )}
+        {historial && (
+          <div className={estilos.historial}>
+            <BotonIcono
+              icono={RotateCcw}
+              etiqueta={mac ? 'Deshacer (⌘Z)' : 'Deshacer (Ctrl+Z)'}
+              disabled={!historial.puedeDeshacer}
+              onClick={historial.alDeshacer}
+            />
+            <BotonIcono
+              icono={RotateCw}
+              etiqueta={mac ? 'Rehacer (⌘⇧Z)' : 'Rehacer (Ctrl+Mayús+Z)'}
+              disabled={!historial.puedeRehacer}
+              onClick={historial.alRehacer}
+            />
+          </div>
+        )}
+        {menu && menu.length > 0 && (
+          <MenuContextual etiqueta="Más acciones del editor" items={menu} />
+        )}
       </div>
       <nav aria-label="Pasos de la canción">
         <ol className={estilos.pasos}>

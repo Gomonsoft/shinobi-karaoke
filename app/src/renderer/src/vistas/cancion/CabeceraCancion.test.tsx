@@ -288,3 +288,53 @@ describe('indicadores (funciones puras)', () => {
     expect(p.every((x) => !x.navegable)).toBe(true)
   })
 })
+
+describe('controles del editor', () => {
+  function montarEditor(props: Partial<Parameters<typeof CabeceraCancion>[0]>) {
+    return render(
+      <NavegacionContexto.Provider value={{ vista: { tipo: 'biblioteca' }, ir: vi.fn() }}>
+        <TrabajosContexto.Provider value={{ trabajos: [], progreso: {}, terminado: false }}>
+          <CabeceraCancion resumen={resumenPrueba()} actual="editor" {...props} />
+        </TrabajosContexto.Provider>
+      </NavegacionContexto.Provider>
+    )
+  }
+
+  it.each([
+    ['guardado', 'Guardado'],
+    ['guardando', 'Guardando…'],
+    ['error', 'No se pudo guardar']
+  ] as const)('expone el estado %s separado del borrador', (guardado, texto) => {
+    montarEditor({ guardado })
+    expect(screen.getByRole('status')).toHaveTextContent(texto)
+    expect(screen.getByText('Borrador', { exact: true })).toBeInTheDocument()
+  })
+
+  it.each([
+    [1, 'Falta 1 línea'],
+    [3, 'Faltan 3 líneas']
+  ] as const)('anuncia %i líneas pendientes en una Lista', (incompleta, texto) => {
+    montarEditor({ resumen: resumenPrueba({ estado: 'lista' }), incompleta })
+    expect(screen.getByText(texto)).toBeInTheDocument()
+  })
+
+  it('permite deshacer y abre el menú con sus acciones', () => {
+    const deshacer = vi.fn()
+    const atajos = vi.fn()
+    montarEditor({
+      historial: {
+        puedeDeshacer: true,
+        puedeRehacer: false,
+        alDeshacer: deshacer,
+        alRehacer: vi.fn()
+      },
+      menu: [{ id: 'atajos', etiqueta: 'Atajos de teclado (F1)', alSeleccionar: atajos }]
+    })
+    expect(screen.getByRole('button', { name: /^Rehacer/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: /^Deshacer/ }))
+    expect(deshacer).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Más acciones del editor' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Atajos de teclado (F1)' }))
+    expect(atajos).toHaveBeenCalledOnce()
+  })
+})

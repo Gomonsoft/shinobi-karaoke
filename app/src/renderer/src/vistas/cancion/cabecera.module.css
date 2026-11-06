@@ -135,3 +135,37 @@
     animation: none;
   }
 }
+
+.guardado,
+.insigniaLista,
+.incompleta,
+.historial {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  white-space: nowrap;
+}
+
+.guardado {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+
+.guardado.error {
+  color: var(--error);
+}
+
+.guardando svg {
+  animation: girar 1.2s linear infinite;
+}
+
+.incompleta {
+  color: var(--aviso);
+  font-size: var(--t-pequeno);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guardando svg {
+    animation: none;
+  }
+}
