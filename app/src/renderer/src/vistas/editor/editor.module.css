@@ -251,3 +251,19 @@
     display: none;
   }
 }
+
+.bannerSync {
+  display: grid;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--acento-texto);
+  border-radius: var(--r-m);
+  background: var(--fondo-2);
+}
+.bannerSync h3,
+.bannerSync p {
+  margin: 0;
+}
+.syncPronto {
+  color: var(--aviso);
+}

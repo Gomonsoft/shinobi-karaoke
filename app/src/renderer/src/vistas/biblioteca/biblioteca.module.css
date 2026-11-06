@@ -22,6 +22,38 @@
   background: var(--fondo-1);
 }
 
+.item[data-resaltada] .tarjeta {
+  position: relative;
+}
+
+.item[data-resaltada] .tarjeta::after {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--exito);
+  border-radius: inherit;
+  animation: resaltarTarjeta 2s both;
+  pointer-events: none;
+  content: '';
+}
+
+@keyframes resaltarTarjeta {
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  10%,
+  90% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item[data-resaltada] .tarjeta::after {
+    animation: none;
+  }
+}
+
 .portadaEnvoltorio {
   position: relative;
 }

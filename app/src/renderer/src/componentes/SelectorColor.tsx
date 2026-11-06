@@ -6,11 +6,12 @@ interface Props {
   etiqueta: string
   valor: string
   sugeridos: readonly string[]
+  alAbrirNativo?(): void
   alCambiar(hex: string, origen: 'hex' | 'nativo' | 'sugerido'): void
   id?: string
 }
 
-export function SelectorColor({ etiqueta, valor, sugeridos, alCambiar, id }: Props) {
+export function SelectorColor({ etiqueta, valor, sugeridos, alAbrirNativo, alCambiar, id }: Props) {
   const auto = useId()
   const idCampo = id ?? auto
   const nativo = useRef<HTMLInputElement>(null)
@@ -53,6 +54,7 @@ export function SelectorColor({ etiqueta, valor, sugeridos, alCambiar, id }: Pro
           onClick={() => {
             const selector = nativo.current!
             selector.value = valor
+            alAbrirNativo?.()
             selector.click()
           }}
         />

@@ -28,7 +28,7 @@ import { BannerSincronizar } from './BannerSincronizar'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { PanelEstilo } from './PanelEstilo'
-import { PanelSincronia } from './PanelSincronia'
+import { PanelSincronia, mostrarAyudaBluetooth } from './PanelSincronia'
 import { Transporte, type SeparacionEditor } from './Transporte'
 import { EscuchaComprobacion } from './escuchaComprobacion'
 import {
@@ -41,6 +41,7 @@ import {
 import { E } from './textos'
 import { useAtajosEditor } from './useAtajosEditor'
 import { useGuardadoEditor } from './useGuardadoEditor'
+import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
 import estilos from './editor.module.css'
 
 type Carga = { cancion: Cancion; config: Config; resumen: ResumenCancionIpc }
@@ -225,6 +226,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   }, [audio?.duracionMs])
 
   const [escucharAjustes, setEscucharAjustes] = useState(true)
+  const [ayudaBluetooth, setAyudaBluetooth] = useState(false)
   const escucha = useMemo(() => (motor ? new EscuchaComprobacion(motor) : null), [motor])
   useEffect(() => () => escucha?.cancelar(), [escucha])
 
@@ -249,6 +251,22 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const sonando = audio?.sonando ?? false
   const duracionMs = audio?.duracionMs ?? metadatos.duracion_ms
   const obtenerTiempoAudio = useCallback(() => motor?.posicionMs() ?? 0, [motor])
+  const sync = useSincronizarAlRitmo({
+    motor,
+    edicion,
+    despachar,
+    duracionMs,
+    alSalir: () => {
+      if (mostrarAyudaBluetooth()) setAyudaBluetooth(true)
+      setFocoLinea((n) => n + 1)
+    }
+  })
+  function entrarSync() {
+    escucha?.cancelar()
+    setPestana('sincronia')
+    sync.entrar()
+  }
+
   useEffect(() => {
     if (!motor) return
     const actualizar = () => setPosicion(Math.floor(motor.posicionMs() / 100) * 100)
@@ -292,6 +310,10 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     setPosicion(motor.posicionMs())
   }
   function alternar() {
+    if (edicion.sync.activo) {
+      sync.alternar()
+      return
+    }
     escucha?.cancelar()
     if (sonando) motor?.pausar()
     else void motor?.reproducir()
@@ -304,7 +326,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     if (!edicion.sync.activo) void motor?.reproducir({ desdeMs: desdeLinea(letra, id) })
   }
   function seleccionar(id: string, enfocar = false) {
-    despachar(edicion.sync.activo ? { tipo: 'sync_siguiente', id } : { tipo: 'seleccionar', id })
+    if (edicion.sync.activo) sync.seleccionar(id)
+    else despachar({ tipo: 'seleccionar', id })
     if (enfocar) {
       setPestana('sincronia')
       setFocoLinea((n) => n + 1)
@@ -345,66 +368,76 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now() })
   const borrar = () => despachar({ tipo: 'borrar_tiempos', ahora: performance.now() })
 
-  useAtajosEditor(edicion.sync.activo, (accion) => {
-    switch (accion.tipo) {
-      case 'reproducir':
-        alternar()
-        break
-      case 'principio':
-        buscar(0)
-        break
-      case 'buscar':
-        buscar(obtenerTiempoAudio() + accion.deltaMs)
-        break
-      case 'pista':
-        usarPista(accion.pista)
-        break
-      case 'mover_seleccion':
-        despachar(accion)
-        setPestana('sincronia')
-        setFocoLinea((n) => n + 1)
-        break
-      case 'deshacer':
-        despachar({ tipo: 'deshacer' })
-        break
-      case 'rehacer':
-        despachar({ tipo: 'rehacer' })
-        break
-      case 'ajustar_inicio':
-      case 'ajustar_fin':
-        ajustar(accion.tipo === 'ajustar_inicio' ? 'inicio' : 'fin', accion.deltaMs)
-        break
-      case 'fijar_inicio':
-      case 'fijar_fin':
-        fijar(accion.tipo === 'fijar_inicio' ? 'inicio' : 'fin')
-        break
-      case 'escuchar_linea':
-        if (edicion.seleccion) escuchar(edicion.seleccion)
-        break
-      case 'desplazar':
-        desplazar(accion.deltaMs)
-        break
-      case 'borrar_tiempos':
-        borrar()
-        break
-      case 'atajos':
-        setDialogoAtajos(true)
-        break
-      case 'escapar':
-        ir({ tipo: 'biblioteca' })
-        break
+  useAtajosEditor(
+    edicion.sync.activo,
+    (accion, evento) => {
+      switch (accion.tipo) {
+        case 'reproducir':
+          alternar()
+          break
+        case 'principio':
+          buscar(0)
+          break
+        case 'buscar':
+          buscar(obtenerTiempoAudio() + accion.deltaMs)
+          break
+        case 'pista':
+          usarPista(accion.pista)
+          break
+        case 'mover_seleccion':
+          despachar(accion)
+          setPestana('sincronia')
+          setFocoLinea((n) => n + 1)
+          break
+        case 'deshacer':
+          despachar({ tipo: 'deshacer' })
+          break
+        case 'rehacer':
+          despachar({ tipo: 'rehacer' })
+          break
+        case 'ajustar_inicio':
+        case 'ajustar_fin':
+          ajustar(accion.tipo === 'ajustar_inicio' ? 'inicio' : 'fin', accion.deltaMs)
+          break
+        case 'fijar_inicio':
+        case 'fijar_fin':
+          fijar(accion.tipo === 'fijar_inicio' ? 'inicio' : 'fin')
+          break
+        case 'escuchar_linea':
+          if (edicion.seleccion) escuchar(edicion.seleccion)
+          break
+        case 'desplazar':
+          desplazar(accion.deltaMs)
+          break
+        case 'borrar_tiempos':
+          borrar()
+          break
+        case 'atajos':
+          setDialogoAtajos(true)
+          break
+        case 'entrar_sync':
+          entrarSync()
+          break
+        case 'marcar':
+          sync.marcar(evento.timeStamp, 'teclado')
+          break
+        case 'deshacer_marca':
+          sync.deshacer()
+          break
+        case 'escapar':
+          if (edicion.sync.activo) sync.terminar()
+          else ir({ tipo: 'biblioteca' })
+          break
+      }
+    },
+    (evento) => {
+      if (evento.key === 'Enter') sync.soltar(evento.timeStamp, 'teclado')
     }
-  })
-
-  useEffect(() => {
-    if (!edicion.sync.activo) return
-    const pausarAlPerderFoco = () => motor?.pausar()
-    window.addEventListener('blur', pausarAlPerderFoco)
-    return () => window.removeEventListener('blur', pausarAlPerderFoco)
-  }, [motor, edicion.sync.activo])
+  )
 
   const irALetra = () => ir({ tipo: 'cancion', id, paso: 'letra' })
   const cuentas = contador(letra)
+  const siguiente = letra.lineas.find((el) => el.id === edicion.sync.siguiente)
   const todasAlEntrar = contador(letraInicial).sincronizadas === contador(letraInicial).total
   const banner =
     cuentas.sincronizadas === 0 ? (
@@ -437,6 +470,9 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         Saltar al contenido
       </a>
       <h1 className={estilos.soloLector}>Editor</h1>
+      <span className={estilos.soloLector} aria-live="polite">
+        {sync.anuncio}
+      </span>
       <header role="banner">
         <CabeceraCancion
           resumen={resumen}
@@ -488,6 +524,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                 artista={metadatos.artista}
                 idEstatico={edicion.seleccion}
                 reproduciendo={sonando}
+                cuentaAtras={sync.cuentaAtras}
                 obtenerTiempoAudio={obtenerTiempoAudio}
               />
             </div>
@@ -498,7 +535,11 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
               valor={pestana}
               opciones={[
                 { valor: 'sincronia', etiqueta: 'Sincronía' },
-                { valor: 'estilo', etiqueta: 'Estilo' }
+                {
+                  valor: 'estilo',
+                  etiqueta: 'Estilo',
+                  noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
+                }
               ]}
               onCambio={setPestana}
             />
@@ -509,6 +550,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                 <PanelSincronia
                   edicion={edicion}
                   duracionMs={duracionMs}
+                  ayudaBluetooth={ayudaBluetooth}
+                  cerrarBluetooth={() => setAyudaBluetooth(false)}
                   escucharAjustes={escucharAjustes}
                   fijarEscucharAjustes={setEscucharAjustes}
                   ajustar={ajustar}
@@ -558,14 +601,37 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         alternarSilencio={() =>
           volumen.cambiar({ volumen: volumen.volumen, silenciado: !volumen.silenciado })
         }
-        entrarSync={() => undefined}
+        entrarSync={entrarSync}
         refSync={refSync}
         acciones={
           <Boton variante="primario" disabled>
             {resumen.estado === 'lista' ? E.hecho : E.marcarLista}
           </Boton>
         }
-        bannerSync={edicion.sync.activo ? <BannerSincronizar /> : undefined}
+        bannerSync={
+          edicion.sync.activo ? (
+            <BannerSincronizar
+              siguiente={
+                siguiente
+                  ? E.syncSiguiente(
+                      siguiente.texto,
+                      numeroDeLinea(letra, siguiente.id),
+                      cuentas.total
+                    )
+                  : null
+              }
+              sonando={sonando}
+              contando={sync.cuentaAtras !== null}
+              hayMarca={sync.hayMarca}
+              pronto={sync.pronto}
+              marcar={(ts) => sync.marcar(ts, 'puntero')}
+              soltar={(ts) => sync.soltar(ts, 'puntero')}
+              deshacer={sync.deshacer}
+              alternar={sync.alternar}
+              terminar={sync.terminar}
+            />
+          ) : undefined
+        }
       />
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
       {dialogoSalida}

@@ -1,5 +1,5 @@
 # 0109 — Editor: "Marcar como lista", "Hecho", "Volver a borrador" y vuelta a la Biblioteca (resalte de 2 s, filtro y toasts)
-- Estado: Pendiente
+- Estado: En curso (empezada por Codex; ver commit WIP)
 - Paso del pipeline: 5
 - Depende de: 0090 (`biblioteca.marcarLista`), 0091, 0100 (`Popover`), 0103, 0104, 0105
 - ADRs: 0006 (condiciones de "lista", `incompleta`), 0010 (§2; "Fuera de esta fase")

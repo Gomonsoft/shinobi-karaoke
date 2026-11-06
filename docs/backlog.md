@@ -250,7 +250,7 @@ Spec `ux/06` reescrita por el diseñador UX (48 criterios). [0024](preguntas/002
 | [0104](tareas/0104-guardado-del-editor-salida-y-cierre-de-la-ventana.md) | Guardado del editor: *debounce*, vaciado al salir, diálogo y cierre de la ventana | 0090, 0092 | ‖ 0103 | `App.tsx`, `navegacion/estado.ts`, `DialogoCierre.tsx`, `main/index.ts`, `main/cierre.ts` | Hecha |
 | [0105](tareas/0105-vista-editor-estructura-lista-y-transporte.md) | Vista Editor: estructura, lista, transporte, vista previa y atajos base | 0090, 0093, 0094, 0098, 0099, 0103, 0104 | No (núcleo) | `App.tsx` | Hecha |
 | [0106](tareas/0106-panel-sincronia-ajuste-fino-y-desplazamiento.md) | Panel Sincronía: ajuste fino, campos, escucha de comprobación, desplazamiento | 0105, 0100 | ‖ 0108, 0109 | `Editor.tsx` (*callbacks*) | Hecha |
-| [0107](tareas/0107-modo-sincronizar-al-ritmo.md) | Modo "Sincronizar al ritmo" | 0105, 0106 | ‖ 0108, 0109 | `Editor.tsx` | Pendiente |
+| [0107](tareas/0107-modo-sincronizar-al-ritmo.md) | Modo "Sincronizar al ritmo" | 0105, 0106 | ‖ 0108, 0109 | `Editor.tsx` | En curso |
 | [0108](tareas/0108-panel-estilo-con-vista-previa-y-contraste.md) | Panel Estilo con contraste y estilo predeterminado | 0097, 0099, 0105 | ‖ 0106, 0107, 0109 | `Editor.tsx` (punto de aviso) | Pendiente |
 | [0109](tareas/0109-marcar-como-lista-hecho-y-vuelta-a-la-biblioteca.md) | Marcar como lista, Hecho, Volver a borrador y vuelta a la Biblioteca (resalte 2 s, filtro, toasts) | 0090, 0091, 0100, 0103, 0104, 0105 | ‖ 0106–0108 | `navegacion/estado.ts`, `Biblioteca.tsx`, `Editor.tsx` | Pendiente |
 | [0110](tareas/0110-e2e-editor-sin-red.md) | E2E del editor sin red | 0091, 0095, 0101, 0102, 0105–0109 | No (cierra la fase) | — | Pendiente |

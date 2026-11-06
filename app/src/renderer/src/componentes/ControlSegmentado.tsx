@@ -10,6 +10,8 @@ export interface OpcionSegmentada<T extends string> {
   /** Motivo por el que no se puede elegir. Sigue siendo enfocable con flechas y muestra el motivo. */
   noDisponible?: string
   cargando?: boolean
+  /** Punto de aviso con una descripción accesible. */
+  aviso?: string
 }
 
 interface ControlSegmentadoProps<T extends string> {
@@ -70,6 +72,10 @@ export function ControlSegmentado<T extends string>({
     >
       {opciones.map((o, i) => {
         const idMotivo = `${idBase}-${i}`
+        const idAviso = `${idMotivo}-aviso`
+        const descripcion = [o.noDisponible ? idMotivo : '', o.aviso ? idAviso : '']
+          .filter(Boolean)
+          .join(' ')
         const boton = (
           <button
             type="button"
@@ -78,7 +84,7 @@ export function ControlSegmentado<T extends string>({
             aria-checked={o.valor === valor}
             aria-busy={o.cargando || undefined}
             aria-disabled={o.noDisponible ? true : undefined}
-            aria-describedby={o.noDisponible ? idMotivo : undefined}
+            aria-describedby={descripcion || undefined}
             tabIndex={o.valor === parada ? 0 : -1}
             onClick={() => {
               if (!o.noDisponible) onCambio(o.valor)
@@ -90,15 +96,26 @@ export function ControlSegmentado<T extends string>({
               </span>
             )}
             {o.etiqueta}
+            {o.aviso && <span className={estilos.puntoAviso} aria-hidden="true" data-aviso />}
           </button>
         )
-        if (!o.noDisponible) return <span key={o.valor}>{boton}</span>
         return (
           <span key={o.valor}>
-            <Tooltip contenido={o.noDisponible}>{boton}</Tooltip>
-            <span id={idMotivo} className={estilos.soloLector}>
-              {o.noDisponible}
-            </span>
+            {o.noDisponible ? (
+              <>
+                <Tooltip contenido={o.noDisponible}>{boton}</Tooltip>
+                <span id={idMotivo} className={estilos.soloLector}>
+                  {o.noDisponible}
+                </span>
+              </>
+            ) : (
+              boton
+            )}
+            {o.aviso && (
+              <span id={idAviso} className={estilos.soloLector}>
+                {o.aviso}
+              </span>
+            )}
           </span>
         )
       })}

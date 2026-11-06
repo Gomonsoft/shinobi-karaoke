@@ -1,0 +1,67 @@
+.panel,
+.bloque,
+.paradas {
+  display: grid;
+  min-width: 0;
+  gap: var(--e-3);
+}
+
+.panel h3,
+.panel h4,
+.panel p {
+  margin: 0;
+}
+
+.bloque {
+  padding-block: var(--e-2) var(--e-3);
+  border-bottom: 1px solid var(--borde);
+}
+
+.bloque:last-child {
+  border-bottom: 0;
+}
+
+.bloque h3 {
+  font-size: var(--t-subtitulo);
+}
+
+.bloque h4 {
+  font-size: var(--t-cuerpo-fuerte);
+}
+
+.paradas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.parada {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--e-2);
+  align-items: start;
+}
+
+.quitar {
+  margin-top: var(--e-5);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.bloque > button,
+.acciones > button,
+.bloque p + button {
+  height: auto;
+  min-height: var(--alto-boton);
+  white-space: normal;
+}
+
+.bloque p + p,
+.bloque p + button,
+.bloque p + .acciones {
+  margin-top: var(--e-2);
+}

@@ -17,7 +17,7 @@ export interface DatosInicialesAnadir {
 /** Estado de navegación propio (ADR 0007: sin router). */
 export type Vista =
   | { tipo: 'primer-arranque' }
-  | { tipo: 'biblioteca' }
+  | { tipo: 'biblioteca'; enfocar?: { id: string; resaltar: boolean } }
   /** `archivo`: ruta de un archivo arrastrado sobre la Biblioteca (la vista 03 lo recibe). */
   | { tipo: 'anadir'; archivo?: string; iniciales?: DatosInicialesAnadir }
   | { tipo: 'cancion'; id: string; paso: PasoCancion }

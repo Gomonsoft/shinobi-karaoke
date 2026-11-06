@@ -1,5 +1,5 @@
 # 0107 — Editor: modo "Sincronizar al ritmo" (Intro, mantener para el fin, Retroceso, cuenta atrás)
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 4
 - Depende de: 0105, 0106
 - ADRs: 0010 (§1 "Reloj" y "Pulsaciones"), 0005 (precisión ≤ 20 ms)

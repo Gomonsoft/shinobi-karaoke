@@ -7,7 +7,7 @@ import { Boton } from '../../componentes/Boton'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
-import { useNavegacion } from '../../navegacion/estado'
+import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
@@ -121,8 +121,12 @@ function BibliotecaPropia() {
   return <VistaBiblioteca datos={useBiblioteca()} />
 }
 
+type EnfoqueBiblioteca = NonNullable<Extract<Vista, { tipo: 'biblioteca' }>['enfocar']>
+const RESALTE_MS = 2000
+
 function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
-  const { ir } = useNavegacion()
+  const { ir, vista } = useNavegacion()
+  const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
   const estiloUsuario = useEstiloPredeterminado()
@@ -131,6 +135,44 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const [busqueda, setBusqueda] = useState('')
   const [dialogo, setDialogo] = useState<DialogoActivo | null>(null)
   const campoBusqueda = useRef<HTMLInputElement>(null)
+  const rejilla = useRef<HTMLDivElement>(null)
+  const enfoqueRealizado = useRef<EnfoqueBiblioteca | undefined>(undefined)
+  const [resaltada, setResaltada] = useState<EnfoqueBiblioteca | null>(null)
+
+  const cancionParaEnfocar = canciones.find((c) => c.id === enfocar?.id)
+
+  useEffect(() => {
+    if (
+      !enfocar ||
+      enfoqueRealizado.current === enfocar ||
+      estado !== 'listo' ||
+      !cancionParaEnfocar
+    )
+      return
+    // El éxito del IPC puede llegar antes de que React aplique el resumen de Lista.
+    if (enfocar.resaltar && cancionParaEnfocar.estado !== 'lista') return
+    const fotograma = requestAnimationFrame(() => {
+      if (filtro === 'borradores' && cancionParaEnfocar.estado === 'lista') {
+        filtroDeSesion = 'todas'
+        setFiltroEstado('todas')
+        return
+      }
+      const tarjetas = rejilla.current?.querySelectorAll<HTMLElement>('[data-tarjeta]')
+      const tarjeta = Array.from(tarjetas ?? []).find((nodo) => nodo.dataset.tarjeta === enfocar.id)
+      if (!tarjeta) return
+      enfoqueRealizado.current = enfocar
+      tarjeta.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+      tarjeta.focus({ preventScroll: true })
+      setResaltada(enfocar.resaltar ? enfocar : null)
+    })
+    return () => cancelAnimationFrame(fotograma)
+  }, [enfocar, estado, filtro, cancionParaEnfocar])
+
+  useEffect(() => {
+    if (!resaltada) return
+    const plazo = setTimeout(() => setResaltada(null), RESALTE_MS)
+    return () => clearTimeout(plazo)
+  }, [resaltada])
 
   const setFiltro = (f: FiltroBiblioteca) => {
     filtroDeSesion = f
@@ -486,13 +528,19 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       ) : (
         // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
         <div
+          ref={rejilla}
           role="list"
           aria-label="Canciones"
           className={estilos.rejilla}
           onKeyDown={teclasRejilla}
         >
           {visibles.map((c) => (
-            <div role="listitem" key={c.id} className={estilos.item}>
+            <div
+              role="listitem"
+              key={c.id}
+              className={estilos.item}
+              data-resaltada={resaltada?.id === c.id ? true : undefined}
+            >
               <TarjetaCancion
                 resumen={c}
                 acciones={acciones}

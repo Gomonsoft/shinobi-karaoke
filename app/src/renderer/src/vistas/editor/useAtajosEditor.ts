@@ -22,6 +22,10 @@ export function useAtajosEditor(
     const focoEn = (control?.dataset.focoEditor as FocoEditor | undefined) ?? 'otro'
     if (e.key === ' ' && !sync && focoEn !== 'lista' && objetivo?.closest('button, a[href], input'))
       return
+    if (sync && e.key === 'Enter' && e.repeat && !enCampoTexto) {
+      e.preventDefault()
+      return
+    }
     const accion = accionDeTecla(e, {
       sync,
       enCampoTexto,

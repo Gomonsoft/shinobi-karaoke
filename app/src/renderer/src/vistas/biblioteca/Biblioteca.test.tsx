@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ApiShinobi, EventoCancionIpc, ResumenCancionIpc } from '@shared/ipc'
 import { fixtures } from './fixturesApi'
 import { Biblioteca, reiniciarFiltroDeSesion } from './Biblioteca'
@@ -11,7 +11,8 @@ beforeEach(() => reiniciarFiltroDeSesion())
 
 function montar(
   lista: Promise<ResumenCancionIpc[]> | ResumenCancionIpc[],
-  biblioteca: Partial<ApiShinobi['biblioteca']> = {}
+  biblioteca: Partial<ApiShinobi['biblioteca']> = {},
+  enfocar?: Extract<Vista, { tipo: 'biblioteca' }>['enfocar']
 ) {
   const ir = vi.fn<(v: Vista) => void>()
   let emitir: (e: EventoCancionIpc) => void = () => undefined
@@ -24,12 +25,12 @@ function montar(
     }
   })
   ;(window as unknown as { shinobi: ApiShinobi }).shinobi = api
-  render(
-    <NavegacionContexto.Provider value={{ vista: { tipo: 'biblioteca' }, ir }}>
+  const { unmount } = render(
+    <NavegacionContexto.Provider value={{ vista: { tipo: 'biblioteca', enfocar }, ir }}>
       <Biblioteca />
     </NavegacionContexto.Provider>
   )
-  return { ir, api, emitir: (e: EventoCancionIpc) => act(() => emitir(e)) }
+  return { ir, api, unmount, emitir: (e: EventoCancionIpc) => act(() => emitir(e)) }
 }
 
 const lista = resumenPrueba({ id: 'a', titulo: 'Bohemian Rhapsody', estado: 'lista' })
@@ -324,5 +325,46 @@ describe('en vivo', () => {
     await screen.findByRole('article')
     emitir({ id: 'a', eliminada: true })
     expect(screen.getByRole('heading', { name: 'Tu biblioteca está vacía' })).toBeInTheDocument()
+  })
+})
+
+describe('vuelta del editor', () => {
+  it('cambia Borradores por Todas al recibir el resumen de Lista y resalta durante 2 s', async () => {
+    const previa = montar([borrador])
+    fireEvent.click(await screen.findByRole('radio', { name: 'Borradores 1' }))
+    previa.unmount()
+
+    vi.useFakeTimers()
+    try {
+      const destino = { ...borrador, estado: 'lista' as const }
+      const { emitir } = montar([borrador], {}, { id: destino.id, resaltar: true })
+      await act(async () => undefined)
+      expect(screen.getByRole('radio', { name: 'Borradores 1' })).toBeChecked()
+      emitir({ id: destino.id, resumen: destino })
+      await act(async () => vi.advanceTimersByTimeAsync(16))
+      expect(screen.getByRole('radio', { name: 'Todas 1' })).toBeChecked()
+      await act(async () => vi.advanceTimersByTimeAsync(16))
+      const tarjeta = screen.getByRole('article')
+      expect(tarjeta).toHaveFocus()
+      expect(tarjeta.parentElement).toHaveAttribute('data-resaltada', 'true')
+      await act(async () => vi.advanceTimersByTimeAsync(1999))
+      expect(tarjeta.parentElement).toHaveAttribute('data-resaltada', 'true')
+      await act(async () => vi.advanceTimersByTimeAsync(1))
+      expect(tarjeta.parentElement).not.toHaveAttribute('data-resaltada')
+
+      // El regreso no fuerza el filtro una segunda vez después de que la persona lo cambie.
+      fireEvent.click(screen.getByRole('radio', { name: 'Borradores 0' }))
+      expect(screen.getByRole('radio', { name: 'Borradores 0' })).toBeChecked()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('Hecho enfoca la tarjeta y no inicia el resalte', async () => {
+    montar([lista, incompleta], {}, { id: incompleta.id, resaltar: false })
+    const tarjeta = await screen.findByRole('article', { name: /^Casi lista,/ })
+    await waitFor(() => expect(tarjeta).toHaveFocus())
+    expect(tarjeta).toHaveAttribute('tabindex', '0')
+    expect(tarjeta.parentElement).not.toHaveAttribute('data-resaltada')
   })
 })

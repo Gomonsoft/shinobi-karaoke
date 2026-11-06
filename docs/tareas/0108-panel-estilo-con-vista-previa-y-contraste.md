@@ -1,5 +1,5 @@
 # 0108 — Editor: panel Estilo (fondo, colores, fuente) con aviso de contraste y estilo predeterminado
-- Estado: Pendiente
+- Estado: En curso (empezada por Codex; ver commit WIP)
 - Paso del pipeline: 4
 - Depende de: 0097, 0099, 0105
 - ADRs: 0006 (formato del estilo; paradas ordenadas desde 0090), 0010 (§2 `guardarEstilo`, §4 contraste)

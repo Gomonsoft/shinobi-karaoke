@@ -255,9 +255,10 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       const r = marcarInicioLinea(letra, marcaId, a.ms)
       const base = conAviso(e, r, marcaId)
       if (!r.cambiado) return base
+      const marcada = usarFinAutomatico(r.letra, marcaId).letra
       const nueva = guardarPaso(
         base,
-        { ...e.actual, letra: r.letra },
+        { ...e.actual, letra: marcada },
         `marca:${marcaId}`,
         a.ahora,
         { marcaId }

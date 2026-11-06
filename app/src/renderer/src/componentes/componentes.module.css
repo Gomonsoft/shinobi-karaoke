@@ -314,6 +314,14 @@
   color: var(--texto-desactivado);
   cursor: not-allowed;
 }
+.puntoAviso {
+  display: inline-block;
+  width: var(--e-2);
+  height: var(--e-2);
+  margin-inline-start: var(--e-2);
+  border-radius: var(--r-pildora);
+  background: var(--aviso);
+}
 
 /* ---------- Aviso en línea ---------- */
 .banner {
