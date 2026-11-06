@@ -1,4 +1,5 @@
 # 0123 — E2E del reproductor sin red
+
 - Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0113, 0114, 0115, 0116, 0119, 0120, 0121, 0122
@@ -8,11 +9,12 @@
 - Paralelizable con: 0126 (manual). Cierra la fase junto con 0125.
 
 ## Contexto para quien implementa
+
 - Patrón de `e2e/editor.spec.ts`:
   - `sembrar(datos)` en una carpeta temporal (`crearTemporal`);
   - `electron.launch({ args: ['.'], cwd, env: { SHINOBI_DATOS, SHINOBI_PAPELERA_PRUEBAS, SHINOBI_SILENCIAR_AUDIO: '1', SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1' } })`;
   - ids fijos `5eed0000-0000-4000-8000-0000000000NN`;
-  - buscar la canción por título con el buscador de la Biblioteca (los menús se cierran con el *scroll* de Playwright; nota 2 de la 0110).
+  - buscar la canción por título con el buscador de la Biblioteca (los menús se cierran con el _scroll_ de Playwright; nota 2 de la 0110).
 - Añade `SHINOBI_PANTALLA_COMPLETA_SIMULADA: '1'` (0113) en todas las pruebas salvo la de pantalla completa real. El estado se lee en `[data-pantalla-completa]` de la capa (0119).
 - Canciones de la semilla (0115):
   - 20 «Reproductor: lista» (t1 = 2 s → silencio previo de 4 s; palabras; hueco ≥ 4 s);
@@ -21,9 +23,11 @@
 - Con el audio silenciado el reloj de Web Audio avanza (nota 5 de la 0110). Si en Linux de la CI no avanza sin dispositivo, usa el sink nulo de PulseAudio y avisa con una pregunta al arquitecto.
 
 ## Objetivo
+
 Comprobar de punta a punta, sin red ni modelos, que se puede cantar desde la Biblioteca, el toast y el editor, y que los errores y la salida se comportan como dice la spec.
 
 ## Criterios de aceptación
+
 - [ ] **Biblioteca → reproducir → salir** (canción 20): escribe algo en el buscador y haz clic en "▶ Reproducir".
   - Se ve la capa con `data-pantalla-completa="true"` y el título «Reproductor: lista» en < 1 s.
   - Durante los primeros ~2 s solo hay título (silencio previo).
@@ -68,6 +72,7 @@ Comprobar de punta a punta, sin red ni modelos, que se puede cantar desde la Bib
 - [ ] Tiempo total razonable (< 3 min en local). Las pruebas largas (final) usan saltos con L y no esperan la canción entera.
 
 ## Verificación
+
 ```bash
 cd app
 npm run build
@@ -77,6 +82,7 @@ npx playwright test          # toda la batería
 ```
 
 ## Notas de implementación
-- Se añadieron cinco recorridos sin red: reproducción desde Biblioteca con atajos y vuelta con foco/búsqueda, letra incompleta, pantalla final, instrumental ausente con tarjeta dañada y prueba original desde el editor con desplazamiento/deshacer.
-- Pasaron los cinco E2E dirigidos y la batería completa: 84 Playwright pasan y 2 de red se omiten. En Linux se usa pantalla completa simulada; la revisión en TV y los tres sistemas sigue en la prueba manual 0126.
+
+- Se añadieron diez recorridos sin red: controles y atajos con volumen/voz persistentes, ocultar franjas, lista incompleta, pantalla final y autocierre, instrumental ausente, voz ausente, acción del toast «lista», pantalla completa real y prueba original del editor con desplazamiento/deshacer.
+- Pasaron los diez E2E dirigidos y la batería completa final: 91 pruebas pasan y 2 de red se omiten. La pantalla completa real pasó en macOS; Linux usa el modo simulado. La revisión en TV y los tres sistemas sigue en la prueba manual 0126.
 - La verificación global de Vitest pasó con 1.803 tests y 12 omitidos; build, lint, typecheck y formato en verde.

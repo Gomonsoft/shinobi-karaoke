@@ -19,8 +19,8 @@ cd ../worker && uv run ruff check . && uv run pytest
 | ------------------------------- | ------------------------------------------------------------- |
 | lint / typecheck / format:check | OK                                                            |
 | Vitest                          | **1.803 pasan**, 12 omitidos; 128 archivos pasan y 1 se omite |
-| Playwright completo             | **84 pasan**, 2 omitidos (pruebas con red)                    |
-| Playwright del reproductor      | 5 escenarios dirigidos pasan                                  |
+| Playwright completo             | **91 pasan**, 2 omitidos (pruebas con red)                    |
+| Playwright del reproductor      | 10 escenarios dirigidos pasan                                 |
 | Worker ruff / format / pytest   | OK; **313 pasan**, 7 omitidos por marcas                      |
 
 ## Qué se hizo
@@ -30,7 +30,7 @@ cd ../worker && uv run ruff check . && uv run pytest
 - **Reproductor** (0119–0120): capa modal con letra, franjas y controles que se ocultan, pantalla final, errores de pista, aviso por letra incompleta, atajos y desplazamiento desde el editor.
 - **Entradas** (0121–0122): apertura desde tarjetas y toast «lista para cantar» sin desmontar la Biblioteca; vista previa a pantalla completa desde el editor, con guardado, restauración de pista/velocidad y desplazamiento deshecho como un único paso.
 - **Deuda del motor** (0124–0125): runtime incompleto se marca dañado y ofrece reparar; la confirmación muestra trabajos activos y los cancela antes de abrir Primer arranque.
-- **E2E** (0123): cinco escenarios del reproductor sin red para biblioteca, atajos, foco, letra incompleta, pantalla final, pista instrumental ausente y vista previa del editor.
+- **E2E** (0123): diez escenarios del reproductor sin red para Biblioteca, atajos, volumen/voz persistentes, franjas, lista incompleta, pantalla final y autocierre, pistas ausentes, acción del toast, pantalla completa real y vista previa del editor.
 
 ## Preguntas y pendientes
 
