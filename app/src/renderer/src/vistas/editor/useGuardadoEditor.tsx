@@ -17,13 +17,27 @@ export function useGuardadoEditor(
 ) {
   const { registrarGuardaSalida } = useNavegacion()
   const instancia = useRef<GuardadoEditor | null>(null)
-  const resolverSalida = useRef<((salir: boolean) => void) | null>(null)
+  const confirmacion = useRef<{
+    promesa: Promise<boolean>
+    resolver(salir: boolean): void
+  } | null>(null)
   const [estado, setEstado] = useState<EstadoGuardado['estado']>('guardado')
   const [dialogo, setDialogo] = useState(false)
   const sesion = useEffectEvent(obtenerSesion)
   const recargar = useEffectEvent(alDesactualizada)
   const tituloActual = useEffectEvent(() => titulo)
   const salidaGuardada = useEffectEvent((destino: Vista) => alSalirGuardado?.(destino))
+
+  const confirmarSinGuardar = useCallback((): Promise<boolean> => {
+    if (confirmacion.current) return confirmacion.current.promesa
+    let resolver!: (salir: boolean) => void
+    const promesa = new Promise<boolean>((resuelve) => {
+      resolver = resuelve
+    })
+    confirmacion.current = { promesa, resolver }
+    setDialogo(true)
+    return promesa
+  }, [])
 
   useEffect(() => {
     let avisado = false
@@ -79,21 +93,18 @@ export function useGuardadoEditor(
         salidaGuardada(destino)
         return true
       }
-      return new Promise<boolean>((resolver) => {
-        resolverSalida.current = resolver
-        setDialogo(true)
-      })
+      return confirmarSinGuardar()
     })
     return () => {
       cancelarVaciado()
       cancelarGuarda?.()
       guardado.destruir()
       instancia.current = null
-      resolverSalida.current?.(false)
-      resolverSalida.current = null
+      confirmacion.current?.resolver(false)
+      confirmacion.current = null
       avisarMain(false)
     }
-  }, [cancionId, registrarGuardaSalida])
+  }, [cancionId, confirmarSinGuardar, registrarGuardaSalida])
 
   const cambiarLetra = useCallback((letra: Letra) => instancia.current?.cambiarLetra(letra), [])
   const cambiarEstilo = useCallback(
@@ -104,8 +115,8 @@ export function useGuardadoEditor(
 
   function confirmar(salir: boolean) {
     setDialogo(false)
-    resolverSalida.current?.(salir)
-    resolverSalida.current = null
+    confirmacion.current?.resolver(salir)
+    confirmacion.current = null
   }
 
   return {
@@ -113,6 +124,7 @@ export function useGuardadoEditor(
     cambiarLetra,
     cambiarEstilo,
     vaciar,
+    confirmarSinGuardar,
     dialogoSalida: (
       <Dialogo
         abierto={dialogo}

@@ -15,6 +15,7 @@ it.each([
   [' ', 'reproducir'],
   ['Home', 'principio'],
   ['s', 'entrar_sync'],
+  ['f', 'probar'],
   ['Backspace', 'borrar_tiempos'],
   ['Delete', 'borrar_tiempos'],
   ['Escape', 'escapar'],
@@ -62,5 +63,7 @@ it('respeta modificadores, controles, campos de texto y la fase del editor', () 
   expect(accionDeTecla(tecla('Backspace'), { ...opciones, sync: true })).toEqual({
     tipo: 'deshacer_marca'
   })
-  expect(accionDeTecla(tecla('f'), opciones)).toBeNull()
+  expect(accionDeTecla(tecla('f'), { ...opciones, sync: true })).toBeNull()
+  expect(accionDeTecla(tecla('f'), { ...opciones, enCampoTexto: true })).toBeNull()
+  expect(accionDeTecla(tecla('f', { repeat: true }), opciones)).toBeNull()
 })

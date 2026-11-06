@@ -24,6 +24,9 @@ export const E = {
   activarSonido: 'Activar sonido',
   cargando: 'Cargando audio…',
   botonSync: 'Sincronizar al ritmo',
+  botonProbar: 'Probar a pantalla completa',
+  probarTooltip: 'Probar a pantalla completa (F)',
+  probarSinLineas: 'Sincroniza al menos una línea para probarla.',
   syncTitulo: 'Sincronizando al ritmo',
   syncAyuda:
     'Pulsa Intro cuando empiece cada línea. Mantenla pulsada mientras se canta si quieres marcar también el final.',

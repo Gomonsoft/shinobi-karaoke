@@ -1,5 +1,5 @@
 # 0122 — Editor: "Probar a pantalla completa" (botón y F), desplazamiento como un paso de deshacer y vuelta a la posición del reproductor
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 6
 - Depende de: 0117 (`liberarAudio`), 0118 (`useVolumenCompartido` en el editor), 0119, 0120 (desplazamiento)
 - ADRs: 0011 (§3 "Editor", §4 "Capa del editor"), 0010
@@ -21,31 +21,31 @@
 Probar la canción tal como se cantará sin salir del editor ni perder nada de él.
 
 ## Criterios de aceptación
-- [ ] **Disponibilidad**: el botón `edi.boton.probar` (tooltip `edi.probar.tooltip`) y la tecla F están activos salvo:
+- [x] **Disponibilidad**: el botón `edi.boton.probar` (tooltip `edi.probar.tooltip`) y la tecla F están activos salvo:
   - en el modo "Sincronizar al ritmo" y su cuenta atrás (criterio 18);
   - sin ninguna línea con inicio → inactivo con `edi.probar.sinlineas` (texto y comportamiento exactos de `ux/06`).
   `DialogoAtajos` muestra "F — Probar a pantalla completa".
-- [ ] **Abrir**:
+- [x] **Abrir**:
   1. `await vaciar()`. Si falla, se sigue el comportamiento de `ux/06` (comprueba si pide el diálogo de salida o abre igual; si no lo dice, abre igual: el autoguardado sigue reintentando).
   2. Recuerda `{ pista, velocidad }` del motor del editor y llama a `motor.liberarAudio()`.
   3. Calcula `desdeMs`: con la línea seleccionada con inicio, `max(0, inicio_ms + offset_ms − 3000)`; si no tiene inicio, `max(0, motor.posicionMs())`.
   4. Monta `Reproductor` en una capa con `origen: 'editor'`, `modo` = `'karaoke'` si la separación está completada y `'original'` si no (con la etiqueta `rep.original` arriba en el centro, siempre visible, que dibuja el reproductor), la instantánea `{ letra, estilo }` del *reducer* (en vivo), `titulo`/`artista`/`duracionMs`/`gananciaDb` de la canción y `lineasSinSincronizar: 0` (desde el editor no hay aviso).
-- [ ] **Desplazamiento**:
+- [x] **Desplazamiento**:
   - `alDesplazar(delta)` despacha `{ tipo: 'desplazar', deltaMs: delta, ahora, grupo: idPrueba }`;
   - el *reducer* gana el campo opcional `grupo?: string`: las entradas seguidas con el mismo `grupo` se funden en **una** del historial (un solo Ctrl/Cmd+Z deshace toda la prueba). Sin `grupo`, el comportamiento actual no cambia;
   - `idPrueba` es nuevo en cada apertura;
   - acotado a ±30 000 ms como ya hace el editor;
   - el autoguardado sigue su curso (también si se cierra la ventana con la capa abierta);
   - tests del *reducer*.
-- [ ] **Volver** (`alSalir({ posicionMs })`):
+- [x] **Volver** (`alSalir({ posicionMs })`):
   - desmonta la capa;
   - `motor.usarPista(pistaRecordada)` y `fijarVelocidad(velocidadRecordada)`, y luego `buscar(posicionMs)`, en pausa;
   - selecciona la línea que sonaba en `posicionMs` (la última con `inicio_ms + offset_ms ≤ posicionMs`); si ninguna había empezado, la selección no cambia;
   - desplaza la lista hasta ella;
   - el foco vuelve al botón "Probar a pantalla completa".
   El historial conserva todo lo anterior y el paso del desplazamiento, si lo hubo. La visita de `letras.abrirEdicion` no se cierra en ningún momento.
-- [ ] La vista previa del editor, el autoguardado y el indicador de guardado siguen funcionando con la capa abierta (el editor sigue montado).
-- [ ] Tests (`Editor.test.tsx`, API falsa del editor, reproductor con motor falso):
+- [x] La vista previa del editor, el autoguardado y el indicador de guardado siguen funcionando con la capa abierta (el editor sigue montado).
+- [x] Tests (`Editor.test.tsx`, API falsa del editor, reproductor con motor falso):
   - F abre la capa con `desdeMs` = línea − 3 s;
   - sin separación, modo `original`;
   - `.` dos veces y Esc → `offset_ms` +200 en el estado y un solo Ctrl+Z lo deshace;
@@ -60,4 +60,7 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test e2e/edit
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- El botón bajo la vista previa y F abren la capa con la letra y el estilo en memoria. Antes se vacía el guardado y, si falla, se reutiliza el diálogo de salida para elegir si abrir igualmente.
+- El editor libera sus buffers antes de abrir. Tras desmontar el reproductor, repone la pista y la velocidad anteriores en pausa, busca el cabezal y devuelve el foco al botón. La selección vuelve a la última línea que había empezado, con desplazamiento de la lista sin llevarse el foco.
+- Los ajustes de desplazamiento de una apertura comparten una clave única de historial. Se guardan en la misma visita de edición y se deshacen con una sola acción.
+- Typecheck, lint y formato dirigidos en verde. Pasaron las 77 pruebas de la carpeta del editor, incluida la interacción real con el atajo de desplazamiento de 0120, y la verificación global de la app y Playwright.

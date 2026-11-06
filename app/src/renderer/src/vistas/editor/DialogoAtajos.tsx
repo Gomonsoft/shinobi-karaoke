@@ -8,6 +8,7 @@ const ATAJOS = [
   ['Inicio', 'Ir al principio'],
   ['← / → en la barra de tiempo', '−/+ 5 s'],
   ['S', E.botonSync],
+  ['F', E.botonProbar],
   ['Intro', 'Marcar inicio. Mantener 300 ms para marcar también el fin.'],
   ['Retroceso', 'Deshacer la última marca o borrar tiempos de la línea.'],
   ['Supr', E.borrarTiempos],

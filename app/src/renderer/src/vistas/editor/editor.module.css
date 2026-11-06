@@ -111,6 +111,12 @@
   overflow: hidden;
   border-radius: var(--r-m);
 }
+.accionPrueba {
+  display: grid;
+}
+.accionPrueba button {
+  flex: 1;
+}
 .pestanas {
   grid-area: pestanas;
 }
@@ -180,6 +186,9 @@
 }
 
 @media (max-width: 1279px) {
+  .accionPrueba {
+    justify-self: start;
+  }
   .cuerpo {
     grid-template:
       'pestanas previa' auto 'lista previa' auto 'panel previa' auto / min(360px, 53%)

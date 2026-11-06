@@ -4,6 +4,10 @@ import { linea, letra } from '@shared/__fixtures__'
 import { NavegacionContexto } from '../../navegacion/estado'
 import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
 import { ContenedorToasts } from '../../componentes/Toasts'
+import type {
+  EstadoMotorReproductor,
+  OpcionesMotorReproductor
+} from '../../karaoke/motorReproductor'
 import {
   apiEditorFalsa,
   cancionSeparando,
@@ -17,10 +21,48 @@ const motor = vi.hoisted(() => ({
   posicionMs: vi.fn(() => 4200),
   buscar: vi.fn(),
   pausar: vi.fn(),
+  liberarAudio: vi.fn(),
   reproducir: vi.fn(async () => undefined),
   fijarVelocidad: vi.fn(),
   suscribir: vi.fn(() => () => undefined),
-  estado: () => ({ sonando: false, duracionMs: 30_000 })
+  estado: vi.fn(() => ({
+    sonando: false,
+    duracionMs: 30_000,
+    pista: 'original',
+    velocidad: 1
+  }))
+}))
+
+const motorPrueba = vi.hoisted(() => {
+  const estado: EstadoMotorReproductor = {
+    listo: true,
+    sonando: true,
+    cargando: false,
+    finalizado: false,
+    duracionMs: 30_000,
+    vozDisponible: false,
+    errorPrincipal: null,
+    errorVoz: null
+  }
+  return {
+    opciones: vi.fn<(o: OpcionesMotorReproductor) => void>(),
+    cargar: vi.fn(async () => undefined),
+    reproducir: vi.fn(async () => undefined),
+    posicionMs: vi.fn(() => 8400),
+    estado: () => estado,
+    suscribir: vi.fn((cb: (e: EstadoMotorReproductor) => void) => {
+      cb(estado)
+      return () => undefined
+    }),
+    destruir: vi.fn()
+  }
+})
+
+vi.mock('../../karaoke/motorReproductor', () => ({
+  MotorReproductor: function (opciones: OpcionesMotorReproductor) {
+    motorPrueba.opciones(opciones)
+    return motorPrueba
+  }
 }))
 
 vi.mock('../../karaoke/useMotorAudio', () => ({
@@ -183,4 +225,121 @@ it('recarga una visita desactualizada en pausa, vacía historial y no reintenta'
   await waitFor(() => expect(screen.getByText('Guardado', { exact: true })).toBeVisible())
   expect(llamadas.filter((l) => l.metodo === 'letras.guardarTiempos')).toHaveLength(1)
   expect(llamadas.filter((l) => l.metodo === 'letras.abrirEdicion')).toHaveLength(2)
+})
+
+it('F vacía el guardado y prueba la mezcla desde la selección cuando la separación está en curso', async () => {
+  const cancion = { ...cancionSeparando(), letra: cancionSincronizadaLrclib().letra }
+  const { llamadas } = montar(cancion)
+  const segunda = await screen.findByRole('option', { name: /^Línea 2,/ })
+  fireEvent.click(segunda)
+  fireEvent.click(screen.getByRole('button', { name: '+0,1 s' }))
+  await screen.findByRole('option', { name: /^Línea 2, 00:05.10/ })
+  motor.estado.mockReturnValueOnce({
+    sonando: false,
+    duracionMs: 30_000,
+    pista: 'original',
+    velocidad: 0.75
+  })
+  fireEvent.keyDown(segunda, { key: 'f' })
+
+  const dialogo = await screen.findByRole('dialog', { name: /Reproductor de/ })
+  expect(motorPrueba.opciones).toHaveBeenCalledWith(expect.objectContaining({ modo: 'original' }))
+  expect(
+    screen.getByText('Vista previa con la canción original: aún no hay pista instrumental.')
+  ).toBeVisible()
+  expect(motor.liberarAudio).toHaveBeenCalledOnce()
+  expect(llamadas).toContainEqual(
+    expect.objectContaining({
+      metodo: 'letras.guardarTiempos',
+      args: [expect.objectContaining({ offset_ms: 100 }), expect.any(String)]
+    })
+  )
+  await waitFor(() => expect(motorPrueba.reproducir).toHaveBeenCalledWith({ desdeMs: 2100 }))
+
+  fireEvent.keyDown(dialogo, { key: 'Escape' })
+  expect(screen.queryByRole('dialog', { name: /Reproductor de/ })).toBeNull()
+  expect(screen.getByRole('option', { name: /^Línea 3,/ })).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('button', { name: 'Probar a pantalla completa' })).toHaveFocus()
+  expect(motor.usarPista).toHaveBeenLastCalledWith('original')
+  await waitFor(() => expect(motor.buscar).toHaveBeenLastCalledWith(8400))
+  expect(motorPrueba.destruir).toHaveBeenCalledBefore(motor.buscar)
+  expect(motor.fijarVelocidad).toHaveBeenLastCalledWith(0.75)
+  expect(llamadas.filter(({ metodo }) => metodo === 'letras.abrirEdicion')).toHaveLength(1)
+  expect(llamadas.filter(({ metodo }) => metodo === 'letras.cerrarEdicion')).toHaveLength(0)
+})
+
+it('deshabilita la prueba sin líneas sincronizadas y durante la sincronía al ritmo', async () => {
+  const sinTiempos = montar()
+  const boton = await screen.findByRole('button', { name: 'Probar a pantalla completa' })
+  expect(boton).toHaveAttribute('aria-disabled', 'true')
+  fireEvent.focus(boton)
+  expect(screen.getByRole('tooltip')).toHaveTextContent(
+    'Sincroniza al menos una línea para probarla.'
+  )
+  fireEvent.keyDown(boton, { key: 'f' })
+  fireEvent.click(boton)
+  expect(motorPrueba.opciones).not.toHaveBeenCalled()
+  sinTiempos.unmount()
+
+  const cancion = cancionSincronizadaLrclib()
+  cancion.letra!.lineas[1]!.inicio_ms = null
+  montar(cancion)
+  const sync = await screen.findByRole('button', { name: /Sincronizar al ritmo/ })
+  await waitFor(() => expect(sync).toBeEnabled())
+  fireEvent.keyDown(sync, { key: 's' })
+  const banda = await screen.findByRole('region', { name: 'Sincronizando al ritmo' })
+  expect(screen.getByRole('button', { name: 'Probar a pantalla completa' })).toBeDisabled()
+  fireEvent.keyDown(banda, { key: 'f' })
+  expect(motorPrueba.opciones).not.toHaveBeenCalled()
+})
+
+it('si el vaciado falla, usa la confirmación del editor antes de abrir la prueba', async () => {
+  const { fallar } = montar(cancionSincronizadaLrclib())
+  const probar = await screen.findByRole('button', { name: 'Probar a pantalla completa' })
+  fallar('letras.guardarTiempos', 'ERROR_INTERNO', 2)
+  fireEvent.click(screen.getByRole('button', { name: '+0,1 s' }))
+  await screen.findByRole('option', { name: /^Línea 1, 00:02.10/ })
+  fireEvent.click(probar)
+  const quedarse = await screen.findByRole('button', { name: 'Quedarme en el editor' })
+  expect(quedarse).toHaveFocus()
+  fireEvent.click(quedarse)
+  expect(motor.liberarAudio).not.toHaveBeenCalled()
+  expect(screen.queryByRole('dialog', { name: /Reproductor de/ })).toBeNull()
+
+  await waitFor(() => expect(quedarse).not.toBeInTheDocument())
+  fireEvent.click(probar)
+  fireEvent.click(await screen.findByRole('button', { name: 'Salir sin guardarlos' }))
+  expect(await screen.findByRole('dialog', { name: /Reproductor de/ })).toBeVisible()
+  expect(motor.liberarAudio).toHaveBeenCalledOnce()
+})
+
+it('guarda el desplazamiento desde la prueba con pistas y lo deshace en un paso', async () => {
+  const { llamadas } = montar(cancionSincronizadaLrclib())
+  const probar = await screen.findByRole('button', { name: 'Probar a pantalla completa' })
+  fireEvent.click(probar)
+  const dialogo = await screen.findByRole('dialog', { name: /Reproductor de/ })
+  expect(motorPrueba.opciones).toHaveBeenCalledWith(expect.objectContaining({ modo: 'karaoke' }))
+
+  fireEvent.keyDown(dialogo, { key: '.' })
+  await screen.findByText('Desplazamiento: +0,10 s')
+  fireEvent.keyDown(dialogo, { key: '.' })
+  await screen.findByText('Desplazamiento: +0,20 s')
+  await waitFor(
+    () => {
+      expect(llamadas).toContainEqual(
+        expect.objectContaining({
+          metodo: 'letras.guardarTiempos',
+          args: [expect.objectContaining({ offset_ms: 200 }), expect.any(String)]
+        })
+      )
+    },
+    { timeout: 2500 }
+  )
+
+  fireEvent.keyDown(dialogo, { key: 'Escape' })
+  await screen.findByRole('option', { name: /^Línea 1, 00:02.20/ })
+  expect(probar).toHaveFocus()
+  fireEvent.keyDown(probar, { key: 'z', ctrlKey: true })
+  await screen.findByRole('option', { name: /^Línea 1, 00:02.00/ })
+  expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
 })

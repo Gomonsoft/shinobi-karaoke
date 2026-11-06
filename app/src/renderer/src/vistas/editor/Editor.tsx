@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState
+} from 'react'
+import { Maximize, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
@@ -17,15 +26,19 @@ import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
+import { Icono } from '../../componentes/Icono'
+import { Tooltip } from '../../componentes/Tooltip'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
 import { evaluarContraste } from '../../karaoke/contraste'
+import type { Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
 import { useMotorAudio } from '../../karaoke/useMotorAudio'
 import { useVolumenCompartido } from '../../karaoke/useVolumenCompartido'
 import { useNavegacion } from '../../navegacion/estado'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
+import { Reproductor, type PropsReproductor } from '../reproductor/Reproductor'
 import { BannerSincronizar } from './BannerSincronizar'
 import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
 import { DialogoAtajos } from './DialogoAtajos'
@@ -145,6 +158,13 @@ interface PropsActiva {
   obtenerSesion(): string | null
 }
 
+type EscuchaEditor = { pista: Pista; velocidad: Velocidad }
+type Prueba = EscuchaEditor & {
+  desdeMs: number
+  modo: PropsReproductor['modo']
+  grupo: string
+}
+
 function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva) {
   const { cancion, config } = carga
   const { id, metadatos } = cancion
@@ -155,11 +175,17 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     estadoInicial({ letra: letraInicial, estilo: cancion.estilo }, seleccionarInicial(letraInicial))
   )
   const { letra, estilo } = edicion.actual
+  const cuentas = contador(letra)
   const [pestana, setPestana] = useState<Pestana>('sincronia')
   const [estiloPredeterminado, setEstiloPredeterminado] = useState(config.estilo_predeterminado)
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
+  const [prueba, setPrueba] = useState<Prueba | null>(null)
+  const abrirPendiente = useRef<AbortController | null>(null)
+  const vuelta = useRef<(EscuchaEditor & { posicionMs: number }) | null>(null)
+  const refProbar = useRef<HTMLButtonElement>(null)
+  const [revisionSeleccion, setRevisionSeleccion] = useState(0)
   const [focoLinea, setFocoLinea] = useState(() =>
     contador(letraInicial).sincronizadas > 0 ? 1 : 0
   )
@@ -173,6 +199,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     gananciaDb: cancion.fuente.ganancia_db ?? 0,
     volumen: volumen.silenciado ? 0 : volumen.volumen
   })
+  const enPrueba = useEffectEvent(() => prueba !== null)
+  useEffect(() => () => abrirPendiente.current?.abort(), [])
 
   const trabajo = trabajos.find((t) => t.cancionId === id && t.paso === 'separacion')
   const paso = resumen.pasos?.separacion
@@ -194,8 +222,28 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       : 'original'
   )
   useEffect(() => {
-    if (motor) void motor.usarPista(pistaInicial.current)
+    if (motor && !enPrueba() && !vuelta.current) void motor.usarPista(pistaInicial.current)
   }, [motor])
+
+  useEffect(() => {
+    if (prueba || !motor || !vuelta.current) return
+    const { pista, velocidad, posicionMs } = vuelta.current
+    vuelta.current = null
+    refProbar.current?.focus({ preventScroll: true })
+    const cargando = motor.usarPista(pista)
+    // El editor suele conservar la duración y puede buscar mientras se vuelve a cargar el audio.
+    const listoParaBuscar = motor.estado().duracionMs === null ? cargando : Promise.resolve()
+    let cancelada = false
+    void listoParaBuscar.then(() => {
+      if (cancelada) return
+      motor.fijarVelocidad(velocidad)
+      motor.buscar(posicionMs)
+      setPosicion(motor.posicionMs())
+    })
+    return () => {
+      cancelada = true
+    }
+  }, [motor, prueba])
 
   useEffect(() => {
     if (focoInicialSync.current && audio?.duracionMs != null) {
@@ -241,6 +289,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     }
   })
   function entrarSync() {
+    if (abrirPendiente.current) return
     escucha?.cancelar()
     setPestana('sincronia')
     sync.entrar()
@@ -263,6 +312,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     cambiarLetra,
     cambiarEstilo,
     vaciar,
+    confirmarSinGuardar,
     dialogoSalida
   } = useGuardadoEditor(
     id,
@@ -288,6 +338,58 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     if (ultima.letra !== letra) cambiarLetra(letra)
     if (ultima.estilo !== estilo) cambiarEstilo(estilo)
   }, [edicion.actual, edicion.version, letra, estilo, cambiarLetra, cambiarEstilo])
+
+  const probarInactivo = edicion.sync.activo || Boolean(audio?.error)
+  const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
+  useLayoutEffect(() => {
+    // El vaciado puede esperar una escritura o el diálogo. Usa el editor del último render.
+    prepararPruebaActual.current = () => {
+      if (probarInactivo || !cuentas.sincronizadas) return null
+      const audioEditor = motor?.estado()
+      const inicio = letra.lineas.find((l) => l.id === edicion.seleccion)?.inicio_ms
+      const desdeMs = Math.max(
+        0,
+        inicio == null ? obtenerTiempoAudio() : inicio + letra.offset_ms - 3000
+      )
+      escucha?.cancelar()
+      motor?.liberarAudio()
+      return {
+        pista:
+          (audioEditor?.duracionMs == null ? audioEditor?.cargandoPista : audioEditor.pista) ??
+          pistaInicial.current,
+        velocidad: audioEditor?.velocidad ?? 1,
+        desdeMs,
+        modo: separacion.disponible ? 'karaoke' : 'original',
+        grupo: crypto.randomUUID()
+      }
+    }
+  })
+
+  async function abrirPrueba(): Promise<void> {
+    if (probarInactivo || !cuentas.sincronizadas || prueba || abrirPendiente.current) return
+    const peticion = new AbortController()
+    abrirPendiente.current = peticion
+    try {
+      if (!(await vaciar()) && (peticion.signal.aborted || !(await confirmarSinGuardar()))) return
+      if (peticion.signal.aborted) return
+      const preparada = prepararPruebaActual.current()
+      if (preparada) setPrueba(preparada)
+    } finally {
+      abrirPendiente.current = null
+    }
+  }
+
+  function terminarPrueba({ posicionMs }: { posicionMs: number }): void {
+    if (!prueba) return
+    vuelta.current = { pista: prueba.pista, velocidad: prueba.velocidad, posicionMs }
+    const linea = letra.lineas[indiceLineaActual(letra, posicionMs)]
+    if (linea) {
+      despachar({ tipo: 'seleccionar', id: linea.id })
+      setPestana('sincronia')
+      setRevisionSeleccion((n) => n + 1)
+    }
+    setPrueba(null)
+  }
 
   function buscar(ms: number) {
     if (!motor) return
@@ -401,6 +503,9 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         case 'atajos':
           setDialogoAtajos(true)
           break
+        case 'probar':
+          void abrirPrueba()
+          break
         case 'entrar_sync':
           entrarSync()
           break
@@ -422,7 +527,18 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   )
 
   const irALetra = () => ir({ tipo: 'cancion', id, paso: 'letra' })
-  const cuentas = contador(letra)
+  const botonProbar = (
+    <Boton
+      ref={refProbar}
+      aria-keyshortcuts="F"
+      disabled={probarInactivo}
+      noDisponible={cuentas.sincronizadas === 0 ? E.probarSinLineas : undefined}
+      onClick={() => void abrirPrueba()}
+    >
+      <Icono icono={Maximize} />
+      {E.botonProbar}
+    </Boton>
+  )
   const siguiente = letra.lineas.find((el) => el.id === edicion.sync.siguiente)
   const todasAlEntrar = contador(letraInicial).sincronizadas === contador(letraInicial).total
   const banner =
@@ -496,6 +612,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
             seleccion={edicion.seleccion}
             actual={sonando ? indiceLineaActual(letra, posicion) : -1}
             foco={focoLinea}
+            revisionSeleccion={revisionSeleccion}
             seleccionar={seleccionar}
             escuchar={escuchar}
             corregir={irALetra}
@@ -522,6 +639,13 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                 cuentaAtras={sync.cuentaAtras}
                 obtenerTiempoAudio={obtenerTiempoAudio}
               />
+            </div>
+            <div className={estilos.accionPrueba}>
+              {cuentas.sincronizadas > 0 ? (
+                <Tooltip contenido={E.probarTooltip}>{botonProbar}</Tooltip>
+              ) : (
+                botonProbar
+              )}
             </div>
           </section>
           <div className={estilos.pestanas} data-foco-editor="segmentado">
@@ -659,6 +783,28 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         />
       )}
       {dialogoSalida}
+      {prueba && (
+        <Reproductor
+          origen="editor"
+          modo={prueba.modo}
+          desdeMs={prueba.desdeMs}
+          cancion={{
+            id,
+            titulo: metadatos.titulo,
+            artista: metadatos.artista,
+            duracionMs: metadatos.duracion_ms,
+            gananciaDb: cancion.fuente.ganancia_db ?? 0,
+            letra,
+            estilo,
+            lineasSinSincronizar: 0
+          }}
+          volumen={volumen}
+          alSalir={terminarPrueba}
+          alDesplazar={(deltaMs) =>
+            despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now(), grupo: prueba.grupo })
+          }
+        />
+      )}
     </div>
   )
 }

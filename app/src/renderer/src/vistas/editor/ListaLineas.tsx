@@ -13,6 +13,7 @@ interface Props {
   seleccion: string | null
   actual: number
   foco: number
+  revisionSeleccion?: number
   seleccionar(id: string, enfocar?: boolean): void
   escuchar(id: string): void
   corregir(): void
@@ -28,6 +29,7 @@ export function ListaLineas({
   seleccion,
   actual,
   foco,
+  revisionSeleccion = 0,
   seleccionar,
   escuchar,
   corregir,
@@ -64,7 +66,7 @@ export function ListaLineas({
     mostrar(indiceSeleccion)
     // Un cambio de selección siempre queda a la vista.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indiceSeleccion, virtual])
+  }, [indiceSeleccion, virtual, revisionSeleccion])
 
   useLayoutEffect(() => {
     if (foco === ultimoFoco.current || !seleccion) return

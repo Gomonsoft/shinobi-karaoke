@@ -74,6 +74,20 @@ describe('sesión de sincronía', () => {
 })
 
 describe('historial de la visita', () => {
+  it('agrupa todo el desplazamiento de una prueba y mantiene las pruebas como pasos separados', () => {
+    let e = reducirEditor(editor(), { tipo: 'desplazar', deltaMs: 100, ahora: 0 })
+    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 1, grupo: 'primera' })
+    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 15_000, grupo: 'primera' })
+    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: -100, ahora: 15_001, grupo: 'segunda' })
+    expect(e.actual.letra.offset_ms).toBe(200)
+    expect(e.pasado).toHaveLength(3)
+    e = reducirEditor(e, { tipo: 'deshacer' })
+    expect(e.actual.letra.offset_ms).toBe(300)
+    e = reducirEditor(e, { tipo: 'deshacer' })
+    expect(e.actual.letra.offset_ms).toBe(100)
+    expect(reducirEditor(e, { tipo: 'rehacer' }).actual.letra.offset_ms).toBe(300)
+  })
+
   it('agrupa ajustes y cambios de color, deshace y rehace sin mutar', () => {
     let e = editor()
     e.actual.letra.lineas[0]!.inicio_ms = 1000

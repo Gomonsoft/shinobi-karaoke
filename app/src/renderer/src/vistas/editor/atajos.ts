@@ -15,6 +15,7 @@ export type AccionAtajo =
         | 'escuchar_linea'
         | 'deshacer'
         | 'rehacer'
+        | 'probar'
         | 'atajos'
     }
   | { tipo: 'ajustar_inicio' | 'ajustar_fin' | 'desplazar' | 'buscar'; deltaMs: number }
@@ -71,6 +72,7 @@ export function accionDeTecla(
   if (tecla === ' ' && !enControl) return { tipo: 'reproducir' }
   if (tecla === 'home' && !enControl) return { tipo: 'principio' }
   if (tecla === 's' && !sync && !e.repeat) return { tipo: 'entrar_sync' }
+  if (tecla === 'f' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'probar' }
   if (tecla === 'enter' && sync && !e.repeat) return { tipo: 'marcar' }
   if (tecla === 'backspace') return { tipo: sync ? 'deshacer_marca' : 'borrar_tiempos' }
   if (tecla === 'delete' && !sync) return { tipo: 'borrar_tiempos' }

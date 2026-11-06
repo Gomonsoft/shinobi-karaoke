@@ -61,7 +61,7 @@ export type AccionEditor =
   | { tipo: 'fijar_fin'; ms: number; duracionMs: number; ahora: number }
   | { tipo: 'fin_automatico'; ahora: number }
   | { tipo: 'borrar_tiempos'; ahora: number }
-  | { tipo: 'desplazar'; deltaMs: number; ahora: number }
+  | { tipo: 'desplazar'; deltaMs: number; ahora: number; grupo?: string }
   | { tipo: 'fijar_desplazamiento'; ms: number; ahora: number }
   | { tipo: 'estilo'; estilo: Estilo; clave: string; ahora: number; agruparGesto?: boolean }
   | { tipo: 'entrar_sync'; desdeId: string | null }
@@ -139,10 +139,16 @@ function conAviso(e: EstadoEditor, r: ResultadoTiempos, id: string | null): Esta
   return r.limite ? { ...e, aviso: { tipo: 'limite', limite: r.limite, id, n } } : e
 }
 
-function cambiarTiempos(e: EstadoEditor, r: ResultadoTiempos, clave: string, ahora: number) {
+function cambiarTiempos(
+  e: EstadoEditor,
+  r: ResultadoTiempos,
+  clave: string,
+  ahora: number,
+  agruparGesto?: boolean
+) {
   const siguiente = conAviso(e, r, e.seleccion)
   return r.cambiado
-    ? guardarPaso(siguiente, { ...e.actual, letra: r.letra }, clave, ahora)
+    ? guardarPaso(siguiente, { ...e.actual, letra: r.letra }, clave, ahora, { agruparGesto })
     : siguiente
 }
 
@@ -223,7 +229,13 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         ? cambiarTiempos(e, borrarTiempos(letra, id), unica(`borrar:${id}`), a.ahora)
         : e
     case 'desplazar':
-      return cambiarTiempos(e, desplazar(letra, a.deltaMs), 'desplazamiento', a.ahora)
+      return cambiarTiempos(
+        e,
+        desplazar(letra, a.deltaMs),
+        a.grupo === undefined ? 'desplazamiento' : `desplazamiento:prueba:${a.grupo}`,
+        a.ahora,
+        a.grupo !== undefined
+      )
     case 'fijar_desplazamiento':
       return cambiarTiempos(e, fijarDesplazamiento(letra, a.ms), 'desplazamiento', a.ahora)
     case 'estilo':
