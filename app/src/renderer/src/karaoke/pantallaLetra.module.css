@@ -10,7 +10,8 @@
   font-weight: var(--k-peso);
   line-height: 1.2;
   text-shadow: 0 0.04em 0.12em rgb(0 0 0 / 55%);
-  --k-tamano: clamp(32px, 7.5cqh, 140px);
+  /* Sistema visual §10. Con 2160 px de alto, 7.5cqh equivalen a 162 px. */
+  --k-tamano: max(32px, 7.5cqh);
 }
 
 .actual,
@@ -56,9 +57,26 @@
   font-size: var(--k-tamano);
 }
 
-.titulo span {
-  display: block;
+.artista {
   font-size: 50%;
+}
+
+.pildoraTitulo {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  margin: var(--e-2) auto 0;
+  padding: 0.5em 1em;
+  border-radius: var(--r-pildora);
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+}
+
+.iconoAviso {
+  color: var(--aviso);
 }
 
 .cuenta {

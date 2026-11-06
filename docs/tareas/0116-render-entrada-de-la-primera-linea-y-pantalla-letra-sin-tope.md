@@ -1,5 +1,5 @@
 # 0116 — Render: `●●●` antes de la primera línea, tiempos negativos, `PantallaLetra` sin tope de 140 px y aviso bajo el título
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: — (empieza ya)
 - ADRs: 0011 (§3 "Render"), 0010 (§4)
@@ -42,4 +42,8 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test e2e/edit
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- `render.ts` conserva el umbral de 4 s entre líneas y trata la primera línea con inicio como una entrada, incluso cuando sus tres segundos previos incluyen tiempos negativos.
+- `PantallaLetra` usa `max(32px, 7.5cqh)` y admite dos píldoras exclusivas de la pantalla de título. `avisoTitulo` recibe el cuerpo del aviso y el componente añade el icono ⚠. `cargando` y `textoCargando` controlan la píldora con el spinner de 24 px.
+- Se amplió `render.test.ts` para cubrir la secuencia de título y los límites de cada punto en los cuatro inicios pedidos, el hueco de 4 s entre líneas y la ausencia de tiempos. Los tests del editor no comprobaban que faltaran los puntos antes de la primera línea.
+- La compilación y los 10 E2E del editor pasaron en macOS. Playwright necesitó arrancar Electron fuera del sandbox. Pendiente confirmar la verificación global de la app junto con el resto del bloque.

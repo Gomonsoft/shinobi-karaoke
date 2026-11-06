@@ -27,6 +27,50 @@ it('muestra la línea seleccionada a la mitad y aplica el estilo', () => {
   expect(linea?.style.getPropertyValue('--progreso')).toBe('50%')
 })
 
+it('muestra el aviso y el spinner de 24 px solo junto al título', () => {
+  const aviso = 'Falta 1 línea por sincronizar: no se verá.'
+  const textoCargando = 'Cargando…'
+  const letraConTitulo = letra([linea('a', 'Nubes de sal', 8000)])
+  const { container, rerender, getByText, queryByText } = render(
+    <PantallaLetra
+      {...props}
+      letra={letraConTitulo}
+      reproduciendo
+      avisoTitulo={aviso}
+      textoCargando={textoCargando}
+    />
+  )
+  expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true')
+  expect(getByText(aviso)).toHaveTextContent(`⚠ ${aviso}`)
+  expect(queryByText(textoCargando)).not.toBeInTheDocument()
+
+  rerender(
+    <PantallaLetra
+      {...props}
+      letra={letraConTitulo}
+      reproduciendo
+      avisoTitulo={aviso}
+      cargando
+      textoCargando={textoCargando}
+    />
+  )
+  const spinner = getByText(textoCargando).querySelector('svg')
+  expect(spinner).toHaveAttribute('width', '24')
+  expect(spinner).toHaveAttribute('height', '24')
+
+  rerender(
+    <PantallaLetra
+      {...props}
+      reproduciendo
+      avisoTitulo={aviso}
+      cargando
+      textoCargando={textoCargando}
+    />
+  )
+  expect(queryByText(aviso)).not.toBeInTheDocument()
+  expect(queryByText(textoCargando)).not.toBeInTheDocument()
+})
+
 it.each([false, true])(
   'actualiza texto y barrido al ritmo del audio (movimiento reducido %s)',
   (reducido) => {

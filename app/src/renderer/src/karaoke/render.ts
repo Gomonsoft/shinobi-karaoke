@@ -97,9 +97,9 @@ export function fotogramaEn(letra: Letra, tLetraMs: number, ctx: ContextoRender)
   const fin = previa ? finPara(letra, previa.id, duracionMs, indice) : 0
   const actual = previa && tLetraMs < fin ? previa : null
   const restante = siguiente ? siguiente.inicio_ms - tLetraMs : Infinity
-  const silencio = siguiente ? siguiente.inicio_ms - fin : 0
+  const hayEntrada = siguiente && (!previa || siguiente.inicio_ms - fin >= 4000)
   const puntos =
-    !actual && silencio >= 4000 && restante <= 3000 ? (Math.ceil(restante / 1000) as 1 | 2 | 3) : 0
+    !actual && hayEntrada && restante <= 3000 ? (Math.ceil(restante / 1000) as 1 | 2 | 3) : 0
 
   return {
     titulo: null,

@@ -45,19 +45,50 @@ describe('modelo de render', () => {
     expect(fotogramaEstatico(l, 'a').actual?.palabras?.map((p) => p.progreso)).toEqual([1, 0.5, 0])
   })
 
-  it('usa el título hasta 4 s antes y limita el indicador a pausas largas', () => {
-    const l = letra([linea('a', 'El sol', 8000), pausa('p', 10_000), linea('b', 'El mar', 17_000)])
-    expect(fotogramaEn(l, 3999, contexto).titulo).toEqual({
-      titulo: contexto.titulo,
-      artista: contexto.artista
+  it.each([500, 3000, 5900, 20_000])('avisa la primera entrada a %i ms', (inicio) => {
+    const l = letra([linea('omitida', 'Sin marcar', null), linea('a', 'El sol', inicio)])
+    const comienzo = Math.min(0, inicio - 6000)
+    for (const tiempo of [comienzo, inicio - 4001]) {
+      expect(fotogramaEn(l, tiempo, contexto)).toMatchObject({
+        titulo: { titulo: contexto.titulo, artista: contexto.artista },
+        actual: null,
+        siguiente: null,
+        puntos: 0
+      })
+    }
+    for (const tiempo of [inicio - 4000, inicio - 3001]) {
+      expect(fotogramaEn(l, tiempo, contexto)).toMatchObject({
+        titulo: null,
+        actual: null,
+        siguiente: { id: 'a' },
+        puntos: 0
+      })
+    }
+    expect(
+      [-3000, -2001, -2000, -1001, -1000, -1].map(
+        (delta) => fotogramaEn(l, inicio + delta, contexto).puntos
+      )
+    ).toEqual([3, 3, 2, 2, 1, 1])
+    expect(fotogramaEn(l, inicio, contexto)).toMatchObject({
+      actual: { id: 'a', progreso: 0 },
+      puntos: 0
     })
-    expect(fotogramaEn(l, 4000, contexto)).toMatchObject({ titulo: null, puntos: 0 })
-    expect([5000, 6000, 7000, 8000].map((t) => fotogramaEn(l, t, contexto).puntos)).toEqual([
-      3, 2, 1, 0
+  })
+
+  it('muestra el indicador con un hueco de 4 s que incluye pausas y líneas omitidas', () => {
+    const l = letra([
+      linea('a', 'El sol', 8000),
+      pausa('p', 10_000),
+      linea('omitida', 'Sin marcar', null),
+      linea('b', 'El mar', 14_000)
     ])
     expect(fotogramaEn(l, 9000, contexto).actual?.progreso).toBe(0.5)
-    expect(fotogramaEn(l, 10_000, contexto).actual).toBeNull()
-    expect([14_000, 15_000, 16_000, 17_000].map((t) => fotogramaEn(l, t, contexto).puntos)).toEqual(
+    expect(fotogramaEn(l, 10_000, contexto)).toMatchObject({
+      actual: null,
+      siguiente: { id: 'b' },
+      puntos: 0
+    })
+    expect([11_000, 12_000, 13_000, 14_000].map((t) => fotogramaEn(l, t, contexto).puntos)).toEqual(
       [3, 2, 1, 0]
     )
   })
@@ -67,12 +98,14 @@ describe('modelo de render', () => {
     expect(fotogramaEn(l, 29_000, contexto).actual?.progreso).toBe(0.5)
     expect(fotogramaEn(l, 30_000, contexto).actual).toBeNull()
     const sinTiempos = letra([linea('b', 'Nube', null)])
-    expect(fotogramaEn(sinTiempos, 20_000, contexto)).toMatchObject({
-      titulo: { titulo: 'Inventada' },
-      actual: null,
-      siguiente: null,
-      puntos: 0
-    })
+    for (const tiempo of [-6000, 0, 20_000]) {
+      expect(fotogramaEn(sinTiempos, tiempo, contexto)).toMatchObject({
+        titulo: { titulo: 'Inventada' },
+        actual: null,
+        siguiente: null,
+        puntos: 0
+      })
+    }
   })
 
   it('resuelve mil fotogramas de una letra de 5000 líneas sin degradarse con el tamaño', () => {

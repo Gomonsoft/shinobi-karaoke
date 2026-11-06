@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { LoaderCircle } from 'lucide-react'
 import type { Estilo } from '@shared/estilo'
 import type { Letra } from '@shared/letra'
+import { Icono } from '../componentes/Icono'
+import estilosComponentes from '../componentes/componentes.module.css'
 import { variablesEstilo } from './estiloCss'
 import { fotogramaEn, fotogramaEstatico, type FotogramaLetra, type LineaRender } from './render'
 import estilos from './pantallaLetra.module.css'
@@ -16,6 +19,10 @@ export interface PantallaLetraProps {
   reproduciendo: boolean
   cuentaAtras?: 3 | 2 | 1 | null
   etiqueta?: string
+  /** Texto del aviso de la pantalla de título. El componente añade el icono. */
+  avisoTitulo?: string
+  cargando?: boolean
+  textoCargando?: string
   className?: string
 }
 
@@ -72,6 +79,9 @@ export function PantallaLetra({
   reproduciendo,
   cuentaAtras,
   etiqueta,
+  avisoTitulo,
+  cargando,
+  textoCargando,
   className
 }: PantallaLetraProps) {
   const raiz = useRef<HTMLDivElement>(null)
@@ -160,7 +170,18 @@ export function PantallaLetra({
       ) : fotograma.titulo ? (
         <div className={estilos.titulo}>
           <div>{fotograma.titulo.titulo}</div>
-          <span>{fotograma.titulo.artista}</span>
+          <div className={estilos.artista}>{fotograma.titulo.artista}</div>
+          {avisoTitulo && (
+            <div className={estilos.pildoraTitulo}>
+              <span className={estilos.iconoAviso}>⚠</span> {avisoTitulo}
+            </div>
+          )}
+          {cargando && (
+            <div className={estilos.pildoraTitulo}>
+              <Icono icono={LoaderCircle} tamano={24} className={estilosComponentes.girando} />
+              {textoCargando}
+            </div>
+          )}
         </div>
       ) : (
         <>
