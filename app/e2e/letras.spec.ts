@@ -183,7 +183,9 @@ test.describe('letras con el doble local de LRCLIB', () => {
       await expect(
         v.getByText('Letra actual · de LRCLIB · sincronizada por palabra · 2 líneas')
       ).toBeVisible()
-      // En la vista Letra el paso se muestra como actual (●, decisión de 0087); el ✓ se ve al salir.
+      await expect(
+        v.getByRole('button', { name: 'Paso 3, Letra, completado, paso actual' })
+      ).toHaveAttribute('aria-current', 'step')
       await expect(v.getByRole('button', { name: /^Paso 4, Editor, pendiente/ })).toBeEnabled()
       await v.getByRole('button', { name: /^Paso 2, Separación/ }).click()
       await expect(v.getByRole('button', { name: /^Paso 3, Letra, completado/ })).toBeVisible()

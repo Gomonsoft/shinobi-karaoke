@@ -134,7 +134,7 @@ describe('canción existente', () => {
     expect(paso3()).toHaveAccessibleName(/paso actual/)
     expect(paso4()).toHaveAttribute('aria-disabled', 'true')
     rerender(con('completado'))
-    expect(paso3()).toHaveAccessibleName(/completado|paso actual/)
+    expect(paso3()).toHaveAccessibleName('Paso 3, Letra, completado, paso actual')
     expect(paso4()).not.toHaveAttribute('aria-disabled')
     expect(paso2()).toHaveAccessibleName(/40 %/)
     rerender(con('pendiente'))
@@ -252,12 +252,12 @@ describe('indicadores (funciones puras)', () => {
     expect(ind(r({ separacion: paso('interrumpido') }))[1]).toBe('interrumpido')
   })
 
-  it('letra con líneas: ✓ (● si es el actual) y editor navegable', () => {
+  it('letra con líneas: ✓ también si es el paso actual y editor navegable', () => {
     const res = r({ letra: paso('completado') })
     const otra = pasosDeCancion(res, 'progreso')
     expect(otra[2]!.indicador).toBe('completado')
     expect(otra[3]!.navegable).toBe(true)
-    expect(pasosDeCancion(res, 'letra')[2]!.indicador).toBe('actual')
+    expect(pasosDeCancion(res, 'letra')[2]).toMatchObject({ indicador: 'completado', actual: true })
   })
 
   it('sin letra: ● si es el actual y editor bloqueado', () => {
@@ -270,6 +270,14 @@ describe('indicadores (funciones puras)', () => {
   it('editor ✓ solo si la canción está lista', () => {
     const lista = resumenPrueba({ estado: 'lista', pasos: r({ letra: paso('completado') }).pasos })
     expect(pasosDeCancion(lista, 'progreso')[3]!.indicador).toBe('completado')
+    expect(pasosDeCancion(lista, 'editor')[3]).toMatchObject({
+      indicador: 'completado',
+      actual: true
+    })
+    expect(pasosDeCancion(r({ letra: paso('completado') }), 'editor')[3]).toMatchObject({
+      indicador: 'actual',
+      actual: true
+    })
     expect(pasosDeCancion(r({ letra: paso('completado') }), 'progreso')[3]!.indicador).toBe(
       'pendiente'
     )

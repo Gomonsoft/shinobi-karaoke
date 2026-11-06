@@ -1,5 +1,5 @@
 # 0101 — Stepper: ✓ en el paso actual completado y subrayado del paso actual (respuesta a 0024)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 3 y 4
 - Depende de: — (**puede empezar ya; tarea pequeña**)
 - ADRs: —
@@ -12,14 +12,14 @@
 Hoy `pasos.ts` muestra ● ("paso actual") en Letra cuando se está en la vista Letra aunque ya tenga líneas, y lo mismo en Editor con la canción Lista. Hay dos `if (esActual && …) datos = { indicador: 'actual', detalle: null }`. La UX decide ahora (0024) que el círculo refleja **siempre el estado** del paso y que el paso actual se distingue con la etiqueta.
 
 ## Criterios de aceptación
-- [ ] `pasos.ts`:
+- [x] `pasos.ts`:
   - se quitan los dos `if` de Letra y Editor;
   - ● (`indicador: 'actual'`) solo si el paso actual está pendiente (la regla `indicador === 'pendiente' && actual` que ya existe en `datosDePaso`);
   - Letra con ≥ 1 línea muestra ✓ también estando en la vista Letra, y Editor con la canción Lista muestra ✓ estando en el Editor.
-- [ ] **Descripción accesible**: cuando `actual` es `true` y el indicador no es `actual`, la descripción añade ", paso actual". Ejemplo: `aria-label` "Paso 3, Letra, completado, paso actual". Con ● se mantiene "paso actual" (sin duplicar).
-- [ ] `cabecera.module.css`: `.paso[aria-current='step'] .etiqueta` con `color: var(--texto-1)`, `font-weight: 600` y subrayado de 2 px `var(--acento-texto)` (`text-decoration-thickness: 2px; text-underline-offset: 4px`, o un borde inferior), visible con cualquier indicador.
-- [ ] Tests unitarios de `pasosDeCancion`: Letra actual con letra → `completado` + actual; Editor actual en Lista → `completado` + actual; Editor actual en borrador → `actual`.
-- [ ] E2E de 0088 (`e2e/letras.spec.ts`): donde se comprobaba ● en la vista C, ahora se comprueba ✓ con `aria-current="step"` (busca por `aria-label` que contenga "completado, paso actual").
+- [x] **Descripción accesible**: cuando `actual` es `true` y el indicador no es `actual`, la descripción añade ", paso actual". Ejemplo: `aria-label` "Paso 3, Letra, completado, paso actual". Con ● se mantiene "paso actual" (sin duplicar).
+- [x] `cabecera.module.css`: `.paso[aria-current='step'] .etiqueta` con `color: var(--texto-1)`, `font-weight: 600` y subrayado de 2 px `var(--acento-texto)` (`text-decoration-thickness: 2px; text-underline-offset: 4px`, o un borde inferior), visible con cualquier indicador.
+- [x] Tests unitarios de `pasosDeCancion`: Letra actual con letra → `completado` + actual; Editor actual en Lista → `completado` + actual; Editor actual en borrador → `actual`.
+- [x] E2E de 0088 (`e2e/letras.spec.ts`): donde se comprobaba ● en la vista C, ahora se comprueba ✓ con `aria-current="step"` (busca por `aria-label` que contenga "completado, paso actual").
 
 ## Verificación
 ```bash
@@ -31,4 +31,6 @@ npm run build && npx playwright test e2e/letras.spec.ts
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- Letra y Editor conservan su indicador de estado cuando son el paso actual. La etiqueta se subraya y la descripción accesible anuncia el estado y el paso actual.
+- Pasaron los tests de la cabecera y los E2E de Letra, además de la verificación completa conjunta de 0100–0102.

@@ -72,9 +72,11 @@
   background: transparent;
 }
 
-.paso[aria-current='step'] {
+.paso[aria-current='step'] .etiqueta {
   color: var(--texto-1);
   font-weight: 600;
+  text-decoration: underline 2px var(--acento-texto);
+  text-underline-offset: 4px;
 }
 
 .circulo {

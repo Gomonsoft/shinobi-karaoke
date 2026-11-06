@@ -38,7 +38,7 @@ function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
       className={`${estilos.paso} ${estilos[`ind_${datos.indicador}`]}`}
       aria-current={datos.actual ? 'step' : undefined}
       aria-disabled={datos.navegable ? undefined : true}
-      aria-label={`Paso ${datos.numero}, ${datos.etiqueta}, ${datos.descripcion}`}
+      aria-label={`Paso ${datos.numero}, ${datos.etiqueta}, ${datos.descripcion}${datos.actual && datos.indicador !== 'actual' ? ', paso actual' : ''}`}
       onBlur={() => setForzar(false)}
       onClick={() => {
         if (datos.navegable) onIr()

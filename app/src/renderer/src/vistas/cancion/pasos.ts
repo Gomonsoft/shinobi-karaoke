@@ -138,12 +138,9 @@ export function pasosDeCancion(
         break
       case 'letra':
         datos = datosDePaso(paso, tieneLetra ? 'completado' : 'pendiente', null, null, esActual)
-        // La letra es el paso actual aunque ya tenga líneas: se muestra ● hasta salir.
-        if (esActual && tieneLetra) datos = { indicador: 'actual', detalle: null }
         break
       default:
         datos = datosDePaso(paso, lista ? 'completado' : 'pendiente', null, null, esActual)
-        if (esActual && lista) datos = { indicador: 'actual', detalle: null }
     }
     const [esNavegable, motivo] = navegable[paso]
     return construir(paso, i + 1, etiqueta, datos, esNavegable, motivo, esActual)
