@@ -434,6 +434,19 @@ describe('Reintentar, Cancelar trabajo y Re-separar pistas (0070)', () => {
     expect(ir).not.toHaveBeenCalled()
   })
 
+  it('Reintentar usa el paso del resumen actualizado de la tarjeta', async () => {
+    const m = api()
+    const { ir, emitir } = montar([conError('separacion', 'MEMORIA_INSUFICIENTE')])
+    instalar(m)
+    await screen.findByRole('button', { name: 'Reintentar «La flaca»' })
+    emitir({ id: 'c', resumen: conError('fuente', 'SIN_CONEXION') })
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar «La flaca»' }))
+    expect(m.reintentar).toHaveBeenCalledOnce()
+    expect(m.reintentar).toHaveBeenCalledWith('c')
+    expect(m.separar).not.toHaveBeenCalled()
+    expect(ir).not.toHaveBeenCalled()
+  })
+
   it('error no reintentable: Ver abre el progreso, sin relanzar', async () => {
     const m = api()
     const { ir } = montar([conError('fuente', 'VIDEO_NO_DISPONIBLE')], {
@@ -452,7 +465,8 @@ describe('Reintentar, Cancelar trabajo y Re-separar pistas (0070)', () => {
     montar([conError('fuente', 'SIN_CONEXION')])
     instalar(m)
     fireEvent.click(await screen.findByRole('button', { name: 'Reintentar «La flaca»' }))
-    expect(await screen.findByText('Sin conexión a internet')).toBeInTheDocument()
+    expect(m.reintentar).toHaveBeenCalledWith('c')
+    expect(await screen.findByTestId('toast')).toHaveTextContent('Sin conexión a internet')
   })
 
   it('Cancelar trabajo en cola: sin diálogo', async () => {

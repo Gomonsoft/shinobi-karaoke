@@ -86,7 +86,8 @@ export async function descargarUv({
   const descarga = join(temporal, binario.archivo)
   const nombreEjecutable = plataforma === 'win32' ? 'uv.exe' : 'uv'
   const carpetaArchivo = binario.archivo.replace(/\.zip$|\.tar\.gz$/, '')
-  const rutaInterna = posix.join(carpetaArchivo, nombreEjecutable)
+  const rutaInterna =
+    plataforma === 'win32' ? nombreEjecutable : posix.join(carpetaArchivo, nombreEjecutable)
   const binarioTemporal = join(temporal, nombreEjecutable)
 
   try {

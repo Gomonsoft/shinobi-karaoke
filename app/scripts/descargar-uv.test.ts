@@ -58,7 +58,7 @@ describe('descargarUv', () => {
     'extrae ZIP con tar de System32 (ejecución real: %s)',
     async (real) => {
       const zip = Buffer.from(
-        'UEsDBBQAAAAAACNyZl2XgDt2EQAAABEAAAAgAAAAdXYteDg2XzY0LXBjLXdpbmRvd3MtbXN2Yy91di5leGViaW5hcmlvIGRlIHBydWViYVBLAQIUAxQAAAAAACNyZl2XgDt2EQAAABEAAAAgAAAAAAAAAAAAAACAAQAAAAB1di14ODZfNjQtcGMtd2luZG93cy1tc3ZjL3V2LmV4ZVBLBQYAAAAAAQABAE4AAABPAAAAAAA=',
+        'UEsDBBQAAAAAAFt0Zl2XgDt2EQAAABEAAAAGAAAAdXYuZXhlYmluYXJpbyBkZSBwcnVlYmFQSwMEFAAAAAAAW3RmXUZJfxoDAAAAAwAAAAcAAAB1dncuZXhldXZ3UEsDBBQAAAAAAFt0Zl3XVMCKAwAAAAMAAAAHAAAAdXZ4LmV4ZXV2eFBLAQIUAxQAAAAAAFt0Zl2XgDt2EQAAABEAAAAGAAAAAAAAAAAAAACAAQAAAAB1di5leGVQSwECFAMUAAAAAABbdGZdRkl/GgMAAAADAAAABwAAAAAAAAAAAAAAgAE1AAAAdXZ3LmV4ZVBLAQIUAxQAAAAAAFt0Zl3XVMCKAwAAAAMAAAAHAAAAAAAAAAAAAACAAV0AAAB1dnguZXhlUEsFBgAAAAADAAMAngAAAIUAAAAAAA==',
         'base64'
       )
       const binario = manifiestoReal.binarios['win32-x64']!
@@ -67,11 +67,11 @@ describe('descargarUv', () => {
           if (
             comando === win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
           ) {
-            expect(argumentos).toEqual(['-xf', binario.archivo, 'uv-x86_64-pc-windows-msvc/uv.exe'])
+            expect(argumentos).toEqual(['-xf', binario.archivo, 'uv.exe'])
             expect(opciones?.cwd).toBeTruthy()
             if (real)
               return execFileSync(comando, argumentos, { cwd: opciones?.cwd, encoding: 'utf8' })
-            const extraido = join(opciones!.cwd!, 'uv-x86_64-pc-windows-msvc', 'uv.exe')
+            const extraido = join(opciones!.cwd!, 'uv.exe')
             mkdirSync(dirname(extraido), { recursive: true })
             writeFileSync(extraido, 'binario de prueba')
             return ''
