@@ -1,5 +1,5 @@
 # 0127 — Dependencias de empaquetado, metadatos y ajustes del repositorio
-- Estado: Hecha
+- Estado: En curso (falta ejecutar `npx playwright test`: la ejecución se interrumpió por falta de memoria en el equipo)
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: 0012 §1, §2
@@ -48,3 +48,5 @@ Archivos: app/package.json, app/package-lock.json, app/.gitignore, app/.prettier
 Verificación: lint, typecheck y format:check limpios; npm ls --omit=dev --depth=0 muestra solo yaml y zod; npm audit --omit=dev: 0 vulnerabilidades; npm run build correcto. npm test: en la primera pasada falló Reproductor.estados.test.tsx (prueba de tiempo sensible a la carga) y pasó al repetir el archivo (10/10); el resto pasó.
 
 Deuda técnica: npm avisa de que electron-winstaller (install script select-7z-arch.js) no está cubierto por allowScripts; lo decidirá la tarea 0130 si hace falta.
+
+**Revisión de la sesión principal (2026-11-06).** La tarea vuelve a `En curso`: su criterio de que los E2E no cambian de resultado sigue sin comprobarse. Sobre `5d554da`, `npm test` dio tres resultados: 1 fallo (`Ajustes.test.tsx`), 2 fallos (`Editor.test.tsx`, `Reproductor.estados.test.tsx`) y 0 fallos. Fallan pruebas distintas en cada pasada, lo que apunta a inestabilidad y no a esta tarea, pero `develop` no tiene ningún ajuste para ello y no se ha comparado con `839ff89`.

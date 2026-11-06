@@ -351,7 +351,7 @@ Deuda que se salda aquí:
 
 | Tarea | Título | Depende de | ¿Paralelizable? | Tests sin red | Red en | Archivos compartidos | Estado |
 |-------|--------|-----------|-----------------|---------------|--------|----------------------|--------|
-| [0127](tareas/0127-dependencias-metadatos-y-ajustes-del-repositorio-para-empaquetar.md) | Dependencias, metadatos e ignorados | — | **Primera** | Sí | `npm install` | `package.json`, `package-lock.json`, `vitest.config.mts`, `tsconfig.node.json` | Hecha |
+| [0127](tareas/0127-dependencias-metadatos-y-ajustes-del-repositorio-para-empaquetar.md) | Dependencias, metadatos e ignorados | — | **Primera** | Sí | `npm install` | `package.json`, `package-lock.json`, `vitest.config.mts`, `tsconfig.node.json` | En curso |
 | [0128](tareas/0128-worker-sin-bytecode-en-produccion.md) | Worker sin *bytecode* en producción | — | **Empieza ya** | Sí | — | `trabajos/worker.ts`, `runtime/gestor.ts` | Pendiente |
 | [0134](tareas/0134-ninguna-ruta-descarga-rapido-sin-consentimiento.md) | Ninguna ruta descarga Rápido sin consentimiento | — | **Empieza ya** | Sí | — | `runtime/gestor.ts` si hay que corregir (tras 0128) | Pendiente |
 | [0138](tareas/0138-readme-e-instalar-sin-version-publicada.md) | README e `INSTALAR.md`, estado E0, y "~1–2 GB" corregido | — | **Empieza ya** | Sí | — | `README.md` | Pendiente |
