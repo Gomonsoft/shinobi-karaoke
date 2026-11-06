@@ -159,9 +159,38 @@ function plan(): Plan[] {
   incompleta.letra = letra(
     textoIncompleta.map((texto, i) => linea(`i${i + 1}`, texto, i === 3 ? null : 2000 + i * 3500))
   )
-  const editor = (n: number, cancion: Cancion, titulo: string, audio: () => Buffer): Plan => {
+  const conAudio30s = (n: number, cancion: Cancion, titulo: string, audio: () => Buffer): Plan => {
     cancion.metadatos.duracion_ms = 30_000
     return { ...con(n, cancion, titulo, 'Shinobi Pruebas', n), audio }
+  }
+  const textoConPalabras = 'Suben las barcas al puerto'
+  const listaReproductor = {
+    ...f.lista(),
+    letra: letra([
+      linea('r1', 'Primera luz sobre el tejado', 2000),
+      linea('r2', textoConPalabras, 5000, {
+        palabras: textoConPalabras.split(' ').map((texto, i) => ({
+          texto,
+          inicio_ms: 5000 + 500 * i,
+          fin_ms: 5500 + 500 * i
+        }))
+      }),
+      linea('r3', 'Nadie sabe la canción', 8000),
+      pausa('rp', 12000),
+      linea('r4', 'Vuelve el coro a la plaza', 16000),
+      linea('r5', 'Y la noche se despierta', 19000),
+      linea('r6', 'Fin de la prueba', 22000)
+    ])
+  }
+  const incompletaReproductor = {
+    ...f.lista(),
+    letra: letra([
+      linea('i1', 'Al pie de la montaña', 8000),
+      linea('i2', 'Cruje el sendero', 11000),
+      linea('i3', 'Nadie cuenta los pasos', null),
+      linea('i4', 'Nos espera la aurora', 17000),
+      linea('i5', 'Tras el último cerro', 20000)
+    ])
   }
   const danadaPistas = con(10, f.lista(), 'Sin pistas', 'Artista dañado', 9)
   return [
@@ -188,11 +217,17 @@ function plan(): Plan[] {
       'Artista Dieciséis',
       16
     ),
-    editor(17, clics, 'Editor: pista de clics', () =>
+    conAudio30s(17, clics, 'Editor: pista de clics', () =>
       pulsosFlac({ segundos: 30, periodoMs: 2000, desfaseMs: 2000 })
     ),
-    editor(18, separando, 'Editor: separando', () => silencioFlacSegundos(30)),
-    editor(19, incompleta, 'Editor: lista incompleta', () => silencioFlacSegundos(30))
+    conAudio30s(18, separando, 'Editor: separación interrumpida', () => silencioFlacSegundos(30)),
+    conAudio30s(19, incompleta, 'Editor: lista incompleta', () => silencioFlacSegundos(30)),
+    conAudio30s(20, listaReproductor, 'Reproductor: lista', () =>
+      pulsosFlac({ segundos: 30, periodoMs: 2000, desfaseMs: 2000 })
+    ),
+    conAudio30s(21, incompletaReproductor, 'Reproductor: lista incompleta', () =>
+      silencioFlacSegundos(30)
+    )
   ]
 }
 

@@ -1,5 +1,5 @@
 # 0115 — Semilla: canciones del reproductor (20 y 21) y nombre de la canción 18
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: — (empieza ya)
 - ADRs: 0011, 0010 (semilla del editor, 0095)
@@ -39,4 +39,8 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test e2e/edit
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- `semilla.ts` añade los ids 20 y 21 con audio generado de 30 s. La 20 tiene tiempos de palabra, una pausa con un hueco de 4 s y un estilo con degradado. La 21 tiene una línea sin inicio.
+- La semilla nueva usa «Editor: separación interrumpida» para la 18. Una nueva ejecución sobre datos existentes añade solo las canciones que faltan y conserva las carpetas ya creadas.
+- Se actualizaron las aserciones de recuento de Biblioteca y la constante `T18` del E2E del editor. Son 20 carpetas con los dos nuevos ids y el hueco del 9, según la decisión de la 0028. La discrepancia con el criterio de 21 queda en la [pregunta 0033](../preguntas/0033-total-de-canciones-de-la-semilla-del-reproductor.md).
+- Verificado con los 3 tests de `semilla.test.ts` y dos ejecuciones de `npm run semilla` en una carpeta temporal. La primera creó 20 carpetas y la segunda reutilizó las 20. Pendiente la verificación completa de la app.

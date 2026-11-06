@@ -26,7 +26,7 @@ const idSemilla = (n: number): string => `5eed0000-0000-4000-8000-${String(n).pa
 const idDe = (titulo: string): string => ID[titulo]!
 
 const T17 = 'Editor: pista de clics'
-const T18 = 'Editor: separando'
+const T18 = 'Editor: separación interrumpida'
 const T19 = 'Editor: lista incompleta'
 ID[T17] = idSemilla(17)
 ID[T18] = idSemilla(18)
