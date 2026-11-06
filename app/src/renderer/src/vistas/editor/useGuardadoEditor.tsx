@@ -4,7 +4,7 @@ import type { Letra } from '@shared/letra'
 import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
 import { mostrarToast } from '../../componentes/gestorToasts'
-import { useNavegacion } from '../../navegacion/estado'
+import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { registrarVaciadoAlCerrar } from '../../navegacion/salida'
 import { GuardadoEditor, type EstadoGuardado } from './guardado'
 
@@ -12,7 +12,8 @@ export function useGuardadoEditor(
   cancionId: string,
   titulo: string,
   obtenerSesion: () => string | null,
-  alDesactualizada: () => void | Promise<void>
+  alDesactualizada: () => void | Promise<void>,
+  alSalirGuardado?: (destino: Vista) => void
 ) {
   const { registrarGuardaSalida } = useNavegacion()
   const instancia = useRef<GuardadoEditor | null>(null)
@@ -22,6 +23,7 @@ export function useGuardadoEditor(
   const sesion = useEffectEvent(obtenerSesion)
   const recargar = useEffectEvent(alDesactualizada)
   const tituloActual = useEffectEvent(() => titulo)
+  const salidaGuardada = useEffectEvent((destino: Vista) => alSalirGuardado?.(destino))
 
   useEffect(() => {
     let avisado = false
@@ -73,7 +75,10 @@ export function useGuardadoEditor(
     const cancelarGuarda = registrarGuardaSalida?.(async (destino) => {
       if (destino.tipo === 'cancion' && destino.id === cancionId && destino.paso === 'editor')
         return true
-      if (await guardado.vaciar()) return true
+      if (await guardado.vaciar()) {
+        salidaGuardada(destino)
+        return true
+      }
       return new Promise<boolean>((resolver) => {
         resolverSalida.current = resolver
         setDialogo(true)

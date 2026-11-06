@@ -1,5 +1,5 @@
 # 0109 — Editor: "Marcar como lista", "Hecho", "Volver a borrador" y vuelta a la Biblioteca (resalte de 2 s, filtro y toasts)
-- Estado: En curso (empezada por Codex; ver commit WIP)
+- Estado: Hecha
 - Paso del pipeline: 5
 - Depende de: 0090 (`biblioteca.marcarLista`), 0091, 0100 (`Popover`), 0103, 0104, 0105
 - ADRs: 0006 (condiciones de "lista", `incompleta`), 0010 (§2; "Fuera de esta fase")
@@ -62,4 +62,9 @@ npx vitest run src/renderer/src/vistas/editor src/renderer/src/vistas/biblioteca
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- Se revisó y completó el trabajo parcial de Codex: `BotonLista.tsx` (primario con popover de motivos, Hecho con aviso de incompleta en la primera pulsación, `DialogoVolverABorradorEditor`, `avisarBorradorAlSalir`), `navegacion/estado.ts` (`enfocar`), `Biblioteca.tsx` (cambio a *Todas*, foco, resalte de 2 s con `data-resaltada` y CSS que respeta `prefers-reduced-motion`).
+- Lo que faltaba: conectar en `Editor.tsx` el `BotonLista` (en lugar del primario deshabilitado), el ítem ⋯ "Volver a borrador…" (solo Lista) y su diálogo; y `useGuardadoEditor.tsx` recibe un 5.º parámetro `alSalirGuardado(destino)` que se invoca tras un vaciado correcto en la guarda de salida, desde donde se muestra el toast "Borrador guardado." solo si hubo `cambiosEnVisita` y el destino es la Biblioteca sin `enfocar`.
+- El toast de "lista" sale sin [▶ Reproducir] (Fase 6, pregunta 0025 §1).
+- Probar: `npx vitest run src/renderer/src/vistas/editor src/renderer/src/vistas/biblioteca`; a mano, `npm run semilla && npm run dev`, abrir un borrador completo en el editor y pulsar Marcar como lista.
+- Verificación: lint, typecheck, format:check, build y Playwright (69 passed) en verde; Vitest 1680 pasan y 1 falla ajeno e intermitente (`karaoke/render.test.ts`, umbral de 200 ms: 228 ms bajo carga).
+- Deuda: no hay test de integración a nivel `Editor` de la guarda con toast (el toast está probado en `BotonLista.test.tsx`); se cubrirá en el E2E 0110.

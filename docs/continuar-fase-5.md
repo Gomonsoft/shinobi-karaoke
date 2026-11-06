@@ -4,8 +4,7 @@ Estado al **2026-11-06**, rama `fase-5-editor` (subida a GitHub; `main` no la in
 
 | Estado | Tareas |
 |---|---|
-| ✅ Hechas (18) | 0090–0107, un commit por tarea |
-| 🔧 En curso (2) | **0108** panel Estilo · **0109** marcar como lista / vuelta a la Biblioteca — trabajo parcial de Codex guardado en el commit `WIP: tareas 0107–0109` |
+| ✅ Hechas (20) | 0090–0109 (0108 y 0109 pendientes de commit) |
 | ⏳ Pendientes (2) | **0110** E2E del editor sin red · **0111** prueba manual de precisión (la hace una persona: no implementar) |
 | ❓ Pregunta abierta | **0028** (para arquitecto, no bloquea): total de canciones de la semilla del editor |
 

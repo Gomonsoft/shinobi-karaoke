@@ -19,12 +19,14 @@ import { BotonIcono } from '../../componentes/BotonIcono'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
+import { evaluarContraste } from '../../karaoke/contraste'
 import type { Pista } from '../../karaoke/pistas'
 import { useMotorAudio } from '../../karaoke/useMotorAudio'
 import { useNavegacion } from '../../navegacion/estado'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { BannerSincronizar } from './BannerSincronizar'
+import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { PanelEstilo } from './PanelEstilo'
@@ -180,7 +182,10 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   )
   const { letra, estilo } = edicion.actual
   const [pestana, setPestana] = useState<Pestana>('sincronia')
+  const [estiloPredeterminado, setEstiloPredeterminado] = useState(config.estilo_predeterminado)
+  const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
+  const [dialogoBorrador, setDialogoBorrador] = useState(false)
   const [focoLinea, setFocoLinea] = useState(() =>
     contador(letraInicial).sincronizadas > 0 ? 1 : 0
   )
@@ -283,17 +288,24 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     estado: guardado,
     cambiarLetra,
     cambiarEstilo,
+    vaciar,
     dialogoSalida
-  } = useGuardadoEditor(id, metadatos.titulo, obtenerSesion, async () => {
-    motor?.pausar()
-    const actual = await leerVisita()
-    const nueva = actual?.letra ?? VACIA
-    const seleccion = nueva.lineas.some((l) => l.id === edicion.seleccion && l.tipo === 'linea')
-      ? edicion.seleccion
-      : seleccionarInicial(nueva)
-    despachar({ tipo: 'cargar', instantanea: { letra: nueva, estilo }, seleccion })
-    mostrarToast({ tipo: 'aviso', mensaje: E.recargada, persistente: true })
-  })
+  } = useGuardadoEditor(
+    id,
+    metadatos.titulo,
+    obtenerSesion,
+    async () => {
+      motor?.pausar()
+      const actual = await leerVisita()
+      const nueva = actual?.letra ?? VACIA
+      const seleccion = nueva.lineas.some((l) => l.id === edicion.seleccion && l.tipo === 'linea')
+        ? edicion.seleccion
+        : seleccionarInicial(nueva)
+      despachar({ tipo: 'cargar', instantanea: { letra: nueva, estilo }, seleccion })
+      mostrarToast({ tipo: 'aviso', mensaje: E.recargada, persistente: true })
+    },
+    (destino) => avisarBorradorAlSalir(destino, resumen.estado, edicion.cambiosEnVisita)
+  )
   const previa = useRef(edicion.actual)
   useEffect(() => {
     const ultima = previa.current
@@ -486,7 +498,16 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
             alRehacer: () => despachar({ tipo: 'rehacer' })
           }}
           menu={[
-            { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) }
+            { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) },
+            ...(resumen.estado === 'lista'
+              ? [
+                  {
+                    id: 'borrador',
+                    etiqueta: E.menuBorrador,
+                    alSeleccionar: () => setDialogoBorrador(true)
+                  }
+                ]
+              : [])
           ]}
         />
       </header>
@@ -538,6 +559,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                 {
                   valor: 'estilo',
                   etiqueta: 'Estilo',
+                  aviso: contraste.avisos.length > 0 ? 'Hay avisos de contraste' : undefined,
                   noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
                 }
               ]}
@@ -571,7 +593,22 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
               </section>
             ) : (
               <aside aria-label="Estilo">
-                <PanelEstilo />
+                <PanelEstilo
+                  estilo={estilo}
+                  predeterminado={estiloPredeterminado}
+                  contraste={contraste}
+                  inactivo={edicion.sync.activo}
+                  alCambiar={(nuevo, clave, agruparGesto) =>
+                    despachar({
+                      tipo: 'estilo',
+                      estilo: nuevo,
+                      clave,
+                      ahora: Date.now(),
+                      agruparGesto
+                    })
+                  }
+                  alCambiarPredeterminado={setEstiloPredeterminado}
+                />
               </aside>
             )}
           </div>
@@ -604,9 +641,16 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         entrarSync={entrarSync}
         refSync={refSync}
         acciones={
-          <Boton variante="primario" disabled>
-            {resumen.estado === 'lista' ? E.hecho : E.marcarLista}
-          </Boton>
+          <BotonLista
+            resumen={resumen}
+            letra={letra}
+            separacion={separacion}
+            vaciar={vaciar}
+            alEnfocarPrimera={() => {
+              const primera = primeraSinInicio(letra)
+              if (primera) seleccionar(primera, true)
+            }}
+          />
         }
         bannerSync={
           edicion.sync.activo ? (
@@ -634,6 +678,12 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         }
       />
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {dialogoBorrador && (
+        <DialogoVolverABorradorEditor
+          resumen={resumen}
+          alCerrar={() => setDialogoBorrador(false)}
+        />
+      )}
       {dialogoSalida}
     </div>
   )

@@ -1,5 +1,5 @@
 # 0108 — Editor: panel Estilo (fondo, colores, fuente) con aviso de contraste y estilo predeterminado
-- Estado: En curso (empezada por Codex; ver commit WIP)
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0097, 0099, 0105
 - ADRs: 0006 (formato del estilo; paradas ordenadas desde 0090), 0010 (§2 `guardarEstilo`, §4 contraste)
@@ -46,4 +46,8 @@ npx vitest run src/renderer/src/vistas/editor
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- Se revisó y completó el trabajo parcial de Codex: `PanelEstilo.tsx` (fondo sólido/degradado, dial, 2–4 paradas repartidas, letra, avisos de contraste con acciones, restablecer y "usar en canciones nuevas"), su test y CSS, y los ajustes de `SelectorColor`/`ControlSegmentado` (opción con `aviso`).
+- Lo que faltaba: cablear el panel en `Editor.tsx` (antes `<PanelEstilo />` vacío): `evaluarContraste` memoizado, punto `aviso` en la pestaña "Estilo" mientras haya algún aviso, `inactivo` en el modo sincronizar, despacho de `{ tipo: 'estilo', ... ahora: Date.now() }` y estado local del estilo predeterminado (se actualiza tras `config.actualizar`).
+- Archivos clave: `vistas/editor/PanelEstilo.tsx`, `panelEstilo.module.css`, `Editor.tsx`.
+- Probar: `npx vitest run src/renderer/src/vistas/editor`; a mano, `npm run semilla && npm run dev`, abrir un borrador y la pestaña Estilo.
+- Deuda: no hay test de integración en `Editor.test.tsx` del punto de aviso con el panel real (lo cubre el test del panel/pestaña); el E2E llega con la 0110.
