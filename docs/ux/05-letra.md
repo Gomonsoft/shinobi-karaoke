@@ -3,7 +3,7 @@
 - Paso del pipeline: 3 (Letra)
 - ADRs: [0005](../adr/0005-letras-y-formato-de-sincronia.md), [0006](../adr/0006-persistencia-y-modelo-de-datos.md)
 - Restricciones: [arquitectura.md "Restricciones e implicaciones para UX" §2–§4, §7](../arquitectura.md)
-- Preguntas: [0022](../preguntas/0022-huecos-ux-de-la-vista-letra-fase-4.md) (huecos de la Fase 4; respondida). Ver la sección "Casos de la Fase 4" al final.
+- Preguntas: [0022](../preguntas/0022-huecos-ux-de-la-vista-letra-fase-4.md) (huecos de la Fase 4; respondida) y [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (✓ de Letra en el stepper estando en la vista; respondida). Ver la sección "Casos de la Fase 4" al final (§10: texto demasiado largo).
 
 ## Objetivo
 Conseguir la letra correcta de la canción con el mínimo esfuerzo: encontrarla en LRCLIB (idealmente ya sincronizada), elegir entre candidatos o, si no hay, pegarla o importarla. **Sin callejones sin salida**: siempre hay una alternativa manual.
@@ -98,7 +98,7 @@ Usuario/tarea principal: "Quiero la letra de esta canción, a ser posible ya sin
 | Vista previa | Primeras ~15 líneas con sus tiempos (si los tiene), desplazable; total de líneas. |
 | Usar esta letra | Guarda la letra (`origen: lrclib`, `lrclib_id`), marca el paso Letra como completado y pasa a la vista C con foco en "Ir al editor". Si ya hay una letra con ≥ 1 línea, pide confirmación antes (diálogo `let.dialogo.sustituir`, con dos variantes según tenga o no sincronía; ver "Casos de la Fase 4" §4). |
 | Atribución | "Letra: LRCLIB" visible bajo los resultados y en la vista C mientras el origen sea LRCLIB (enlace a lrclib.net en el navegador del sistema). |
-| Pegar la letra | Muestra B. Contador de líneas en vivo (no cuenta renglones vacíos). Pegar un texto con marcas `[mm:ss.xx]` se detecta como LRC y se importa con sus tiempos (aviso `let.pegar.lrc` y, si hay renglones con texto sin marca, `let.pegar.ignoradas`). El texto pegado se conserva mientras no se salga de la vista Letra (también al ir a "Volver a los resultados" y volver). "Usar esta letra" pide confirmación como en A. |
+| Pegar la letra | Muestra B. Contador de líneas en vivo (no cuenta renglones vacíos). Pegar un texto con marcas `[mm:ss.xx]` se detecta como LRC y se importa con sus tiempos (aviso `let.pegar.lrc` y, si hay renglones con texto sin marca, `let.pegar.ignoradas`). El texto pegado se conserva mientras no se salga de la vista Letra (también al ir a "Volver a los resultados" y volver). "Usar esta letra" pide confirmación como en A. Un texto que supera el límite (512 KB o 5000 renglones) muestra `let.pegar.demasiado` (§10). |
 | Importar archivo | Diálogo nativo con filtro `.lrc`, `.txt`. Se aplica igual que "Usar esta letra" (`origen: archivo`); si el archivo no tiene líneas válidas: "Este archivo no contiene letra que podamos leer." La confirmación de sustituir se pide **después** de leer el archivo y solo si es válido; cancelar el selector o el diálogo no cambia nada. Si era un LRC con renglones ignorados, la vista C muestra `let.importar.ignoradas` hasta cerrarlo o salir de la vista. |
 | Edición en C | Área de texto con la letra (una línea por renglón). Autoguardado al salir del área o tras 1 s sin escribir. Las líneas cuyo texto no cambia conservan sus tiempos (y sus palabras sincronizadas); las líneas nuevas o modificadas quedan sin sincronizar. Solo cuentan como "sin cambio" las diferencias de espacios (al principio/final o espacios dobles); cambiar mayúsculas, puntuación o una sola letra deja la línea sin sincronizar. Las líneas repetidas (estribillos) se emparejan en orden ([0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) §4). El aviso `let.edicion.aviso` cubre este comportamiento. |
 | Renglones vacíos | Se guardan como **pausa** (separador de estrofa): en el editor se muestran como fila "♪ pausa" y no requieren sincronía ni cuentan en el número de líneas (ver spec 06). Varios renglones vacíos seguidos = **una** pausa; los del principio y del final se descartan. En un LRC, una marca de tiempo sin texto (`[01:23.45]`) es una pausa **con tiempo**: marca el final de la línea anterior. |
@@ -139,6 +139,8 @@ Usuario/tarea principal: "Quiero la letra de esta canción, a ser posible ya sin
 | `let.pegar.contador` | {n} líneas · se sincronizarán en el editor |
 | `let.pegar.lrc` | Hemos detectado tiempos de sincronía y los conservaremos. |
 | `let.pegar.ignoradas` | Ignoraremos {n} renglones sin tiempo. · (1) Ignoraremos 1 renglón sin tiempo. |
+| `let.pegar.demasiado` | Este texto es demasiado largo para ser una letra. Comprueba que has pegado solo la letra de la canción. |
+| `let.error.demasiadoLarga` | El texto es demasiado largo para ser una letra. Este cambio no se ha guardado. |
 | `let.importar.ignoradas` | Hemos ignorado {n} renglones sin tiempo del archivo. · (1) Hemos ignorado 1 renglón sin tiempo del archivo. |
 | `let.boton.volver` | Volver a los resultados |
 | `let.actual` | Letra actual · {origen} · {sincronía} · {n} líneas (con 1: "1 línea") |
@@ -180,6 +182,7 @@ Usuario/tarea principal: "Quiero la letra de esta canción, a ser posible ya sin
 18. **Instrumental con candidatos**: con `instrumental: true` y candidatos, se muestra la lista con `let.aviso.instrumentalConCandidatos` encima; sin candidatos, `let.error.INSTRUMENTAL`.
 19. **Renglones ignorados**: al pegar un LRC con renglones de texto sin marca, B muestra `let.pegar.ignoradas` con el recuento en vivo; al importarlo, C muestra `let.importar.ignoradas` (cerrable, desaparece al salir de la vista). Sin renglones ignorados no se muestra nada.
 20. **Navegar**: al volver a la vista sin haber elegido letra en los 10 min siguientes, se ven los resultados anteriores sin consultar la red; pasado ese tiempo, o con "Buscar" o "Buscar otra letra", se consulta de nuevo. El texto de B se conserva al pasar a A y volver a B mientras no se salga de la vista Letra.
+21. **Texto demasiado largo** (§10): en B, con más de 512 KB (UTF-8) o más de 5000 renglones, se muestra `let.pegar.demasiado` como aviso `error` en línea bajo el área, el contador de líneas y los avisos de LRC no se muestran y "Usar esta letra" queda inactivo; el aviso desaparece en cuanto el texto vuelve a caber. En C, el mismo límite muestra `let.error.demasiadoLarga` bajo el área, sin guardar ni borrar lo escrito y sin el toast genérico de error; si se sale de la vista así, se conserva la última letra guardada. El texto "512 KB" no aparece en la interfaz.
 
 ## Casos de la Fase 4 (respuesta a `preguntas/0022`)
 
@@ -206,3 +209,8 @@ Usuario/tarea principal: "Quiero la letra de esta canción, a ser posible ya sin
 **§8 Motivos del stepper.** Ver `00-mapa-de-vistas.md` §2: se mantienen "Primero añade el audio" y "Primero elige una letra", y se añade "Espera a que termine la descarga" para Letra/Editor con la fuente descargándose.
 
 **§9 Renglones ignorados en un LRC.** Sí se avisa (`let.pegar.ignoradas` en B, `let.importar.ignoradas` en C), porque perder versos en silencio rompe "nunca perder trabajo". Cómo llega el recuento al renderer: `preguntas/0023`.
+
+**§10 Texto demasiado largo** (revisión 2026-11-05 del texto que añadió la tarea 0085 sin spec). Se **corrige** "El texto es demasiado largo (máximo 512 KB).":
+- "KB" es jerga y el número no ayuda a nadie: una letra real ocupa 2–10 KB, así que quien llega al límite ha pegado otra cosa (una página entera, un libro, un archivo binario). El mensaje dice qué pasó y qué hacer.
+- El límite no es solo de bytes: los conversores también rechazan más de 5000 renglones (`ErrorLetraDemasiadoGrande('elementos')`), y para ese caso "máximo 512 KB" era falso.
+- Textos: `let.pegar.demasiado` en B y `let.error.demasiadoLarga` en C (antes C mostraba el toast genérico "No se pudo guardar la letra."). Al importar un archivo que supera el límite se mantiene `let.error.archivo`. Criterio 21.

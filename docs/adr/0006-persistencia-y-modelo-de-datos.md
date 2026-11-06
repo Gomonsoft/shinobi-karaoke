@@ -222,6 +222,16 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
   - Una canción `lista` no puede quedarse sin líneas al editar el texto: el main lo rechaza (provisional, `preguntas/0022` §2).
   - Esquema sin cambios (versión 1).
 
+- 2026-11-05 (desglose de la Fase 5, [ADR 0010](0010-editor-motor-de-audio-reloj-y-guardado.md)):
+  - Los tiempos y `offset_ms` los escribe `ServicioLetras.guardarTiempos`, que sigue siendo el único escritor de `letra`. Solo cambian tiempos; textos, ids y orden no.
+  - El estilo lo escribe `ServicioBiblioteca.guardarEstilo`.
+  - "Marcar como lista" se expone por IPC (`biblioteca.marcarLista`).
+  - El *debounce* del editor (1 s, como mucho 2 s) está en el renderer y el main escribe al momento.
+  - `offset_ms` en ±30 000 ms, validado al guardar (no en la lectura).
+  - `estiloSchema` exige paradas del degradado con posición no decreciente.
+  - Nuevo código `LETRA_DESACTUALIZADA`, que solo genera el main.
+  - Esquema sin cambios (versión 1).
+
 ## Fuentes
 - Electron `app.getPath` y `shell.trashItem`: https://www.electronjs.org/docs/latest/api/app , https://www.electronjs.org/docs/latest/api/shell
 - XDG Base Directory: https://specifications.freedesktop.org/basedir-spec/latest/

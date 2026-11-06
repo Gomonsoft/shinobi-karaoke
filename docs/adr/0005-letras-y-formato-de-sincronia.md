@@ -114,6 +114,12 @@ Las letras están protegidas por derechos de autor y LRCLIB no declara licencia 
     - **Sin cambios en la mitigación**: consulta iniciada por el usuario y uso personal; la letra elegida se guarda solo en su `cancion.json` y nunca se redistribuye ni se publica; atribución "Letra: LRCLIB". Los resultados de una búsqueda solo se guardan en memoria y caducan en 10 min.
     - Las letras de prueba de los E2E y de las fixtures son **inventadas**; ninguna letra real entra en el repositorio. La prueba opcional con red consulta un registro real, pero no lo guarda en el repositorio.
 
+- 2026-11-05 (desglose de la Fase 5, [ADR 0010](0010-editor-motor-de-audio-reloj-y-guardado.md)):
+  - No se hace el spike de `preservesPitch` (`preguntas/0025` §5): a 0,5× y 0,75× el tono baja, como estaba decidido.
+  - Se concreta la conversión del instante de una pulsación: con `getOutputTimestamp()` válido no se resta otra vez la latencia de salida.
+  - Un tiempo marcado en la posición `t` se guarda como `t − offset_ms`, con mínimo 0.
+  - Marcar al ritmo borra los tiempos de los elementos posteriores con inicio ≤ `t` (`marcarInicioLinea`).
+
 ## Fuentes
 - Documentación de la API de LRCLIB: https://lrclib.net/docs (versión Markdown: https://lrclib.net/docs.md, consultada el 2026-11-05) e índice https://lrclib.net/llms.txt
 - Especificación Lyricsfile (LRCGET, MIT): https://github.com/tranxuanthang/lrcget/blob/main/LYRICSFILE_CONCEPT.md

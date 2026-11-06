@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-05 (cierre de la Fase 4; Fases 3 y 4 fusionadas en `main`).
+Última actualización: 2026-11-05 (desglose de la Fase 5: ADR 0010, tareas 0090–0111).
 
 ## Resumen
 
@@ -16,8 +16,8 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 1 | Esqueleto: app, worker, persistencia, biblioteca | ✅ Cerrada |
 | 2 | Fuente: primer arranque, archivo local, YouTube | ✅ Cerrada (0040 ejecutada el 2026-11-05) |
 | 3 | Separación de voz e instrumental | ✅ Cerrada (0058 y 0062 esperan `runtime-real` en GitHub) |
-| 4 | Letras | ✅ Cerrada (0077–0089; pregunta 0024 abierta para la Fase 5) |
-| 5 | Editor (sincronía y estilo) | ⏳ Siguiente |
+| 4 | Letras | ✅ Cerrada (0077–0089) |
+| 5 | Editor (sincronía y estilo) | ⏳ Desglosada (0090–0111) |
 | 6 | Reproductor a pantalla completa | Pendiente |
 | 7 | Empaquetado y distribución | Pendiente |
 
@@ -121,20 +121,32 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Resultado**: la letra se busca sola en LRCLIB al llegar al paso Letra (palabra > línea > texto), se puede pegar o importar (`.lrc`/`.txt`), y se edita con autoguardado sin perder la sincronía de lo que no cambia. E2E sin red con un doble de LRCLIB y prueba opcional con LRCLIB real. Detalle en [`informe-fase-4.md`](informe-fase-4.md).
 
-**Pendiente**: pregunta 0024 (✓ de Letra en el stepper y volver a Letra desde el Editor), que se resuelve al empezar la Fase 5; revisar con UX el texto "El texto es demasiado largo (máximo 512 KB).".
+**Resuelto al empezar la Fase 5**: pregunta 0024 (✓ de Letra en el stepper, tarea 0101) y el texto de 512 KB (`ux/05` §10, tarea 0102).
 
-## Fase 5 — Editor ⏳
-**Objetivo**: ajustar la sincronía y el aspecto del karaoke (`ux/06`).
+## Fase 5 — Editor ⏳ (desglosada el 2026-11-05: tareas 0090–0111, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md))
+**Objetivo**: ajustar la sincronía y el aspecto del karaoke (`ux/06`, reescrita para la fase).
 
-- Sincronía **"al ritmo"** por línea: Intro marca el inicio y mantenerlo marca el final. Deshacer, ajuste fino, desplazamiento global y velocidad 0,5× / 0,75× / 1×.
-- Escucha de la mezcla, la voz o el instrumental.
-- **Estilo**: fondo sólido o degradado, color de letra, color de resaltado y fuente, con vista previa y aviso de contraste.
-- Guardado automático como borrador y **"Marcar como lista"**, que explica lo que falta.
+- Sincronía **"al ritmo"** por línea:
+  - Intro marca el inicio y mantenerla marca el final;
+  - Retroceso deshace;
+  - cuenta atrás de 3 s;
+  - una marca que adelanta a las líneas siguientes borra sus tiempos.
+  Además, ajuste fino de ±10/±100 ms con campos editables, desplazamiento global de ±30 s, deshacer/rehacer y velocidad 0,5× / 0,75× / 1× (el tono baja).
+- Escucha de la mezcla, la voz o el instrumental, con Web Audio y un reloj preciso (≤ 20 ms con cable o altavoces).
+- **Estilo**: fondo sólido o degradado, color de letra, color de resaltado y fuente, con vista previa (el mismo render que usará el reproductor) y aviso de contraste.
+- Autoguardado (1 s), sin perder nada al salir ni al cerrar la ventana. **"Marcar como lista"** explica lo que falta. Al volver, la Biblioteca resalta la tarjeta 2 s.
+- Va con la fase: ✓ de Letra en el stepper (0024) y el texto "demasiado largo" de la vista Letra.
+- **A la Fase 6**: "Probar a pantalla completa" y [▶ Reproducir] en el toast de "lista".
+
+**Preguntas**: 0024, 0025 y [0026](preguntas/0026-textos-pendientes-del-editor-fase-5.md) respondidas; ninguna abierta.
+
+**Orden**: 0090 y 10 tareas independientes en paralelo → 0091, 0093, 0098, 0103 y 0104 → 0105 (vista) → 0106 → 0107, en paralelo con 0108 y 0109 → E2E 0110 y prueba manual 0111. Detalle en [`backlog.md`](backlog.md).
 
 ## Fase 6 — Reproductor
 **Objetivo**: cantar (`ux/07`).
 
-- Pantalla completa desde la Biblioteca con un clic.
+- Pantalla completa desde la Biblioteca con un clic, sobre el motor de audio y el render de la Fase 5.
+- "Probar a pantalla completa" desde el editor y [▶ Reproducir] en el toast de canción lista.
 - Instrumental y letra sincronizada: línea actual y siguiente, cuenta atrás antes de cada entrada.
 - Controles que se ocultan solos, atajos de teclado y volumen recordado.
 - Legible a unos 5 m en un televisor de 55".

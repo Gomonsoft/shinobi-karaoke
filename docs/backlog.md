@@ -209,13 +209,76 @@ Deuda que se salda aquí:
 - `hayLetra` de Progreso con `contarLineas` y motivos provisionales del stepper (0043/0068 → 0087);
 - el test de `archivo.test.ts` que escribía un `letra.json` aparte (→ 0083).
 
-## Fase 5 — Editor
-- [ ] Sincronización de letra (usa `moverInicioLinea` / `borrarTiemposLinea` de 0006 para la regla de palabras de `ux/06` criterio 7d).
-- [ ] Estilo: fondo (sólido/degradado), color de letra, fuente.
-- [ ] Guardado de borrador / marcar como lista (incluye resalte 2 s y toast al volver del editor a la Biblioteca, deuda de 0019/0020).
+## Fase 5 — Editor — **desglosada (2026-11-05)**: tareas 0090–0111
+**Decisiones técnicas** en el nuevo [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md), con revisiones de los ADR 0005 y 0006:
+- **Audio**: Web Audio con `AudioBuffer` decodificado bajo demanda (como mucho 2, LRU). La velocidad baja el tono (sin *spike* de `preservesPitch`).
+- **Reloj**: `getOutputTimestamp` para las pulsaciones.
+- **Guardado de tiempos**: `letras.guardarTiempos` en `ServicioLetras` (único escritor; no cambia el texto).
+- **Estilo y estado**: `biblioteca.guardarEstilo` y `biblioteca.marcarLista`.
+- ***Debounce***: en el renderer, con escritura inmediata en el main, vaciado al salir y al cerrar la ventana (`app.guardadoPendiente`).
+- **Desplazamiento**: ±30 s.
+- **Validación**: orden de paradas del degradado.
+- **Error nuevo**: `LETRA_DESACTUALIZADA`.
+
+Spec `ux/06` reescrita por el diseñador UX (48 criterios). [0024](preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) respondida (UX) y [0025](preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) respondida (arquitecto). [0026](preguntas/0026-textos-pendientes-del-editor-fase-5.md) respondida (UX: `edi.toast.recargada` y `variarLuminosidad30`). Sin preguntas abiertas.
+
+**Pasan a la Fase 6** (`preguntas/0025` §1): "Probar a pantalla completa" (criterio 42 de `ux/06`) y la acción [▶ Reproducir] del toast `bib.toast.lista`.
+
+**Pruebas**:
+- sin red ni modelos;
+- precisión de la marca con marcas de tiempo simuladas (0094);
+- semilla con audio de 30 s y pista de clics (0095);
+- E2E con el audio de Chromium silenciado (`SHINOBI_SILENCIAR_AUDIO`, solo sin empaquetar);
+- prueba manual en los 3 SO (0111).
+
+| Tarea | Título | Depende de | ¿Paralelizable? | Archivos compartidos | Estado |
+|-------|--------|-----------|-----------------|----------------------|--------|
+| [0090](tareas/0090-contratos-compartidos-de-la-fase-5.md) | Contratos: IPC del editor, `LETRA_DESACTUALIZADA`, orden de paradas, API falsa | — | **Primera**; ‖ 0092–0102 | `canales.ts`, `ipc.ts`, `errores.ts`, `estilo.ts`, preload, `handlers.ts` | Pendiente |
+| [0091](tareas/0091-main-guardar-tiempos-de-la-letra.md) | Main: `ServicioLetras.guardarTiempos` | 0090 | ‖ interfaz | — | Pendiente |
+| [0092](tareas/0092-operaciones-puras-de-tiempos-del-editor.md) | Operaciones puras de tiempos (`marcarInicioLinea`, límites, formatos) | — | **Empieza ya** | — | Pendiente |
+| [0093](tareas/0093-estado-del-editor-historial-y-sesion-de-sincronia.md) | Estado del editor, deshacer/rehacer y sesión de sincronía | 0092 | ‖ 0094–0102 | — | Pendiente |
+| [0094](tareas/0094-reloj-y-motor-de-audio-web-audio.md) | Reloj de pulsaciones y motor de audio (Web Audio) | — | **Empieza ya** | `main/index.ts` (3 líneas) | Pendiente |
+| [0095](tareas/0095-audio-de-prueba-largo-pista-de-clics-y-semilla-del-editor.md) | FLAC largo, pista de clics y canciones del editor en la semilla | — | **Empieza ya** | `semilla.ts` | Pendiente |
+| [0096](tareas/0096-modelo-puro-de-render-de-la-letra.md) | Modelo puro de render de la letra | — | **Empieza ya** | — | Pendiente |
+| [0097](tareas/0097-contraste-y-utilidades-de-color.md) | Contraste del estilo y utilidades de color | — | **Empieza ya** | — | Pendiente |
+| [0098](tareas/0098-componente-pantalla-letra.md) | Componente `PantallaLetra` (vista previa y reproductor) | 0096 | ‖ resto | `Muestrario.tsx` | Pendiente |
+| [0099](tareas/0099-componentes-de-estilo-color-fuente-angulo-y-deslizador.md) | Selector de color, de fuente, dial de ángulo y deslizador | — | **Empieza ya** (cuidado con 0100) | `componentes.module.css`, `Muestrario.tsx` | Pendiente |
+| [0100](tareas/0100-popover-y-deuda-de-componentes-base.md) | Popover y deuda de 0016 (`inert`, tooltip en bordes, *type-ahead*) | — | **Empieza ya** (cuidado con 0099) | `componentes.module.css`, `Muestrario.tsx` | Pendiente |
+| [0101](tareas/0101-stepper-paso-actual-completado.md) | Stepper: ✓ en el paso actual completado y subrayado (0024) | — | **Empieza ya; pequeña** | `CabeceraCancion.tsx`, `e2e/letras.spec.ts` | Pendiente |
+| [0102](tareas/0102-vista-letra-texto-demasiado-largo.md) | Vista Letra: texto demasiado largo (`ux/05` §10) | — | **Empieza ya; pequeña** | — | Pendiente |
+| [0103](tareas/0103-cabecera-del-espacio-de-cancion-para-el-editor.md) | Cabecera para el editor: guardado, incompleta, ⟲⟳, ⋯ | 0100, 0101 | ‖ 0104 | `CabeceraCancion.tsx` | Pendiente |
+| [0104](tareas/0104-guardado-del-editor-salida-y-cierre-de-la-ventana.md) | Guardado del editor: *debounce*, vaciado al salir, diálogo y cierre de la ventana | 0090, 0092 | ‖ 0103 | `App.tsx`, `navegacion/estado.ts`, `DialogoCierre.tsx`, `main/index.ts`, `main/cierre.ts` | Pendiente |
+| [0105](tareas/0105-vista-editor-estructura-lista-y-transporte.md) | Vista Editor: estructura, lista, transporte, vista previa y atajos base | 0090, 0093, 0094, 0098, 0099, 0103, 0104 | No (núcleo) | `App.tsx` | Pendiente |
+| [0106](tareas/0106-panel-sincronia-ajuste-fino-y-desplazamiento.md) | Panel Sincronía: ajuste fino, campos, escucha de comprobación, desplazamiento | 0105, 0100 | ‖ 0108, 0109 | `Editor.tsx` (*callbacks*) | Pendiente |
+| [0107](tareas/0107-modo-sincronizar-al-ritmo.md) | Modo "Sincronizar al ritmo" | 0105, 0106 | ‖ 0108, 0109 | `Editor.tsx` | Pendiente |
+| [0108](tareas/0108-panel-estilo-con-vista-previa-y-contraste.md) | Panel Estilo con contraste y estilo predeterminado | 0097, 0099, 0105 | ‖ 0106, 0107, 0109 | `Editor.tsx` (punto de aviso) | Pendiente |
+| [0109](tareas/0109-marcar-como-lista-hecho-y-vuelta-a-la-biblioteca.md) | Marcar como lista, Hecho, Volver a borrador y vuelta a la Biblioteca (resalte 2 s, filtro, toasts) | 0090, 0091, 0100, 0103, 0104, 0105 | ‖ 0106–0108 | `navegacion/estado.ts`, `Biblioteca.tsx`, `Editor.tsx` | Pendiente |
+| [0110](tareas/0110-e2e-editor-sin-red.md) | E2E del editor sin red | 0091, 0095, 0101, 0102, 0105–0109 | No (cierra la fase) | — | Pendiente |
+| [0111](tareas/0111-prueba-manual-de-precision-con-pista-de-clics.md) | Prueba manual de precisión con la pista de clics (3 SO) | 0095, 0107 | ‖ 0110; manual | — | Pendiente |
+
+**Orden sugerido con tres o cuatro programadores**:
+- **Ya, en paralelo**: 0090, 0092, 0094, 0095, 0096, 0097, 0099, 0100, 0101 y 0102.
+- **(A) Main**: 0090 → 0091.
+- **(B) Dominio**: 0092 → 0093.
+- **(C) Motor y render**: 0094 ‖ 0096 → 0098, y 0097.
+- **(D) Interfaz base**: 0099 ‖ 0100, 0101 → 0103; 0104 tras 0090 y 0092.
+- **Núcleo**: 0105.
+- **Después**: 0106 → 0107, en paralelo con 0108 ‖ 0109.
+- **Cierre**: 0110 (y 0111, manual).
+
+Los archivos compartidos van en este orden: `App.tsx` 0104 → 0105; `navegacion/estado.ts` 0104 → 0109; `CabeceraCancion.tsx` 0101 → 0103; `Editor.tsx` 0105 → 0106 → 0107, con 0108/0109 solo añadiendo líneas; `main/index.ts` 0094 ‖ 0104 (bloques distintos).
+
+Deuda de fases anteriores que se salda aquí:
+- resalte de 2 s y toast al volver del editor (0019/0020 → 0109);
+- diálogo `inert`, tooltip en los bordes y búsqueda por letra en el menú (0016 → 0100);
+- orden de las paradas del degradado (0006 → 0090);
+- ✓ de Letra en el stepper (0024 → 0101);
+- texto de 512 KB (0085 → 0102).
+`jsonAtomico` con el principal corrupto (0007): se vigila en 0110 (autoguardado intenso); sin tarea propia.
 
 ## Fase 6 — Reproductor
-- [ ] Reproducción a pantalla completa desde la biblioteca.
+- [ ] Reproducción a pantalla completa desde la biblioteca (reutiliza `MotorAudio` y `PantallaLetra` de la Fase 5).
+- [ ] "Probar a pantalla completa" desde el editor (criterio 42 de `ux/06`) y [▶ Reproducir] en el toast `bib.toast.lista` (`preguntas/0025` §1).
 
 ## Fase 7 — Empaquetado y distribución
 | Tarea | Título | Depende de | Estado |

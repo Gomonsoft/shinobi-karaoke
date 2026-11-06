@@ -129,7 +129,8 @@ Una canción `lista` en la que, tras editarla, hay líneas (no pausas) sin tiemp
 | **Borrador** | Insignia `aviso` con contorno "✎ Borrador". Portada con estilo actual (o predeterminado). Botón "Continuar". |
 | **Lista** | Insignia `exito` "✓ Lista". Botón "▶ Reproducir" (secundario con icono; en la portada, botón redondo 48 px). |
 | **Lista incompleta** | Como Lista + línea `aviso` "⚠ Faltan {n} líneas por sincronizar" (§"Lista incompleta"). |
-| **Éxito tras marcar como lista** | Al volver del editor, la tarjeta recibe el foco, se resalta durante 2 s (borde `exito`) y aparece el toast "«{título}» está lista para cantar. [▶ Reproducir]". |
+| **Éxito tras marcar como lista** | Al volver del editor, la tarjeta recibe el foco, se desplaza hasta quedar visible, se resalta durante 2 s (borde 2 px `exito`; sin transición con movimiento reducido) y aparece el toast "«{título}» está lista para cantar. [▶ Reproducir]". Si el filtro activo la ocultaría (*Borradores*), el filtro pasa a *Todas*. Detalle en spec 06 §"Volver a la Biblioteca". |
+| **Vuelta desde el editor** | Borrador con cambios en esa visita: toast `edi.toast.borrador` ("Borrador guardado."). "Hecho" en una Lista: tarjeta enfocada, sin resalte ni toast. Spec 06. |
 | **Lista recién eliminada** | Toast con el nombre; no hay "deshacer" en la app (se recupera desde la papelera del sistema). |
 
 ## Microcopy
@@ -182,7 +183,7 @@ Una canción `lista` en la que, tras editarla, hay líneas (no pausas) sin tiemp
 | `bib.arrastrar.noadmitido` | Ese tipo de archivo no se puede usar. Prueba con un archivo de audio o de vídeo. |
 | `bib.toast.errorgenerico` | {título del error de 00 §7} [Copiar detalles] |
 | `bib.dialogo.borrador` | ¿Volver a borrador? «{título}» dejará de poder reproducirse hasta que la marques como lista otra vez. No se pierde nada. |
-| `bib.toast.lista` | «{título}» está lista para cantar. |
+| `bib.toast.lista` | «{título}» está lista para cantar. — [▶ Reproducir] |
 | `bib.toast.eliminada` | «{título}» se movió a la papelera. |
 | `bib.aria.tarjeta` | {título}, {artista}, {estado}. {línea de paso}. |
 | `act.boton` | {n} en curso · {n} en curso · {m} en cola · {m} en cola (solo trabajos en cola) |

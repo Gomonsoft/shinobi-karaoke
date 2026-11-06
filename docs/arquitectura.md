@@ -9,9 +9,10 @@
 > [0006 Persistencia y modelo de datos](adr/0006-persistencia-y-modelo-de-datos.md) ·
 > [0007 Herramientas de desarrollo](adr/0007-herramientas-de-desarrollo-y-calidad.md) ·
 > [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md) ·
-> [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md)
+> [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md) ·
+> [0010 Editor: audio, reloj y guardado](adr/0010-editor-motor-de-audio-reloj-y-guardado.md)
 >
-> Última revisión: 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -21,7 +22,7 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | Componente | Proceso | Tecnología | Responsabilidades |
 |-----------|---------|-----------|-------------------|
 | **Renderer (UI)** | Renderer de Electron (sandbox, `contextIsolation`) | React + TS | Vistas: primer arranque, biblioteca, añadir canción, progreso, letra, editor, reproductor a pantalla completa. Reproducción y render de letra sincronizada (Web Audio + DOM/CSS). No toca el disco ni la red directamente. |
-| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
+| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4; en la Fase 5, `letras.guardarTiempos`, `biblioteca.guardarEstilo`, `biblioteca.marcarLista` y `app.guardadoPendiente`), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
 | **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/` con índice en memoria (id = nombre de carpeta), CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor, vía `main/persistencia/`), reglas de estado (ADR 0006), eventos `cancion:cambiada`. |
 | **Servicio de configuración y registro** | Main | TS | `config.json` (lectura tolerante, actualización parcial validada, suscripciones), estructura del directorio de datos y registro rotado `registros/app.log`. |
 | **Gestor de trabajos** | Main | TS | Cola de trabajos en segundo plano, lanzamiento del worker, lectura de JSON Lines, progreso/ETA, cancelación (matar árbol de procesos), recuperación de trabajos interrumpidos. |
@@ -189,7 +190,7 @@ shinobi-karaoke/
 │               ├── componentes/  # componentes base (0016), CSS Module con tokens
 │               ├── navegacion/   # estado de navegación propio, marco, atajos, indicador de actividad, arrastrar archivos
 │               ├── trabajos/     # estado de trabajos vivos (useTrabajos)
-│               ├── karaoke/      # estilo → CSS; motor de reproducción (Web Audio) y render de letra (Fase 5–6)
+│               ├── karaoke/      # estilo → CSS; motorAudio, reloj, render, PantallaLetra, contraste (Fase 5; reproductor en la 6)
 │               └── estilos/      # tokens del sistema visual (variables CSS) y @font-face (las de la letra se generan desde shared/fuentes.ts)
 ├── worker/                       # worker Python
 │   ├── pyproject.toml            # dependencias: yt-dlp[default], deno, av, soundfile, pyloudnorm, audio-separator[...]
@@ -260,6 +261,13 @@ Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acce
 - Pistas: "Original" = `fuente/mezcla.flac`, "Voz", "Instrumental". El reproductor usa el instrumental (o la mezcla en la vista previa desde el editor si aún no hay pistas). Volumen del usuario en `config.reproductor` (se aplica tras `ganancia_db`).
 - **Toque al ritmo**: tiempo de la pulsación = `KeyboardEvent.timeStamp` → tiempo del `AudioContext` (`getOutputTimestamp()`) − latencia de salida → tiempo de canción según la velocidad. Velocidades < 1× cambian el tono en el MVP (ADR 0005).
 - Pantalla completa con la Fullscreen API / `BrowserWindow.setFullScreen`.
+- **Editor (Fase 5, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md))**:
+  - **Audio**: `karaoke/motorAudio.ts`. Las pistas se decodifican bajo demanda (`fetch` de `shinobi-media://` + `decodeAudioData`), con un máximo de 2 `AudioBuffer` (LRU), `playbackRate` para la velocidad y `GainNode` con `ganancia_db` × volumen del usuario.
+  - **Reloj**: `karaoke/reloj.ts`. Con `getOutputTimestamp()` el instante oído es `contextTime + (tEvento − performanceTime)/1000`, sin restar otra vez la latencia; sin él, se usa `currentTime − (outputLatency + baseLatency)`. Tiempo de canción = anclaje + Δctx × velocidad.
+  - **Desplazamiento**: se guarda `t − offset_ms` y se muestra `inicio + offset_ms`.
+  - **Render**: `karaoke/render.ts` (modelo puro) y `karaoke/PantallaLetra.tsx` (DOM/CSS con unidades `cqh`), compartidos con el reproductor. El contraste se calcula en `karaoke/contraste.ts`.
+  - **Edición**: operaciones puras en `shared/letras/tiempos.ts` (incluida `marcarInicioLinea`) y un *reducer* con historial de la visita en `vistas/editor/estado.ts`.
+  - **Guardado**: *debounce* en el renderer (1 s, como mucho 2 s). El main escribe al momento: `ServicioLetras.guardarTiempos` (único escritor de `letra`) y `ServicioBiblioteca.guardarEstilo`/`marcarLista`. Antes de salir del editor se vacía lo pendiente; al cerrar la ventana con cambios pendientes, el control de cierre pide al renderer que vacíe (tope de 2 s).
 
 ## 8. Seguridad
 Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md).
