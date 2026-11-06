@@ -18,12 +18,18 @@ export interface Toast {
 
 // Gestor global (sin librería de estado, ADR 0007): almacén externo + useSyncExternalStore.
 let toasts: Toast[] = []
+let reteniendo = false
+let retenidos: Toast[] = []
 let siguiente = 1
 const oyentes = new Set<() => void>()
 const emitir = () => oyentes.forEach((o) => o())
 
 export function mostrarToast(t: Omit<Toast, 'id'>): number {
   const id = siguiente++
+  if (reteniendo) {
+    retenidos = [...retenidos, { ...t, id }].slice(-MAX_TOASTS)
+    return id
+  }
   // Máximo 3 apiladas: al llegar la cuarta se descarta la más antigua.
   toasts = [...toasts, { ...t, id }].slice(-MAX_TOASTS)
   emitir()
@@ -31,12 +37,23 @@ export function mostrarToast(t: Omit<Toast, 'id'>): number {
 }
 
 export function cerrarToast(id: number) {
+  retenidos = retenidos.filter((t) => t.id !== id)
   toasts = toasts.filter((t) => t.id !== id)
   emitir()
 }
 
 export function cerrarTodosLosToasts() {
   toasts = []
+  retenidos = []
+  emitir()
+}
+
+export function retenerToasts(activo: boolean): void {
+  if (reteniendo === activo) return
+  reteniendo = activo
+  if (activo || retenidos.length === 0) return
+  toasts = [...toasts, ...retenidos].slice(-MAX_TOASTS)
+  retenidos = []
   emitir()
 }
 

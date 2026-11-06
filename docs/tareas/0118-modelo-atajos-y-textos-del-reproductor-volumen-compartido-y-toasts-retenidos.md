@@ -1,5 +1,5 @@
 # 0118 — Reproductor: modelo puro, atajos y textos; volumen compartido; toasts retenidos
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112 (campos de voz en `config.reproductor`; para el hook)
 - ADRs: 0011 (§3 "Configuración", §4 "Volumen" y "Toasts retenidos")
@@ -24,7 +24,7 @@
 Toda la lógica del reproductor que no necesita DOM ni audio, probada aparte, más dos utilidades que comparten el editor y la app.
 
 ## Criterios de aceptación
-- [ ] **`atajos.ts`**:
+- [x] **`atajos.ts`**:
   ```ts
   export type AccionReproductor =
     | { tipo: 'alternar' } | { tipo: 'saltar'; deltaMs: -10000 | -5000 | 5000 | 10000 }
@@ -39,7 +39,7 @@ Toda la lógica del reproductor que no necesita DOM ni audio, probada aparte, m�
   - Con `focoEnBoton`, Espacio e Intro devuelven `null` (los activa el botón).
   - Con Ctrl, Cmd o Alt devuelven `null`. Mayús solo cuenta en `?` y en Mayús+↑/↓.
   - Test tabla a tabla.
-- [ ] **`modelo.ts`** (funciones puras y clases con temporizadores inyectables):
+- [x] **`modelo.ts`** (funciones puras y clases con temporizadores inyectables):
   - `silencioPrevioMs(letra): number`:
     - `t1` = `inicio_ms + offset_ms` de la primera línea con inicio;
     - devuelve `max(0, 6000 − t1)`, y 0 sin líneas con inicio;
@@ -55,9 +55,9 @@ Toda la lógica del reproductor que no necesita DOM ni audio, probada aparte, m�
     - `visible(): boolean` y `suscribir(cb)`.
     - Visible al crearse (los controles se ven 3 s al entrar). Se oculta tras 3 s sin actividad si no hay retenciones.
   - `class CuentaFinal({ segundos = 10, temporizador })`: `iniciar()`, `detener()` (cualquier actividad), `suscribir(cb: (n: number | null) => void)` y `alTerminar(cb)`.
-- [ ] **`textos.ts`**: constante `R` con todas las claves `rep.*` de la spec y funciones para las que llevan parámetros.
-- [ ] **`useVolumenCompartido(inicial: Config['reproductor'])`**: devuelve `{ volumen, silenciado, volumenVoz, vozSilenciada, cambiar(parcial) }`. Escribe todo `reproductor` con `config.actualizar` como mucho cada 500 ms y vacía al desmontar. Mismos tests que tenía el editor, más los campos de voz. `Editor.tsx` lo usa en lugar de `useVolumenEditor`, sin cambio visible (los tests del editor siguen pasando).
-- [ ] **Toasts retenidos** (`gestorToasts.ts`):
+- [x] **`textos.ts`**: constante `R` con todas las claves `rep.*` de la spec y funciones para las que llevan parámetros.
+- [x] **`useVolumenCompartido(inicial: Config['reproductor'])`**: devuelve `{ volumen, silenciado, volumenVoz, vozSilenciada, cambiar(parcial) }`. Escribe todo `reproductor` con `config.actualizar` como mucho cada 500 ms y vacía al desmontar. Mismos tests que tenía el editor, más los campos de voz. `Editor.tsx` lo usa en lugar de `useVolumenEditor`, sin cambio visible (los tests del editor siguen pasando).
+- [x] **Toasts retenidos** (`gestorToasts.ts`):
   - `retenerToasts(activo: boolean)`;
   - mientras está activo, `mostrarToast` guarda el toast en una cola de retenidos y no lo muestra;
   - al desactivarlo, muestra los **3 más recientes** de la cola (en orden) y descarta el resto;
@@ -70,4 +70,7 @@ cd app && npm run lint && npm run typecheck && npm run format:check && npm test
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- `vistas/reproductor/` concentra las acciones de teclado, los textos de la spec, el modelo de silencio previo y niveles, y los temporizadores de controles y cierre. El texto hablado del tiempo se comparte con el transporte del editor.
+- `useVolumenCompartido` reúne cambios parciales de ambos niveles y silencios en la misma escritura de configuración cada 500 ms y vacía la última al desmontar. El Editor usa el hook conservando sus controles.
+- `gestorToasts` guarda las tres notificaciones más recientes mientras se retienen y las publica en orden al salir. El plazo de cada una empieza al mostrarse.
+- ESLint y formato dirigidos en verde, con 56 pruebas de modelo, atajos, volumen, toasts y Editor. El test existente de F1 espera a que el editor enfoque su botón antes de enviar la tecla. Pendiente la verificación completa de la app.

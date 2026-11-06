@@ -22,6 +22,7 @@ import { PantallaLetra } from '../../karaoke/PantallaLetra'
 import { evaluarContraste } from '../../karaoke/contraste'
 import type { Pista } from '../../karaoke/pistas'
 import { useMotorAudio } from '../../karaoke/useMotorAudio'
+import { useVolumenCompartido } from '../../karaoke/useVolumenCompartido'
 import { useNavegacion } from '../../navegacion/estado'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
@@ -137,34 +138,6 @@ export function Editor({ id }: { id: string }) {
   )
 }
 
-function useVolumenEditor(inicial: Config['reproductor']) {
-  const [reproductor, setReproductor] = useState(inicial)
-  const pendiente = useRef<Config['reproductor'] | null>(null)
-  const temporizador = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const escribir = useCallback(() => {
-    const reproductor = pendiente.current
-    pendiente.current = null
-    temporizador.current = undefined
-    if (reproductor) void window.shinobi.config.actualizar({ reproductor }).catch(() => undefined)
-  }, [])
-  useEffect(
-    () => () => {
-      clearTimeout(temporizador.current)
-      escribir()
-    },
-    [escribir]
-  )
-
-  function cambiar(cambio: Pick<Config['reproductor'], 'volumen' | 'silenciado'>) {
-    const actualizado = { ...reproductor, ...cambio }
-    pendiente.current = actualizado
-    setReproductor(actualizado)
-    temporizador.current ??= setTimeout(escribir, 500)
-  }
-
-  return { ...reproductor, cambiar }
-}
-
 interface PropsActiva {
   carga: Carga
   resumen: ResumenCancionIpc
@@ -194,7 +167,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const focoInicialSync = useRef(contador(letraInicial).sincronizadas === 0)
   const [cerradoYaSync, setCerradoYaSync] = useState(false)
   const [posicion, setPosicion] = useState(0)
-  const volumen = useVolumenEditor(config.reproductor)
+  const volumen = useVolumenCompartido(config.reproductor)
   const { motor, estado: audio } = useMotorAudio({
     cancionId: id,
     gananciaDb: cancion.fuente.ganancia_db ?? 0,

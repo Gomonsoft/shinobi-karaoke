@@ -11,6 +11,7 @@ import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
 import type { EstadoMotor, Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
+import { tiempoHablado } from '../../karaoke/tiempoHablado'
 import { E } from './textos'
 import estilos from './editor.module.css'
 
@@ -39,17 +40,6 @@ interface Props {
   refSync?: Ref<HTMLButtonElement>
   acciones?: ReactNode
   bannerSync?: ReactNode
-}
-
-function tiempoHablado(ms: number): string {
-  const s = Math.floor(ms / 1000)
-  const minutos = Math.floor(s / 60)
-  const segundos = s % 60
-  const partes = [
-    minutos ? `${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}` : '',
-    segundos || !minutos ? `${segundos} ${segundos === 1 ? 'segundo' : 'segundos'}` : ''
-  ]
-  return partes.filter(Boolean).join(' ')
 }
 
 const VELOCIDADES = [

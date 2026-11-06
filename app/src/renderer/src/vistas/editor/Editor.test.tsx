@@ -100,6 +100,7 @@ it('selecciona la primera línea pendiente desde el contador y guarda los tiempo
 it('Esc cierra el diálogo de atajos antes de volver a la Biblioteca', async () => {
   const { ir } = montar()
   const boton = await screen.findByRole('button', { name: /Sincronizar al ritmo/ })
+  await waitFor(() => expect(boton).toHaveFocus())
   fireEvent.keyDown(boton, { key: 'F1' })
   expect(screen.getByRole('dialog', { name: 'Atajos de teclado' })).toBeVisible()
   fireEvent.keyDown(screen.getByRole('button', { name: 'Cerrar' }), { key: 'Escape' })

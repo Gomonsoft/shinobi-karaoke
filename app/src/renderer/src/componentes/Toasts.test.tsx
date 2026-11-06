@@ -1,11 +1,14 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { ContenedorToasts } from './Toasts'
-import { cerrarTodosLosToasts, mostrarToast } from './gestorToasts'
+import { cerrarTodosLosToasts, mostrarToast, retenerToasts } from './gestorToasts'
 
 describe('Toasts', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => {
-    act(() => cerrarTodosLosToasts())
+    act(() => {
+      cerrarTodosLosToasts()
+      retenerToasts(false)
+    })
     vi.useRealTimers()
   })
 
@@ -33,6 +36,34 @@ describe('Toasts', () => {
     expect(screen.getByText('hola')).toBeInTheDocument()
     act(() => void vi.advanceTimersByTime(1))
     expect(screen.queryByText('hola')).toBeNull()
+  })
+
+  it('retiene las notificaciones nuevas y muestra las tres más recientes en orden al salir', () => {
+    render(<ContenedorToasts />)
+    act(() => retenerToasts(true))
+    ;['uno', 'dos', 'tres', 'cuatro'].forEach((m) => avisar(m))
+    act(() => void vi.advanceTimersByTime(20_000))
+    expect(screen.queryAllByTestId('toast')).toHaveLength(0)
+
+    act(() => retenerToasts(false))
+    expect(screen.getAllByTestId('toast').map((el) => el.textContent)).toEqual([
+      'dos',
+      'tres',
+      'cuatro'
+    ])
+    act(() => void vi.advanceTimersByTime(6000))
+    expect(screen.queryAllByTestId('toast')).toHaveLength(0)
+  })
+
+  it('cerrar todas también descarta las retenidas', () => {
+    render(<ContenedorToasts />)
+    act(() => retenerToasts(true))
+    avisar('Descartada')
+    act(() => cerrarTodosLosToasts())
+    avisar('Posterior')
+    act(() => retenerToasts(false))
+    expect(screen.queryByText('Descartada')).toBeNull()
+    expect(screen.getByText('Posterior')).toBeVisible()
   })
 
   it('no caduca con el ratón encima y reanuda al salir', () => {
