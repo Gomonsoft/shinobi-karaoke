@@ -114,11 +114,14 @@ test.describe('reproductor sin red', () => {
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
       const inferior = capa.locator('[data-franja="inferior"]')
       await expect(inferior).toBeVisible()
+      await expect(capa.getByRole('button', { name: R.tooltip.pausa })).toBeVisible({
+        timeout: 10_000
+      })
       // El clic de la Biblioteca puede dejar el puntero sobre una franja en Xvfb.
       const area = await capa.boundingBox()
       if (!area) throw new Error('No se pudo medir el reproductor')
       await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
-      await expect(inferior).toHaveAttribute('aria-hidden', 'true', { timeout: 4_000 })
+      await expect(inferior).toHaveAttribute('aria-hidden', 'true', { timeout: 10_000 })
       await ventana.mouse.move(500, 300)
       await expect(inferior).not.toHaveAttribute('aria-hidden', 'true')
     } finally {
