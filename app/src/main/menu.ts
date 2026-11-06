@@ -2,6 +2,13 @@ import type { MenuItemConstructorOptions } from 'electron'
 import type { AccionMenu } from '@shared/ipc'
 import { TITULO_APP } from '@shared/titulo'
 
+export const IDS_ZOOM = {
+  acercar: 'zoom-mas',
+  acercarOculto: 'zoom-mas-oculto',
+  alejar: 'zoom-menos',
+  restablecer: 'zoom-restablecer'
+} as const
+
 /**
  * Plantilla del menú de aplicación mínimo (0018). En macOS es imprescindible para copiar/pegar
  * y salir. Los atajos propios envían la acción al renderer; el zoom usa los roles de Electron.
@@ -54,11 +61,32 @@ export function plantillaMenu(
     {
       label: 'Ver',
       submenu: [
-        { role: 'zoomIn', label: 'Acercar', accelerator: 'CommandOrControl+Plus' },
+        {
+          id: IDS_ZOOM.acercar,
+          role: 'zoomIn',
+          label: 'Acercar',
+          accelerator: 'CommandOrControl+Plus'
+        },
         // En teclados donde "+" exige Mays, Ctrl/Cmd+= también acerca (oculto).
-        { role: 'zoomIn', label: 'Acercar', accelerator: 'CommandOrControl+=', visible: false },
-        { role: 'zoomOut', label: 'Alejar', accelerator: 'CommandOrControl+-' },
-        { role: 'resetZoom', label: 'Tamaño real', accelerator: 'CommandOrControl+0' },
+        {
+          id: IDS_ZOOM.acercarOculto,
+          role: 'zoomIn',
+          label: 'Acercar',
+          accelerator: 'CommandOrControl+=',
+          visible: false
+        },
+        {
+          id: IDS_ZOOM.alejar,
+          role: 'zoomOut',
+          label: 'Alejar',
+          accelerator: 'CommandOrControl+-'
+        },
+        {
+          id: IDS_ZOOM.restablecer,
+          role: 'resetZoom',
+          label: 'Tamaño real',
+          accelerator: 'CommandOrControl+0'
+        },
         { type: 'separator' },
         { role: 'togglefullscreen', label: 'Pantalla completa' }
       ]

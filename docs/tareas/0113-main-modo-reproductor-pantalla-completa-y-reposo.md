@@ -1,5 +1,5 @@
 # 0113 — Main: modo reproductor de la ventana (pantalla completa, estado previo, zoom) y pantalla encendida
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112
 - ADRs: 0011 (§1, §2), 0008 (punto 5 y Revisión 2026-11-06)
@@ -63,4 +63,8 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test
 La comprobación con la ventana real (`isFullScreen()` en macOS y Windows) es del E2E 0123.
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- `ControlModoReproductor` espera el evento real antes de aplicar la última petición de pantalla completa. Conserva el estado que debe restaurar si se reabre el reproductor durante la transición de salida.
+- `main/index.ts` vincula el control al crear cada ventana y libera el bloqueo de reposo al cerrar, recargar o perder el renderer. El doble asíncrono de pantalla completa solo se habilita con `SHINOBI_PANTALLA_COMPLETA_SIMULADA=1` en la app sin empaquetar.
+- `menu.ts` identifica los cuatro elementos de zoom para deshabilitarlos durante la reproducción. El permiso de pantalla completa del DOM se retiró en `seguridad.ts`.
+- Pasaron el lint y el formato de los archivos de la tarea, el typecheck de la app y 78 tests dirigidos de ventana, menú, seguridad e IPC. La validación de la ventana real en macOS y Windows corresponde a 0123.

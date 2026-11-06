@@ -8,6 +8,7 @@ import {
   Menu,
   net,
   Notification,
+  powerSaveBlocker,
   protocol,
   session,
   shell,
@@ -31,7 +32,7 @@ import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
 import { BusquedaLetras, ServicioLetras, crearClienteLrclib } from './letras'
 import { ServicioConfig } from './configuracion'
 import { registrarIpc } from './ipc'
-import { plantillaMenu } from './menu'
+import { IDS_ZOOM, plantillaMenu } from './menu'
 import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
 import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
@@ -65,6 +66,7 @@ import {
 import { configurarWorker, ejecutar, GestorTrabajos } from './trabajos'
 import { crearPuertoModelos, entornoSeparadorFalso, ServicioSeparacion } from './separacion'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
+import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
 
 /** Servicio de configuración (0008); lo usarán los demás servicios y la IPC (0011). */
 export let servicioConfig: ServicioConfig | null = null
@@ -132,6 +134,17 @@ function origenRenderer(): string {
 
 let guardadoEditorPendiente = false
 
+const modoReproductor = new ControlModoReproductor({
+  bloqueador: powerSaveBlocker,
+  fijarZoomActivo: (activo) => {
+    const menu = Menu.getApplicationMenu()
+    for (const id of Object.values(IDS_ZOOM)) {
+      const elemento = menu?.getMenuItemById(id)
+      if (elemento) elemento.enabled = activo
+    }
+  }
+})
+
 const controlCierre = crearControlCierre({
   // Instalación del runtime o trabajos de la cola (0073). Las consultas interactivas no cuentan.
   hayAlgoEnCurso: () =>
@@ -171,6 +184,13 @@ function crearVentana(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false
     }
+  })
+
+  const simular = !app.isPackaged && process.env.SHINOBI_PANTALLA_COMPLETA_SIMULADA === '1'
+  modoReproductor.vincular(simular ? simularPantallaCompleta(ventana) : ventana)
+  ventana.webContents.on('render-process-gone', () => modoReproductor.reiniciar())
+  ventana.webContents.on('did-start-navigation', ({ isMainFrame, isSameDocument }) => {
+    if (isMainFrame && !isSameDocument) modoReproductor.reiniciar()
   })
 
   // Silencio en E2E con audio real de Chromium (0094, ADR 0010).
@@ -529,6 +549,7 @@ if (instanciaUnica)
         ipcMain,
         {
           biblioteca: servicioBiblioteca,
+          ventana: modoReproductor,
           runtime: runtime.servicio,
           confirmarCierre: async () => {
             await controlCierre.confirmar()

@@ -30,6 +30,19 @@ describe('menú de aplicación', () => {
     expect(plantillaMenu('linux', vi.fn())[0]?.label).toBe('Archivo')
   })
 
+  it('identifica los cuatro elementos de zoom y mantiene la pantalla completa nativa', () => {
+    const items = aplanar(plantillaMenu('darwin', vi.fn()))
+    const zoom = items.filter((i) => ['zoomIn', 'zoomOut', 'resetZoom'].includes(i.role ?? ''))
+    expect(zoom.map((i) => i.id)).toEqual([
+      'zoom-mas',
+      'zoom-mas-oculto',
+      'zoom-menos',
+      'zoom-restablecer'
+    ])
+    expect(zoom[1]?.visible).toBe(false)
+    expect(items).toContainEqual({ role: 'togglefullscreen', label: 'Pantalla completa' })
+  })
+
   it('durante el primer arranque se ignoran "Añadir canción" y "Ajustes" y sus atajos; el resto sigue', () => {
     const enviar = vi.fn()
     const items = aplanar(plantillaMenu('darwin', enviar, () => false))

@@ -299,7 +299,7 @@ Deuda de fases anteriores que se salda aquí:
 | Tarea | Título | Depende de | ¿Paralelizable? | Archivos compartidos | Estado |
 |-------|--------|-----------|-----------------|----------------------|--------|
 | [0112](tareas/0112-contratos-compartidos-de-la-fase-6.md) | Contratos: `ventana.*`, `biblioteca.comprobarPistas`, voz guía en `config.reproductor`, API falsas | — | **Primera**; ‖ 0115–0118, 0124 | `canales.ts`, `ipc.ts`, `config.ts`, preload, `handlers.ts`, API falsas | Hecha |
-| [0113](tareas/0113-main-modo-reproductor-pantalla-completa-y-reposo.md) | Main: modo reproductor (pantalla completa, estado previo, zoom) y pantalla encendida | 0112 | ‖ 0114–0122 | `main/index.ts`, `menu.ts`, `seguridad.ts` | Pendiente |
+| [0113](tareas/0113-main-modo-reproductor-pantalla-completa-y-reposo.md) | Main: modo reproductor (pantalla completa, estado previo, zoom) y pantalla encendida | 0112 | ‖ 0114–0122 | `main/index.ts`, `menu.ts`, `seguridad.ts` | Hecha |
 | [0114](tareas/0114-main-comprobar-pistas-de-una-cancion.md) | Main: `comprobarPistas` (Dañada sin reiniciar) | 0112 | ‖ todo | — | Hecha |
 | [0115](tareas/0115-semilla-del-reproductor-y-nombre-de-la-cancion-18.md) | Semilla: canciones 20 y 21; la 18 renombrada (0029) | — | **Empieza ya** | `semilla.ts`, `e2e/editor.spec.ts` (`T18`) | Hecha |
 | [0116](tareas/0116-render-entrada-de-la-primera-linea-y-pantalla-letra-sin-tope.md) | Render: `●●●` antes de la 1.ª línea, tiempos negativos, sin tope de 140 px, aviso bajo el título | — | **Empieza ya** | `karaoke/render.ts`, `PantallaLetra` (los usa el editor) | Hecha |

@@ -4,7 +4,7 @@
  */
 import { enlacePermitido } from '../shared/ipc'
 
-export const PERMISOS_PERMITIDOS: readonly string[] = ['fullscreen', 'clipboard-sanitized-write']
+export const PERMISOS_PERMITIDOS: readonly string[] = ['clipboard-sanitized-write']
 
 /** Origen (`protocolo//host`) de una URL, o `null` si no es válida u opaca. */
 export function origenDe(url: string): string | null {

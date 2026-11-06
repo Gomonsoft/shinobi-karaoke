@@ -96,12 +96,12 @@ describe('política de navegación', () => {
 })
 
 describe('permisos', () => {
-  it('solo fullscreen y portapapeles desde el origen del renderer', () => {
-    expect(permisoConcedido('fullscreen', ORIGEN + '/', ORIGEN)).toBe(true)
+  it('solo portapapeles desde el origen del renderer', () => {
+    expect(permisoConcedido('fullscreen', ORIGEN + '/', ORIGEN)).toBe(false)
     expect(permisoConcedido('clipboard-sanitized-write', ORIGEN, ORIGEN)).toBe(true)
     expect(permisoConcedido('media', ORIGEN, ORIGEN)).toBe(false)
     expect(permisoConcedido('notifications', ORIGEN, ORIGEN)).toBe(false)
-    expect(permisoConcedido('fullscreen', 'https://example.com', ORIGEN)).toBe(false)
+    expect(permisoConcedido('clipboard-sanitized-write', 'https://example.com', ORIGEN)).toBe(false)
   })
 
   it('instala los dos manejadores', () => {
@@ -115,10 +115,12 @@ describe('permisos', () => {
       ORIGEN
     )
     const cb = vi.fn()
+    pedir!(null, 'clipboard-sanitized-write', cb, { requestingUrl: ORIGEN })
     pedir!(null, 'fullscreen', cb, { requestingUrl: ORIGEN })
     pedir!(null, 'geolocation', cb, { requestingUrl: ORIGEN })
-    expect(cb.mock.calls).toEqual([[true], [false]])
-    expect(comprobar!(null, 'fullscreen', ORIGEN, {})).toBe(true)
+    expect(cb.mock.calls).toEqual([[true], [false], [false]])
+    expect(comprobar!(null, 'clipboard-sanitized-write', ORIGEN, {})).toBe(true)
+    expect(comprobar!(null, 'fullscreen', ORIGEN, {})).toBe(false)
     expect(comprobar!(null, 'media', ORIGEN, {})).toBe(false)
   })
 })
