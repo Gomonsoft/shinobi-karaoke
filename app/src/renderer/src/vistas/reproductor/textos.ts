@@ -60,6 +60,7 @@ export const R = {
     region: (titulo: string): string => `Reproductor de «${titulo}»`,
     inicio: (titulo: string, artista: string): string =>
       `Reproduciendo «${titulo}», de ${artista}.`,
+    reanudacion: 'Reproducción reanudada.',
     fin: 'Fin de la canción.'
   }
 }

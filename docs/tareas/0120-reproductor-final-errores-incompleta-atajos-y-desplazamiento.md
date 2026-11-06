@@ -1,5 +1,5 @@
 # 0120 — Reproductor: pantalla final, errores, lista incompleta, diálogo de atajos, desplazamiento y anuncios
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0119
 - ADRs: 0011 (§3 errores, §4, §5)
@@ -65,4 +65,9 @@ cd app && npm run lint && npm run typecheck && npm run format:check && npm test
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- `PantallaFinal` reutiliza `CuentaFinal`, enfoca la salida y muestra la cuenta hasta que hay actividad. Repetir vuelve al silencio previo, y buscar hacia atrás desde el final reanuda el audio.
+- `PantallaError` distingue la pista ausente de los errores de lectura o decodificación y copia la información del sistema y la ruta relativa. El reproductor notifica cada fallo una vez y continúa si solo falla la voz.
+- El aviso de lista incompleta aparece en el título y en la franja superior desde la Biblioteca. Los anuncios usan una región independiente del reloj y la letra. El diálogo de atajos mantiene el audio en pausa incluso si se abrió durante la carga.
+- El editor recibe los cambios de ±100 ms y el indicador lee el desplazamiento total de la letra recibida. Al alcanzar un tope se muestra el mensaje de rango del editor durante un segundo.
+- Pasaron 50 tests dirigidos del reproductor y las comprobaciones de lint y formato de la carpeta. El typecheck pasó antes de incorporar la navegación de 0121, con la que se ejecutará la verificación global del bloque.
