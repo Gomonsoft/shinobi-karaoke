@@ -69,6 +69,22 @@ describe('SelectorFuente', () => {
   })
 })
 
+describe('SelectorFuente y scroll', () => {
+  it('ignora un scroll ajeno que no mueve el botón y se cierra si lo mueve', () => {
+    render(<SelectorFuente valor="Nunito" alCambiar={vi.fn()} />)
+    const boton = screen.getByRole('button', { name: 'Fuente: Nunito' })
+    let top = 100
+    boton.getBoundingClientRect = () => ({ top, left: 10 }) as DOMRect
+    fireEvent.click(boton)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    fireEvent.scroll(document.body)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    top = 60
+    fireEvent.scroll(document.body)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+})
+
 describe('DialAngulo y Deslizador', () => {
   it('ajusta el ángulo con módulo y aplica los pasos de teclado', () => {
     const alCambiar = vi.fn()

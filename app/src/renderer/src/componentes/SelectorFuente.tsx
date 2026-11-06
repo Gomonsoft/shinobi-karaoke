@@ -57,12 +57,19 @@ export function SelectorFuente({ valor, alCambiar, etiqueta = 'Fuente' }: Props)
   useEffect(() => {
     if (!colocado || !abierto) return
     lista.current?.focus()
+    const origen = ancla.current!.getBoundingClientRect()
     function fuera(e: Event) {
       if (
         e.target instanceof Node &&
         (lista.current?.contains(e.target) || ancla.current?.contains(e.target))
       )
         return
+      // Un scroll ajeno que no mueve el botón (p. ej. un contenedor que se reajusta) no
+      // desplaza el menú: solo se cierra si el ancla se ha movido de verdad.
+      if (e.type === 'scroll') {
+        const ahora = ancla.current?.getBoundingClientRect()
+        if (ahora && ahora.top === origen.top && ahora.left === origen.left) return
+      }
       cerrar(false)
     }
     document.addEventListener('pointerdown', fuera)
