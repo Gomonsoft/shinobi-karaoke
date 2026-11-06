@@ -170,6 +170,11 @@ function crearVentana(): BrowserWindow {
     }
   })
 
+  // Silencio en E2E con audio real de Chromium (0094, ADR 0010).
+  if (!app.isPackaged && process.env.SHINOBI_SILENCIAR_AUDIO === '1') {
+    ventana.webContents.setAudioMuted(true)
+  }
+
   // Con una instalación en curso, cerrar pide confirmación al renderer (0036).
   ventana.on('close', (evento) => controlCierre.alCerrarVentana(evento))
   ventana.on('focus', () => servicioAvisos?.alRecuperarFoco())
