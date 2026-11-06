@@ -1,5 +1,5 @@
 # 0096 — Karaoke (puro): modelo de render de la letra (línea actual, siguiente, barrido, título, indicador de entrada)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 6 (lo reutiliza el reproductor)
 - Depende de: — (usa `finEfectivo` de `shared/letra.ts`). **Puede empezar ya.**
 - ADRs: 0010 (§4), 0005 (resaltado por palabra o barrido, `finEfectivo`)
@@ -24,7 +24,7 @@
 Una función pura que, para un instante, diga qué dibujar. Así la vista previa del editor y el reproductor dibujan lo mismo.
 
 ## Criterios de aceptación
-- [ ] API:
+- [x] API:
   ```ts
   export interface LineaRender { id: string; texto: string
     progreso: number                                  // 0..1 de barrido (sin palabras)
@@ -40,7 +40,7 @@ Una función pura que, para un instante, diga qué dibujar. Así la vista previa
   /** Vista previa en pausa (ux/06): la línea `id` con progreso 0,5 (o la mitad de sus palabras) y la siguiente línea con texto. */
   export function fotogramaEstatico(letra: Letra, id: string | null): FotogramaLetra
   ```
-- [ ] Reglas de `fotogramaEn`:
+- [x] Reglas de `fotogramaEn`:
   - solo cuentan las líneas con inicio;
   - `actual` = última línea con `inicio ≤ t` mientras `t < finEfectivo`; entre el fin de una línea y el inicio de la siguiente, `actual` es `null` (la siguiente se ve en su sitio);
   - `siguiente` = la próxima línea con inicio tras `actual`, o tras `t` si no hay actual;
@@ -48,9 +48,9 @@ Una función pura que, para un instante, diga qué dibujar. Así la vista previa
   - `titulo` no nulo si `t < primerInicio − 4000`;
   - `puntos`: si no hay actual, la próxima línea empieza en `p` y el silencio desde el fin anterior (o desde 0) es ≥ 4000 ms, entonces `puntos = ceil((p − t)/1000)` cuando `p − t ≤ 3000`, y 0 si no;
   - letra sin líneas con inicio → solo `titulo`.
-- [ ] `fotogramaEstatico`: con `id` null, la primera línea; las líneas sin inicio también se muestran (el editor las enseña en pausa); `puntos: 0`, `titulo: null`.
-- [ ] Rendimiento: `fotogramaEn` es O(log n) o O(n) con n ≤ 5000; un test de 5000 líneas × 1000 llamadas termina en < 200 ms en CI. Se permite memorizar un índice ordenado por letra (`WeakMap<Letra, …>`).
-- [ ] Tests: barrido a mitad, por palabra, entre líneas, pausa con tiempo (que corta el fin automático), título, puntos 3·2·1·0, última línea (+5 s acotado a la duración) y líneas sin inicio omitidas.
+- [x] `fotogramaEstatico`: con `id` null, la primera línea; las líneas sin inicio también se muestran (el editor las enseña en pausa); `puntos: 0`, `titulo: null`.
+- [x] Rendimiento: `fotogramaEn` es O(log n) o O(n) con n ≤ 5000; un test de 5000 líneas × 1000 llamadas termina en < 200 ms en CI. Se permite memorizar un índice ordenado por letra (`WeakMap<Letra, …>`).
+- [x] Tests: barrido a mitad, por palabra, entre líneas, pausa con tiempo (que corta el fin automático), título, puntos 3·2·1·0, última línea (+5 s acotado a la duración) y líneas sin inicio omitidas.
 
 ## Verificación
 ```bash
@@ -60,4 +60,6 @@ npx vitest run src/renderer/src/karaoke/render.test.ts
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- El modelo de render calcula título, línea actual y siguiente, barrido, palabras e indicador de entrada. Usa un índice débil por letra y duración, con búsqueda binaria y fines efectivos en caché.
+- Pasaron las pruebas de render, incluida la medición de 1000 fotogramas con 5000 líneas. En la verificación conjunta con 0097 pasaron lint, TypeScript, formato, Vitest, build y Playwright (69 pasadas, 2 omitidas).
