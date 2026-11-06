@@ -1,5 +1,5 @@
 # 0092 — Dominio: operaciones puras de tiempos del editor (`shared/letras/tiempos.ts`)
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: — (usa `shared/letra.ts`, ya hecho). **Puede empezar ya.**
 - ADRs: 0010 (§1 "Tiempo de letra", §2 rango del desplazamiento, §3), 0006 (invariantes, `moverInicioLinea`, `borrarTiemposLinea`), 0005 (`finEfectivo`)
@@ -32,7 +32,7 @@ Las funciones de esta tarea trabajan con **tiempo guardado** (de letra) salvo la
 Toda la lógica de edición de tiempos del editor en funciones puras, sin DOM ni audio, que respeten los invariantes del ADR 0006. La usan el *reducer* (0093) y la vista (0105–0107).
 
 ## Criterios de aceptación
-- [ ] API exportada (nombres y firmas exactos):
+- [x] API exportada (nombres y firmas exactos):
   ```ts
   export type Limite =
     | { tipo: 'inicio_anterior' | 'inicio_siguiente'; vecino: 'linea' | 'pausa' }
@@ -66,7 +66,7 @@ Toda la lógica de edición de tiempos del editor en funciones puras, sin DOM ni
   export function formatearDesplazamiento(ms: number): string       // "+0,25 s"
   export function interpretarDesplazamiento(texto: string): number | null // "+0,25", "-1,5", "0.3" (punto o coma), en s → ms
   ```
-- [ ] **Reglas**:
+- [x] **Reglas**:
   - `limitesInicio`:
     - `min` = inicio del elemento anterior con inicio + 1 (0 si no hay); `max` = inicio del siguiente con inicio − 1 (`null` si no hay);
     - `vecino*` es el tipo de ese elemento, para que el tooltip diga "línea" o "pausa";
@@ -100,9 +100,9 @@ Toda la lógica de edición de tiempos del editor en funciones puras, sin DOM ni
   - `interpretarTiempo`: acepta `m:ss`, `mm:ss`, `mm:ss.c` y `mm:ss.cc` (segundos < 60); cualquier otra cosa → `null` (`edi.tiempo.formato`).
   - `formatearDesplazamiento`: `+0,25 s`, `−0,10 s` (signo menos U+2212) y `+0,00 s`.
   - `interpretarDesplazamiento`: acepta coma o punto, signo opcional (`+`, `-` o U+2212) y hasta 2 decimales; si no, `null`.
-- [ ] Ninguna función muta su entrada (test con congelado profundo).
-- [ ] **Propiedad**: tras cualquier operación, `validarInvariantesLetra(resultado.letra.lineas)` está vacío. Hay un test determinista (semilla fija, 500 operaciones mezcladas sobre una letra de 12 líneas, 2 pausas de las que una tiene inicio, y una línea con palabras) que lo comprueba en cada paso.
-- [ ] Casos concretos, al menos:
+- [x] Ninguna función muta su entrada (test con congelado profundo).
+- [x] **Propiedad**: tras cualquier operación, `validarInvariantesLetra(resultado.letra.lineas)` está vacío. Hay un test determinista (semilla fija, 500 operaciones mezcladas sobre una letra de 12 líneas, 2 pausas de las que una tiene inicio, y una línea con palabras) que lo comprueba en cada paso.
+- [x] Casos concretos, al menos:
   - límites contra una línea y contra una pausa (`vecino`);
   - fijar fuera de límites no cambia nada;
   - fin automático → ajustar → fijado → `usarFinAutomatico`;
@@ -123,4 +123,5 @@ npm run test:cobertura   # shared/** sin bajar la cobertura actual
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+- `shared/letras/tiempos.ts` ofrece operaciones inmutables de ajuste, límites, marcas que limpian tiempos posteriores, desplazamiento, consultas y formato. Reutiliza `finEfectivo`, `moverInicioLinea`, `borrarTiemposLinea` y el contrato de la 0090.
+- Vitest cubre los casos concretos y 500 operaciones deterministas sobre letras congeladas. Pasaron lint, TypeScript, formato, Vitest (1550 pasadas, 12 omitidas), cobertura (98,89 % de líneas en `shared`, 100 % en `tiempos.ts`), build y Playwright (69 pasadas, 2 omitidas).
