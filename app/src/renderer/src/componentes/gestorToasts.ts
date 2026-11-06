@@ -13,6 +13,7 @@ export interface Toast {
   tipo: TipoAviso
   mensaje: string
   accion?: AccionToast
+  persistente?: boolean
 }
 
 // Gestor global (sin librería de estado, ADR 0007): almacén externo + useSyncExternalStore.

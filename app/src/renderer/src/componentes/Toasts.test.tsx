@@ -64,3 +64,17 @@ describe('Toasts', () => {
     expect(screen.queryByText('hola')).toBeNull()
   })
 })
+
+it('un aviso persistente sin acciones sigue visible después del plazo', () => {
+  vi.useFakeTimers()
+  try {
+    render(<ContenedorToasts />)
+    act(() => {
+      mostrarToast({ tipo: 'aviso', mensaje: 'Letra recargada', persistente: true })
+    })
+    act(() => vi.advanceTimersByTime(12_000))
+    expect(screen.getByText('Letra recargada')).toBeVisible()
+  } finally {
+    vi.useRealTimers()
+  }
+})

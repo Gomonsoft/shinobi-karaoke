@@ -10,14 +10,14 @@ const ICONOS = { info: Info, aviso: TriangleAlert, error: CircleAlert, exito: Ci
 
 function ToastItem({ toast }: { toast: Toast }) {
   const [pausado, setPausado] = useState(false)
-  const conAccion = Boolean(toast.accion)
+  const persistente = Boolean(toast.accion || toast.persistente)
 
   // No caduca si tiene acción ni mientras el ratón o el foco están encima.
   useEffect(() => {
-    if (conAccion || pausado) return
+    if (persistente || pausado) return
     const t = setTimeout(() => cerrarToast(toast.id), DURACION_TOAST_MS)
     return () => clearTimeout(t)
-  }, [conAccion, pausado, toast.id])
+  }, [persistente, pausado, toast.id])
 
   return (
     <div

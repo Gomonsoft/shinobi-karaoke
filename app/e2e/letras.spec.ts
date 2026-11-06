@@ -493,7 +493,7 @@ test.describe('letras con el doble local de LRCLIB', () => {
       await tarjeta(v, 'Tema editado')
         .getByRole('button', { name: /^Continuar/ })
         .click()
-      await expect(v.getByRole('heading', { level: 1, name: 'Canción: editor' })).toBeVisible()
+      await expect(v.getByRole('heading', { level: 1, name: 'Editor' })).toBeVisible()
     } finally {
       await app.close().catch(() => undefined)
       await srv.cerrar()

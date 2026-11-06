@@ -1,5 +1,5 @@
 # 0105 — Vista Editor: estructura, carga, lista de líneas, transporte, vista previa y atajos base
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0090, 0093, 0094, 0098, 0099 (Deslizador), 0103, 0104
 - ADRs: 0010 (todo), 0005, 0006
@@ -27,19 +27,19 @@ Datos:
 Audio: `urlPista`. Voz e Instrumental existen si `resumen.pasos.separacion.estado === 'completado'` y la canción no está dañada.
 
 ## Criterios de aceptación
-- [ ] **Carga**:
+- [x] **Carga**:
   - lee la canción y el resumen; `config.obtener()` da el volumen;
   - sin letra (0 líneas) → `edi.sinletra` con [Buscar la letra], que navega a Letra;
   - si la carga falla → `edi.error.audio`;
   - `cargar` en el *reducer*, con selección = primera sin inicio (o la primera línea) y la lista desplazada hasta ella;
   - audio en 0 y en pausa; pista Voz si existe y Original si no (criterio 4);
   - foco inicial: el botón "Sincronizar al ritmo" si no hay ninguna línea con inicio (más el banner `edi.banner.sinsync`); si no, la fila seleccionada de la lista.
-- [ ] **Disposición**:
+- [x] **Disposición**:
   - wireframe A (≥ 1280 px): columnas de 320 px, flexible y 320 px; transporte fijo al pie;
   - wireframe B (< 1280 px): columna izquierda de 360 px con pestañas Sincronía/Estilo y la vista previa a la derecha;
   - nada cortado a 1024 × 640 con zoom de hasta el 150 % (criterio 1);
   - *landmarks* y enlace "Saltar al contenido" (a la lista).
-- [ ] **Lista de líneas** (`ListaLineas.tsx`):
+- [x] **Lista de líneas** (`ListaLineas.tsx`):
   - `role="listbox"` con *roving tabindex*;
   - filas con el tiempo mostrado (`formatearTiempo(tiempoMostrado(...))`) o `--:--.--` con el icono "falta" (`CircleDashed` de lucide), ◆ con su tooltip si hay palabras, texto en 2 renglones como máximo;
   - pausas como `role="separator"` "♪ pausa", con su tiempo en `texto-3` y tooltip si lo traen;
@@ -50,7 +50,7 @@ Audio: `urlPista`. Voz e Instrumental existen si `resumen.pasos.separacion.estad
   - seguimiento de la línea actual salvo desplazamiento manual en los últimos 5 s;
   - **virtualizada** a partir de 200 filas (sin dependencias: ventana de filas con alto fijo de fila de 2 renglones), para cumplir el criterio 45 con 1000 líneas;
   - pie "Corregir la letra", que navega a Letra (la guarda de 0104 vacía antes el guardado).
-- [ ] **Transporte** (`Transporte.tsx`):
+- [x] **Transporte** (`Transporte.tsx`):
   - ⏮, ▶/❚❚ y el tiempo "01:12.4 / 05:55";
   - barra de tiempo (`Deslizador`, `role="slider"`, ←/→ ±5 s, `aria-valuetext` "1 minuto 12 segundos de 5 minutos 55") con **ticks** en el tiempo mostrado de cada línea con inicio (criterio 10);
   - "Escuchar" con `ControlSegmentado` (Original/Voz/Instrumental):
@@ -61,8 +61,8 @@ Audio: `urlPista`. Voz e Instrumental existen si `resumen.pasos.separacion.estad
   - volumen con silenciar, que lee y **guarda** `config.reproductor.volumen` y `silenciado` (`config.actualizar`, como mucho una escritura cada 500 ms);
   - "Cargando audio…" y barra indeterminada pasados 3 s;
   - la tercera fila lleva "Sincronizar al ritmo (S)" (0107 lo conecta) y el primario "Marcar como lista"/"Hecho" (0109 lo conecta).
-- [ ] **Vista previa**: `PantallaLetra` en 16:9, `reproduciendo = estado.sonando`, `obtenerTiempoAudio = () => motor.posicionMs()`, `idEstatico = seleccion`, región `edi.previa` con `aria-label` `edi.previa.aria`. **Sin** botón "Probar a pantalla completa" (Fase 6).
-- [ ] **Atajos** (`atajos.ts`, puro y probado): `accionDeTecla(evento, { enCampoTexto, sync, focoEn: 'lista' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'otro' }) → AccionAtajo | null` con la tabla completa de `ux/06` "Atajos de teclado":
+- [x] **Vista previa**: `PantallaLetra` en 16:9, `reproduciendo = estado.sonando`, `obtenerTiempoAudio = () => motor.posicionMs()`, `idEstatico = seleccion`, región `edi.previa` con `aria-label` `edi.previa.aria`. **Sin** botón "Probar a pantalla completa" (Fase 6).
+- [x] **Atajos** (`atajos.ts`, puro y probado): `accionDeTecla(evento, { enCampoTexto, sync, focoEn: 'lista' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'otro' }) → AccionAtajo | null` con la tabla completa de `ux/06` "Atajos de teclado":
   - Espacio, Inicio, S, Intro, Retroceso, Supr, Esc, ↑/↓;
   - Alt(+Mayús)+←/→ (inicio) y **Ctrl/Cmd**(+Mayús)+←/→ (fin);
   - I, O, L, `,`/`.` (desplazamiento), 1/2/3;
@@ -74,9 +74,9 @@ Audio: `urlPista`. Voz e Instrumental existen si `resumen.pasos.separacion.estad
   - **F no hace nada** en la Fase 5.
   `useAtajosEditor` escucha en `window` **en fase de captura** (`addEventListener('keydown', h, true)`) y llama a `preventDefault()` en las teclas que trata, para que Alt+← no navegue y el Esc global no salte. Esc fuera del modo y sin capas abiertas navega a la Biblioteca (pasando por la guarda).
   En esta tarea se conectan: Espacio, Inicio, ↑/↓, 1/2/3, deshacer/rehacer, F1/? y Esc; el resto llega con 0106–0108 como *callbacks*.
-- [ ] **Diálogo de atajos** (`DialogoAtajos.tsx`): la tabla de la spec, con F1/? y desde el ⋯ de la cabecera ("Atajos de teclado (F1)").
-- [ ] **Cabecera**: `CabeceraCancion` con `actual="editor"`, `guardado` (de `useGuardadoEditor`), `incompleta` (de `resumen.lineasSinSincronizar` si es Lista), `historial` (*reducer*) y `menu`. Cada cambio de `version` del *reducer* llama a `cambiarLetra` y/o `cambiarEstilo`.
-- [ ] **`LETRA_DESACTUALIZADA`** (`ux/06` estado "Letra cambiada fuera del editor", criterio 46; `preguntas/0026` §1). Cuando `useGuardadoEditor` llama a `alDesactualizada()`:
+- [x] **Diálogo de atajos** (`DialogoAtajos.tsx`): la tabla de la spec, con F1/? y desde el ⋯ de la cabecera ("Atajos de teclado (F1)").
+- [x] **Cabecera**: `CabeceraCancion` con `actual="editor"`, `guardado` (de `useGuardadoEditor`), `incompleta` (de `resumen.lineasSinSincronizar` si es Lista), `historial` (*reducer*) y `menu`. Cada cambio de `version` del *reducer* llama a `cambiarLetra` y/o `cambiarEstilo`.
+- [x] **`LETRA_DESACTUALIZADA`** (`ux/06` estado "Letra cambiada fuera del editor", criterio 46; `preguntas/0026` §1). Cuando `useGuardadoEditor` llama a `alDesactualizada()`:
   - se relee la canción con `biblioteca.obtener(id)` y se despacha `cargar`, con lo que deshacer y rehacer quedan vacíos y ⟲ ⟳ `disabled`;
   - si estaba en el modo sincronizar, sale de él (`salir_sync` o `cargar` con `sync.activo = false`);
   - el audio queda **en pausa en la misma posición**, con la misma pista y velocidad;
@@ -84,9 +84,9 @@ Audio: `urlPista`. Voz e Instrumental existen si `resumen.pasos.separacion.estad
   - toast de tipo **`aviso`**, **persistente** (sin cierre automático), con `edi.toast.recargada`: "La letra ha cambiado fuera del editor y la hemos vuelto a cargar. Puede que tus últimos ajustes de tiempos no se hayan guardado: revísalos.";
   - el indicador de guardado queda en "✓ Guardado": no es un fallo, así que no hay reintento, ni "⚠ No se pudo guardar", ni toast de error. El estilo pendiente se sigue guardando aparte.
   Test con `apiEditorFalsa` configurada para responder `LETRA_DESACTUALIZADA`: comprobar cada punto anterior. Si `gestorToasts` no admite toasts persistentes, se añade la opción `persistente: true` en `componentes/gestorToasts.ts` y `Toasts.tsx`, con su test.
-- [ ] La separación que termina con el editor abierto saca el toast de spec 04: compruébalo con `useAvisosTrabajos` y ajústalo solo si en la vista editor se suprime.
-- [ ] Pausa automática cuando la ventana pierde el foco (`window` `blur`) **solo durante el modo sincronizar** (0107 lo usa; aquí se expone `pausarAlPerderFoco`).
-- [ ] Tests (jsdom, con `apiEditorFalsa` de 0090 y un `MotorAudio` falso):
+- [x] La separación que termina con el editor abierto saca el toast de spec 04: compruébalo con `useAvisosTrabajos` y ajústalo solo si en la vista editor se suprime.
+- [x] Pausa automática cuando la ventana pierde el foco (`window` `blur`) **solo durante el modo sincronizar** (0107 lo usa; aquí se expone `pausarAlPerderFoco`).
+- [x] Tests (jsdom, con `apiEditorFalsa` de 0090 y un `MotorAudio` falso):
   - carga, foco inicial y selección inicial;
   - Voz no disponible con el % en el tooltip y activada al llegar el evento;
   - el contador lleva a la primera sin inicio;
@@ -104,4 +104,6 @@ npm run semilla && npm run dev   # «Editor: pista de clics» → Continuar
 ```
 
 ## Notas de implementación
-(las rellena el programador al terminar)
+
+- Editor real conectado a la navegación, con apertura de visita, audio, lista virtualizada, transporte, selección, vista previa y atajos base. La separación se actualiza a partir de eventos, sin sobrescribir la edición local. La recarga usa una nueva visita (0027) y conserva estilo, posición y selección cuando es posible.
+- Pasaron lint, tipos, formato, Vitest (1650 pasadas, 12 omitidas), build y Playwright (69 pasadas, 2 omitidas). Las interacciones de ajuste, modo, estilo y estado se conectan en 0106–0109. La prueba de recarga con una edición real se completa al conectar 0106.

@@ -1,4 +1,6 @@
 import { useId, useRef, type KeyboardEvent } from 'react'
+import { RefreshCw } from 'lucide-react'
+import { Icono } from './Icono'
 import { Tooltip } from './Tooltip'
 import estilos from './componentes.module.css'
 
@@ -7,6 +9,7 @@ export interface OpcionSegmentada<T extends string> {
   etiqueta: string
   /** Motivo por el que no se puede elegir. Sigue siendo enfocable con flechas y muestra el motivo. */
   noDisponible?: string
+  cargando?: boolean
 }
 
 interface ControlSegmentadoProps<T extends string> {
@@ -73,6 +76,7 @@ export function ControlSegmentado<T extends string>({
             role="radio"
             className={estilos.opcion}
             aria-checked={o.valor === valor}
+            aria-busy={o.cargando || undefined}
             aria-disabled={o.noDisponible ? true : undefined}
             aria-describedby={o.noDisponible ? idMotivo : undefined}
             tabIndex={o.valor === parada ? 0 : -1}
@@ -80,6 +84,11 @@ export function ControlSegmentado<T extends string>({
               if (!o.noDisponible) onCambio(o.valor)
             }}
           >
+            {o.cargando && (
+              <span className={estilos.cargandoOpcion}>
+                <Icono icono={RefreshCw} tamano={14} />
+              </span>
+            )}
             {o.etiqueta}
           </button>
         )

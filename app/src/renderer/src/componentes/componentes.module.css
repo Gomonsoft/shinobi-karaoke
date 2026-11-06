@@ -527,3 +527,14 @@
   margin: 0 0 var(--e-2);
   font-size: var(--t-cuerpo-fuerte);
 }
+
+.cargandoOpcion {
+  display: inline-flex;
+  margin-inline-end: var(--e-1);
+  animation: girar 1.2s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cargandoOpcion {
+    animation: none;
+  }
+}

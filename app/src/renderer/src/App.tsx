@@ -22,6 +22,7 @@ import { AnadirCancion } from './vistas/anadir/AnadirCancion'
 import { ResumenFuente } from './vistas/anadir/ResumenFuente'
 import { Progreso } from './vistas/progreso/Progreso'
 import { Letra } from './vistas/letra/Letra'
+import { Editor } from './vistas/editor/Editor'
 import { PrimerArranque } from './vistas/primer-arranque/PrimerArranque'
 
 // El Muestrario solo existe en `npm run dev`: en producción el bloque se elimina del bundle.
@@ -47,7 +48,7 @@ function Contenido({ vista }: { vista: Vista }) {
       if (vista.paso === 'progreso') return <Progreso key={vista.id} id={vista.id} />
       if (vista.paso === 'fuente') return <ResumenFuente key={vista.id} id={vista.id} />
       if (vista.paso === 'letra') return <Letra key={vista.id} id={vista.id} />
-      return <Marcador titulo={`${TITULOS_VISTA.cancion}: ${vista.paso}`} />
+      return <Editor key={vista.id} id={vista.id} />
     case 'ajustes':
       return <Ajustes />
     default:
