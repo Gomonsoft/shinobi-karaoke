@@ -131,6 +131,23 @@ function ejecutar(comando, argumentos, cwd) {
   return resultado.stdout
 }
 
+/** Ejecuta el CLI de npm con Node, también cuando Windows ofrece npm como .cmd. */
+export function comandoNpm(
+  env = process.env,
+  plataforma = process.platform,
+  node = process.execPath
+) {
+  const cli = env.npm_execpath
+  if (cli && /\.(?:c?js|mjs)$/i.test(cli)) return { comando: node, prefijo: [cli] }
+  if (plataforma === 'win32') {
+    return {
+      comando: node,
+      prefijo: [join(dirname(node), 'node_modules', 'npm', 'bin', 'npm-cli.js')]
+    }
+  }
+  return { comando: 'npm', prefijo: [] }
+}
+
 async function buscarMapas(directorio) {
   const mapas = []
   const visitar = async (ruta) => {
@@ -165,7 +182,10 @@ async function compilarBloque() {
     ejecutar(process.execPath, [binario, 'build', '--sourcemap', '--outDir', temporal], RAIZ)
     const mapas = await buscarMapas(temporal)
     if (!mapas.length) throw new Error('electron-vite no generó mapas de fuentes')
-    const arbol = JSON.parse(ejecutar('npm', ['ls', '--omit=dev', '--all', '--json'], RAIZ))
+    const npm = comandoNpm()
+    const arbol = JSON.parse(
+      ejecutar(npm.comando, [...npm.prefijo, 'ls', '--omit=dev', '--all', '--json'], RAIZ)
+    )
     const paquetes = paquetesDistribuidos(mapas, arbol)
     const inventario = await consultarLicencias()
     return generarBloque({ paquetes, inventario })
