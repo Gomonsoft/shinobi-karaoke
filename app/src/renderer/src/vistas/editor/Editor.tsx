@@ -46,6 +46,7 @@ import { ListaLineas } from './ListaLineas'
 import { PanelEstilo } from './PanelEstilo'
 import { PanelSincronia, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
+import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { Transporte, type SeparacionEditor } from './Transporte'
 import { EscuchaComprobacion } from './escuchaComprobacion'
@@ -225,6 +226,11 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         : null,
     minutos: eta == null ? undefined : Math.max(1, Math.round(eta / 60))
   }
+
+  const picos = usePicosVoz(
+    id,
+    pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+  )
 
   const pistaInicial = useRef<Pista>(
     carga.resumen.pasos?.separacion.estado === 'completado' && !carga.resumen.danada
@@ -916,6 +922,25 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       />
       {pestana === 'sincronia' && cuentas.total > 0 && (
         <PistaSincronia
+          onda={(vista) => (
+            <PistaOndaVoz
+              cancionId={id}
+              vista={vista}
+              separada={separacion.disponible}
+              {...picos}
+            />
+          )}
+          ondaGeneral={
+            picos.estado.estado === 'lista' && (
+              <LienzoPicosVoz
+                cancionId={id}
+                generacion={picos.estado.generacion}
+                inicioMs={0}
+                finMs={duracionMs}
+                general
+              />
+            )
+          }
           letra={gestoVisible?.resultado?.letra ?? letra}
           seleccion={edicion.seleccion}
           duracionMs={duracionMs}
