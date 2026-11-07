@@ -1,13 +1,13 @@
 # Plan de Shinobi Karaoke 0.2.0-alfa
 
-La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el resaltado de las líneas, después amplía el editor, la biblioteca y el reproductor para eventos y prepara la exportación local de video. El [backlog](backlog.md) contiene el desglose de la primera fase. Las siguientes se desglosan al comenzar.
+La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el resaltado de las líneas, después amplía el editor, la biblioteca y el reproductor para eventos y prepara la exportación local de video. El [backlog](backlog.md) contiene el desglose de las fases 1 y 2. Las siguientes se desglosan al comenzar.
 
 ## Resumen
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| 1 | Fin independiente y barrido por renglón | Implementada · [verificación global pendiente](informe-fase-1.md) |
-| 2 | Regiones editables, bucle, zoom y picos de voz | Pendiente |
+| 1 | Fin independiente y barrido por renglón | Cerrada · [informe](informe-fase-1.md)|
+| 2 | Regiones editables, bucle, zoom y picos de voz | En curso|
 | 3 | Temas y agrupación de biblioteca | Pendiente |
 | 4 | Ventana secundaria y cola | Pendiente |
 | 5 | Degradados, ayudas de espera y Letra lista | Pendiente |
@@ -67,15 +67,17 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Objetivo.** Ajustar tiempos con referencia visual y escucha precisa a cualquier escala.
 
+**Desglose.** [0146–0153](backlog.md#fase-2--línea-de-tiempo). Coordenadas, motor de bucle y generación de picos pueden empezar en paralelo. La integración de Sincronía reúne gestos y motor. La caché y el IPC se integran después con Canvas. El [ADR 0015](../../adr/0015-linea-de-tiempo-y-picos-de-voz.md) define el formato y los contratos.
+
 ### 3. Marcadores y Bloquear enunciado · L
 
 **Decisión final.** Regla para buscar, pista de regiones para seleccionar. Tiradores de inicio y fin de la región activa, campos y teclado I/O/L, Alt + flechas para inicio y Ctrl/Cmd + flechas para fin, con Mayús para pasos de 100 ms. Retirar los botones ±10/100 ms cuando existan controles accesibles equivalentes. El fin automático se distingue en texto y contorno. Se fija al confirmar un ajuste válido. El bucle usa el motor de audio y el intervalo efectivo, traducido por offset y limitado a la pista.
 
 **Discusión.** UX conserva la escucha de comprobación para ajustes puntuales. Arquitectura propone actualizar límites en el motor y reanclar solo si el cabezal sale del intervalo. El arrastre cancelado restaura los valores. Esc fuera del gesto desarma el bucle antes de navegar. [R2 arquitectura](discusion/r2-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
 
-**Aceptación.** Los tiradores anuncian nombre y tiempo y se ajustan con flechas ±10 ms y Mayús ±100 ms. Un arrastre se deshace en un paso, respeta vecinas y conserva avisos de límite sin repetir toasts. «Bloquear enunciado» reproduce desde el inicio y actualiza el bucle durante el ajuste. Cambiar selección o salir del bucle restaura la posición anterior en pausa. Esc durante el arrastre solo cancela ese gesto. Fuera del bucle, «Escuchar al ajustar» actúa una vez al confirmar.
+**Aceptación.** Los tiradores anuncian nombre y tiempo y se ajustan con flechas ±10 ms y Mayús ±100 ms. Un arrastre se deshace en un paso, respeta vecinas y conserva avisos de límite sin repetir toasts. «Bloquear enunciado» reproduce desde el inicio y actualiza el bucle durante el ajuste. Cambiar selección o desactivar el bucle restaura la posición anterior en pausa. Buscar fuera del bucle lo desactiva y lleva al destino. Esc durante el arrastre solo cancela ese gesto. Fuera del bucle y en pausa, «Escuchar al ajustar» actúa una vez al confirmar.
 
-**ADRs y specs.** Revisar 0005 y 0010. [Editor](../../ux/06-editor.md).
+**ADRs y specs.** [0015](../../adr/0015-linea-de-tiempo-y-picos-de-voz.md), 0005 y 0010. [Editor](../../ux/06-editor.md#segunda-fase-de-020--línea-de-tiempo-de-sincronía).
 
 **Riesgo.** Intervalos sin intersección audible, gestos cancelados o cambio de velocidad. No introducir otro reloj.
 
@@ -87,7 +89,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Aceptación.** La posición bajo el puntero se conserva salvo al topar un extremo y el audio sigue sin saltos. Los botones permiten operar sin rueda. Paneo, minimapa y zoom no mueven el cabezal. Sin picos o con error, el usuario puede editar y reintentar su generación. Probar una hora de voz generada, picos acotados por píxeles visibles y perfil de uso de CPU, memoria y disco en equipo modesto documentado.
 
-**ADRs y specs.** ADR nuevo de timeline y picos, revisar 0006, 0008 y 0010. [Editor](../../ux/06-editor.md) y [Sistema visual](../../ux/sistema-visual.md).
+**ADRs y specs.** [0015](../../adr/0015-linea-de-tiempo-y-picos-de-voz.md), con revisiones en 0006, 0008 y 0010. [Editor](../../ux/06-editor.md) y [Sistema visual](../../ux/sistema-visual.md).
 
 **Riesgo.** Caché obsoleta, transferencias grandes y disputa del gesto con el sistema operativo.
 

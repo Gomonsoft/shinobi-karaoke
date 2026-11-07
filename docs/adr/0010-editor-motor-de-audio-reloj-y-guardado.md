@@ -175,3 +175,7 @@ Hay que decidir:
 ## Revisión 0.2.0 · Fin de línea independiente
 
 El panel de sincronía identifica el fin automático y permite fijar el fin con el campo, «Fijar fin aquí» u O. Las tres entradas comparten la operación de edición existente con límites, deshacer, escucha de comprobación y guardado. El editor en reproducción y el reproductor aplican el desplazamiento global a ambos extremos del intervalo. Durante el hueco, la siguiente línea queda en espera sin resaltado. La vista estática del editor sigue mostrando la selección.
+
+## Revisión para 0.2.0 · Regiones y bucle
+
+Los marcadores comparten reglas con los campos. Cada arrastre confirmado aporta un solo paso de historial y guardado, con vista temporal para ajuste en vivo. El bucle del editor usa límites nativos de Web Audio y deriva la posición del reloj de salida. La línea de tiempo transforma coordenadas sin crear otro reloj. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).

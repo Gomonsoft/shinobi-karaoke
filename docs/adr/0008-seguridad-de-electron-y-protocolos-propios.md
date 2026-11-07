@@ -63,3 +63,7 @@ Se mantienen como están: `SHINOBI_DATOS` también en builds empaquetados (útil
 - Electron — Fuses: https://www.electronjs.org/docs/latest/tutorial/fuses
 - Electron — `app.requestSingleInstanceLock`: https://www.electronjs.org/docs/latest/api/app#apprequestsingleinstancelockadditionaldata
 - MDN — CORS y `Vary: Origin`: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+
+## Revisión para 0.2.0 · Lectura de picos
+
+El IPC de picos valida canción y ventana de lectura en main. El renderer recibe estado y porciones binarias acotadas. Se mantiene confinamiento de archivos y validación de remitente, sin exponer rutas ni ampliar el protocolo de medios. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
