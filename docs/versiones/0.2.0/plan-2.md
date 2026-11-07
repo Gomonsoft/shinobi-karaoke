@@ -8,7 +8,8 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 |---|---|---|
 | 1 | Fin independiente y barrido por renglón | Cerrada · [informe](informe-fase-1.md)|
 | 2 | Regiones editables, bucle, zoom y picos de voz | Implementada · [informe](informe-fase-2.md) |
-| 3 | Temas y agrupación de biblioteca | Pendiente |
+| 2.1 | Estabilización del editor y paneles adaptables | Pendiente |
+| 3 | Temas y agrupación de biblioteca | Pendiente · depende de 2.1 |
 | 4 | Ventana secundaria y cola | Pendiente |
 | 5 | Degradados, ayudas de espera y Letra lista | Pendiente |
 | 6 | Exportación de video | Pendiente · prueba técnica |
@@ -16,7 +17,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 ```mermaid
 flowchart LR
   F1["1 · Fin y barrido"] --> F2["2 · Línea de tiempo"]
-  F2 --> F3["3 · Temas y biblioteca"]
+  F2 --> F21["2.1 · Estabilización del editor"] --> F3["3 · Temas y biblioteca"]
   F3 --> F4["4 · Reproductor y cola"]
   F4 --> F5["5 · Degradados, espera y Letra lista"]
   F5 --> F6["6 · Exportación"]
@@ -92,6 +93,16 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 **ADRs y specs.** [0015](../../adr/0015-linea-de-tiempo-y-picos-de-voz.md), con revisiones en 0006, 0008 y 0010. [Editor](../../ux/06-editor.md) y [Sistema visual](../../ux/sistema-visual.md).
 
 **Riesgo.** Caché obsoleta, transferencias grandes y disputa del gesto con el sistema operativo.
+
+## Subfase 2.1 · Estabilización del editor
+
+**Objetivo.** Corregir las regresiones del [reporte de Windows](reporte-editor-fase-2.md) y entregar el layout adaptable antes de comenzar la fase 3.
+
+1. **Desbordamiento horizontal.** Reproducir y confirmar la realimentación entre el tamaño intrínseco de los canvas y su medición. Verificar que la forma de onda y el minimapa conservan un ancho estable sin redimensionar y se ajustan al crecer o encoger la ventana, con DPR 1, 1,25 y 1,5. Cubrir espera, reproducción y resize en Electron.
+2. **Layout y paneles.** UX actualiza primero la spec del editor. Separar cabecera, columnas y dock inferior. Mantener la previa centrada en 16:9 y el scroll dentro de lista y panel. Añadir divisores accesibles con mínimos, doble clic para restablecer y modos minimizados con controles rápidos. Persistir tamaños y estados globalmente. Verificar los tamaños del reporte a escala 100 % y 125 %, con capturas de revisión.
+3. **Seguimiento del cabezal.** La spec vigente indica centrado manual y viewport independiente del audio. El comportamiento reportado coincide con esa decisión. Si se quiere seguimiento automático, abrir una pregunta de producto separada y mantener el criterio actual mientras se decide.
+
+**Flujo.** Desde `develop` con la fase 2 integrada, abrir `fase/0.2.0-2.1-estabilizacion-editor`. UX y arquitectura coordinan la spec y el desglose desde 0154, previa verificación de numeración. Cerrar con informe, CI y PR fusionado a `develop` antes de abrir la rama de fase 3.
 
 ## Fase 3 · Temas y biblioteca
 

@@ -27,11 +27,22 @@ Ver el [plan por fases](plan-2.md), la [hoja de ruta](../../roadmap.md) y el [fl
 
 0146, 0148 y 0150 pueden comenzar en paralelo después de integrar la fase 1. 0147 se apoya en 0146. 0149 es el punto de integración de gestos, reloj y editor. 0151 es la única tarea que modifica contratos IPC compartidos. 0152 puede preparar Canvas y pruebas con un doble una vez acordado ese contrato, y lo integra tras 0149 y 0151. 0153 verifica el conjunto.
 
+## Subfase 2.1 · Estabilización del editor
+
+| Entrega | Estado | Depende de |
+|---|---|---|
+| Ancho estable de forma de onda y minimapa | Pendiente | Fase 2 |
+| Spec de layout adaptable y paneles accesibles | Pendiente | Fase 2 |
+| Layout, divisores, modos minimizados y preferencias | Pendiente | Spec de subfase |
+| Regresión Electron, capturas e informe | Pendiente | Correcciones de ancho y layout |
+
+El [reporte](reporte-editor-fase-2.md) contiene pasos y criterios. Arquitectura numera las tareas desde 0154 al iniciar la subfase. La fase 3 empieza tras integrar el PR de esta subfase en `develop`.
+
 ## Fases siguientes
 
 | Fase | Alcance | Desglose |
 |---|---|---|
-| 3 | Temas y agrupación de biblioteca | Al iniciar la fase, con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) |
+| 3 | Temas y agrupación de biblioteca | Tras cerrar 2.1, con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) |
 | 4 | Ventana secundaria y cola | Al iniciar la fase, con [0048](../../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) |
 | 5 | Degradados, comodines y Letra lista | Al iniciar la fase |
 | 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
