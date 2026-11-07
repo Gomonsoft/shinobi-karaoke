@@ -1,6 +1,6 @@
 # 0150 — Generar picos multinivel en el worker
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: Fase 1 integrada en develop
 - ADRs: [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md)
@@ -28,4 +28,7 @@ Desde `worker/`, `uv run pytest`, `uv run ruff check .` y `uv run ruff format --
 
 ## Notas de implementación
 
-Pendientes.
+- `worker/shinobi_worker/picos.py` decodifica FLAC con PyAV y toma los extremos de todos los canales en PCM de 16 bits. Un bloque base empieza en `floor(i × frecuencia_hz / 100)`. El último bloque conserva las muestras que queden.
+- El nivel base se escribe por tramas y los niveles superiores se agregan por lotes de hasta 4096 pares leídos del mismo temporal. El archivo se crea en modo exclusivo y su cabecera se completa después de escribir todos los niveles. Una interrupción controlada elimina el temporal. Main se encarga de limpiar tras una terminación forzada y de publicar el resultado.
+- `generar-picos --args '{"entrada":"voz.flac","salida":"picos.tmp"}'` emite solo metadatos de resultado: `frecuencia_hz`, `muestras` por canal y `bloques_base`. La fixture compartida con 0151 es `worker/tests/fixtures/picos-v1.bin`.
+- Verificado en Windows con Python 3.12: 332 pruebas pasaron, 1 omitida y 7 excluidas. `ruff check .` y `ruff format --check .` pasaron.
