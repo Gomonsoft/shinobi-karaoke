@@ -184,3 +184,16 @@ Compartidos por la vista previa del editor y el reproductor (la vista previa los
 | Pantalla de título | Antes de la primera línea: título (tamaño actual) y artista (50 %) centrados, en `letra.color`, hasta 4 s antes de la primera línea. En el reproductor, si la primera línea entra antes de 6 s, un silencio previo garantiza ≥ 2 s de título (spec 07 §"Inicio y silencio previo") |
 | Aviso sobre el fondo del estilo | Para mensajes del reproductor que aparecen sobre el fondo de la canción (p. ej. `rep.incompleta`, indicador breve, etiquetas de pista; spec 07): píldora con fondo `rgba(0,0,0,0.6)`, texto `#FFFFFF` de `max(t-cuerpo, 2.2vh)` (indicador breve: `max(20px, 3vh)`), icono en `aviso`, radio completo, padding 0,5 × 1 em. Nunca en la franja central 25 %–75 % mientras se canta |
 | Fin del barrido | En el fin efectivo de la línea (`finEfectivo`, ADR 0005); las pausas no se dibujan |
+
+## 0.2.0 — Línea de tiempo de sincronía
+
+| Elemento | Tratamiento visual |
+|---|---|
+| Regla | Marcas en `borde-control` y etiquetas en `texto-2` con `t-tiempo`. Reducir la densidad de etiquetas cuando no quepan. |
+| Onda de voz | Silueta en `texto-3` sobre `fondo-2`, detrás del cabezal y en una pista separada de las etiquetas de las regiones. |
+| Región | `fondo-3` y borde `borde-control`. Selección con borde `acento-texto` y tiradores visibles. El borde discontinuo distingue el fin automático. Un borde recortado usa un indicador de continuidad. |
+| Tirador | Trazo visible y objetivo de puntero de al menos 24 × 24 px. Escalonar objetivos superpuestos y conservar el anillo de foco estándar. |
+| Cabezal | Línea con remate triangular en la regla, visible por encima de las pistas y distinguible por forma de ambos tiradores. |
+| Vista general | Marco de ventana visible con borde y relleno, acompañado de etiqueta accesible con tiempos visibles. Mantener el marco legible aun cuando ocupa un tramo mínimo. |
+
+Mantener contraste perceptible de estados, límites y foco, también cuando la pista no dispone de onda. Ver [Editor, segunda fase](06-editor.md#segunda-fase-de-020--línea-de-tiempo-de-sincronía).

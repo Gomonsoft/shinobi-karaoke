@@ -238,3 +238,7 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
 - Local Font Access API: https://developer.mozilla.org/en-US/docs/Web/API/Local_Font_Access_API
 - CSS `linear-gradient` y `background-clip: text`: https://developer.mozilla.org/en-US/docs/Web/CSS/gradient/linear-gradient , https://developer.mozilla.org/en-US/docs/Web/CSS/background-clip
 - SIL Open Font License: https://openfontlicense.org/
+
+## Revisión para 0.2.0 · Picos de voz
+
+La carpeta de canción admite una caché regenerable junto a la pista vocal. Main la invalida al cambiar la pista y publica solo un resultado completo. El worker escribe un temporal autorizado. La caché no se incluye en el esquema de `cancion.json`, no cambia el estado del pipeline y puede omitirse de copias de seguridad. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).

@@ -3,11 +3,139 @@ import { letra, linea, pausa } from '@shared/__fixtures__'
 import { estiloPredeterminado } from '@shared/estilo'
 import {
   estadoInicial,
+  gestoMarcadorVigente,
+  iniciarGestoMarcador,
+  moverGestoMarcador,
   puedeDeshacer,
   puedeRehacer,
   reducirEditor,
   ultimaMarcaDeSesion
 } from './estado'
+
+describe('gesto de marcadores', () => {
+  const duracionMs = 10_000
+
+  function estadoParaGesto(offset_ms = 0) {
+    const conPalabras = {
+      ...linea('1', 'Dos palabras', 1000),
+      palabras: [
+        { texto: 'Dos', inicio_ms: 1000, fin_ms: 1400 },
+        { texto: 'palabras', inicio_ms: 1400, fin_ms: 1800 }
+      ]
+    }
+    return estadoInicial(
+      {
+        letra: {
+          ...letra([conPalabras, { ...pausa('p'), inicio_ms: 2200 }, linea('2', 'Sigue', 3000)]),
+          offset_ms
+        },
+        estilo: estiloPredeterminado()
+      },
+      '1'
+    )
+  }
+
+  it.each([-200, 200])('previsualiza desde la misma base con offset %i', (offset) => {
+    const e = estadoParaGesto(offset)
+    const original = iniciarGestoMarcador(e, 'inicio', duracionMs)!
+    const primera = moverGestoMarcador(original, 1500 + offset)
+    const segunda = moverGestoMarcador(primera, 1200 + offset)
+    expect(primera.resultado?.letra.lineas[0]?.inicio_ms).toBe(1500)
+    expect(segunda.resultado?.letra.lineas[0]).toMatchObject({
+      inicio_ms: 1200,
+      palabras: [
+        { inicio_ms: 1200, fin_ms: 1600 },
+        { inicio_ms: 1600, fin_ms: 2000 }
+      ]
+    })
+    expect(e.actual.letra.lineas[0]?.inicio_ms).toBe(1000)
+    expect(e.version).toBe(0)
+    expect(e.pasado).toHaveLength(0)
+
+    const confirmada = reducirEditor(e, { tipo: 'confirmar_marcador', gesto: segunda, ahora: 0 })
+    expect(confirmada.actual.letra).toBe(segunda.resultado?.letra)
+    expect(confirmada.version).toBe(1)
+    expect(confirmada.pasado).toHaveLength(1)
+    expect(reducirEditor(confirmada, { tipo: 'deshacer' }).actual.letra).toBe(e.actual.letra)
+  })
+
+  it('mantiene el último límite legal junto a la pausa y consolida las consecuencias', () => {
+    const e = estadoParaGesto()
+    const original = iniciarGestoMarcador(e, 'inicio', duracionMs)!
+    const provisional = moverGestoMarcador(moverGestoMarcador(original, 2400), 2700)
+    const limite = { tipo: 'inicio_siguiente', vecino: 'pausa' }
+    expect(provisional.resultado).toMatchObject({ limite, palabrasDescartadas: ['1'] })
+    expect(provisional.resultado?.letra.lineas[0]).toMatchObject({
+      inicio_ms: 2199,
+      palabras: null
+    })
+    const confirmada = reducirEditor(e, {
+      tipo: 'confirmar_marcador',
+      gesto: provisional,
+      ahora: 1
+    })
+    expect(confirmada.aviso).toMatchObject({
+      tipo: 'consecuencias',
+      id: '1',
+      limite,
+      palabrasDescartadas: ['1'],
+      n: 1
+    })
+    expect(
+      reducirEditor(confirmada, { tipo: 'confirmar_marcador', gesto: provisional, ahora: 2 })
+    ).toBe(confirmada)
+    expect(reducirEditor(confirmada, { tipo: 'deshacer' }).actual.letra).toBe(e.actual.letra)
+  })
+
+  it('conserva el fin automático al volver al origen y lo restaura al deshacer', () => {
+    const e = estadoParaGesto()
+    const original = iniciarGestoMarcador(e, 'fin', duracionMs)!
+    const provisional = moverGestoMarcador(original, 2100)
+    const vuelta = moverGestoMarcador(provisional, original.tiempoOriginalMs)
+    expect(reducirEditor(e, { tipo: 'confirmar_marcador', gesto: original, ahora: 0 })).toBe(e)
+    expect(reducirEditor(e, { tipo: 'confirmar_marcador', gesto: vuelta, ahora: 1 })).toBe(e)
+    const confirmada = reducirEditor(e, {
+      tipo: 'confirmar_marcador',
+      gesto: provisional,
+      ahora: 2
+    })
+    expect(confirmada.actual.letra.lineas[0]?.fin_ms).toBe(2100)
+    expect(confirmada.pasado).toHaveLength(1)
+    expect(
+      reducirEditor(confirmada, { tipo: 'deshacer' }).actual.letra.lineas[0]?.fin_ms
+    ).toBeNull()
+  })
+
+  it('avisa sin fijar un fin automático que ya coincide con el límite', () => {
+    const e = estadoParaGesto()
+    e.actual.letra.lineas[0]!.palabras = null
+    const original = iniciarGestoMarcador(e, 'fin', duracionMs)!
+    const gesto = moverGestoMarcador(original, 4000)
+    const confirmada = reducirEditor(e, { tipo: 'confirmar_marcador', gesto, ahora: 0 })
+    expect(confirmada.actual).toBe(e.actual)
+    expect(confirmada.version).toBe(0)
+    expect(confirmada.pasado).toHaveLength(0)
+    expect(confirmada.aviso).toMatchObject({ tipo: 'limite', limite: { tipo: 'fin_siguiente' } })
+  })
+
+  it('rechaza confirmaciones con selección, revisión o letra base obsoletas', () => {
+    const e = estadoParaGesto()
+    const gesto = moverGestoMarcador(iniciarGestoMarcador(e, 'fin', duracionMs)!, 2100)
+    const externa = estadoParaGesto()
+    expect(gestoMarcadorVigente(e, gesto)).toBe(true)
+    for (const invalida of [
+      reducirEditor(e, { tipo: 'seleccionar', id: '2' }),
+      reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 0 }),
+      reducirEditor(e, { tipo: 'entrar_sync', desdeId: '1' }),
+      reducirEditor(e, { tipo: 'cargar', instantanea: externa.actual, seleccion: '1' })
+    ]) {
+      expect(gestoMarcadorVigente(invalida, gesto)).toBe(false)
+      expect(reducirEditor(invalida, { tipo: 'confirmar_marcador', gesto, ahora: 1 })).toBe(
+        invalida
+      )
+    }
+  })
+})
 
 function editor() {
   return estadoInicial(

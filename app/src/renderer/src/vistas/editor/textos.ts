@@ -1,5 +1,24 @@
 /** Microcopy de ux/06. */
 export const E = {
+  timeline: {
+    titulo: 'Línea de tiempo',
+    regla: 'Posición en la línea de tiempo',
+    inicio: 'Inicio de la línea',
+    fin: 'Fin de la línea',
+    finAuto: 'Fin de la línea (automático)',
+    bucle: 'Bloquear enunciado',
+    sinInicio: 'Fija primero el inicio de la línea.',
+    fuera: 'Esta línea queda fuera del audio.',
+    escuchaOcupada: 'Disponible al salir del bucle.',
+    mas: 'Acercar',
+    menos: 'Alejar',
+    linea: 'Zoom a la línea',
+    zoomSinInicio: 'Fija el inicio para acercar esta línea.',
+    todo: 'Ver canción completa',
+    cabezal: 'Centrar en el cabezal',
+    general: 'Vista general',
+    intervalo: (inicio: string, fin: string) => `De ${inicio} a ${fin} visibles`
+  },
   lineas: 'Líneas',
   contador: (a: number, b: number) => `${a}/${b} sincronizadas`,
   pausa: '♪ pausa',

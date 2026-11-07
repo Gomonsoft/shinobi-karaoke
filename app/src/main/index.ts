@@ -66,6 +66,7 @@ import {
 } from './runtime'
 import { configurarWorker, ejecutar, GestorTrabajos } from './trabajos'
 import { crearPuertoModelos, entornoSeparadorFalso, ServicioSeparacion } from './separacion'
+import { ServicioPicos } from './picos/servicio'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
 
@@ -86,6 +87,7 @@ export let runtime: RuntimeReal | null = null
 
 /** Servicio de separación (0065): cola pesada, pistas y factor medido. */
 export let servicioSeparacion: ServicioSeparacion | null = null
+let servicioPicos: ServicioPicos | null = null
 let busquedaLetras: BusquedaLetras | null = null
 
 /** Avisos del sistema al terminar o fallar un trabajo (0072). */
@@ -322,6 +324,11 @@ if (instanciaUnica)
           : {}),
         dirRegistros: join(rutaDatos(), 'registros')
       })
+      servicioPicos = new ServicioPicos({
+        dirBiblioteca: join(rutaDatos(), 'biblioteca'),
+        tieneVoz: (id) => servicioBiblioteca?.tieneVozSeparada(id) ?? false,
+        ejecutar
+      })
       // Cerrojo lectores/escritor de yt-dlp (0050): `info-youtube` y `descargar-youtube` leen.
       const cerrojo = new CerrojoLecturaEscritura()
       const dirRuntime = join(rutaDatos(), 'runtime')
@@ -435,6 +442,7 @@ if (instanciaUnica)
     if (servicioConfig && servicioBiblioteca && gestorTrabajos && runtime) {
       const rt = runtime
       servicioSeparacion = new ServicioSeparacion({
+        publicarPistas: (id, publicar) => servicioPicos?.duranteCambio(id, publicar) ?? publicar(),
         biblioteca: servicioBiblioteca,
         gestor: gestorTrabajos,
         config: servicioConfig,
@@ -569,6 +577,7 @@ if (instanciaUnica)
           },
           salir: () => app.quit(),
           trabajos: gestorTrabajos,
+          ...(servicioPicos ? { picos: servicioPicos } : {}),
           ...(servicioSeparacion ? { separacion: servicioSeparacion } : {}),
           fuente: importacionArchivo,
           // 0083: guardar, editar e importar. La búsqueda (buscar) es de 0082.
@@ -666,6 +675,7 @@ app.on('before-quit', (evento) => {
   // Primero se cancelan los trabajos (sin procesos hijos vivos, 0014) y luego se vuelca todo.
   const cierre = Promise.allSettled([
     gestorTrabajos?.cancelarTodos(),
+    servicioPicos?.cerrar(),
     // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).
     runtime?.servicio.cerrar(),
     importacionArchivo?.cerrar(),

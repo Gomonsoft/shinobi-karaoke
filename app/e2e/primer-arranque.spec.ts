@@ -81,13 +81,14 @@ const leerConfig = (datos: string): ReturnType<typeof configPredeterminada> =>
 
 const BIENVENIDA = 'Hola. Vamos a preparar tu estudio de karaoke.'
 
-/** Artefactos de un runtime ya instalado (Linux x64, perfil cpu, modelo Calidad diminuto). */
+/** Artefactos del perfil simulado Linux x64 con la ruta de Python del equipo que ejecuta la prueba. */
 function instalarRuntimeEnDisco(datos: string, conModelo: boolean): void {
   const req = requisitosDe(manifiesto, 'linux-x64', 'cpu')
   if (!req) throw new Error('manifiesto sin linux-x64/cpu')
   const runtime = join(datos, 'runtime')
-  mkdirSync(join(runtime, 'venv', 'bin'), { recursive: true })
-  writeFileSync(join(runtime, 'venv', 'bin', 'python'), '')
+  const dirBin = join(runtime, 'venv', process.platform === 'win32' ? 'Scripts' : 'bin')
+  mkdirSync(dirBin, { recursive: true })
+  writeFileSync(join(dirBin, process.platform === 'win32' ? 'python.exe' : 'python'), '')
   writeFileSync(
     join(runtime, 'instalado.json'),
     JSON.stringify({

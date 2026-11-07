@@ -562,3 +562,71 @@ La alfa amplía el editor del MVP con marcadores de inicio y fin arrastrables, z
 - En reproducción, la vista previa muestra la línea siguiente en espera durante el hueco. Debe coincidir con el reproductor en los instantes límite y con desplazamiento distinto de cero. El modo estático de edición conserva su comportamiento.
 - Si el texto ocupa varios renglones, la vista previa llena cada renglón por orden de lectura y reparte el avance según sus anchos visibles. Comparte los criterios de redimensionamiento y tiempos de palabra de la [spec del reproductor](07-reproductor.md#primera-fase-de-020--fin-de-línea-y-barrido).
 - Al abrir y reproducir una canción de 0.1.0, los tiempos efectivos y los huecos coinciden con los originales hasta que se editen sus marcas.
+
+### Segunda fase de 0.2.0 — Línea de tiempo de sincronía
+
+La línea de tiempo vive en Sincronía, debajo del transporte. El transporte conserva su barra de posición para buscar en toda la canción. La nueva regla muestra la escala visible y permite buscar dentro de ella. En el ancho reducido del editor, la zona de sincronía admite desplazamiento vertical y los controles se ajustan en varias filas. El documento mantiene sus secciones del MVP como referencia. Para esta fase se aplican las reglas siguientes.
+
+#### Disposición e interacción
+
+```text
+Línea de tiempo   [−] [+] [Zoom a la línea] [Ver canción completa] [Centrar en el cabezal]
+Regla             00:12         00:14         00:16         00:18
+Voz                  ▂▅▇▅▃▂▁                  ▂▃▇▅▃▂
+Líneas              [ Inicio │ verso seleccionado │ Fin ]    [ verso siguiente ··· ]
+Vista general   ├───────────────[ intervalo visible ]──────────────────────────┤
+```
+
+- Regla, onda, regiones y cabezal comparten eje de audio. Los bordes representan los tiempos de letra con el desplazamiento aplicado. La pista recorta la representación a la duración audible. Un borde recortado se distingue de un tirador y puede seguir ajustándose por el campo del panel. Las marcas de pausa con tiempo se muestran como referencias sin selección propia.
+- Clic en la regla busca al instante indicado. Clic en una región selecciona su línea y sincroniza panel y lista sin buscar. La lista sigue siendo la ruta de teclado para elegir cualquier línea, incluso las que carecen de inicio o quedan fuera de vista. Mostrar texto truncado si la región es estrecha y conservar el nombre completo al enfocarla o apuntarla.
+- Solo la región seleccionada muestra los tiradores visibles «Inicio de la línea» y «Fin de la línea». El fin automático se distingue mediante contorno discontinuo y nombre accesible «Fin de la línea (automático)». Cuando los extremos casi coinciden, los objetivos de puntero se separan verticalmente o se escalonan. Los campos Inicio y Fin siguen disponibles como alternativa.
+- Un arrastre captura el puntero, muestra el tiempo provisional y mantiene el último valor válido. Reutiliza límites, desplazamiento de tiempos importados y avisos del panel de Sincronía. Al soltar tras un cambio válido, guardar una sola edición, crear un paso de deshacer y mostrar los avisos correspondientes una sola vez. Un clic o un arrastre sin cambio conserva el fin automático. Un cambio válido del tirador de fin fija ese tiempo. Esc, pérdida de captura, cambio de selección o actualización externa cancelan el gesto y restauran sus valores previos sin crear un paso.
+- Tab alcanza cada tirador disponible. Cada uno anuncia nombre, tiempo y límites como deslizador. Flechas izquierda/derecha ajustan ±10 ms, con Mayús ±100 ms. Conservar los atajos de Inicio y Fin de la tabla del editor, I/O/L y sus campos. Se retiran los botones ±0,01 y ±0,1 de ambos extremos cuando funcionen las alternativas accesibles. Los controles de desplazamiento global permanecen.
+- Los mensajes de límite se muestran junto al control y se anuncian al entrar en el límite, sin repetirlos en cada movimiento. El cabezal, los picos y los valores transitorios de arrastre carecen de anuncios continuos. Las acciones que mueven la vista conservan el foco y no cambian la línea elegida.
+
+#### Bloquear enunciado
+
+- En el panel C, junto a «Escuchar al ajustar», añadir «Bloquear enunciado». Al marcar, guardar la posición anterior e iniciar un bucle desde el inicio audible de la línea seleccionada, con pista y velocidad actuales. Si falta inicio o el intervalo no intersecta la pista, mostrar el motivo junto a la casilla y mantenerla inactiva. La línea y los límites actualizados durante el arrastre se reflejan en el bucle. Si un ajuste deja el cabezal fuera de un intervalo aún válido, vuelve a su inicio audible. Si durante el arrastre el intervalo provisional deja de ser audible, pausar temporalmente y mantener el bucle armado. Si vuelve a ser audible o se cancela el gesto, restaurar la reproducción previa al tramo inaudible, incluido su estado de pausa, con los límites que correspondan. Si se confirma un intervalo inaudible, terminar el bucle, restaurar la posición previa en pausa y explicar el motivo.
+- Espacio pausa o reanuda el bucle salvo cuando el control enfocado consume la tecla. Buscar dentro de la línea conserva el bucle. Buscar fuera lo desactiva y respeta el destino solicitado. Desmarcar la casilla, cambiar de línea o pulsar Esc fuera del gesto termina el bucle y restaura la posición previa en pausa. Esc primero cierra el diálogo o popover enfocado, restaura el campo si está editándose o cancela el arrastre. Solo después puede terminar el bucle o salir del editor.
+- El modo al ritmo y «Probar a pantalla completa» usan su propio flujo de reproducción. Al iniciarlos, terminar el bucle antes de cambiar de modo. «Escuchar al ajustar» conserva su valor durante el bucle y muestra «Disponible al salir del bucle». Fuera del bucle y con reproducción en pausa, se aplica la escucha de comprobación una sola vez al confirmar el arrastre, con los fragmentos y restauración del MVP.
+
+#### Zoom, vista general y picos de voz
+
+- Ctrl/Cmd + rueda sobre el eje local acerca o aleja con ancla en el instante bajo el puntero, salvo al topar con un extremo. «Acercar» y «Alejar» ofrecen el mismo cambio de escala con teclado. «Zoom a la línea» encaja la porción audible de la selección con margen. «Ver canción completa» muestra toda la duración. «Centrar en el cabezal» mantiene la escala y desplaza la vista hasta el instante actual.
+- El desplazamiento horizontal de la rueda o del trackpad y Mayús + rueda desplazan la ventana. El rectángulo de «Vista general» representa el intervalo visible. Arrastrarlo o usar flechas con su foco desplaza a escala constante. El control anuncia los tiempos inicial y final visibles. La vista general conserva regla y regiones aun sin forma de onda. El cabezal sigue el audio sin seguimiento automático de la ventana. Zoom, paneo y redimensionamiento conservan posición de audio, selección e historial.
+- «Forma de onda de la voz» muestra siempre los picos de la pista separada, aunque se escuche Original o Instrumental. Con separación pendiente, explicar la disponibilidad. Tras separar, mostrar «Preparando forma de onda…» mientras se calculan los picos. Si falla, «Forma de onda no disponible» con «Reintentar» cuando haya pista de voz y sea recuperable. El reintento genera solo la forma de onda. Regla, regiones, marcadores y zoom siguen disponibles en estos estados. La onda y su equivalente en la vista general son decorativos para tecnologías de asistencia. La resolución de picos se adapta al zoom sin cambiar el reloj del audio.
+
+#### Microcopy añadido
+
+| Identificador | Texto |
+|---|---|
+| `edi.timeline.titulo` | Línea de tiempo |
+| `edi.timeline.regla` | Posición en la línea de tiempo |
+| `edi.timeline.inicio` | Inicio de la línea |
+| `edi.timeline.fin` | Fin de la línea |
+| `edi.timeline.fin.auto` | Fin de la línea (automático) |
+| `edi.timeline.bucle` | Bloquear enunciado |
+| `edi.timeline.bucle.sinInicio` | Fija primero el inicio de la línea. |
+| `edi.timeline.bucle.fuera` | Esta línea queda fuera del audio. |
+| `edi.timeline.escucha.ocupada` | Disponible al salir del bucle. |
+| `edi.timeline.zoom.mas` | Acercar |
+| `edi.timeline.zoom.menos` | Alejar |
+| `edi.timeline.zoom.linea` | Zoom a la línea |
+| `edi.timeline.zoom.sinInicio` | Fija el inicio para acercar esta línea. |
+| `edi.timeline.zoom.todo` | Ver canción completa |
+| `edi.timeline.zoom.cabezal` | Centrar en el cabezal |
+| `edi.timeline.vistaGeneral` | Vista general |
+| `edi.timeline.vistaGeneral.intervalo` | De {inicio} a {fin} visibles |
+| `edi.timeline.voz` | Forma de onda de la voz |
+| `edi.timeline.voz.pendiente` | Disponible cuando termine la separación. |
+| `edi.timeline.voz.generando` | Preparando forma de onda… |
+| `edi.timeline.voz.error` | Forma de onda no disponible. |
+| `edi.timeline.voz.reintentar` | Reintentar |
+
+#### Criterios de aceptación de fase 2
+
+1. A 1024 × 640 y con zoom de interfaz al 150 %, se puede alcanzar el transporte, la línea de tiempo y el panel. Los dos tiradores son alcanzables con teclado y distinguibles al coincidir visualmente. La regla busca y las regiones seleccionan sin alterar el cabezal.
+2. Ajustar ambos extremos con ratón, campos y teclado respeta las vecinas, pausas y offset. Probar borde fuera de pista, fin automático sin cambio y un arrastre cancelado. Un arrastre confirmado crea una edición deshacible y, cuando proceda, un único aviso por consecuencia.
+3. Activar el bucle reproduce desde el inicio audible. Probar pausa, cambio de límites mientras suena, cabezal fuera del nuevo intervalo, intento con intervalo inaudible y salida por Esc, cambio de selección y búsqueda externa. Probar un arrastre que vuelve provisionalmente inaudible la región. Al cancelar, el bucle conserva los límites y el estado de reproducción anteriores. Al confirmar un intervalo inaudible, se desactiva y vuelve a la posición previa en pausa. Confirmar que la escucha de comprobación opera una sola vez por ajuste fuera del bucle.
+4. El zoom conserva el tiempo bajo el puntero hasta topar con un extremo. Zoom a la línea, ver todo, centrar, paneo y rectángulo de vista general funcionan con teclado sin mover el cabezal. Al redimensionar mientras suena, la onda y regiones siguen alineadas con el eje.
+5. Probar separación pendiente, generación, fallo y reintento de picos. Cambiar la pista de escucha no cambia la procedencia de la onda. Con una pista larga de prueba, interactuar con zoom y marcadores mientras suena y comprobar que conserva posición y que se redibuja la porción visible según el nivel de detalle.

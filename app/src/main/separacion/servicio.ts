@@ -87,6 +87,8 @@ export interface DependenciasServicioSeparacion {
   alCambiarOferta?(): void
   /** Un proceso de separación detectó que faltan componentes del motor. */
   alMotorIncompleto?(): void
+  /** Coordina la publicación de pistas con los datos derivados de voz. */
+  publicarPistas?(id: string, publicar: () => Promise<void>): Promise<void>
 }
 
 const MEMORIA = new Set(['MEMORIA_INSUFICIENTE', 'PROCESO_TERMINADO'])
@@ -362,9 +364,12 @@ export class ServicioSeparacion {
         if (!r.success)
           throw new ErrorSeparacion('ERROR_INTERNO', 'Resultado de separar no válido.')
         const pistasDir = join(carpeta, 'pistas')
-        await mkdir(pistasDir, { recursive: true })
-        await rename(join(tmp, r.data.voz), join(pistasDir, r.data.voz))
-        await rename(join(tmp, r.data.instrumental), join(pistasDir, r.data.instrumental))
+        const publicar = async (): Promise<void> => {
+          await mkdir(pistasDir, { recursive: true })
+          await rename(join(tmp, r.data.voz), join(pistasDir, r.data.voz))
+          await rename(join(tmp, r.data.instrumental), join(pistasDir, r.data.instrumental))
+        }
+        await (this.deps.publicarPistas?.(cancionId, publicar) ?? publicar())
         await rm(tmp, { recursive: true, force: true })
         await this.guardarFactor(cancionId, r.data, modoInicial, dispositivoInicial)
         const cambio: CambioCancion = {

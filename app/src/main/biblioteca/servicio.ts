@@ -158,6 +158,15 @@ export class ServicioBiblioteca {
     return c ? structuredClone(c) : null
   }
 
+  /** La caché revalida el archivo en disco sin copiar la letra en cada lectura. */
+  tieneVozSeparada(id: string): boolean {
+    const cancion = this.indice.get(id)?.cancion
+    if (!cancion) return false
+    return cancion.pistas
+      ? cancion.pistas.voz === PISTAS_POR_DEFECTO[0]
+      : cancion.pasos.separacion.estado === 'completado'
+  }
+
   comprobarPistas(id: string): Promise<ResumenCancion | null> {
     return this.enSerie(id, async () => {
       const anterior = this.indice.get(id)

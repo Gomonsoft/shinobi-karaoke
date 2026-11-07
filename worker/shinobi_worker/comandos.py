@@ -98,6 +98,12 @@ def separar(args: dict[str, Any]) -> None:
     comando(args)
 
 
+def generar_picos(args: dict[str, Any]) -> None:
+    from .picos import generar_picos as comando
+
+    comando(args)
+
+
 COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "version": version,
     "demo": demo,
@@ -106,4 +112,5 @@ COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "info-youtube": info_youtube,
     "descargar-youtube": descargar_youtube,
     "separar": separar,
+    "generar-picos": generar_picos,
 }

@@ -9,3 +9,5 @@ Las tareas 0143–0145 del [backlog](backlog.md) están implementadas. El editor
 - Vitest global en Windows. 1866 pruebas correctas, 13 omitidas y 10 fallos en suites de main ajenas a los cambios. Ocho fallos corresponden a permisos para crear enlaces simbólicos y dos a comprobaciones de procesos del worker al cancelar. La regresión de redimensión se verificó después con las 61 pruebas dirigidas de karaoke y Playwright.
 
 Queda pendiente confirmar la suite global en CI antes de cerrar la fase.
+
+Cierre: los seis trabajos de [CI del PR 4](https://github.com/Gomonsoft/shinobi-karaoke/actions/runs/42357755011) pasaron. El PR quedó integrado en develop.
