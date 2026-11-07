@@ -15,6 +15,7 @@ import {
   type Limite,
   type ResultadoTiempos
 } from '@shared/letras/tiempos'
+import { tiempoAudioALetra } from './lineaTiempo'
 
 export interface Instantanea {
   letra: Letra
@@ -51,6 +52,17 @@ export interface EstadoEditor {
   cambiosEnVisita: boolean
 }
 
+export interface GestoMarcador {
+  id: string
+  borde: 'inicio' | 'fin'
+  letraBase: Letra
+  version: number
+  sesionSync: number
+  tiempoOriginalMs: number
+  duracionMs: number
+  resultado: ResultadoTiempos | null
+}
+
 export type AccionEditor =
   | { tipo: 'cargar'; instantanea: Instantanea; seleccion: string | null }
   | { tipo: 'seleccionar'; id: string | null }
@@ -59,6 +71,7 @@ export type AccionEditor =
   | { tipo: 'ajustar_fin'; deltaMs: number; duracionMs: number; ahora: number }
   | { tipo: 'fijar_inicio'; ms: number; ahora: number }
   | { tipo: 'fijar_fin'; ms: number; duracionMs: number; ahora: number }
+  | { tipo: 'confirmar_marcador'; gesto: GestoMarcador; ahora: number }
   | { tipo: 'fin_automatico'; ahora: number }
   | { tipo: 'borrar_tiempos'; ahora: number }
   | { tipo: 'desplazar'; deltaMs: number; ahora: number; grupo?: string }
@@ -156,6 +169,60 @@ function esLinea(letra: Letra, id: string | null): id is string {
   return id !== null && letra.lineas.some((l) => l.id === id && l.tipo === 'linea')
 }
 
+export function iniciarGestoMarcador(
+  e: EstadoEditor,
+  borde: GestoMarcador['borde'],
+  duracionMs: number
+): GestoMarcador | null {
+  const letraBase = e.actual.letra
+  const linea = letraBase.lineas.find((l) => l.id === e.seleccion && l.tipo === 'linea')
+  if (e.sync.activo || !linea || linea.inicio_ms === null) return null
+  const tiempoOriginalMs =
+    borde === 'inicio' ? linea.inicio_ms : finEfectivo(letraBase, linea.id, duracionMs)
+  if (tiempoOriginalMs === null) return null
+  return {
+    id: linea.id,
+    borde,
+    letraBase,
+    version: e.version,
+    sesionSync: e.sync.sesion,
+    tiempoOriginalMs,
+    duracionMs,
+    resultado: null
+  }
+}
+
+export function gestoMarcadorVigente(e: EstadoEditor, gesto: GestoMarcador): boolean {
+  return (
+    !e.sync.activo &&
+    e.sync.sesion === gesto.sesionSync &&
+    e.seleccion === gesto.id &&
+    e.version === gesto.version &&
+    e.actual.letra === gesto.letraBase
+  )
+}
+
+export function moverGestoMarcador(gesto: GestoMarcador, msAudio: number): GestoMarcador {
+  if (!Number.isFinite(msAudio)) return gesto
+  const { letraBase, tiempoOriginalMs, borde, id, duracionMs } = gesto
+  const delta = Math.round(tiempoAudioALetra(msAudio, letraBase.offset_ms)) - tiempoOriginalMs
+  if (delta === 0) return { ...gesto, resultado: null }
+
+  const resultado =
+    borde === 'inicio'
+      ? ajustarInicio(letraBase, id, delta)
+      : ajustarFin(letraBase, id, delta, duracionMs)
+  if (
+    borde === 'fin' &&
+    resultado.limite &&
+    resultado.letra.lineas.find((l) => l.id === id)?.fin_ms === tiempoOriginalMs
+  ) {
+    // Si el fin automático ya estaba en el límite, el borde no se movió.
+    return { ...gesto, resultado: { ...resultado, letra: letraBase, cambiado: false } }
+  }
+  return { ...gesto, resultado }
+}
+
 export function ultimaMarcaDeSesion(e: EstadoEditor): { id: string; ms: number } | null {
   const ultima = e.pasado.at(-1)
   if (!e.sync.activo || !ultima?.marcaId || ultima.sesionSync !== e.sync.sesion) return null
@@ -217,6 +284,15 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
             e,
             fijarFin(letra, id, a.ms, a.duracionMs),
             unica(`fijar-fin:${id}`),
+            a.ahora
+          )
+        : e
+    case 'confirmar_marcador':
+      return a.gesto.resultado && gestoMarcadorVigente(e, a.gesto)
+        ? cambiarTiempos(
+            e,
+            a.gesto.resultado,
+            unica(`marcador:${a.gesto.borde}:${a.gesto.id}`),
             a.ahora
           )
         : e

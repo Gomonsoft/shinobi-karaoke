@@ -1,6 +1,6 @@
 # 0147 — Gesto de marcadores y confirmación
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0146](0146-coordenadas-y-viewport-de-la-linea-de-tiempo.md), [0143](0143-fin-de-linea-independiente.md)
 - ADRs: [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md)
@@ -17,11 +17,11 @@ Trabajar en la lógica de edición del renderer, `estado.ts` y pruebas, con las 
 
 ## Criterios de aceptación
 
-- [ ] Probar conversión inversa con offset y reutilización de límites de vecinas, pausas y palabras.
-- [ ] Un fin automático se fija al confirmar un cambio válido, sin fijarse tras clic o gesto sin cambio.
-- [ ] Si el puntero supera un límite, retener el último valor válido y producir aviso consolidado.
-- [ ] Confirmar deja un paso de deshacer y un único cambio persistible. Cancelar, cambio externo o pérdida de captura no confirma nada ni ensucia el historial.
-- [ ] Un paso de deshacer restaura también la condición automática y cualquier desplazamiento de palabras gestionado por el dominio.
+- [x] Probar conversión inversa con offset y reutilización de límites de vecinas, pausas y palabras.
+- [x] Un fin automático se fija al confirmar un cambio válido, sin fijarse tras clic o gesto sin cambio.
+- [x] Si el puntero supera un límite, retener el último valor válido y producir aviso consolidado.
+- [x] Confirmar deja un paso de deshacer y un único cambio persistible. Cancelar, cambio externo o pérdida de captura no confirma nada ni ensucia el historial.
+- [x] Un paso de deshacer restaura también la condición automática y cualquier desplazamiento de palabras gestionado por el dominio.
 
 ## Verificación
 
@@ -29,4 +29,6 @@ Desde `app/`, `npm test -- src/shared/letras src/shared/letra.test.ts src/render
 
 ## Notas de implementación
 
-Pendientes.
+- `estado.ts` expone la sesión de marcador con línea, borde, base y revisión. Cada movimiento invierte el desplazamiento y proyecta el ajuste con las operaciones de dominio, conservando sus límites y consecuencias. La previsualización queda en la sesión, separada del historial y del guardado.
+- `confirmar_marcador` aplica la sesión vigente como un paso de deshacer. Regresar al valor original conserva el fin automático, incluso al topar con un límite que coincide con ese valor. Al cancelar, la integración descarta la sesión.
+- Pasaron 195 pruebas en la segunda ejecución de la selección, TypeScript y ESLint dirigido. La primera ejecución falló en una comprobación de foco del diálogo de prueba de `Editor.test.tsx` que pasó al repetir. La conexión de captura, cancelación y escucha corresponde a 0149.
