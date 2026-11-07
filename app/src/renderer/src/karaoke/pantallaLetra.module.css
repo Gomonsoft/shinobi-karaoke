@@ -47,7 +47,8 @@
   position: absolute;
   inset: 0;
   color: var(--k-resaltado);
-  clip-path: inset(-0.15em calc(100% - var(--progreso, 0%)) -0.15em -0.15em);
+  pointer-events: none;
+  clip-path: inset(100%);
 }
 
 .titulo,

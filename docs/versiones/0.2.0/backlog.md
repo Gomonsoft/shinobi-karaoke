@@ -7,7 +7,7 @@ Ver el [plan por fases](plan-2.md), la [hoja de ruta](../../roadmap.md) y el [fl
 | Tarea | Estado | Depende de | Entrega |
 |---|---|---|---|
 | [0143 · Fin de línea independiente](../../tareas/0143-fin-de-linea-independiente.md) | Hecha | 0091, 0092 | Estado de fin, edición existente y huecos comprobados |
-| [0144 · Barrido por renglón visual](../../tareas/0144-barrido-por-renglon-visual.md) | Pendiente | 0112 | Geometría real y reparto de progreso |
+| [0144 · Barrido por renglón visual](../../tareas/0144-barrido-por-renglon-visual.md) | Hecha | 0112 | Geometría real y reparto de progreso |
 | [0145 · Verificar fin y barrido en Electron](../../tareas/0145-verificar-fin-y-barrido-en-electron.md) | Pendiente | 0143, 0144, 0123 | Regresiones E2E sin red |
 
 0143 y 0144 pueden avanzar en paralelo. La primera trabaja controles de sincronía y modelo de fotograma. La segunda trabaja geometría y pintura de `PantallaLetra`. 0145 integra escenarios en Electron.
