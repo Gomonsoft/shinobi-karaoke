@@ -177,20 +177,20 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 - **README e `INSTALAR.md`** en el estado "sin versión" (`ux/09`): **sin enlaces de descarga**.
 - **Prueba manual** P1–P16, Gatekeeper, SmartScreen y primer arranque real, con capturas: lo que ningún runner puede hacer.
 - **Modelo Rápido**: se puede publicar porque no se descarga sin el consentimiento explícito del usuario, que acepta el aviso de licencia no declarada (pregunta 0018; sustituye a la condición anterior de la pregunta 0012). Tarea 0134: lo comprueba ruta por ruta. Si UVR responde con una licencia incompatible, se retira la oferta. El issue a UVR sigue siendo recomendable.
-- **Antes de publicar** (tarea 0142, fuera de esta fase hasta que decidas): repositorio público, mediciones pendientes (bytes de descarga reales y pico de disco de 0058; separación con Calidad en Windows y Linux CPU, NVIDIA y otros chips Apple), capturas e icono.
+- **Antes de publicar** (tarea 0142, fuera de esta fase hasta que decidas): cerrar las decisiones de publicación, terminar o aceptar las mediciones pendientes (bytes de descarga reales y pico de disco de 0058; separación con Calidad), capturas e icono. El repositorio ya es público; solo colaboradores pueden crear ramas.
 
 **Lo que necesito que decidas**:
-- [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md): cuándo se hace público el repositorio (**hoy es privado**) y cómo se publica. Bloquea 0142.
+- [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md): el repositorio ya es público; faltan decisiones sobre la primera versión y su publicación. Bloquea 0142.
 - [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md): número de versión. Bloquea 0142.
 - [0037](preguntas/0037-autoactualizacion-de-la-app.md): autoactualización. Provisional: no.
-- [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md). Aprobado lanzar el workflow desde `main` después de fusionar la Fase 7. Queda acordar los equipos para la 0139.
+- [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md). Empaquetado y CI ejecutados. La revisión manual prioriza Windows; Linux baja de prioridad por ahora y macOS sigue pendiente.
 - [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md): Control inteligente de aplicaciones de Windows 11. Bloquea 0142.
 
 **Para el diseñador**: [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) (icono y texto de B6b), y aplicar a `ux/09` las respuestas a 0040–0043.
 
 **Orden**: 0127, 0128, 0134 y 0138 a la vez → 0129 ‖ 0131 ‖ 0132 (0133 en paralelo) → 0130 → 0135 → 0136 → 0137; 0140 y 0141 cuando responda el diseñador; prueba manual 0139. Detalle en [`backlog.md`](backlog.md).
 
-**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La primera ejecución de 0136 y 0137 pasó en GitHub. La Fase 8 continúa con 0133, 0139 y 0140. 0142 queda reservada para la publicación.
+**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La primera ejecución de 0136 y 0137 pasó en GitHub. La Fase 8 continúa con la revisión manual de Windows, macOS pendiente, Linux en prioridad baja y la verificación del runtime. 0142 queda reservada para la publicación. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md).
 
 **Verificación local**. Lint, tipos y formato correctos. Vitest: 1858 pruebas aprobadas y 12 omitidas. Worker: 327 aprobadas y 7 deseleccionadas. Playwright: 91 aprobadas y 2 omitidas en serie, tras los tiempos agotados de la primera ejecución en paralelo.
 
@@ -198,9 +198,9 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Objetivo**. Demostrar que los instaladores funcionan en los sistemas objetivo y documentar qué se probó en cada uno.
 
-1. **0136 y 0137**. Lanzar `empaquetado.yml` desde `main`, revisar los artefactos de NSIS, DMG, `.deb` y AppImage y registrar tamaños, SHA-256, niveles de prueba, sandbox y FUSE. Corregir los fallos del workflow en la rama de la Fase 8.
-2. **0140 y 0139**. Confirmar el icono en Windows, macOS y Linux. Ejecutar la lista P1–P16 con artefactos descargados, comprobar Gatekeeper y SmartScreen, completar un primer arranque real y guardar capturas. La cobertura manual depende de los equipos disponibles.
-3. **0133, 0058 y 0062**. Completar la verificación del runtime sin DiffQ en Windows y Linux (CPU/CUDA), medir descarga, caché y pico de disco, y registrar las plataformas pendientes. Las pruebas de modelos requieren un entorno con el hardware correspondiente.
+1. **0136 y 0137**. Hechas: la ejecución de empaquetado y las pruebas automatizadas de instalación pasaron en GitHub; están registrados los cuatro artefactos, tamaños, SHA-256, niveles de prueba, sandbox y FUSE. El CI de seis trabajos también pasó en la rama de la Fase 8.
+2. **0140 y 0139**. Revisar primero el instalador de Windows en un equipo real: SmartScreen, instalación, primer arranque, modelo Calidad, importación/separación/reproducción, licencias y conservación de datos. Lista de trabajo: [`pendientes-fase-8.md`](pendientes-fase-8.md). macOS queda pendiente; Linux se baja de prioridad por ahora y se retoma antes de decidir la publicación.
+3. **0133, 0058 y 0062**. Priorizar Windows para verificar el runtime sin DiffQ y medir descarga, caché y pico de disco. Linux/CUDA queda en prioridad baja por ahora; registrar las plataformas que no se puedan medir. Las pruebas de modelos requieren un entorno con el hardware correspondiente.
 4. **0142**. La primera versión pública queda sujeta a su lista de requisitos y a una autorización específica de publicación.
 
 ---

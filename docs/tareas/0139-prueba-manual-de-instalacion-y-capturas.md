@@ -1,5 +1,5 @@
 # 0139 — Prueba manual de instalación (P1–P16) y capturas
-- Estado: Bloqueada (por `preguntas/0038`: quién, con qué equipos; y por los artefactos de 0136)
+- Estado: En curso (revisión manual prioritaria en Windows; macOS pendiente y Linux en prioridad baja por ahora)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0136, 0137, 0138; icono (0140) para las capturas definitivas
 - ADRs: 0012, 0013
@@ -65,3 +65,5 @@ Anotar SO, versión, idioma y **texto literal**, y quitar de la guía las varian
 
 ## Notas de implementación
 (las rellena quien ejecute la prueba)
+
+La revisión actual empieza en Windows. Lista operativa y registro: [`../pendientes-fase-8.md`](../pendientes-fase-8.md). El resto de plataformas y las comprobaciones de runtime que no se ejecuten quedan anotadas como pendientes; bajar la prioridad de Linux no equivale a aprobarlo para publicación.

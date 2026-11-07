@@ -365,7 +365,7 @@ Deuda que se salda aquí:
 | [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | Hecha |
 | [0140](tareas/0140-icono-de-la-app-en-los-instaladores.md) | Icono | 0130 y [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | — | — | — | En curso |
 | [0141](tareas/0141-texto-de-b6b-menu-apple-sin-caracter-privado.md) | B6b: "menú Apple" sin carácter de uso privado | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | Sí | — | `primer-arranque/textos.ts` | Hecha |
-| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual P1–P16, Gatekeeper, primer arranque real y capturas | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | Bloqueada |
+| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual; empezar con Windows, macOS después y Linux en prioridad baja | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | En curso (Windows) |
 | [0142](tareas/0142-primera-version-publica.md) | Primera versión pública. **Fuera de lo que se implementa ahora** | Todas y [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md), [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md), [0037](preguntas/0037-autoactualizacion-de-la-app.md), [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) | No | — | Sí | `README.md` | Bloqueada |
 
 **Orden sugerido con tres programadores**:
@@ -387,10 +387,10 @@ Archivos compartidos, en este orden:
 **Preguntas**:
 | Pregunta | Para | Bloquea |
 |---|---|---|
-| [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md) Repositorio público y publicación. **Hoy es privado** | usuario | 0142 |
+| [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md) Repositorio público y publicación. **Repositorio público confirmado; publicación pendiente** | usuario | 0142 |
 | [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md) Número de versión | usuario | 0142 |
 | [0037](preguntas/0037-autoactualizacion-de-la-app.md) Autoactualización | usuario | Nada; condiciona 0142 |
-| [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) Primera ejecución del workflow y prueba manual | ejecución autorizada; equipos por confirmar | 0139 |
+| [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) Primera ejecución del workflow y prueba manual | workflow hecho; Windows priorizado, otros equipos pendientes | 0139 |
 | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) Icono y texto de B6b | respondida | — |
 | [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) Control inteligente de aplicaciones | usuario | 0142 |
 | [0045](preguntas/0045-appimage-sin-sandbox-en-ubuntu.md) AppImage sin sandbox en Ubuntu 24.04+ | usuario | 0142 |
@@ -408,7 +408,7 @@ Se conservan los identificadores y los criterios de aceptación de la Fase 7. La
 
 | Tareas | Verificación pendiente | Requisito |
 |---|---|---|
-| 0136, 0137 | Construcción, humo e instalación en GitHub. Registrar los cuatro artefactos, tamaños y resultados por runner | Primera ejecución en `main` autorizada en 0038 |
-| 0140, 0139 | Icono, instalación manual P1–P16, primer arranque y capturas | Artefactos y equipos disponibles |
-| 0133, 0058, 0062 | Inferencia sin DiffQ en Windows y Linux CPU/CUDA, caché y pico de disco | `runtime-real` y equipos NVIDIA para CUDA |
+| 0136, 0137 | Hechas: empaquetado y pruebas automatizadas en GitHub; se registraron los cuatro artefactos, tamaños y resultados por runner | Ejecución de empaquetado completada |
+| 0140, 0139 | Prioridad actual: Windows. Revisar icono, SmartScreen, instalación, primer arranque y conservación de datos. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md). macOS pendiente; Linux queda en prioridad baja por ahora | Instalador de Windows y equipo real; artefactos y equipos para el resto |
+| 0133, 0058, 0062 | Inferencia sin DiffQ, caché y pico de disco. Priorizar Windows; Linux queda en prioridad baja por ahora | `runtime-real` y equipos con el hardware correspondiente |
 | 0142 | Primera publicación | Decisiones y pruebas de la lista de publicación, más orden expresa |
