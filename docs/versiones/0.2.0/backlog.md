@@ -19,7 +19,7 @@ Ver el [plan por fases](plan-2.md), la [hoja de ruta](../../roadmap.md) y el [fl
 | 2 | Marcadores, bucle, zoom y picos de voz | Al iniciar la fase |
 | 3 | Temas y agrupación de biblioteca | Al iniciar la fase, con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) |
 | 4 | Ventana secundaria y cola | Al iniciar la fase, con [0048](../../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) |
-| 5 | Degradados y comodines | Al iniciar la fase |
-| 6 | Exportación | Al iniciar la fase, con [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
+| 5 | Degradados, comodines y Letra lista | Al iniciar la fase |
+| 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
 
 La [publicación pendiente del MVP](../../tareas/0142-primera-version-publica.md) sigue en la hoja de ruta.

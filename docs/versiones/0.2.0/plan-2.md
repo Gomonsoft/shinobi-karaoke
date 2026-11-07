@@ -8,21 +8,22 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 |---|---|---|
 | 1 | Fin independiente y barrido por renglón | Pendiente · desglosada |
 | 2 | Regiones editables, bucle, zoom y picos de voz | Pendiente |
-| 3 | Temas y agrupación de biblioteca | Pendiente · decisión de producto |
-| 4 | Ventana secundaria y cola | Pendiente · decisiones de producto |
-| 5 | Degradados y ayudas de espera | Pendiente |
-| 6 | Exportación de video | Pendiente · prueba técnica y decisión de producto |
+| 3 | Temas y agrupación de biblioteca | Pendiente |
+| 4 | Ventana secundaria y cola | Pendiente |
+| 5 | Degradados, ayudas de espera y Letra lista | Pendiente |
+| 6 | Exportación de video | Pendiente · prueba técnica |
 
 ```mermaid
 flowchart LR
   F1["1 · Fin y barrido"] --> F2["2 · Línea de tiempo"]
   F2 --> F3["3 · Temas y biblioteca"]
   F3 --> F4["4 · Reproductor y cola"]
-  F4 --> F5["5 · Degradados e indicadores"]
+  F4 --> F5["5 · Degradados, espera y Letra lista"]
   F5 --> F6["6 · Exportación"]
   F1 -. "intervalo de silencio" .-> F5
   F3 -. "resolución de temas" .-> F5
   F1 -. "geometría de letra" .-> F6
+  F4 -. "reproducción y cola" .-> F5
 ```
 
 Las flechas continuas marcan el orden de integración. Las punteadas señalan contratos consumidos después. Ventana y cola avanzan juntas porque comparten dueño de sesión e IPC. La prueba técnica de exportación puede adelantarse para informar los perfiles de salida.
@@ -96,11 +97,11 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 ### 5. Temas guardables · L
 
-**Decisión final.** Catálogo local versionado, ids estables y resolución única en main: canción, álbum, artista, predeterminado. Conservar el estilo anterior como propio en proyectos migrados. Acciones de guardar, aplicar, volver a heredar, renombrar, duplicar y borrar. «Personalizar» escribe solo el estilo local. «Editar tema» muestra alcance de referencias vivas y la sesión en marcha conserva su instantánea. La política de actualización y borrado queda condicionada a [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md).
+**Decisión final.** Catálogo local versionado, ids estables y resolución única en main: canción, álbum, artista, predeterminado. Conservar el estilo anterior como propio en proyectos migrados. Acciones de guardar, aplicar, volver a heredar, renombrar, duplicar y borrar. «Personalizar» escribe solo el estilo local. «Editar tema» muestra alcance de referencias vivas y la sesión en marcha conserva su instantánea. «Temas definidos» mantiene vínculos vivos y «Tema personalizado» conserva una copia propia. Guardar sobre el tema confirma el impacto. «Guardar como tema nuevo…» pide nombre, conserva el original y permite aplicar la copia en un paso explícito. Al borrar, confirmar el conteo efectivo y persistir las apariencias completas como estilos propios antes de retirar el tema y sus referencias. El tema predeterminado se elige en Ajustes. Si se borra, las nuevas canciones reciben un tema aleatorio del catálogo en el momento de su creación, con estilo incluido si el catálogo está vacío. La elección queda estable al reabrir. La herencia de artista o álbum tiene precedencia sobre esta elección de respaldo. En Biblioteca se pueden seleccionar varias canciones editables y aplicar el tema a nivel canción tras confirmar la lista. [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md)
 
-**Discusión.** Un catálogo evita duplicación y permite editar en conjunto. UX pide distinguir referencias recuperadas sin catálogo de un borrado deliberado. La propuesta ofrece respaldo inline y confirma los usos afectados por cada cambio. [R2 arquitectura](discusion/r2-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
+**Discusión.** Un catálogo evita duplicación y permite editar en conjunto. UX pide distinguir referencias recuperadas sin catálogo de un borrado deliberado. La respuesta confirma congelar los estilos efectivos al borrar y aplicar temas en lote previa confirmación. [R4 arquitectura](discusion/r4-arquitecto.md) · [R4 UX](discusion/r4-disenador-ux.md) · [R2 arquitectura](discusion/r2-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
 
-**Aceptación.** Aplicación rápida con procedencia, operaciones completas de catálogo y herencia comprobada en los cuatro niveles. Una edición local no toca el tema. Los usos afectados excluyen overrides, una canción de esquema 1 conserva su apariencia y una carpeta recuperada muestra el respaldo si no puede resolver la referencia. El borrado cumple la política aprobada.
+**Aceptación.** Aplicación rápida con procedencia, operaciones completas de catálogo y herencia comprobada en los cuatro niveles. Una edición local no toca el tema. Los usos afectados excluyen overrides, una canción de esquema 1 conserva su apariencia y una carpeta recuperada muestra el respaldo si no puede resolver la referencia. Borrar deja la apariencia de las canciones afectadas como «Tema personalizado» incluso si la heredaban. En lote, se confirma la lista y se comunican cambios y fallos por canción. Si la escritura se interrumpe, el catálogo conserva el tema hasta completar las copias. Ajustes permite seleccionar el predeterminado y, al borrarlo, la siguiente canción recibe la asignación aleatoria prevista.
 
 **ADRs y specs.** ADR nuevo de catálogo e identidad, revisar 0006, 0008 y 0010. [Editor](../../ux/06-editor.md), [Biblioteca](../../ux/02-biblioteca.md) y [Sistema visual](../../ux/sistema-visual.md).
 
@@ -124,11 +125,11 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 ### 10. Ventana secundaria · L
 
-**Decisión final.** Mantener el flujo local y añadir secundaria de rol fijo para eventos. Main administra monitor, fullscreen, reposo e IPC. La secundaria posee el único motor de audio de la sesión en vivo. La pantalla elegida afecta a la imagen y el audio sigue su salida habitual. Política de escucha simultánea pendiente de [0048](../../preguntas/0048-escucha-editor-durante-evento.md).
+**Decisión final.** Mantener el flujo local y añadir secundaria de rol fijo para eventos. Main administra monitor, fullscreen, reposo e IPC. La secundaria posee el único motor de audio de la sesión en vivo. La pantalla elegida afecta a la imagen y el audio sigue su salida habitual. Bloquear el editor durante la sesión emergente, incluidas pausa y transición. Resolver el autoguardado al iniciar si había un editor abierto. La Biblioteca y cola siguen operables. Mostrar «No se puede editar mientras el reproductor está abierto en otra ventana». El selector de dispositivos queda como mejora futura de prioridad baja. [0048](../../preguntas/0048-escucha-editor-durante-evento.md)
 
-**Discusión.** Enviar el reloj por IPC añade desfase y deja el evento atado al editor. Los agentes acuerdan autonomía de la secundaria, permisos por rol y edición silenciosa como propuesta para el evento. [R2 arquitectura](discusion/r2-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
+**Discusión.** Enviar el reloj por IPC añade desfase y deja el evento atado al editor. Los agentes acuerdan autonomía y permisos por rol. El usuario pide bloquear la edición y avisar en vez de permitir edición silenciosa. [R4 arquitectura](discusion/r4-arquitecto.md) · [R4 UX](discusion/r4-disenador-ux.md) · [R2 arquitectura](discusion/r2-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
 
-**Aceptación.** Elegir pantalla y fullscreen, alternar en la secundaria y mantener operable la principal. Recuperarse al desconectar monitor o cerrar la secundaria. Main valida payloads y origen, ventana, frame y rol de cada llamada. Sin duplicar audio, rutas de medios por protocolo autorizado y limpieza del bloqueo de reposo al terminar. Verificar en dos pantallas reales.
+**Aceptación.** Elegir pantalla y fullscreen, alternar en la secundaria y mantener operable la principal. Recuperarse al desconectar monitor o cerrar la secundaria. La sesión bloquea edición incluso al pausar y entre canciones, y permite editar al cerrarse. Con un editor abierto, se resuelve su guardado antes de iniciar. Main valida payloads y origen, ventana, frame y rol de cada llamada. Sin duplicar audio, rutas de medios por protocolo autorizado y limpieza del bloqueo de reposo al terminar. Verificar en dos pantallas reales.
 
 **ADRs y specs.** ADR nuevo con 11, revisar 0008, 0010 y 0011. [Biblioteca](../../ux/02-biblioteca.md), [Editor](../../ux/06-editor.md), [Reproductor](../../ux/07-reproductor.md) y [Mapa](../../ux/00-mapa-de-vistas.md).
 
@@ -136,19 +137,19 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 ### 11. Cola · M
 
-**Decisión final.** Main conserva sesión, revisión y orden, con identificador por entrada. Principal administra pendientes y la secundaria consume la activa. Revalidar canción y pistas al consumir, y proteger el avance contra eventos tardíos o duplicados. Transiciones, errores, cierre y persistencia pendientes de [0049](../../preguntas/0049-politica-cola-de-reproduccion.md).
+**Decisión final.** Main conserva sesión, revisión y orden, con identificador por entrada. Principal administra pendientes y la secundaria consume la activa. Revalidar canción y pistas al consumir, y proteger el avance contra eventos tardíos o duplicados. Cola en memoria durante la app. En fin natural, avanzar con contador central animado, configurable y de 4 s por defecto, y vista previa inferior derecha. Reiniciar la cuenta solo si cambia la candidata. Ante fallo, mostrar la causa y ofrecer pasar a la siguiente por acción explícita. Al cerrar con cola, ofrecer eliminarla, conservarla o cancelar. Conservar mantiene pendientes y selecciona el último elemento reproducido. Una canción interrumpida puede reanudarse en el mismo segundo al reabrir y el usuario puede reiniciarla. Si terminó antes del cierre, conservarla como selección de contexto y ofrecer iniciar la siguiente. [0049](../../preguntas/0049-politica-cola-de-reproduccion.md)
 
-**Discusión.** La cola de trabajos sirve al pipeline y la de reproducción tiene orden y controles de sesión. Ambos agentes separan activa de pendientes y requieren alternativas al arrastre. [R1 arquitectura](discusion/r1-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
+**Discusión.** La cola de trabajos sirve al pipeline y la de reproducción tiene orden y controles de sesión. Ambos agentes separan activa de pendientes y requieren alternativas al arrastre. La cuarta ronda define cómo congelar la transición mientras se confirma el cierre y cómo actualizar la vista previa tras reordenar. [R4 arquitectura](discusion/r4-arquitecto.md) · [R4 UX](discusion/r4-disenador-ux.md) · [R1 arquitectura](discusion/r1-arquitecto.md) · [R2 UX](discusion/r2-disenador-ux.md).
 
-**Aceptación.** «Reproducir a continuación» coloca al frente de pendientes y «Agregar al final» al final. Se puede repetir una canción, quitar y reordenar por ratón o teclado sin interrumpir la activa. Señalar entrada no disponible y ejercer la política aprobada en fin natural, error, cierre y reinicio. E2E cubre eventos duplicados y fin de cola.
+**Aceptación.** «Reproducir a continuación» coloca al frente de pendientes y «Agregar al final» al final. Se puede repetir una canción, quitar y reordenar por ratón o teclado sin interrumpir la activa. La cuenta presenta la próxima canción y se adapta a movimiento reducido. Avisar si falla una entrada y avanzar solo por acción. Al cerrar, eliminar o conservar cola según la confirmación. Si se conserva, se mantienen selección, orden y segundo de reproducción mientras la app siga abierta. Reanudar recupera el segundo y «Reiniciar canción» empieza desde el comienzo. En transición se mantiene la próxima canción pendiente. Al salir de la app, se vacía. E2E cubre eventos duplicados y fin de cola.
 
 **ADRs y specs.** Mismo ADR que 10 y 0008/0011. [Biblioteca](../../ux/02-biblioteca.md) y [Reproductor](../../ux/07-reproductor.md).
 
 **Riesgo.** Doble avance, cambios concurrentes y entrada borrada mientras espera.
 
-## Fase 5 · Estilo y espera
+## Fase 5 · Estilo, espera y Letra lista
 
-**Objetivo.** Ampliar fondos y orientar la próxima entrada vocal.
+**Objetivo.** Ampliar fondos, orientar la próxima entrada vocal y ofrecer un modo de letra sincronizada sin barrido.
 
 ### 8. Degradados y movimiento · M
 
@@ -174,17 +175,29 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Riesgo.** Saturación de pantalla y alteración del aviso inicial existente.
 
+### 12. Letra lista · M
+
+**Decisión final.** Ofrecer «Marcar como letra lista» junto a «Marcar como lista». Requiere medios reproducibles y que todas las líneas de texto tengan inicio y fin válido, incluidos los tiempos efectivos procedentes de la API. Registrar la modalidad por canción de forma separada del tema y conservar el estado Lista a efectos de compatibilidad y acciones. Mostrar la distinción en Biblioteca. El Editor conserva el barrido para revisar sincronía. La reproducción y la exportación muestran letra sincronizada sin barrido ni color de resaltado, con texto legible y los controles normales. Admite reproducir, encolar y exportar. La primera activación presenta un aviso del efecto en el reproductor y la casilla «No volver a mostrar este aviso», guardada al confirmar.
+
+**Discusión.** La respuesta equipara barrido y contraste de resaltado. Un modo de canción permite suprimir el barrido sin cambiar la legibilidad del tema ni reactivarlo por una actualización en cascada. Va en la fase 5 porque usa los intervalos de la fase 1 y la sesión de la fase 4. Exportación consume el mismo modo en la fase 6. [0048](../../preguntas/0048-escucha-editor-durante-evento.md) · [R4 arquitectura](discusion/r4-arquitecto.md) · [R4 UX](discusion/r4-disenador-ux.md).
+
+**Aceptación.** Una canción de tiempos completos de API puede marcarse, mientras que una línea sin tiempos impide activar la modalidad. El aviso aparece al activar por primera vez y puede silenciarse. Se conserva la variante con barrido en Editor. Biblioteca distingue «Letra lista» y permite abrirla y encolarla. El modo se conserva al guardar y reabrir. En fase 6, la exportación de la modalidad conserva tiempos y estilo sin barrido.
+
+**ADRs y specs.** Revisar 0005, 0006 y 0011, y enlazar ADR de exportación. [Editor](../../ux/06-editor.md), [Biblioteca](../../ux/02-biblioteca.md) y [Reproductor](../../ux/07-reproductor.md).
+
+**Riesgo.** Confundir contraste de legibilidad con color de progreso o perder elegibilidad al editar la letra. Revalidar con los contratos de tiempos y medios de Lista.
+
 ## Fase 6 · Exportación
 
 **Objetivo.** Generar un video local con la letra y el estilo reproducidos con tiempos deterministas.
 
 ### 7. Exportar a video · L
 
-**Decisión final.** Trabajar sobre una instantánea y compartir el render en una ventana offscreen gobernada por el índice de fotograma. El worker PyAV codifica con contrapresión y mezcla instrumental con voz opcional, sujeto a códecs y licencias verificados. Destino elegido en main, temporal hasta éxito y cancelación con limpieza. Marca de agua «Shinobi Karaoke». Perfiles y simultaneidad pendientes de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md).
+**Decisión final.** Trabajar sobre una instantánea y compartir el render en una ventana offscreen gobernada por el índice de fotograma. El worker PyAV codifica con contrapresión y mezcla instrumental con voz opcional, sujeto a códecs y licencias verificados. Destino elegido en main, temporal hasta éxito y cancelación con limpieza. Marca de agua «Shinobi Karaoke». Evaluar MKV AV1/Opus y WebM VP9/Opus como candidatos de formato libre con referencia de OBS. Ofrecer relaciones 4:3 hasta 2880×2160 y 16:9 hasta 3840×2160, con resoluciones habituales y 24, 30 o 60 FPS según la matriz verificada. Permitir simultaneidad con evento si el trabajo puede aislarse y el equipo sostiene la reproducción. Bloquear con motivo si hay incompatibilidad técnica. [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md)
 
-**Discusión.** Captura en tiempo real dificulta garantizar FPS y sincronía, y renderizar otra vez en Python duplica layout. El estudio compara WebM y MP4, mide el coste y evita comprometer códecs antes de inspeccionar builds. [R1 arquitectura y fuentes](discusion/r1-arquitecto.md#7--exportación-de-video--l) · [R2 UX](discusion/r2-disenador-ux.md).
+**Discusión.** Captura en tiempo real dificulta garantizar FPS y sincronía, y renderizar otra vez en Python duplica layout. La respuesta prioriza formato libre y toma OBS como referencia. El estudio evalúa contenedores, códecs disponibles y costes antes de cerrar perfiles. [R4 arquitectura y fuentes](discusion/r4-arquitecto.md) · [R4 UX](discusion/r4-disenador-ux.md) · [R1 arquitectura y fuentes](discusion/r1-arquitecto.md#7--exportación-de-video--l) · [R2 UX](discusion/r2-disenador-ux.md).
 
-**Aceptación.** Con medios válidos, el diálogo permite elegir voz, resolución, FPS y destino entre perfiles aprobados. Un video de audio generado conserva duración, sincronía de voz y letra, estilo, marca de agua y FPS. La cancelación o fallo limpia el temporal y conserva el archivo existente. Verificar costo en memoria, tiempo y disco, licencias y disponibilidad de códecs en Windows, macOS y Linux.
+**Aceptación.** Con medios válidos, el diálogo permite elegir voz, resolución, FPS y destino entre perfiles aprobados. Un video de audio generado conserva duración, sincronía de voz y letra, estilo, marca de agua y FPS. La cancelación o fallo limpia el temporal y conserva el archivo existente. Verificar costo en memoria, tiempo y disco, licencias y disponibilidad de códecs en Windows, macOS y Linux. Probar un perfil modesto y 4K/60 como candidato y medir continuidad del audio, latencia y fotogramas con una sesión de reproducción activa. Distinguir falta de soporte de un perfil e incompatibilidad temporal con un evento.
 
 **ADRs y specs.** Nuevo ADR de exportación y revisión de 0005, 0008, 0012 y 0013. Nueva spec de exportación con entradas en [Biblioteca](../../ux/02-biblioteca.md) y [Editor](../../ux/06-editor.md), y revisión del [Sistema visual](../../ux/sistema-visual.md).
 
@@ -205,10 +218,8 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 | 9 · Comodines | Media | 5 |
 | 10 · Ventana secundaria | Media | 4 |
 | 11 · Cola | Media | 4 |
+| 12 · Letra lista | Media | 5 |
 
-## Preguntas abiertas para el usuario
+## Decisiones y verificaciones pendientes
 
-- Cómo se propaga una edición y qué ocurre al borrar un tema asignado. [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md)
-- Si se permite oír el editor mientras la secundaria emite el karaoke. [0048](../../preguntas/0048-escucha-editor-durante-evento.md)
-- Cómo avanza la cola y qué conserva al fallar, cerrar o reiniciar. [0049](../../preguntas/0049-politica-cola-de-reproduccion.md)
-- Qué perfiles de video y concurrencia se ofrecen una vez medido el coste. [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md)
+Las preguntas de producto de [temas](../../preguntas/0047-temas-asignados-edicion-y-borrado.md), [evento y Letra lista](../../preguntas/0048-escucha-editor-durante-evento.md) y [cola](../../preguntas/0049-politica-cola-de-reproduccion.md) tienen respuesta. El [estudio de exportación](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) debe confirmar la combinación de contenedor y códecs, la matriz de perfiles y la coexistencia con un evento.
