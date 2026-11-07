@@ -1,5 +1,5 @@
 # 0136 — Workflow `empaquetado.yml`: construir, verificar y probar desempaquetado
-- Estado: En curso
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0129, 0130, 0131, 0132, 0135 (y 0128 para que el paquete sea el definitivo)
 - ADRs: 0013 §1, §3, §4; 0012
@@ -59,3 +59,8 @@ gh run watch
 El trabajo `construir` usa la matriz de tres sistemas, valida el paquete, ejecuta el humo de la app y del worker y genera un inventario de SHA-256. La subida admite exclusivamente los instaladores esperados, el inventario y el JSON de verificación. Las comprobaciones estáticas del disparador, permisos, acciones fijadas por SHA y retención pasan.
 
 Quedan la ejecución en GitHub (0038), la verificación de los cuatro instaladores y sus tamaños. Referencia local de 0140: DMG macOS arm64 con icono, 135,9 MB.
+
+
+### Ejecución en GitHub — 2026-11-06
+
+La ejecución 42291261968 del commit `724e9d1` pasó los tres trabajos de construcción. Se descargaron los artefactos y sus SHA-256 se comprobaron de nuevo en local. Tamaños decimales: NSIS 121,6 MB, DMG 136,5 MB, AppImage 135,6 MB y .deb 115,7 MB. Los cuatro cumplen el objetivo de 100–150 MB. Los artefactos se conservan 14 días.

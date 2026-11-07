@@ -2,6 +2,12 @@ export interface MapaFuentes {
   sources?: string[]
 }
 
+export function comandoNpm(
+  env?: NodeJS.ProcessEnv,
+  plataforma?: NodeJS.Platform,
+  node?: string
+): { comando: string; prefijo: string[] }
+
 export interface InfoLicencia {
   licenses?: string | string[]
   licenseText?: string

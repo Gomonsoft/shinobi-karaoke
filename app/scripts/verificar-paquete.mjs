@@ -229,6 +229,7 @@ export async function verificarPaquete({
   plataforma = process.platform,
   leerFuses = getCurrentFuseWire,
   listarAsar = listPackage,
+  comprobarEjecutable = estaEjecutable,
   ejecutar = (comando, argumentos) => {
     const resultado = spawnSync(comando, argumentos, { encoding: 'utf8' })
     if (resultado.error) throw resultado.error
@@ -306,7 +307,7 @@ export async function verificarPaquete({
 
   const uvPath = join(raices.recursos, 'bin', plataforma === 'win32' ? 'uv.exe' : 'uv')
   exigir(existsSync(uvPath), `Falta el ejecutable ${uvPath}`)
-  exigir(estaEjecutable(uvPath, plataforma), `${uvPath} no es ejecutable`)
+  exigir(comprobarEjecutable(uvPath, plataforma), `${uvPath} no es ejecutable`)
   const uvConfig =
     UV.binarios[
       `${plataforma}-${process.arch === 'arm64' && plataforma === 'darwin' ? 'arm64' : 'x64'}`

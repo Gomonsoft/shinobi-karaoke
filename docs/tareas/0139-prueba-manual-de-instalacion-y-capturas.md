@@ -1,5 +1,5 @@
 # 0139 — Prueba manual de instalación (P1–P16) y capturas
-- Estado: Bloqueada (por `preguntas/0038`: quién, con qué equipos; y por los artefactos de 0136)
+- Estado: Hecha por aceptación expresa del usuario (validación funcional del artefacto Windows, 2026-11-07; los controles detallados y otras plataformas siguen como gates de 0142)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0136, 0137, 0138; icono (0140) para las capturas definitivas
 - ADRs: 0012, 0013
@@ -64,4 +64,13 @@ Anotar SO, versión, idioma y **texto literal**, y quitar de la guía las varian
 - [ ] Lista de cambios para el diseñador en `ux/09`, sin editar la spec desde esta tarea.
 
 ## Notas de implementación
-(las rellena quien ejecute la prueba)
+
+### Cierre funcional de Windows — 2026-11-07
+
+- El usuario confirmó que descargó y probó el artefacto interno de Windows, que SmartScreen apareció y pudo continuar, y que probó las funciones de la app sin incidencias generales.
+- Equipo de esta sesión: Windows build `10.0.26200.9711`, x64; NVIDIA GeForce RTX 4070 con 12 GB, controlador `617.42`. El usuario describió la separación como muy rápida; no se midieron segundos, modelo, tamaño de audio ni uso de disco.
+- Incidencia: al elegir una letra durante la descarga de YouTube, aparecía «No se pudo guardar la letra». Se corrigió el guardado en main y se añadió un indicador de espera en Letra; el Editor se habilita cuando llega el evento de fuente completada.
+- La descarga desde navegador con aviso literal, SHA-256, permisos/accesos, modo sin conexión, notificación, licencias, tiempos/espacio, desinstalación y reinstalación no quedaron registrados en esta prueba. macOS y Linux tampoco se probaron aquí. El detalle está en [`../pendientes-fase-8.md`](../pendientes-fase-8.md); son gates de la 0142, no se consideran verificados.
+- La Fase 8 queda cerrada para la validación funcional interna de Windows por aprobación expresa del usuario. Este cierre no autoriza publicar una versión.
+
+El checklist técnico y el registro de resultados siguen en [`../pendientes-fase-8.md`](../pendientes-fase-8.md). Las comprobaciones que no se ejecutaron quedan pendientes antes de 0142; bajar la prioridad de Linux no equivale a aprobarlo para publicación.

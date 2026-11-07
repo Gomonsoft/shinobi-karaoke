@@ -265,11 +265,6 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     vivosRef.current = vivos
   })
 
-  const cancionesRef = useRef(canciones)
-  useEffect(() => {
-    cancionesRef.current = canciones
-  })
-
   /** Toast de error con el texto del código (`bib.toast.errorgenerico`) y "Copiar detalles". */
   const avisarError = useCallback((err: unknown) => {
     const codigo =
@@ -289,7 +284,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   /** "Reintentar": relanza el paso que falló sin salir de la Biblioteca. */
   const reintentarPaso = useCallback(
     async (id: string) => {
-      const resumen = cancionesRef.current.find((c) => c.id === id)
+      const resumen = canciones.find((c) => c.id === id)
       const paso = resumen ? pasoConProblema(resumen) : null
       try {
         if (paso === 'fuente') await window.shinobi.fuente.reintentar(id)
@@ -298,7 +293,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         avisarError(err)
       }
     },
-    [avisarError]
+    [avisarError, canciones]
   )
 
   const resepararPistas = useCallback(

@@ -16,7 +16,7 @@ Servicio `app/src/main/letras/servicio.ts` y handlers de `letras.guardar`, `letr
   - `letra = { origen, lrclib_id, offset_ms: 0, lineas }`;
   - `pasos.letra = estadoPasoLetra(letra)` (0077) con `actualizado` al momento;
   - una sola escritura con `BibliotecaServicio.actualizar`, que emite `evento:cancion`.
-  Se acepta con la separación en curso (ADR 0004/0005), en `borrador` y en `lista`: una `lista` sigue `lista`, e `incompleta` se deriva. Si la canción no existe, está dañada o tiene la fuente sin completar → `ARGUMENTOS_NO_VALIDOS`. La confirmación de sustituir es de la interfaz (0085): se pide siempre que la canción ya tenga ≥ 1 línea (`0022` §4); el main no la exige.
+  Se acepta con la separación en curso (ADR 0004/0005), con la descarga de la fuente en curso, en `borrador` y en `lista`: una `lista` sigue `lista`, e `incompleta` se deriva. Si la canción no existe o está dañada → `ARGUMENTOS_NO_VALIDOS`; guardar una letra no exige que el audio esté listo. La confirmación de sustituir es de la interfaz (0085): se pide siempre que la canción ya tenga ≥ 1 línea (`0022` §4); el main no la exige.
 - [ ] **`editarTexto`**:
   - `aplicarTextoEditado` (0079) sobre la letra **guardada en ese momento**, así que dos llamadas seguidas se aplican en orden;
   - escritura con *debounce* de 1 s (`debounceMs` de `actualizar`, ADR 0006);
@@ -46,5 +46,6 @@ Servicio `app/src/main/letras/servicio.ts` y handlers de `letras.guardar`, `letr
 - `app/src/main/letras/servicio.ts` (`ServicioLetras`: `guardar`, `editarTexto`, `leerArchivo`; también `decodificarTextoLetra`) y `index.ts`. Cableado mínimo en `main/index.ts` (`letras` de `registrarIpc`, con el doble de diálogo `dialogoConDoblePruebas`). `letras.buscar` queda como rechazo `ERROR_INTERNO` hasta que 0082 lo conecte.
 - Todo se escribe con `ServicioBiblioteca.actualizar` (`letra` + `pasos.letra` por `estadoPasoLetra`); el cambio solo toca esos campos, así que no pisa el progreso de la separación. `editarTexto` calcula de forma síncrona sobre la letra del índice (dos llamadas seguidas se aplican en orden), con `debounceMs` 1000 (configurable en el constructor para tests) y sin escribir si las líneas no cambian; sin letra previa parte de una letra `manual` vacía. Con cero líneas: `borrador` se guarda (`pendiente`), `lista` → `ARGUMENTOS_NO_VALIDOS`.
 - `archivoLetraLeidoSchema.ignoradas` ya existía (0077). `archivo.test.ts` (0042/0049) ahora comprueba el campo `letra` de `cancion.json`.
+- Corrección detectada al probar el artefacto Windows (2026-11-07): `guardar` ya permite guardar mientras YouTube descarga. La vista Letra mantiene el paso Editor inactivo con un indicador de espera hasta que termina la fuente. Prueba añadida para conservar `pasos.fuente` y completar `pasos.letra` durante la descarga.
 - Probar: `npx vitest run src/main/letras src/main/fuente/archivo.test.ts`.
 - Deuda: ninguna conocida; los errores de lint/format de `renderer/vistas/letra/` son de 0084. Un test de `src/renderer` ajeno falla en la suite completa (no de esta tarea).

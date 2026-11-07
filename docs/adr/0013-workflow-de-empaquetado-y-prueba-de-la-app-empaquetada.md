@@ -108,6 +108,7 @@ Tres niveles, siempre indicados en el resumen. **Instalación probada**: se inst
 - Impacto en UX: ninguno en la app.
 
 ## Revisiones
+- 2026-11-06: el run 42291261968 confirmó ventanas en Windows y macOS, `macos-15` arm64 y FUSE en Ubuntu 24.04. Los cuatro formatos pasaron sus pruebas de instalación o ejecución en runners. El AppImage usó `--no-sandbox` con AppArmor restringido y el `.deb` mantuvo el sandbox. Gatekeeper con cuarentena, SmartScreen y macOS 14 quedan para 0139.
 - 2026-11-06: creado en el desglose de la Fase 7. Precisa el AGENTS.md: "las variables `SHINOBI_*` se ignoran" tiene la excepción `SHINOBI_DATOS` del ADR 0008.
 
 ## Fuentes

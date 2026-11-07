@@ -185,12 +185,18 @@ jobs:
         shell: pwsh
         run: |
           $instalador = (Resolve-Path "release/$env:ARCHIVO").Path
-          $carpeta = Join-Path $env:LOCALAPPDATA 'Programs\Shinobi Karaoke'
+          # NSIS de un clic usa APP_FILENAME (nombre del paquete), no PRODUCT_FILENAME.
+          $carpeta = Join-Path $env:LOCALAPPDATA 'Programs\shinobi-karaoke'
           $env:SHINOBI_PAQUETE_BIN = Join-Path $carpeta 'Shinobi Karaoke.exe'
           $desinstalador = Join-Path $carpeta 'Uninstall Shinobi Karaoke.exe'
           $config = Join-Path $env:LOCALAPPDATA 'ShinobiKaraoke\config.json'
           $proceso = Start-Process -FilePath $instalador -ArgumentList '/S' -Wait -PassThru
           if ($proceso.ExitCode -ne 0) { throw "Falló NSIS: $($proceso.ExitCode)" }
+          foreach ($archivo in @($env:SHINOBI_PAQUETE_BIN, $desinstalador)) {
+            if (-not (Test-Path -LiteralPath $archivo -PathType Leaf)) {
+              throw "NSIS no instaló el archivo esperado: $archivo"
+            }
+          }
           try {
             npm run test:paquete
             if ($LASTEXITCODE -ne 0) { throw 'Falló el humo de NSIS' }

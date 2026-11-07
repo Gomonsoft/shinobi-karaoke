@@ -89,9 +89,6 @@ export class ServicioLetras {
   async guardar(peticion: GuardarLetra): Promise<ResumenCancion> {
     const cancion = this.biblioteca.obtener(peticion.cancionId)
     if (!cancion) throw noValido('La canción no existe o está dañada.')
-    if (cancion.pasos.fuente.estado !== 'completado') {
-      throw noValido('La canción aún no tiene el audio listo.')
-    }
     let lineas: ElementoLetra[]
     let letra: Letra
     try {

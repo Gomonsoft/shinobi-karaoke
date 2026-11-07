@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  comandoNpm,
   generarBloque,
   paquetesDeArbolNpm,
   paquetesDeMapas,
@@ -14,6 +15,19 @@ const inventario = {
 }
 
 describe('licencias-js', () => {
+  it('ejecuta el CLI de npm con Node en Windows, incluso con espacios en la ruta', () => {
+    expect(
+      comandoNpm(
+        { npm_execpath: 'C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js' },
+        'win32',
+        'C:\\Program Files\\nodejs\\node.exe'
+      )
+    ).toEqual({
+      comando: 'C:\\Program Files\\nodejs\\node.exe',
+      prefijo: ['C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js']
+    })
+  })
+
   it('extrae paquetes de mapas con rutas POSIX, Windows y ámbitos', () => {
     const paquetes = paquetesDeMapas([
       {

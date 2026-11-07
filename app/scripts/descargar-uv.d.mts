@@ -19,12 +19,12 @@ export interface OpcionesDescargarUv {
     statusText: string
     arrayBuffer(): Promise<ArrayBuffer>
   }>
-  ejecutarComando?: (comando: string, argumentos: string[]) => string
+  ejecutarComando?: (comando: string, argumentos: string[], opciones?: { cwd?: string }) => string
   extraer?: (
     archivo: string,
     directorio: string,
     rutaInterna: string,
-    ejecutar: (comando: string, argumentos: string[]) => string
+    ejecutar: (comando: string, argumentos: string[], opciones?: { cwd?: string }) => string
   ) => void | Promise<void>
 }
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 
@@ -37,11 +37,16 @@ function versionInstalada(ruta, version, ejecutarComando) {
 }
 
 function extraerTar(archivoTemporal, directorioTemporal, nombreInterno, ejecutarComando) {
-  ejecutarComando('tar', ['-xzf', archivoTemporal, '-C', directorioTemporal, nombreInterno])
+  ejecutarComando('tar', ['-xzf', basename(archivoTemporal), nombreInterno], {
+    cwd: directorioTemporal
+  })
 }
 
 function extraerZip(archivoTemporal, directorioTemporal, nombreInterno, ejecutarComando) {
-  ejecutarComando('tar', ['-xf', archivoTemporal, '-C', directorioTemporal, nombreInterno])
+  const tarWindows = win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
+  ejecutarComando(tarWindows, ['-xf', basename(archivoTemporal), nombreInterno], {
+    cwd: directorioTemporal
+  })
 }
 
 /**
@@ -81,7 +86,8 @@ export async function descargarUv({
   const descarga = join(temporal, binario.archivo)
   const nombreEjecutable = plataforma === 'win32' ? 'uv.exe' : 'uv'
   const carpetaArchivo = binario.archivo.replace(/\.zip$|\.tar\.gz$/, '')
-  const rutaInterna = join(carpetaArchivo, nombreEjecutable)
+  const rutaInterna =
+    plataforma === 'win32' ? nombreEjecutable : posix.join(carpetaArchivo, nombreEjecutable)
   const binarioTemporal = join(temporal, nombreEjecutable)
 
   try {

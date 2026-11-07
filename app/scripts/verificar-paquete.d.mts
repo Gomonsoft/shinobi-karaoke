@@ -12,6 +12,7 @@ export interface OpcionesVerificacion {
   plataforma?: 'darwin' | 'win32' | 'linux'
   leerFuses?: (ruta: string) => Promise<WireFuses> | WireFuses
   listarAsar?: (ruta: string, opciones: { isPack: false }) => string[]
+  comprobarEjecutable?: (ruta: string, plataforma: 'darwin' | 'win32' | 'linux') => boolean
   ejecutar?: (comando: string, argumentos: string[]) => string
 }
 

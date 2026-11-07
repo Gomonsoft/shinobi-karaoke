@@ -35,3 +35,6 @@ ADR 0001 llama "principal" al AppImage, pero para un usuario no técnico hay dos
 - "Sandbox": con el fallback automático este error debería ser raro. La entrada se puede dejar, sin `--no-sandbox`.
 - ⟦R0042⟧ de "cuál elegir": se confirma el texto provisional.
 - Valora si conviene decir, sin tecnicismos, que en Ubuntu es preferible el `.deb`. El motivo real es el sandbox. Esperaría al resultado de 0137 para redactarlo.
+
+### Medición de 0137 — 2026-11-06
+En la ejecución 42291261968, Ubuntu 24.04 instaló el .deb y lo arrancó sin `--no-sandbox`. El AppImage se ejecutó directamente con FUSE y usó `--no-sandbox` con AppArmor restringido; al desactivar la restricción arrancó sin ese argumento. La decisión de publicación sigue en 0045.

@@ -1,13 +1,13 @@
 # 0038 — ¿Cómo lanzamos el workflow la primera vez y quién hace la prueba manual?
 - De: arquitecto
 - Para: usuario
-- Estado: Parcialmente respondida (ejecución autorizada, prueba manual pendiente)
+- Estado: Parcialmente respondida (workflow ejecutado; prueba manual de Windows priorizada)
 - Bloquea: el cierre de 0136 y 0137 (su ejecución en GitHub) y la tarea 0139 (prueba manual y capturas). **No bloquea** escribir el código de ninguna tarea.
 
 ## Contexto
-**Workflow.** GitHub solo deja lanzar a mano un workflow si su archivo ya está en la rama principal (`main`), y hoy no está. Una vez allí, se puede lanzar sobre cualquier rama con el archivo de esa rama. Por eso, sin hacer nada, los instaladores no se podrían construir en GitHub hasta fusionar toda la fase.
+**Workflow.** El archivo ya está en `main` y el empaquetado interno se ejecutó correctamente desde GitHub. Las pruebas automatizadas de los instaladores y los seis trabajos de CI también pasaron; los enlaces están en [`pendientes-fase-8.md`](../pendientes-fase-8.md).
 
-Cada ejecución completa consume minutos de macOS, que en un repositorio privado cuentan 10 veces, y la organización está en el plan gratuito. Uso aproximado por ejecución: varias decenas de minutos reales por SO; se medirá en la primera.
+La estimación de minutos de este contexto se hizo cuando el repositorio era privado y no debe usarse para calcular el consumo actual. El repositorio ya es público; revisar el uso vigente de Actions en la configuración de GitHub si se necesita volver a presupuestar ejecuciones.
 
 **Prueba manual.** Hay cosas que ningún servidor de GitHub puede probar: los avisos de SmartScreen y Gatekeeper, la instalación real con doble clic, el primer arranque con el modelo real y las capturas. **macOS 14, nuestro mínimo, ya no existe en GitHub** (retirado el 2026-11-02), y tampoco hay Windows 10 u 11 de escritorio.
 
@@ -29,4 +29,6 @@ El código se escribe y se prueba en local. 0136 y 0137 quedan `En curso` hasta 
 
 El usuario aprobó fusionar la implementación de la Fase 7 y subirla a `main`. El primer empaquetado interno se lanza desde esa rama. Las validaciones de instaladores, runtime e icono y la prueba manual pasan a la **Fase 8 — Empaquetado, parte 2**.
 
-Queda por confirmar quién ejecuta la prueba manual y qué equipos están disponibles. La publicación sigue su propio proceso en 0142.
+El usuario revisará el instalador de Windows. Los equipos para macOS y Linux quedan por confirmar. La publicación sigue su propio proceso en 0142.
+
+Actualización 2026-11-06: el usuario revisará primero el instalador en un equipo Windows. Linux baja de prioridad por ahora; no se considera validado ni aprobado para publicación. macOS también queda pendiente de equipo y comprobación manual.
