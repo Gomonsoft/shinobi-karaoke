@@ -365,7 +365,7 @@ Deuda que se salda aquí:
 | [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | Hecha |
 | [0140](tareas/0140-icono-de-la-app-en-los-instaladores.md) | Icono | 0130 y [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | — | — | — | En curso |
 | [0141](tareas/0141-texto-de-b6b-menu-apple-sin-caracter-privado.md) | B6b: "menú Apple" sin carácter de uso privado | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | Sí | — | `primer-arranque/textos.ts` | Hecha |
-| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual; empezar con Windows, macOS después y Linux en prioridad baja | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | En curso (Windows) |
+| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual; validación funcional Windows aceptada; checklist restante para 0142 | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | Hecha por aceptación del usuario; gates detallados pendientes para 0142 |
 | [0142](tareas/0142-primera-version-publica.md) | Primera versión pública. **Fuera de lo que se implementa ahora** | Todas y [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md), [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md), [0037](preguntas/0037-autoactualizacion-de-la-app.md), [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) | No | — | Sí | `README.md` | Bloqueada |
 
 **Orden sugerido con tres programadores**:
@@ -404,11 +404,11 @@ Archivos compartidos, en este orden:
 
 ## Fase 8 — Empaquetado, parte 2: verificación
 
-Se conservan los identificadores y los criterios de aceptación de la Fase 7. La implementación del workflow ya está preparada.
+Se conservan los identificadores y los criterios de aceptación de la Fase 7. La Fase 8 se cerró el 2026-11-07 por aprobación del usuario de la validación funcional del artefacto interno Windows; lo que no se midió sigue como gate de publicación 0142.
 
 | Tareas | Verificación pendiente | Requisito |
 |---|---|---|
 | 0136, 0137 | Hechas: empaquetado y pruebas automatizadas en GitHub; se registraron los cuatro artefactos, tamaños y resultados por runner | Ejecución de empaquetado completada |
-| 0140, 0139 | Prioridad actual: Windows. Revisar icono, SmartScreen, instalación, primer arranque y conservación de datos. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md). macOS pendiente; Linux queda en prioridad baja por ahora | Instalador de Windows y equipo real; artefactos y equipos para el resto |
-| 0133, 0058, 0062 | Inferencia sin DiffQ, caché y pico de disco. Priorizar Windows; Linux queda en prioridad baja por ahora | `runtime-real` y equipos con el hardware correspondiente |
+| 0140, 0139 | Validación funcional Windows aceptada por usuario. SmartScreen apareció y la app funcionó; checklist detallado, icono en todos los paquetes y macOS/Linux no quedan verificados. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md); antes de publicar | Instalador y equipos reales |
+| 0133, 0058, 0062 | Inferencia sin DiffQ, caché, pico de disco y benchmark de Calidad. La prueba rápida de RTX 4070 es cualitativa; quedan mediciones y perfiles pendientes antes de publicar | `runtime-real` y equipos con hardware correspondiente |
 | 0142 | Primera publicación | Decisiones y pruebas de la lista de publicación, más orden expresa |

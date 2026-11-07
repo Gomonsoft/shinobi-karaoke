@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-06 (entrega de la Fase 7 y plan de verificación de la Fase 8).
+Última actualización: 2026-11-07 (cierre de la validación funcional del artefacto interno de Windows; pendientes de publicación documentados).
 
 ## Resumen
 
@@ -20,7 +20,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 5 | Editor (sincronía y estilo) | ✅ Cerrada (0090–0110; 0111 manual pendiente) |
 | 6 | Reproductor a pantalla completa | ✅ Cerrada (0112–0125; 0126 manual pendiente) |
 | 7 | Empaquetado, parte 1 | Implementación cerrada y validada en macOS |
-| 8 | Empaquetado, parte 2 | Verificación de artefactos y equipos reales |
+| 8 | Empaquetado, parte 2 | ✅ Cerrada para validación funcional del artefacto interno en Windows (2026-11-07); gates de publicación pendientes |
 
 ```mermaid
 flowchart LR
@@ -190,17 +190,17 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Orden**: 0127, 0128, 0134 y 0138 a la vez → 0129 ‖ 0131 ‖ 0132 (0133 en paralelo) → 0130 → 0135 → 0136 → 0137; 0140 y 0141 cuando responda el diseñador; prueba manual 0139. Detalle en [`backlog.md`](backlog.md).
 
-**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La primera ejecución de 0136 y 0137 pasó en GitHub. La Fase 8 continúa con la revisión manual de Windows, macOS pendiente, Linux en prioridad baja y la verificación del runtime. 0142 queda reservada para la publicación. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md).
+**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La primera ejecución de 0136 y 0137 pasó en GitHub. La Fase 8 se cerró el 2026-11-07 tras la aprobación del usuario del artefacto interno de Windows y la corrección del fallo al guardar letras durante una descarga de YouTube. La verificación de publicación para macOS/Linux, instalación/desinstalación detallada y mediciones de runtime queda registrada como gate de 0142. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md).
 
 **Verificación local**. Lint, tipos y formato correctos. Vitest: 1858 pruebas aprobadas y 12 omitidas. Worker: 327 aprobadas y 7 deseleccionadas. Playwright: 91 aprobadas y 2 omitidas en serie, tras los tiempos agotados de la primera ejecución en paralelo.
 
-## Fase 8 — Empaquetado, parte 2: verificación
+## Fase 8 — Empaquetado, parte 2: verificación — cerrada el 2026-11-07
 
-**Objetivo**. Demostrar que los instaladores funcionan en los sistemas objetivo y documentar qué se probó en cada uno.
+**Objetivo**. Demostrar que los instaladores funcionan en los sistemas objetivo y documentar qué se probó en cada uno. La validación funcional del artefacto interno de Windows fue aprobada por el usuario; el resto se conserva como condición para la primera publicación, no como una aprobación de lanzamiento.
 
 1. **0136 y 0137**. Hechas: la ejecución de empaquetado y las pruebas automatizadas de instalación pasaron en GitHub; están registrados los cuatro artefactos, tamaños, SHA-256, niveles de prueba, sandbox y FUSE. El CI de seis trabajos también pasó en la rama de la Fase 8.
-2. **0140 y 0139**. Revisar primero el instalador de Windows en un equipo real: SmartScreen, instalación, primer arranque, modelo Calidad, importación/separación/reproducción, licencias y conservación de datos. Lista de trabajo: [`pendientes-fase-8.md`](pendientes-fase-8.md). macOS queda pendiente; Linux se baja de prioridad por ahora y se retoma antes de decidir la publicación.
-3. **0133, 0058 y 0062**. Priorizar Windows para verificar el runtime sin DiffQ y medir descarga, caché y pico de disco. Linux/CUDA queda en prioridad baja por ahora; registrar las plataformas que no se puedan medir. Las pruebas de modelos requieren un entorno con el hardware correspondiente.
+2. **0140 y 0139**. El usuario probó el artefacto Windows: SmartScreen apareció y pudo continuar; reportó haber probado las funciones, incluida separación con NVIDIA RTX 4070. La ejecución fue percibida como muy rápida, sin benchmark registrado. Se corrigió el guardado de letras durante la descarga y se añadió el indicador de espera. La tabla con lo confirmado y lo no registrado está en [`pendientes-fase-8.md`](pendientes-fase-8.md).
+3. **Pendientes antes de 0142**. SHA-256 y datos literales/captura de SmartScreen, modo sin conexión, notificaciones, licencias, conservación de datos y reinstalación, icono en todos los instaladores, prueba manual en macOS/Linux, e inferencia/mediciones del runtime de 0133, 0058 y 0062. Las cifras de velocidad cualitativas no se toman como mediciones.
 4. **0142**. La primera versión pública queda sujeta a su lista de requisitos y a una autorización específica de publicación.
 
 ---

@@ -147,6 +147,8 @@ export function Letra({ id }: { id: string }) {
           cancionId={id}
           letraInicial={letraC.letra}
           estado={resumen?.estado ?? 'borrador'}
+          fuenteLista={resumen?.pasos?.fuente.estado === 'completado'}
+          esperandoFuente={resumen?.pasos?.fuente.estado === 'en_curso'}
           ignoradas={ignoradasImportadas}
           onCerrarIgnoradas={() => setIgnoradasImportadas(0)}
           onResumen={(nuevo) => setCarga((c) => ({ ...c, resumen: nuevo }))}

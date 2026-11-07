@@ -95,7 +95,24 @@ describe('guardar', () => {
     expect(c.letra?.lineas.every((l) => l.inicio_ms === null)).toBe(true)
   })
 
-  it('rechaza canción inexistente, fuente sin completar y letra sin líneas', async () => {
+  it('guarda la letra mientras la fuente de YouTube sigue descargándose', async () => {
+    const id = await cancionConFuente(biblioteca, datos)
+    await biblioteca.actualizar(id, { pasos: { fuente: { estado: 'en_curso', progreso: 0.4 } } })
+
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 42,
+      lineas: [el('a', 'Una línea inventada')]
+    })
+
+    const c = await enDisco(id)
+    expect(c.pasos.fuente.estado).toBe('en_curso')
+    expect(c.pasos.letra.estado).toBe('completado')
+    expect(c.letra?.lineas.map((linea) => linea.texto)).toEqual(['Una línea inventada'])
+  })
+
+  it('rechaza canción inexistente y letra sin líneas', async () => {
     await expect(
       servicio.guardar({
         cancionId: 'nope',
@@ -105,11 +122,6 @@ describe('guardar', () => {
       })
     ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
     const id = await cancionConFuente(biblioteca, datos)
-    await biblioteca.actualizar(id, { pasos: { fuente: { estado: 'pendiente' } } })
-    await expect(
-      servicio.guardar({ cancionId: id, origen: 'manual', lrclib_id: null, lineas: [el('a', 'x')] })
-    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
-    await biblioteca.actualizar(id, { pasos: { fuente: { estado: 'completado' } } })
     await expect(
       servicio.guardar({
         cancionId: id,

@@ -15,6 +15,9 @@ export const TEXTO_ELEGIDA = {
   demasiadoLarga: 'El texto es demasiado largo para ser una letra. Este cambio no se ha guardado.',
   errorListaSinLineas:
     'Una canción lista necesita al menos una línea de letra. Este cambio no se ha guardado.',
+  esperandoAudio: 'Esperando la canción para continuar…',
+  editorEsperando: 'Espera a que termine la descarga para continuar.',
+  editorAudioNoListo: 'El audio todavía no está listo para continuar.',
   aviso:
     'Si cambias el texto de una línea, esa línea tendrá que volver a sincronizarse. Las demás conservan su tiempo.',
   marcas:

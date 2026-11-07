@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Cancion } from '@shared/cancion'
+import type { EventoCancionIpc } from '@shared/ipc'
 import type { ResultadoBusquedaLetra } from '@shared/letrasBusqueda'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
-import { resumenPrueba } from '../biblioteca/resumenPrueba'
+import { paso, resumenPrueba } from '../biblioteca/resumenPrueba'
 import {
   apiLetrasFalsa,
   candidatosDeEjemplo,
@@ -14,23 +15,36 @@ import { Letra } from './Letra'
 
 interface Opciones extends OpcionesApiLetrasFalsa {
   conLetra?: boolean
+  fuenteEnCurso?: boolean
   buscar?: (p: never) => Promise<ResultadoBusquedaLetra>
 }
 
 function montar(o: Opciones = {}) {
-  const { letras, llamadas } = apiLetrasFalsa(o)
+  const { fuenteEnCurso = false, ...opcionesLetras } = o
+  const pasosBase = resumenPrueba().pasos!
+  const resumenInicial = resumenPrueba({
+    pasos: fuenteEnCurso ? { ...pasosBase, fuente: paso('en_curso') } : pasosBase
+  })
+  const { letras, llamadas } = apiLetrasFalsa({
+    ...opcionesLetras,
+    resumen: { ...opcionesLetras.resumen, pasos: resumenInicial.pasos }
+  })
   if (o.buscar) letras.buscar = o.buscar as never
   const cancion = {
     metadatos: { titulo: 'Canción inventada', artista: 'Artista inventado', album: null },
     letra: o.conLetra ? { origen: 'lrclib', lineas: lineasPorLinea() } : null
   } as unknown as Cancion
   const abrirEnlace = vi.fn().mockResolvedValue(undefined)
+  const eventos: ((evento: EventoCancionIpc) => void)[] = []
   window.shinobi = {
     biblioteca: {
-      listar: () => Promise.resolve([resumenPrueba()]),
+      listar: () => Promise.resolve([resumenInicial]),
       obtener: () => Promise.resolve(cancion)
     },
-    alCambiarCancion: () => () => undefined,
+    alCambiarCancion: (cb: (evento: EventoCancionIpc) => void) => {
+      eventos.push(cb)
+      return () => undefined
+    },
     sistema: { abrirEnlace },
     letras
   } as never
@@ -44,7 +58,18 @@ function montar(o: Opciones = {}) {
       </TrabajosContexto.Provider>
     </NavegacionContexto.Provider>
   )
-  return { ir, llamadas, abrirEnlace, letras }
+  return {
+    ir,
+    llamadas,
+    abrirEnlace,
+    letras,
+    cambiarFuente: (estado: 'en_curso' | 'completado') => {
+      const resumen = resumenPrueba({
+        pasos: { ...pasosBase, fuente: paso(estado), letra: paso('completado') }
+      })
+      act(() => eventos.forEach((cb) => cb({ id: 'c1', resumen })))
+    }
+  }
 }
 
 const llamadasDe = <T extends { canal: string }>(l: T[], canal: string): T[] =>
@@ -220,6 +245,29 @@ describe('Letra: búsqueda (A)', () => {
     const boton = screen.getByRole('button', { name: 'Ir al editor' })
     await waitFor(() => expect(boton).toHaveFocus())
     fireEvent.click(boton)
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'editor' })
+  })
+
+  it('guarda la letra durante la descarga y activa el editor cuando el audio está listo', async () => {
+    const { llamadas, ir, cambiarFuente } = montar({ fuenteEnCurso: true })
+    await screen.findByRole('listbox')
+    fireEvent.click(screen.getByRole('button', { name: 'Usar esta letra' }))
+
+    expect(await screen.findByText('Esperando la canción para continuar…')).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo guardar la letra.')).toBeNull()
+    const boton = screen.getByRole('button', { name: 'Ir al editor' })
+    expect(boton).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(boton)
+    expect(ir).not.toHaveBeenCalled()
+    expect(llamadasDe(llamadas, 'guardar')).toHaveLength(1)
+
+    cambiarFuente('completado')
+    await waitFor(() =>
+      expect(screen.queryByText('Esperando la canción para continuar…')).toBeNull()
+    )
+    const botonDisponible = screen.getByRole('button', { name: 'Ir al editor' })
+    expect(botonDisponible).not.toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(botonDisponible)
     expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'editor' })
   })
 

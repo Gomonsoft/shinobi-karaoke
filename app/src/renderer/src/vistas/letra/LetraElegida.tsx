@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Ref } from 'react'
-import { X } from 'lucide-react'
+import { LoaderCircle, X } from 'lucide-react'
 import { contarLineas, type Letra } from '@shared/letra'
 import { aplicarTextoEditado, letraATexto } from '@shared/letras'
 import type { ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
@@ -7,12 +7,14 @@ import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { AreaTexto } from '../../componentes/Campos'
+import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { hayMarcasDeTiempo, huella, sincroniaActual, tieneLineas } from './modeloElegida'
 import { TEXTO } from './textos'
 import { textoSuperaLimites } from './limiteTexto'
 import { TEXTO_IMPORTAR } from './textosPegar'
 import { TEXTO_ELEGIDA as T } from './textosElegida'
+import estilosComponentes from '../../componentes/componentes.module.css'
 import estilos from './letra.module.css'
 
 const URL_LRCLIB = 'https://lrclib.net'
@@ -24,6 +26,8 @@ interface Props {
   /** Letra guardada al entrar (siempre con ≥ 1 línea en la primera carga). */
   letraInicial: Letra
   estado: ResumenCancionIpc['estado']
+  fuenteLista: boolean
+  esperandoFuente: boolean
   /** Renglones sin tiempo ignorados al importar (0085); 0 = sin aviso. */
   ignoradas: number
   onCerrarIgnoradas: () => void
@@ -41,6 +45,8 @@ export function LetraElegida({
   cancionId,
   letraInicial,
   estado,
+  fuenteLista,
+  esperandoFuente,
   ignoradas,
   onCerrarIgnoradas,
   onResumen,
@@ -204,6 +210,12 @@ export function LetraElegida({
       {errorLista && <AvisoEnLinea tipo="aviso">{T.errorListaSinLineas}</AvisoEnLinea>}
       {hayMarcasDeTiempo(texto) && <AvisoEnLinea tipo="info">{T.marcas}</AvisoEnLinea>}
       <AvisoEnLinea tipo="info">{T.aviso}</AvisoEnLinea>
+      {!vacia && esperandoFuente && (
+        <p className={estilos.esperando} role="status">
+          <Icono icono={LoaderCircle} className={estilosComponentes.girando} />
+          {T.esperandoAudio}
+        </p>
+      )}
 
       <div className={estilos.alternativa}>
         <Boton variante="secundario" onClick={onOtra}>
@@ -217,7 +229,15 @@ export function LetraElegida({
           ref={refEditor}
           variante="primario"
           data-foco-inicial
-          noDisponible={vacia ? T.editorInactivo : undefined}
+          noDisponible={
+            vacia
+              ? T.editorInactivo
+              : !fuenteLista
+                ? esperandoFuente
+                  ? T.editorEsperando
+                  : T.editorAudioNoListo
+                : undefined
+          }
           onClick={onIrAlEditor}
         >
           {T.editor}
