@@ -1,6 +1,6 @@
 # 0148 — Bucle nativo en el motor de audio
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: Fase 1 integrada en develop
 - ADRs: [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md)
@@ -29,4 +29,6 @@ Desde `app/`, `npm test -- src/renderer/src/karaoke/motorAudio.test.ts src/rende
 
 ## Notas de implementación
 
-Pendientes.
+- `MotorAudio.fijarBucle({ inicioMs, finMs } | null)` recibe tiempo de audio, recorta a la pista y devuelve si acepta el cambio. Conserva la fase audible al mover los límites y usa otro nodo solo si hay que reanclar. Una búsqueda fuera del intervalo desactiva el bucle. La escucha puntual con `hastaMs` mantiene su propio final.
+- `reloj.ts` calcula la primera vuelta y los ciclos siguientes. El motor conserva los tramos aún en la cola de salida cuando cambian los límites nativos. Pausar conserva el bucle y liberar o destruir lo descarta.
+- Verificación: 18 pruebas dirigidas de motor y reloj, comprobación de tipos y ESLint de los archivos cambiados. La prueba con audio generado en Chromium pertenece a 0153.
