@@ -143,3 +143,33 @@ describe('historial de la visita', () => {
     expect(e.pasado).toHaveLength(200)
   })
 })
+
+it('edita un fin sin mover la pausa ni la línea vecina y permite deshacerlo', () => {
+  const l = letra([
+    linea('a', 'Sol', 1000, {
+      palabras: [{ texto: 'Sol', inicio_ms: 1000, fin_ms: 1400 }]
+    }),
+    pausa('p', 2500),
+    linea('b', 'Mar', 3000)
+  ])
+  const inicial = estadoInicial({ letra: l, estilo: estiloPredeterminado() }, 'a')
+  const fijar = (ms: number) => ({
+    tipo: 'fijar_fin' as const,
+    ms,
+    duracionMs: 30_000,
+    ahora: 0
+  })
+  const fijado = reducirEditor(inicial, fijar(1700))
+  expect(fijado.actual.letra.lineas).toEqual([
+    { ...l.lineas[0], fin_ms: 1700 },
+    ...l.lineas.slice(1)
+  ])
+
+  const invalido = reducirEditor(fijado, fijar(2600))
+  expect(invalido.actual.letra).toBe(fijado.actual.letra)
+  expect(invalido.aviso?.limite?.tipo).toBe('fin_siguiente')
+  expect(reducirEditor(fijado, { tipo: 'deshacer' }).actual.letra).toBe(l)
+  expect(
+    reducirEditor(fijado, { tipo: 'fin_automatico', ahora: 10 }).actual.letra.lineas[0]?.fin_ms
+  ).toBeNull()
+})

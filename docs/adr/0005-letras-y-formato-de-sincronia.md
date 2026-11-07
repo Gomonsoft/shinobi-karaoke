@@ -129,3 +129,8 @@ Las letras están protegidas por derechos de autor y LRCLIB no declara licencia 
 - Cliente Python de LRCLIB: https://lrclibapi.readthedocs.io/en/stable/lrclib.html
 - Formato LRC (y extensión A2/mejorado): https://en.wikipedia.org/wiki/LRC_(file_format)
 - WhisperX: https://github.com/m-bain/whisperX ; stable-ts: https://github.com/jianfch/stable-ts
+
+
+## Revisión 0.2.0 · Fin de línea independiente
+
+El fin explícito de una línea es independiente del inicio de la siguiente. El intervalo activo es `[inicio, fin)`. Al alcanzar el fin, la siguiente línea con tiempo queda en espera sin resaltado hasta su inicio. Se conservan `fin_ms: null`, la regla de `finEfectivo` y los intervalos de letras existentes al abrirlas.

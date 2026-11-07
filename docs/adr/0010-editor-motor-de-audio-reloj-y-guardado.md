@@ -170,3 +170,8 @@ Hay que decidir:
 - Electron `webContents.setAudioMuted`: https://www.electronjs.org/docs/latest/api/web-contents#contentssetaudiomutedmuted
 - Salida de audio falsa de Chromium cuando no hay dispositivo: https://codereview.chromium.org/2632733002
 - SoundTouch (LGPL-2.1): https://www.surina.net/soundtouch/ ; Rubber Band (GPL): https://breakfastquay.com/rubberband/
+
+
+## Revisión 0.2.0 · Fin de línea independiente
+
+El panel de sincronía identifica el fin automático y permite fijar el fin con el campo, «Fijar fin aquí» u O. Las tres entradas comparten la operación de edición existente con límites, deshacer, escucha de comprobación y guardado. El editor en reproducción y el reproductor aplican el desplazamiento global a ambos extremos del intervalo. Durante el hueco, la siguiente línea queda en espera sin resaltado. La vista estática del editor sigue mostrando la selección.
