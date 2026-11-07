@@ -1,6 +1,6 @@
 # 0149 — Integrar línea de tiempo en Sincronía
 
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 4
 - Depende de: [0146](0146-coordenadas-y-viewport-de-la-linea-de-tiempo.md), [0147](0147-gesto-de-marcadores-y-confirmacion.md), [0148](0148-bucle-nativo-en-el-motor-de-audio.md)
 - ADRs: [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md)

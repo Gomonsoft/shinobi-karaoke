@@ -44,6 +44,32 @@ const idSesionEdicionSchema = z.uuid()
 const edicionLetraSchema = z.object({ cancion: cancionSchema, sesionId: idSesionEdicionSchema })
 export type EdicionLetraIpc = z.infer<typeof edicionLetraSchema>
 
+export const MAX_BLOQUES_PICOS = 4096
+const idPicosSchema = z.uuid().toLowerCase()
+const tiempoPicosSchema = z.number().finite().nonnegative().max(1e12)
+const generacionPicosSchema = z.string().regex(/^[a-f0-9]{64}$/)
+const estadoPicosSchema = z.union([
+  z.strictObject({ estado: z.enum(['no_disponible', 'generando', 'error']) }),
+  z.strictObject({ estado: z.literal('lista'), generacion: generacionPicosSchema })
+])
+const peticionPicosSchema = z
+  .strictObject({
+    cancionId: idPicosSchema,
+    inicioMs: tiempoPicosSchema,
+    finMs: tiempoPicosSchema,
+    presupuesto: z.int().min(1).max(MAX_BLOQUES_PICOS)
+  })
+  .refine(({ inicioMs, finMs }) => inicioMs < finMs)
+const lecturaPicosSchema = z.strictObject({
+  generacion: generacionPicosSchema,
+  primerBloque: z.int().nonnegative(),
+  pasoMs: z.int().min(10),
+  bytes: z.instanceof(Uint8Array).refine((bytes) => bytes.length % 4 === 0 && bytes.length <= 4 * MAX_BLOQUES_PICOS)
+})
+export type EstadoPicos = z.infer<typeof estadoPicosSchema>
+export type PeticionPicos = z.infer<typeof peticionPicosSchema>
+export type LecturaPicos = z.infer<typeof lecturaPicosSchema>
+
 const textoCorto = z.string().max(500)
 
 export const metadatosEditablesSchema = z.strictObject({
@@ -475,6 +501,14 @@ export const CONTRATO = {
   // Mismo canal para "Separar ahora", "Reintentar" y "Re-separar pistas" (reglas en 0065).
   [CANALES.separacion.separar]: { args: unId, res: z.void() },
   [CANALES.separacion.estimar]: { args: unId, res: estimacionCancionSchema },
+  [CANALES.picos.solicitar]: {
+    args: z.tuple([idPicosSchema, z.boolean().optional()]),
+    res: estadoPicosSchema
+  },
+  [CANALES.picos.leer]: {
+    args: z.tuple([peticionPicosSchema]),
+    res: lecturaPicosSchema.nullable()
+  },
   // La llamada es el consentimiento (0057); responde al terminar la descarga.
   [CANALES.runtime.aceptarYUsarRapido]: { args: z.tuple([origenRapidoSchema]), res: z.void() },
   [CANALES.runtime.volverACalidad]: { args: vacio, res: z.void() },
@@ -549,6 +583,10 @@ export interface ApiShinobi {
     separar(cancionId: string): Promise<void>
     /** Minutos estimados según el equipo y el modo vigente; `null` sin datos. */
     estimar(cancionId: string): Promise<EstimacionCancion>
+  }
+  picos: {
+    solicitar(cancionId: string, reintentar?: boolean): Promise<EstadoPicos>
+    leer(peticion: PeticionPicos): Promise<LecturaPicos | null>
   }
   letras: {
     /** Busca en LRCLIB; una búsqueda nueva cancela la anterior (`CANCELADO`). */

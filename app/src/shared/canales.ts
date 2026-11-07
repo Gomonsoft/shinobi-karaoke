@@ -73,6 +73,10 @@ export const CANALES = {
     /** Estimación previa en minutos de una canción (0067). */
     estimar: 'separacion:estimar'
   },
+  picos: {
+    solicitar: 'picos:solicitar',
+    leer: 'picos:leer'
+  },
   letras: {
     // Cambia los tiempos y el desplazamiento sin cambiar el texto (0090).
     guardarTiempos: 'letras:guardarTiempos',

@@ -1,6 +1,6 @@
 # 0151 — Caché de picos y contrato IPC
 
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 4
 - Depende de: [0150](0150-generar-picos-multinivel-en-worker.md)
 - ADRs: [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md)
