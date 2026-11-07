@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { interpretarTiempo } from '@shared/letras/tiempos'
 import { CampoTexto } from '../../componentes/Campos'
 import { Tooltip } from '../../componentes/Tooltip'
@@ -11,7 +11,7 @@ interface Props {
   interpretar?(texto: string): number | null
   errorFormato?: string
   inactivo?: boolean
-  automatico?: boolean
+  ayuda?: ReactNode
   limite?: { mensaje: string; clave: number }
 }
 
@@ -22,7 +22,7 @@ export function CampoTiempo({
   interpretar = interpretarTiempo,
   errorFormato = E.formatoTiempo,
   inactivo,
-  automatico,
+  ayuda,
   limite
 }: Props) {
   const [borrador, setBorrador] = useState<{ base: string; texto: string; error: boolean } | null>(
@@ -49,7 +49,7 @@ export function CampoTiempo({
         etiqueta={etiqueta}
         value={edicion?.texto ?? valor}
         disabled={inactivo}
-        ayuda={automatico ? E.finAuto : undefined}
+        ayuda={ayuda}
         error={edicion?.error ? errorFormato : undefined}
         spellCheck={false}
         onChange={(e) => setBorrador({ base: valor, texto: e.currentTarget.value, error: false })}

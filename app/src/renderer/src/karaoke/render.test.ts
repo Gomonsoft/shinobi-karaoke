@@ -29,6 +29,31 @@ describe('modelo de render', () => {
     expect(fotogramaEstatico(l, null).actual?.id).toBe('a')
   })
 
+  it('respeta el fin independiente y reconstruye el silencio al volver con una búsqueda', () => {
+    const l = {
+      ...letra([
+        linea('a', 'El sol', 12_400, { fin_ms: 15_800 }),
+        pausa('p', 16_100),
+        linea('b', 'La luna', 17_100, { fin_ms: 20_300 })
+      ]),
+      offset_ms: 250
+    }
+    const enAudio = (ms: number) => fotogramaEn(l, ms - l.offset_ms, contexto)
+    expect(enAudio(16_049).actual?.id).toBe('a')
+    const espera = { actual: null, siguiente: { id: 'b', progreso: 0 }, puntos: 0 }
+    expect(enAudio(16_050)).toMatchObject(espera)
+    expect(enAudio(17_349)).toMatchObject(espera)
+    expect(enAudio(17_350).actual).toMatchObject({ id: 'b', progreso: 0 })
+    expect(enAudio(16_350)).toMatchObject(espera)
+  })
+
+  it('conserva el final automático anterior que alcanza el inicio siguiente', () => {
+    const l = letra([linea('a', 'El sol', 12_400), linea('b', 'La luna', 17_100)])
+    expect(fotogramaEn(l, 17_099, contexto).actual?.id).toBe('a')
+    expect(fotogramaEn(l, 17_100, contexto).actual?.id).toBe('b')
+    expect(l.lineas[0]?.fin_ms).toBeNull()
+  })
+
   it('resalta cada palabra según sus tiempos y muestra media línea en pausa', () => {
     const l = letra([
       linea('a', 'Sol y mar', 1000, {

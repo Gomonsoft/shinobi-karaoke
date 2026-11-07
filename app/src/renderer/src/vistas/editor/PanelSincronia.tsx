@@ -138,10 +138,22 @@ export function PanelSincronia({
             valor={tiempo(fin)}
             aplicar={(ms) => fijar('fin', ms)}
             inactivo={linea.inicio_ms === null}
-            automatico={linea.inicio_ms !== null && linea.fin_ms === null}
+            ayuda={
+              linea.inicio_ms === null ? (
+                E.finSinInicio
+              ) : (
+                <>
+                  {linea.fin_ms === null && (
+                    <>
+                      {E.finAuto} <br />
+                    </>
+                  )}
+                  {E.finAyuda}
+                </>
+              )
+            }
             limite={limite('fin')}
           />
-          {linea.inicio_ms === null && <p>{E.finSinInicio}</p>}
           {botones('fin')}
           <Boton disabled={linea.inicio_ms === null} onClick={() => fijar('fin')}>
             {E.fijarFin} (O)

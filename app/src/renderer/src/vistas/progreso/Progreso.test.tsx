@@ -302,7 +302,7 @@ describe('Progreso: reparar el motor de audio', () => {
       runtime: { estado: 'dañada', ofrecerRapido: true, rapidoPendiente: true }
     })
     const boton = await reparar()
-    expect(boton).toHaveFocus()
+    await waitFor(() => expect(boton).toHaveFocus())
     const aviso = screen.getByRole('alert')
     expect(aviso).toHaveTextContent(
       'Hay que reparar el motor de audio. Falta una parte del motor que separa la voz de la música. Al repararlo se descarga de nuevo lo que falta; después, vuelve a separar esta canción.'

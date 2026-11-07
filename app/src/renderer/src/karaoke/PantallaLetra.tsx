@@ -4,6 +4,7 @@ import type { Estilo } from '@shared/estilo'
 import type { Letra } from '@shared/letra'
 import { Icono } from '../componentes/Icono'
 import estilosComponentes from '../componentes/componentes.module.css'
+import { recorteBarrido } from './barrido'
 import { variablesEstilo } from './estiloCss'
 import { fotogramaEn, fotogramaEstatico, type FotogramaLetra, type LineaRender } from './render'
 import estilos from './pantallaLetra.module.css'
@@ -26,44 +27,61 @@ export interface PantallaLetraProps {
   className?: string
 }
 
-const proporcion = (p: number): string => `${p * 100}%`
 const MEDIA_REDUCIDA = '(prefers-reduced-motion: reduce)'
 
-function aplicarProgreso(nodo: HTMLElement | null, linea: LineaRender | null): void {
-  if (!nodo || !linea || nodo.dataset.linea !== linea.id) return
-  nodo.style.setProperty('--progreso', proporcion(linea.progreso))
-  nodo.querySelectorAll<HTMLElement>('[data-palabra]').forEach((palabra, i) => {
-    palabra.style.setProperty('--progreso', proporcion(linea.palabras?.[i]?.progreso ?? 0))
+type MedicionBarrido = { capa: HTMLElement; cajas: DOMRectReadOnly[] }
+
+function medirBarridos(nodo: HTMLElement | null): MedicionBarrido[] {
+  return Array.from(nodo?.querySelectorAll<HTMLElement>('[data-barrido]') ?? [], (barrido) => {
+    const capa = barrido.lastElementChild as HTMLElement
+    const rango = document.createRange()
+    rango.selectNodeContents(barrido.firstChild!)
+    const origen = capa.getBoundingClientRect()
+    // Tanto el rango como la capa incluyen la transformación de entrada de la línea.
+    const escala = origen.width / parseFloat(getComputedStyle(capa).width)
+    const cajas =
+      escala > 0 && Number.isFinite(escala) && rango.getClientRects
+        ? Array.from(rango.getClientRects())
+            .filter((caja) => caja.width > 0)
+            .sort((a, b) => a.top - b.top)
+            .map(
+              (caja) =>
+                new DOMRect(
+                  (caja.left - origen.left) / escala,
+                  (caja.top - origen.top) / escala,
+                  caja.width / escala,
+                  caja.height / escala
+                )
+            )
+        : []
+    return { capa, cajas }
   })
 }
 
-function Barrido({
-  texto,
-  progreso,
-  palabra
-}: {
-  texto: string
-  progreso: number
-  palabra?: boolean
-}) {
+function aplicarProgreso(barridos: readonly MedicionBarrido[], linea: LineaRender): void {
+  barridos.forEach(({ capa, cajas }, i) => {
+    const progreso = linea.palabras ? (linea.palabras[i]?.progreso ?? 0) : linea.progreso
+    capa.style.clipPath = recorteBarrido(cajas, progreso)
+  })
+}
+
+function Barrido({ texto }: { texto: string }) {
   return (
-    <span
-      className={estilos.barrido}
-      data-palabra={palabra || undefined}
-      style={palabra ? ({ '--progreso': proporcion(progreso) } as CSSProperties) : undefined}
-    >
+    <span className={estilos.barrido} data-barrido="">
       {texto}
-      <span className={estilos.resaltado}>{texto}</span>
+      <span className={estilos.resaltado} aria-hidden="true">
+        {texto}
+      </span>
     </span>
   )
 }
 
 function TextoActual({ linea }: { linea: LineaRender }) {
-  if (!linea.palabras) return <Barrido texto={linea.texto} progreso={linea.progreso} />
+  if (!linea.palabras) return <Barrido texto={linea.texto} />
   return linea.palabras.map((palabra, i) => (
     <span key={i} className={estilos.palabra}>
       {i > 0 && ' '}
-      <Barrido texto={palabra.texto} progreso={palabra.progreso} palabra />
+      <Barrido texto={palabra.texto} />
     </span>
   ))
 }
@@ -86,6 +104,8 @@ export function PantallaLetra({
 }: PantallaLetraProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const nodoActual = useRef<HTMLDivElement>(null)
+  const barridos = useRef<MedicionBarrido[]>([])
+  const ultimaLinea = useRef<LineaRender | null>(null)
   const nodoSiguiente = useRef<HTMLDivElement>(null)
   const [reducido, setReducido] = useState(
     () => window.matchMedia?.(MEDIA_REDUCIDA).matches ?? false
@@ -104,7 +124,7 @@ export function PantallaLetra({
   }, [])
 
   useLayoutEffect(() => {
-    aplicarProgreso(nodoActual.current, actual)
+    ultimaLinea.current = actual
   }, [actual])
 
   useEffect(() => {
@@ -121,7 +141,10 @@ export function PantallaLetra({
         const sube = f.actual !== null && f.actual.id === anterior?.siguiente?.id
         setVivo({ fotograma: f, sube })
       }
-      aplicarProgreso(nodoActual.current, f.actual)
+      if (f.actual && nodoActual.current?.dataset.linea === f.actual.id) {
+        ultimaLinea.current = f.actual
+        aplicarProgreso(barridos.current, f.actual)
+      }
       anterior = f
       raf = requestAnimationFrame(avanzar)
     }
@@ -144,19 +167,23 @@ export function PantallaLetra({
     function medir(): void {
       ajustar(actual)
       ajustar(siguiente)
+      barridos.current = medirBarridos(actual)
+      if (ultimaLinea.current) aplicarProgreso(barridos.current, ultimaLinea.current)
       contenedor.style.setProperty('--actual-mitad', actual ? `${actual.offsetHeight / 2}px` : '')
     }
     medir()
     const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
     observador?.observe(contenedor)
-    return () => observador?.disconnect()
-  }, [
-    actual?.texto,
-    siguiente?.texto,
-    estilo.letra.fuente.familia,
-    cuentaAtras,
-    fotograma.claveTransicion
-  ])
+    if (actual) observador?.observe(actual)
+    const fuentes = document.fonts
+    fuentes?.addEventListener('loadingdone', medir)
+    fuentes?.addEventListener('loadingerror', medir)
+    return () => {
+      observador?.disconnect()
+      fuentes?.removeEventListener('loadingdone', medir)
+      fuentes?.removeEventListener('loadingerror', medir)
+    }
+  }, [actual, siguiente, estilo.letra.fuente.familia, cuentaAtras, fotograma.claveTransicion])
 
   return (
     <div

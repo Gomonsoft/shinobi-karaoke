@@ -5,12 +5,14 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sembrar } from '../src/main/biblioteca/semilla'
 import { TEXTO } from '../src/renderer/src/vistas/letra/textos'
 import { TEXTO_ELEGIDA } from '../src/renderer/src/vistas/letra/textosElegida'
 import { TEXTO_PEGAR } from '../src/renderer/src/vistas/letra/textosPegar'
 import { E } from '../src/renderer/src/vistas/editor/textos'
+import { R } from '../src/renderer/src/vistas/reproductor/textos'
 import { leerCancion, tarjeta } from './fixtures/separacion'
 import { crearTemporal } from './temporales'
 
@@ -48,6 +50,7 @@ async function lanzar(datos: string): Promise<ElectronApplication> {
       SHINOBI_DATOS: datos,
       SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
       SHINOBI_SILENCIAR_AUDIO: '1',
+      SHINOBI_PANTALLA_COMPLETA_SIMULADA: '1',
       SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1'
     }
   })
@@ -56,10 +59,12 @@ async function lanzar(datos: string): Promise<ElectronApplication> {
 /** Siembra, lanza, ejecuta la prueba y cierra siempre. */
 async function conEditor(
   nombre: string,
-  prueba: (v: Page, datos: string, app: ElectronApplication) => Promise<void>
+  prueba: (v: Page, datos: string, app: ElectronApplication) => Promise<void>,
+  preparar?: (datos: string) => void
 ): Promise<void> {
   const datos = crearTemporal(nombre)
   await sembrar(datos)
+  preparar?.(datos)
   const app = await lanzar(datos)
   try {
     const v = await app.firstWindow()
@@ -201,6 +206,65 @@ test.describe('editor sin red', () => {
       await v.getByRole('button', { name: E.restablecer }).click()
       await expect.poll(() => leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(0)
     })
+  })
+
+  test('fin independiente: conserva la marca y muestra el hueco al buscar con offset', async () => {
+    await conEditor(
+      'editor-fin-independiente',
+      async (v, datos) => {
+        await abrir(v, T19)
+        await opcionLinea(v, 1).click()
+        const fin = v.getByRole('textbox', { name: E.fin, exact: true })
+        await fin.fill('00:15.80')
+        await fin.press('Enter')
+        await expect.poll(() => soloLineas(datos, T19)[0]!.fin_ms).toBe(15_800)
+        await v.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+        await abrir(v, T19)
+        await opcionLinea(v, 1).click()
+        await expect(fin).toHaveValue('00:15.80')
+        await expect(opcionLinea(v, 2)).toContainText('00:17.10')
+
+        for (let i = 0; i < 5; i++) await v.keyboard.press('.')
+        await expect.poll(() => leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(500)
+
+        const barra = v.getByRole('slider', { name: 'Tiempo de reproducción' })
+        await v.getByRole('button', { name: 'Reproducir', exact: true }).click()
+        await expect(v.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible()
+        // A 15,90 s de audio el verso sigue activo por el desplazamiento de +500 ms.
+        await barra.fill('15900')
+        await expect(v.locator('[data-linea="i1"]')).toBeVisible()
+        await barra.fill('16500')
+        await expect(v.locator('[data-linea]')).toHaveCount(0)
+        await barra.fill('17300')
+        await expect(v.locator('[data-linea="i2"]')).toBeVisible()
+
+        await v.getByRole('button', { name: E.botonProbar }).click()
+        const capa = v.getByRole('dialog', { name: /Reproductor de/ })
+        await expect(capa.getByRole('button', { name: R.tooltip.pausa })).toBeVisible({
+          timeout: 10_000
+        })
+        const tiempo = capa.getByRole('slider', { name: 'Barra de tiempo' })
+        await tiempo.fill('15900')
+        await expect(capa.locator('[data-linea="i1"]')).toBeVisible()
+        await tiempo.fill('16500')
+        await expect(capa.locator('[data-linea]')).toHaveCount(0)
+        await expect(capa.getByText('El faro nos espera', { exact: true })).toBeVisible()
+        await expect(capa.locator('[data-linea="i2"]')).toBeVisible()
+      },
+      (datos) => {
+        const cancion = leerCancion(datos, idDe(T19))
+        cancion.letra.lineas = [
+          { ...cancion.letra.lineas[0], inicio_ms: 12_400, fin_ms: null },
+          {
+            ...cancion.letra.lineas[1],
+            texto: 'El faro nos espera',
+            inicio_ms: 17_100,
+            fin_ms: 20_300
+          }
+        ]
+        writeFileSync(join(datos, 'biblioteca', idDe(T19), 'cancion.json'), JSON.stringify(cancion))
+      }
+    )
   })
 
   test('estilo: aviso de contraste, letra blanca, fuente y guardado', async () => {
