@@ -114,7 +114,14 @@ test.describe('reproductor sin red', () => {
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
       const inferior = capa.locator('[data-franja="inferior"]')
       await expect(inferior).toBeVisible()
-      await expect(inferior).toHaveAttribute('aria-hidden', 'true', { timeout: 4_000 })
+      await expect(capa.getByRole('button', { name: R.tooltip.pausa })).toBeVisible({
+        timeout: 10_000
+      })
+      // El clic de la Biblioteca puede dejar el puntero sobre una franja en Xvfb.
+      const area = await capa.boundingBox()
+      if (!area) throw new Error('No se pudo medir el reproductor')
+      await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
+      await expect(inferior).toHaveAttribute('aria-hidden', 'true', { timeout: 10_000 })
       await ventana.mouse.move(500, 300)
       await expect(inferior).not.toHaveAttribute('aria-hidden', 'true')
     } finally {
@@ -151,8 +158,13 @@ test.describe('reproductor sin red', () => {
         .click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
       await expect(capa.getByText('Primera luz sobre el tejado')).toBeVisible({ timeout: 10_000 })
+      // Apartar el puntero antes de llegar al final evita actividad al cambiar la pantalla.
+      const area = await capa.boundingBox()
+      if (!area) throw new Error('No se pudo medir el reproductor')
+      await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
       await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000')
       await expect(capa.getByRole('button', { name: R.otravez })).toBeVisible({ timeout: 5_000 })
+      await expect(capa.getByText(/^Se cerrará en \d+ s…$/)).toBeVisible()
       await expect(capa).toHaveCount(0, { timeout: 12_000 })
     } finally {
       await app.close()

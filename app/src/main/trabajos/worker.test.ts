@@ -25,6 +25,7 @@ describe('resolverLanzador', () => {
       '-m',
       'shinobi_worker'
     ])
+    expect(l.env).toBeUndefined()
   })
 
   it('desarrollo: respeta SHINOBI_UV y la opción uv', () => {
@@ -52,7 +53,7 @@ describe('resolverLanzador', () => {
       rutaCodigoWorker: '/app/worker'
     })
     expect(win.comando).toBe(join('/d', 'runtime', 'venv', 'Scripts', 'python.exe'))
-    expect(win.env).toEqual({ PYTHONPATH: '/app/worker' })
+    expect(win.env).toEqual({ PYTHONPATH: '/app/worker', PYTHONDONTWRITEBYTECODE: '1' })
   })
 
   it('producción: antepone los scripts del venv al PATH (POSIX)', () => {
@@ -65,6 +66,7 @@ describe('resolverLanzador', () => {
     })
     expect(l.env).toEqual({
       PYTHONPATH: '/app/worker',
+      PYTHONDONTWRITEBYTECODE: '1',
       PATH: '/d/runtime/venv/bin:/usr/bin:/bin'
     })
   })
@@ -79,6 +81,7 @@ describe('resolverLanzador', () => {
     })
     expect(l.env).toEqual({
       PYTHONPATH: 'C:\\App\\resources\\worker',
+      PYTHONDONTWRITEBYTECODE: '1',
       Path: 'C:\\Datos\\runtime\\venv\\Scripts;C:\\Windows'
     })
   })
@@ -90,7 +93,7 @@ describe('resolverLanzador', () => {
       plataforma: 'darwin',
       envBase: {}
     })
-    expect(l.env).toEqual({ PATH: '/d/runtime/venv/bin' })
+    expect(l.env).toEqual({ PYTHONDONTWRITEBYTECODE: '1', PATH: '/d/runtime/venv/bin' })
   })
 })
 

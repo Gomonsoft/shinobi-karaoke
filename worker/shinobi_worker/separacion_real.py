@@ -31,6 +31,11 @@ from .errores import ErrorWorker
 from .separacion import INSTRUMENTAL, VOZ, AlProgreso
 
 VERSION_FIJADA = "0.48.0"
+# Catálogo fijado en runtime-manifest.json (ADR 0014).
+_MODELOS_ADMITIDOS = {
+    "calidad": "vocals_mel_band_roformer.ckpt",
+    "rapido": "UVR-MDX-NET-Inst_HQ_4.onnx",
+}
 # Reparto del progreso de Rapido (0005 §7): barra principal ~97 % del tiempo, luego postproceso.
 CORTE_RAPIDO = 0.97
 # Bloques pequenos: mitad del `segment_size` por defecto (256) y `batch_size = 1`.
@@ -245,6 +250,8 @@ class SeparadorReal:
         al_progreso: AlProgreso,
     ) -> None:
         archivo = modelo["archivo"]
+        if _MODELOS_ADMITIDOS.get(modelo["id"]) != archivo:
+            raise ErrorWorker("MODELO_NO_DISPONIBLE", "Modelo fuera del catálogo de Shinobi")
         if not (Path(modelo["dir"]) / archivo).is_file():  # nunca descarga (0060 ya lo comprueba)
             raise ErrorWorker("MODELO_NO_DISPONIBLE", f"Falta el modelo {archivo}")
         _aplicar_parche()

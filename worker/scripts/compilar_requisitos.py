@@ -26,11 +26,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 DESTINO = RAIZ / "requisitos"
+EXCLUSIONES = Path("requisitos/exclusiones.txt")
 PYTHON = "3.12"
 
 # Fijados por override (0005 §"Deuda técnica"): la API de audio-separator cambia a menudo
@@ -135,6 +137,7 @@ def _argumentos(perfil: Perfil, salida: str, actualizar: bool) -> list[str]:
         args += ["--python-version", PYTHON, "--python-platform", perfil.plataforma_uv]
     if perfil.backend:
         args += ["--torch-backend", perfil.backend]
+    args += ["--excludes", EXCLUSIONES.as_posix()]
     args += ["--overrides", "overrides.txt", "--generate-hashes", "--emit-index-url"]
     args += ["--no-header", "--output-file", salida]
     if actualizar:
@@ -154,7 +157,7 @@ def _cabecera(perfil: Perfil, uv_version: str) -> str:
         lineas.append(f'# Modo universal con [tool.uv] environments = ["{ENTORNO_MACOS_ARM64}"].')
     lineas += [
         "# Instalación: uv pip install --require-hashes --index-strategy unsafe-best-match"
-        " -r <este archivo>",
+        f" --excludes {EXCLUSIONES.as_posix()} -r <este archivo>",
         "",
     ]
     return "\n".join(lineas) + "\n"
@@ -176,8 +179,16 @@ def _generar(perfil: Perfil, uv: str, actual: str | None, actualizar: bool) -> s
     with tempfile.TemporaryDirectory(prefix="requisitos-") as tmp:
         t = Path(tmp)
         proyecto = (RAIZ / "pyproject.toml").read_text(encoding="utf-8")
+        exclusiones = (RAIZ / EXCLUSIONES).read_text(encoding="utf-8")
+        configuradas = tomllib.loads(proyecto)["tool"]["uv"].get("exclude-dependencies")
+        if exclusiones.splitlines() != configuradas:
+            raise ErrorCompilacion("Las exclusiones del archivo y de pyproject.toml difieren.")
         if perfil.plataforma_uv is None:
-            proyecto += f'\n[tool.uv]\nenvironments = ["{ENTORNO_MACOS_ARM64}"]\n'
+            proyecto = proyecto.replace(
+                "[tool.uv]\n", f'[tool.uv]\nenvironments = ["{ENTORNO_MACOS_ARM64}"]\n', 1
+            )
+        (t / EXCLUSIONES.parent).mkdir()
+        (t / EXCLUSIONES).write_text(exclusiones, encoding="utf-8")
         (t / "pyproject.toml").write_text(proyecto, encoding="utf-8")
         shutil.copy(RAIZ / "README.md", t / "README.md")
         (t / "overrides.txt").write_text("\n".join(_overrides(perfil)) + "\n", encoding="utf-8")

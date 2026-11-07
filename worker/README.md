@@ -30,7 +30,9 @@ Requisitos bloqueados por perfil (ADR 0009 §1): `worker/requisitos/<plataforma>
 - `uv run python scripts/compilar_requisitos.py --comprobar` falla si algún archivo no coincide (lo ejecuta la CI).
 - Tras regenerar, subir `version` y actualizar `sha256_requisitos` en `app/resources/runtime-manifest.json` (un test de la app lo comprueba).
 - `darwin-x64-cpu` no existe: PyTorch no publica ruedas para macOS Intel (`docs/preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md`).
-- Instalación: `uv pip install --require-hashes --index-strategy unsafe-best-match -r <archivo>` (los perfiles CPU/CUDA añaden el índice de PyTorch como `--extra-index-url`).
+- Instalación: `uv pip install --require-hashes --index-strategy unsafe-best-match --excludes requisitos/exclusiones.txt -r <archivo>` (los perfiles CPU/CUDA añaden el índice de PyTorch como `--extra-index-url`).
+
+El ADR 0014 excluye DiffQ y DiffQ-fixed. El compilador comprueba que `requisitos/exclusiones.txt` coincide con `[tool.uv].exclude-dependencies`, que se usa para `uv lock/sync/run`. El adaptador real solo acepta los pares de identificador y archivo del catálogo Calidad y Rápido.
 
 Separación sin ffmpeg (tarea 0062; ADR 0004, `preguntas/0009`): audio-separator exige `ffmpeg` al arrancar y el adaptador anula esa comprobación. `python scripts/sin_ffmpeg.py <comando...>` ejecuta un comando con el PATH sin carpetas que contengan `ffmpeg`/`ffprobe` y falla si siguen visibles (los runners de GitHub los traen). La CI normal (3 SO) ejecuta `uv run python scripts/sin_ffmpeg.py uv run pytest tests/test_separacion_contrato.py tests/test_separar*.py` y comprueba que `torch` no está instalado. `runtime-real` ejecuta los `pesado` (`test_separacion_real.py`, con `SHINOBI_MODELOS_DIR` apuntando al modelo Calidad instalado por el gestor) con el mismo filtro, y `app/scripts/instalar-runtime.mjs` separa 60 s de audio generado y añade `separacion` (segundos, factor, pico de RAM) al JSON.
 

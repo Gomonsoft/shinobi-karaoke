@@ -51,6 +51,11 @@ Se mantienen como están: `SHINOBI_DATOS` también en builds empaquetados (útil
 - 2026-11-04: creado en la revisión de cierre de la Fase 1 (tareas 0021 y 0022).
 - 2026-11-04: pregunta 0011 — el origen de medios se detecta por `Origin` o `request.referrer` (punto 2); nuevo punto 10 (aislamiento por sesión para contenido no confiable). Sin tarea nueva.
 - 2026-11-06 (ADR 0011, tarea 0113): el reproductor pone la **ventana** a pantalla completa desde el main (`BrowserWindow.setFullScreen`) y no usa la API Fullscreen del DOM. Se retira `fullscreen` de los permisos concedidos del punto 5: solo queda `clipboard-sanitized-write`. Los canales nuevos `ventana.*` y `biblioteca.comprobarPistas` siguen las reglas del punto 4 (Zod y remitente).
+- 2026-11-06 (ADR 0012 y 0013, Fase 7):
+  - Los *fuses* del punto 9 se aplican con `electronFuses` y sin cambiar sus valores; `WasmTrapHandlers` queda activo por defecto.
+  - La integridad del asar solo existe en macOS y Windows.
+  - Límite aceptado: el AppImage en sistemas con la restricción de AppArmor arranca con `--no-sandbox`, sin el sandbox de Chromium del SO. El `.deb` lo conserva con un perfil propio.
+  - `--remote-debugging-port` sigue disponible en producción, como en cualquier app Electron: ningún *fuse* lo controla. Dentro del límite de confianza de `SHINOBI_DATOS`.
 
 ## Fuentes
 - Electron — Security checklist (contexto aislado, sandbox, permisos, navegación, `file://` frente a protocolos propios, validar el remitente de IPC): https://www.electronjs.org/docs/latest/tutorial/security

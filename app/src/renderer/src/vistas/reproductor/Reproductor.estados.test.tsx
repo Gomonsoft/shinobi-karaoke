@@ -188,7 +188,7 @@ describe('estados del reproductor', () => {
     const f = montar({ cancion: { ...cancion, lineasSinSincronizar: n } })
     const aviso = R.incompleta(n)
     await waitFor(() => expect(screen.getAllByText(aviso.slice(2))).toHaveLength(2))
-    expect(anuncio()).toHaveTextContent(aviso)
+    await waitFor(() => expect(anuncio()).toHaveTextContent(aviso))
     act(() => f.emitir({ sonando: false }))
     act(() => f.emitir({ sonando: true }))
     expect(anuncio()).toHaveTextContent(R.aria.reanudacion)

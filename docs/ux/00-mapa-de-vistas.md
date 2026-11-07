@@ -6,6 +6,7 @@
 
 | # | Vista | Spec | Tipo | Se llega desde |
 |---|-------|------|------|----------------|
+| — | **Descarga e instalación** (README e `INSTALAR.md`, fuera de la app) | [09-descarga-e-instalacion.md](09-descarga-e-instalacion.md) | Documentos del repositorio, no es una vista | Página del proyecto; notas de cada *Release* |
 | 1 | **Primer arranque** (bienvenida → instalación del motor → listo) | [01-primer-arranque.md](01-primer-arranque.md) | Pantalla completa de la ventana, bloqueante | Arranque de la app si `config.instalacion.estado ≠ "completa"` |
 | 2 | **Biblioteca** (vista inicial) | [02-biblioteca.md](02-biblioteca.md) | Vista raíz | Arranque normal, botón "Biblioteca" de cualquier vista, salir del reproductor |
 | 3 | **Añadir canción** (fuente: archivo / YouTube + metadatos) | [03-anadir-cancion.md](03-anadir-cancion.md) | Paso 1 del espacio de canción | Botón "Añadir canción" (Ctrl/Cmd+N) |
@@ -48,7 +49,7 @@ Las vistas de creación comparten cabecera con stepper:
 | 1 Fuente | Siempre que exista la canción. Tras completarse, muestra un resumen de la fuente y permite editar los metadatos (no cambiar el audio). | ✓ completado · ⟳ descargando · ✕ error · ⚠ interrumpido |
 | 2 Separación | Cuando la fuente está completada o en curso | ⟳ con % · "En cola" · ✓ · ✕ · ⚠ |
 | 3 Letra | Cuando la fuente está completada (no espera a la separación) | ✓ si hay ≥ 1 línea (también estando en la vista Letra); ● si es el actual y aún no tiene líneas |
-| 4 Editor | Cuando hay letra (≥ 1 línea) | ✓ si la canción está **Lista** (también estando en el Editor); ● si es el actual y no está Lista |
+| 4 Editor | Cuando la fuente está completada y hay letra (≥ 1 línea) | ✓ si la canción está **Lista** (también estando en el Editor); ● si es el actual y no está Lista |
 
 **Paso actual** ([0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md)): el indicador del círculo muestra siempre el estado del paso (✓, ⟳, ✕, ⚠…); ● solo sustituye a "pendiente" en el paso actual. El paso actual se marca además con la etiqueta en `texto-1` 600, subrayado de 2 px `acento-texto` y `aria-current="step"`; su `aria-label` añade ", paso actual" (p. ej. "Paso 3, Letra, completado, paso actual").
 Los pasos no navegables tienen `aria-disabled` y muestran *tooltip* con el motivo (definitivos, `preguntas/0022` §8):

@@ -161,6 +161,7 @@ export interface OpcionesActualizar {
 export interface DependenciasActualizador {
   /** `<datos>/runtime`. */
   dirRuntime: string
+  rutaExclusiones: string
   plataforma: NodeJS.Platform
   ejecutorUv: EjecutorUv
   cerrojo: CerrojoLecturaEscritura
@@ -313,6 +314,8 @@ export class ActualizadorYtDlp {
             'install',
             '--python',
             python,
+            '--excludes',
+            this.deps.rutaExclusiones,
             '-U',
             'yt-dlp[default]',
             'deno',

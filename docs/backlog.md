@@ -336,7 +336,79 @@ Deuda que se salda aquí:
 - motor incompleto como `ERROR_INTERNO` (2026-11-06 → 0124, 0125);
 - nombre de la canción 18 de la semilla (0029 → 0115).
 
-## Fase 7 — Empaquetado y distribución
-| Tarea | Título | Depende de | Estado |
-|-------|--------|-----------|--------|
-| [0025](tareas/0025-empaquetado-e-instaladores.md) | Empaquetado: electron-builder, *fuses* (ADR 0008) e instaladores sin firma | 0022, 0024 (+ 0035, 0038 de la Fase 2) | Pendiente |
+## Fase 7 — Empaquetado, parte 1 — **implementación cerrada (2026-11-06)**
+**Decisiones técnicas** en los nuevos [ADR 0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) y [ADR 0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md):
+- **electron-builder 26.18.0** con *fuses* en `electronFuses` (mismo orden que `afterPack`), firma `mac.identity: "-"` sin *hardened runtime* y AppImage con runtime estático: no necesita `libfuse2`.
+- **`uv` 0.13.7** descargado en el build con SHA-256 fijado.
+- **Licencias** de lo que se distribuye de verdad: `--production` omite `react-dom` y `scheduler`.
+- **Workflow solo manual**, con acciones fijadas por SHA y artefactos de 14 días. `ci.yml` no se toca. **Sin *Releases* en esta fase.**
+- **Prueba de humo** por CDP (`--remote-debugging-port`) contra el artefacto real: `_electron` no funciona con los *fuses*. Sin código de prueba en producción y sin modelos: runtime falso **en disco**.
+- **Tamaños en la prueba de concepto**, sin icono: NSIS 134,9 MB, AppImage 136,2 MB, `.deb` 116,6 MB. Objetivo de 100–150 MB cumplido.
+
+[0025](tareas/0025-empaquetado-e-instaladores.md) queda **desglosada**, con una tabla que indica a qué tarea va cada criterio.
+
+**Red y modelos**: ninguna tarea usa modelos reales salvo la manual 0139. "Tests" son los que corren en la CI normal, sin red.
+
+| Tarea | Título | Depende de | ¿Paralelizable? | Tests sin red | Red en | Archivos compartidos | Estado |
+|-------|--------|-----------|-----------------|---------------|--------|----------------------|--------|
+| [0127](tareas/0127-dependencias-metadatos-y-ajustes-del-repositorio-para-empaquetar.md) | Dependencias, metadatos e ignorados | — | **Primera** | Sí | `npm install` | `package.json`, `package-lock.json`, `vitest.config.mts`, `tsconfig.node.json` | Hecha |
+| [0128](tareas/0128-worker-sin-bytecode-en-produccion.md) | Worker sin *bytecode* en producción | — | **Empieza ya** | Sí | — | `trabajos/worker.ts`, `runtime/gestor.ts` | Hecha |
+| [0134](tareas/0134-ninguna-ruta-descarga-rapido-sin-consentimiento.md) | Ninguna ruta descarga Rápido sin consentimiento | — | **Empieza ya** | Sí | — | `runtime/gestor.ts` si hay que corregir (tras 0128) | Hecha |
+| [0138](tareas/0138-readme-e-instalar-sin-version-publicada.md) | README e `INSTALAR.md`, estado E0, y "~1–2 GB" corregido | — | **Empieza ya** | Sí | — | `README.md` | Hecha |
+| [0133](tareas/0133-avisos-de-terceros-de-las-dependencias-python.md) | Avisos: dependencias Python | — | ‖ 0132 en código | Sí | Script | `THIRD_PARTY_NOTICES.md` (tras 0132) | En curso |
+| [0129](tareas/0129-descarga-de-uv-con-sha-256-verificado.md) | Descarga de `uv` con SHA-256 | 0127 | ‖ 0131, 0132 | Sí | Script | `package.json` (scripts) | Hecha |
+| [0131](tareas/0131-verificacion-del-contenido-fuses-y-firma-del-paquete.md) | Verificación de contenido, *fuses* y firma | 0127 (0130 para probar con un paquete real) | ‖ 0129, 0132 | Sí | — | `package.json` (scripts) | Hecha |
+| [0132](tareas/0132-avisos-de-terceros-de-las-dependencias-js.md) | Avisos: dependencias JS y `uv` | 0127 | ‖ 0129, 0131 | Sí | — | `THIRD_PARTY_NOTICES.md`, `package.json` (scripts) | Hecha |
+| [0130](tareas/0130-configuracion-de-electron-builder.md) | `electron-builder.yml`, *fuses* y firma | 0127, 0129 | No | Sí | Empaquetar | `package.json` (scripts) | Hecha |
+| [0135](tareas/0135-prueba-de-humo-de-la-app-empaquetada.md) | Prueba de humo `e2e-paquete` | 0127, 0130 | ‖ 0131 | Se ejecuta aparte | Paso `humo-worker` | `package.json` (scripts) | Hecha |
+| [0136](tareas/0136-workflow-construir-y-probar-desempaquetado.md) | Workflow: construir, verificar, humo desempaquetado, artefactos, tamaños | 0128–0132, 0135 | No | Test del YAML | Sí | `empaquetado.yml` | Hecha |
+| [0137](tareas/0137-workflow-probar-los-instaladores.md) | Workflow: instalar y probar cada instalador | 0136 | No | Test del YAML | Sí | `empaquetado.yml` | Hecha |
+| [0140](tareas/0140-icono-de-la-app-en-los-instaladores.md) | Icono | 0130 y [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | — | — | — | En curso |
+| [0141](tareas/0141-texto-de-b6b-menu-apple-sin-caracter-privado.md) | B6b: "menú Apple" sin carácter de uso privado | [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) | Sí | Sí | — | `primer-arranque/textos.ts` | Hecha |
+| [0139](tareas/0139-prueba-manual-de-instalacion-y-capturas.md) | Prueba manual; validación funcional Windows aceptada; checklist restante para 0142 | 0136–0138 y [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) | Manual | — | Sí, con modelos | — | Hecha por aceptación del usuario; gates detallados pendientes para 0142 |
+| [0142](tareas/0142-primera-version-publica.md) | Primera versión pública. **Fuera de lo que se implementa ahora** | Todas y [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md), [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md), [0037](preguntas/0037-autoactualizacion-de-la-app.md), [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) | No | — | Sí | `README.md` | Bloqueada |
+
+**Orden sugerido con tres programadores**:
+- **Ya, en paralelo**: 0127, 0128, 0134 y 0138.
+- **Tras 0127**: 0129 ‖ 0131 ‖ 0132; 0133 en paralelo, y su bloque de avisos se integra después de 0132.
+- **Núcleo**: 0130 (tras 0129) → 0135.
+- **Workflow**: 0136 → 0137, cuando estén 0128–0132 y 0135.
+- **Ya respondida la 0039**: 0140 (tras 0130) y 0141.
+- **Manual**: 0139.
+- **Cuando decida el usuario**: 0142.
+
+Archivos compartidos, en este orden:
+- `app/package.json`: 0127 primero; después, solo se añaden scripts;
+- `THIRD_PARTY_NOTICES.md`: 0132 → 0133 (bloques con marcadores);
+- `runtime/gestor.ts`: 0128 → 0134;
+- `.github/workflows/empaquetado.yml`: 0136 → 0137;
+- `README.md`: 0138 → 0142.
+
+**Preguntas**:
+| Pregunta | Para | Bloquea |
+|---|---|---|
+| [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md) Repositorio público y publicación. **Repositorio público confirmado; publicación pendiente** | usuario | 0142 |
+| [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md) Número de versión | usuario | 0142 |
+| [0037](preguntas/0037-autoactualizacion-de-la-app.md) Autoactualización | usuario | Nada; condiciona 0142 |
+| [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md) Primera ejecución del workflow y prueba manual | workflow hecho; Windows priorizado, otros equipos pendientes | 0139 |
+| [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) Icono y texto de B6b | respondida | — |
+| [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) Control inteligente de aplicaciones | usuario | 0142 |
+| [0045](preguntas/0045-appimage-sin-sandbox-en-ubuntu.md) AppImage sin sandbox en Ubuntu 24.04+ | usuario | 0142 |
+| [0040](preguntas/0040-nombres-de-instaladores-y-enlaces-de-descarga.md) Nombres | respondida | — |
+| [0046](preguntas/0046-licencia-no-comercial-de-diffq.md) Licencia de DiffQ | respondida en ADR 0014 | 0133 sigue en validación |
+| [0041](preguntas/0041-gatekeeper-con-firma-ad-hoc.md), [0042](preguntas/0042-appimage-fuse-y-sandbox-en-linux.md), [0043](preguntas/0043-instalador-de-windows-y-datos-al-desinstalar.md) | respondidas; a medir en 0137 y 0139 | — |
+
+**Para el diseñador**: las respuestas a 0040–0043 indican cambios en `ux/09`: valores de los nombres, sin comandos de `libfuse2`, Mac con chip Apple y macOS ≤ 12, paso 4 de Windows y "Desinstalar".
+
+**Sin dependencia de esta fase**: las preguntas 0033 y 0034 siguen abiertas y no afectan al empaquetado.
+
+## Fase 8 — Empaquetado, parte 2: verificación
+
+Se conservan los identificadores y los criterios de aceptación de la Fase 7. La Fase 8 se cerró el 2026-11-07 por aprobación del usuario de la validación funcional del artefacto interno Windows; lo que no se midió sigue como gate de publicación 0142.
+
+| Tareas | Verificación pendiente | Requisito |
+|---|---|---|
+| 0136, 0137 | Hechas: empaquetado y pruebas automatizadas en GitHub; se registraron los cuatro artefactos, tamaños y resultados por runner | Ejecución de empaquetado completada |
+| 0140, 0139 | Validación funcional Windows aceptada por usuario. SmartScreen apareció y la app funcionó; checklist detallado, icono en todos los paquetes y macOS/Linux no quedan verificados. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md); antes de publicar | Instalador y equipos reales |
+| 0133, 0058, 0062 | Inferencia sin DiffQ, caché, pico de disco y benchmark de Calidad. La prueba rápida de RTX 4070 es cualitativa; quedan mediciones y perfiles pendientes antes de publicar | `runtime-real` y equipos con hardware correspondiente |
+| 0142 | Primera publicación | Decisiones y pruebas de la lista de publicación, más orden expresa |

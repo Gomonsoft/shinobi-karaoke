@@ -399,7 +399,11 @@ describe('B6 / B6b: equipo no compatible', () => {
       screen.getByText('Todos los Mac con chip Apple pueden actualizar gratis.')
     ).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByText(/Actualización de software/)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Para actualizar: menú Apple (la manzana de la esquina de la pantalla) → Ajustes del Sistema (o Configuración del Sistema) → General → Actualización de Software. Antes, conviene hacer una copia de seguridad. Cuando termines, vuelve a abrir Shinobi Karaoke.'
+      )
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Pedir soporte/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Preparar/ })).toBeNull()
     expect(screen.getByRole('button', { name: 'Salir' })).toHaveFocus()

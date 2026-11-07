@@ -10,6 +10,27 @@
 - **La letra es la protagonista**: en editor y reproductor la interfaz se retira (paneles en grises, controles que se ocultan).
 - Logotipo provisional: wordmark "Shinobi Karaoke" en la fuente de interfaz, peso 700, con la "i" final de *Shinobi* sustituida por un pequeño shuriken/rombo rojo (detalle gráfico opcional; sin dependencia funcional).
 
+### 1.1 Icono de la app
+Traslada a un archivo el rombo rojo `◆` que ya acompaña al nombre en las specs, con los tokens de §2. No crea una marca nueva y es tan provisional como el logotipo: se sustituye si el usuario decide otra marca ([0039](../preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md)). Es de creación propia, con la licencia del proyecto.
+
+| Elemento | Especificación (lienzo de 1024 × 1024 px) |
+|----------|-------------------------------------------|
+| Lienzo | PNG RGBA, fondo transparente. Margen de 100 px en cada lado |
+| Placa | Cuadrado redondeado de 824 × 824 px, de (100, 100) a (924, 924), radio exterior 186 px, relleno `fondo-0` `#0E0F14` |
+| Borde de la placa | 8 px hacia dentro, `borde` `#2E3244`, para que se distinga en barras y muelles oscuros; decorativo |
+| Rombo | Vértices (512, 212), (812, 512), (512, 812), (212, 512), relleno `acento` `#C8303B`, esquinas vivas. Contraste con la placa ≈ 3,6:1 (≥ 3:1 para objetos gráficos) |
+| Sin | Texto, degradados, sombras, brillos ni ilustración |
+| Tamaños pequeños | Una sola imagen, sin variantes: por eso no lleva texto ni detalles finos. A 16 px, la placa mide unos 13 px y el rombo unos 9 px; el borde puede desaparecer sin que importe |
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect x="104" y="104" width="816" height="816" rx="182" fill="#0E0F14" stroke="#2E3244" stroke-width="8"/>
+  <path d="M512 212 L812 512 L512 812 L212 512 Z" fill="#C8303B"/>
+</svg>
+```
+
+Criterios: `app/build/icon.png` mide 1024 × 1024 con canal alfa; (0, 0) es transparente, (512, 512) es `#C8303B` y (150, 512) es `#0E0F14`; reducido a 16, 32, 48 y 256 px, el rombo se distingue sobre fondo claro y oscuro.
+
 ## 2. Paleta (tema oscuro, único en el MVP)
 
 Todos los pares texto/fondo indicados se han calculado con la fórmula de luminancia relativa de WCAG 2.x.

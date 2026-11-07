@@ -11,9 +11,11 @@
 > [0008 Seguridad de Electron](adr/0008-seguridad-de-electron-y-protocolos-propios.md) ·
 > [0009 Gestor de runtime y dobles de prueba](adr/0009-gestor-de-runtime-y-dobles-de-prueba.md) ·
 > [0010 Editor: audio, reloj y guardado](adr/0010-editor-motor-de-audio-reloj-y-guardado.md) ·
-> [0011 Reproductor: pantalla completa, voz guía y capas](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md)
+> [0011 Reproductor: pantalla completa, voz guía y capas](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md) ·
+> [0012 Empaquetado](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) ·
+> [0013 Workflow de empaquetado y prueba de humo](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md)
 >
-> Última revisión: 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-06: desglose de la Fase 7 (ADR 0012 y 0013, tareas 0127–0142, §9 "Empaquetado"). Antes, 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -154,14 +156,17 @@ shinobi-karaoke/
 ├── app/                          # aplicación Electron (TypeScript)
 │   ├── package.json              # scripts: dev, build, lint, typecheck, test, test:e2e, semilla (ADR 0007)
 │   ├── electron.vite.config.ts
-│   ├── electron-builder.yml      # NSIS (Win), DMG (macOS), AppImage + deb (Linux)
+│   ├── electron-builder.yml      # (Fase 7) NSIS (Win), DMG arm64 (macOS), AppImage + deb (Linux), fuses; ADR 0012
+│   ├── playwright.paquete.config.ts # (Fase 7) configuración de la prueba de humo de la app empaquetada
+│   ├── build/                    # (Fase 7) icono de la app (tarea 0140)
 │   ├── resources/
 │   │   ├── fonts/                # 8 familias OFL de karaoke + Atkinson Hyperlegible Next 400/600 (interfaz), WOFF2, con OFL.txt por familia
+│   │   ├── licencias/            # (Fase 7) textos de licencia de uv
 │   │   ├── runtime-manifest.json # tamaños, URLs, SHA-256 de modelos y factores de tiempo por perfil (ADR 0004)
-│   │   └── bin/                  # binario uv por plataforma (descargado en el build)
-│   └── src/
-│   ├── scripts/                  # semilla.mjs (+ resolver-ts.mjs): biblioteca de desarrollo
+│   │   └── bin/                  # binario uv de la plataforma actual (lo descarga scripts/descargar-uv.mjs; no se versiona)
+│   ├── scripts/                  # semilla.mjs (+ resolver-ts.mjs), instalar-runtime.mjs; (Fase 7) descargar-uv, verificar-paquete, licencias-js, humo-worker
 │   ├── e2e/                      # pruebas Playwright `_electron` (directorio de datos temporal por prueba)
+│   ├── e2e-paquete/              # (Fase 7) humo por CDP contra la app empaquetada; no lo ejecuta `playwright test`
 │   └── src/
 │       ├── shared/               # esquemas Zod (cancion, letra, estilo, config), migraciones, reglas derivadas, operaciones de letra,
 │       │                         # catálogo de errores, protocolo JSON Lines, fuentes incluidas, contrato IPC (ipc.ts) y canales (canales.ts), __fixtures__/,
@@ -208,7 +213,7 @@ shinobi-karaoke/
 │   │   └── diagnostico.py        # detección de CUDA/MPS/CPU y memoria
 │   └── tests/
 ├── spikes/                       # pruebas de concepto desechables (no se empaquetan ni se importan desde app/ o worker/)
-└── .github/workflows/            # CI (lint + tests en Windows, macOS y Linux) y, más adelante, builds por SO
+└── .github/workflows/            # ci.yml (lint + tests en los 3 SO), runtime-real.yml (manual) y empaquetado.yml (Fase 7, manual)
 ```
 
 ## 6. Procesos largos (trabajos en segundo plano)
@@ -247,7 +252,7 @@ Detalle de requisitos por perfil, manifiesto, directorio `runtime/`, descarga de
 Secuencia del gestor de runtime, cada fase reanudable e idempotente (en la UI se agrupan en 3 fases visibles, `docs/ux/01-primer-arranque.md`):
 1. Detección básica de plataforma.
 2. `uv python install 3.12` → `uv venv` en `runtime/`.
-3. `uv pip install --require-hashes -r worker/requisitos/<plataforma>-<perfil>.txt` (requisitos fijados por perfil, ADR 0009 §1; incluye yt-dlp[default] y Deno) → marcador `runtime/instalado.json` → `uv cache clean`.
+3. `uv pip install --require-hashes --excludes worker/requisitos/exclusiones.txt -r worker/requisitos/<plataforma>-<perfil>.txt` instala los requisitos fijados por perfil, incluidos yt-dlp y Deno. El gestor comprueba la ausencia de DiffQ antes de escribir `runtime/instalado.json` y limpiar la caché de uv (ADR 0009 y ADR 0014).
 4. `python -m shinobi_worker diagnostico` → confirma el perfil de hardware (CUDA / MPS / CPU; solo puede rebajar `cuda` → `cpu`, que cambia dónde se ejecuta pero no el modelo), guardado en `config.json`.
 5. Descarga (en main, reanudable con `Range`) y verificación SHA-256 del modelo **Calidad** en `modelos/`. Si falla de forma definitiva por verificación, servidores o espacio, B4 ofrece Rápido con consentimiento (ADR 0009, revisión 2026-11-05). al arrancar se borran los `*.partial` de audio-separator.
 
@@ -285,9 +290,30 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 - Origen del renderer: `shinobi-app://app` en producción (no `file://`) y el servidor de Vite en desarrollo (tarea 0022). `shinobi-media://` solo sirve 4 rutas por canción dentro de `biblioteca/<id>/` (`realpath`, sin symlinks que escapen) y su CORS solo admite ese origen.
 - IPC: todos los argumentos se validan con Zod en main; errores como `{ codigo, mensaje }` sin detalles internos; remitente comprobado (ventana de la app y *frame* principal del origen del renderer, tarea 0021).
 - Navegación y ventanas nuevas bloqueadas en todos los `webContents`; enlaces externos solo a la lista blanca `ENLACES_PERMITIDOS` (`lrclib.net`, `github.com/Gomonsoft/shinobi-karaoke`, `support.apple.com/es-es/108382` para B6b), tanto por IPC como por navegación; sin `<webview>`; permisos de Chromium denegados salvo escribir en el portapapeles (`fullscreen` se retira en la Fase 6: la pantalla completa la pide el main); una sola instancia de la app.
-- Empaquetado con *fuses* restrictivos (ADR 0008, tarea 0025).
+- Empaquetado con *fuses* restrictivos (ADR 0008 §9, ADR 0012 §3, tareas 0130 y 0131).
 - Las URLs de YouTube se validan en main antes de pasarlas al worker; argumentos siempre como JSON (nunca concatenados en un shell; `shell: false`).
 - Sin telemetría.
+- Con la app empaquetada, las variables `SHINOBI_*` de prueba se ignoran, con la excepción de `SHINOBI_DATOS` (ADR 0008). La prueba de humo no añade ninguna vía de prueba a producción (ADR 0013).
+- Sandbox de Chromium: activo en Windows, macOS y `.deb` (perfil de AppArmor en Ubuntu 24+). En el AppImage, `AppRun` añade `--no-sandbox` si el sistema restringe los espacios de nombres (limitación aceptada, ADR 0012; `preguntas/0042`).
+
+## 9. Empaquetado y distribución (Fase 7)
+Detalle en los ADR [0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) y [0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md).
+
+| Dentro del paquete | Ubicación | Lo usa |
+|---|---|---|
+| `out/`, `package.json`, `node_modules/{zod,yaml}` | `resources/app.asar` | Main, preload y renderer (`shinobi-app://app`) |
+| Código del worker | `resources/worker/shinobi_worker/` | `PYTHONPATH` del lanzador de producción, con `PYTHONDONTWRITEBYTECODE=1` |
+| Requisitos, `pyproject.toml`, `uv.lock` | `resources/worker/` | Gestor de runtime |
+| `runtime-manifest.json` | `resources/` | Gestor de runtime |
+| `uv` o `uv.exe` | `resources/bin/` | `resolverUv` |
+| `LICENSE`, `THIRD_PARTY_NOTICES.md` | `resources/` | `leerTextoLegal` |
+| Fuentes y `OFL.txt` | `resources/fonts/` (las que usa el renderer van también en el asar) | Obligación de la licencia OFL |
+| No se incluyen | — | Python, PyTorch, modelos, `spikes/`, tests, `.datos-dev` |
+
+- **Instaladores**: `Shinobi-Karaoke-Windows-x64.exe`, `Shinobi-Karaoke-Mac-chip-Apple.dmg`, `Shinobi-Karaoke-Linux-x64.AppImage` y `shinobi-karaoke-linux-x64.deb` (`preguntas/0040`).
+- **Build**: `npm run build` → `npm run uv:descargar` → `npm run empaquetar` → `npm run paquete:verificar`.
+- **CI**: `empaquetado.yml`, solo `workflow_dispatch`; construye en `windows-2025`, `macos-26` y `ubuntu-24.04`, prueba el paquete y el instalador y guarda artefactos 14 días. **No publica.**
+- **Datos**: los desinstaladores no tocan el directorio de datos (`preguntas/0043`).
 
 ---
 
@@ -296,7 +322,7 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 > Sección pensada para el diseñador UX. Cifras actualizadas con el spike 0005 (2026-11-04): **medidas** solo en un MacBook Air M1 de 8 GB; NVIDIA, Windows y Linux son **calculadas/estimadas** hasta medirlas.
 
 ### 1. Instalación y primer arranque
-- **Instalador** ~100–150 MB. **Sin firma de código en el MVP** (decisión del usuario, `preguntas/0001`): Windows (SmartScreen) y macOS (Gatekeeper) muestran avisos de "app no reconocida" que el usuario salta con la guía de instalación (`ux/01`, Parte A).
+- **Instalador** ~100–150 MB (prueba de concepto sin icono, 2026-11-06: NSIS 134,9 MB, AppImage 136,2 MB, `.deb` 116,6 MB; DMG sin medir). **Sin firma de código en el MVP** (decisión del usuario, `preguntas/0001`): Windows (SmartScreen) y macOS (Gatekeeper) muestran avisos de "app no reconocida" que el usuario salta con la guía de instalación (`ux/01`, Parte A).
 - **Primer arranque obligatorio con conexión**: descarga de Python, dependencias y el modelo de separación.
   | Equipo | Descarga aprox. | Tiempo aprox. (conexión 50 Mbps) |
   |--------|----------------|-------------------------------|
@@ -372,7 +398,7 @@ Implicaciones:
 - Sección **Acerca de / Licencias** con la licencia GPL-3.0 y créditos de terceros (UVR y autores de modelos, fuentes, FFmpeg, yt-dlp).
 
 ### 8. Requisitos del equipo (orientativos)
-- Windows 10/11 x64, **macOS 14+ en Apple Silicon** (torch, onnxruntime y av solo publican `macosx_14_0_arm64`; la app muestra B6 por debajo de 14), Linux x64 con glibc ≥ 2.28. **Mac Intel: no compatible** en el MVP (sin PyTorch ≥ 2.3 para macOS x86_64; provisional hasta `preguntas/0016`; solo se publica el DMG arm64). Ver `preguntas/0015`. Cuenta la **arquitectura real** del equipo (`app.runningUnderARM64Translation`): Windows on ARM con el build x64 → B6; Mac Apple Silicon con el build x64 → runtime `darwin-arm64-mps` nativo (ADR 0009, Revisiones).
+- Windows 10/11 x64, **macOS 14+ en Apple Silicon** (torch, onnxruntime y av solo publican `macosx_14_0_arm64`; la app muestra B6b en macOS 13; con macOS 12 o anterior ni siquiera abre, porque Electron 45 declara `LSMinimumSystemVersion` 13.0), Linux x64 con glibc ≥ 2.28 (probado en Ubuntu 24.04). **Mac Intel: no compatible** en el MVP (sin PyTorch ≥ 2.3 para macOS x86_64; decisión del usuario en `preguntas/0016`; solo se publica el DMG arm64). Ver `preguntas/0015`. Cuenta la **arquitectura real** del equipo (`app.runningUnderARM64Translation`): Windows on ARM con el build x64 → B6; Mac Apple Silicon con el build x64 → runtime `darwin-arm64-mps` nativo (ADR 0009, Revisiones).
 - 8 GB de RAM mínimo (16 GB recomendados, README); **4 GB de espacio libre** para instalar en CPU y Apple Silicon (10 GB con NVIDIA). Ocupado tras instalar con Calidad: ≈ 2,2 GB en Apple Silicon (medido), ≈ 2,2 GB en Windows CPU y ≈ 2,7 GB en Linux CPU (venv medido + Python + 913 MB del modelo) – ~6–8 GB (NVIDIA, estimado) de disco para el motor + ≈ 40–100 MB por canción de 4 min (medido 37–48 MB con una grabación antigua).
 - **Modelo**: Calidad en todos los equipos. Rápido solo si el usuario lo acepta tras un fallo de Calidad (no se elige en Ajustes, que solo informa del modelo en uso y permite volver a Calidad), avisando de que su licencia no está declarada (`preguntas/0012`, `0018`).
 - GPU opcional: NVIDIA con ≥ 4 GB de VRAM para acelerar Calidad. Apple Silicon usa Calidad **en CPU** (más rápido que MPS en el M1 medido, `preguntas/0010`); pico de RAM ≈ 3,2 GB.

@@ -12,6 +12,16 @@ Software **libre y gratuito** para convertir tus canciones en karaokes.
 
 > Estado: en desarrollo temprano. Consulta la documentación en [`docs/`](docs/README.md).
 
+## Descargar
+
+**Todavía no hay ninguna versión publicada.** Shinobi Karaoke sigue en desarrollo y aún no tiene instaladores. Cuando publiquemos la primera versión, los enlaces de descarga aparecerán aquí.
+
+**Requisitos:** Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 4 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez
+
+Los Mac con procesador Intel no son compatibles por ahora. Tampoco los equipos con procesador ARM que usan Windows o Linux.
+
+Si quieres saber cómo será la instalación, lee la [guía de instalación](INSTALAR.md).
+
 ## Requisitos del equipo
 
 | | Mínimo | Recomendado |
@@ -20,7 +30,7 @@ Software **libre y gratuito** para convertir tus canciones en karaokes.
 | **Procesador / gráfica** | Cualquier CPU x64 o chip Apple | Chip Apple, o tarjeta **NVIDIA con ≥ 4 GB de VRAM** (acelera la separación) |
 | **Memoria (RAM)** | 8 GB | 16 GB |
 | **Espacio libre** | **4 GB** para el motor de separación + ~100 MB por canción | 10 GB (necesario con NVIDIA) |
-| **Conexión** | Solo en el primer arranque (descarga ~1–2 GB) y para YouTube/letras | — |
+| **Conexión** | Solo en el primer arranque (descarga entre 1 y 6 GB según tu equipo) y para YouTube/letras | — |
 
 - **No compatibles**: Mac con procesador Intel y Windows en ARM.
 - **Modelo de separación**: se usa siempre el modelo de **Calidad**. Si no se puede descargar o usar en tu equipo, la app te ofrece el modelo **Rápido** (más ligero), bajo tu responsabilidad: su licencia aún no está declarada por sus autores.

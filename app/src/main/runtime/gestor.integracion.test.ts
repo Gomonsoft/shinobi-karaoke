@@ -107,6 +107,7 @@ describe('gestor con uv falso', () => {
       ['--no-config', 'python', 'find'],
       ['--no-config', 'venv', '--clear'],
       ['--no-config', 'pip', 'install'],
+      ['--no-config', 'run', '--offline'],
       ['--no-config', 'cache', 'clean']
     ])
     expect(llamadas[0]?.args[3]).toBe('cpython-3.12.16-linux-x86_64-gnu')
@@ -115,12 +116,14 @@ describe('gestor con uv falso', () => {
     expect(venv[3]).toBe('--python')
     expect(venv[4]).toBe(join(datos, 'runtime', 'python', 'py'))
     expect(venv[5]).toBe(join(datos, 'runtime', 'venv'))
-    expect(llamadas[3]!.args.slice(3, 8)).toEqual([
+    expect(llamadas[3]!.args.slice(3, 10)).toEqual([
       '--python',
       process.platform === 'win32'
         ? join(datos, 'runtime', 'venv', 'Scripts', 'python.exe')
         : join(datos, 'runtime', 'venv', 'bin', 'python'),
       '--require-hashes',
+      '--excludes',
+      join('/recursos/worker', 'requisitos', 'exclusiones.txt'),
       '--index-strategy',
       'unsafe-best-match'
     ])

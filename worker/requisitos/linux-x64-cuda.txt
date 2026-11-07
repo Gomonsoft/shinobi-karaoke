@@ -1,8 +1,8 @@
 # Archivo generado por worker/scripts/compilar_requisitos.py: no se edita a mano.
 # Perfil: linux-x64-cuda (ADR 0009 §1). Resuelto con uv 0.13.7 desde worker/:
-#   uv pip compile pyproject.toml --extra separacion --python-version 3.12 --python-platform x86_64-unknown-linux-gnu --torch-backend cu128 --overrides overrides.txt --generate-hashes --emit-index-url --no-header --output-file linux-x64-cuda.txt
+#   uv pip compile pyproject.toml --extra separacion --python-version 3.12 --python-platform x86_64-unknown-linux-gnu --torch-backend cu128 --excludes requisitos/exclusiones.txt --overrides overrides.txt --generate-hashes --emit-index-url --no-header --output-file linux-x64-cuda.txt
 # overrides.txt: torch==2.11.0+cu128, onnxruntime==1.31.1, audioread==3.1.0, onnx-weekly==1.24.0.dev20261102
-# Instalación: uv pip install --require-hashes --index-strategy unsafe-best-match -r <este archivo>
+# Instalación: uv pip install --require-hashes --index-strategy unsafe-best-match --excludes requisitos/exclusiones.txt -r <este archivo>
 
 --index-url https://pypi.org/simple
 --extra-index-url https://download.pytorch.org/whl/cu128
@@ -511,47 +511,6 @@ cuda-pathfinder==1.8.5 \
 cuda-toolkit==12.8.1 \
     --hash=sha256:adc7906af4ecbf9a352f9dca5734eceb21daec281ccfcf5675e1d2f724fc2cba
     # via torch
-cython==3.3.1 \
-    --hash=sha256:08ef3dcd3070959983a15e82bbfd56edb13cbe75b14043665c76ee4425140eaf \
-    --hash=sha256:0ce9efd76bfbf7b67be0da80d450231e1c1bdd5e755d7a8dc10ffc2669fc5edf \
-    --hash=sha256:0f7d52979bf7730351cf9ca2e9257d4b80f729053b521159bab8666e6be7e3bd \
-    --hash=sha256:14bd1521a14d98bed4ae791ace5e830055ffc45a8cbb09f22adf90ee7dca3409 \
-    --hash=sha256:215669fd0ce792080cd4d0748db7e1e31f424b6706a6220d08339895e6a3a03a \
-    --hash=sha256:226d791808ce95f20ab1b3589082be604b5b5b31e670bf773ef9c312d2f0a8c2 \
-    --hash=sha256:26a28e0ca5dffe9c7d69d1e3a0f78cb74f41b2b6b40771f620262a5d04862a00 \
-    --hash=sha256:298d3e46d1d4e2f4405d2c934b51899482101a0b0dc43b1b13b2e38f87addf52 \
-    --hash=sha256:3370326802b82cc7cb7df65e605e1acfebdce193077e27ed5734b9bc3f7c6ad0 \
-    --hash=sha256:39a070cfd465ab44e4fc027f655df38e7d37c32d16262b254390a1015a0691e9 \
-    --hash=sha256:43b16388665cb829c265060705900db8e26e9c3c04cc91f28af38c905d12293f \
-    --hash=sha256:45dd533a87c9629d02d77c9a5b48cf399907a99e4bb556aebafd2ac4b68580d2 \
-    --hash=sha256:4d1f9d6fad7a8d9750b641a941cd841ec43740a375cb2fdb934329a17fa88b36 \
-    --hash=sha256:55102da0e7700c533cea2bec1456ee6169cc13ace6b9f6048c31f55cca76bc51 \
-    --hash=sha256:5f08b3eaa639005bea6ab119ebbd6e30656e448981e7a124d80b409760d06c15 \
-    --hash=sha256:5febfc8c52aced0cf9360e6f2304428a5fa0e66fd9aa7338d5c41f0ce26dd104 \
-    --hash=sha256:6156be528b46e820ba834449716690d5065049ff355f261a8600f7da6b436d96 \
-    --hash=sha256:61abc7feedd20dac6c4ff7ab3a30e17136a067b242ab9253e2b4a6d9a72c2b61 \
-    --hash=sha256:73f6f40f9308e77cbdb3259155d793ac189ead6687b9a432f1b4503170cb9a13 \
-    --hash=sha256:744bb804252cf204e6bc9b0fac06b3bad7bb14258cefb9f321c59c4c59e9bc17 \
-    --hash=sha256:747dade0373011034645ace4e7eb3a54102c52524fc0675dea76e655e9c1dcff \
-    --hash=sha256:76be39d20d064ad31ca55e124f5cb539e2baf933ccc321ef629ce162ab8b10d7 \
-    --hash=sha256:7a6c191617853f2e0d5936c73f5d5cd096548f4d9e0fa37612ef721591c42cb3 \
-    --hash=sha256:7bcc6de1603d8180667b40f4014be142d7d62cfc10af0184ad8d6a83847a2ced \
-    --hash=sha256:7c1f05344b32ecbb83e3bbd3586282ac1f4aedeb8025cc6e13f22a6d4e2b4222 \
-    --hash=sha256:801730e5714a40dbab8a373af36110de8ff161ec056c855a9627cf05fbc8a6d1 \
-    --hash=sha256:85be5442e8f465c7c5e80837ac2a85a2ce04034e616445113092e85b65d0ab94 \
-    --hash=sha256:8b4391d39260efedeff2e3914e958b9ed75cb2b40f10b62bb0e9ca002658563a \
-    --hash=sha256:a1bfd7511fe8d83f5e681876df22878efac5cd5b2c174f272e6bf018c8fd4a91 \
-    --hash=sha256:a2bdb50e9fe8974447b68edc5b0201573b06d2c5683f472a5fc08e1792051277 \
-    --hash=sha256:b0265a0e186af3c38339c561507e98e2e3a0d377cdb2b0427f980138ceddd4af \
-    --hash=sha256:b0eac1184dd57591a8f3d25691c7a6bf7db030f515b210691bd251772a7e70a4 \
-    --hash=sha256:bce8f37f50add0432ac802cfc34e5bd16395f2918ad1eaeb50b26d02c9001014 \
-    --hash=sha256:c4e4132b03a6c6c11541f7498441224f55a9e101c615d49494983d2b10dd7669 \
-    --hash=sha256:ccd7b6030b2f7705b928080f6c444a99a37f6058de8dab11d577499b64ea0f3a \
-    --hash=sha256:d0f2610ce850d264e29a87b3d9b8ec4f0f2dec5bc1dce0398294251f09b149df \
-    --hash=sha256:e0e45989e821bef6aa9ae15c7d583ab5e055f7406c4b3624e49e06d24e90375a \
-    --hash=sha256:fcb6c86dddaedd1da5d77ba2469c1a4bea52442e02d8f0653ff78667fbaaa8d9 \
-    --hash=sha256:fd81cfc6e94c43c5c0fe50439c11b90dc89cc6b323f92b37edc6a951d0a619d7
-    # via diffq
 decorator==5.3.1 \
     --hash=sha256:4cbcdd55a6efadb9dbea26b858f4fb3264567b52d69ca0d25b721b553f60ea82 \
     --hash=sha256:f47fe6fdbd2edd623ecfe36875d37aba411624e2670dd395dddae1358689bb3c
@@ -564,35 +523,6 @@ deno==2.9.8 \
     --hash=sha256:b82eac91d3e3f6fe37d94a12f833550e05029274cb9020b1e3f0f61e1678dc24 \
     --hash=sha256:f050f14d259f1e6f39a86aa8dd85f787df2311fc8ceb0be57485a127567ae137
     # via shinobi-worker (pyproject.toml)
-diffq==0.2.4 \
-    --hash=sha256:02268472f1646cafe4fb3feaad9ac519f7e65d617871a58b56e71bc552fc8fb3 \
-    --hash=sha256:0381dedef3b88b4910eedfd894610ecac9affd689c2191c96694b70b3366dd27 \
-    --hash=sha256:049064861e974ebf00d0badab8b324c775037371419eda3150985b9d477b5bd2 \
-    --hash=sha256:0729231949ec74641709ad9b713ba127898735ba20ec8f44677d984d2ce1c3b9 \
-    --hash=sha256:0b0cf50749d1a80fb74ee9e5135e08f06b519ab57f5b725bb374b2866412b725 \
-    --hash=sha256:1480ea49785dfdcc793a3f20043aba430f510d51487063e3617020f5a2d2a753 \
-    --hash=sha256:15d5055ebfc629914689d66fcfa36f6d751fd45b4b2331ba0d3390604e2b40fa \
-    --hash=sha256:3467622841b15ece3d953fa42ad65f41703afe30e777bb910b96c89125174c8e \
-    --hash=sha256:36f568bb1bbf75ac5601115e6253828c8c7b21a0501d7fcdc3b9545f80dc74f7 \
-    --hash=sha256:3aef094383d39e12508ddf61c45a377986b2d4bac26ee553b6504fee10e2ff9d \
-    --hash=sha256:3d8e6d6b882dd93568b41a7da9ff9657845ec08c82e71460544d0d04ed112320 \
-    --hash=sha256:71575ca7202628ee1380a993aebee7e15c23ee12a96bc1a4dd1bff023aafdee2 \
-    --hash=sha256:71a374573ec064227665208a5892d88032cb18736f68560d5522e0c48138ced1 \
-    --hash=sha256:7566f823bda2f3f786dfea1ca2cfaa9663b854ccafcb1b185a4370690b628cf5 \
-    --hash=sha256:78124e86f1e208830bfebe744c2321d92c65ba5d7e125d260ed418b4a2fa93df \
-    --hash=sha256:8937f15e45464fd899e9b3a6b1b57700c977367caf50a626f872dbb7883e3c1c \
-    --hash=sha256:8ff6ff92f3978770b0d2d355a5e553a554ea22732236cda9171c0683e5da5577 \
-    --hash=sha256:967a30e3a9da922d8705c3dbf44bb82d5b76a3ad49ecaa4c9450d97479fe8a31 \
-    --hash=sha256:9729121832c9abbbf4c443effe4e2c2952c48170d8c8255d79012d236c8dcd6d \
-    --hash=sha256:a5fc5cf4967d7cea065e75d2044824137ad08f1ccf7571d871cbf03bcf8809bd \
-    --hash=sha256:ce966eb21bbb983e5bf5957c5832cad57d0968b7c5602da4065c3d1603ef8a95 \
-    --hash=sha256:cf990911fc2c932e505df9958ce50417f182fe9178b2dbe329173b29e6521727 \
-    --hash=sha256:d62ffd89498611dbf32cde417f5fc8d222f450085b06afb4e8764307906ab2ca \
-    --hash=sha256:d6779a81fcb8045d006a5f309c52a34e48fefb73db99232b4b1452a8829c083c \
-    --hash=sha256:de84917882a3def0d71548e5366813f7e25a7b110d2085fe0b0fa4c9877f5098 \
-    --hash=sha256:e793fed11642fdb4909efc0f87f2dbb52808dc5fa9865d7fcadb93ec5fd3aacd \
-    --hash=sha256:ee7f31d56f5131c2577dfa7bdb7d7284c5cce031fca0e30ac10d248b3e0e6841
-    # via audio-separator
 einops==0.8.2 \
     --hash=sha256:54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193 \
     --hash=sha256:609da665570e5e265e27283aab09e7f279ade90c4f01bcfca111f3d3e13f2827
@@ -1088,7 +1018,6 @@ numpy==2.5.4 \
     # via
     #   shinobi-worker (pyproject.toml)
     #   audio-separator
-    #   diffq
     #   librosa
     #   ml-dtypes
     #   numba
@@ -1708,7 +1637,6 @@ torch==2.11.0+cu128 \
     #   --override overrides.txt
     #   shinobi-worker (pyproject.toml)
     #   audio-separator
-    #   diffq
     #   julius
     #   onnx2torch-py313
     #   rotary-embedding-torch

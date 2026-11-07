@@ -1,0 +1,329 @@
+name: Empaquetado (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  construir:
+    name: Construir (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            so: windows
+            carpeta: release/win-unpacked
+            bin: release/win-unpacked/Shinobi Karaoke.exe
+            archivos: Shinobi-Karaoke-Windows-x64.exe
+          - os: macos-26
+            so: macos
+            carpeta: release/mac-arm64/Shinobi Karaoke.app
+            bin: release/mac-arm64/Shinobi Karaoke.app/Contents/MacOS/Shinobi Karaoke
+            archivos: Shinobi-Karaoke-Mac-chip-Apple.dmg
+          - os: ubuntu-24.04
+            so: linux
+            carpeta: release/linux-unpacked
+            bin: release/linux-unpacked/shinobi-karaoke
+            archivos: Shinobi-Karaoke-Linux-x64.AppImage shinobi-karaoke-linux-x64.deb
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Verificar arquitectura macOS
+        if: runner.os == 'macOS'
+        run: test "$(uname -m)" = arm64
+      - run: npm ci
+      - run: npm run licencias:comprobar
+      - run: npm run build
+      - run: npm run uv:descargar
+      - run: npm run empaquetar
+      - name: Verificar contenido, fuses y firma
+        env:
+          CARPETA_PAQUETE: ${{ matrix.carpeta }}
+        run: node scripts/verificar-paquete.mjs "$CARPETA_PAQUETE" --json release/verificacion.json
+      - name: Habilitar el sandbox en el paquete desempaquetado de Linux
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Probar la app desempaquetada
+        env:
+          SHINOBI_PAQUETE_BIN: ${{ matrix.bin }}
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run --auto-servernum npm run test:paquete
+          else
+            npm run test:paquete
+          fi
+      - name: Probar el worker empaquetado
+        env:
+          SHINOBI_PAQUETE_BIN: ${{ matrix.bin }}
+        run: node scripts/humo-worker.mjs
+      - name: Registrar los instaladores y su SHA-256
+        id: instaladores
+        env:
+          ARCHIVOS_INSTALADORES: ${{ matrix.archivos }}
+          SO_PAQUETE: ${{ matrix.so }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto'
+          import { appendFileSync, createReadStream, readFileSync, statSync, writeFileSync } from 'node:fs'
+
+          const version = JSON.parse(readFileSync('package.json', 'utf8')).version
+          const so = process.env.SO_PAQUETE
+          const instaladores = process.env.ARCHIVOS_INSTALADORES.split(' ')
+          const nombre = `shinobi-karaoke-${version}-${process.env.GITHUB_SHA.slice(0, 7)}-${so}`
+          const sumas = `release/SHA256SUMS-${so}.txt`
+          const archivos = instaladores.map((nombre) => `release/${nombre}`)
+          const filas = []
+          const hashes = []
+          for (const [i, ruta] of archivos.entries()) {
+            const hash = createHash('sha256')
+            for await (const bloque of createReadStream(ruta)) hash.update(bloque)
+            const sha = hash.digest('hex')
+            const mb = (statSync(ruta).size / 1e6).toFixed(1)
+            hashes.push(`${sha}  ${instaladores[i]}`)
+            filas.push(`| ${instaladores[i]} | ${mb} | \`${sha}\` | Desempaquetada probada |`)
+          }
+          writeFileSync(sumas, hashes.join('\n') + '\n')
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '| Instalador | MB | SHA-256 | Nivel |',
+            '|---|---:|---|---|',
+            ...filas,
+            ''
+          ].join('\n'))
+          const rutas = [...archivos, sumas, 'release/verificacion.json'].map((ruta) => `app/${ruta}`)
+          appendFileSync(process.env.GITHUB_OUTPUT, [
+            `nombre=${nombre}`,
+            'rutas<<ARCHIVOS',
+            ...rutas,
+            'ARCHIVOS',
+            ''
+          ].join('\n'))
+          NODE
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.instaladores.outputs.nombre }}
+          path: ${{ steps.instaladores.outputs.rutas }}
+          retention-days: 14
+          if-no-files-found: error
+
+  probar-instalador:
+    name: Probar ${{ matrix.forma }} (${{ matrix.os }})
+    needs: construir
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    continue-on-error: ${{ matrix.informativa }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            so: windows
+            forma: NSIS
+            archivo: Shinobi-Karaoke-Windows-x64.exe
+            informativa: false
+          - os: macos-26
+            so: macos
+            forma: DMG
+            archivo: Shinobi-Karaoke-Mac-chip-Apple.dmg
+            informativa: false
+          - os: macos-15
+            so: macos
+            forma: DMG
+            archivo: Shinobi-Karaoke-Mac-chip-Apple.dmg
+            informativa: false
+          - os: ubuntu-24.04
+            so: linux
+            forma: .deb
+            archivo: shinobi-karaoke-linux-x64.deb
+            informativa: false
+          - os: ubuntu-26.04
+            so: linux
+            forma: .deb
+            archivo: shinobi-karaoke-linux-x64.deb
+            informativa: true
+          - os: ubuntu-24.04
+            so: linux
+            forma: AppImage
+            archivo: Shinobi-Karaoke-Linux-x64.AppImage
+            informativa: false
+    defaults:
+      run:
+        shell: bash
+        working-directory: app
+    env:
+      SO_PAQUETE: ${{ matrix.so }}
+      FORMA: ${{ matrix.forma }}
+      ARCHIVO: ${{ matrix.archivo }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Identificar artefacto
+        id: artefacto
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "nombre=shinobi-karaoke-${version}-${GITHUB_SHA:0:7}-${SO_PAQUETE}" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ steps.artefacto.outputs.nombre }}
+          path: app/release
+      - run: npm ci
+      - name: Instalar, probar y desinstalar NSIS
+        if: matrix.forma == 'NSIS'
+        id: nsis
+        shell: pwsh
+        run: |
+          $instalador = (Resolve-Path "release/$env:ARCHIVO").Path
+          # NSIS de un clic usa APP_FILENAME (nombre del paquete), no PRODUCT_FILENAME.
+          $carpeta = Join-Path $env:LOCALAPPDATA 'Programs\shinobi-karaoke'
+          $env:SHINOBI_PAQUETE_BIN = Join-Path $carpeta 'Shinobi Karaoke.exe'
+          $desinstalador = Join-Path $carpeta 'Uninstall Shinobi Karaoke.exe'
+          $config = Join-Path $env:LOCALAPPDATA 'ShinobiKaraoke\config.json'
+          $proceso = Start-Process -FilePath $instalador -ArgumentList '/S' -Wait -PassThru
+          if ($proceso.ExitCode -ne 0) { throw "Falló NSIS: $($proceso.ExitCode)" }
+          foreach ($archivo in @($env:SHINOBI_PAQUETE_BIN, $desinstalador)) {
+            if (-not (Test-Path -LiteralPath $archivo -PathType Leaf)) {
+              throw "NSIS no instaló el archivo esperado: $archivo"
+            }
+          }
+          try {
+            npm run test:paquete
+            if ($LASTEXITCODE -ne 0) { throw 'Falló el humo de NSIS' }
+            if (Test-Path -LiteralPath $config) { throw "Ya existía $config" }
+            node scripts/humo-instalador.mjs datos
+            if ($LASTEXITCODE -ne 0) { throw 'Falló el arranque con la ruta de datos real' }
+            $hash = (Get-FileHash -LiteralPath $config -ErrorAction Stop).Hash
+          } finally {
+            # El desinstalador puede devolver el control antes de borrar el ejecutable.
+            $proceso = Start-Process -FilePath $desinstalador -ArgumentList '/S' -Wait -PassThru
+            if ($proceso.ExitCode -ne 0) { throw "Falló la desinstalación: $($proceso.ExitCode)" }
+            $limite = (Get-Date).AddSeconds(60)
+            while ((Test-Path -LiteralPath $env:SHINOBI_PAQUETE_BIN) -and (Get-Date) -lt $limite) {
+              Start-Sleep -Seconds 1
+            }
+            if (Test-Path -LiteralPath $env:SHINOBI_PAQUETE_BIN) { throw 'El ejecutable sigue instalado' }
+          }
+          if ((Get-FileHash -LiteralPath $config -ErrorAction Stop).Hash -ne $hash) {
+            throw 'La desinstalación alteró los datos'
+          }
+      - name: Montar, copiar y probar DMG
+        if: matrix.forma == 'DMG'
+        id: dmg
+        run: |
+          test "$(uname -m)" = arm64
+          temporal=$(mktemp -d)
+          montaje="$temporal/montaje"
+          mkdir "$montaje"
+          hdiutil attach -nobrowse -noautoopen -mountpoint "$montaje" "release/$ARCHIVO"
+          trap 'hdiutil detach "$montaje"' EXIT
+          paquete="$temporal/Shinobi Karaoke.app"
+          ditto "$montaje/Shinobi Karaoke.app" "$paquete"
+          hdiutil detach "$montaje"
+          trap - EXIT
+          node scripts/verificar-paquete.mjs "$paquete"
+          spctl --assess --type execute -vv "$paquete" || true
+          SHINOBI_PAQUETE_BIN="$paquete/Contents/MacOS/Shinobi Karaoke" npm run test:paquete
+      - name: Instalar, probar y retirar .deb
+        if: matrix.forma == '.deb'
+        id: deb
+        run: |
+          test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 1
+          sudo apt-get install -y "./release/$ARCHIVO"
+          trap 'sudo apt-get remove -y shinobi-karaoke' EXIT
+          test -f /etc/apparmor.d/shinobi-karaoke
+          export SHINOBI_PAQUETE_BIN
+          SHINOBI_PAQUETE_BIN=$(realpath "$(command -v shinobi-karaoke)")
+          xvfb-run --auto-servernum npm run test:paquete
+          config="${XDG_DATA_HOME:-$HOME/.local/share}/shinobi-karaoke/config.json"
+          test ! -e "$config"
+          xvfb-run --auto-servernum node scripts/humo-instalador.mjs deb
+          hash=$(sha256sum "$config")
+          sudo apt-get remove -y shinobi-karaoke
+          trap - EXIT
+          test ! -e "$SHINOBI_PAQUETE_BIN"
+          test "$(sha256sum "$config")" = "$hash"
+      - name: Probar AppImage con la restricción activa (A)
+        if: matrix.forma == 'AppImage'
+        id: appimage_a
+        env:
+          SHINOBI_ESPERA_SIN_SANDBOX: "1"
+        run: |
+          test "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 1
+          chmod +x "release/$ARCHIVO"
+          SHINOBI_PAQUETE_BIN="$PWD/release/$ARCHIVO" xvfb-run --auto-servernum node scripts/humo-instalador.mjs appimage
+      - name: Probar AppImage con la restricción desactivada (B)
+        if: ${{ !cancelled() && (steps.appimage_a.outcome == 'success' || steps.appimage_a.outcome == 'failure') }}
+        id: appimage_b
+        run: |
+          clave=kernel.apparmor_restrict_unprivileged_userns
+          anterior=$(sysctl -n "$clave")
+          trap 'sudo sysctl -w "$clave=$anterior"' EXIT
+          sudo sysctl -w "$clave=0"
+          chmod +x "release/$ARCHIVO"
+          SHINOBI_PAQUETE_BIN="$PWD/release/$ARCHIVO" xvfb-run --auto-servernum node scripts/humo-instalador.mjs appimage
+      - name: Resumir nivel de prueba y limitaciones
+        if: always()
+        env:
+          RUNNER_ETIQUETA: ${{ matrix.os }}
+          INFORMATIVA: ${{ matrix.informativa }}
+          RESULTADO_NSIS: ${{ steps.nsis.outcome }}
+          RESULTADO_DMG: ${{ steps.dmg.outcome }}
+          RESULTADO_DEB: ${{ steps.deb.outcome }}
+          SANDBOX_DEB: ${{ steps.deb.outputs.sandbox }}
+          RESULTADO_A: ${{ steps.appimage_a.outcome }}
+          RESULTADO_B: ${{ steps.appimage_b.outcome }}
+          SANDBOX_A: ${{ steps.appimage_a.outputs.sandbox }}
+          SANDBOX_B: ${{ steps.appimage_b.outputs.sandbox }}
+          FUSE_A: ${{ steps.appimage_a.outputs.fuse }}
+          FUSE_B: ${{ steps.appimage_b.outputs.fuse }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto'
+          import { appendFileSync, createReadStream, statSync } from 'node:fs'
+
+          const e = process.env
+          const ruta = `release/${e.ARCHIVO}`
+          const bytes = statSync(ruta, { throwIfNoEntry: false })?.size
+          const mb = bytes === undefined ? '—' : (bytes / 1e6).toFixed(1)
+          let sha = '—'
+          if (bytes !== undefined) {
+            const hash = createHash('sha256')
+            for await (const bloque of createReadStream(ruta)) hash.update(bloque)
+            sha = hash.digest('hex')
+          }
+          const filas = []
+          function fila(forma, resultado, nivel, sandbox = '—', fuse = '—') {
+            const alcanzado = resultado === 'success' ? nivel : 'Desempaquetada probada en construir'
+            const nota = e.INFORMATIVA === 'true' ? ' (informativa)' : ''
+            filas.push(`| ${forma} | ${e.RUNNER_ETIQUETA} | ${alcanzado}${nota} | ${mb} | ${sha} | ${sandbox || 'Sin medir'} | ${fuse || 'Sin medir'} |`)
+          }
+          if (e.FORMA === 'NSIS') fila(e.FORMA, e.RESULTADO_NSIS, 'Instalación probada')
+          if (e.FORMA === 'DMG') fila(e.FORMA, e.RESULTADO_DMG, 'Instalación parcial')
+          if (e.FORMA === '.deb') fila(e.FORMA, e.RESULTADO_DEB, 'Instalación probada', e.SANDBOX_DEB)
+          if (e.FORMA === 'AppImage') {
+            for (const pasada of ['A', 'B']) {
+              const fuse = e[`FUSE_${pasada}`]
+              fila(`AppImage (${pasada})`, e[`RESULTADO_${pasada}`],
+                fuse === 'sí' ? 'Ejecución directa' : 'Ejecución extraída', e[`SANDBOX_${pasada}`], fuse)
+            }
+          }
+          appendFileSync(e.GITHUB_STEP_SUMMARY, [
+            '| Forma | Runner | Nivel | MB | SHA-256 | `--no-sandbox` | FUSE |',
+            '|---|---|---|---:|---|---|---|',
+            ...filas,
+            '',
+            'Sin probar: SmartScreen, Gatekeeper con cuarentena, macOS 14 y primer arranque con el motor real.',
+            ''
+          ].join('\n'))
+          NODE

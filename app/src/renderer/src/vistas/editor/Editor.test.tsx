@@ -95,7 +95,7 @@ afterEach(() => {
 it('abre un borrador sin tiempos en Voz, selecciona la primera línea y enfoca Sincronizar', async () => {
   montar()
   const boton = await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
-  expect(boton).toHaveFocus()
+  await waitFor(() => expect(boton).toHaveFocus())
   expect(screen.getByRole('option', { name: /^Línea 1, sin sincronizar/ })).toHaveAttribute(
     'aria-selected',
     'true'
@@ -318,7 +318,9 @@ it('guarda el desplazamiento desde la prueba con pistas y lo deshace en un paso'
   const probar = await screen.findByRole('button', { name: 'Probar a pantalla completa' })
   fireEvent.click(probar)
   const dialogo = await screen.findByRole('dialog', { name: /Reproductor de/ })
-  expect(motorPrueba.opciones).toHaveBeenCalledWith(expect.objectContaining({ modo: 'karaoke' }))
+  await waitFor(() =>
+    expect(motorPrueba.opciones).toHaveBeenCalledWith(expect.objectContaining({ modo: 'karaoke' }))
+  )
 
   fireEvent.keyDown(dialogo, { key: '.' })
   await screen.findByText('Desplazamiento: +0,10 s')

@@ -6,7 +6,7 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 - **Vistas y textos**: [`ux/`](ux/).
 - **Qué entra y qué no en el MVP**: [`00-vision-y-alcance.md`](00-vision-y-alcance.md).
 
-Última actualización: 2026-11-06 (desglose de la Fase 6).
+Última actualización: 2026-11-07 (cierre de la validación funcional del artefacto interno de Windows; pendientes de publicación documentados).
 
 ## Resumen
 
@@ -19,7 +19,8 @@ Documento de consulta rápida: qué se hace en cada fase, qué sale de ella y en
 | 4 | Letras | ✅ Cerrada (0077–0089) |
 | 5 | Editor (sincronía y estilo) | ✅ Cerrada (0090–0110; 0111 manual pendiente) |
 | 6 | Reproductor a pantalla completa | ✅ Cerrada (0112–0125; 0126 manual pendiente) |
-| 7 | Empaquetado y distribución | Pendiente |
+| 7 | Empaquetado, parte 1 | Implementación cerrada y validada en macOS |
+| 8 | Empaquetado, parte 2 | ✅ Cerrada para validación funcional del artefacto interno en Windows (2026-11-07); gates de publicación pendientes |
 
 ```mermaid
 flowchart LR
@@ -162,14 +163,45 @@ Las Fases 3 y 4 pueden avanzar en parte a la vez: la búsqueda de letra no neces
 
 **Resultado**: reproductor completo con voz guía, controles, pantalla final y recuperación de errores; apertura superpuesta desde la Biblioteca y el editor; reparación del motor de audio incompleto. Ver [`informe-fase-6.md`](informe-fase-6.md). Pendiente únicamente la prueba manual 0126 en TV y tres sistemas.
 
-## Fase 7 — Empaquetado y distribución
-**Objetivo**: que un usuario no técnico pueda instalarla.
+## Fase 7 — Empaquetado, parte 1 (implementación: tareas 0127–0142, [ADR 0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) y [ADR 0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md))
+**Objetivo**. Implementar el empaquetado y las pruebas automáticas. La primera validación en GitHub y las pruebas de instalación quedan en la Fase 8.
 
-- **electron-builder** con *fuses* de seguridad (ADR 0008): NSIS (Windows), **DMG arm64** (macOS) y AppImage/.deb (Linux).
-- Worker, requisitos y manifiesto empaquetados en `resources/`.
-- Sección "Descargar" en el README, apuntando a las Releases, y guía `INSTALAR.md` para superar los avisos de una app sin firma.
-- Modelo Rápido: **se puede publicar** porque no se descarga sin el consentimiento explícito del usuario, que acepta el aviso de licencia no declarada (pregunta 0018; sustituye a la condición anterior de la pregunta 0012). Si UVR responde con una licencia incompatible, se retira la oferta. El issue a UVR sigue siendo recomendable.
-- Mediciones pendientes antes de publicar: bytes de descarga reales y pico de disco (tarea 0058), separación con Calidad en Windows y Linux CPU, NVIDIA y otros chips Apple.
+- **Instaladores** con electron-builder y los *fuses* de seguridad del ADR 0008:
+  - Windows 10/11 x64: NSIS por usuario, de un clic;
+  - macOS 14 o posterior, solo chip Apple: DMG con firma *ad hoc*;
+  - Linux x64: `.deb` (recomendado en Ubuntu, Debian y Mint) y AppImage (el resto).
+- **Contenido**: worker, requisitos, manifiesto, `uv` con SHA-256 verificado, licencias, avisos y fuentes OFL. Nada de `spikes/`, tests ni `.datos-dev`: lo comprueba un script.
+- **Workflow solo manual**: guarda los instaladores como artefactos durante 14 días. No crea *Releases* y no cambia el CI automático.
+- **Licencias Python (0133)**: el ADR 0014 excluye DiffQ del motor y exige validar la migración y la inferencia con ambos modelos antes de cerrar el inventario.
+- **Prueba de humo** contra el instalador real, sin modelos ni código de pruebas en la app. Cada runner declara hasta dónde llegó: instalado, desempaquetado o solo construido.
+- **README e `INSTALAR.md`** en el estado "sin versión" (`ux/09`): **sin enlaces de descarga**.
+- **Prueba manual** P1–P16, Gatekeeper, SmartScreen y primer arranque real, con capturas: lo que ningún runner puede hacer.
+- **Modelo Rápido**: se puede publicar porque no se descarga sin el consentimiento explícito del usuario, que acepta el aviso de licencia no declarada (pregunta 0018; sustituye a la condición anterior de la pregunta 0012). Tarea 0134: lo comprueba ruta por ruta. Si UVR responde con una licencia incompatible, se retira la oferta. El issue a UVR sigue siendo recomendable.
+- **Antes de publicar** (tarea 0142, fuera de esta fase hasta que decidas): cerrar las decisiones de publicación, terminar o aceptar las mediciones pendientes (bytes de descarga reales y pico de disco de 0058; separación con Calidad), capturas e icono. El repositorio ya es público; solo colaboradores pueden crear ramas.
+
+**Lo que necesito que decidas**:
+- [0035](preguntas/0035-repositorio-publico-y-primera-publicacion.md): el repositorio ya es público; faltan decisiones sobre la primera versión y su publicación. Bloquea 0142.
+- [0036](preguntas/0036-numero-de-version-y-politica-de-versiones.md): número de versión. Bloquea 0142.
+- [0037](preguntas/0037-autoactualizacion-de-la-app.md): autoactualización. Provisional: no.
+- [0038](preguntas/0038-primera-ejecucion-del-workflow-y-prueba-manual.md). Empaquetado y CI ejecutados. La revisión manual prioriza Windows; Linux baja de prioridad por ahora y macOS sigue pendiente.
+- [0044](preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md): Control inteligente de aplicaciones de Windows 11. Bloquea 0142.
+
+**Para el diseñador**: [0039](preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md) (icono y texto de B6b), y aplicar a `ux/09` las respuestas a 0040–0043.
+
+**Orden**: 0127, 0128, 0134 y 0138 a la vez → 0129 ‖ 0131 ‖ 0132 (0133 en paralelo) → 0130 → 0135 → 0136 → 0137; 0140 y 0141 cuando responda el diseñador; prueba manual 0139. Detalle en [`backlog.md`](backlog.md).
+
+**Avance**. 0128, 0135 y 0141 cerradas. El paquete macOS arm64 con el manifiesto v2 pasa la comprobación de recursos, fuses y firma, y los seis casos de humo. El icono ya se incluye en el DMG local. La primera ejecución de 0136 y 0137 pasó en GitHub. La Fase 8 se cerró el 2026-11-07 tras la aprobación del usuario del artefacto interno de Windows y la corrección del fallo al guardar letras durante una descarga de YouTube. La verificación de publicación para macOS/Linux, instalación/desinstalación detallada y mediciones de runtime queda registrada como gate de 0142. Ver [`pendientes-fase-8.md`](pendientes-fase-8.md).
+
+**Verificación local**. Lint, tipos y formato correctos. Vitest: 1858 pruebas aprobadas y 12 omitidas. Worker: 327 aprobadas y 7 deseleccionadas. Playwright: 91 aprobadas y 2 omitidas en serie, tras los tiempos agotados de la primera ejecución en paralelo.
+
+## Fase 8 — Empaquetado, parte 2: verificación — cerrada el 2026-11-07
+
+**Objetivo**. Demostrar que los instaladores funcionan en los sistemas objetivo y documentar qué se probó en cada uno. La validación funcional del artefacto interno de Windows fue aprobada por el usuario; el resto se conserva como condición para la primera publicación, no como una aprobación de lanzamiento.
+
+1. **0136 y 0137**. Hechas: la ejecución de empaquetado y las pruebas automatizadas de instalación pasaron en GitHub; están registrados los cuatro artefactos, tamaños, SHA-256, niveles de prueba, sandbox y FUSE. El CI de seis trabajos también pasó en la rama de la Fase 8.
+2. **0140 y 0139**. El usuario probó el artefacto Windows: SmartScreen apareció y pudo continuar; reportó haber probado las funciones, incluida separación con NVIDIA RTX 4070. La ejecución fue percibida como muy rápida, sin benchmark registrado. Se corrigió el guardado de letras durante la descarga y se añadió el indicador de espera. La tabla con lo confirmado y lo no registrado está en [`pendientes-fase-8.md`](pendientes-fase-8.md).
+3. **Pendientes antes de 0142**. SHA-256 y datos literales/captura de SmartScreen, modo sin conexión, notificaciones, licencias, conservación de datos y reinstalación, icono en todos los instaladores, prueba manual en macOS/Linux, e inferencia/mediciones del runtime de 0133, 0058 y 0062. Las cifras de velocidad cualitativas no se toman como mediciones.
+4. **0142**. La primera versión pública queda sujeta a su lista de requisitos y a una autorización específica de publicación.
 
 ---
 

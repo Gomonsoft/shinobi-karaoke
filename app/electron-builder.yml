@@ -1,0 +1,92 @@
+appId: com.shinobikaraoke.app
+productName: Shinobi Karaoke
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+  - '!**/src/**'
+asar: true
+npmRebuild: false
+publish: null
+forceCodeSigning: false
+toolsets:
+  appimage: '1.0.3'
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
+extraResources:
+  - from: ../worker/shinobi_worker
+    to: worker/shinobi_worker
+    filter:
+      - '**/*.py'
+  - from: ../worker/requisitos
+    to: worker/requisitos
+  - from: ../worker/pyproject.toml
+    to: worker/pyproject.toml
+  - from: ../worker/uv.lock
+    to: worker/uv.lock
+  - from: resources/runtime-manifest.json
+    to: runtime-manifest.json
+  - from: ../LICENSE
+    to: LICENSE
+  - from: ../THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+  - from: resources/fonts
+    to: fonts
+    filter:
+      - '**/*.woff2'
+      - '**/OFL.txt'
+  - from: resources/bin
+    to: bin
+    filter:
+      - uv
+      - uv.exe
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Shinobi-Karaoke-Windows-x64.${ext}
+  signtoolOptions: null
+  azureSignOptions: null
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+  differentialPackage: false
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  artifactName: Shinobi-Karaoke-Mac-chip-Apple.${ext}
+  category: public.app-category.music
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+dmg:
+  sign: false
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  executableName: shinobi-karaoke
+  category: AudioVideo
+  artifactName: Shinobi-Karaoke-Linux-x64.${ext}
+deb:
+  artifactName: shinobi-karaoke-linux-x64.${ext}
+  packageName: shinobi-karaoke

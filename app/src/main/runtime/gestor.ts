@@ -140,7 +140,7 @@ export const diagnosticadorReal: Diagnosticador = {
       lanzador: {
         comando: interprete,
         argsBase: ['-m', 'shinobi_worker'],
-        env: { PYTHONPATH: rutaCodigoWorker }
+        env: { PYTHONPATH: rutaCodigoWorker, PYTHONDONTWRITEBYTECODE: '1' }
       }
     })
     let r
@@ -208,6 +208,14 @@ export function interpreteVenv(dirRuntime: string, plataforma: NodeJS.Platform):
 
 const SO_UV: Record<string, string> = { macos: 'macos', windows: 'windows', linux: 'linux' }
 const ARQ_UV: Record<string, string> = { x64: 'x86_64', arm64: 'aarch64' }
+
+const COMPROBAR_SIN_DIFFQ = [
+  'from importlib.metadata import distributions',
+  'from importlib.util import find_spec',
+  'nombres = {(d.metadata.get("Name") or "").lower().replace("_", "-").replace(".", "-") for d in distributions()}',
+  'if nombres & {"diffq", "diffq-fixed"} or find_spec("diffq") is not None:',
+  '    raise SystemExit("El entorno todavía contiene DiffQ")'
+].join('\n')
 
 /** Variante de libc en la clave de uv: Linux exige `gnu` (o `musl`); macOS y Windows usan `none`. */
 const LIBC_UV: Record<string, string> = { macos: 'none', windows: 'none', linux: 'gnu' }
@@ -514,6 +522,17 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
       }
     }
 
+    const rutaMarcador = join(dirRuntime, 'instalado.json')
+    const crearVenvLimpio = async (): Promise<void> => {
+      const encontrado = await uv(['python', 'find', peticion])
+      const interprete = encontrado.stdout.split(/\r?\n/).find((l) => l.trim() !== '')
+      if (!interprete) throw new ErrorRuntime('ERROR_INTERNO', 'uv no devolvió el intérprete')
+      // Un cierre durante `venv --clear` no debe permitir reutilizar el marcador anterior.
+      await fsp.rm(`${rutaMarcador}.bak`, { force: true })
+      await fsp.rm(rutaMarcador, { force: true })
+      await uv(['venv', '--clear', '--python', interprete.trim(), dirVenv])
+    }
+
     /** Mide directorios cada `intervaloMedicionMs` mientras dura `fn`; `medir` devuelve los bytes hechos. */
     const conMedicion = async <T>(
       fase: FaseVisible,
@@ -584,11 +603,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
               (await deps.medidor.bytes(dirPython)) + (await deps.medidor.bytes(dirCache)),
             async () => {
               await uv(['python', 'install', peticion])
-              const encontrado = await uv(['python', 'find', peticion])
-              const interprete = encontrado.stdout.split(/\r?\n/).find((l) => l.trim() !== '')
-              if (!interprete)
-                throw new ErrorRuntime('ERROR_INTERNO', 'uv no devolvió el intérprete')
-              await uv(['venv', '--clear', '--python', interprete.trim(), dirVenv])
+              await crearVenvLimpio()
             }
           )
         })
@@ -612,6 +627,8 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
         hechos.componentes = 0
         await fase('componentes', async () => {
           if (!marcadorValido) {
+            // ADR 0014: una instalación incremental deja dependencias huérfanas.
+            if (motorHecho) await crearVenvLimpio()
             await comprobarEspacio(req.espacio_requerido - (await deps.medidor.bytes(dirRuntime)))
             const baseCache =
               estados.motor === 'completada' && !motorHecho ? await deps.medidor.bytes(dirCache) : 0
@@ -625,11 +642,25 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
                   '--python',
                   python,
                   '--require-hashes',
+                  '--excludes',
+                  join(deps.rutaCodigoWorker, 'requisitos', 'exclusiones.txt'),
                   '--index-strategy',
                   'unsafe-best-match',
-                  ...(reinstalarComponentes ? ['--reinstall'] : []),
                   '-r',
                   join(deps.raizRecursos, req.requisitos)
+                ])
+                await uv([
+                  'run',
+                  '--offline',
+                  '--no-project',
+                  '--no-python-downloads',
+                  '--python',
+                  python,
+                  '--',
+                  python,
+                  '-I',
+                  '-c',
+                  COMPROBAR_SIN_DIFFQ
                 ])
               },
               // La caché de uv va descomprimida: su progreso se mide contra bytes_cache.
@@ -643,7 +674,7 @@ export function crearGestorRuntime(deps: DependenciasGestor): GestorRuntime {
               python: deps.manifiesto.python.version,
               fecha: new Date().toISOString()
             }
-            await escribirJsonAtomico(join(dirRuntime, 'instalado.json'), nuevo)
+            await escribirJsonAtomico(rutaMarcador, nuevo)
             try {
               await uv(['cache', 'clean'])
             } catch (e) {

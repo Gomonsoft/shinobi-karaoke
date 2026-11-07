@@ -23,6 +23,7 @@ describe('lanzadorDeApp', () => {
     expect(r.lanzador.comando).toBe(join('/d', 'runtime', 'venv', 'bin', 'python'))
     expect(r.lanzador.env).toEqual({
       PYTHONPATH: join('/app/resources', 'worker'),
+      PYTHONDONTWRITEBYTECODE: '1',
       PATH: '/d/runtime/venv/bin:/usr/bin'
     })
   })
@@ -48,5 +49,6 @@ describe('lanzadorDeApp', () => {
     })
     expect(e.modo).toBe('produccion')
     expect(e.lanzador.env?.PYTHONPATH).toBe(join('/app/resources', 'worker'))
+    expect(e.lanzador.env?.PYTHONDONTWRITEBYTECODE).toBe('1')
   })
 })

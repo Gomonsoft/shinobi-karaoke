@@ -1,0 +1,17 @@
+{
+  "version": "0.13.7",
+  "binarios": {
+    "win32-x64": {
+      "archivo": "uv-x86_64-pc-windows-msvc.zip",
+      "sha256": "0cdc5b38fe5a8168ed6a25814f5ba43c21d313dd3187314fccb37b7cec46e021"
+    },
+    "darwin-arm64": {
+      "archivo": "uv-aarch64-apple-darwin.tar.gz",
+      "sha256": "81b811b57e4624df7ed3aac148e0359100d9962f3d9dce00aec533dc2e086731"
+    },
+    "linux-x64": {
+      "archivo": "uv-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83"
+    }
+  }
+}

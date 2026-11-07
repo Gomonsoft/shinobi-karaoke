@@ -93,6 +93,7 @@ async function montar(esc: Escenario = {}, id = 'cpu' as PerfilHardware) {
         } else if (args[1] === 'python' && args[2] === 'find') {
           return ok(`${join(dirRuntime, 'python', 'bin', 'python3.12')}\n`)
         } else if (args[1] === 'venv') {
+          rmSync(join(dirRuntime, 'venv'), { recursive: true, force: true })
           mkdirSync(join(py, '..'), { recursive: true })
           writeFileSync(py, '')
         } else if (args[1] === 'pip') {
@@ -165,6 +166,7 @@ async function montar(esc: Escenario = {}, id = 'cpu' as PerfilHardware) {
     eventos,
     diagLlamadas,
     descargas,
+    fallos,
     vivos: () => vivos,
     deps
   }
@@ -176,10 +178,11 @@ describe('motor de audio incompleto', () => {
   it('invalida el marcador y reinstala solo componentes', async () => {
     const t = await montar()
     expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
-    expect(t.llamadas.find((a) => a[1] === 'pip')).not.toContain('--reinstall')
 
     const marcador = join(datos, 'runtime', 'instalado.json')
     writeFileSync(`${marcador}.bak`, readFileSync(marcador))
+    const diffqAnterior = join(datos, 'runtime', 'venv', 'diffq-0.2.4.dist-info')
+    mkdirSync(diffqAnterior)
     const primera = t.gestor.marcarDanada('componentes')
     expect(t.gestor.marcarDanada('componentes')).toBe(primera)
     await primera
@@ -194,16 +197,23 @@ describe('motor de audio incompleto', () => {
 
     t.llamadas.length = 0
     expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
-    expect(ordenes(t.llamadas)).toEqual(['pip install', 'cache clean'])
-    expect(t.llamadas[0]).toContain('--reinstall')
+    expect(ordenes(t.llamadas)).toEqual([
+      'python find',
+      'venv --clear',
+      'pip install',
+      'run --offline',
+      'cache clean'
+    ])
+    expect(existsSync(diffqAnterior)).toBe(false)
     expect(t.descargas).toEqual(['calidad'])
     expect(t.config.obtener().instalacion.reinstalar_componentes).toBe(false)
     expect(existsSync(marcador)).toBe(true)
   })
 
   it('conserva el diagnóstico tras fallar el instalador y omite un marcador residual al arrancar', async () => {
-    const t = await montar({ fallos: { '--reinstall': 'connection refused' } })
+    const t = await montar()
     expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    t.fallos['run --offline'] = 'El entorno todavía contiene DiffQ'
     const marcador = join(datos, 'runtime', 'instalado.json')
     const anterior = readFileSync(marcador)
     await t.gestor.marcarDanada('componentes')
@@ -212,6 +222,7 @@ describe('motor de audio incompleto', () => {
     expect(await t.gestor.comprobarAlArrancar()).toEqual({ resultado: 'pendiente' })
     expect(t.config.obtener().instalacion.estado).toBe('dañada')
     expect(await t.gestor.instalar()).toMatchObject({ estado: 'error' })
+    expect(existsSync(marcador)).toBe(false)
     expect(t.config.obtener().instalacion.reinstalar_componentes).toBe(true)
     expect(await t.gestor.reintentar()).toEqual({ estado: 'completa' })
     expect(t.config.obtener().instalacion.reinstalar_componentes).toBe(false)
@@ -223,6 +234,39 @@ describe('motor de audio incompleto', () => {
     await t.gestor.marcarDanada('componentes')
     expect(t.config.obtener()).toEqual(inicial)
     expect(t.llamadas).toEqual([])
+  })
+
+  it('migra un marcador de la versión anterior conservando el modelo instalado', async () => {
+    const t = await montar()
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    const marcador = join(datos, 'runtime', 'instalado.json')
+    const anterior = JSON.parse(readFileSync(marcador, 'utf8'))
+    anterior.manifiesto_version = manifiesto.version - 1
+    writeFileSync(marcador, JSON.stringify(anterior))
+    const venv = join(datos, 'runtime', 'venv')
+    const diffqAnterior = join(venv, 'diffq_fixed-0.2.4.dist-info')
+    mkdirSync(diffqAnterior)
+
+    expect(await t.gestor.comprobarAlArrancar()).toEqual({
+      resultado: 'dañada',
+      motivo: 'marcador'
+    })
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    expect(existsSync(diffqAnterior)).toBe(false)
+    expect(t.descargas).toEqual(['calidad'])
+    expect(JSON.parse(readFileSync(marcador, 'utf8'))).toMatchObject({
+      manifiesto_version: manifiesto.version
+    })
+  })
+
+  it('no reutiliza el marcador cuando tiene que recrear el entorno del motor', async () => {
+    const t = await montar()
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    await t.config.actualizar({ instalacion: { fases: { motor: 'pendiente' } } })
+    t.llamadas.length = 0
+    expect(await t.gestor.instalar()).toEqual({ estado: 'completa' })
+    expect(ordenes(t.llamadas)).toContain('pip install')
+    expect(t.descargas).toEqual(['calidad'])
   })
 })
 
@@ -245,6 +289,7 @@ describe('gestor de runtime', () => {
       'python find',
       'venv --clear',
       'pip install',
+      'run --offline',
       'cache clean'
     ])
     expect(t.llamadas.every((a) => a[0] === '--no-config')).toBe(true)
@@ -256,6 +301,9 @@ describe('gestor de runtime', () => {
     ])
     const pip = t.llamadas[3] as string[]
     expect(pip).toContain('--require-hashes')
+    expect(pip[pip.indexOf('--excludes') + 1]).toBe(
+      join('/recursos/worker', 'requisitos', 'exclusiones.txt')
+    )
     expect(pip.join(' ')).toContain('--index-strategy unsafe-best-match')
     expect(pip.join(' ')).toContain(
       `-r ${join('/recursos', 'worker/requisitos/linux-x64-cpu.txt')}`
@@ -528,11 +576,17 @@ describe('gestor de runtime', () => {
     await g2.instalar()
     expect(t.llamadas).toHaveLength(n)
     expect(t.descargas).toHaveLength(2)
-    // sin marcador se repiten componentes pero no el motor
+    // Sin marcador se recrea el venv, conservando Python y el modelo.
     rmSync(join(datos, 'runtime', 'instalado.json'))
     await t.config.actualizar({ instalacion: { fases: { componentes: 'en_curso' } } })
     await g2.instalar()
-    expect(ordenes(t.llamadas.slice(n))).toEqual(['pip install', 'cache clean'])
+    expect(ordenes(t.llamadas.slice(n))).toEqual([
+      'python find',
+      'venv --clear',
+      'pip install',
+      'run --offline',
+      'cache clean'
+    ])
     expect(existsSync(join(datos, 'runtime', 'instalado.json'))).toBe(true)
   })
 

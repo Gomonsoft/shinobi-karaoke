@@ -59,7 +59,7 @@ export function resolverLanzador(
   const venv = join(o.datos, 'runtime', 'venv')
   const python =
     o.plataforma === 'win32' ? join(venv, 'Scripts', 'python.exe') : join(venv, 'bin', 'python')
-  const env: Record<string, string> = {}
+  const env: Record<string, string> = { PYTHONDONTWRITEBYTECODE: '1' }
   if (o.rutaCodigoWorker) env.PYTHONPATH = o.rutaCodigoWorker
   if (o.envBase) {
     const win = o.plataforma === 'win32'
