@@ -606,7 +606,49 @@ describe('registrarIpc', () => {
     return { ipc, manejadores }
   }
 
-  it('registra 31 canales, rechaza remitentes ajenos y difunde eventos con URL de medios', async () => {
+  it('valida remitente y ventana de picos antes de delegar al servicio', async () => {
+    const { deps } = crearDeps()
+    const { ipc, manejadores } = ipcFalso()
+    const id = '5eed0000-0000-4000-8000-000000000001'
+    const estado = { estado: 'lista' as const, generacion: 'a'.repeat(64) }
+    const lectura = {
+      generacion: estado.generacion,
+      primerBloque: 0,
+      pasoMs: 10,
+      bytes: new Uint8Array(4)
+    }
+    const leer = vi.fn(async () => lectura)
+    const solicitar = vi.fn(async () => estado)
+    registrarIpc(
+      ipc,
+      { ...deps, picos: { leer, solicitar, duranteCambio: (_id, cambiar) => cambiar() } },
+      { remitenteValido: (e) => e === 'mio', difundir: vi.fn() }
+    )
+    const pedir = manejadores.get(CANALES.picos.solicitar)!
+    const ventana = manejadores.get(CANALES.picos.leer)!
+    const peticion = { cancionId: id, inicioMs: 0, finMs: 100, presupuesto: 4096 }
+    const error = { ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } }
+
+    expect(await pedir('ajeno', id)).toMatchObject(error)
+    expect(await pedir('mio', '../voz.flac')).toMatchObject(error)
+    expect(await ventana('ajeno', peticion)).toMatchObject(error)
+    for (const extra of [
+      { presupuesto: 4097 },
+      { inicioMs: -1 },
+      { finMs: 0 },
+      { ruta: 'voz.flac' }
+    ]) {
+      expect(await ventana('mio', { ...peticion, ...extra })).toMatchObject(error)
+    }
+    expect(leer).not.toHaveBeenCalled()
+    expect(solicitar).not.toHaveBeenCalled()
+    expect(await pedir('mio', id, true)).toEqual({ ok: true, valor: estado })
+    expect(solicitar).toHaveBeenCalledWith(id, true)
+    expect(await ventana('mio', peticion)).toEqual({ ok: true, valor: lectura })
+    expect(leer).toHaveBeenCalledWith(peticion)
+  })
+
+  it('registra los canales, rechaza remitentes ajenos y difunde eventos con URL de medios', async () => {
     const {
       deps,
       oyentesCancion,

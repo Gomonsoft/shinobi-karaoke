@@ -28,7 +28,8 @@ async function validar(archivo: FileHandle): Promise<FormatoPicos | null> {
   if (
     muestras <= (BigInt(bloques - 1) * frecuenciaBig) / 100n ||
     muestras > (BigInt(bloques) * frecuenciaBig) / 100n
-  ) return null
+  )
+    return null
 
   let offset = CABECERA
   let pasoMs = 10
@@ -68,7 +69,7 @@ export async function leerVentana(
   archivo: FileHandle,
   formato: FormatoPicos,
   { inicioMs, finMs, presupuesto }: PeticionPicos
-): Promise<{ primerBloque: number; pasoMs: number; bytes: Uint8Array } | null> {
+): Promise<{ primerBloque: number; pasoMs: number; bytes: Uint8Array<ArrayBuffer> } | null> {
   if (inicioMs >= formato.duracionMs) return null
   const fin = Math.min(finMs, formato.duracionMs)
   for (const { offset, bloques, pasoMs } of formato.niveles) {
@@ -79,7 +80,10 @@ export async function leerVentana(
     if (cantidad > presupuesto) continue
     const bytes = new Uint8Array(cantidad * BYTES_PAR)
     const { bytesRead } = await archivo.read(
-      bytes, 0, bytes.length, offset + primerBloque * BYTES_PAR
+      bytes,
+      0,
+      bytes.length,
+      offset + primerBloque * BYTES_PAR
     )
     return bytesRead === bytes.length ? { primerBloque, pasoMs, bytes } : null
   }

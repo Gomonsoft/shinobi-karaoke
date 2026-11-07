@@ -17,6 +17,7 @@ interface Voz {
 
 interface Trabajo {
   id: string
+  generacion: string
   control: AbortController
   fin: Promise<void>
 }
@@ -40,6 +41,10 @@ export class ServicioPicos {
     return this.cerrado || this.cambios.has(id)
   }
 
+  private generando(id: string, voz: Voz): boolean {
+    return this.activo?.id === id && this.activo.generacion === voz.generacion
+  }
+
   private async voz(id: string): Promise<Voz | null> {
     if (this.bloqueado(id) || !ID_SEGURO.test(id) || !this.deps.tieneVoz(id)) return null
     try {
@@ -49,7 +54,9 @@ export class ServicioPicos {
       const datos = await lstat(ruta, { bigint: true })
       if (!datos.isFile() || this.bloqueado(id)) return null
       const identidad = [datos.dev, datos.ino, datos.size, datos.mtimeNs, datos.ctimeNs]
-      const generacion = createHash('sha256').update(['v1', ...identidad].join(':')).digest('hex')
+      const generacion = createHash('sha256')
+        .update(['v1', ...identidad].join(':'))
+        .digest('hex')
       return { ruta, generacion, cache: join(dirname(ruta), `.picos-voz-v1-${generacion}.bin`) }
     } catch {
       return null
@@ -59,6 +66,7 @@ export class ServicioPicos {
   async solicitar(id: string, reintentar = false): Promise<EstadoPicos> {
     const voz = await this.voz(id)
     if (!voz) return { estado: 'no_disponible' }
+    if (this.generando(id, voz)) return { estado: 'generando' }
     const valida = await conPicos(voz.cache, async () => true)
     if (this.bloqueado(id)) return { estado: 'no_disponible' }
     const actual = await this.voz(id)
@@ -75,7 +83,7 @@ export class ServicioPicos {
   async leer(peticion: PeticionPicos): Promise<LecturaPicos | null> {
     const id = peticion.cancionId
     const voz = await this.voz(id)
-    if (!voz) return null
+    if (!voz || this.generando(id, voz)) return null
     const ventana = await conPicos(voz.cache, (archivo, formato) =>
       leerVentana(archivo, formato, peticion)
     )
@@ -88,16 +96,17 @@ export class ServicioPicos {
     const fin = this.publicar(id, voz, control.signal).finally(() => {
       this.activo = null
     })
-    this.activo = { id, control, fin }
+    this.activo = { id, generacion: voz.generacion, control, fin }
   }
 
   private async publicar(id: string, voz: Voz, señal: AbortSignal): Promise<void> {
     const temporal = voz.cache.replace(/\.bin$/, `.${randomUUID()}.tmp`)
     try {
-      await this.deps.ejecutar(
-        'generar-picos', { entrada: voz.ruta, salida: temporal }, { señal }
-      )
-      if (!await conPicos(temporal, async () => true)) throw new Error('Caché de picos inválida.')
+      // La caché puede haberse publicado mientras otra solicitud comprobaba la huella.
+      if (await conPicos(voz.cache, async () => true)) return
+      if (señal.aborted || (await this.voz(id))?.generacion !== voz.generacion) return
+      await this.deps.ejecutar('generar-picos', { entrada: voz.ruta, salida: temporal }, { señal })
+      if (!(await conPicos(temporal, async () => true))) throw new Error('Caché de picos inválida.')
       if (señal.aborted || (await this.voz(id))?.generacion !== voz.generacion) return
       await rename(temporal, voz.cache)
       if (señal.aborted || (await this.voz(id))?.generacion !== voz.generacion) {
@@ -119,10 +128,12 @@ export class ServicioPicos {
     if ((await realpath(carpeta).catch(() => null)) !== carpeta) return
     const archivos = await readdir(carpeta).catch(() => [])
     await Promise.all(
-      archivos.filter((nombre) => ARCHIVO_PICOS.test(nombre)).map(async (nombre) => {
-        const ruta = join(carpeta, nombre)
-        if (ruta !== conservar) await rm(ruta, { force: true }).catch(() => undefined)
-      })
+      archivos
+        .filter((nombre) => ARCHIVO_PICOS.test(nombre))
+        .map(async (nombre) => {
+          const ruta = join(carpeta, nombre)
+          if (ruta !== conservar) await rm(ruta, { force: true }).catch(() => undefined)
+        })
     )
   }
 

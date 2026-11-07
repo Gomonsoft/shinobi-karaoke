@@ -64,7 +64,9 @@ const lecturaPicosSchema = z.strictObject({
   generacion: generacionPicosSchema,
   primerBloque: z.int().nonnegative(),
   pasoMs: z.int().min(10),
-  bytes: z.instanceof(Uint8Array).refine((bytes) => bytes.length % 4 === 0 && bytes.length <= 4 * MAX_BLOQUES_PICOS)
+  bytes: z
+    .instanceof(Uint8Array)
+    .refine((bytes) => bytes.length % 4 === 0 && bytes.length <= 4 * MAX_BLOQUES_PICOS)
 })
 export type EstadoPicos = z.infer<typeof estadoPicosSchema>
 export type PeticionPicos = z.infer<typeof peticionPicosSchema>

@@ -36,6 +36,7 @@ import {
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
 import { ESQUEMA_MEDIOS } from '../medios'
+import type { ServicioPicos } from '../picos/servicio'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -137,6 +138,7 @@ export interface DependenciasIpc {
   ventana?: VentanaIpc
   letras?: LetrasIpc
   separacion?: SeparacionIpc
+  picos?: Pick<ServicioPicos, 'solicitar' | 'leer' | 'duranteCambio'>
   runtime: RuntimeIpc
   /** Respuesta del renderer a la solicitud de cierre (`cierre.ts`). */
   fijarGuardadoPendiente?(pendiente: boolean): void
@@ -302,8 +304,18 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.biblioteca.volverABorrador]: envolver(CANALES.biblioteca.volverABorrador, async (id) =>
       resumenParaRenderer(await biblioteca.volverABorrador(id))
     ),
-    [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) =>
-      biblioteca.eliminar(id)
+    [CANALES.biblioteca.eliminar]: envolver(
+      CANALES.biblioteca.eliminar,
+      (id) =>
+        deps.picos?.duranteCambio(id, () => biblioteca.eliminar(id)) ?? biblioteca.eliminar(id)
+    ),
+    [CANALES.picos.solicitar]: envolver(
+      CANALES.picos.solicitar,
+      (id, reintentar) => deps.picos?.solicitar(id, reintentar) ?? { estado: 'no_disponible' }
+    ),
+    [CANALES.picos.leer]: envolver(
+      CANALES.picos.leer,
+      (peticion) => deps.picos?.leer(peticion) ?? null
     ),
     [CANALES.biblioteca.mostrarEnCarpeta]: envolver(CANALES.biblioteca.mostrarEnCarpeta, (id) =>
       biblioteca.mostrarEnCarpeta(id)
