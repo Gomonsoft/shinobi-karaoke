@@ -333,7 +333,9 @@ it('F vacía el guardado y prueba la mezcla desde la selección cuando la separa
   fireEvent.keyDown(segunda, { key: 'f' })
 
   const dialogo = await screen.findByRole('dialog', { name: /Reproductor de/ })
-  expect(motorPrueba.opciones).toHaveBeenCalledWith(expect.objectContaining({ modo: 'original' }))
+  await waitFor(() =>
+    expect(motorPrueba.opciones).toHaveBeenCalledWith(expect.objectContaining({ modo: 'original' }))
+  )
   expect(
     screen.getByText('Vista previa con la canción original: aún no hay pista instrumental.')
   ).toBeVisible()
@@ -391,7 +393,7 @@ it('si el vaciado falla, usa la confirmación del editor antes de abrir la prueb
   await screen.findByRole('option', { name: /^Línea 1, 00:02.10/ })
   fireEvent.click(probar)
   const quedarse = await screen.findByRole('button', { name: 'Quedarme en el editor' })
-  expect(quedarse).toHaveFocus()
+  await waitFor(() => expect(quedarse).toHaveFocus())
   fireEvent.click(quedarse)
   expect(motor.liberarAudio).not.toHaveBeenCalled()
   expect(screen.queryByRole('dialog', { name: /Reproductor de/ })).toBeNull()
