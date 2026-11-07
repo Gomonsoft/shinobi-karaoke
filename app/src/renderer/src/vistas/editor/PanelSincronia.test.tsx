@@ -5,11 +5,10 @@ import { letra, linea, pausa } from '@shared/__fixtures__'
 import { PanelSincronia } from './PanelSincronia'
 import { estadoInicial, reducirEditor } from './estado'
 
-it('explica el límite de una pausa junto a Inicio y conecta el ajuste por botones', () => {
+it('explica el límite de una pausa junto a Inicio y conecta los campos de tiempo', () => {
   const l = letra([linea('a', 'Uno', 1000), pausa('p', 2000), linea('b', 'Dos', 3000)])
   const inicial = estadoInicial({ letra: l, estilo: estiloPredeterminado() }, 'a')
   const edicion = reducirEditor(inicial, { tipo: 'fijar_inicio', ms: 2000, ahora: 0 })
-  const ajustar = vi.fn()
   const fijar = vi.fn()
   const panel = (estado = edicion) => (
     <PanelSincronia
@@ -17,7 +16,6 @@ it('explica el límite de una pausa junto a Inicio y conecta el ajuste por boton
       duracionMs={30_000}
       escucharAjustes
       fijarEscucharAjustes={vi.fn()}
-      ajustar={ajustar}
       fijar={fijar}
       finAutomatico={vi.fn()}
       escuchar={vi.fn()}
@@ -28,8 +26,7 @@ it('explica el límite de una pausa junto a Inicio y conecta el ajuste por boton
   )
   const { rerender } = render(panel())
   expect(screen.getByRole('tooltip')).toHaveTextContent('No puede pasar de la pausa siguiente')
-  fireEvent.click(screen.getByRole('button', { name: 'Inicio +0,01 s' }))
-  expect(ajustar).toHaveBeenCalledExactlyOnceWith('inicio', 10)
+  expect(screen.queryByRole('button', { name: 'Inicio +0,01 s' })).toBeNull()
   const fin = screen.getByRole('textbox', { name: 'Fin' })
   expect(fin).toHaveValue('00:02.00')
   expect(fin).toHaveAccessibleDescription(

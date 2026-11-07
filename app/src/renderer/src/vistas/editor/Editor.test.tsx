@@ -24,6 +24,7 @@ const motor = vi.hoisted(() => ({
   liberarAudio: vi.fn(),
   reproducir: vi.fn(async () => undefined),
   fijarVelocidad: vi.fn(),
+  fijarBucle: vi.fn(() => true),
   suscribir: vi.fn(() => () => undefined),
   estado: vi.fn(() => ({
     sonando: false,
@@ -203,6 +204,95 @@ it('I aplica el desplazamiento, y deshacer restaura palabras descartadas por un 
     .closest('[data-testid=toast]')!
   fireEvent.click(aviso.querySelector('button')!)
   expect(screen.getByRole('option', { name: /^Línea 2, 00:05.25/ })).toBeVisible()
+})
+
+it('selecciona una región y ajusta un tirador por teclado sin mover el cabezal', async () => {
+  montar(cancionSincronizadaLrclib())
+  const segunda = await screen.findByRole('button', { name: /^En la ventana$/ })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Escuchar al ajustar' }))
+  fireEvent.click(segunda)
+  expect(segunda).toHaveAttribute('aria-pressed', 'true')
+  const fin = screen.getByRole('slider', { name: 'Fin de la línea (automático)' })
+  expect(fin).toHaveAttribute('aria-valuenow', '8000')
+  fireEvent.keyDown(fin, { key: 'ArrowLeft', shiftKey: true })
+  expect(screen.getByRole('slider', { name: 'Fin de la línea' })).toHaveAttribute(
+    'aria-valuenow',
+    '7900'
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Zoom a la línea' }))
+  const minimapa = screen.getByRole('slider', { name: 'Vista general' })
+  const ventana = minimapa.getAttribute('aria-valuenow')
+  fireEvent.keyDown(minimapa, { key: 'ArrowRight' })
+  expect(minimapa.getAttribute('aria-valuenow')).not.toBe(ventana)
+  expect(motor.buscar).not.toHaveBeenCalled()
+  expect(motor.reproducir).not.toHaveBeenCalled()
+})
+
+it('bloquea el enunciado y restaura la posición al escapar sin salir del editor', async () => {
+  const { ir } = montar(cancionSincronizadaLrclib())
+  const bloqueo = await screen.findByRole('checkbox', { name: 'Bloquear enunciado' })
+  fireEvent.click(bloqueo)
+  expect(bloqueo).toBeChecked()
+  expect(screen.getByRole('checkbox', { name: 'Escuchar al ajustar' })).toBeDisabled()
+  expect(motor.fijarBucle).toHaveBeenLastCalledWith(
+    expect.objectContaining({ inicioMs: 2000, finMs: 5000 })
+  )
+  expect(motor.buscar).toHaveBeenLastCalledWith(2000)
+  expect(motor.reproducir).toHaveBeenCalledOnce()
+  fireEvent.keyDown(bloqueo, { key: 'Escape' })
+  expect(bloqueo).not.toBeChecked()
+  expect(motor.fijarBucle).toHaveBeenLastCalledWith(null)
+  expect(motor.buscar).toHaveBeenLastCalledWith(4200)
+  expect(ir).not.toHaveBeenCalled()
+})
+
+it('restaura o desarma el bucle según se cancele o confirme un fin inaudible', async () => {
+  const cancion = cancionSincronizadaLrclib()
+  cancion.letra!.offset_ms = -2500
+  const { ir } = montar(cancion)
+  const bloqueo = await screen.findByRole('checkbox', { name: 'Bloquear enunciado' })
+  fireEvent.click(bloqueo)
+  const fin = screen.getByRole('slider', { name: 'Fin de la línea (automático)' })
+  vi.spyOn(fin.parentElement!, 'getBoundingClientRect').mockReturnValue(
+    DOMRect.fromRect({ width: 1000 })
+  )
+  motor.estado.mockReturnValueOnce({
+    sonando: true,
+    duracionMs: 30_000,
+    pista: 'original',
+    velocidad: 1
+  })
+  fireEvent.pointerDown(fin, { pointerId: 1, button: 0, clientX: 100 })
+  fireEvent.pointerMove(fin, { pointerId: 1, clientX: 10 })
+  expect(motor.pausar).toHaveBeenCalledTimes(2)
+  expect(bloqueo).toBeChecked()
+  fireEvent.keyDown(fin, { key: 'Escape' })
+  expect(bloqueo).toBeChecked()
+  expect(motor.reproducir).toHaveBeenCalledTimes(2)
+  expect(screen.getByRole('slider', { name: 'Fin de la línea (automático)' })).toHaveAttribute(
+    'aria-valuenow',
+    '2500'
+  )
+  fireEvent.pointerDown(fin, { pointerId: 2, button: 0, clientX: 100 })
+  fireEvent.pointerMove(fin, { pointerId: 2, clientX: 10 })
+  fireEvent.pointerUp(fin, { pointerId: 2, clientX: 10 })
+  expect(bloqueo).not.toBeChecked()
+  expect(bloqueo).toBeDisabled()
+  expect(bloqueo).toHaveAccessibleDescription('Esta línea queda fuera del audio.')
+  expect(motor.fijarBucle).toHaveBeenLastCalledWith(null)
+  expect(motor.buscar).toHaveBeenLastCalledWith(4200)
+  expect(ir).not.toHaveBeenCalled()
+})
+
+it('una búsqueda fuera del bucle conserva su destino', async () => {
+  montar(cancionSincronizadaLrclib())
+  const bloqueo = await screen.findByRole('checkbox', { name: 'Bloquear enunciado' })
+  fireEvent.click(bloqueo)
+  const regla = screen.getByRole('slider', { name: 'Posición en la línea de tiempo' })
+  fireEvent.change(regla, { target: { value: '9900' } })
+  expect(bloqueo).not.toBeChecked()
+  expect(motor.fijarBucle).toHaveBeenLastCalledWith(null)
+  expect(motor.buscar.mock.calls).toEqual([[2000], [9900]])
 })
 
 it('recarga una visita desactualizada en pausa, vacía historial y no reintenta', async () => {

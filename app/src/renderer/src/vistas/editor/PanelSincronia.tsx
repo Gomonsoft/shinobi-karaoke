@@ -23,7 +23,9 @@ interface Props {
   duracionMs: number
   escucharAjustes: boolean
   fijarEscucharAjustes(valor: boolean): void
-  ajustar(campo: Campo, delta: number): void
+  bucle?: boolean
+  motivoBucle?: string
+  alternarBucle?(): void
   fijar(campo: Campo, msAudio?: number): void
   finAutomatico(): void
   escuchar(): void
@@ -41,7 +43,7 @@ export function mostrarAyudaBluetooth(): boolean {
   return true
 }
 
-function textoLimite(limite: Limite, pausaFin: boolean): string | null {
+export function textoLimite(limite: Limite, pausaFin: boolean): string | null {
   switch (limite.tipo) {
     case 'inicio_anterior':
       return E.limiteAnterior(limite.vecino === 'pausa')
@@ -60,19 +62,14 @@ function textoLimite(limite: Limite, pausaFin: boolean): string | null {
   }
 }
 
-const AJUSTES = [
-  [-100, '−0,1'],
-  [-10, '−0,01'],
-  [10, '+0,01'],
-  [100, '+0,1']
-] as const
-
 export function PanelSincronia({
   edicion,
   duracionMs,
   escucharAjustes,
   fijarEscucharAjustes,
-  ajustar,
+  bucle = false,
+  motivoBucle,
+  alternarBucle,
   fijar,
   finAutomatico,
   escuchar,
@@ -97,21 +94,6 @@ export function PanelSincronia({
     const mensaje = textoLimite(aviso.limite, siguiente?.tipo === 'pausa')
     return mensaje ? { mensaje, clave: aviso.n } : undefined
   }
-  const botones = (campo: Campo) => (
-    <div className={estilos.ajustesTiempo}>
-      {AJUSTES.map(([delta, etiqueta]) => (
-        <Boton
-          key={delta}
-          disabled={linea?.inicio_ms == null}
-          aria-label={`${campo === 'inicio' ? E.inicio : E.fin} ${etiqueta} s`}
-          onClick={() => ajustar(campo, delta)}
-        >
-          {etiqueta}
-        </Boton>
-      ))}
-    </div>
-  )
-
   return (
     <fieldset className={estilos.panelSincronia} disabled={bloqueado} aria-label="Sincronía">
       {linea ? (
@@ -131,7 +113,6 @@ export function PanelSincronia({
             aplicar={(ms) => fijar('inicio', ms)}
             limite={limite('inicio')}
           />
-          {botones('inicio')}
           <Boton onClick={() => fijar('inicio')}>{E.fijarInicio} (I)</Boton>
           <CampoTiempo
             etiqueta={E.fin}
@@ -154,7 +135,6 @@ export function PanelSincronia({
             }
             limite={limite('fin')}
           />
-          {botones('fin')}
           <Boton disabled={linea.inicio_ms === null} onClick={() => fijar('fin')}>
             {E.fijarFin} (O)
           </Boton>
@@ -167,10 +147,24 @@ export function PanelSincronia({
             <input
               type="checkbox"
               checked={escucharAjustes}
+              disabled={bucle}
+              aria-describedby={bucle ? 'escucha-ocupada' : undefined}
               onChange={(e) => fijarEscucharAjustes(e.currentTarget.checked)}
             />{' '}
             {E.escucharAjustar}
           </label>
+          {bucle && <p id="escucha-ocupada">{E.timeline.escuchaOcupada}</p>}
+          <label className={estilos.casilla}>
+            <input
+              type="checkbox"
+              checked={bucle}
+              disabled={!bucle && (!!motivoBucle || !alternarBucle)}
+              aria-describedby={motivoBucle ? 'motivo-bucle' : undefined}
+              onChange={alternarBucle}
+            />{' '}
+            {E.timeline.bucle}
+          </label>
+          <div aria-live="polite">{motivoBucle && <p id="motivo-bucle">{motivoBucle}</p>}</div>
         </div>
       ) : (
         <p>{E.sinSeleccion}</p>

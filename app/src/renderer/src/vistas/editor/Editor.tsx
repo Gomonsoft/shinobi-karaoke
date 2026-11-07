@@ -44,11 +44,17 @@ import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from 
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { PanelEstilo } from './PanelEstilo'
-import { PanelSincronia, mostrarAyudaBluetooth } from './PanelSincronia'
+import { PanelSincronia, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
+import { PistaSincronia } from './PistaSincronia'
+import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { Transporte, type SeparacionEditor } from './Transporte'
 import { EscuchaComprobacion } from './escuchaComprobacion'
 import {
   estadoInicial,
+  gestoMarcadorVigente,
+  iniciarGestoMarcador,
+  moverGestoMarcador,
+  type GestoMarcador,
   puedeDeshacer,
   puedeRehacer,
   reducirEditor,
@@ -193,6 +199,10 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const focoInicialSync = useRef(contador(letraInicial).sincronizadas === 0)
   const [cerradoYaSync, setCerradoYaSync] = useState(false)
   const [posicion, setPosicion] = useState(0)
+  const [gestoVisible, setGestoVisible] = useState<GestoMarcador | null>(null)
+  const gestoActual = useRef<GestoMarcador | null>(null)
+  const [bucleArmado, setBucleArmado] = useState(false)
+  const bucle = useRef<{ previa: number; sonaba: boolean | null } | null>(null)
   const volumen = useVolumenCompartido(config.reproductor)
   const { motor, estado: audio } = useMotorAudio({
     cancionId: id,
@@ -288,8 +298,91 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       setFocoLinea((n) => n + 1)
     }
   })
+  function intervaloDeSeleccion(letraVisible: Letra): IntervaloTiempo | null {
+    const inicio = letraVisible.lineas.find((l) => l.id === edicion.seleccion)?.inicio_ms
+    const fin = edicion.seleccion ? finEfectivo(letraVisible, edicion.seleccion, duracionMs) : null
+    if (inicio == null || fin == null) return null
+    return recortarIntervalo(
+      { inicioMs: inicio + letraVisible.offset_ms, finMs: fin + letraVisible.offset_ms },
+      crearVistaLineaTiempo(duracionMs)
+    )
+  }
+
+  function desarmarBucle(restaurar = true) {
+    const sesion = bucle.current
+    if (!sesion || !motor) return
+    bucle.current = null
+    setBucleArmado(false)
+    if (restaurar) motor.pausar()
+    motor.fijarBucle(null)
+    if (restaurar) motor.buscar(sesion.previa)
+    setPosicion(motor.posicionMs())
+  }
+
+  function aplicarLimitesBucle(letraVisible: Letra, provisional: boolean) {
+    const sesion = bucle.current
+    if (!sesion || !motor) return
+    const intervalo = intervaloDeSeleccion(letraVisible)
+    if (!intervalo) {
+      if (!provisional) {
+        desarmarBucle()
+        return
+      }
+      if (sesion.sonaba === null) {
+        sesion.sonaba = motor.estado().sonando
+        motor.pausar()
+        setPosicion(motor.posicionMs())
+      }
+      return
+    }
+    if (!motor.fijarBucle(intervalo)) return
+    setPosicion(motor.posicionMs())
+    if (sesion.sonaba !== null) {
+      if (sesion.sonaba) void motor.reproducir()
+      sesion.sonaba = null
+    }
+  }
+
+  function alternarBucle() {
+    if (bucle.current) {
+      desarmarBucle()
+      cancelarMarcador()
+      return
+    }
+    const intervalo = intervaloDeSeleccion(letra)
+    if (!motor || !intervalo) return
+    cancelarMarcador()
+    escucha?.cancelar()
+    const previa = motor.posicionMs()
+    motor.pausar()
+    if (!motor.fijarBucle(intervalo)) return
+    bucle.current = { previa, sonaba: null }
+    setBucleArmado(true)
+    motor.buscar(intervalo.inicioMs)
+    setPosicion(intervalo.inicioMs)
+    void motor.reproducir()
+  }
+
+  function cancelarMarcador() {
+    if (!gestoActual.current) return false
+    gestoActual.current = null
+    setGestoVisible(null)
+    aplicarLimitesBucle(letra, false)
+    return true
+  }
+
+  const actualizarTrasEdicion = useEffectEvent(() => {
+    if (gestoActual.current && !gestoMarcadorVigente(edicion, gestoActual.current)) {
+      cancelarMarcador()
+    }
+    aplicarLimitesBucle(gestoActual.current?.resultado?.letra ?? letra, !!gestoActual.current)
+  })
+  useLayoutEffect(() => actualizarTrasEdicion(), [edicion, duracionMs])
+
   function entrarSync() {
     if (abrirPendiente.current) return
+    desarmarBucle()
+    cancelarMarcador()
     escucha?.cancelar()
     setPestana('sincronia')
     sync.entrar()
@@ -319,6 +412,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     metadatos.titulo,
     obtenerSesion,
     async () => {
+      desarmarBucle()
+      cancelarMarcador()
       motor?.pausar()
       const actual = await leerVisita()
       const nueva = actual?.letra ?? VACIA
@@ -351,6 +446,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         0,
         inicio == null ? obtenerTiempoAudio() : inicio + letra.offset_ms - 3000
       )
+      desarmarBucle()
+      cancelarMarcador()
       escucha?.cancelar()
       motor?.liberarAudio()
       return {
@@ -394,6 +491,13 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   function buscar(ms: number) {
     if (!motor) return
     escucha?.cancelar()
+    if (bucle.current) {
+      const intervalo = intervaloDeSeleccion(gestoActual.current?.resultado?.letra ?? letra)
+      if (!intervalo || ms < intervalo.inicioMs || ms >= intervalo.finMs) {
+        desarmarBucle(false)
+        cancelarMarcador()
+      }
+    }
     motor.buscar(ms)
     setPosicion(motor.posicionMs())
   }
@@ -403,17 +507,24 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       return
     }
     escucha?.cancelar()
-    if (sonando) motor?.pausar()
+    if (bucle.current?.sonaba != null) return
+    if (motor?.estado().sonando) motor.pausar()
     else void motor?.reproducir()
   }
   function usarPista(pista: Pista) {
     if (pista === 'original' || separacion.disponible) void motor?.usarPista(pista)
   }
   function escuchar(id: string) {
+    desarmarBucle()
+    cancelarMarcador()
     escucha?.cancelar()
     if (!edicion.sync.activo) void motor?.reproducir({ desdeMs: desdeLinea(letra, id) })
   }
   function seleccionar(id: string, enfocar = false) {
+    if (id !== edicion.seleccion) {
+      desarmarBucle()
+      cancelarMarcador()
+    }
     if (edicion.sync.activo) sync.seleccionar(id)
     else despachar({ tipo: 'seleccionar', id })
     if (enfocar) {
@@ -425,7 +536,13 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   function cambiarTiempo(campo: 'inicio' | 'fin', accion: AccionEditor) {
     const actualizado = reducirEditor(edicion, accion)
     despachar(accion)
-    if (!escucharAjustes || actualizado.version === edicion.version || !edicion.seleccion) return
+    if (
+      bucle.current ||
+      !escucharAjustes ||
+      actualizado.version === edicion.version ||
+      !edicion.seleccion
+    )
+      return
     const nueva = actualizado.actual.letra
     const ms =
       campo === 'inicio'
@@ -472,11 +589,17 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         case 'pista':
           usarPista(accion.pista)
           break
-        case 'mover_seleccion':
+        case 'mover_seleccion': {
+          const id = lineaVecina(letra, edicion.seleccion, accion.sentido)
+          if (id && id !== edicion.seleccion) {
+            desarmarBucle()
+            cancelarMarcador()
+          }
           despachar(accion)
           setPestana('sincronia')
           setFocoLinea((n) => n + 1)
           break
+        }
         case 'deshacer':
           despachar({ tipo: 'deshacer' })
           break
@@ -516,6 +639,11 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
           sync.deshacer()
           break
         case 'escapar':
+          if (cancelarMarcador()) break
+          if (bucle.current) {
+            desarmarBucle()
+            break
+          }
           if (edicion.sync.activo) sync.terminar()
           else ir({ tipo: 'biblioteca' })
           break
@@ -629,7 +757,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
             </p>
             <div className={estilos.pantalla}>
               <PantallaLetra
-                letra={letra}
+                letra={gestoVisible?.resultado?.letra ?? letra}
                 estilo={estilo}
                 duracionMs={duracionMs}
                 titulo={metadatos.titulo}
@@ -661,7 +789,10 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                   noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
                 }
               ]}
-              onCambio={setPestana}
+              onCambio={(panel) => {
+                cancelarMarcador()
+                setPestana(panel)
+              }}
             />
           </div>
           <div className={estilos.panel}>
@@ -674,7 +805,15 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                   cerrarBluetooth={() => setAyudaBluetooth(false)}
                   escucharAjustes={escucharAjustes}
                   fijarEscucharAjustes={setEscucharAjustes}
-                  ajustar={ajustar}
+                  bucle={bucleArmado}
+                  motivoBucle={
+                    !letra.lineas.some((l) => l.id === edicion.seleccion && l.inicio_ms !== null)
+                      ? E.timeline.sinInicio
+                      : !intervaloDeSeleccion(letra)
+                        ? E.timeline.fuera
+                        : undefined
+                  }
+                  alternarBucle={audio?.duracionMs != null ? alternarBucle : undefined}
                   fijar={fijar}
                   finAutomatico={() =>
                     despachar({ tipo: 'fin_automatico', ahora: performance.now() })
@@ -775,6 +914,62 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
           ) : undefined
         }
       />
+      {pestana === 'sincronia' && cuentas.total > 0 && (
+        <PistaSincronia
+          letra={gestoVisible?.resultado?.letra ?? letra}
+          seleccion={edicion.seleccion}
+          duracionMs={duracionMs}
+          inactiva={edicion.sync.activo}
+          sonando={sonando}
+          posicionMs={posicion}
+          obtenerTiempoAudio={obtenerTiempoAudio}
+          buscar={buscar}
+          seleccionar={seleccionar}
+          iniciarMarcador={(borde) => {
+            const gesto = iniciarGestoMarcador(edicion, borde, duracionMs)
+            if (!gesto) return false
+            gestoActual.current = gesto
+            setGestoVisible(gesto)
+            return true
+          }}
+          moverMarcador={(ms) => {
+            const actual = gestoActual.current
+            if (!actual || !gestoMarcadorVigente(edicion, actual)) return
+            const gesto = moverGestoMarcador(actual, ms)
+            gestoActual.current = gesto
+            setGestoVisible(gesto)
+            aplicarLimitesBucle(gesto.resultado?.letra ?? letra, true)
+          }}
+          terminarMarcador={(confirmar) => {
+            const gesto = gestoActual.current
+            if (!gesto) return
+            if (!confirmar || !gestoMarcadorVigente(edicion, gesto)) {
+              cancelarMarcador()
+              return
+            }
+            gestoActual.current = null
+            setGestoVisible(null)
+            cambiarTiempo(gesto.borde, {
+              tipo: 'confirmar_marcador',
+              gesto,
+              ahora: performance.now()
+            })
+            aplicarLimitesBucle(gesto.resultado?.letra ?? letra, false)
+          }}
+          ajustarMarcador={ajustar}
+          bordeArrastrado={gestoVisible?.borde}
+          limite={
+            gestoVisible?.resultado?.limite
+              ? textoLimite(
+                  gestoVisible.resultado.limite,
+                  letra.lineas
+                    .slice(letra.lineas.findIndex((l) => l.id === gestoVisible.id) + 1)
+                    .find((l) => l.inicio_ms !== null)?.tipo === 'pausa'
+                )
+              : null
+          }
+        />
+      )}
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
       {dialogoBorrador && (
         <DialogoVolverABorradorEditor
