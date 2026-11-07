@@ -18,7 +18,7 @@ Recoger, para no perderlo, todo lo que hace falta antes de publicar. **No se imp
 - [ ] `preguntas/0045` respondida e incorporada.
 - [ ] 0133 completa: inventario y validación del runtime sin DiffQ según el ADR 0014.
 - [ ] 0139 completa: P1–P16, Gatekeeper, primer arranque real, capturas.
-- [ ] Mediciones de `docs/plan.md` hechas o aceptadas como pendientes por el usuario.
+- [ ] Mediciones de `docs/versiones/0.1.0/plan-1.md` hechas o aceptadas como pendientes por el usuario.
 - [ ] Decidido el trato de 0111 y 0126, pruebas manuales aún pendientes.
 - [ ] Consulta a UVR sobre el modelo Rápido: abierta o descartada de forma consciente (`preguntas/0012`).
 

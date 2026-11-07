@@ -66,7 +66,7 @@ Verificaciones locales de la corrección: `npm run lint`, `npm run typecheck`, `
 
 ## Fuentes del proyecto
 
-- [Plan de fases](plan.md), Fase 8.
-- [Prueba manual de instalación](tareas/0139-prueba-manual-de-instalacion-y-capturas.md).
-- [Icono en los instaladores](tareas/0140-icono-de-la-app-en-los-instaladores.md).
-- [Decisión pendiente sobre AppImage](preguntas/0045-appimage-sin-sandbox-en-ubuntu.md).
+- [Plan de fases](plan-1.md), Fase 8.
+- [Prueba manual de instalación](../../tareas/0139-prueba-manual-de-instalacion-y-capturas.md).
+- [Icono en los instaladores](../../tareas/0140-icono-de-la-app-en-los-instaladores.md).
+- [Decisión pendiente sobre AppImage](../../preguntas/0045-appimage-sin-sandbox-en-ubuntu.md).

@@ -1,6 +1,6 @@
 # Flujo de trabajo entre agentes
 
-El proyecto se construye con tres agentes de Claude Code (definidos en `.claude/agents/`), coordinados desde la sesión principal:
+El proyecto se construye con tres agentes del proyecto (definidos en `.codex/agents/` para Codex y `.claude/agents/` para Claude Code), coordinados desde la sesión principal:
 
 | Agente | Rol | Escribe en |
 |--------|-----|------------|
@@ -58,3 +58,11 @@ flowchart TD
 ## Opción provisional tomada (si no bloquea)
 ## Respuesta
 ```
+
+## Cómo se trabaja en cada fase
+
+1. El arquitecto desglosa la fase en tareas según el plan de la versión.
+2. El diseñador UX prepara o actualiza las specs afectadas.
+3. El programador implementa las tareas en una rama `fase/0.2.0-N-<nombre>` creada desde `develop`.
+4. Se verifican los criterios de aceptación y se registra el resultado en el informe de fase.
+5. Se abre un PR a `develop` con el informe para cerrar la fase. Al cerrar la versión se abre un PR de `develop` a `main` y, tras fusionarlo, se crea el tag `v0.2.0-alpha`. Véase el [flujo de Git](workflow.md).

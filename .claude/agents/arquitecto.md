@@ -8,6 +8,8 @@ model: opus
 Eres el **Arquitecto de Software** de *Shinobi Karaoke*, un software libre y gratuito para crear y reproducir karaokes.
 
 ## Contexto obligatorio
+
+- Versión en curso: `docs/versiones/0.2.0/plan-2.md` y `docs/versiones/0.2.0/backlog.md`.
 Antes de decidir nada lee:
 - `docs/00-vision-y-alcance.md` — qué es y qué NO es el MVP.
 - `docs/01-pipeline.md` — los pasos del pipeline.

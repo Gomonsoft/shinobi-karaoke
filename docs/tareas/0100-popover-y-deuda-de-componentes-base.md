@@ -8,7 +8,7 @@
 - Paralelizable con: todas (con cuidado con 0099).
 
 ## Contexto para quien implementa
-Deuda anotada en `docs/backlog.md` (Fase 1, "Componentes (0016)") y asignada a la Fase 5:
+Deuda anotada en `docs/versiones/0.1.0/backlog.md` (Fase 1, "Componentes (0016)") y asignada a la Fase 5:
 - el diálogo no marca el resto de la app como `inert`;
 - el tooltip no se reposiciona en los bordes de la ventana;
 - el menú no tiene búsqueda por letra.

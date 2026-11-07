@@ -50,3 +50,7 @@ Detalle en [`01-pipeline.md`](01-pipeline.md).
 - Licencia de software libre (a definir por el arquitecto — ADR).
 - Sin costes para el usuario: nada de APIs de pago ni claves obligatorias.
 - Uso personal: el usuario es responsable del contenido que aporta (ver riesgos legales en los ADRs de fuente y letras).
+
+## Alcance 0.2.0
+
+La alfa incorpora edición de tiempos con marcadores en la línea de tiempo, temas reutilizables y animaciones de fondo mediante degradados en movimiento. La autorización se aplica a esta versión y las exclusiones anteriores describen el MVP 0.1.0. El [plan de la alfa](versiones/0.2.0/plan-2.md) recoge el alcance completo y sus fases.

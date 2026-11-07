@@ -349,3 +349,10 @@ Respecto a la versión de la Fase 0, sin cambiar el alcance:
 - Errores separados (falta la pista / no se puede leer), con la canción marcada Dañada al momento ([0031](../preguntas/0031-detalles-tecnicos-del-reproductor-fase-6.md)).
 - Pantalla encendida mientras suena.
 - Criterios renumerados (1–33).
+
+## Primera fase de 0.2.0 — Fin de línea y barrido
+
+- El intervalo activo incluye su inicio y excluye su fin. Con líneas 00:12.40–00:15.80 y 00:17.10–00:20.30, en 00:15.80 desaparece la actual y la siguiente queda visible en su posición de espera, sin resaltado. En 00:17.10 esa línea pasa a activa. Buscar dentro del hueco reconstruye el mismo estado. Aplicar el desplazamiento global por igual a ambos extremos. Los indicadores existentes de primera entrada y huecos largos conservan sus reglas.
+- El barrido de una línea partida recorre los renglones visuales en orden de lectura. Para anchos de 120 y 60 px, al 50 % se pintan 90 px del primer renglón y 0 px del segundo. Al 75 % se pintan 120 y 15 px. Los tiempos de palabras importadas se mantienen aunque sus fragmentos se distribuyan entre varios renglones.
+- Redimensionar durante la reproducción recalcula los renglones en la nueva disposición y pinta el avance del reloj actual. La capa de resaltado es decorativa y el texto tiene una sola representación accesible.
+- Verificar el reparto de anchos y fronteras con Vitest, y con un E2E de ventana angosta verificar orden de pintado y redimensión durante reproducción. Probar también la vista previa del editor, que usa el mismo render.

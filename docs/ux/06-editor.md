@@ -550,3 +550,15 @@ Decisión del usuario ([0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md)
 5. **Borrar**: "Borrar tiempos de palabras" vuelve la línea al barrido progresivo.
 6. **Criterio de "Lista"**: no cambia (basta el inicio de cada línea); las palabras son una mejora opcional.
 7. Riesgo de UX a validar: sincronizar por palabra multiplica el esfuerzo (una pulsación por palabra, varias pasadas); por eso se ofrece siempre **después** de la sincronía por línea y nunca como requisito.
+
+## Alcance del editor en 0.2.0
+
+La alfa amplía el editor del MVP con marcadores de inicio y fin arrastrables, zoom y escucha en bucle, temas guardables y degradados en movimiento. El [plan de la alfa](../versiones/0.2.0/plan-2.md) recoge las decisiones y las fases que actualizarán esta spec.
+
+### Primera fase de 0.2.0 — Fin de línea y barrido
+
+- En Sincronía, el campo **Fin** muestra el tiempo efectivo y la etiqueta «Fin automático» cuando usa el cálculo del MVP. Debajo, muestra «Fija el fin para dejar un silencio antes de la siguiente línea». Si la línea carece de inicio, el control queda inactivo y muestra «Fija primero el inicio».
+- El campo Fin, «Fijar fin aquí» y **O** permiten fijar el fin. Se conserva «Usar fin automático» para volver al valor calculado. Cambiar el fin conserva el inicio siguiente, entra en el historial de deshacer y respeta los límites de la letra, incluidas las pausas con tiempo. Un valor fuera de límites conserva el anterior y anuncia el motivo con los mensajes existentes.
+- En reproducción, la vista previa muestra la línea siguiente en espera durante el hueco. Debe coincidir con el reproductor en los instantes límite y con desplazamiento distinto de cero. El modo estático de edición conserva su comportamiento.
+- Si el texto ocupa varios renglones, la vista previa llena cada renglón por orden de lectura y reparte el avance según sus anchos visibles. Comparte los criterios de redimensionamiento y tiempos de palabra de la [spec del reproductor](07-reproductor.md#primera-fase-de-020--fin-de-línea-y-barrido).
+- Al abrir y reproducir una canción de 0.1.0, los tiempos efectivos y los huecos coinciden con los originales hasta que se editen sus marcas.

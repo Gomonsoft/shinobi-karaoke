@@ -19,8 +19,8 @@ Idioma del proyecto: **español** (código de dominio, textos de interfaz, docum
 | `.github/workflows/` | `ci.yml` (app y worker en Windows/macOS/Linux) y `runtime-real.yml` (manual, con red e instalación real). |
 
 ## Documentación: la fuente de verdad
-- `docs/plan.md` — qué se hace en cada fase y su estado. **Empieza por aquí.**
-- `docs/backlog.md` — tabla de tareas por fase, dependencias y orden.
+- `docs/versiones/0.2.0/plan-2.md` — qué se hace en cada fase y su estado. **Empieza por aquí.**
+- `docs/versiones/0.2.0/backlog.md` — tabla de tareas por fase, dependencias y orden.
 - `docs/tareas/NNNN-*.md` — **una tarea = una unidad de trabajo**, autocontenida: contexto, archivos, contratos, criterios de aceptación y comandos de verificación.
 - `docs/adr/` — decisiones técnicas aceptadas (ADR). `docs/arquitectura.md` — visión global.
 - `docs/ux/` — specs de cada vista (wireframes, estados, textos exactos, criterios). `docs/ux/sistema-visual.md` — tokens y componentes.
@@ -35,12 +35,12 @@ Hay tres roles con sus instrucciones en `.codex/agents/` (y su equivalente para 
 3. Implementa **solo** lo que pide la tarea. Respeta los textos de la spec al pie de la letra.
 4. Escribe tests (Vitest para lógica y componentes; Playwright para E2E; pytest para el worker).
 5. Verifica (comandos abajo). Todo debe quedar en verde.
-6. Marca la tarea `Hecha` y rellena **"Notas de implementación"** (qué se hizo, archivos clave, decisiones, deuda). Actualiza su fila en `docs/backlog.md`.
+6. Marca la tarea `Hecha` y rellena **"Notas de implementación"** (qué se hizo, archivos clave, decisiones, deuda). Actualiza su fila en `docs/versiones/0.2.0/backlog.md`.
 
 ## Reglas
 - **No introduzcas librerías, servicios ni patrones fuera de los ADR.** Si hace falta algo nuevo, no lo añadas: crea una pregunta.
 - **Ante una duda, no supongas.** Crea `docs/preguntas/NNNN-titulo.md` (siguiente número libre) con `Para: arquitecto` (técnica), `Para: disenador-ux` (interfaz) o `Para: usuario` (producto). Si bloquea, marca la tarea `Bloqueada` y para; si no, toma la opción más conservadora, anótala en la pregunta y sigue.
-- **Archivos compartidos** (`app/src/shared/ipc.ts`, `canales.ts`, `app/src/preload/index.ts`, `app/src/main/index.ts`, `app/src/main/ipc/handlers.ts`, `app/src/renderer/src/App.tsx`): cambios mínimos y aditivos; respeta el orden indicado en `docs/backlog.md` si varias tareas los tocan.
+- **Archivos compartidos** (`app/src/shared/ipc.ts`, `canales.ts`, `app/src/preload/index.ts`, `app/src/main/index.ts`, `app/src/main/ipc/handlers.ts`, `app/src/renderer/src/App.tsx`): cambios mínimos y aditivos; respeta el orden indicado en `docs/versiones/0.2.0/backlog.md` si varias tareas los tocan.
 - Seguridad de Electron (ADR 0008): todo lo que llega por IPC se valida con Zod en main; el renderer nunca recibe rutas absolutas (usa `shinobi-media://`); las variables `SHINOBI_*` de pruebas se ignoran con la app empaquetada (excepción deliberada: `SHINOBI_DATOS`, ADR 0008).
 - Los tests normales **no usan red ni descargan modelos**. Lo que necesite red va marcado (`red`/`pesado` en pytest, `SHINOBI_TESTS_RED=1` en Vitest/Playwright) y se omite por defecto.
 - Fixtures: **solo audio generado y letras inventadas**. Nunca contenido con copyright.

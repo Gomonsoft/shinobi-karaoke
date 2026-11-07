@@ -28,7 +28,7 @@ La indicada en cada punto, tal como está en `ux/06-editor.md`.
 1. **Probar a pantalla completa → Fase 6.** La Fase 5 construye el motor de audio (`MotorAudio`, 0094) y el render (`PantallaLetra`, 0098) ya pensados para el reproductor. El reproductor (controles que se ocultan, volumen, `rep.incompleta`, Esc que vuelve a la posición) es la Fase 6, y una versión mínima ahora sería trabajo que se tira. Se confirma la opción provisional:
    - en la Fase 5, el botón y la tecla F no se muestran;
    - `bib.toast.lista` sale sin [▶ Reproducir];
-   - el criterio 42 y la acción del toast se verifican en la Fase 6 (anotado en `backlog.md`).
+   - el criterio 42 y la acción del toast se verifican en la Fase 6 (anotado en [backlog del MVP](../versiones/0.1.0/backlog.md)).
 2. **Sí: `marcarInicioLinea(letra, id, t)`** en `app/src/shared/letras/tiempos.ts`, junto con el resto de operaciones del editor (tarea 0092). Hace las reglas (a), (b) y (c) y devuelve `{ letra, cambiado, limite, borrados, palabrasDescartadas, finesAutomaticos }`, con `limite: 'demasiado_pronto'` para `edi.sync.pronto`.
    - Sin objeción a quitar el inicio de una pausa: es válido y el fin automático de la línea anterior se recalcula al dibujar.
    - Matiz: la pausa pierde inicio **y** fin, porque un fin exige inicio (ADR 0006). En la práctica las pausas no tienen fin.
