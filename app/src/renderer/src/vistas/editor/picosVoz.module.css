@@ -1,6 +1,10 @@
+/* La voz va detrás de las regiones de línea, dentro de la misma pista (76 px por defecto, 48 mínimo). */
 .pista {
+  position: absolute;
+  inset: 0;
   background: var(--fondo-2);
   min-width: 0;
+  pointer-events: none;
 }
 
 .etiqueta,
@@ -8,27 +12,47 @@
   color: var(--texto-2);
 }
 
+.etiqueta {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .estado {
-  min-height: 32px;
+  position: absolute;
+  top: 2px;
+  left: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
+  pointer-events: auto;
 }
 
-.lienzo,
-.general {
-  display: block;
-  width: 100%;
-  color: var(--texto-3);
+.marco,
+.marcoGeneral {
+  min-width: 0;
+  overflow: hidden;
+  contain: inline-size;
   pointer-events: none;
 }
 
-.lienzo {
-  height: 32px;
-}
-
-.general {
+.marco {
   position: absolute;
   inset: 0;
+}
+
+.marcoGeneral {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   height: 100%;
+  color: var(--texto-3);
 }

@@ -31,12 +31,22 @@ Ver el [plan por fases](plan-2.md), la [hoja de ruta](../../roadmap.md) y el [fl
 
 | Entrega | Estado | Depende de |
 |---|---|---|
-| Ancho estable de forma de onda y minimapa | Pendiente | Fase 2 |
-| Spec de layout adaptable y paneles accesibles | Pendiente | Fase 2 |
-| Layout, divisores, modos minimizados y preferencias | Pendiente | Spec de subfase |
-| Regresión Electron, capturas e informe | Pendiente | Correcciones de ancho y layout |
+| [0154 · Ancho estable de forma de onda y minimapa](../../tareas/0154-ancho-estable-de-forma-de-onda-y-minimapa.md) | Hecha | Fase 2 |
+| [Spec de layout adaptable y paneles accesibles](../../ux/06-editor.md#subfase-21--layout-adaptable-y-paneles) | Hecha | Fase 2 |
+| [0155 · Preferencia de paneles en config y ventana mínima](../../tareas/0155-preferencia-de-paneles-en-config-y-ventana-minima.md) | Hecha | Spec de subfase |
+| [0156 · Modelo puro de distribución](../../tareas/0156-modelo-puro-de-distribucion-del-editor.md) | Hecha | 0155 |
+| [0157 · Layout a alto completo](../../tareas/0157-layout-del-editor-a-alto-completo.md) | Hecha | 0154, 0156 |
+| [0158 · Transporte en dos filas y panel angosto](../../tareas/0158-transporte-en-dos-filas-y-panel-angosto.md) | Hecha | Spec de subfase |
+| [0159 · Divisores y restablecer](../../tareas/0159-divisores-accesibles-y-restablecer-distribucion.md) | Hecha | 0157 |
+| [0160 · Modos minimizados](../../tareas/0160-modos-minimizados-con-controles-rapidos.md) | Hecha | 0159 |
+| [0161 · Persistencia de la distribución](../../tareas/0161-persistir-la-distribucion-de-paneles.md) | Hecha | 0155, 0160 |
+| [0162 · Regresión Electron, capturas e informe](../../tareas/0162-regresion-electron-capturas-e-informe-de-la-subfase-2-1.md) | Hecha | 0154, 0155, 0157–0161 |
 
-El [reporte](reporte-editor-fase-2.md) contiene pasos y criterios. Arquitectura numera las tareas desde 0154 al iniciar la subfase. La fase 3 empieza tras integrar el PR de esta subfase en `develop`.
+El [reporte](reporte-editor-fase-2.md) contiene pasos y criterios. Decisiones de la subfase: revisiones de los ADR [0010](../../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--layout-adaptable-y-paneles) (layout y ventana mínima de contenido 1024 × 576) y [0006](../../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--preferencias-de-paneles-del-editor) (`config.editor.paneles`).
+
+0154, 0155 y 0158 pueden avanzar en paralelo porque no comparten archivos. 0154 trabaja en `PistaSincronia`, `PistaOndaVoz`, sus CSS y `editor.spec.ts`. 0155 trabaja en `shared/`, `main/` y `e2e/ventana.spec.ts`. 0158 trabaja en `Transporte`, `PanelSincronia`, `CampoTiempo` y los bloques de transporte y desplazamiento de `editor.module.css`. 0156 solo crea archivos nuevos y puede empezar en cuanto 0155 publique `shared/paneles.ts`. 0157 es el punto de integración: necesita 0154, porque toca el CSS de la pista, y 0156. Crea `e2e/editor-layout.spec.ts` y los ayudantes `e2e/fixtures/editor.ts`. 0159 y 0160 son secuenciales porque ambas reescriben `Editor.tsx`. 0161 puede preparar su hook tras 0155 y lo conecta después de 0160. 0155 es la única tarea que modifica contratos compartidos (`shared/config.ts`, `shared/ipc.ts`, `shared/paneles.ts`). Los E2E de layout no dependen de que haya picos. [Informe de la subfase](informe-fase-2.1.md).
+
+La subfase usa las tareas 0154–0162. La fase 3 empieza tras integrar el PR de esta subfase en `develop`.
 
 ## Fases siguientes
 

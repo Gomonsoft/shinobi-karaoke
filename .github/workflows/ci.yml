@@ -64,7 +64,7 @@ jobs:
         if: runner.os == 'Linux'
         # Las ventanas Electron comparten el puntero de Xvfb: aislar las pruebas evita
         # que la interacción de una detenga la cuenta atrás del reproductor en otra.
-        run: xvfb-run --auto-servernum npm run test:e2e -- --workers=1
+        run: xvfb-run --auto-servernum -s "-screen 0 3840x2160x24" npm run test:e2e -- --workers=1
 
   worker:
     name: worker (${{ matrix.os }})

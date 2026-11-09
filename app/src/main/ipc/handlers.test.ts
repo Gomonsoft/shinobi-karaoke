@@ -225,6 +225,10 @@ describe('manejadores IPC', () => {
       [CANALES.config.actualizar, [{ instalacion: { estado: 'completa' } }]],
       [CANALES.config.actualizar, [{ reproductor: { volumen: 5 } }]],
       [CANALES.config.actualizar, [{ ultima_comprobacion_ytdlp: null }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { lista: { ancho: 255 } } } }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { lista: { ancho: 300.5 } } } }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { linea_tiempo: { alto: 175 } } } }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { lista: { otra: 1 } } } }]],
       [CANALES.sistema.abrirEnlace, ['http://lrclib.net/']],
       [CANALES.sistema.abrirEnlace, ['file:///etc/passwd']]
     ]

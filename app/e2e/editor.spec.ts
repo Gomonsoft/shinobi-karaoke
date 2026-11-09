@@ -1,10 +1,4 @@
-import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-  type Page
-} from '@playwright/test'
+import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
 import { copyFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { cpus, release, totalmem } from 'node:os'
 import { join } from 'node:path'
@@ -22,7 +16,7 @@ import {
   preparar as prepararSeparacion,
   tarjeta
 } from './fixtures/separacion'
-import { crearTemporal } from './temporales'
+import { abrirEditor, conEditor, idSemilla } from './fixtures/editor'
 
 /**
  * Editor sin red: semilla de desarrollo con audio de 30 s, salida silenciada y LRCLIB apuntando
@@ -31,7 +25,6 @@ import { crearTemporal } from './temporales'
 
 /** Id de la semilla de la canción `n` (la 11 tiene el JSON dañado a propósito: no se puede buscar por título). */
 const ID: Record<string, string> = {}
-const idSemilla = (n: number): string => `5eed0000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const idDe = (titulo: string): string => ID[titulo]!
 
 const T17 = 'Editor: pista de clics'
@@ -48,64 +41,12 @@ interface Linea {
   fin_ms: number | null
 }
 
-async function lanzar(datos: string): Promise<ElectronApplication> {
-  return electron.launch({
-    args: ['.'],
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      SHINOBI_DATOS: datos,
-      SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
-      SHINOBI_SILENCIAR_AUDIO: '1',
-      SHINOBI_PANTALLA_COMPLETA_SIMULADA: '1',
-      SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1'
-    }
-  })
-}
-
-/** Siembra, lanza, ejecuta la prueba y cierra siempre. */
-async function conEditor(
-  nombre: string,
-  prueba: (v: Page, datos: string, app: ElectronApplication) => Promise<void>,
-  preparar?: (datos: string) => void
-): Promise<void> {
-  const datos = crearTemporal(nombre)
-  await sembrar(datos)
-  preparar?.(datos)
-  const app = await lanzar(datos)
-  try {
-    const v = await app.firstWindow()
-    await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
-    await prueba(v, datos, app)
-  } finally {
-    await app.close().catch(() => undefined)
-  }
-}
-
 const lineasDe = (datos: string, titulo: string): Linea[] =>
   leerCancion(datos, idDe(titulo)).letra.lineas
 const soloLineas = (datos: string, titulo: string): Linea[] =>
   lineasDe(datos, titulo).filter((l) => l.tipo === 'linea')
 
-/** Biblioteca → «Continuar» de la canción → editor con el audio cargado. */
-async function abrir(v: Page, titulo: string): Promise<void> {
-  // Filtrar sube las tarjetas al principio: un menú abierto en una tarjeta que hay que desplazar se cierra.
-  await v.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(titulo)
-  const t = tarjeta(v, titulo)
-  await expect(t).toBeVisible()
-  const continuar = t.getByRole('button', { name: /^Continuar/ })
-  if (await continuar.count()) {
-    await continuar.click()
-  } else {
-    // Lista o separándose: la acción está en el menú de la tarjeta («Editar» / «Continuar»).
-    await t.getByRole('button', { name: `Más acciones de «${titulo}»` }).click()
-    await v.getByRole('menuitem', { name: /^(Editar|Continuar)$/ }).dispatchEvent('click')
-  }
-  await expect(v.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()
-  await expect(v.getByRole('button', { name: /^Sincronizar al ritmo/ })).toBeEnabled({
-    timeout: 20_000
-  })
-}
+const abrir = abrirEditor
 
 const botonMarcar = (v: Page) => v.getByRole('button', { name: E.syncMarcar })
 const contador = (v: Page, a: number, b: number) =>
@@ -412,7 +353,7 @@ const rangoTimeline = (v: Page) => v.getByRole('slider', { name: E.timeline.regl
 const tiempoEditor = (v: Page) => v.getByRole('slider', { name: 'Tiempo de reproducción' })
 const botonBucle = (v: Page) => v.getByRole('checkbox', { name: E.timeline.bucle })
 const cabezalTimeline = (v: Page) =>
-  v.getByRole('region', { name: E.timeline.titulo }).locator('div[style*="visibility:"]')
+  v.getByRole('region', { name: E.timeline.titulo }).locator('[data-cabezal]')
 
 async function dragMarcador(v: Page, borde: string, cambioMs: number): Promise<void> {
   const marcador = v.getByRole('slider', { name: borde, exact: true })
@@ -728,6 +669,114 @@ test('línea de tiempo: zoom, minimapa y resize conservan el cabezal y la voz se
     await app.close().catch(() => undefined)
   }
 })
+
+const DENSIDADES = [1, 1.25, 1.5]
+const TAMANOS_VENTANA = [
+  [1300, 800],
+  [1700, 900],
+  [1250, 800]
+] as const
+
+const anchoPagina = (v: Page) =>
+  v.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    ventana: window.innerWidth
+  }))
+
+async function ajustarVentana(app: ElectronApplication, ancho: number, alto: number) {
+  await app.evaluate(
+    ({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0]!.setContentSize(w!, h!),
+    [ancho, alto]
+  )
+}
+
+for (const dpr of DENSIDADES) {
+  test(`el editor no desborda en horizontal con el cabezal fuera de la vista (DPR ${dpr})`, async () => {
+    test.setTimeout(75_000)
+    await conEditor(
+      `ancho-cabezal-${dpr}`,
+      async (v, _datos, app) => {
+        await abrir(v, T19)
+        expect(await v.evaluate(() => window.devicePixelRatio)).toBe(dpr)
+        const comprobar = async (contexto: string) => {
+          const { scroll, ventana } = await anchoPagina(v)
+          expect(scroll, contexto).toBeLessThanOrEqual(ventana)
+        }
+        await comprobar('en espera')
+        for (let i = 0; i < 6; i++) await v.getByRole('button', { name: E.timeline.mas }).click()
+        await v.getByRole('button', { name: E.timeline.cabezal }).click()
+        await v.getByRole('button', { name: 'Reproducir', exact: true }).click()
+        await expect(v.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible()
+        for (let i = 0; i < 20; i++) {
+          await v.waitForTimeout(500)
+          await comprobar(`reproduciendo, muestra ${i}`)
+        }
+        // El cabezal ya salió por la derecha: no ocupa espacio.
+        await expect(cabezalTimeline(v)).toHaveCSS('display', 'none')
+        for (const [ancho, alto] of TAMANOS_VENTANA) {
+          await ajustarVentana(app, ancho, alto)
+          await expect
+            .poll(async () => Math.abs((await anchoPagina(v)).ventana - ancho))
+            .toBeLessThanOrEqual(2)
+          await v.waitForTimeout(300)
+          await comprobar(`tras redimensionar a ${ancho}`)
+        }
+      },
+      undefined,
+      dpr
+    )
+  })
+}
+
+for (const dpr of DENSIDADES) {
+  test(`la forma de onda y el minimapa tienen ancho estable y siguen al contenedor (DPR ${dpr})`, async () => {
+    test.setTimeout(90_000)
+    const entorno = prepararSeparacion(`ancho-onda-${dpr}`, { segundos: 2, pasos: 6 })
+    await sembrar(entorno.datos)
+    const app = await lanzarSeparacion(
+      entorno,
+      { SHINOBI_SILENCIAR_AUDIO: '1', SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1' },
+      [`--force-device-scale-factor=${dpr}`]
+    )
+    try {
+      const v = await app.firstWindow()
+      await abrir(v, T19)
+      expect(await v.evaluate(() => window.devicePixelRatio)).toBe(dpr)
+      await esperarOnda(v)
+      const medidas = () =>
+        lienzosOnda(v).evaluateAll((lienzos) =>
+          lienzos.map((nodo) => ({
+            canvas: nodo.getBoundingClientRect().width,
+            contenedor: nodo.parentElement!.getBoundingClientRect().width
+          }))
+        )
+      const inicial = await medidas()
+      await v.waitForTimeout(3000)
+      expect((await medidas()).map((m) => m.canvas)).toEqual(inicial.map((m) => m.canvas))
+
+      let previo = inicial[0]!.contenedor
+      for (const [i, [ancho, alto]] of TAMANOS_VENTANA.entries()) {
+        await ajustarVentana(app, ancho, alto)
+        await expect
+          .poll(async () => {
+            const m = await medidas()
+            return m.every((x) => Math.abs(x.canvas - x.contenedor) <= 1)
+          })
+          .toBe(true)
+        await v.waitForTimeout(500)
+        const final = await medidas()
+        final.forEach((m) => expect(Math.abs(m.canvas - m.contenedor)).toBeLessThanOrEqual(1))
+        if (i === 1) expect(final[0]!.contenedor).toBeGreaterThan(previo)
+        if (i === 2) expect(final[0]!.contenedor).toBeLessThan(previo)
+        previo = final[0]!.contenedor
+        const { scroll, ventana } = await anchoPagina(v)
+        expect(scroll).toBeLessThanOrEqual(ventana)
+      }
+    } finally {
+      await app.close().catch(() => undefined)
+    }
+  })
+}
 
 const audioPerfil = process.env.SHINOBI_PERFIL_PICOS
 

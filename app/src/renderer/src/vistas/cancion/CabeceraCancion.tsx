@@ -47,6 +47,11 @@ interface CabeceraCancionProps {
     alRehacer(): void
   }
   menu?: ItemMenu[]
+  /**
+   * `vista` (por defecto): cabecera de las vistas del espacio de canción. `editor`: sin margen
+   * inferior (lo da la rejilla). `editor-compacta`: una fila de 48 px con el stepper compacto.
+   */
+  variante?: 'vista' | 'editor' | 'editor-compacta'
 }
 
 const ESTADO_GUARDADO = {
@@ -55,7 +60,15 @@ const ESTADO_GUARDADO = {
   error: { texto: 'No se pudo guardar', icono: TriangleAlert }
 }
 
-function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
+function Paso({
+  datos,
+  onIr,
+  compacta
+}: {
+  datos: DatosPaso
+  onIr: () => void
+  compacta: boolean
+}) {
   const [forzar, setForzar] = useState(false)
   const Ic = ICONOS[datos.indicador]
   const boton = (
@@ -80,10 +93,17 @@ function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
       </span>
     </button>
   )
+  // En la cabecera compacta solo el paso actual muestra su etiqueta: las demás van en un tooltip.
+  const tooltip =
+    compacta && !datos.actual
+      ? datos.motivo
+        ? `${datos.etiqueta}. ${datos.motivo}`
+        : datos.etiqueta
+      : datos.motivo
   return (
     <li className={estilos.item}>
-      {datos.motivo ? (
-        <Tooltip contenido={datos.motivo} forzar={forzar}>
+      {tooltip ? (
+        <Tooltip contenido={tooltip} forzar={forzar}>
           {boton}
         </Tooltip>
       ) : (
@@ -103,7 +123,8 @@ export function CabeceraCancion({
   guardado,
   incompleta = 0,
   historial,
-  menu
+  menu,
+  variante = 'vista'
 }: CabeceraCancionProps) {
   const { ir } = useNavegacion()
   const { trabajos, progreso } = useTrabajosVivos()
@@ -124,14 +145,47 @@ export function CabeceraCancion({
 
   const estado = guardado ? ESTADO_GUARDADO[guardado] : null
   const mac = /Mac/i.test(navigator.platform)
+  const compacta = variante === 'editor-compacta'
+  const pasosNav = (
+    <nav aria-label="Pasos de la canción" className={compacta ? estilos.navCompacta : undefined}>
+      <ol className={estilos.pasos}>
+        {pasos.map((p) => (
+          <Paso
+            key={p.paso}
+            datos={p}
+            compacta={compacta}
+            onIr={() => {
+              if (!resumen) return
+              if (actual === 'progreso' && p.paso === 'letra') marcarProgresoVisto(resumen.id)
+              ir({ tipo: 'cancion', id: resumen.id, paso: p.paso })
+            }}
+          />
+        ))}
+      </ol>
+    </nav>
+  )
+  const textoTitulo =
+    resumen === null
+      ? 'Nueva canción'
+      : resumen.artista !== ''
+        ? `«${resumen.titulo}» · ${resumen.artista}`
+        : `«${resumen.titulo}»`
   return (
-    <div className={estilos.cabecera}>
+    <div
+      className={[
+        estilos.cabecera,
+        variante === 'editor' && estilos.cabeceraEditor,
+        compacta && estilos.cabeceraCompacta
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div className={estilos.fila}>
         <Boton variante="fantasma" onClick={() => ir({ tipo: 'biblioteca' })}>
           <Icono icono={ChevronLeft} tamano={16} />
           Biblioteca
         </Boton>
-        <p className={estilos.titulo}>
+        <p className={estilos.titulo} title={compacta ? textoTitulo : undefined}>
           {resumen === null ? (
             'Nueva canción'
           ) : (
@@ -170,6 +224,7 @@ export function CabeceraCancion({
             {estado.texto}
           </span>
         )}
+        {compacta && pasosNav}
         {historial && (
           <div className={estilos.historial}>
             <BotonIcono
@@ -190,21 +245,7 @@ export function CabeceraCancion({
           <MenuContextual etiqueta="Más acciones del editor" items={menu} />
         )}
       </div>
-      <nav aria-label="Pasos de la canción">
-        <ol className={estilos.pasos}>
-          {pasos.map((p) => (
-            <Paso
-              key={p.paso}
-              datos={p}
-              onIr={() => {
-                if (!resumen) return
-                if (actual === 'progreso' && p.paso === 'letra') marcarProgresoVisto(resumen.id)
-                ir({ tipo: 'cancion', id: resumen.id, paso: p.paso })
-              }}
-            />
-          ))}
-        </ol>
-      </nav>
+      {!compacta && pasosNav}
     </div>
   )
 }

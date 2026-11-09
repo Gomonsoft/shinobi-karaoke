@@ -318,6 +318,27 @@ describe('controles del editor', () => {
     expect(screen.getByText(texto)).toBeInTheDocument()
   })
 
+  it('la variante compacta pone el stepper en la misma fila con solo la etiqueta del paso actual', () => {
+    montarEditor({ variante: 'editor-compacta', guardado: 'guardado' })
+    const titulo = screen.getByText('«Canción de prueba»').closest('p')!
+    expect(titulo).toHaveAttribute('title', '«Canción de prueba» · Artista')
+    const nav = screen.getByRole('navigation', { name: 'Pasos de la canción' })
+    expect(titulo.parentElement).toContainElement(nav)
+    // Los pasos conservan su nombre accesible completo; la navegación no cambia.
+    expect(paso1()).toHaveAccessibleName(/^Paso 1, Fuente/)
+    expect(paso4()).toHaveAttribute('aria-current', 'step')
+    fireEvent.focus(paso1())
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Fuente')
+  })
+
+  it('la variante normal del editor mantiene el stepper en su propia fila', () => {
+    montarEditor({ variante: 'editor' })
+    const titulo = screen.getByText('«Canción de prueba»').closest('p')!
+    const nav = screen.getByRole('navigation', { name: 'Pasos de la canción' })
+    expect(titulo.parentElement).not.toContainElement(nav)
+    expect(titulo).not.toHaveAttribute('title')
+  })
+
   it('permite deshacer y abre el menú con sus acciones', () => {
     const deshacer = vi.fn()
     const atajos = vi.fn()

@@ -2,7 +2,7 @@ import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Icono } from '../../componentes/Icono'
-import { Diamond, X } from 'lucide-react'
+import { Diamond, RotateCcw, X } from 'lucide-react'
 import { contarLineas, finEfectivo } from '@shared/letra'
 import {
   formatearDesplazamiento,
@@ -62,6 +62,24 @@ export function textoLimite(limite: Limite, pausaFin: boolean): string | null {
   }
 }
 
+/**
+ * Aviso de límite vigente de un campo de la línea seleccionada (o del desplazamiento). Lo comparten
+ * el panel completo, que lo enseña junto al campo, y los rieles minimizados, junto a su botón.
+ */
+export function limiteDeCampo(
+  edicion: EstadoEditor,
+  campo: Campo | 'desplazamiento'
+): { mensaje: string; clave: number } | undefined {
+  const { aviso, seleccion } = edicion
+  if (!aviso?.limite || !aviso.limite.tipo.startsWith(campo)) return undefined
+  if (campo !== 'desplazamiento' && aviso.id !== seleccion) return undefined
+  const { letra } = edicion.actual
+  const indice = letra.lineas.findIndex((el) => el.id === seleccion && el.tipo === 'linea')
+  const siguiente = letra.lineas.slice(indice + 1).find((e) => e.inicio_ms !== null)
+  const mensaje = textoLimite(aviso.limite, siguiente?.tipo === 'pausa')
+  return mensaje ? { mensaje, clave: aviso.n } : undefined
+}
+
 export function PanelSincronia({
   edicion,
   duracionMs,
@@ -80,20 +98,14 @@ export function PanelSincronia({
   cerrarBluetooth
 }: Props) {
   const { letra } = edicion.actual
-  const { seleccion, aviso } = edicion
+  const { seleccion } = edicion
   const bloqueado = edicion.sync.activo
   const indice = letra.lineas.findIndex((el) => el.id === seleccion && el.tipo === 'linea')
   const linea = letra.lineas[indice]
-  const siguiente = letra.lineas.slice(indice + 1).find((e) => e.inicio_ms !== null)
   const fin = linea ? finEfectivo(letra, linea.id, duracionMs) : null
   const tiempo = (ms: number | null) =>
     formatearTiempo(ms === null ? null : tiempoMostrado(ms, letra.offset_ms))
-  const limite = (campo: Campo | 'desplazamiento') => {
-    if (!aviso?.limite || !aviso.limite.tipo.startsWith(campo)) return undefined
-    if (campo !== 'desplazamiento' && aviso.id !== seleccion) return undefined
-    const mensaje = textoLimite(aviso.limite, siguiente?.tipo === 'pausa')
-    return mensaje ? { mensaje, clave: aviso.n } : undefined
-  }
+  const limite = (campo: Campo | 'desplazamiento') => limiteDeCampo(edicion, campo)
   return (
     <fieldset className={estilos.panelSincronia} disabled={bloqueado} aria-label="Sincronía">
       {linea ? (
@@ -169,12 +181,14 @@ export function PanelSincronia({
       ) : (
         <p>{E.sinSeleccion}</p>
       )}
-      <div className={estilos.desplazamiento}>
-        <h3>{E.offsetTitulo}</h3>
+      <div className={estilos.desplazamiento} role="group" aria-labelledby="titulo-desplazamiento">
+        <h3 id="titulo-desplazamiento">{E.offsetTitulo}</h3>
         <div className={estilos.ajustesTiempo}>
           <Boton onClick={() => desplazar(-100)}>−0,1 s</Boton>
           <CampoTiempo
-            etiqueta={E.offsetTitulo}
+            etiqueta={E.offsetCampo}
+            etiquetaOculta
+            describedBy="ayuda-desplazamiento"
             valor={formatearDesplazamiento(letra.offset_ms).replace(' s', '')}
             aplicar={fijarDesplazamiento}
             interpretar={interpretarDesplazamiento}
@@ -182,11 +196,14 @@ export function PanelSincronia({
             limite={limite('desplazamiento')}
           />
           <Boton onClick={() => desplazar(100)}>+0,1 s</Boton>
+          <BotonIcono
+            icono={RotateCcw}
+            etiqueta={E.offsetRestablecer}
+            disabled={letra.offset_ms === 0}
+            onClick={() => fijarDesplazamiento(0)}
+          />
         </div>
-        <Boton disabled={letra.offset_ms === 0} onClick={() => fijarDesplazamiento(0)}>
-          {E.restablecer}
-        </Boton>
-        <p>{E.offsetAyuda}</p>
+        <p id="ayuda-desplazamiento">{E.offsetAyuda}</p>
         {ayudaBluetooth && (
           <AvisoEnLinea
             tipo="info"

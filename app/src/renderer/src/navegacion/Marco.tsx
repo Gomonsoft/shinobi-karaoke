@@ -23,6 +23,7 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
   const conBarra = !VISTAS_SIN_BARRA.includes(vista.tipo)
   const clave = claveVista(vista)
   const primera = useRef(true)
+  const enEditor = vista.tipo === 'cancion' && vista.paso === 'editor'
 
   useEffect(() => {
     // En el arranque no se roba el foco; en los cambios de vista va al primer elemento lógico.
@@ -78,7 +79,14 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
         id="contenido"
         ref={main}
         tabIndex={-1}
-        className={conBarra ? estilos.contenido : estilos.contenidoCompleto}
+        data-vista={enEditor ? 'editor' : undefined}
+        className={
+          enEditor
+            ? estilos.contenidoEditor
+            : conBarra
+              ? estilos.contenido
+              : estilos.contenidoCompleto
+        }
       >
         {children}
       </main>

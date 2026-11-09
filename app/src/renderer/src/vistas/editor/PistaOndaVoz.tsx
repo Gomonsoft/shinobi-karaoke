@@ -73,6 +73,39 @@ interface LienzoProps {
   general?: boolean
 }
 
+export interface TamanoLienzo {
+  ancho: number
+  alto: number
+  presupuesto: number
+}
+
+type CajaObservada = { inlineSize: number; blockSize: number }
+type EntradaTamano = {
+  contentRect: { width: number; height: number }
+  contentBoxSize?: readonly CajaObservada[] | CajaObservada
+  devicePixelContentBoxSize?: readonly CajaObservada[] | CajaObservada
+}
+
+const primera = (caja?: readonly CajaObservada[] | CajaObservada): CajaObservada | undefined =>
+  caja && 'length' in caja ? caja[0] : caja
+
+/**
+ * Tamaño del bitmap (px físicos) y presupuesto de picos (px CSS) a partir de una entrada del
+ * ResizeObserver. Los atributos del canvas nunca intervienen en la medición.
+ */
+export function tamanoLienzo(entrada: EntradaTamano, dpr: number): TamanoLienzo {
+  const css = primera(entrada.contentBoxSize) ?? {
+    inlineSize: entrada.contentRect.width,
+    blockSize: entrada.contentRect.height
+  }
+  const fisico = primera(entrada.devicePixelContentBoxSize)
+  return {
+    ancho: Math.round(fisico?.inlineSize ?? css.inlineSize * dpr),
+    alto: Math.round(fisico?.blockSize ?? css.blockSize * dpr),
+    presupuesto: Math.min(MAX_BLOQUES_PICOS, Math.ceil(css.inlineSize))
+  }
+}
+
 function pintar(
   canvas: HTMLCanvasElement,
   lectura: LecturaPicos | null,
@@ -106,23 +139,17 @@ export const LienzoPicosVoz = memo(function LienzoPicosVoz({
   finMs,
   general
 }: LienzoProps) {
+  const marco = useRef<HTMLDivElement>(null)
   const lienzo = useRef<HTMLCanvasElement>(null)
-  const [tamano, setTamano] = useState({ ancho: 0, alto: 0, presupuesto: 0 })
+  const [tamano, setTamano] = useState<TamanoLienzo>({ ancho: 0, alto: 0, presupuesto: 0 })
   const [datos, setDatos] = useState<{ clave: string; lectura: LecturaPicos } | null>(null)
   const { ancho, alto, presupuesto } = tamano
   const clave = JSON.stringify([cancionId, generacion, inicioMs, finMs, presupuesto])
 
   useEffect(() => {
-    const canvas = lienzo.current
-    if (!canvas) return
-    const medir = (): void => {
-      const { width, height } = canvas.getBoundingClientRect()
-      const escala = window.devicePixelRatio || 1
-      const siguiente = {
-        ancho: Math.round(width * escala),
-        alto: Math.round(height * escala),
-        presupuesto: Math.min(MAX_BLOQUES_PICOS, Math.ceil(width))
-      }
+    const contenedor = marco.current
+    if (!contenedor) return
+    const aplicar = (siguiente: TamanoLienzo): void =>
       setTamano((previo) =>
         previo.ancho === siguiente.ancho &&
         previo.alto === siguiente.alto &&
@@ -130,16 +157,27 @@ export const LienzoPicosVoz = memo(function LienzoPicosVoz({
           ? previo
           : siguiente
       )
+    if (typeof ResizeObserver === 'undefined') {
+      // Respaldo sin ResizeObserver: se mide el contenedor, nunca el canvas.
+      const medir = (): void => {
+        const { width, height } = contenedor.getBoundingClientRect()
+        aplicar(tamanoLienzo({ contentRect: { width, height } }, window.devicePixelRatio || 1))
+      }
+      window.addEventListener('resize', medir)
+      medir()
+      return () => window.removeEventListener('resize', medir)
     }
-    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
-    // Este box también notifica cuando cambia la densidad del monitor sin variar el ancho CSS.
-    observador?.observe(canvas, { box: 'device-pixel-content-box' })
-    window.addEventListener('resize', medir)
-    medir()
-    return () => {
-      observador?.disconnect()
-      window.removeEventListener('resize', medir)
+    const observador = new ResizeObserver((entradas) => {
+      const entrada = entradas[entradas.length - 1]
+      if (entrada) aplicar(tamanoLienzo(entrada, window.devicePixelRatio || 1))
+    })
+    try {
+      // Este box también notifica cuando cambia la densidad del monitor sin variar el ancho CSS.
+      observador.observe(contenedor, { box: 'device-pixel-content-box' })
+    } catch {
+      observador.observe(contenedor, { box: 'content-box' })
     }
+    return () => observador.disconnect()
   }, [])
 
   useEffect(() => {
@@ -174,13 +212,9 @@ export const LienzoPicosVoz = memo(function LienzoPicosVoz({
   }, [alto, ancho, clave, datos, finMs, inicioMs])
 
   return (
-    <canvas
-      ref={lienzo}
-      className={general ? css.general : css.lienzo}
-      aria-hidden="true"
-      width={ancho}
-      height={alto}
-    />
+    <div ref={marco} className={general ? css.marcoGeneral : css.marco}>
+      <canvas ref={lienzo} className={css.canvas} aria-hidden="true" width={ancho} height={alto} />
+    </div>
   )
 })
 

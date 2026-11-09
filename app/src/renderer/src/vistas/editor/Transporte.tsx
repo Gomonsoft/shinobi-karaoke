@@ -13,7 +13,7 @@ import type { EstadoMotor, Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
 import { tiempoHablado } from '../../karaoke/tiempoHablado'
 import { E } from './textos'
-import estilos from './editor.module.css'
+import estilos from './transporte.module.css'
 
 export interface SeparacionEditor {
   disponible: boolean
@@ -39,7 +39,8 @@ interface Props {
   entrarSync(): void
   refSync?: Ref<HTMLButtonElement>
   acciones?: ReactNode
-  bannerSync?: ReactNode
+  /** Modo «Sincronizar al ritmo»: la segunda fila conserva solo «Escuchar» (el banner va en el dock). */
+  sincronizando?: boolean
 }
 
 const VELOCIDADES = [
@@ -65,7 +66,7 @@ export function Transporte({
   entrarSync,
   refSync,
   acciones,
-  bannerSync
+  sincronizando = false
 }: Props) {
   const cargando = !estado || estado.cargando
   const listo = estado?.duracionMs != null
@@ -93,16 +94,7 @@ export function Transporte({
 
   return (
     <section className={estilos.transporte} aria-label="Reproducción">
-      {cargando && (
-        <div>
-          {lento ? (
-            <BarraProgreso etiqueta={E.cargando} indeterminada />
-          ) : (
-            <span>{E.cargando}</span>
-          )}
-        </div>
-      )}
-      <div className={estilos.transporteFila}>
+      <div className={estilos.fila}>
         <BotonIcono
           icono={SkipBack}
           etiqueta="Ir al principio"
@@ -115,9 +107,19 @@ export function Transporte({
           onClick={reproducir}
           disabled={!listo}
         />
-        <span className="t-tiempo">
-          {formatearTiempo(posicionMs).slice(0, -1)} / {formatearTiempo(duracion).slice(0, 5)}
-        </span>
+        {cargando ? (
+          <div className={estilos.tiempo}>
+            {lento ? (
+              <BarraProgreso etiqueta={E.cargando} indeterminada />
+            ) : (
+              <span>{E.cargando}</span>
+            )}
+          </div>
+        ) : (
+          <span className={`t-tiempo ${estilos.tiempo}`}>
+            {formatearTiempo(posicionMs).slice(0, -1)} / {formatearTiempo(duracion).slice(0, 5)}
+          </span>
+        )}
         <div className={estilos.barraTiempo} data-foco-editor="barra">
           <div className={estilos.ticks} aria-hidden="true">
             {duracion > 0 &&
@@ -149,18 +151,7 @@ export function Transporte({
             }}
           />
         </div>
-      </div>
-      <div className={estilos.transporteFila}>
-        <div className={estilos.grupoTransporte} data-foco-editor="segmentado">
-          <span>{E.escuchar}</span>
-          <ControlSegmentado
-            etiqueta={E.escuchar}
-            valor={estado?.pista ?? 'original'}
-            opciones={pistas}
-            onCambio={usarPista}
-          />
-        </div>
-        <div className={estilos.grupoTransporte} data-foco-editor="segmentado">
+        <div className={estilos.grupo} data-foco-editor="segmentado">
           <Tooltip contenido={E.velocidadTooltip}>
             <span>{E.velocidad}</span>
           </Tooltip>
@@ -185,14 +176,25 @@ export function Transporte({
           />
         </div>
       </div>
-      {bannerSync ?? (
-        <div className={estilos.transporteAcciones}>
-          <Boton ref={refSync} onClick={entrarSync} disabled={!listo}>
-            <Icono icono={CircleDot} tamano={16} /> {E.botonSync} (S)
-          </Boton>
-          {acciones}
+      <div className={estilos.fila}>
+        <div className={estilos.grupo} data-foco-editor="segmentado">
+          <span>{E.escuchar}</span>
+          <ControlSegmentado
+            etiqueta={E.escuchar}
+            valor={estado?.pista ?? 'original'}
+            opciones={pistas}
+            onCambio={usarPista}
+          />
         </div>
-      )}
+        {!sincronizando && (
+          <div className={estilos.acciones}>
+            <Boton ref={refSync} onClick={entrarSync} disabled={!listo}>
+              <Icono icono={CircleDot} tamano={16} /> {E.botonSync} (S)
+            </Boton>
+            {acciones}
+          </div>
+        )}
+      </div>
     </section>
   )
 }

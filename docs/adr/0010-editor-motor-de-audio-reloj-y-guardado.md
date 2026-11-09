@@ -179,3 +179,26 @@ El panel de sincronía identifica el fin automático y permite fijar el fin con 
 ## Revisión para 0.2.0 · Regiones y bucle
 
 Los marcadores comparten reglas con los campos. Cada arrastre confirmado aporta un solo paso de historial y guardado, con vista temporal para ajuste en vivo. El bucle del editor usa límites nativos de Web Audio y deriva la posición del reloj de salida. La línea de tiempo transforma coordenadas sin crear otro reloj. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
+
+## Revisión para 0.2.0 · Layout adaptable y paneles
+
+Subfase 2.1 ([plan](../versiones/0.2.0/plan-2.md#subfase-21--estabilización-del-editor), [spec](../ux/06-editor.md#subfase-21--layout-adaptable-y-paneles), tareas 0155–0162). Fecha: 2026-11-08.
+
+**Alternativas consideradas.**
+
+- **A. `react-resizable-panels` (MIT, v4).** Ofrece separadores con el patrón *Window Splitter* de WAI-ARIA y, desde v4, límites en píxeles. Se descarta: la spec pide reglas propias que la librería no modela, como tamaños preferidos frente a efectivos sin sobrescribir la preferencia, un orden de cesión entre ejes, el modo compacto de altura, rieles minimizados de ancho fijo y la línea de tiempo minimizada por falta de espacio. Habría que envolverla y anular buena parte de su estado. Además añade una dependencia con avisos de terceros (0132).
+- **B. Solo CSS (`resize`, `flex-basis`, *container queries*).** No da teclado accesible, `aria-valuenow`, restablecer ni persistencia. Se descarta.
+- **C. Elegida: modelo puro + rejilla CSS + un componente `Divisor` propio.**
+
+**Decisión.**
+
+1. **Modelo puro** `vistas/editor/distribucion.ts`. Recibe el tamaño medido del contenedor del editor, la altura medida de la cabecera y el transporte, la pestaña, el modo sincronizar y las preferencias. Devuelve los tamaños efectivos (lista, panel, alto de la línea de tiempo y de la pista de voz), el modo compacto, la minimización por falta de espacio y la disposición «bajo mínimo». Aplica el orden de cesión de la spec y nunca modifica las preferencias. Las constantes (por defecto, mínimo y máximo) viven en `shared/paneles.ts` y las comparten el modelo y el esquema de `config.json` ([ADR 0006](0006-persistencia-y-modelo-de-datos.md#revisión-para-020--preferencias-de-paneles-del-editor)).
+2. **Medición sin realimentación.** Un único `ResizeObserver` observa el contenedor raíz del editor, cuyo tamaño depende del viewport y no del contenido, además de la cabecera y el transporte. Se aplican las reglas de 0154: nada de pistas `auto`/`max-content` alrededor de canvas y `min-width: 0` en el dock y en las columnas. Los tamaños efectivos se escriben como propiedades CSS (`--ancho-lista`, `--ancho-panel`, `--alto-linea-tiempo`, `--alto-pista-voz`) sobre una rejilla `grid-template-rows: auto minmax(0, 1fr) auto`, con la zona superior en `grid-template-columns: var(--ancho-lista) 12px minmax(0, 1fr) 12px var(--ancho-panel)`. El modelo garantiza el mínimo de 320 px de la vista previa.
+3. **Modo compacto** por *media query* `(max-height: 799.98px)` en CSS. En JS se lee con `matchMedia` solo donde cambia la estructura: la cabecera de una fila y el modelo. La cabecera compacta es una variante opcional de `CabeceraCancion` que solo usa el editor. Las demás vistas no cambian.
+4. **Página sin scroll.** El área de contenido del marco toma `height: calc(100vh - 3.5rem)` y `overflow: hidden` solo en la ruta del editor. Bajo el mínimo de diseño vuelve a `overflow-y: auto` y nunca usa `overflow-x`.
+5. **Ventana mínima** de 1024 × 576 aplicada al **área de contenido**. `BrowserWindow` se crea con `useContentSize: true`, de modo que Electron fija las restricciones con `SetContentSizeConstraints`. `width`/`height` (1280 × 800) pasan también a medir el contenido. Sustituye al mínimo de 1024 × 640 de la ventana con marco ([sistema-visual §4](../ux/sistema-visual.md#4-espaciado-rejilla-y-forma)).
+6. **Fuera del historial y del guardado.** Redimensionar, minimizar y restablecer no pasan por el *reducer* de edición ni por `useGuardadoEditor`, y no cambian la visita.
+
+**Consecuencias.** Sin dependencias nuevas. El orden de cesión se prueba en Vitest con los seis viewports de la matriz, sin Electron. La regresión visual sigue necesitando Electron real (0162). Los viewports mayores que la pantalla del equipo de prueba pueden no estar disponibles, y la tarea 0162 registra en qué equipo se verificó cada uno.
+
+**Fuentes.** `react-resizable-panels` (licencia MIT, notas de v4): https://github.com/bvaughn/react-resizable-panels · WAI-ARIA APG, *Window Splitter*: https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/ · Electron `BrowserWindow` (`useContentSize`, `minWidth`, `minHeight`): https://www.electronjs.org/docs/latest/api/browser-window · Código de Electron `NativeWindow::InitFromOptions` (con `useContentSize` usa `SetContentSizeConstraints`; consultado el 2026-11-08): https://github.com/electron/electron/blob/main/shell/browser/native_window.cc

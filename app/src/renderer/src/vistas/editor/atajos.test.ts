@@ -67,3 +67,15 @@ it('respeta modificadores, controles, campos de texto y la fase del editor', () 
   expect(accionDeTecla(tecla('f'), { ...opciones, enCampoTexto: true })).toBeNull()
   expect(accionDeTecla(tecla('f', { repeat: true }), opciones)).toBeNull()
 })
+
+it('con el foco en un divisor las flechas y Inicio son suyas, pero Espacio y el resto siguen', () => {
+  const divisor = { ...opciones, focoEn: 'divisor' as FocoEditor }
+  for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home']) {
+    expect(accionDeTecla(tecla(key), divisor)).toBeNull()
+    expect(accionDeTecla(tecla(key, { shiftKey: true }), divisor)).toBeNull()
+  }
+  expect(accionDeTecla(tecla(' '), divisor)).toEqual({ tipo: 'reproducir' })
+  expect(accionDeTecla(tecla('s'), divisor)).toEqual({ tipo: 'entrar_sync' })
+  expect(accionDeTecla(tecla('i'), divisor)).toEqual({ tipo: 'fijar_inicio' })
+  expect(accionDeTecla(tecla('Escape'), divisor)).toEqual({ tipo: 'escapar' })
+})
