@@ -1,6 +1,6 @@
 import { useRef } from 'react'
-import { Play, TriangleAlert } from 'lucide-react'
-import { estiloPredeterminado, type Estilo } from '@shared/estilo'
+import { Palette, Play, TriangleAlert } from 'lucide-react'
+import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { fondoCss } from '../../karaoke/estiloCss'
 import { Boton } from '../../componentes/Boton'
@@ -13,6 +13,7 @@ import {
   datosDeTarjeta,
   formatearDuracion,
   textoAriaTarjeta,
+  temaDeTarjeta,
   tituloDeTarjeta,
   usaMiniatura,
   type TrabajoVivo
@@ -33,6 +34,8 @@ export interface AccionesTarjeta {
   resepararPistas(id: string): void
   mostrarEnCarpeta(id: string): void
   eliminar(id: string): void
+  /** «Aplicar tema…» del menú ⋯: la cablea 0173; sin ella, el menú no ofrece la opción. */
+  aplicarTema?(id: string): void
 }
 
 const ETIQUETA_ACCION = {
@@ -50,21 +53,11 @@ interface TarjetaProps {
   alEnfocar(id: string): void
   /** Trabajo activo de la canción (en cola o en curso), con su progreso en vivo. */
   vivo?: TrabajoVivo | null
-  /** `config.estilo_predeterminado` vigente (para decidir la miniatura). */
-  estiloUsuario?: Estilo | null
 }
 
-function Portada({
-  resumen,
-  accion,
-  estiloUsuario
-}: {
-  resumen: ResumenCancionIpc
-  accion: () => void
-  estiloUsuario?: Estilo | null
-}) {
+function Portada({ resumen, accion }: { resumen: ResumenCancionIpc; accion: () => void }) {
   const titulo = tituloDeTarjeta(resumen)
-  const miniatura = usaMiniatura(resumen, estiloUsuario)
+  const miniatura = usaMiniatura(resumen)
   const estilo = resumen.estilo ?? estiloPredeterminado()
   const fondo = resumen.danada ? undefined : fondoCss(estilo.fondo)
   const clases = [
@@ -108,14 +101,7 @@ function Portada({
   )
 }
 
-export function TarjetaCancion({
-  resumen,
-  acciones,
-  activa,
-  alEnfocar,
-  vivo,
-  estiloUsuario
-}: TarjetaProps) {
+export function TarjetaCancion({ resumen, acciones, activa, alEnfocar, vivo }: TarjetaProps) {
   const titulo = tituloDeTarjeta(resumen)
   const raiz = useRef<HTMLElement>(null)
   const esperaS = useCuentaAtras(vivo?.progreso ?? vivo?.trabajo.progreso, vivo?.trabajo.id)
@@ -123,6 +109,7 @@ export function TarjetaCancion({
   const lista = resumen.estado === 'lista' && !resumen.danada
   const duracion = formatearDuracion(resumen.duracionMs)
   const id = resumen.id
+  const tema = temaDeTarjeta(resumen)
 
   const abrirMenu = () =>
     raiz.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.click()
@@ -157,6 +144,13 @@ export function TarjetaCancion({
       id: 'datos',
       etiqueta: 'Editar datos',
       alSeleccionar: () => acciones.editarDatos(id)
+    })
+  }
+  if (!resumen.danada && acciones.aplicarTema) {
+    items.push({
+      id: 'aplicarTema',
+      etiqueta: 'Aplicar tema…',
+      alSeleccionar: () => acciones.aplicarTema?.(id)
     })
   }
   if (lista) {
@@ -223,7 +217,7 @@ export function TarjetaCancion({
       }}
     >
       <div className={estilos.portadaEnvoltorio}>
-        <Portada resumen={resumen} accion={alPortada} estiloUsuario={estiloUsuario} />
+        <Portada resumen={resumen} accion={alPortada} />
         {lista && (
           <button
             type="button"
@@ -247,6 +241,16 @@ export function TarjetaCancion({
             {resumen.artista !== '' && duracion
               ? `${resumen.artista} · ${duracion}`
               : resumen.artista || duracion}
+          </p>
+        )}
+        {tema && (
+          <p
+            className={`t-pequeno ${estilos.tema}`}
+            title={tema.texto}
+            data-linea-tema
+          >
+            <Icono icono={tema.aviso ? TriangleAlert : Palette} tamano={14} />
+            <span>{tema.texto}</span>
           </p>
         )}
         <div className={estilos.filaEstado}>

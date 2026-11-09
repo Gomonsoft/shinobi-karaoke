@@ -52,6 +52,7 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'alCambiarCancion',
       'alCambiarConfig',
       'alCambiarEstadoInfo',
+      'alCambiarTemas',
       'app',
       'avisos',
       'biblioteca',
@@ -63,6 +64,7 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'rutaDeArchivo',
       'separacion',
       'sistema',
+      'temas',
       'trabajos',
       'ventana'
     ])

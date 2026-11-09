@@ -1,8 +1,8 @@
-import { ESTILO_PREDETERMINADO, type Estilo } from '@shared/estilo'
 import type { EventoProgresoIpc, ResumenCancionIpc, TrabajoIpc } from '@shared/ipc'
 import type { EstadoInsignia } from '../../componentes/InsigniaEstado'
 import { textoReintentoRed } from '../../trabajos/useCuentaAtras'
 import { textoDeError } from '../progreso/textos'
+import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
 
 /** Tipo de línea bajo la insignia; decide el icono y el color. */
@@ -268,26 +268,24 @@ export function datosDeTarjeta(r: ResumenCancionIpc, vivo?: TrabajoVivo | null):
   }
 }
 
-/** `bib.aria.tarjeta`: "{título}, {artista}, {estado}. {línea de paso}." */
+/** Línea de tema visible: una canción con `cancion.json` ilegible no tiene apariencia que mostrar. */
+export function temaDeTarjeta(r: ResumenCancionIpc): ReturnType<typeof lineaDeTema> | null {
+  return r.danada && r.motivo === 'json' ? null : lineaDeTema(r.apariencia)
+}
+
+/** `bib.aria.tarjeta`: "{título}, {artista}, {estado}. {línea de paso}. Tema: {línea de tema}." */
 export function textoAriaTarjeta(r: ResumenCancionIpc, d: DatosTarjeta): string {
   const quien = r.artista === '' ? '' : `${r.artista}, `
   const base = `${tituloDeTarjeta(r)}, ${quien}${d.textoEstado}.`
-  return d.linea ? `${base} ${d.linea.texto}.` : base
-}
-
-function mismoEstilo(a: Estilo, b: Estilo): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
+  const tema = temaDeTarjeta(r)
+  const conPaso = d.linea ? `${base} ${d.linea.texto}.` : base
+  return tema ? `${conPaso} Tema: ${tema.texto}.` : conPaso
 }
 
 /**
- * Portada: estilo propio de la canción o, si es de YouTube (tiene miniatura) y su estilo
- * sigue siendo el predeterminado (de fábrica o el vigente del usuario), la miniatura con velo.
+ * Portada: la miniatura con velo solo mientras la apariencia es neutra (ADR 0016 §3 y §9). Lo decide
+ * main en `apariencia.neutra`; aquí no se comparan estilos ni se lee `config.estilo_predeterminado`.
  */
-export function usaMiniatura(r: ResumenCancionIpc, predeterminadoUsuario?: Estilo | null): boolean {
-  if (r.danada || r.miniatura === null) return false
-  if (!r.estilo) return true
-  return (
-    mismoEstilo(r.estilo, ESTILO_PREDETERMINADO) ||
-    (!!predeterminadoUsuario && mismoEstilo(r.estilo, predeterminadoUsuario))
-  )
+export function usaMiniatura(r: ResumenCancionIpc): boolean {
+  return !r.danada && r.miniatura !== null && r.apariencia.neutra
 }

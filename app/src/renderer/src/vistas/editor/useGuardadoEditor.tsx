@@ -56,7 +56,8 @@ export function useGuardadoEditor(
             ? window.shinobi.letras.guardarTiempos(peticion, id)
             : Promise.reject({ codigo: 'LETRA_DESACTUALIZADA', mensaje: 'La visita ha terminado.' })
         },
-        guardarEstilo: (id, estilo) => window.shinobi.biblioteca.guardarEstilo(id, estilo)
+        guardarApariencia: (id, seleccion) =>
+          window.shinobi.biblioteca.guardarApariencia(id, seleccion)
       },
       alEstado: (e) => {
         setEstado(e.estado)

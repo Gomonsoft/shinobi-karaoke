@@ -7,13 +7,25 @@ export const CANALES = {
     listar: 'biblioteca:listar',
     obtener: 'biblioteca:obtener',
     actualizarMetadatos: 'biblioteca:actualizarMetadatos',
-    // Guardado y estado de la canción desde el editor (0090).
-    guardarEstilo: 'biblioteca:guardarEstilo',
+    // Guardado y estado de la canción desde el editor (0090). Sustituye a `guardarEstilo` (0164).
+    guardarApariencia: 'biblioteca:guardarApariencia',
     marcarLista: 'biblioteca:marcarLista',
     comprobarPistas: 'biblioteca:comprobarPistas',
     volverABorrador: 'biblioteca:volverABorrador',
     eliminar: 'biblioteca:eliminar',
     mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta'
+  },
+  /** Catálogo de temas y operaciones sobre la apariencia (ADR 0016, 0164). */
+  temas: {
+    catalogo: 'temas:catalogo',
+    previsualizar: 'temas:previsualizar',
+    ejecutar: 'temas:ejecutar',
+    crear: 'temas:crear',
+    renombrar: 'temas:renombrar',
+    duplicar: 'temas:duplicar',
+    reanudarBorrado: 'temas:reanudarBorrado',
+    cancelarBorrado: 'temas:cancelarBorrado',
+    descartarAvisoApartado: 'temas:descartarAvisoApartado'
   },
   ventana: {
     modoReproductor: 'ventana:modoReproductor',
@@ -94,6 +106,10 @@ export const CANALES = {
   },
   eventos: {
     cancion: 'evento:cancion',
+    /** El catálogo de temas cambió; lleva el catálogo completo (0164). */
+    temasCambiado: 'temas:cambiado',
+    /** Progreso de una operación de varias canciones, ≤ 10 por segundo (0164). */
+    temasProgreso: 'temas:progreso',
     config: 'evento:config',
     pantallaCompleta: 'ventana:pantallaCompleta',
     /** Cambio de estado o de posición en la cola de un trabajo (0014). */

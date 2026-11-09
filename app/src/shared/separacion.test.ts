@@ -129,7 +129,12 @@ describe('errores', () => {
     expect(CODIGOS_SOLO_MAIN).toEqual([
       'PROCESO_TERMINADO',
       'ARCHIVO_SIN_LETRA',
-      'LETRA_DESACTUALIZADA'
+      'LETRA_DESACTUALIZADA',
+      'CONFIRMACION_OBSOLETA',
+      'TEMA_NO_ENCONTRADO',
+      'TEMA_NOMBRE_DUPLICADO',
+      'TEMAS_SOLO_LECTURA',
+      'BORRADO_PENDIENTE'
     ])
   })
 })

@@ -1,5 +1,6 @@
 import { ESTILO_PREDETERMINADO, type Estilo } from '@shared/estilo'
 import type { ApiShinobi } from '@shared/ipc'
+import { temasFalsos, type TemasFalsos } from './temasFalsos'
 import { ventanaFalsa } from './ventanaFalsa'
 
 type Parcial = {
@@ -10,6 +11,8 @@ type Parcial = {
   /** Estilo predeterminado vigente de `config` (por defecto, el de fábrica). */
   estiloPredeterminado?: Estilo
   alCambiarConfig?: ApiShinobi['alCambiarConfig']
+  /** Doble de `temas` y `alCambiarTemas`; por defecto un catálogo en memoria con un tema. */
+  temas?: TemasFalsos
 }
 
 /** `window.shinobi` mínimo para pruebas de la Biblioteca. */
@@ -18,10 +21,12 @@ export function fixtures({
   alCambiarCancion,
   biblioteca,
   estiloPredeterminado = ESTILO_PREDETERMINADO,
-  alCambiarConfig
+  alCambiarConfig,
+  temas = temasFalsos()
 }: Parcial): ApiShinobi & { ventana: ReturnType<typeof ventanaFalsa> } {
   return {
     ventana: ventanaFalsa(),
+    ...temas.api,
     biblioteca: {
       listar,
       obtener: () => Promise.resolve(null),

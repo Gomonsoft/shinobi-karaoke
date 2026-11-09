@@ -1,5 +1,5 @@
 import type { Estilo } from '@shared/estilo'
-import type { ErrorIpc } from '@shared/ipc'
+import type { ErrorIpc, SeleccionApariencia } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import type { GuardarTiempos } from '@shared/letrasBusqueda'
 import { aPeticionTiempos } from '@shared/letras/tiempos'
@@ -11,7 +11,7 @@ interface Opciones {
   cancionId: string
   api: {
     guardarTiempos(peticion: GuardarTiempos): Promise<unknown>
-    guardarEstilo(id: string, estilo: Estilo): Promise<unknown>
+    guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<unknown>
   }
   debounceMs?: number
   maxEsperaMs?: number
@@ -108,7 +108,9 @@ export class GuardadoEditor {
       letra
         ? Promise.resolve().then(() => api.guardarTiempos(aPeticionTiempos(cancionId, letra)))
         : undefined,
-      estilo ? Promise.resolve().then(() => api.guardarEstilo(cancionId, estilo)) : undefined
+      estilo
+        ? Promise.resolve().then(() => api.guardarApariencia(cancionId, { modo: 'propio', estilo }))
+        : undefined
     ])
     if (this.destruido) return false
     let fallo: ErrorIpc | null = null

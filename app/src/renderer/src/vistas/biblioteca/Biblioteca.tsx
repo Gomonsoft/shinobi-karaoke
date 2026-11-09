@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent
+} from 'react'
 import { Mic, Search } from 'lucide-react'
 import { vistaAlContinuar } from '@shared/derivados'
-import type { Estilo } from '@shared/estilo'
+import { claveTexto } from '@shared/identidad'
+import type { ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
@@ -12,13 +21,22 @@ import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
+import { EncabezadoGrupo } from './EncabezadoGrupo'
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
+import { agruparCanciones, idGrupoDe, textoAnuncioResultados } from './agrupacion'
 import { detallesDeError } from './errores'
 import { contarPorFiltro, filtrarCanciones, type FiltroBiblioteca } from './filtrado'
 import { pasoConProblema, tituloDeTarjeta, type TrabajoVivo } from './tarjeta'
+import { PROCEDENCIA_CORTA } from './textosTema'
 import { tituloDeError } from './textosError'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
-import { useBiblioteca, useBibliotecaCompartida, type BibliotecaDatos } from './useBiblioteca'
+import {
+  reiniciarAgruparDeSesion,
+  useAgrupar,
+  useBiblioteca,
+  useBibliotecaCompartida,
+  type BibliotecaDatos
+} from './useBiblioteca'
 import estilos from './biblioteca.module.css'
 
 function Esqueletos() {
@@ -61,9 +79,15 @@ function EstadoVacio() {
 
 // El filtro persiste durante la sesión (aunque se salga de la vista); la búsqueda no.
 let filtroDeSesion: FiltroBiblioteca = 'todas'
+// Los grupos plegados también viven solo en la sesión (no se guardan; al reiniciar, todo desplegado).
+let plegadosDeSesion: ReadonlySet<string> = new Set()
+/** Espera tras la última pulsación antes de anunciar el recuento (`bib.anuncio.resultados`). */
+export const RETRASO_ANUNCIO_MS = 500
 /** Solo para pruebas. */
 export function reiniciarFiltroDeSesion(): void {
   filtroDeSesion = 'todas'
+  plegadosDeSesion = new Set()
+  reiniciarAgruparDeSesion()
 }
 
 type DialogoActivo =
@@ -80,24 +104,6 @@ function trabajoVivoDe(
   const suyos = trabajos.filter((t) => t.cancionId === id && t.estado !== 'terminado')
   const t = suyos.find((x) => x.estado === 'en_curso') ?? suyos[0]
   return t ? { trabajo: t, progreso: progreso[t.id] ?? null } : null
-}
-
-/** `config.estilo_predeterminado` vigente: se lee una vez y se actualiza con `alCambiarConfig`. */
-function useEstiloPredeterminado(): Estilo | null {
-  const [estilo, setEstilo] = useState<Estilo | null>(null)
-  useEffect(() => {
-    let activo = true
-    window.shinobi.config?.obtener().then(
-      (c) => activo && setEstilo(c.estilo_predeterminado),
-      () => undefined
-    )
-    const baja = window.shinobi.alCambiarConfig?.((c) => setEstilo(c.estilo_predeterminado))
-    return () => {
-      activo = false
-      baja?.()
-    }
-  }, [])
-  return estilo
 }
 
 /** `bib.sinresultados*` / `bib.sinlistas` / `bib.sinborradores`. */
@@ -131,7 +137,6 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
-  const estiloUsuario = useEstiloPredeterminado()
   const [activa, setActiva] = useState<string | null>(null)
   const [filtro, setFiltroEstado] = useState<FiltroBiblioteca>(filtroDeSesion)
   const [busqueda, setBusqueda] = useState('')
@@ -140,6 +145,40 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const rejilla = useRef<HTMLDivElement>(null)
   const enfoqueRealizado = useRef<EnfoqueBiblioteca | undefined>(undefined)
   const [resaltada, setResaltada] = useState<EnfoqueBiblioteca | null>(null)
+  const [agrupar, cambiarAgrupar] = useAgrupar()
+  const [plegados, setPlegados] = useState<ReadonlySet<string>>(plegadosDeSesion)
+  // Canción que sigue visible tras «Editar datos» aunque ya no coincida, hasta el siguiente cambio.
+  const [anclada, setAnclada] = useState<string | null>(null)
+  const [movida, setMovida] = useState<{ id: string; grupoId: string; titulo: string } | null>(
+    null
+  )
+  const [anuncio, setAnuncio] = useState('')
+  const [cambioDeVista, setCambioDeVista] = useState(0)
+  const seccion = useRef<HTMLElement>(null)
+  const idBase = useId()
+
+  const visibles = useMemo(
+    () => filtrarCanciones(canciones, filtro, busqueda, anclada),
+    [canciones, filtro, busqueda, anclada]
+  )
+  const grupos = useMemo(
+    () => agruparCanciones(visibles, canciones, agrupar),
+    [visibles, canciones, agrupar]
+  )
+  // Tarjetas que existen en pantalla en orden visual (las de grupos plegados no participan).
+  const ordenVisual = useMemo(
+    () =>
+      agrupar === 'ninguno'
+        ? visibles
+        : grupos.filter((g) => !plegados.has(g.id)).flatMap((g) => g.canciones),
+    [agrupar, visibles, grupos, plegados]
+  )
+  const activaValida = ordenVisual.some((c) => c.id === activa) ? activa : null
+  const idActiva = activaValida ?? ordenVisual[0]?.id
+  const refs = useRef({ total: 0, activaValida: null as string | null, orden: [] as string[] })
+  useEffect(() => {
+    refs.current = { total: visibles.length, activaValida, orden: ordenVisual.map((c) => c.id) }
+  })
 
   const cancionParaEnfocar = canciones.find((c) => c.id === enfocar?.id)
 
@@ -176,10 +215,97 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     return () => clearTimeout(plazo)
   }, [resaltada])
 
+  const volverArriba = () => seccion.current?.closest('main')?.scrollTo?.({ top: 0 })
+
   const setFiltro = (f: FiltroBiblioteca) => {
     filtroDeSesion = f
     setFiltroEstado(f)
+    setAnclada(null)
+    setCambioDeVista((n) => n + 1)
   }
+
+  const setAgrupacion = (a: typeof agrupar) => {
+    cambiarAgrupar(a)
+    setAnclada(null)
+    setCambioDeVista((n) => n + 1)
+  }
+
+  const cambiarBusqueda = (texto: string) => {
+    setBusqueda(texto)
+    setAnclada(null)
+    volverArriba()
+  }
+
+  const alternarPlegado = (id: string) => {
+    const siguiente = new Set(plegados)
+    if (!siguiente.delete(id)) siguiente.add(id)
+    plegadosDeSesion = siguiente
+    setPlegados(siguiente)
+  }
+
+  // Cambiar filtro o agrupación: la tarjeta activa visible se centra; si no, la vista vuelve arriba.
+  useEffect(() => {
+    if (cambioDeVista === 0) return
+    const id = refs.current.activaValida
+    const tarjeta = id
+      ? rejilla.current?.querySelector<HTMLElement>(`[data-tarjeta="${CSS.escape(id)}"]`)
+      : null
+    if (tarjeta) tarjeta.scrollIntoView?.({ block: 'center' })
+    else volverArriba()
+  }, [cambioDeVista])
+
+  // Anuncio del recuento una vez, 500 ms después del último cambio de búsqueda, filtro o agrupación.
+  const primerAnuncio = useRef(true)
+  useEffect(() => {
+    if (primerAnuncio.current) {
+      primerAnuncio.current = false
+      return
+    }
+    const plazo = setTimeout(
+      () => setAnuncio(textoAnuncioResultados(refs.current.total)),
+      RETRASO_ANUNCIO_MS
+    )
+    return () => clearTimeout(plazo)
+  }, [busqueda, filtro, agrupar])
+
+  // «Editar datos» movió la canción de grupo: se despliega el grupo, se enfoca y se anuncia.
+  useEffect(() => {
+    if (!movida) return
+    const actual = canciones.find((c) => c.id === movida.id)
+    // Aún no ha llegado `cancion:cambiada` con los datos nuevos.
+    if (!actual || idGrupoDe(actual, agrupar) !== movida.grupoId) return
+    const grupo = grupos.find((g) => g.id === movida.grupoId)
+    const tarjeta = rejilla.current?.querySelector<HTMLElement>(
+      `[data-tarjeta="${CSS.escape(movida.id)}"]`
+    )
+    if (!grupo || !tarjeta) return
+    tarjeta.scrollIntoView?.({ block: 'nearest' })
+    tarjeta.focus({ preventScroll: true })
+    setAnuncio(`«${movida.titulo}» está ahora en ${grupo.nombre}.`)
+    setMovida(null)
+  }, [movida, canciones, grupos, agrupar])
+
+  // Si desaparece la tarjeta enfocada (eliminada aquí o en otra parte), el foco pasa a la siguiente
+  // del orden visual, si no a la anterior, si no al título. Nunca queda en `body`.
+  const ordenPrevio = useRef<string[]>([])
+  const ordenClave = ordenVisual.map((c) => c.id).join(' ')
+  useEffect(() => {
+    const antes = ordenPrevio.current
+    const orden = ordenClave === '' ? [] : ordenClave.split(' ')
+    ordenPrevio.current = orden
+    if (!activa || orden.includes(activa) || !antes.includes(activa)) return
+    const i = antes.indexOf(activa)
+    const plazo = setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return
+      const vecina = orden.find((id) => antes.indexOf(id) > i) ?? orden[orden.length - 1]
+      const destino =
+        (vecina
+          ? rejilla.current?.querySelector<HTMLElement>(`[data-tarjeta="${CSS.escape(vecina)}"]`)
+          : null) ?? document.querySelector<HTMLElement>('[data-foco-inicial]')
+      destino?.focus()
+    }, 0)
+    return () => clearTimeout(plazo)
+  }, [ordenClave, activa])
 
   // Ctrl/Cmd+F enfoca la búsqueda.
   useEffect(() => {

@@ -34,6 +34,7 @@ describe('configSchema (lectura tolerante)', () => {
           linea_tiempo: { alto: null, minimizado: false }
         }
       },
+      biblioteca: { agrupar: 'ninguno' },
       aviso_youtube_aceptado: null,
       ultima_comprobacion_ytdlp: null,
       estilo_predeterminado: ESTILO_PREDETERMINADO
@@ -230,5 +231,34 @@ describe('configParcialRendererSchema.editor', () => {
       expect(prueba(lim.min - 1)[1]).toBe(false)
       expect(prueba(lim.max + 1)[1]).toBe(false)
     }
+  })
+})
+
+describe('biblioteca.agrupar (lectura tolerante, ADR 0016 §9)', () => {
+  it('el defecto es "ninguno"', () => {
+    expect(configPredeterminada().biblioteca.agrupar).toBe('ninguno')
+  })
+  it.each([
+    ['sin biblioteca', {}],
+    ['biblioteca: 3', { biblioteca: 3 }],
+    ['biblioteca: []', { biblioteca: [] }],
+    ['agrupar: "x"', { biblioteca: { agrupar: 'x' } }],
+    ['agrupar: 7', { biblioteca: { agrupar: 7 } }]
+  ])('%s abre con "ninguno" y conserva el resto', (_nombre, entrada) => {
+    const c = configSchema.parse({ ...entrada, reproductor: { volumen: 0.3 } })
+    expect(c.biblioteca).toEqual({ agrupar: 'ninguno' })
+    expect(c.reproductor.volumen).toBe(0.3)
+  })
+  it.each(['ninguno', 'artista', 'album'])('conserva "%s"', (agrupar) => {
+    expect(configSchema.parse({ biblioteca: { agrupar } }).biblioteca.agrupar).toBe(agrupar)
+  })
+  it('el renderer solo puede escribir el enum, sin `.catch` ni claves extra', () => {
+    const ok = (biblioteca: unknown): boolean =>
+      configParcialRendererSchema.safeParse({ biblioteca }).success
+    expect(ok({ agrupar: 'album' })).toBe(true)
+    expect(ok({ agrupar: 'x' })).toBe(false)
+    expect(ok({})).toBe(false)
+    expect(ok({ agrupar: 'artista', otro: 1 })).toBe(false)
+    expect(ok(3)).toBe(false)
   })
 })

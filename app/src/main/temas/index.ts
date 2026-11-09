@@ -1,0 +1,6 @@
+export * from './catalogo'
+export * from './cola'
+export * from './servicio'
+export * from './usos'
+export type { ContextoOperaciones, ResultadoTemas } from './operaciones'
+export type { ImpactoCalculado } from './impacto'

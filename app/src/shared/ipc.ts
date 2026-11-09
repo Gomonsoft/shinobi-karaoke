@@ -3,8 +3,10 @@ import { CANALES } from './canales'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
 import { cancionSchema, ESTADOS_PASO, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
-import { estiloSchema, type Estilo } from './estilo'
-import { configSchema } from './config'
+import { estiloSchema } from './estilo'
+import { claveTexto } from './identidad'
+import { nombreTemaSchema, type Procedencia } from './temas'
+import { AGRUPACIONES_BIBLIOTECA, configSchema } from './config'
 import { LIMITES_PANELES } from './paneles'
 import { MODELOS_SEPARACION, perfilSchema, plataformaSchema } from './manifiesto'
 import {
@@ -96,6 +98,279 @@ const pasoResumenSchema = z.object({
   segundos: z.number().nullable().optional()
 })
 
+// --- Temas y apariencia (ADR 0016 §7, §9, §11; 0164) -------------------------------
+
+/** Las nueve procedencias de una apariencia resuelta (ADR 0016 §3). */
+export const PROCEDENCIAS = [
+  'propio',
+  'cancion',
+  'album',
+  'artista',
+  'aleatorio',
+  'predeterminado_anterior',
+  'predeterminado',
+  'incluido',
+  'respaldo'
+] as const satisfies readonly Procedencia[]
+export const procedenciaSchema = z.enum(PROCEDENCIAS)
+
+const temaIdSchema = z.uuid()
+
+/** Origen o destino de una apariencia en el impacto: `{ procedencia, temaId, temaNombre }`. */
+export const origenAparienciaSchema = z.object({
+  procedencia: procedenciaSchema,
+  temaId: temaIdSchema.nullable(),
+  temaNombre: z.string().nullable()
+})
+export type OrigenAparienciaIpc = z.infer<typeof origenAparienciaSchema>
+
+/** Destino de «Volver a heredar»: nunca `propio` ni `cancion` (ADR 0016 §3, `alHeredar`). */
+export const destinoHeredarSchema = z.object({
+  procedencia: z.enum([
+    'album',
+    'artista',
+    'aleatorio',
+    'predeterminado_anterior',
+    'predeterminado',
+    'incluido',
+    'respaldo'
+  ]),
+  temaId: temaIdSchema.nullable(),
+  temaNombre: z.string().nullable()
+})
+export type DestinoHeredarIpc = z.infer<typeof destinoHeredarSchema>
+
+/** Valor provisional de `alHeredar` hasta la resolución real (0168). */
+export const DESTINO_HEREDAR_PROVISIONAL: DestinoHeredarIpc = {
+  procedencia: 'incluido',
+  temaId: null,
+  temaNombre: null
+}
+
+export const aparienciaResumenSchema = z.object({
+  modo: z.enum(['propio', 'tema', 'heredar']),
+  procedencia: procedenciaSchema,
+  temaId: temaIdSchema.nullable(),
+  temaNombre: z.string().nullable(),
+  neutra: z.boolean(),
+  alHeredar: destinoHeredarSchema
+})
+export type AparienciaResumenIpc = z.infer<typeof aparienciaResumenSchema>
+
+export const clavesCancionSchema = z.object({
+  artista: z.string().nullable(),
+  album: z.string().nullable()
+})
+
+export const resueltaSchema = z.object({
+  estilo: estiloSchema,
+  procedencia: procedenciaSchema,
+  temaId: temaIdSchema.nullable(),
+  temaNombre: z.string().nullable(),
+  alHeredar: destinoHeredarSchema
+})
+export type ResueltaIpc = z.infer<typeof resueltaSchema>
+
+/** Canción de `biblioteca.obtener`: tal como está en disco, más la apariencia resuelta (§9). */
+export const cancionIpcSchema = cancionSchema.extend({ resuelta: resueltaSchema })
+export type CancionIpc = z.infer<typeof cancionIpcSchema>
+
+export const seleccionAparienciaSchema = z.discriminatedUnion('modo', [
+  z.strictObject({ modo: z.literal('propio'), estilo: estiloSchema }),
+  z.strictObject({ modo: z.literal('tema'), temaId: temaIdSchema }),
+  z.strictObject({ modo: z.literal('heredar') })
+])
+export type SeleccionApariencia = z.infer<typeof seleccionAparienciaSchema>
+
+const seleccionLoteSchema = z.discriminatedUnion('modo', [
+  z.strictObject({ modo: z.literal('tema'), temaId: temaIdSchema }),
+  z.strictObject({ modo: z.literal('heredar') })
+])
+
+export const MAX_CANCIONES_LOTE = 2000
+export const MAX_TEXTO_GRUPO = 200
+
+/** Artista o álbum visible: hasta 200 caracteres y con clave de identidad no vacía. */
+const textoGrupoSchema = z
+  .string()
+  .max(MAX_TEXTO_GRUPO)
+  .refine((t) => claveTexto(t) !== null, 'El nombre no puede estar vacío')
+
+export const operacionTemaSchema = z.discriminatedUnion('tipo', [
+  z.strictObject({
+    tipo: z.literal('editar'),
+    temaId: temaIdSchema,
+    revisionTema: z.int().min(1),
+    estilo: estiloSchema
+  }),
+  z.strictObject({ tipo: z.literal('borrar'), temaId: temaIdSchema }),
+  z.strictObject({
+    tipo: z.literal('aplicar'),
+    cancionIds: z
+      .array(idCancionSchema)
+      .min(1)
+      .max(MAX_CANCIONES_LOTE)
+      .refine((ids) => new Set(ids).size === ids.length, 'Hay ids repetidos'),
+    seleccion: seleccionLoteSchema
+  }),
+  z
+    .strictObject({
+      tipo: z.literal('asignarGrupo'),
+      nivel: z.enum(['artista', 'album']),
+      artista: textoGrupoSchema,
+      album: textoGrupoSchema.optional(),
+      temaId: temaIdSchema.nullable()
+    })
+    .refine((o) => (o.nivel === 'album') === (o.album !== undefined), {
+      path: ['album'],
+      message: 'El álbum es obligatorio solo con nivel "album"'
+    }),
+  z.strictObject({ tipo: z.literal('predeterminado'), temaId: temaIdSchema.nullable() })
+])
+export type OperacionTema = z.infer<typeof operacionTemaSchema>
+
+const recuento = z.int().nonnegative()
+
+export const impactoIpcSchema = z.object({
+  ficha: z.uuid(),
+  afectadas: z.array(
+    z.object({
+      id: idCancionSchema,
+      titulo: z.string(),
+      artista: z.string(),
+      antes: origenAparienciaSchema,
+      despues: origenAparienciaSchema,
+      efecto: z.enum(['cambia', 'fija_base', 'sin_cambios'])
+    })
+  ),
+  desglose: z.object({
+    cancion: recuento,
+    album: recuento,
+    artista: recuento,
+    predeterminado: recuento,
+    aleatorio: recuento,
+    predeterminadoAnterior: recuento,
+    propio: recuento,
+    respaldo: recuento,
+    incluido: recuento
+  }),
+  excluidas: z.object({
+    propio: recuento,
+    cancion: recuento,
+    album: recuento,
+    /** Solo en `aplicar`. */
+    danadas: recuento.optional(),
+    noExisten: recuento.optional()
+  }),
+  /** Solo en `asignarGrupo`: canciones del grupo; `null` en las demás. */
+  totalGrupo: recuento.nullable(),
+  esPredeterminado: z.boolean(),
+  asignacionesRetiradas: z.object({
+    artistas: z.array(z.string()),
+    albumes: z.array(z.object({ artista: z.string(), album: z.string() }))
+  }),
+  /** Revisión del tema afectado (`editar`, `borrar`); `null` en las demás. */
+  revisionTema: z.int().min(1).nullable(),
+  /** Siempre `false` en la fase 3; la fase 4 lo rellena. */
+  sesionEnCurso: z.boolean()
+})
+export type ImpactoIpc = z.infer<typeof impactoIpcSchema>
+
+export const ESTADOS_CANCION_OPERACION = [
+  'aplicada',
+  'sin_cambios',
+  'omitida',
+  'error',
+  'pendiente'
+] as const
+
+export const resultadoOperacionIpcSchema = z.object({
+  catalogoEscrito: z.boolean(),
+  canciones: z.array(
+    z
+      .object({
+        id: idCancionSchema,
+        /** Cadena vacía si no hay dato (igual que `ImpactoIpc.afectadas`). */
+        titulo: z.string(),
+        artista: z.string(),
+        estado: z.enum(ESTADOS_CANCION_OPERACION),
+        motivo: z.enum(['cambio', 'no_existe', 'danada']).optional(),
+        codigo: z.enum(CODIGOS_ERROR).optional()
+      })
+      .refine((c) => c.estado !== 'error' || c.codigo !== undefined, {
+        path: ['codigo'],
+        message: 'Una canción con error lleva siempre su código'
+      })
+  )
+})
+export type ResultadoOperacionIpc = z.infer<typeof resultadoOperacionIpcSchema>
+
+export const temaIpcSchema = z.object({
+  id: temaIdSchema,
+  nombre: z.string(),
+  revision: z.int().min(1),
+  estilo: estiloSchema
+})
+export type TemaIpc = z.infer<typeof temaIpcSchema>
+
+export const usosTemaSchema = z.object({
+  total: recuento,
+  cancion: recuento,
+  album: recuento,
+  artista: recuento,
+  predeterminado: recuento,
+  aleatorio: recuento,
+  predeterminadoAnterior: recuento
+})
+
+export const catalogoIpcSchema = z.object({
+  temas: z.array(
+    temaIpcSchema.extend({
+      enBorrado: z.boolean(),
+      usos: usosTemaSchema,
+      grupos: z.object({
+        artistas: z.array(z.string()),
+        albumes: z.array(z.object({ artista: z.string(), album: z.string() }))
+      })
+    })
+  ),
+  predeterminado: temaIdSchema.nullable(),
+  predeterminadoUsos: recuento,
+  asignaciones: z.object({
+    artistas: z.array(z.object({ artista: z.string(), temaId: temaIdSchema })),
+    albumes: z.array(z.object({ artista: z.string(), album: z.string(), temaId: temaIdSchema }))
+  }),
+  borradoPendiente: z
+    .object({ temaId: temaIdSchema, nombre: z.string(), total: recuento, restantes: recuento })
+    .nullable(),
+  soloLectura: z.boolean(),
+  apartado: z.string().nullable(),
+  referenciasFaltantes: recuento
+})
+export type CatalogoIpc = z.infer<typeof catalogoIpcSchema>
+
+export const OPERACIONES_PROGRESO = ['aplicar', 'borrar', 'predeterminado'] as const
+/** `ficha: null` solo en `reanudarBorrado`, que no se previsualiza (ADR 0016 §7). */
+export const progresoTemaSchema = z.object({
+  ficha: z.uuid().nullable(),
+  operacion: z.enum(OPERACIONES_PROGRESO),
+  temaId: temaIdSchema.nullable(),
+  hechas: recuento,
+  total: recuento
+})
+export type ProgresoTemaIpc = z.infer<typeof progresoTemaSchema>
+
+export const crearTemaSchema = z.strictObject({ nombre: nombreTemaSchema, estilo: estiloSchema })
+export const renombrarTemaSchema = z.strictObject({
+  temaId: temaIdSchema,
+  revisionTema: z.int().min(1),
+  nombre: nombreTemaSchema
+})
+export const duplicarTemaSchema = z.strictObject({ temaId: temaIdSchema, nombre: nombreTemaSchema })
+export type CrearTema = z.infer<typeof crearTemaSchema>
+export type RenombrarTema = z.infer<typeof renombrarTemaSchema>
+export type DuplicarTema = z.infer<typeof duplicarTemaSchema>
+
 /** Resumen de canción tal y como lo recibe el renderer: la miniatura es una URL shinobi-media://. */
 export const resumenCancionSchema = z.object({
   id: z.string(),
@@ -104,7 +379,15 @@ export const resumenCancionSchema = z.object({
   duracionMs: z.number().nullable(),
   estado: z.enum(['borrador', 'lista']),
   modificada: z.string(),
+  /**
+   * Estilo **resuelto** (ADR 0016 §9). Sigue siendo `nullable` solo para la canción dañada por
+   * JSON, que no tiene estilo que resolver; en cualquier otra es siempre un estilo completo.
+   */
   estilo: estiloSchema.nullable(),
+  /** Álbum visible (`null` si no tiene) y claves de identidad para agrupar en el renderer. */
+  album: z.string().nullable(),
+  claves: clavesCancionSchema,
+  apariencia: aparienciaResumenSchema,
   /** URL `shinobi-media://<id>/fuente/miniatura.jpg`, nunca una ruta del disco. */
   miniatura: z.string().nullable(),
   pasos: z.record(z.enum(NOMBRES_PASO), pasoResumenSchema).nullable(),
@@ -207,6 +490,8 @@ export const configParcialRendererSchema = z.strictObject({
   // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
   // cambian `aceptarYUsarRapido` y `volverACalidad` (0057).
   estilo_predeterminado: estiloSchema.optional(),
+  // «Agrupar por» de la Biblioteca (ADR 0016 §9): enum estricto, sin `.catch`.
+  biblioteca: z.strictObject({ agrupar: z.enum(AGRUPACIONES_BIBLIOTECA) }).optional(),
   aviso_youtube_aceptado: z.iso.datetime().nullable().optional(),
   // Preferencias de paneles del editor (0155): estrictas y sin `.catch`; un valor inválido se rechaza.
   editor: z
@@ -466,15 +751,27 @@ export const CONTRATO = {
   [CANALES.ventana.evitarReposo]: { args: unBooleano, res: z.void() },
   [CANALES.biblioteca.comprobarPistas]: { args: unId, res: resumenCancionSchema.nullable() },
   [CANALES.biblioteca.listar]: { args: vacio, res: z.array(resumenCancionSchema) },
-  [CANALES.biblioteca.obtener]: { args: unId, res: cancionSchema.nullable() },
+  [CANALES.biblioteca.obtener]: { args: unId, res: cancionIpcSchema.nullable() },
   [CANALES.biblioteca.actualizarMetadatos]: {
     args: z.tuple([idCancionSchema, metadatosEditablesSchema]),
     res: resumenCancionSchema
   },
-  [CANALES.biblioteca.guardarEstilo]: {
-    args: z.tuple([idCancionSchema, estiloSchema]),
+  [CANALES.biblioteca.guardarApariencia]: {
+    args: z.tuple([idCancionSchema, seleccionAparienciaSchema]),
     res: resumenCancionSchema
   },
+  [CANALES.temas.catalogo]: { args: vacio, res: catalogoIpcSchema },
+  [CANALES.temas.previsualizar]: { args: z.tuple([operacionTemaSchema]), res: impactoIpcSchema },
+  [CANALES.temas.ejecutar]: {
+    args: z.tuple([operacionTemaSchema, z.uuid()]),
+    res: resultadoOperacionIpcSchema
+  },
+  [CANALES.temas.crear]: { args: z.tuple([crearTemaSchema]), res: temaIpcSchema },
+  [CANALES.temas.renombrar]: { args: z.tuple([renombrarTemaSchema]), res: temaIpcSchema },
+  [CANALES.temas.duplicar]: { args: z.tuple([duplicarTemaSchema]), res: temaIpcSchema },
+  [CANALES.temas.reanudarBorrado]: { args: vacio, res: resultadoOperacionIpcSchema },
+  [CANALES.temas.cancelarBorrado]: { args: vacio, res: z.void() },
+  [CANALES.temas.descartarAvisoApartado]: { args: vacio, res: z.void() },
   [CANALES.biblioteca.marcarLista]: { args: unId, res: resumenCancionSchema },
   [CANALES.biblioteca.volverABorrador]: { args: unId, res: resumenCancionSchema },
   [CANALES.biblioteca.eliminar]: { args: unId, res: z.void() },
@@ -583,17 +880,17 @@ export type CanalInvocable = keyof typeof CONTRATO
 // --- API expuesta al renderer ---------------------------------------------
 
 type Config = z.infer<typeof configSchema>
-type Cancion = z.infer<typeof cancionSchema>
 
 export type AccionMenu = 'anadir' | 'ajustes'
 
 export interface ApiShinobi {
   biblioteca: {
     listar(): Promise<ResumenCancionIpc[]>
-    obtener(id: string): Promise<Cancion | null>
+    /** Canción en disco más su apariencia resuelta (`resuelta`, ADR 0016 §9). */
+    obtener(id: string): Promise<CancionIpc | null>
     actualizarMetadatos(id: string, metadatos: MetadatosEditables): Promise<ResumenCancionIpc>
-    /** Escribe al momento; el debounce lo hace el editor. */
-    guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancionIpc>
+    /** Escribe al momento (propio, tema o heredar); el debounce lo hace el editor. */
+    guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancionIpc>
     /** Pasa a lista si las pistas y la sincronía están completas. */
     marcarLista(id: string): Promise<ResumenCancionIpc>
     /** Vuelve a comprobar las pistas de la canción, que puede pasar a Dañada. */
@@ -601,6 +898,22 @@ export interface ApiShinobi {
     volverABorrador(id: string): Promise<ResumenCancionIpc>
     eliminar(id: string): Promise<void>
     mostrarEnCarpeta(id: string): Promise<void>
+  }
+  /** Catálogo de temas y operaciones sobre la apariencia (ADR 0016 §11). */
+  temas: {
+    catalogo(): Promise<CatalogoIpc>
+    /** Calcula el impacto de una operación sin escribir; devuelve la ficha de un solo uso. */
+    previsualizar(op: OperacionTema): Promise<ImpactoIpc>
+    /** Ejecuta la operación previsualizada; `CONFIRMACION_OBSOLETA` lleva el impacto nuevo en `detalles`. */
+    ejecutar(op: OperacionTema, ficha: string): Promise<ResultadoOperacionIpc>
+    crear(tema: CrearTema): Promise<TemaIpc>
+    renombrar(cambio: RenombrarTema): Promise<TemaIpc>
+    duplicar(peticion: DuplicarTema): Promise<TemaIpc>
+    reanudarBorrado(): Promise<ResultadoOperacionIpc>
+    cancelarBorrado(): Promise<void>
+    descartarAvisoApartado(): Promise<void>
+    /** Avance de `aplicar`, `borrar`/`reanudarBorrado` y `predeterminado` a `null`. */
+    alProgreso(cb: (progreso: ProgresoTemaIpc) => void): () => void
   }
   ventana: {
     /** Activa la pantalla completa o restaura el estado previo al salir. */
@@ -732,6 +1045,8 @@ export interface ApiShinobi {
   /** Devuelve la función para darse de baja. */
   alCambiarCancion(cb: (evento: EventoCancionIpc) => void): () => void
   alCambiarConfig(cb: (config: Config) => void): () => void
+  /** El catálogo de temas cambió (ADR 0016 §9); lleva el catálogo completo. */
+  alCambiarTemas(cb: (catalogo: CatalogoIpc) => void): () => void
   /** Estado de una consulta de YouTube que espera una actualización de yt-dlp (0050). */
   alCambiarEstadoInfo(cb: (evento: EventoEstadoInfoIpc) => void): () => void
   /** Acciones del menú nativo de la aplicación (0018): Ctrl/Cmd+N y Ctrl/Cmd+,. */

@@ -5,10 +5,12 @@ import {
   configPredeterminada,
   enlacePermitido,
   estiloPredeterminado,
+  type Cancion,
   type GuardarTiempos,
   ErrorDatosInvalidos
 } from '../../shared'
 import { ErrorBiblioteca, type EventoCancion, type ResumenCancion } from '../biblioteca'
+import { lista } from '../../shared/__fixtures__'
 import { crearManejadores, registrarIpc, type DependenciasIpc, type IpcMainLike } from './handlers'
 
 const resumen = (id: string, miniatura: string | null = null): ResumenCancion => ({
@@ -19,6 +21,16 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
   estado: 'borrador',
   modificada: '2026-01-01T00:00:00.000Z',
   estilo: null,
+  album: null,
+  claves: { artista: 'a', album: null },
+  apariencia: {
+    modo: 'propio',
+    procedencia: 'propio',
+    temaId: null,
+    temaNombre: null,
+    neutra: false,
+    alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null }
+  },
   miniatura,
   pasos: null,
   incompleta: false,
@@ -37,7 +49,7 @@ function crearDeps() {
   const deps = {
     biblioteca: {
       listar: vi.fn(() => [resumen('abc', '/ruta/absoluta/miniatura.jpg'), resumen('d')]),
-      obtener: vi.fn(() => null),
+      obtener: vi.fn<(id: string) => Cancion | null>(() => null),
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
       guardarEstilo: vi.fn((id: string) => Promise.resolve(resumen(id))),
       marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
@@ -778,9 +790,9 @@ describe('IPC del editor', () => {
     expect(await guardar([peticion, 'uuid inválido'])).toMatchObject(error)
     const estilo = estiloPredeterminado()
     estilo.letra.color = '#FFF'
-    expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject(
-      error
-    )
+    expect(
+      await manejadores[CANALES.biblioteca.guardarApariencia](['abc', { modo: 'propio', estilo }])
+    ).toMatchObject(error)
     expect(deps.biblioteca.guardarEstilo).not.toHaveBeenCalled()
   })
 
@@ -801,14 +813,79 @@ describe('IPC del editor', () => {
       valor: { miniatura: 'shinobi-media://abc/fuente/miniatura.jpg' }
     })
     expect(guardarTiempos).toHaveBeenCalledWith(peticion, sesionId)
-    expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject({
-      ok: true
-    })
+    expect(
+      await manejadores[CANALES.biblioteca.guardarApariencia](['abc', { modo: 'propio', estilo }])
+    ).toMatchObject({ ok: true })
     expect(deps.biblioteca.guardarEstilo).toHaveBeenCalledWith('abc', estilo)
     expect(await manejadores[CANALES.biblioteca.marcarLista](['abc'])).toMatchObject({ ok: true })
     expect(deps.biblioteca.marcarLista).toHaveBeenCalledWith('abc')
     expect(await manejadores[CANALES.app.guardadoPendiente]([true])).toMatchObject({ ok: true })
     expect(fijarGuardadoPendiente).toHaveBeenCalledWith(true)
+  })
+
+  it('puente provisional de guardarApariencia: solo `propio`; tema y heredar se rechazan', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    const guardar = manejadores[CANALES.biblioteca.guardarApariencia]
+    const temaId = '0b9f7a4e-3c1d-4f6a-9d2e-5a8b1c7e4f30'
+    for (const seleccion of [{ modo: 'tema', temaId }, { modo: 'heredar' }]) {
+      expect(await guardar(['abc', seleccion])).toMatchObject({
+        ok: false,
+        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+      })
+    }
+    expect(deps.biblioteca.guardarEstilo).not.toHaveBeenCalled()
+    // Un modo desconocido ni llega al puente.
+    expect(await guardar(['abc', { modo: 'otro' }])).toMatchObject({ ok: false })
+  })
+
+  it('los canales temas.* validan los argumentos y fallan de forma explícita hasta 0168', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    expect(await manejadores[CANALES.temas.catalogo]([])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    // Con argumentos inválidos el rechazo viene de la validación, con su mensaje propio.
+    expect(await manejadores[CANALES.temas.previsualizar]([{ tipo: 'borrar' }])).toMatchObject({
+      ok: false,
+      error: { mensaje: 'Los argumentos no son válidos.' }
+    })
+    expect(await manejadores[CANALES.temas.catalogo]([1])).toMatchObject({
+      ok: false,
+      error: { mensaje: 'Los argumentos no son válidos.' }
+    })
+  })
+
+  it('config.actualizar acepta biblioteca.agrupar y rechaza valores desconocidos', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    const actualizar = manejadores[CANALES.config.actualizar]
+    expect(await actualizar([{ biblioteca: { agrupar: 'album' } }])).toMatchObject({ ok: true })
+    expect(deps.config.actualizar).toHaveBeenCalledWith({ biblioteca: { agrupar: 'album' } })
+    expect(await actualizar([{ biblioteca: { agrupar: 'x' } }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+  })
+
+  it('biblioteca.obtener añade la apariencia resuelta provisional', async () => {
+    const { deps } = crearDeps()
+    const cancion = lista()
+    deps.biblioteca.obtener.mockReturnValueOnce(cancion)
+    const manejadores = crearManejadores(deps)
+    const r = await manejadores[CANALES.biblioteca.obtener](['abc'])
+    expect(r).toMatchObject({
+      ok: true,
+      valor: {
+        resuelta: {
+          procedencia: 'propio',
+          temaId: null,
+          temaNombre: null,
+          alHeredar: { procedencia: 'incluido' }
+        }
+      }
+    })
   })
 
   it('propaga errores de la biblioteca y señala un servicio de letras ausente', async () => {

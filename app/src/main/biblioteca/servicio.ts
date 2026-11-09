@@ -3,17 +3,24 @@ import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import { isAbsolute, join, normalize } from 'node:path'
 import {
   NOMBRES_PASO,
+  crearIndiceCatalogo,
   estiloPredeterminado,
   migrarCancion,
   puedeMarcarseLista,
   motivosParaNoEstarLista,
+  type Apariencia,
   type Cancion,
   type Estilo,
-  type PasoCancion
+  type PasoCancion,
+  type SeleccionApariencia
 } from '../../shared'
 import { escribirJsonAtomico, flush, leerJson } from '../persistencia'
 import { registroNulo, type RegistroApp } from '../registro'
+import type { CancionIndice, PuertoCanciones, ResolucionCancion, ServicioTemas } from '../temas'
+import { refrescarInstantanea } from '../temas/operaciones'
 import {
+  aparienciaDeResolucion,
+  resolucionSinCatalogo,
   resumenDanadaPorJson,
   resumirCancion,
   type MotivoDanada,
@@ -38,8 +45,6 @@ export interface OpcionesServicioBiblioteca {
   registro?: RegistroApp
   /** Reloj inyectable (pruebas). */
   ahora?: () => Date
-  /** Estilo que se copia a las canciones nuevas (`config.estilo_predeterminado`). */
-  estiloPredeterminado?: () => Estilo
   /** `electron.shell` (papelera y abrir carpeta). */
   shell?: ShellBiblioteca
   /** Se espera antes de eliminar una canción (0014: cancela sus trabajos). */
@@ -103,7 +108,8 @@ export class ServicioBiblioteca {
   private readonly dirBiblioteca: string
   private readonly registro: RegistroApp
   private readonly ahora: () => Date
-  private readonly estiloBase: () => Estilo
+  /** Servicio de temas (se conecta con `conectarTemas`); sin él, las canciones nuevas nacen con el estilo de fábrica. */
+  private temas: ServicioTemas | null = null
   private readonly shell: ShellBiblioteca | null
   private readonly antesDeEliminar: ((id: string) => Promise<void>) | null
   private readonly oyentes = new Set<(evento: EventoCancion) => void>()
@@ -115,7 +121,6 @@ export class ServicioBiblioteca {
     this.dirBiblioteca = join(datos, 'biblioteca')
     this.registro = opciones.registro ?? registroNulo
     this.ahora = opciones.ahora ?? (() => new Date())
-    this.estiloBase = opciones.estiloPredeterminado ?? estiloPredeterminado
     this.shell = opciones.shell ?? null
     this.antesDeEliminar = opciones.antesDeEliminar ?? null
   }
@@ -145,10 +150,58 @@ export class ServicioBiblioteca {
     return this.listar()
   }
 
+  /**
+   * Conecta el servicio de temas (ADR 0016): resuelve la apariencia de cada resumen y crea las
+   * canciones nuevas dentro de su cola. Debe llamarse antes de `arrancar`.
+   */
+  conectarTemas(temas: ServicioTemas): void {
+    this.temas = temas
+  }
+
+  /** Resolución de una canción con el catálogo vigente (`biblioteca.obtener`, resúmenes). */
+  resolver(cancion: Cancion): ResolucionCancion {
+    return this.temas ? this.temas.resolver(cancion) : resolucionSinCatalogo(cancion)
+  }
+
+  /** Puerto de la biblioteca para `ServicioTemas` (0165): índice síncrono, lectura y escritura. */
+  puerto(): PuertoCanciones {
+    return {
+      indice: () => this.indiceTemas(),
+      leer: (id) => this.obtener(id),
+      actualizar: async (id, mutador) => {
+        const previa = this.exigirCancion(id)
+        const candidata = this.validar(mutador(structuredClone(previa)))
+        await this.guardar(id, candidata, 0)
+      }
+    }
+  }
+
+  private indiceTemas(): CancionIndice[] {
+    return [...this.indice.entries()].map(([id, e]) => ({
+      id,
+      metadatos: e.cancion ? e.cancion.metadatos : { titulo: e.resumen.titulo },
+      modificada: e.resumen.modificada,
+      estilo: e.cancion ? e.cancion.estilo : null,
+      apariencia: e.cancion?.apariencia,
+      danada: e.resumen.motivo
+    }))
+  }
+
+  /** El resumen guardado con la apariencia y el estilo resueltos con el catálogo de ahora. */
+  private vigente(e: Entrada): ResumenCancion {
+    if (!e.cancion) return e.resumen
+    const r = this.resolver(e.cancion)
+    return {
+      ...e.resumen,
+      estilo: r.estilo,
+      apariencia: aparienciaDeResolucion(e.cancion, r)
+    }
+  }
+
   /** Resúmenes ordenados por `modificada` descendente. */
   listar(): ResumenCancion[] {
     return [...this.indice.values()]
-      .map((e) => e.resumen)
+      .map((e) => this.vigente(e))
       .sort((a, b) => b.modificada.localeCompare(a.modificada) || a.id.localeCompare(b.id))
   }
 
@@ -189,7 +242,8 @@ export class ServicioBiblioteca {
   }
 
   obtenerResumen(id: string): ResumenCancion | null {
-    return this.indice.get(id)?.resumen ?? null
+    const e = this.indice.get(id)
+    return e ? this.vigente(e) : null
   }
 
   // ---- Escritura (0010): este servicio es el único escritor de cancion.json ----
@@ -213,25 +267,27 @@ export class ServicioBiblioteca {
    * `biblioteca/<id>/` (atómico en el mismo disco). Si el destino existe, falla sin tocar nada.
    */
   materializar(id: string, datos: DatosNuevaCancion): Promise<ResumenCancion> {
-    return this.enSerie(id, async () => {
-      const origen = this.carpetaImportacion(id)
-      const destino = this.carpetaCancion(id)
-      if (!(await esCarpeta(origen))) {
-        throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', `No hay importación preparada ${id}.`)
-      }
-      if (await existeRuta(destino)) {
-        throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', `Ya existe la canción ${id}.`)
-      }
-      const cancion = this.construir(id, datos)
-      const ruta = join(origen, 'cancion.json')
-      await this.escribir(ruta, cancion)
-      try {
-        await rename(origen, destino)
-      } catch (e) {
-        throw new ErrorBiblioteca('ERROR_INTERNO', `No se pudo crear la canción: ${String(e)}`)
-      }
-      return this.indexar(id, cancion)
-    })
+    return this.enColaDeTemas(() =>
+      this.enSerie(id, async () => {
+        const origen = this.carpetaImportacion(id)
+        const destino = this.carpetaCancion(id)
+        if (!(await esCarpeta(origen))) {
+          throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', `No hay importación preparada ${id}.`)
+        }
+        if (await existeRuta(destino)) {
+          throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', `Ya existe la canción ${id}.`)
+        }
+        const cancion = this.construir(id, datos)
+        const ruta = join(origen, 'cancion.json')
+        await this.escribir(ruta, cancion)
+        try {
+          await rename(origen, destino)
+        } catch (e) {
+          throw new ErrorBiblioteca('ERROR_INTERNO', `No se pudo crear la canción: ${String(e)}`)
+        }
+        return this.indexar(id, cancion)
+      })
+    ).then((r) => this.tras(r))
   }
 
   /** Borra la carpeta de preparación (el usuario abandonó la importación). */
@@ -297,24 +353,26 @@ export class ServicioBiblioteca {
 
   /** Crea directamente `biblioteca/<id>/cancion.json` (YouTube, ADR 0006). */
   crear(datos: DatosNuevaCancion, id: string = randomUUID()): Promise<ResumenCancion> {
-    return this.enSerie(id, async () => {
-      this.exigirIdSeguro(id)
-      const cancion = this.construir(id, datos)
-      const carpeta = this.carpetaCancion(id)
-      await mkdir(this.dirBiblioteca, { recursive: true })
-      try {
-        await mkdir(carpeta)
-      } catch {
-        throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', `Ya existe la canción ${id}.`)
-      }
-      try {
-        await this.escribir(join(carpeta, 'cancion.json'), cancion)
-      } catch (e) {
-        await rm(carpeta, { recursive: true, force: true })
-        throw e
-      }
-      return this.indexar(id, cancion)
-    })
+    return this.enColaDeTemas(() =>
+      this.enSerie(id, async () => {
+        this.exigirIdSeguro(id)
+        const cancion = this.construir(id, datos)
+        const carpeta = this.carpetaCancion(id)
+        await mkdir(this.dirBiblioteca, { recursive: true })
+        try {
+          await mkdir(carpeta)
+        } catch {
+          throw new ErrorBiblioteca('ARGUMENTOS_NO_VALIDOS', `Ya existe la canción ${id}.`)
+        }
+        try {
+          await this.escribir(join(carpeta, 'cancion.json'), cancion)
+        } catch (e) {
+          await rm(carpeta, { recursive: true, force: true })
+          throw e
+        }
+        return this.indexar(id, cancion)
+      })
+    ).then((r) => this.tras(r))
   }
 
   /**
@@ -327,14 +385,54 @@ export class ServicioBiblioteca {
     cambio: CambioCancion,
     opciones: OpcionesActualizar = {}
   ): Promise<ResumenCancion> {
-    const previa = this.exigirCancion(id)
-    const candidata = this.aplicarCambio(previa, cambio)
-    return this.guardar(id, candidata, opciones.debounceMs ?? 0)
+    const escribir = (): Promise<ResumenCancion> => {
+      const previa = this.exigirCancion(id)
+      const candidata = this.aplicarCambio(previa, cambio)
+      return this.guardar(id, candidata, opciones.debounceMs ?? 0)
+    }
+    // Los metadatos pueden cambiar la resolución (artista o álbum con tema): pasan por la cola.
+    if (!cambio.metadatos) return escribir()
+    return this.enColaDeTemas(escribir).then((r) => this.tras(r))
   }
 
   /** Autoguardado del estilo desde el editor (0090, ADR 0010 §2). */
   guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion> {
-    return this.actualizar(id, { estilo })
+    return this.guardarApariencia(id, { modo: 'propio', estilo })
+  }
+
+  /**
+   * Cambia la apariencia de la canción por la cola de temas (ADR 0016 §2): `propio` escribe el
+   * estilo; `tema` exige un tema existente y fuera de borrado; `heredar` conserva la `base`. El
+   * resumen devuelto lleva la apariencia resuelta. Con el catálogo en solo lectura solo vale `propio`.
+   */
+  guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion> {
+    return this.enColaDeTemas(async () => {
+      const previa = this.exigirCancion(id)
+      const c = structuredClone(previa)
+      if (seleccion.modo === 'propio') {
+        c.apariencia = { modo: 'propio' }
+        c.estilo = structuredClone(seleccion.estilo)
+      } else {
+        const catalogo = this.temas?.datos() ?? null
+        if (!catalogo) {
+          throw new ErrorBiblioteca('TEMAS_SOLO_LECTURA', 'Los temas están en solo lectura.')
+        }
+        if (seleccion.modo === 'tema') {
+          if (!catalogo.temas.some((t) => t.id === seleccion.temaId)) {
+            throw new ErrorBiblioteca('TEMA_NO_ENCONTRADO', 'El tema no existe.')
+          }
+          if (catalogo.borrado_pendiente?.tema_id === seleccion.temaId) {
+            throw new ErrorBiblioteca('BORRADO_PENDIENTE', 'El tema está pendiente de borrarse.')
+          }
+          c.apariencia = { modo: 'tema', tema_id: seleccion.temaId }
+        } else {
+          const base = previa.apariencia?.modo === 'heredar' ? previa.apariencia.base : undefined
+          c.apariencia = base ? { modo: 'heredar', base } : { modo: 'heredar' }
+        }
+      }
+      c.modificada = this.ahora().toISOString()
+      return this.guardar(id, this.validar(c), 0)
+    }).then((r) => this.tras(r))
   }
 
   /** Solo si `puedeMarcarseLista`; deja `pasos.edicion` completado. */
@@ -393,6 +491,7 @@ export class ServicioBiblioteca {
       }
       this.indice.delete(id)
       this.emitir({ id, eliminada: true })
+      this.temas?.notificarIndiceCambiado()
     })
   }
 
@@ -457,6 +556,24 @@ export class ServicioBiblioteca {
     return actual
   }
 
+  /** Serializa con la cola única de apariencia (ADR 0016 §5); sin temas, ejecuta directamente. */
+  private enColaDeTemas<T>(f: () => Promise<T>): Promise<T> {
+    return this.temas ? this.temas.enCola(f) : f()
+  }
+
+  /** Tras crear o editar metadatos/apariencia: el catálogo se reemite agrupado. */
+  private tras<T>(valor: T): T {
+    this.temas?.notificarIndiceCambiado()
+    return valor
+  }
+
+  /** Refresca la instantánea de respaldo (`estilo`, `tema_nombre`) con la resolución vigente. */
+  private refrescar(cancion: Cancion): Cancion {
+    const catalogo = this.temas?.datos()
+    if (!catalogo || !cancion.apariencia || cancion.apariencia.modo === 'propio') return cancion
+    return refrescarInstantanea(cancion, crearIndiceCatalogo(catalogo))
+  }
+
   private emitir(evento: EventoCancion): void {
     for (const cb of this.oyentes) {
       try {
@@ -482,6 +599,9 @@ export class ServicioBiblioteca {
   private construir(id: string, datos: DatosNuevaCancion): Cancion {
     const marca = this.ahora().toISOString()
     const pendiente = (): PasoCancion => ({ estado: 'pendiente', actualizado: null, error: null })
+    // Dentro de `enCola` (el llamador): la apariencia inicial usa el catálogo y el azar de este turno.
+    const inicial = this.temas?.aparienciaInicial(datos.metadatos)
+    const apariencia: Apariencia | undefined = inicial?.apariencia
     return this.validar({
       esquema: 1,
       id,
@@ -492,7 +612,8 @@ export class ServicioBiblioteca {
       fuente: datos.fuente,
       pistas: datos.pistas ?? null,
       letra: datos.letra ?? null,
-      estilo: this.estiloBase(),
+      ...(apariencia ? { apariencia } : {}),
+      estilo: inicial?.estilo ?? estiloPredeterminado(),
       pasos: {
         fuente: datos.pasos?.fuente ?? pendiente(),
         separacion: datos.pasos?.separacion ?? pendiente(),
@@ -546,7 +667,10 @@ export class ServicioBiblioteca {
       if (ruta && (await existe(ruta))) miniatura = ruta
     }
     const sinMezcla = motivo === 'pistas' && !(await existe(join(carpeta, 'fuente', 'mezcla.flac')))
-    return { resumen: resumirCancion(id, cancion, miniatura, motivo, sinMezcla), cancion }
+    return {
+      resumen: resumirCancion(id, cancion, miniatura, motivo, sinMezcla, this.resolver(cancion)),
+      cancion
+    }
   }
 
   /**
@@ -555,9 +679,10 @@ export class ServicioBiblioteca {
    */
   private async guardar(
     id: string,
-    candidata: Cancion,
+    candidataPrevia: Cancion,
     debounceMs: number
   ): Promise<ResumenCancion> {
+    const candidata = this.refrescar(candidataPrevia)
     const anterior = this.indice.get(id) as Entrada
     const miniatura = anterior.resumen.miniatura
     const motivo = anterior.resumen.motivo === 'pistas' ? 'pistas' : null
@@ -567,7 +692,8 @@ export class ServicioBiblioteca {
         candidata,
         miniatura,
         motivo,
-        anterior.resumen.sinMezcla === true
+        anterior.resumen.sinMezcla === true,
+        this.resolver(candidata)
       ),
       cancion: candidata
     }
@@ -622,7 +748,10 @@ export class ServicioBiblioteca {
       if (ruta && (await existe(ruta))) miniatura = ruta
     }
     const sinMezcla = motivo === 'pistas' && !(await existe(join(carpeta, 'fuente', 'mezcla.flac')))
-    return { resumen: resumirCancion(id, cancion, miniatura, motivo, sinMezcla), cancion }
+    return {
+      resumen: resumirCancion(id, cancion, miniatura, motivo, sinMezcla, this.resolver(cancion)),
+      cancion
+    }
   }
 
   private async interrumpirEnCurso(

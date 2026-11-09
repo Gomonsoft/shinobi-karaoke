@@ -30,12 +30,25 @@ const api: ApiShinobi = {
     obtener: (id) => invocar(CANALES.biblioteca.obtener, id),
     actualizarMetadatos: (id, metadatos) =>
       invocar(CANALES.biblioteca.actualizarMetadatos, id, metadatos),
-    guardarEstilo: (id, estilo) => invocar(CANALES.biblioteca.guardarEstilo, id, estilo),
+    guardarApariencia: (id, seleccion) =>
+      invocar(CANALES.biblioteca.guardarApariencia, id, seleccion),
     marcarLista: (id) => invocar(CANALES.biblioteca.marcarLista, id),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
     mostrarEnCarpeta: (id) => invocar(CANALES.biblioteca.mostrarEnCarpeta, id)
+  },
+  temas: {
+    catalogo: () => invocar(CANALES.temas.catalogo),
+    previsualizar: (op) => invocar(CANALES.temas.previsualizar, op),
+    ejecutar: (op, ficha) => invocar(CANALES.temas.ejecutar, op, ficha),
+    crear: (tema) => invocar(CANALES.temas.crear, tema),
+    renombrar: (cambio) => invocar(CANALES.temas.renombrar, cambio),
+    duplicar: (peticion) => invocar(CANALES.temas.duplicar, peticion),
+    reanudarBorrado: () => invocar(CANALES.temas.reanudarBorrado),
+    cancelarBorrado: () => invocar(CANALES.temas.cancelarBorrado),
+    descartarAvisoApartado: () => invocar(CANALES.temas.descartarAvisoApartado),
+    alProgreso: (cb) => suscribir(CANALES.eventos.temasProgreso, cb)
   },
   ventana: {
     modoReproductor: (activo) => invocar(CANALES.ventana.modoReproductor, activo),
@@ -128,6 +141,7 @@ const api: ApiShinobi = {
   },
   alCambiarCancion: (cb) => suscribir(CANALES.eventos.cancion, cb),
   alCambiarConfig: (cb) => suscribir(CANALES.eventos.config, cb),
+  alCambiarTemas: (cb) => suscribir(CANALES.eventos.temasCambiado, cb),
   alCambiarEstadoInfo: (cb) => suscribir(CANALES.eventos.estadoInfo, cb),
   alAccionMenu: (cb) => suscribir(CANALES.eventos.menu, cb),
   rutaDeArchivo: (archivo) => webUtils.getPathForFile(archivo)

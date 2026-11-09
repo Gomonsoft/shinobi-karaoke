@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import type { AgruparBiblioteca } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
 
 export const RETRASO_CARGA_LENTA_MS = 3000
@@ -79,4 +80,44 @@ export function useBiblioteca(): BibliotecaDatos {
     setIntento((n) => n + 1)
   }, [])
   return { estado, lenta, canciones, reintentar }
+}
+
+// «Agrupar por» se guarda en `config.biblioteca.agrupar`; la copia de sesión evita el parpadeo al volver.
+let agruparDeSesion: AgruparBiblioteca = 'ninguno'
+/** Solo para pruebas. */
+export function reiniciarAgruparDeSesion(): void {
+  agruparDeSesion = 'ninguno'
+}
+
+/**
+ * Preferencia «Agrupar por»: se lee de `config` (y sigue a `alCambiarConfig`) y se escribe con
+ * `config.actualizar`. Si la escritura falla, la vista agrupa igual durante la sesión, sin aviso.
+ */
+export function useAgrupar(): [AgruparBiblioteca, (valor: AgruparBiblioteca) => void] {
+  const [agrupar, setAgruparEstado] = useState<AgruparBiblioteca>(agruparDeSesion)
+  useEffect(() => {
+    let activo = true
+    const aplicar = (valor: AgruparBiblioteca | undefined) => {
+      if (!activo || !valor) return
+      agruparDeSesion = valor
+      setAgruparEstado(valor)
+    }
+    window.shinobi.config?.obtener().then(
+      (c) => aplicar(c.biblioteca?.agrupar),
+      () => undefined
+    )
+    const baja = window.shinobi.alCambiarConfig?.((c) => aplicar(c.biblioteca?.agrupar))
+    return () => {
+      activo = false
+      baja?.()
+    }
+  }, [])
+  const cambiar = useCallback((valor: AgruparBiblioteca) => {
+    agruparDeSesion = valor
+    setAgruparEstado(valor)
+    void Promise.resolve(
+      window.shinobi.config?.actualizar({ biblioteca: { agrupar: valor } })
+    ).catch(() => undefined)
+  }, [])
+  return [agrupar, cambiar]
 }
