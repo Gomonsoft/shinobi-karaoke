@@ -16,3 +16,21 @@ it('aplica por Intro y al salir, y restaura un formato inválido con Esc', () =>
   fireEvent.blur(campo)
   expect(aplicar).toHaveBeenCalledExactlyOnceWith(64_200)
 })
+
+it('da nombre accesible sin etiqueta visible y suma una descripción externa', () => {
+  render(
+    <>
+      <CampoTiempo
+        etiqueta="Segundos"
+        etiquetaOculta
+        describedBy="ayuda-x"
+        valor="+0,00"
+        aplicar={vi.fn()}
+      />
+      <p id="ayuda-x">Ayuda externa</p>
+    </>
+  )
+  const campo = screen.getByRole('textbox', { name: 'Segundos' })
+  expect(campo).toHaveAccessibleDescription('Ayuda externa')
+  expect(screen.getByText('Segundos').className).toMatch(/soloLector/)
+})

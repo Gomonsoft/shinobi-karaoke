@@ -142,7 +142,7 @@ erDiagram
     }
 ```
 
-Almacenamiento: una carpeta por canción con `cancion.json` + audio (`fuente/mezcla.flac`, `pistas/*.flac`); carpeta oculta `biblioteca/.importando/` para importaciones sin confirmar; `config.json` global (instalación, modo de separación, volumen del reproductor, estilo predeterminado); `runtime/` y `modelos/` compartidos. Ubicación por SO en el ADR 0006.
+Almacenamiento: una carpeta por canción con `cancion.json` + audio (`fuente/mezcla.flac`, `pistas/*.flac`); carpeta oculta `biblioteca/.importando/` para importaciones sin confirmar; `config.json` global (instalación, modo de separación, volumen del reproductor, estilo predeterminado y, desde 0.2.0, distribución de paneles del editor); `runtime/` y `modelos/` compartidos. Ubicación por SO en el ADR 0006.
 
 Reglas derivadas (funciones puras en `app/src/shared/`, no se guardan): **paso actual**, **puede marcarse como lista**, **incompleta** (lista con líneas sin inicio), **fin efectivo** de cada línea (ADR 0005). Operaciones puras de edición de tiempos: `moverInicioLinea` y `borrarTiemposLinea` (arrastran las palabras de la línea; ADR 0006).
 
@@ -282,6 +282,7 @@ Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acce
   - **Render**: `karaoke/render.ts` (modelo puro) y `karaoke/PantallaLetra.tsx` (DOM/CSS con unidades `cqh`), compartidos con el reproductor. El contraste se calcula en `karaoke/contraste.ts`.
   - **Edición**: operaciones puras en `shared/letras/tiempos.ts` (incluida `marcarInicioLinea`) y un *reducer* con historial de la visita en `vistas/editor/estado.ts`.
   - **Guardado**: *debounce* en el renderer (1 s, como mucho 2 s). El main escribe al momento: `ServicioLetras.guardarTiempos` (único escritor de `letra`) y `ServicioBiblioteca.guardarEstilo`/`marcarLista`. Antes de salir del editor se vacía lo pendiente; al cerrar la ventana con cambios pendientes, el control de cierre pide al renderer que vacíe (tope de 2 s).
+  - **Distribución (0.2.0, subfase 2.1, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--layout-adaptable-y-paneles))**: modelo puro `vistas/editor/distribucion.ts` (tamaños efectivos a partir de preferencias y medidas), constantes en `shared/paneles.ts`, componente `componentes/Divisor.tsx` y preferencia global `config.editor.paneles` ([ADR 0006](adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--preferencias-de-paneles-del-editor)). La ventana tiene un mínimo de contenido de 1024 × 576 (`useContentSize`). No entra en el historial ni en el guardado de la canción.
 
 ## 8. Seguridad
 Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md).

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { estiloPredeterminado, estiloSchema } from './estilo'
+import { LIMITES_PANELES } from './paneles'
 
 export const VERSION_ESQUEMA_CONFIG = 1
 
@@ -71,17 +72,56 @@ const reproductorSchema = z
   })
   .prefault({})
 
+/** Objeto cuyo valor, si no es un objeto, se lee como `{}` (cada hoja toma su defecto). */
+function objetoTolerante<T extends z.ZodRawShape>(forma: T) {
+  return z.preprocess(
+    (v) => (typeof v === 'object' && v !== null && !Array.isArray(v) ? v : {}),
+    z.object(forma)
+  )
+}
+
+const enteroEnRango = (min: number, max: number) => z.number().int().min(min).max(max)
+
+/**
+ * Preferencias de paneles del editor (ADR 0006, rev. 0.2.0). Lectura tolerante campo a campo:
+ * un valor inválido se sustituye por el defecto de ese campo sin apartar el config.
+ */
+const panelesSchema = objetoTolerante({
+  lista: objetoTolerante({
+    ancho: enteroEnRango(LIMITES_PANELES.lista.min, LIMITES_PANELES.lista.max).catch(
+      LIMITES_PANELES.lista.defecto
+    ),
+    minimizado: z.boolean().catch(false)
+  }),
+  panel: objetoTolerante({
+    ancho: enteroEnRango(LIMITES_PANELES.panel.min, LIMITES_PANELES.panel.max).catch(
+      LIMITES_PANELES.panel.defecto
+    ),
+    minimizado: z.boolean().catch(false)
+  }),
+  linea_tiempo: objetoTolerante({
+    alto: enteroEnRango(LIMITES_PANELES.linea_tiempo.min, LIMITES_PANELES.linea_tiempo.max)
+      .nullable()
+      .catch(null),
+    minimizado: z.boolean().catch(false)
+  })
+})
+
+const editorSchema = objetoTolerante({ paneles: panelesSchema })
+
 export const configSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CONFIG).default(VERSION_ESQUEMA_CONFIG),
   instalacion: instalacionSchema,
   separacion: separacionSchema,
   reproductor: reproductorSchema,
+  editor: editorSchema,
   aviso_youtube_aceptado: z.iso.datetime().nullable().default(null),
   ultima_comprobacion_ytdlp: z.iso.datetime().nullable().default(null),
   estilo_predeterminado: estiloSchema.default(() => estiloPredeterminado())
 })
 
 export type Config = z.infer<typeof configSchema>
+export type PreferenciasPaneles = Config['editor']['paneles']
 
 /** Configuración por defecto (la de una instalación nueva). */
 export function configPredeterminada(): Config {

@@ -1,0 +1,114 @@
+/*
+ * Divisor del editor (spec 06-editor 2.1, sistema-visual «Divisores y rieles»): franja de 12 px,
+ * línea de 1 px y agarre de 16 px con objetivo de 24 px en el eje largo.
+ */
+.divisor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  touch-action: none;
+  user-select: none;
+}
+.vertical {
+  width: 12px;
+  height: 100%;
+  cursor: col-resize;
+}
+.horizontal {
+  width: 100%;
+  height: 12px;
+  cursor: row-resize;
+}
+.linea {
+  position: absolute;
+  background: var(--borde);
+  pointer-events: none;
+}
+.vertical .linea {
+  inset-block: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+}
+.horizontal .linea {
+  inset-inline: 0;
+  top: calc(50% - 0.5px);
+  height: 1px;
+}
+.divisor:hover .linea {
+  background: var(--borde-control);
+}
+.vertical:hover .linea {
+  left: calc(50% - 1px);
+  width: 2px;
+}
+.horizontal:hover .linea {
+  top: calc(50% - 1px);
+  height: 2px;
+}
+.divisor.arrastrando .linea {
+  background: var(--acento-texto);
+}
+.vertical.arrastrando .linea {
+  left: calc(50% - 1px);
+  width: 2px;
+}
+.horizontal.arrastrando .linea {
+  top: calc(50% - 1px);
+  height: 2px;
+}
+.divisor:focus-visible .linea {
+  background: var(--foco);
+}
+.vertical:focus-visible .linea {
+  left: calc(50% - 1px);
+  width: 2px;
+}
+.horizontal:focus-visible .linea {
+  top: calc(50% - 1px);
+  height: 2px;
+}
+.agarre {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--texto-3);
+  font-size: 16px;
+  line-height: 16px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.vertical .agarre {
+  width: 12px;
+  height: 24px;
+}
+.horizontal .agarre {
+  width: 24px;
+  height: 12px;
+}
+.tooltip {
+  position: absolute;
+  z-index: 31;
+  top: calc(50% + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 18rem;
+  padding: var(--e-1) var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-3);
+  color: var(--texto-1);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  cursor: default;
+  pointer-events: none;
+}
+.horizontal .tooltip {
+  top: auto;
+  bottom: calc(100% + 4px);
+}

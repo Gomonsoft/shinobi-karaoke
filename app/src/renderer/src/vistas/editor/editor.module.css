@@ -1,8 +1,43 @@
+/*
+ * Layout a alto completo (spec 06-editor, subfase 2.1). La raíz mide `100vh − 56 px`; el margen
+ * superior es su relleno. Los anchos y altos salen de `useDistribucion` (variables en la raíz).
+ */
 .editor {
-  display: flex;
-  flex-direction: column;
-  gap: var(--e-3);
+  --ancho-lista: 300px;
+  --ancho-panel: 360px;
+  --alto-linea-tiempo: 216px;
+  --alto-pista-voz: 76px;
+  --alto-encabezado: 28px;
+  --alto-accion: 36px;
+  --alto-fila-minimizada: 44px;
+  box-sizing: border-box;
+  height: 100%;
   min-width: 0;
+  padding-top: 12px;
+}
+.editor[data-compacto='true'] {
+  --alto-encabezado: 0px;
+  --alto-fila-minimizada: 40px;
+  padding-top: 8px;
+}
+.rejilla {
+  display: grid;
+  grid-template-rows: auto minmax(8.5rem, 1fr) auto;
+  height: 100%;
+  min-width: 0;
+}
+.editor[data-bajo-minimo='alto'] .rejilla {
+  height: auto;
+  min-height: 100%;
+}
+.editor[data-bajo-minimo='ancho'] .rejilla {
+  height: auto;
+  min-height: 100%;
+  grid-template-rows: auto auto auto;
+}
+.cabecera {
+  min-width: 0;
+  margin-bottom: 8px;
 }
 .soloLector {
   position: absolute;
@@ -12,39 +47,71 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+.zonaVacia {
+  min-height: 0;
+  overflow: auto;
+}
 .cuerpo {
   display: grid;
-  grid-template: 'lista previa pestanas' auto 'lista previa panel' 1fr / 320px minmax(0, 1fr) 320px;
-  gap: var(--e-3) var(--e-4);
-  align-items: start;
+  grid-template:
+    'lista dl previa dp pestanas' 36px
+    'lista dl previa dp panel' minmax(0, 1fr)
+    / var(--ancho-lista) 12px minmax(0, 1fr) 12px var(--ancho-panel);
   min-width: 0;
+  min-height: 0;
+}
+/* Franjas de 12 px de los divisores (componente `Divisor`). */
+.franja {
+  position: relative;
+  z-index: 1;
+}
+.franjaLista {
+  grid-area: dl;
+}
+.franjaPanel {
+  grid-area: dp;
 }
 .listaZona {
   grid-area: lista;
   display: grid;
-  gap: var(--e-2);
+  grid-template-rows: 32px minmax(0, 1fr) 32px;
   min-width: 0;
+  min-height: 0;
 }
 .listaTitulo {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: var(--e-2);
+  min-width: 0;
+  height: 32px;
+}
+.listaTitulo > :nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.listaTitulo > :last-child {
+  margin-inline-start: auto;
 }
 .listaTitulo h2,
 .previa h2 {
   margin: 0;
   font-size: var(--t-subtitulo);
+  white-space: nowrap;
 }
 .lista {
-  min-height: min(280px, 48vh);
-  max-height: max(280px, calc(100vh - 23rem));
+  position: relative;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--borde);
   border-radius: var(--r-m);
   background: var(--fondo-1);
+}
+.bannerLista {
+  padding: var(--e-2);
 }
 .linea,
 .pausa {
@@ -101,76 +168,89 @@
 }
 .previa {
   grid-area: previa;
+  position: relative;
   display: grid;
-  gap: var(--e-2);
+  place-items: center;
   min-width: 0;
+  min-height: 0;
+  /* El hueco del lienzo descuenta el encabezado (solo en modo normal) y la fila del botón. */
+  padding-top: var(--alto-encabezado);
+  padding-bottom: calc(var(--alto-accion) + var(--e-2));
+  overflow: hidden;
+  container-type: size;
+}
+.previa h2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--alto-encabezado);
+  line-height: var(--alto-encabezado);
+  text-align: center;
+}
+.previa h2.soloLector {
+  right: auto;
+  left: 0;
+}
+/* El lienzo es el mayor 16:9 que cabe en el hueco; la columna no depende de su contenido. */
+.lienzo {
+  position: relative;
+  width: min(100cqw, calc(100cqh * 16 / 9));
+  aspect-ratio: 16 / 9;
 }
 .pantalla {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
   overflow: hidden;
   border-radius: var(--r-m);
 }
 .accionPrueba {
-  display: grid;
+  position: absolute;
+  top: calc(100% + var(--e-2));
+  left: 50%;
+  display: flex;
+  width: 100%;
+  min-width: max-content;
+  transform: translateX(-50%);
 }
 .accionPrueba button {
   flex: 1;
 }
 .pestanas {
   grid-area: pestanas;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  min-width: 0;
 }
 .panel {
+  position: relative;
   grid-area: panel;
   min-width: 0;
-  overflow: auto;
-  max-height: max(280px, calc(100vh - 23rem));
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-gutter: stable;
 }
-.transporte {
-  position: sticky;
-  z-index: 4;
-  bottom: 0;
-  display: grid;
-  gap: var(--e-2);
-  padding: var(--e-2);
+.dock {
+  min-width: 0;
+}
+.franjaDock {
+  position: relative;
+  z-index: 1;
+}
+.cajaDock {
+  min-width: 0;
+  padding: 8px;
   background: var(--fondo-1);
   border-top: 1px solid var(--borde);
 }
-.transporteFila,
-.transporteAcciones,
-.grupoTransporte,
-.volumen {
-  display: flex;
-  align-items: center;
-  gap: var(--e-2);
+.editor[data-compacto='true'] .cajaDock {
+  padding: 4px;
 }
-.transporteFila,
-.transporteAcciones {
-  flex-wrap: wrap;
-}
-.transporteAcciones {
-  justify-content: space-between;
-}
-.volumen {
-  min-width: 7rem;
-  width: 9rem;
-}
-.barraTiempo {
-  position: relative;
-  flex: 1 1 6rem;
-}
-.ticks {
-  position: absolute;
-  inset: auto 8px 1px;
-  height: 6px;
-  pointer-events: none;
-}
-.ticks span {
-  position: absolute;
-  height: 6px;
-  width: 1px;
-  background: var(--texto-3);
+.avisoDock {
+  padding-bottom: var(--e-2);
 }
 .atajos {
   border-collapse: collapse;
@@ -185,26 +265,30 @@
   color: var(--texto-2);
 }
 
-@media (max-width: 1279px) {
-  .accionPrueba {
-    justify-self: start;
-  }
-  .cuerpo {
-    grid-template:
-      'pestanas previa' auto 'lista previa' auto 'panel previa' auto / min(360px, 53%)
-      minmax(0, 1fr);
-  }
-  .editor[data-pestana='estilo'] .listaZona {
-    display: none;
-  }
+/* Por debajo del mínimo de diseño (< 1024 px): disposición B, con scroll vertical de la página. */
+.editor[data-bajo-minimo='ancho'] .cuerpo {
+  grid-template:
+    'pestanas previa' auto
+    'lista previa' auto
+    'panel previa' auto
+    / min(360px, 53%) minmax(0, 1fr);
+  gap: var(--e-3) var(--e-4);
+  align-items: start;
 }
-@media (max-width: 580px) {
-  .cuerpo {
-    grid-template: 'previa' auto 'pestanas' auto 'lista' auto 'panel' auto / minmax(0, 1fr);
-  }
-  .grupoTransporte {
-    flex-wrap: wrap;
-  }
+.editor[data-bajo-minimo='ancho'] .franja {
+  display: none;
+}
+.editor[data-bajo-minimo='ancho'] .listaZona {
+  grid-template-rows: auto 22rem auto;
+}
+.editor[data-bajo-minimo='ancho'] .previa {
+  height: 24rem;
+}
+.editor[data-bajo-minimo='ancho'][data-pestana='estilo'] .listaZona {
+  display: none;
+}
+.editor[data-bajo-minimo='ancho'] .panel {
+  overflow: visible;
 }
 
 .panelSincronia {
@@ -229,18 +313,32 @@
   justify-items: start;
   gap: var(--e-2);
 }
+/* Una sola fila que nunca se parte (300–480 px); los errores van debajo sin mover la fila. */
 .ajustesTiempo {
+  position: relative;
   display: flex;
-  align-items: end;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: var(--e-1);
-  flex-wrap: wrap;
 }
 .ajustesTiempo > button {
+  flex: none;
   padding-inline: var(--e-2);
+  white-space: nowrap;
 }
 .ajustesTiempo input {
-  max-width: 7rem;
+  width: 5.5rem;
+  max-width: none;
   font-variant-numeric: tabular-nums;
+}
+.ajustesTiempo [id$='-error'] {
+  position: absolute;
+  top: calc(100% + var(--e-1));
+  left: 0;
+  width: 12rem;
+}
+.ajustesTiempo:has([aria-invalid='true']) {
+  margin-bottom: 2.75rem;
 }
 .desplazamiento {
   border-top: 1px solid var(--borde);
@@ -255,12 +353,6 @@
   align-items: center;
   min-height: var(--objetivo-minimo);
 }
-@media (max-width: 1279px) {
-  .ajustesLinea > h3 {
-    display: none;
-  }
-}
-
 .bannerSync {
   display: grid;
   gap: var(--e-2);
@@ -273,6 +365,109 @@
 .bannerSync p {
   margin: 0;
 }
+.filaBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+}
 .syncPronto {
   color: var(--aviso);
+}
+
+/* Botones de minimizar y expandir (32 × 32) y rieles de los paneles minimizados (spec 2.1). */
+.botonLayout {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-m);
+  background: transparent;
+  color: var(--texto-2);
+  font-weight: 600;
+  transition: background var(--transicion);
+}
+.botonLayout:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--fondo-3);
+  color: var(--texto-1);
+}
+.botonLayout:disabled,
+.botonLayout[aria-disabled='true'] {
+  color: var(--texto-desactivado);
+  cursor: not-allowed;
+}
+.puntoAvisoLayout {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pildora);
+  background: var(--aviso);
+}
+.riel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e-2);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--e-1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+.rielListaZona {
+  grid-area: lista;
+}
+.rielPanelZona {
+  grid-area: pestanas / pestanas / panel / panel;
+}
+.rielLinea,
+.rielDato {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+  text-align: center;
+}
+.rielNumero {
+  font-size: var(--t-subtitulo);
+  font-weight: 600;
+}
+.rielEtiqueta {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  text-align: center;
+}
+.rielValor {
+  max-width: 100%;
+  text-align: center;
+  word-break: break-all;
+}
+.riel .rielBoton {
+  height: auto;
+  min-height: var(--alto-boton);
+  padding: var(--e-1) var(--e-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  white-space: normal;
+}
+.rielCasilla {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e-1);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  text-align: center;
 }

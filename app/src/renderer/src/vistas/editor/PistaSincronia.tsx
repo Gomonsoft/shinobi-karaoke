@@ -8,15 +8,17 @@ import {
   type PointerEvent,
   type ReactNode
 } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { Letra } from '@shared/letra'
 import { formatearTiempo, limitesInicio } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
+import { BotonLayout } from './BotonLayout'
+import { VistaGeneral, iniciarCaptura, type Arrastre } from './VistaGeneral'
 import {
   ajustarVistaLineaTiempo,
   centrarLineaTiempo,
   crearVistaLineaTiempo,
   desplazarLineaTiempo,
-  pixelATiempo,
   proyectarLineaTiempo,
   recortarIntervalo,
   tiempoAPixel,
@@ -46,19 +48,11 @@ interface Props {
   limite: string | null
   onda?: (vista: VistaLineaTiempo) => ReactNode
   ondaGeneral?: ReactNode
-}
-
-type Arrastre = {
-  control: HTMLElement
-  id: number
-  origenX: number
-  inicioMs: number
-}
-
-function iniciarCaptura(e: PointerEvent<HTMLElement>, ms: number): Arrastre {
-  e.currentTarget.focus({ preventScroll: true })
-  e.currentTarget.setPointerCapture?.(e.pointerId)
-  return { control: e.currentTarget, id: e.pointerId, origenX: e.clientX, inicioMs: ms }
+  /** Fila de 44/40 px con el minimapa informativo (preferencia, falta de espacio o modo sincronizar). */
+  minimizada?: boolean
+  /** Motivo por el que «Expandir» no está disponible (`aria-disabled`); no se guarda como preferencia. */
+  expandirNoDisponible?: string
+  alternarMinimizada?(): void
 }
 
 interface PropsTirador {
@@ -167,7 +161,10 @@ export function PistaSincronia({
   bordeArrastrado,
   limite,
   onda,
-  ondaGeneral
+  ondaGeneral,
+  minimizada = false,
+  expandirNoDisponible,
+  alternarMinimizada
 }: Props) {
   const [vistaGuardada, setVista] = useState<VistaLineaTiempo | null>(null)
   const vista = vistaGuardada
@@ -194,8 +191,6 @@ export function PistaSincronia({
   }, [activa, letra, duracionMs])
   const eje = useRef<HTMLDivElement>(null)
   const cabezal = useRef<HTMLDivElement>(null)
-  const minimapa = useRef<HTMLDivElement>(null)
-  const mapaArrastre = useRef<Arrastre | null>(null)
 
   const alGirar = useEffectEvent((e: WheelEvent) => {
     if (inactiva || bordeArrastrado || !eje.current || extension <= 0) return
@@ -221,7 +216,7 @@ export function PistaSincronia({
     const rueda = (e: WheelEvent) => alGirar(e)
     nodo.addEventListener('wheel', rueda, { passive: false })
     return () => nodo.removeEventListener('wheel', rueda)
-  }, [])
+  }, [minimizada])
 
   useEffect(() => {
     const nodo = cabezal.current
@@ -230,13 +225,15 @@ export function PistaSincronia({
     function pintar() {
       const actual = obtenerTiempoAudio()
       const visible = actual >= inicioMs && actual <= finMs && finMs > inicioMs
-      nodo!.style.visibility = visible ? 'visible' : 'hidden'
-      nodo!.style.left = `${tiempoAPixel({ inicioMs, finMs }, 100, actual)}%`
+      // Fuera de la vista no ocupa espacio: un `left` fuera de rango ensancharía la página.
+      nodo!.style.display = visible ? '' : 'none'
+      if (visible)
+        nodo!.style.left = `${Math.min(100, Math.max(0, tiempoAPixel({ inicioMs, finMs }, 100, actual)))}%`
       if (sonando) frame = requestAnimationFrame(pintar)
     }
     pintar()
     return () => cancelAnimationFrame(frame)
-  }, [inicioMs, finMs, obtenerTiempoAudio, posicionMs, sonando])
+  }, [minimizada, inicioMs, finMs, obtenerTiempoAudio, posicionMs, sonando])
 
   function teclaFlecha(e: KeyboardEvent<HTMLElement>, aplicar: (sentido: number) => void) {
     if (e.ctrlKey || e.metaKey || e.altKey || inactiva) return
@@ -247,11 +244,44 @@ export function PistaSincronia({
   }
 
   const reglaPosicion = Math.max(inicioMs, Math.min(posicionMs, finMs))
-  const escalaGeneral = crearVistaLineaTiempo(duracionMs)
   const zoomDisponible = !inactiva && !bordeArrastrado && extension > 0
 
+  if (minimizada) {
+    return (
+      <section
+        id="zona-linea-tiempo"
+        className={`${estilos.timeline} ${estilos.minimizada}`}
+        aria-label={E.layout.region(E.layout.timeline.nombre, true)}
+      >
+        <BotonLayout
+          icono={ChevronUp}
+          etiqueta={E.layout.timeline.expandir}
+          nombre="timeline-expandir"
+          expandido={false}
+          controla="zona-linea-tiempo"
+          noDisponible={expandirNoDisponible}
+          onClick={alternarMinimizada}
+        />
+        <h2>{E.timeline.titulo}</h2>
+        <VistaGeneral
+          informativa
+          vista={vista}
+          duracionMs={duracionMs}
+          modelo={modelo}
+          ondaGeneral={ondaGeneral}
+          inactiva={inactiva}
+          cambiarVista={setVista}
+          buscar={buscar}
+          obtenerTiempoAudio={obtenerTiempoAudio}
+          sonando={sonando}
+          posicionMs={posicionMs}
+        />
+      </section>
+    )
+  }
+
   return (
-    <section className={estilos.timeline} aria-label={E.timeline.titulo}>
+    <section id="zona-linea-tiempo" className={estilos.timeline} aria-label={E.timeline.titulo}>
       <div className={estilos.controles}>
         <h2>{E.timeline.titulo}</h2>
         <Boton
@@ -284,6 +314,14 @@ export function PistaSincronia({
           {E.timeline.cabezal}
         </Boton>
         {!activa && <span>{E.timeline.zoomSinInicio}</span>}
+        <BotonLayout
+          icono={ChevronDown}
+          etiqueta={E.layout.timeline.minimizar}
+          nombre="timeline-minimizar"
+          expandido
+          controla="zona-linea-tiempo"
+          onClick={alternarMinimizada}
+        />
       </div>
       <div className={estilos.eje} ref={eje}>
         <div className={estilos.regla}>
@@ -310,8 +348,8 @@ export function PistaSincronia({
             }
           />
         </div>
-        {onda?.(vista)}
         <div className={estilos.pista}>
+          {onda?.(vista)}
           {modelo.pausas
             .filter((p) => p.tiempoMs >= inicioMs && p.tiempoMs <= finMs)
             .map((p) => (
@@ -371,73 +409,21 @@ export function PistaSincronia({
               )
             })}
         </div>
-        <div aria-hidden="true" ref={cabezal} className={estilos.cabezal} />
+        <div aria-hidden="true" ref={cabezal} className={estilos.cabezal} data-cabezal />
       </div>
-      <div className={estilos.vistaGeneral} ref={minimapa}>
-        {ondaGeneral}
-        <div className={estilos.miniRegiones} aria-hidden="true">
-          {modelo.regiones.map(
-            ({ id, audible }) =>
-              audible && (
-                <span
-                  key={id}
-                  style={{
-                    left: `${tiempoAPixel(escalaGeneral, 100, audible.inicioMs)}%`,
-                    width: `${tiempoAPixel(escalaGeneral, 100, audible.finMs - audible.inicioMs)}%`
-                  }}
-                />
-              )
-          )}
-        </div>
-        <div
-          className={estilos.ventana}
-          role="slider"
-          tabIndex={inactiva ? -1 : 0}
-          data-foco-editor="segmentado"
-          aria-disabled={inactiva || undefined}
-          aria-label={E.timeline.general}
-          aria-valuemin={0}
-          aria-valuemax={Math.max(0, duracionMs - extension)}
-          aria-valuenow={inicioMs}
-          aria-valuetext={E.timeline.intervalo(formatearTiempo(inicioMs), formatearTiempo(finMs))}
-          style={{
-            left: `${tiempoAPixel(escalaGeneral, 100, inicioMs)}%`,
-            width: `${tiempoAPixel(escalaGeneral, 100, extension)}%`
-          }}
-          onKeyDown={(e) =>
-            teclaFlecha(e, (sentido) =>
-              setVista(desplazarLineaTiempo(vista, duracionMs, sentido * extension * 0.1))
-            )
-          }
-          onPointerDown={(e) => {
-            if (inactiva || bordeArrastrado || e.button !== 0) return
-            e.preventDefault()
-            mapaArrastre.current = iniciarCaptura(e, inicioMs)
-          }}
-          onPointerMove={(e) => {
-            const captura = mapaArrastre.current
-            const ancho = minimapa.current?.getBoundingClientRect().width
-            if (!captura || captura.id !== e.pointerId || !ancho || inactiva) return
-            const origen = { inicioMs: captura.inicioMs, finMs: captura.inicioMs + extension }
-            setVista(
-              desplazarLineaTiempo(
-                origen,
-                duracionMs,
-                pixelATiempo(escalaGeneral, ancho, e.clientX - captura.origenX)
-              )
-            )
-          }}
-          onPointerUp={() => {
-            mapaArrastre.current = null
-          }}
-          onPointerCancel={() => {
-            mapaArrastre.current = null
-          }}
-          onLostPointerCapture={() => {
-            mapaArrastre.current = null
-          }}
-        />
-      </div>
+      <VistaGeneral
+        vista={vista}
+        duracionMs={duracionMs}
+        modelo={modelo}
+        ondaGeneral={ondaGeneral}
+        inactiva={inactiva}
+        bordeArrastrado={bordeArrastrado}
+        cambiarVista={setVista}
+        buscar={buscar}
+        obtenerTiempoAudio={obtenerTiempoAudio}
+        sonando={sonando}
+        posicionMs={posicionMs}
+      />
       <div className={estilos.limite} aria-live="polite">
         {limite}
       </div>

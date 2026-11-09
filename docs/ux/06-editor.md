@@ -5,7 +5,7 @@
 - Restricciones: [arquitectura.md §7 y "Restricciones e implicaciones para UX" §5–§6](../arquitectura.md)
 - Sistema visual: [sistema-visual.md §6–§10](sistema-visual.md) (componentes, foco, estilo predeterminado, reglas de contraste, valores fijos de render)
 - Preguntas: [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md) (usuario: **sincronía solo por línea** en el MVP), [0004](../preguntas/0004-fuentes-tipograficas-incluidas-y-del-sistema.md) (solo fuentes incluidas), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (pausas, fin automático, precisión del toque, lista incompleta), [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (stepper y volver a Letra), [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) (detalles técnicos de la Fase 5; respondida: pantalla completa en la Fase 6, desplazamiento ±30 s, el tono baja con la velocidad, un solo volumen, API de guardado), [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md) (letra recargada y regla de "color más claro"; respondida)
-- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final).
+- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles).
 
 ## Objetivo
 Dejar la letra **a tiempo** con la música y darle un **estilo** propio con las opciones mínimas del MVP (fondo, color de letra, color de lo ya cantado, fuente), viendo el resultado en todo momento, y marcar la canción como **lista**.
@@ -22,6 +22,8 @@ Qué **no** hace el editor (MVP): no edita el texto de la letra (eso es la vista
 - Límites de un inicio: **estrictamente** posterior al del elemento anterior con tiempo y anterior al del siguiente con tiempo, **contando las pausas con tiempo** (invariantes de ADR 0006). Las líneas sin tiempo intermedias no limitan.
 
 ## Wireframes
+
+> Desde la subfase 2.1 de 0.2.0, la distribución, los anchos de columna y el comportamiento en ventanas pequeñas de A y B los define [Subfase 2.1 · Layout adaptable y paneles](#subfase-21--layout-adaptable-y-paneles). A y B se conservan como referencia del contenido de cada zona; B solo se usa por debajo del mínimo de diseño.
 
 ### A — Editor (≥ 1280 px)
 ```
@@ -341,7 +343,7 @@ Notas: el fin usa Ctrl/Cmd y no Ctrl + Alt porque Ctrl + Alt + flechas gira la p
 - Anillo de foco doble (§7) sobre la vista previa y el banner del modo.
 - El estado nunca depende solo del color: ◆, iconos "falta", ✓/⚠ e insignias llevan icono y texto o nombre accesible.
 - Todos los objetivos ≥ 32 × 32 px; el botón "MARCAR" del modo, 44 px de alto como mínimo.
-- Funciona a 1024 × 640 y con zoom de la interfaz hasta 150 % (a partir de ahí, desplazamiento vertical del panel, nunca contenido cortado).
+- Funciona a 1024 × 640 y con zoom de la interfaz hasta 150 % (a partir de ahí, desplazamiento vertical del panel, nunca contenido cortado). *Sustituido en 0.2.0 por la [subfase 2.1](#subfase-21--layout-adaptable-y-paneles): mínimo de diseño 1024 × 576 px CSS sin scroll de página; por debajo, solo scroll vertical de página.*
 
 ## Microcopy
 | Clave | Texto |
@@ -540,6 +542,9 @@ Respecto a la versión de la Fase 0, sin cambiar el alcance:
 - La vista previa muestra `●●●` siempre antes de la primera línea (mismo cambio de render que el reproductor).
 - Criterios 18, 38 y 42 actualizados.
 
+### Revisión 2026-11-08 (0.2.0, subfase 2.1)
+- Layout a alto completo con cabecera, tres columnas y dock; divisores accesibles, modos minimizados, prioridades de espacio, panel angosto corregido y persistencia global. Ver [Subfase 2.1](#subfase-21--layout-adaptable-y-paneles), con sus criterios 1–25. El seguimiento del cabezal sigue siendo manual a la espera de [0051](../preguntas/0051-seguimiento-automatico-del-cabezal.md).
+
 ## Fuera del MVP — ampliación futura: sincronía por palabra
 Decisión del usuario ([0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md)): el MVP solo ofrece herramientas **por línea**; las palabras con tiempos que lleguen de LRCLIB o de un LRC mejorado se **muestran** (◆ en la fila, resaltado por palabra en la vista previa) y se **conservan**, pero no se editan. Esta sección **no se implementa en el MVP**; describe cómo ampliar el diseño en una versión posterior sin rehacer la vista:
 
@@ -630,3 +635,295 @@ Vista general   ├───────────────[ intervalo visi
 3. Activar el bucle reproduce desde el inicio audible. Probar pausa, cambio de límites mientras suena, cabezal fuera del nuevo intervalo, intento con intervalo inaudible y salida por Esc, cambio de selección y búsqueda externa. Probar un arrastre que vuelve provisionalmente inaudible la región. Al cancelar, el bucle conserva los límites y el estado de reproducción anteriores. Al confirmar un intervalo inaudible, se desactiva y vuelve a la posición previa en pausa. Confirmar que la escucha de comprobación opera una sola vez por ajuste fuera del bucle.
 4. El zoom conserva el tiempo bajo el puntero hasta topar con un extremo. Zoom a la línea, ver todo, centrar, paneo y rectángulo de vista general funcionan con teclado sin mover el cabezal. Al redimensionar mientras suena, la onda y regiones siguen alineadas con el eje.
 5. Probar separación pendiente, generación, fallo y reintento de picos. Cambiar la pista de escucha no cambia la procedencia de la onda. Con una pista larga de prueba, interactuar con zoom y marcadores mientras suena y comprobar que conserva posición y que se redibuja la porción visible según el nivel de detalle.
+
+### Subfase 2.1 · Layout adaptable y paneles
+
+Origen: Bug 2 del [reporte de Windows](../versiones/0.2.0/reporte-editor-fase-2.md) y [plan, subfase 2.1](../versiones/0.2.0/plan-2.md#subfase-21--estabilización-del-editor). Esta sección **sustituye** a los wireframes A y B, a la nota de columnas de A, a la frase «En el ancho reducido del editor, la zona de sincronía admite desplazamiento vertical…» de la segunda fase y a la última viñeta de «Accesibilidad» (1024 × 640 y zoom 150 %). El resto de la spec no cambia: no se añade ninguna función de edición; solo se reorganiza el espacio y se añaden divisores, modos minimizados y su persistencia.
+
+#### Unidades y tamaños de prueba
+
+- Todas las medidas de esta sección son **píxeles CSS a zoom de interfaz 100 %** (1 rem = 16 px). Se implementan en `rem` para que escalen con el zoom de Electron.
+- Los tamaños de ventana del reporte son el **área de contenido** de la ventana en píxeles físicos. El viewport CSS = físico ÷ escala de Windows:
+
+| Ventana (físico) | Escala | Viewport CSS | Modo de altura |
+|---|---|---|---|
+| 1280 × 720 | 100 % | 1280 × 720 | Compacto |
+| 1280 × 720 | 125 % | 1024 × 576 | Compacto |
+| 1720 × 1440 | 100 % | 1720 × 1440 | Normal |
+| 1720 × 1440 | 125 % | 1376 × 1152 | Normal |
+| 1920 × 1080 | 100 % | 1920 × 1080 | Normal |
+| 1920 × 1080 | 125 % | 1536 × 864 | Normal |
+
+- **Modo compacto de altura**: viewport con alto < 800 px CSS (800 es el alto de referencia de sistema-visual §4). Es un punto de corte fijo, no depende de los tamaños guardados.
+- **Mínimo de diseño**: 1024 × 576 px CSS. A partir de ahí el editor cabe completo y sin scroll de página. Ver «Por debajo del mínimo».
+
+#### Distribución
+
+El editor ocupa exactamente el alto que queda bajo la barra de la app (56 px): `alto del editor = 100vh − 56 px`. La página (`html`/`body` y el contenedor de la vista) **nunca** hace scroll, ni vertical ni horizontal. Solo tienen scroll interno la **lista de líneas** y el **contenido del panel** (Sincronía o Estilo).
+
+```
+┌ Barra de la app (56) ──────────────────────────────────────────────────────────────┐
+├────────────────────────────────────────────────────────────────────────────────────┤
+│ ‹ Biblioteca │ «Bohemian Rhapsody» · Queen  [✎ Borrador] ✓ Guardado      [⟲][⟳][⋯]  │ CABECERA
+│   (1)✓ Fuente ── (2)✓ Separación ── (3)✓ Letra ── (4)● Editor                       │
+├──────────────────────┬─┬────────────────────────────────┬─┬────────────────────────┤
+│ Líneas 48/52 sinc. [«]│⋮│          Vista previa          │⋮│[Sincronía|Estilo•]  [»]│ ZONA
+│ ┌──────────────────┐ │ │   ┌────────────────────────┐   │ │ ┌────────────────────┐ │ SUPERIOR
+│ │ (scroll propio)  │ │ │   │          16:9          │   │ │ │  (scroll propio)   │ │
+│ │                  │ │ │   └────────────────────────┘   │ │ │                    │ │
+│ └──────────────────┘ │ │  [⛶ Probar a pantalla completa] │ │ └────────────────────┘ │
+│ Corregir la letra    │ │                                │ │                        │
+├──────────────────────┴─┴──────────────── ⋯ ─────────────┴─┴────────────────────────┤ divisor del dock
+│ [⏮][▶] 01:12.4 / 05:55 ━━━━━●━━┃━━┃━━━━━━━━━━━━━━  Velocidad [0,5×|0,75×|1×] 🔊━━━ │ DOCK:
+│ Escuchar [Original|Voz|Instrumental]        [◉ Sincronizar al ritmo (S)] [Marcar como lista] │ transporte
+│ Línea de tiempo [−][+][Zoom a la línea][Ver canción completa][Centrar en el cabezal] [⌄] │ línea
+│ Regla · Voz · Líneas · Vista general                                                 │ de tiempo
+└────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Márgenes del editor**: 16 px a izquierda y derecha; arriba 12 px (8 px en compacto); abajo 0 (el dock llega al borde de la ventana con su propio relleno). Es una excepción a los márgenes de vista de sistema-visual §4: el editor es una herramienta de trabajo a ventana llena.
+
+**Cabecera**
+- Normal: la cabecera actual en dos filas (≈ 96 px).
+- Compacta (alto < 800): **una fila de 48 px**: ‹ Biblioteca · título · artista (con «…» y el texto completo en `title`) · insignia · indicador de guardado · stepper compacto · ⟲ ⟳ ⋯. El stepper compacto muestra los cuatro círculos de estado y solo la etiqueta del paso actual; las demás etiquetas siguen en su nombre accesible y en un tooltip. La navegación del stepper no cambia.
+
+**Zona superior** (tres columnas en fila; el alto es el sobrante tras cabecera y dock)
+
+| Columna | Ancho por defecto | Mínimo | Máximo | Contenido |
+|---|---|---|---|---|
+| Lista de líneas | 300 px (18,75 rem) | 256 px (16 rem) | 480 px (30 rem) | Fila de título (título, contador y botón «Minimizar», una sola fila, 32 px), banner (si lo hay) y filas dentro del **mismo** scroll, pie «Corregir la letra» (32 px). |
+| Vista previa | El resto | 320 px (20 rem) | — | Encabezado «Vista previa» (en compacto, solo para lectores de pantalla), lienzo 16:9 y «Probar a pantalla completa». |
+| Panel | 360 px (22,5 rem) | 300 px (18,75 rem) | 480 px (30 rem) | Fila de pestañas «Sincronía / Estilo» con el botón «Minimizar» (36 px) y el contenido de la pestaña con scroll propio. |
+
+- **Vista previa**: el lienzo es el mayor rectángulo 16:9 que cabe en la columna descontando su encabezado (si es visible) y el botón; queda **centrado en horizontal y en vertical** dentro del hueco y el botón va justo debajo, centrado y con el ancho del lienzo (mínimo el de su texto). Fuera del lienzo solo hay fondo de la columna, sin bordes ni huecos vacíos fijos.
+- El alto mínimo de la zona superior es **136 px** (8,5 rem): fila de título, al menos una fila de línea y el pie. El banner de la lista (`edi.banner.sinsync`, `edi.banner.yasync`) se desplaza con las filas: nunca reduce la lista por debajo de una fila visible.
+- Entre columnas hay un **divisor** de 12 px (ver «Divisores»), en lugar del hueco actual de 16 px.
+
+**Dock inferior** (`fondo-1`, borde superior `borde`, relleno 8 px; 4 px en compacto)
+- **Transporte, siempre dos filas** desde 1024 px de ancho, sin partirse:
+  - Fila 1: ⏮ · ▶/❚❚ · tiempo · barra de tiempo (ocupa el ancho libre, mínimo 240 px) · Velocidad · volumen.
+  - Fila 2: Escuchar · (hueco flexible) · «Sincronizar al ritmo (S)» · primario («Marcar como lista» / «Hecho»).
+  - «Cargando audio…» sustituye al tiempo de la fila 1 (sin fila extra).
+  - Alto: 36 px por fila (96 px con relleno); en compacto, controles de 32 px (80 px). 32 px sigue siendo el objetivo mínimo de sistema-visual §4.
+- **Línea de tiempo** (solo en la pestaña Sincronía, como hasta ahora): fila de controles en una línea (título, −, +, Zoom a la línea, Ver canción completa, Centrar en el cabezal y, a la derecha, «Minimizar»), regla 32 px, pista de voz y líneas, vista general 32 px.
+  - Pista de voz y líneas: **76 px por defecto**, **48 px mínimo**. Es lo único que crece cuando el usuario agranda el dock.
+  - Alto de la sección: 216 px por defecto (204 px en compacto); mínimo 188 px (176 px en compacto).
+- En la pestaña **Estilo** no hay línea de tiempo: el dock es solo el transporte, no hay divisor del dock y la zona superior ocupa el resto. El alto guardado de la línea de tiempo no cambia y se vuelve a aplicar al regresar a Sincronía.
+- **Modo «Sincronizar al ritmo»**: el banner E ocupa el lugar de la línea de tiempo (que en el modo está inactiva); durante el modo la línea de tiempo se muestra **minimizada** (minimapa y cabezal) bajo el banner y la fila 2 del transporte conserva solo «Escuchar». Si el dock es más bajo que lo que necesita el banner (≈ 140 px), crece temporalmente sin bajar la zona superior de 136 px. Al salir del modo vuelven el alto y el estado anteriores. Nada de esto se guarda como preferencia.
+
+#### Qué cede primero cuando falta espacio
+
+Las preferencias guardadas son **tamaños preferidos**; lo que se dibuja es el **tamaño efectivo**, calculado en cada redimensionado de la ventana en este orden, sin modificar la preferencia:
+
+**Alto**
+1. La zona superior (y con ella la vista previa) se reduce hasta 136 px.
+2. La pista de voz se reduce desde su alto preferido hasta 48 px.
+3. Con alto < 800 se aplica además el modo compacto (cabecera de una fila, controles de dock de 32 px, márgenes menores, encabezado de la vista previa solo para lectores).
+4. Si aún no cabe, la línea de tiempo pasa a **minimizada por falta de espacio** (estado temporal, ver «Modos minimizados»).
+5. Si con la línea de tiempo minimizada sigue sin caber, se aplica «Por debajo del mínimo».
+
+Con los valores por defecto: a 1024 × 576 la zona superior mide ≈ 150 px y la línea de tiempo se ve completa; a 1280 × 720, ≈ 300 px; a 1536 × 864, ≈ 356 px.
+
+**Ancho**
+1. La vista previa se reduce hasta 320 px.
+2. La lista se reduce hasta 256 px.
+3. El panel se reduce hasta 300 px.
+4. A 1024 px de ancho los tres mínimos y los divisores caben (256 + 320 + 300 + 24 + 32 de márgenes = 932 px). Un panel minimizado libera su ancho para la vista previa.
+
+**Por debajo del mínimo** (viewport < 1024 px de ancho o alto insuficiente incluso con la línea de tiempo minimizada, ≈ < 400 px; solo ocurre con zoom de interfaz o escala ≥ 150 %):
+- Por ancho: se usa la disposición B anterior (una columna izquierda con pestañas y la vista previa a la derecha), sin divisores entre columnas ni modos minimizados de lista y panel. El dock y su divisor se mantienen.
+- Se permite **scroll vertical de la página**; nunca horizontal. Ningún control queda cortado ni superpuesto.
+- Las preferencias guardadas no cambian.
+
+#### Divisores
+
+Tres divisores: **lista ↔ vista previa**, **vista previa ↔ panel** y **zona superior ↔ dock** (este último solo en Sincronía).
+
+| Aspecto | Lista ↔ vista previa | Vista previa ↔ panel | Zona superior ↔ dock |
+|---|---|---|---|
+| Controla | Ancho de la lista | Ancho del panel | Alto de la línea de tiempo |
+| `aria-orientation` | `vertical` | `vertical` | `horizontal` |
+| Cursor | `col-resize` | `col-resize` | `row-resize` |
+| Agrandar con | → | ← | ↑ |
+| Reducir con | ← | → | ↓ |
+| Por defecto | 300 px | 360 px | 216 px (204 en compacto) |
+| Mínimo | 256 px | 300 px | 188 px (176 en compacto) |
+| Máximo | mín(480 px, lo que deje 320 px a la vista previa) | mín(480 px, lo que deje 320 px a la vista previa) | lo que deje 136 px a la zona superior |
+
+**Aspecto**: franja de 12 px (zona de agarre completa) con una línea centrada de 1 px `borde` y un agarre de puntos `⋮` (o `⋯` en el horizontal) de 16 px en `texto-3`, centrado, con objetivo de 24 × 24 px. *Hover*: línea de 2 px `borde-control`. Arrastrando: línea de 2 px `acento-texto`. Foco de teclado (`:focus-visible`): línea de 2 px `foco` y anillo estándar de sistema-visual §7 alrededor de la franja.
+
+**Ratón**
+- Arrastrar redimensiona en vivo (captura de puntero; durante el arrastre el cursor se mantiene en toda la ventana y no se selecciona texto). El tamaño se detiene en el mínimo y en el máximo efectivos; minimizar nunca ocurre por arrastre.
+- **Esc** durante el arrastre lo cancela y devuelve el tamaño previo. Perder la captura confirma el último tamaño.
+- **Doble clic**: restablece el tamaño por defecto de lo que controla y, si estaba minimizado, lo expande.
+- Tooltip (a los 500 ms de *hover*): `edi.layout.divisor.tooltip`.
+
+**Teclado** (patrón *Window Splitter* de WAI-ARIA)
+- `role="separator"`, enfocable (`tabindex="0"`), en el orden de tabulación entre los dos elementos que separa. `aria-controls` = id de la columna o sección que controla. `aria-label` según «Microcopy».
+- `aria-valuenow` = tamaño efectivo en px de lo que controla; `aria-valuemin` / `aria-valuemax` = mínimo y máximo efectivos actuales. `aria-valuetext` = `edi.layout.valor` («300 píxeles») o `edi.layout.valor.minimizado`.
+- Flechas de su eje: ±16 px. **Mayús** + flecha: ±64 px. **Inicio**: mínimo. **Fin**: máximo efectivo. **Intro**: minimiza o expande lo que controla (alternar). Con el foco en el divisor, las cuatro flechas son del divisor: las del otro eje no hacen nada (en particular, ↑/↓ en un divisor vertical **no** cambian de línea). Espacio y el resto de atajos del editor siguen funcionando.
+- Cada cambio por teclado se aplica al instante y lo anuncia el propio `aria-valuetext`; no hay anuncios extra.
+
+**Restablecer todo**: menú ⋯ de la cabecera → `edi.layout.restablecer`. Devuelve los tres tamaños por defecto, expande todo y anuncia `edi.layout.anuncio.restablecida`. El foco vuelve al botón ⋯.
+
+#### Modos minimizados
+
+Minimizar **nunca oculta**: cada panel queda como una barra compacta con sus controles rápidos. Los modos son independientes y combinables.
+
+**Lista minimizada** — riel vertical de **72 px** a la izquierda:
+```
+┌──────┐
+│ [»]  │  Expandir lista de líneas
+│  12  │  número de la línea seleccionada (t-subtitulo)
+│ de 52│  (t-pequeno, texto-2)
+│00:04.│  tiempo mostrado (t-tiempo; "--:--" sin inicio)
+│  20  │
+│ [↑]  │  Línea anterior (↑)
+│ [↓]  │  Línea siguiente (↓)
+│ [I]  │  Fijar inicio aquí (I)
+└──────┘
+```
+- La línea mostrada es la **seleccionada** (la que edita el panel). El texto de la línea va en el tooltip y en el nombre accesible del indicador (`edi.layout.riel.linea`). Con ▶ (línea que suena) distinta de la seleccionada no se muestra nada extra: la vista previa ya la enseña.
+- ↑/↓ y «I» hacen exactamente lo mismo que sus atajos (que siguen funcionando con el riel). «I» respeta los límites y muestra el tooltip de límite junto al botón.
+- El contador, el banner y «Corregir la letra» no están en el riel: se recuperan al expandir.
+
+**Panel minimizado** — riel vertical de **120 px** a la derecha:
+```
+┌──────────┐
+│ [«]      │  Expandir panel
+│ Inicio   │  (t-pequeno, texto-2)
+│ 00:04.20 │  (t-tiempo, solo lectura)
+│ Fin      │
+│ 00:07.85 │  en texto-2 + "automático" debajo si es automático
+│[Fijar fin│  Fijar fin aquí (O)
+│   (O)]   │
+│ ☐ Bloquear│ casilla "Bloquear enunciado" (etiqueta en dos renglones)
+│ enunciado│
+└──────────┘
+```
+- Los valores de Inicio/Fin son de **solo lectura**: para escribirlos hay que expandir. «Fijar fin (O)» y la casilla se comportan como en el panel completo (inactivos sin inicio, con el motivo `edi.timeline.bucle.sinInicio` / `edi.fin.sininicio` en tooltip; inactivos en el modo sincronizar).
+- El riel siempre muestra los controles de Sincronía, aunque la última pestaña fuese Estilo. Al expandir, vuelve la pestaña que estaba activa. El punto `aviso` de contraste se muestra sobre el botón «Expandir panel» mientras haya algún ⚠ (con el nombre accesible `edi.layout.panel.expandir.aviso`).
+
+**Línea de tiempo minimizada** — fila de **44 px** (40 en compacto) en el dock, bajo el transporte:
+```
+│ [⌃] Línea de tiempo  ├──────[▓ intervalo visible ▓]────┃──────────────────────┤ │
+```
+- Contiene el botón «Expandir línea de tiempo», la etiqueta «Línea de tiempo» y el **minimapa** de la vista general (mini regiones, rectángulo del intervalo visible y cabezal) a todo el ancho restante.
+- El minimapa minimizado solo informa y busca: un clic busca a ese instante (como la barra del transporte); el rectángulo **no** se arrastra. Es `aria-hidden` porque la barra de tiempo del transporte es su equivalente accesible.
+- El intervalo visible, el zoom y la selección se conservan al minimizar y expandir (expandir **no** centra en el cabezal).
+- **Minimizada por falta de espacio** (paso 4 de «Qué cede primero»): la fila es la misma, el botón «Expandir línea de tiempo» queda `aria-disabled="true"` con el tooltip `edi.layout.timeline.sinEspacio`, y no se guarda como preferencia. Al haber espacio otra vez, vuelve sola al estado preferido. Si el foco estaba dentro de la línea de tiempo, pasa al botón «Expandir línea de tiempo» y se anuncia `edi.layout.anuncio.sinEspacio`.
+
+**Cómo se minimiza y se expande**
+- Botón icono en la cabecera de cada panel: lista `[«]` (`panel-left-close` / `panel-left-open`), panel `[»]` (`panel-right-close` / `panel-right-open`), línea de tiempo `[⌄]` / `[⌃]` (`chevron-down` / `chevron-up`). Son 32 × 32 px, con tooltip y `aria-expanded` + `aria-controls`.
+- **Intro** en el divisor correspondiente alterna el estado. Con el panel minimizado, su divisor sigue enfocable: Intro, una flecha que agrande o un arrastre lo expanden (arrastrando, el tamaño parte del mínimo y sigue al puntero).
+- Doble clic en el divisor: expande con el tamaño por defecto.
+- No hay atajo de una tecla para minimizar (evita choques con los atajos de sincronía).
+
+**Foco al cambiar de modo**
+- Con el botón del panel: el foco pasa al botón equivalente del otro modo («Minimizar» → «Expandir» del riel o la fila, y al revés), en la misma posición visual.
+- Con Intro o doble clic en un divisor: el foco se queda en el divisor.
+- Si el elemento enfocado deja de existir por otro motivo (p. ej. «Restablecer distribución» o falta de espacio), el foco va al botón «Expandir»/«Minimizar» del panel afectado; nunca queda en `body`.
+- Lista minimizada: «Saltar al contenido» y el foco inicial de entrada (cuando correspondía a la lista) van al botón «Expandir lista de líneas».
+
+**Anuncios** (`aria-live="polite"`, la región del editor ya existente, una vez por cambio): `edi.layout.anuncio.minimizado` / `edi.layout.anuncio.expandido` con el nombre del panel; `edi.layout.anuncio.sinEspacio`; `edi.layout.anuncio.restablecida`. Las regiones conservan su *landmark* y nombre añadiendo el estado: «Lista de líneas, minimizada», «Panel, minimizado», «Línea de tiempo, minimizada».
+
+#### Panel angosto: «Desplazamiento de toda la letra»
+
+Corrige el título duplicado y el salto de renglón del reporte:
+```
+│ Desplazamiento de toda la letra                    │  h3, una sola vez
+│ [−0,1 s] [ +0,00 ] [+0,1 s] [↺]                    │  una sola fila, nunca se parte
+│ Úsalo si toda la letra va adelantada o atrasada…   │
+```
+- El título visible aparece **una sola vez** (el `h3`). El grupo lleva `role="group"` con `aria-labelledby` al `h3`. El campo **no** tiene etiqueta visible propia; su nombre accesible es `edi.offset.campo` («Segundos de desplazamiento») y su ayuda (`aria-describedby`) es `edi.offset.ayuda`.
+- Fila única: −0,1 s (botón) · campo de 5,5 rem (88 px) con la unidad implícita · +0,1 s · **Restablecer** como botón icono `rotate-ccw` 36 × 36 con tooltip y nombre `edi.offset.restablecer` (inactivo con 0). Total ≈ 264 px: cabe en el panel a su mínimo (300 px con scroll reservado). Ningún control de esta fila pasa a otra línea entre 300 y 480 px de ancho.
+- Los mensajes de error y de límite del campo (`edi.offset.rango`) van debajo de la fila, sin moverla.
+- Regla general del panel: en todo su rango de anchos (300–480 px) ningún encabezado se repite como etiqueta visible del control que encabeza, y las filas de botones del panel (Inicio, Fin, desplazamiento) no se parten salvo que el panel diga lo contrario.
+
+#### Persistencia (preferencia global)
+
+- Se guardan **para todas las canciones** (no en `cancion.json`): ancho preferido de la lista, ancho preferido del panel, alto preferido de la línea de tiempo y los tres estados minimizado/expandido. Dónde y cómo se escriben lo decide el arquitecto (p. ej. junto a `config.reproductor.volumen`).
+- Valores por defecto: lista 300 px expandida, panel 360 px expandido, línea de tiempo 216 px expandida.
+- Se guarda al **soltar** un arrastre, tras una ráfaga de teclado (≈ 500 ms sin cambios), al minimizar o expandir y al restablecer. Nunca durante el arrastre.
+- Se guardan los **tamaños preferidos** (en px a zoom 100 %), no los efectivos. Si la preferencia no cabe en la ventana actual, se dibuja el tamaño efectivo recortado según «Qué cede primero» **sin sobrescribir** la preferencia; al agrandar la ventana se recupera el tamaño preferido. Solo una acción del usuario sobre ese divisor o panel cambia la preferencia (y entonces se guarda el valor que el usuario ve).
+- El estado temporal «minimizada por falta de espacio», el dock del modo sincronizar y la disposición de «Por debajo del mínimo» **no** se guardan.
+- Una preferencia ausente, ilegible o fuera de rango (menor que el mínimo o mayor que el máximo absoluto) se sustituye por el valor por defecto de ese campo, sin aviso.
+- Ni minimizar ni redimensionar entran en el historial de deshacer ni marcan la canción como modificada.
+
+#### Seguimiento del cabezal
+
+Se mantiene la regla de la segunda fase: **el intervalo visible es independiente del audio**. Al reproducir, el cabezal avanza y puede salir de la vista; la vista solo se mueve con «Centrar en el cabezal», zoom, paneo o la vista general. Minimizar, expandir o redimensionar la línea de tiempo tampoco la mueve. Si se decide un seguimiento automático, lo recogerá esta spec tras la respuesta a [0051](../preguntas/0051-seguimiento-automatico-del-cabezal.md).
+
+#### Microcopy añadido (subfase 2.1)
+
+| Clave | Texto |
+|---|---|
+| `edi.layout.divisor.lista` | Ancho de la lista de líneas |
+| `edi.layout.divisor.panel` | Ancho del panel |
+| `edi.layout.divisor.dock` | Alto de la línea de tiempo |
+| `edi.layout.divisor.tooltip` | Arrastra para cambiar el tamaño. Doble clic: tamaño original. |
+| `edi.layout.valor` | {n} píxeles |
+| `edi.layout.valor.minimizado` | Minimizado · (femenino: lista, línea de tiempo) Minimizada |
+| `edi.layout.lista.minimizar` / `edi.layout.lista.expandir` | Minimizar lista de líneas · Expandir lista de líneas |
+| `edi.layout.panel.minimizar` / `edi.layout.panel.expandir` | Minimizar panel · Expandir panel |
+| `edi.layout.panel.expandir.aviso` | Expandir panel (hay avisos de contraste) |
+| `edi.layout.timeline.minimizar` / `edi.layout.timeline.expandir` | Minimizar línea de tiempo · Expandir línea de tiempo |
+| `edi.layout.timeline.sinEspacio` | No cabe en esta ventana. Agrándala para ver la línea de tiempo completa. |
+| `edi.layout.riel.linea` | Línea {n} de {total}, {tiempo}: {texto} · (sin inicio) Línea {n} de {total}, sin sincronizar: {texto} |
+| `edi.layout.riel.anterior` / `edi.layout.riel.siguiente` | Línea anterior (↑) · Línea siguiente (↓) |
+| `edi.layout.riel.fijarinicio` | Fijar inicio aquí (I) |
+| `edi.layout.riel.fijarfin` | Fijar fin (O) — nombre accesible: Fijar fin aquí (O) |
+| `edi.layout.riel.auto` | automático |
+| `edi.layout.restablecer` | Restablecer distribución de paneles |
+| `edi.layout.anuncio.minimizado` | {Panel} minimizado · (femenino) {Panel} minimizada |
+| `edi.layout.anuncio.expandido` | {Panel} expandido · (femenino) {Panel} expandida |
+| `edi.layout.anuncio.sinEspacio` | La línea de tiempo se ha minimizado porque no cabe en la ventana. |
+| `edi.layout.anuncio.restablecida` | Distribución de paneles restablecida. |
+| `edi.layout.region.minimizada` | {Región}, minimizada · (masculino) {Región}, minimizado |
+| `edi.offset.campo` | Segundos de desplazamiento |
+| `edi.offset.restablecer` | Restablecer desplazamiento (0,00 s) |
+
+Nombres de panel en anuncios y regiones: «Lista de líneas» (f.), «Panel» (m.), «Línea de tiempo» (f.).
+
+#### Criterios de aceptación de la subfase 2.1
+
+Matriz de verificación: los seis viewports de «Unidades y tamaños de prueba» (1280 × 720, 1720 × 1440 y 1920 × 1080, cada uno a escala 100 % y 125 %), en Electron, con una canción de prueba de ≥ 60 líneas, separación completada y picos listos, salvo que el criterio diga otra cosa.
+
+**Distribución**
+1. En los seis viewports, con los valores por defecto, en las pestañas Sincronía y Estilo, en pausa, reproduciendo 5 s y tras redimensionar la ventana (crecer y encoger): `document.documentElement.scrollHeight <= innerHeight` y `scrollWidth <= innerWidth`. Ningún elemento de la vista sobresale del viewport (`getBoundingClientRect()` dentro de `[0, innerWidth] × [0, innerHeight]`).
+2. Cabecera, las tres columnas, el transporte (dos filas) y la línea de tiempo completa son visibles a la vez en los seis viewports sin minimizar nada. El título del panel y el campo Inicio se ven sin desplazar el panel.
+3. Solo la lista de líneas y el contenido del panel tienen scroll propio; con 60 líneas, la lista hace scroll y la página no. Todo control del panel (Sincronía y Estilo) es visible o alcanzable con el scroll del panel.
+4. El lienzo de la vista previa mantiene 16:9 (± 1 px) y está centrado en su hueco (diferencia entre márgenes izquierdo y derecho, y entre superior e inferior, ≤ 1 px); «Probar a pantalla completa» queda justo debajo del lienzo.
+5. Con alto < 800 se aplica el modo compacto (cabecera de una fila de 48 px con el stepper compacto, controles del dock de 32 px). A 1280 × 720 y 1024 × 576 la zona superior mide ≥ 136 px y muestra al menos una fila de línea, el título de la lista y «Corregir la letra».
+6. Las dos filas del transporte y la fila de controles de la línea de tiempo no se parten en ningún viewport de la matriz; la barra de tiempo mide ≥ 240 px.
+7. En la pestaña Estilo no hay línea de tiempo ni divisor del dock y la zona superior ocupa el alto liberado; al volver a Sincronía se recupera el alto anterior de la línea de tiempo.
+8. En el modo sincronizar, el banner E y la línea de tiempo minimizada caben en el dock sin scroll de página en los seis viewports; al salir vuelven el alto y el estado anteriores, sin cambiar la preferencia guardada.
+
+**Divisores**
+9. Arrastrar cada divisor cambia su tamaño en vivo y se detiene en los mínimos (lista 256, panel 300, línea de tiempo 188/176 px) y en los máximos efectivos (vista previa ≥ 320 px, zona superior ≥ 136 px, lista y panel ≤ 480 px). Esc durante el arrastre restaura el tamaño previo.
+10. Cada divisor tiene `role="separator"`, `aria-orientation`, `aria-controls`, `aria-label` de «Microcopy» y `aria-valuenow`/`aria-valuemin`/`aria-valuemax` iguales a los px efectivos; `aria-valuetext` dice «{n} píxeles» o «Minimizado/Minimizada».
+11. Con el foco en un divisor: las flechas de su eje cambian 16 px (64 px con Mayús) en el sentido de la tabla; Inicio y Fin llevan al mínimo y al máximo; Intro minimiza y expande; ↑/↓ en un divisor vertical no cambian la línea seleccionada; Espacio sigue reproduciendo/pausando.
+12. Doble clic en un divisor devuelve el tamaño por defecto (y expande si estaba minimizado). «Restablecer distribución de paneles» del menú ⋯ devuelve los tres tamaños por defecto, expande todo, lo anuncia y deja el foco en ⋯.
+13. Los divisores muestran cursor `col-resize`/`row-resize`, línea de *hover* y de arrastre, y anillo de foco visible solo con teclado; el objetivo de agarre mide ≥ 12 px en su eje.
+
+**Modos minimizados**
+14. La lista minimizada (riel de 72 px) muestra número, total y tiempo de la línea seleccionada; ↑/↓ del riel y de teclado cambian la selección saltando pausas; «I» del riel fija el inicio en la posición actual con los mismos límites y avisos que el atajo.
+15. El panel minimizado (riel de 120 px) muestra Inicio y Fin de la línea seleccionada (Fin con «automático» si lo es), «Fijar fin (O)» fija el fin y la casilla «Bloquear enunciado» inicia y termina el bucle igual que en el panel; ambos quedan inactivos sin inicio o en el modo sincronizar, con su motivo. Con un aviso de contraste, el botón «Expandir panel» lleva el punto `aviso` y su nombre accesible lo dice.
+16. La línea de tiempo minimizada (fila de 44/40 px) muestra minimapa, intervalo visible y cabezal en movimiento al reproducir; un clic en el minimapa busca. Expandirla conserva el intervalo visible, el zoom y la selección.
+17. Minimizar y expandir funcionan con el botón de cada panel y con Intro en su divisor; el foco sigue las reglas de «Foco al cambiar de modo» (nunca queda en `body`) y cada cambio se anuncia una vez con `edi.layout.anuncio.*`.
+18. Con una ventana en la que la línea de tiempo no cabe ni a su mínimo (p. ej. 1024 × 500 CSS), se minimiza sola, su botón queda `aria-disabled` con `edi.layout.timeline.sinEspacio`, se anuncia, y al agrandar la ventana vuelve expandida sin que la preferencia guardada haya cambiado.
+19. Por debajo de 1024 px de ancho (zoom de interfaz 150 % en una ventana de 1280 × 720) se usa la disposición B, hay como mucho scroll vertical de página, nunca horizontal, y ningún control queda cortado.
+
+**Panel angosto**
+20. Con el panel a 300, 360 y 480 px, la fila del desplazamiento (−0,1 s · campo · +0,1 s · Restablecer) está en un solo renglón (mismo `top` para los cuatro controles), el texto «Desplazamiento de toda la letra» aparece una sola vez en pantalla, el campo tiene el nombre accesible `edi.offset.campo` y el grupo se anuncia con el título. Restablecer está inactivo con 0 y deja el valor en 0.
+
+**Persistencia**
+21. Tras cambiar los tres tamaños y minimizar dos paneles, cerrar y volver a abrir la app (y abrir otra canción) muestra los mismos tamaños y estados.
+22. Con una preferencia guardada mayor que lo que cabe (p. ej. lista 480 y panel 480 a 1024 px de ancho, o línea de tiempo de 600 px a 1280 × 720), se dibuja recortada sin scroll de página; la preferencia guardada no cambia hasta que el usuario actúa sobre ese divisor, y al agrandar la ventana se recupera.
+23. Una preferencia ausente, corrupta o fuera de rango arranca con los valores por defecto sin error visible. Redimensionar o minimizar no crea pasos de deshacer ni cambia el indicador de guardado de la canción.
+
+**Sin regresiones**
+24. El seguimiento de la línea que suena en la lista, la selección desde la línea de tiempo, los tiradores, el zoom, el bucle y los atajos de la tabla del editor funcionan igual con cualquier combinación de tamaños y modos; la vista de la línea de tiempo no sigue sola al cabezal.
+
+**Capturas de revisión**
+25. Se guardan en `docs/ux/revision-fase-2.1/` en PNG con el nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` (tamaño físico, p. ej. `editor-1280x720-125-defecto.png`). Como mínimo, para los seis viewports: `defecto` (Sincronía) y `estilo`; y a 1280 × 720 al 100 % y al 125 %: `lista-min`, `panel-min`, `timeline-min`, `todo-min`, `sync` (modo sincronizar) y `foco-divisor`. Además, `panel-300` con la fila del desplazamiento y `bajo-minimo` (disposición B). Cada captura muestra la ventana completa, sin recortes.

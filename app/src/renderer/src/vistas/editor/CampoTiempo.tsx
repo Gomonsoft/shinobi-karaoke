@@ -6,6 +6,10 @@ import { E } from './textos'
 
 interface Props {
   etiqueta: string
+  /** Nombre accesible sin etiqueta visible (otro título ya encabeza el campo). */
+  etiquetaOculta?: boolean
+  /** Id de un texto de ayuda externo al campo. */
+  describedBy?: string
   valor: string
   aplicar(msMostrado: number): void
   interpretar?(texto: string): number | null
@@ -17,6 +21,8 @@ interface Props {
 
 export function CampoTiempo({
   etiqueta,
+  etiquetaOculta,
+  describedBy,
   valor,
   aplicar,
   interpretar = interpretarTiempo,
@@ -47,6 +53,8 @@ export function CampoTiempo({
     >
       <CampoTexto
         etiqueta={etiqueta}
+        etiquetaOculta={etiquetaOculta}
+        aria-describedby={describedBy}
         value={edicion?.texto ?? valor}
         disabled={inactivo}
         ayuda={ayuda}

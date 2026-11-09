@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent } from 'react'
+import { ATRIBUTO_ARRASTRE_DIVISOR } from '../../componentes/Divisor'
 import { accionDeTecla, type AccionAtajo, type FocoEditor } from './atajos'
 
 export function useAtajosEditor(
@@ -9,6 +10,8 @@ export function useAtajosEditor(
   const pulsar = useEffectEvent((e: KeyboardEvent) => {
     if (
       e.defaultPrevented ||
+      // Durante el arrastre de un divisor, Esc y el resto de teclas son del arrastre.
+      document.body.dataset[ATRIBUTO_ARRASTRE_DIVISOR] ||
       document.querySelector(
         '[role="dialog"], [role="menu"], [role="listbox"][aria-activedescendant]'
       )

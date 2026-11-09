@@ -222,4 +222,35 @@ describe('RegistroArchivo', () => {
     const r = new RegistroArchivo(join(datos, 'config-no-existe', '\0'))
     expect(() => r.escribir('error', 'm', 'x')).not.toThrow()
   })
+
+  describe('editor.paneles', () => {
+    it('un valor inválido no aparta el config y conserva el resto', async () => {
+      await writeFile(
+        join(datos, 'config.json'),
+        JSON.stringify({
+          esquema: 1,
+          instalacion: { estado: 'completa' },
+          reproductor: { volumen: 0.3 },
+          editor: { paneles: { lista: { ancho: 2000 }, panel: { ancho: 320, minimizado: 'si' } } }
+        })
+      )
+      const s = await ServicioConfig.abrir(datos)
+      const c = s.obtener()
+      expect(c.instalacion.estado).toBe('completa')
+      expect(c.reproductor.volumen).toBe(0.3)
+      expect(c.editor.paneles.lista.ancho).toBe(300)
+      expect(c.editor.paneles.panel).toEqual({ ancho: 320, minimizado: false })
+      expect(await readdir(datos)).not.toContain('config.json.danado')
+    })
+    it('actualizar fusiona solo el campo indicado y lo persiste', async () => {
+      const s = await ServicioConfig.abrir(datos)
+      await s.actualizar({ editor: { paneles: { lista: { ancho: 320 } } } })
+      const c = await leerConfigDisco()
+      expect(c.editor.paneles).toEqual({
+        lista: { ancho: 320, minimizado: false },
+        panel: { ancho: 360, minimizado: false },
+        linea_tiempo: { alto: null, minimizado: false }
+      })
+    })
+  })
 })

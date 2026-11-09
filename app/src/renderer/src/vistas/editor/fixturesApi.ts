@@ -75,7 +75,9 @@ export function cancionListaIncompleta(): Cancion {
 
 type ApiEditor = {
   [K in 'biblioteca' | 'letras' | 'app' | 'trabajos']: Partial<ApiShinobi[K]>
-} & Pick<ApiShinobi, 'config' | 'alCambiarCancion'> & { ventana: ReturnType<typeof ventanaFalsa> }
+} & Pick<ApiShinobi, 'config' | 'alCambiarCancion' | 'alCambiarConfig'> & {
+    ventana: ReturnType<typeof ventanaFalsa>
+  }
 
 type OpcionesApiEditor = {
   cancion?: Cancion
@@ -101,6 +103,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   const llamadas: { metodo: string; args: unknown[] }[] = []
   const fallos = new Map<string, { codigo: CodigoError; veces: number }>()
   const oyentes = new Set<Parameters<ApiShinobi['alCambiarCancion']>[0]>()
+  const oyentesConfig = new Set<Parameters<ApiShinobi['alCambiarConfig']>[0]>()
 
   function registrar(metodo: string, ...args: unknown[]): void {
     llamadas.push({ metodo, args: structuredClone(args) })
@@ -235,6 +238,13 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         if (cambio.estilo_predeterminado) {
           config.estilo_predeterminado = structuredClone(cambio.estilo_predeterminado)
         }
+        const paneles = cambio.editor?.paneles
+        if (paneles) {
+          Object.assign(config.editor.paneles.lista, paneles.lista)
+          Object.assign(config.editor.paneles.panel, paneles.panel)
+          Object.assign(config.editor.paneles.linea_tiempo, paneles.linea_tiempo)
+        }
+        for (const oyente of oyentesConfig) oyente(structuredClone(config))
         return structuredClone(config)
       }
     },
@@ -254,6 +264,10 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     alCambiarCancion(oyente) {
       oyentes.add(oyente)
       return () => oyentes.delete(oyente)
+    },
+    alCambiarConfig(oyente) {
+      oyentesConfig.add(oyente)
+      return () => oyentesConfig.delete(oyente)
     }
   }
 

@@ -5,6 +5,7 @@ import { cancionSchema, ESTADOS_PASO, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
 import { estiloSchema, type Estilo } from './estilo'
 import { configSchema } from './config'
+import { LIMITES_PANELES } from './paneles'
 import { MODELOS_SEPARACION, perfilSchema, plataformaSchema } from './manifiesto'
 import {
   DISPOSITIVOS_SEPARACION,
@@ -206,7 +207,48 @@ export const configParcialRendererSchema = z.strictObject({
   // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
   // cambian `aceptarYUsarRapido` y `volverACalidad` (0057).
   estilo_predeterminado: estiloSchema.optional(),
-  aviso_youtube_aceptado: z.iso.datetime().nullable().optional()
+  aviso_youtube_aceptado: z.iso.datetime().nullable().optional(),
+  // Preferencias de paneles del editor (0155): estrictas y sin `.catch`; un valor inválido se rechaza.
+  editor: z
+    .strictObject({
+      paneles: z.strictObject({
+        lista: z
+          .strictObject({
+            ancho: z
+              .number()
+              .int()
+              .min(LIMITES_PANELES.lista.min)
+              .max(LIMITES_PANELES.lista.max)
+              .optional(),
+            minimizado: z.boolean().optional()
+          })
+          .optional(),
+        panel: z
+          .strictObject({
+            ancho: z
+              .number()
+              .int()
+              .min(LIMITES_PANELES.panel.min)
+              .max(LIMITES_PANELES.panel.max)
+              .optional(),
+            minimizado: z.boolean().optional()
+          })
+          .optional(),
+        linea_tiempo: z
+          .strictObject({
+            alto: z
+              .number()
+              .int()
+              .min(LIMITES_PANELES.linea_tiempo.min)
+              .max(LIMITES_PANELES.linea_tiempo.max)
+              .nullable()
+              .optional(),
+            minimizado: z.boolean().optional()
+          })
+          .optional()
+      })
+    })
+    .optional()
 })
 export type ConfigParcialRenderer = z.infer<typeof configParcialRendererSchema>
 

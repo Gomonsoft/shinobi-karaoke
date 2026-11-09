@@ -93,7 +93,7 @@ Tamaño mínimo de texto en la interfaz: **13 px**. Respetar el zoom de Electron
 - Márgenes de vista: 32 px (≥ 1280 px de ancho) / 24 px (< 1280).
 - **Radios**: `r-s` 6 px (campos, insignias), `r-m` 10 px (botones, tarjetas), `r-l` 16 px (diálogos, paneles flotantes). Píldora (999 px) solo en insignias de estado.
 - **Elevación**: sin sombras grandes; los niveles se distinguen por `fondo-1…3`. Diálogos y menús: `0 8px 24px rgba(0,0,0,0.45)`.
-- **Ventana**: tamaño mínimo **1024 × 640 px**; diseño de referencia 1280 × 800. Punto de corte único: **1280 px** (ver specs de Biblioteca y Editor).
+- **Ventana**: tamaño mínimo del **área de contenido** **1024 × 576 px CSS** (desde la subfase 2.1 de 0.2.0; antes 1024 × 640). Es el viewport de una ventana de 1280 × 720 a escala 125 %. Electron lo aplica al contenido, sin contar el marco (`useContentSize`, [ADR 0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--layout-adaptable-y-paneles)). Diseño de referencia 1280 × 800. Punto de corte único de ancho: **1280 px** (ver specs de Biblioteca y Editor); el editor añade el modo compacto de altura (< 800 px, ver [Editor, subfase 2.1](06-editor.md#subfase-21--layout-adaptable-y-paneles)). Las vistas que no son el editor conservan el desplazamiento vertical de página cuando no caben.
 - **Objetivos táctiles/clic**: mínimo 32 × 32 px (36 px de alto en botones normales, 44 px en botones grandes y en los del reproductor).
 - **Movimiento**: transiciones de 120–200 ms (`ease-out`). Con `prefers-reduced-motion: reduce`, se eliminan transiciones de desplazamiento y escalado (el barrido de la letra **no** se elimina: es contenido, no decoración).
 
@@ -197,3 +197,12 @@ Compartidos por la vista previa del editor y el reproductor (la vista previa los
 | Vista general | Marco de ventana visible con borde y relleno, acompañado de etiqueta accesible con tiempos visibles. Mantener el marco legible aun cuando ocupa un tramo mínimo. |
 
 Mantener contraste perceptible de estados, límites y foco, también cuando la pista no dispone de onda. Ver [Editor, segunda fase](06-editor.md#segunda-fase-de-020--línea-de-tiempo-de-sincronía).
+
+## 0.2.0 — Divisores y rieles del editor (subfase 2.1)
+
+| Componente | Tratamiento visual |
+|---|---|
+| Divisor | Franja de agarre de 12 px con línea centrada de 1 px `borde` y agarre `⋮`/`⋯` de 16 px en `texto-3` (objetivo 24 × 24). *Hover*: línea 2 px `borde-control`. Arrastre: 2 px `acento-texto`. Foco: línea 2 px `foco` + anillo de §7. Cursor `col-resize` / `row-resize`. |
+| Riel (panel minimizado) | `fondo-1`, borde `borde` hacia el contenido, botones icono de 32 × 32, valores en `t-tiempo`, etiquetas en `t-pequeno` `texto-2`. Lista 72 px, panel 120 px; la línea de tiempo minimizada es una fila de 44 px (40 en compacto). |
+
+El editor usa márgenes laterales de 16 px y el dock pegado al borde inferior, como excepción a §4. El mínimo de ventana de §4 (1024 × 576) coincide con el mínimo de diseño del editor. Medidas, mínimos y teclado en [Editor, subfase 2.1](06-editor.md#subfase-21--layout-adaptable-y-paneles).

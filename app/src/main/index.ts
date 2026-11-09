@@ -173,12 +173,17 @@ const controlCierre = crearControlCierre({
   salir: () => app.quit()
 })
 
+/** Mínimo de contenido de la ventana, px CSS (spec del editor, subfase 2.1). */
+const ANCHO_MINIMO_VENTANA = 1024
+const ALTO_MINIMO_VENTANA = 576
+
 function crearVentana(): BrowserWindow {
   const ventana = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 1024,
-    minHeight: 640,
+    minWidth: ANCHO_MINIMO_VENTANA,
+    minHeight: ALTO_MINIMO_VENTANA,
+    useContentSize: true,
     title: TITULO_APP,
     show: false,
     webPreferences: {
@@ -188,6 +193,17 @@ function crearVentana(): BrowserWindow {
       nodeIntegration: false
     }
   })
+
+  // Mínimo de diseño (1024 x 576) sobre el área de contenido. En Windows, `minWidth`/`minHeight`
+  // con `useContentSize` no descuentan la barra de menú, así que se ajusta con el marco real.
+  const ajustarMinimo = (): void => {
+    if (ventana.isDestroyed() || ventana.isFullScreen() || ventana.isMaximized()) return
+    const [w = 0, h = 0] = ventana.getSize()
+    const [cw = 0, ch = 0] = ventana.getContentSize()
+    ventana.setMinimumSize(ANCHO_MINIMO_VENTANA + (w - cw), ALTO_MINIMO_VENTANA + (h - ch))
+  }
+  ajustarMinimo()
+  ventana.once('ready-to-show', ajustarMinimo)
 
   const simular = !app.isPackaged && process.env.SHINOBI_PANTALLA_COMPLETA_SIMULADA === '1'
   modoReproductor.vincular(simular ? simularPantallaCompleta(ventana) : ventana)

@@ -24,6 +24,24 @@ body {
   font-weight: var(--t-cuerpo-peso);
 }
 
+/* El editor se adapta por debajo de 1024 px (disposición B) en lugar de forzar scroll horizontal. */
+body:has(main[data-vista='editor']) {
+  min-width: 0;
+}
+
+/* Arrastre de un divisor del editor: el cursor se mantiene en toda la ventana y no se selecciona texto. */
+body[data-arrastre-divisor] {
+  user-select: none;
+}
+body[data-arrastre-divisor='col'],
+body[data-arrastre-divisor='col'] * {
+  cursor: col-resize !important;
+}
+body[data-arrastre-divisor='fila'],
+body[data-arrastre-divisor='fila'] * {
+  cursor: row-resize !important;
+}
+
 h1,
 h2,
 h3,

@@ -1,17 +1,38 @@
 .timeline {
+  position: relative;
+  box-sizing: border-box;
+  height: var(--alto-linea-tiempo, auto);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--e-2);
   padding: var(--e-2);
   min-width: 0;
+  overflow-x: clip;
   border: 1px solid var(--borde);
   border-radius: var(--r-m);
   background: var(--fondo-1);
 }
 .controles {
   display: flex;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--e-2);
+}
+.controles > span:not([class]) {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.controles > :is(h2, button) {
+  flex: none;
+  white-space: nowrap;
+}
+.controles > :last-child {
+  margin-inline-start: auto;
 }
 .controles h2 {
   margin: 0;
@@ -22,6 +43,12 @@
   position: relative;
   margin-inline: var(--e-2);
   min-width: 0;
+}
+/* La pista de voz y líneas es lo único que crece con el dock (spec 06-editor, 2.1). */
+.eje {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .regla {
   position: relative;
@@ -53,12 +80,13 @@
 }
 .pista {
   position: relative;
-  height: 76px;
+  flex: 1 1 var(--alto-pista-voz, 76px);
+  min-height: 48px;
   border-block: 1px solid var(--borde);
 }
 .region {
   position: absolute;
-  top: 22px;
+  top: calc(50% - 16px);
   min-width: 0;
   height: 32px;
   overflow: hidden;
@@ -126,6 +154,16 @@
 .limite:empty {
   display: none;
 }
+/* El aviso de límite flota sobre la vista general para no cambiar el alto de la sección. */
+.limite:not(:empty) {
+  position: absolute;
+  z-index: 3;
+  inset-inline: var(--e-2);
+  bottom: 44px;
+  padding: var(--e-1) var(--e-2);
+  border-radius: var(--r-s);
+  background: var(--fondo-3);
+}
 .miniRegiones {
   position: absolute;
   inset: 0;
@@ -155,4 +193,40 @@
   top: 0;
   border: 5px solid transparent;
   border-top-color: var(--acento-texto);
+}
+
+/* Fila minimizada (44 px; 40 en compacto): botón, título y minimapa informativo. */
+.timeline.minimizada {
+  /* No depende de la variable de la distribución: se mide en el mismo fotograma en que aparece. */
+  height: var(--alto-fila-minimizada, 44px);
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding-block: 0;
+  overflow: hidden;
+}
+.minimizada h2 {
+  flex: none;
+  margin: 0;
+  font-size: var(--t-subtitulo);
+  white-space: nowrap;
+}
+.vistaGeneral.informativa {
+  flex: 1 1 0;
+  height: 28px;
+  min-height: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.ventanaInformativa {
+  cursor: inherit;
+  pointer-events: none;
+}
+.cabezalGeneral {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  border-inline-start: 2px solid var(--acento-texto);
+  pointer-events: none;
 }

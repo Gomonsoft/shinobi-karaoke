@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { EstadoPicos, LecturaPicos, TrabajoIpc } from '@shared/ipc'
-import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
+import { LienzoPicosVoz, PistaOndaVoz, tamanoLienzo, usePicosVoz } from './PistaOndaVoz'
 
 const solicitar = vi.fn<(id: string, reintentar?: boolean) => Promise<EstadoPicos>>()
 const leer = vi.fn<() => Promise<LecturaPicos | null>>()
@@ -20,7 +20,7 @@ beforeEach(() => {
       }
     }
   })
-  vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue(
+  vi.spyOn(HTMLDivElement.prototype, 'getBoundingClientRect').mockReturnValue(
     new DOMRect(0, 0, 200, 32)
   )
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
@@ -123,7 +123,7 @@ it('agrupa lecturas, descarta respuesta tardía y pinta los extremos sobre el ej
 })
 
 it('acota el presupuesto y cambia densidad sin volver a pedir la misma porción', async () => {
-  vi.mocked(HTMLCanvasElement.prototype.getBoundingClientRect).mockReturnValue(
+  vi.mocked(HTMLDivElement.prototype.getBoundingClientRect).mockReturnValue(
     new DOMRect(0, 5000, 5000, 32)
   )
   vi.stubGlobal('devicePixelRatio', 1)
@@ -152,4 +152,78 @@ it('acota el presupuesto y cambia densidad sin volver a pedir la misma porción'
   expect(vista.container.querySelector('canvas')).toHaveAttribute('width', '10000')
   expect(fillRect).toHaveBeenLastCalledWith(0, 16, 1000, 48)
   expect(leer).toHaveBeenCalledTimes(1)
+})
+
+const caja = (inlineSize: number, blockSize: number) => [{ inlineSize, blockSize }]
+
+it('tamanoLienzo prefiere el box en píxeles físicos y recurre a los demás', () => {
+  const rect = { width: 100.4, height: 32 }
+  expect(
+    tamanoLienzo(
+      {
+        contentRect: rect,
+        contentBoxSize: caja(1171.2, 32),
+        devicePixelContentBoxSize: caja(1464, 40)
+      },
+      1.25
+    )
+  ).toEqual({ ancho: 1464, alto: 40, presupuesto: 1172 })
+  expect(tamanoLienzo({ contentRect: rect, contentBoxSize: caja(1171.2, 32) }, 1.25)).toEqual({
+    ancho: 1464,
+    alto: 40,
+    presupuesto: 1172
+  })
+  expect(tamanoLienzo({ contentRect: rect }, 1.5)).toEqual({
+    ancho: 151,
+    alto: 48,
+    presupuesto: 101
+  })
+  expect(tamanoLienzo({ contentRect: { width: 9000, height: 32 } }, 1).presupuesto).toBe(4096)
+})
+
+it('observa el contenedor y no re-renderiza ni relee con una medición igual', async () => {
+  let notificar: (entradas: unknown[]) => void = () => {}
+  const observar = vi.fn()
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(fn: (entradas: unknown[]) => void) {
+        notificar = fn
+      }
+      observe = observar
+      disconnect(): void {}
+    }
+  )
+  const canvasRect = vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect')
+  leer.mockResolvedValue(null)
+  const entrada = (ancho: number, fisico: number) => [
+    {
+      contentRect: { width: ancho, height: 32 },
+      contentBoxSize: caja(ancho, 32),
+      devicePixelContentBoxSize: caja(fisico, 40)
+    }
+  ]
+  const vista = render(
+    <LienzoPicosVoz cancionId="cancion" generacion="g" inicioMs={0} finMs={100} />
+  )
+  const canvas = vista.container.querySelector('canvas')!
+  expect(observar).toHaveBeenCalledExactlyOnceWith(canvas.parentElement, {
+    box: 'device-pixel-content-box'
+  })
+  act(() => notificar(entrada(200, 250)))
+  await avanzar(60)
+  expect(canvas).toHaveAttribute('width', '250')
+  expect(leer).toHaveBeenCalledTimes(1)
+  const pintadas = clearRect.mock.calls.length
+
+  act(() => notificar(entrada(200, 250)))
+  await avanzar(60)
+  expect(leer).toHaveBeenCalledTimes(1)
+  expect(clearRect).toHaveBeenCalledTimes(pintadas)
+
+  act(() => notificar(entrada(300, 375)))
+  await avanzar(60)
+  expect(canvas).toHaveAttribute('width', '375')
+  expect(leer).toHaveBeenCalledTimes(2)
+  expect(canvasRect).not.toHaveBeenCalled()
 })

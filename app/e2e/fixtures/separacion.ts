@@ -162,10 +162,11 @@ export function preparar(
 
 export function lanzar(
   e: Entorno,
-  extra: Record<string, string> = {}
+  extra: Record<string, string> = {},
+  argumentos: string[] = []
 ): Promise<ElectronApplication> {
   return electron.launch({
-    args: ['.'],
+    args: [...argumentos, '.'],
     cwd: process.cwd(),
     env: {
       ...process.env,

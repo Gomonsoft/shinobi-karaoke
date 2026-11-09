@@ -90,6 +90,9 @@ export const E = {
     'Úsalo si toda la letra va adelantada o atrasada respecto a la música. Con + la letra sale más tarde.',
   offsetRango: 'Máximo 30 segundos hacia cada lado.',
   restablecer: 'Restablecer',
+  // edi.offset.campo / edi.offset.restablecer (spec 06-editor, subfase 2.1)
+  offsetCampo: 'Segundos de desplazamiento',
+  offsetRestablecer: 'Restablecer desplazamiento (0,00 s)',
   bluetooth:
     '¿Usas auriculares o altavoces Bluetooth? Si toda la letra queda atrasada, usa el desplazamiento de toda la letra.',
   fondo: 'Fondo',
@@ -163,5 +166,57 @@ export const E = {
   buscarLetra: 'Buscar la letra',
   ariaLinea: (n: number, tiempo: string | null, texto: string) =>
     `Línea ${n}, ${tiempo ?? 'sin sincronizar'}, ${texto}`,
-  atajos: 'Atajos de teclado'
+  atajos: 'Atajos de teclado',
+  /** Subfase 2.1 (spec 06-editor, «Microcopy añadido»). Claves `edi.layout.*`. */
+  layout: {
+    divisor: {
+      lista: 'Ancho de la lista de líneas',
+      panel: 'Ancho del panel',
+      dock: 'Alto de la línea de tiempo',
+      tooltip: 'Arrastra para cambiar el tamaño. Doble clic: tamaño original.'
+    },
+    valor: (n: number) => `${n} píxeles`,
+    /** `edi.layout.valor.minimizado`: femenino para lista y línea de tiempo. */
+    valorMinimizado: (femenino: boolean) => (femenino ? 'Minimizada' : 'Minimizado'),
+    lista: {
+      nombre: 'Lista de líneas',
+      minimizar: 'Minimizar lista de líneas',
+      expandir: 'Expandir lista de líneas'
+    },
+    panel: {
+      nombre: 'Panel',
+      minimizar: 'Minimizar panel',
+      expandir: 'Expandir panel',
+      expandirAviso: 'Expandir panel (hay avisos de contraste)'
+    },
+    timeline: {
+      nombre: 'Línea de tiempo',
+      minimizar: 'Minimizar línea de tiempo',
+      expandir: 'Expandir línea de tiempo',
+      sinEspacio: 'No cabe en esta ventana. Agrándala para ver la línea de tiempo completa.'
+    },
+    riel: {
+      linea: (n: number, total: number, tiempo: string | null, texto: string) =>
+        tiempo === null
+          ? `Línea ${n} de ${total}, sin sincronizar: ${texto}`
+          : `Línea ${n} de ${total}, ${tiempo}: ${texto}`,
+      anterior: 'Línea anterior (↑)',
+      siguiente: 'Línea siguiente (↓)',
+      fijarInicio: 'Fijar inicio aquí (I)',
+      fijarFin: 'Fijar fin (O)',
+      fijarFinNombre: 'Fijar fin aquí (O)',
+      auto: 'automático'
+    },
+    restablecer: 'Restablecer distribución de paneles',
+    anuncio: {
+      minimizado: (panel: string, femenino: boolean) =>
+        `${panel} ${femenino ? 'minimizada' : 'minimizado'}`,
+      expandido: (panel: string, femenino: boolean) =>
+        `${panel} ${femenino ? 'expandida' : 'expandido'}`,
+      sinEspacio: 'La línea de tiempo se ha minimizado porque no cabe en la ventana.',
+      restablecida: 'Distribución de paneles restablecida.'
+    },
+    region: (nombre: string, femenino: boolean) =>
+      `${nombre}, ${femenino ? 'minimizada' : 'minimizado'}`
+  }
 } as const

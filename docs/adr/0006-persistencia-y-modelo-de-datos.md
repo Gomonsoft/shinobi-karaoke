@@ -242,3 +242,24 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
 ## Revisión para 0.2.0 · Picos de voz
 
 La carpeta de canción admite una caché regenerable junto a la pista vocal. Main la invalida al cambiar la pista y publica solo un resultado completo. El worker escribe un temporal autorizado. La caché no se incluye en el esquema de `cancion.json`, no cambia el estado del pipeline y puede omitirse de copias de seguridad. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
+
+## Revisión para 0.2.0 · Preferencias de paneles del editor
+
+Subfase 2.1, tarea 0155. Fecha: 2026-11-08. La distribución del editor es una preferencia **global** de la instalación, igual que `reproductor.volumen`. Vive en `config.json` y no en `cancion.json`. Es un campo nuevo con valores por defecto, así que `esquema` sigue en 1.
+
+```jsonc
+"editor": {
+  "paneles": {
+    "lista":        { "ancho": 300, "minimizado": false },  // entero, 256–480 px
+    "panel":        { "ancho": 360, "minimizado": false },  // entero, 300–480 px
+    "linea_tiempo": { "alto": null, "minimizado": false }   // null = por defecto (216, o 204 en compacto); entero, 176–960 px
+  }
+}
+```
+
+- **Unidades.** Píxeles CSS a zoom 100 % (1 rem = 16), redondeados a entero. Se guarda el tamaño **preferido** y nunca el efectivo. El alto es el de la sección de la línea de tiempo, sin el transporte.
+- **Límites absolutos.** Las constantes van en `app/src/shared/paneles.ts`, fuente única para el esquema y para el modelo de distribución. El mínimo de `alto` es el compacto (176). En modo normal el modelo aplica `max(188, alto)`. El máximo absoluto de `alto` (960) solo sirve para validar: el efectivo siempre deja 136 px a la zona superior.
+- **Lectura tolerante por campo.** Cada campo de `editor.paneles` lleva su propio respaldo (`.catch` de Zod con el valor por defecto). Un valor ausente, de otro tipo o fuera de rango se sustituye por el de ese campo sin aviso y **no** aparta `config.json` como `.danado`. La regla general de la revisión 2026-11-04 haría perder la instalación por una preferencia cosmética, y aquí no se aplica. El siguiente guardado reescribe el valor corregido.
+- **Escritura.** Se usa el canal existente `config.actualizar`. `configParcialRendererSchema` admite `editor.paneles` como objeto estricto y parcial, con los mismos rangos y enteros. Un valor fuera de rango se rechaza en el IPC (`ErrorDatosInvalidos`) y no se corrige. Se mantienen la validación de remitente y Zod del [ADR 0008](0008-seguridad-de-electron-y-protocolos-propios.md) sin canales nuevos.
+- **Frecuencia.** El renderer agrupa las escrituras (al soltar un arrastre, tras 500 ms sin teclas y al minimizar, expandir o restablecer). Main escribe al momento por la cola de `ServicioConfig`.
+- **Propiedad del contrato.** Solo la tarea 0155 modifica `shared/config.ts`, `shared/ipc.ts` y `shared/paneles.ts` en esta subfase.
