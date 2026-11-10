@@ -13,9 +13,12 @@
 > [0010 Editor: audio, reloj y guardado](adr/0010-editor-motor-de-audio-reloj-y-guardado.md) ·
 > [0011 Reproductor: pantalla completa, voz guía y capas](adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md) ·
 > [0012 Empaquetado](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) ·
-> [0013 Workflow de empaquetado y prueba de humo](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md)
+> [0013 Workflow de empaquetado y prueba de humo](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md) ·
+> [0014 Excluir diffq](adr/0014-excluir-diffq-del-runtime-de-separacion.md) ·
+> [0015 Línea de tiempo y picos de voz](adr/0015-linea-de-tiempo-y-picos-de-voz.md) ·
+> [0016 Catálogo de temas e identidad de artista y álbum](adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md)
 >
-> Última revisión: 2026-11-06: desglose de la Fase 7 (ADR 0012 y 0013, tareas 0127–0142, §9 "Empaquetado"). Antes, 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-09 quater: ADR 0016, revisión 3, tras `preguntas/0056`. El resultado por canción de las operaciones de temas lleva `titulo` y `artista` para la lista común tras un fallo a mitad (componente `ListaFalloAMitad` de `renderer/src/temas/`, tarea 0169), y el destino `respaldo` de `alHeredar`/`despues` no nombra ningún tema. Antes, 2026-11-09 ter: ADR 0016, revisión 2, tras `preguntas/0055`. Añade `alHeredar`, calculado en main y entregado en el resumen y en `resuelta`, el estado `pendiente` en los resultados y la forma del progreso de `reanudarBorrado`. Antes, 2026-11-09 bis: desglose de la fase 3 de 0.2.0 (tareas 0163–0176) y revisión del ADR 0016 tras `preguntas/0052` (B1) y `0054`. Antes, 2026-11-09: 0.2.0, fase 3 (ADR 0016: catálogo `biblioteca/temas.json`, `ServicioTemas`, apariencia resuelta e identidad de artista y álbum; §2, §4, §5 y §7). Antes, 2026-11-06: desglose de la Fase 7 (ADR 0012 y 0013, tareas 0127–0142, §9 "Empaquetado"). Antes, 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -25,8 +28,9 @@ Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (Reac
 | Componente | Proceso | Tecnología | Responsabilidades |
 |-----------|---------|-----------|-------------------|
 | **Renderer (UI)** | Renderer de Electron (sandbox, `contextIsolation`) | React + TS | Vistas: primer arranque, biblioteca, añadir canción, progreso, letra, editor, reproductor a pantalla completa. Reproducción y render de letra sincronizada (Web Audio + DOM/CSS). No toca el disco ni la red directamente. |
-| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4; en la Fase 5, `letras.guardarTiempos`, `biblioteca.guardarEstilo`, `biblioteca.marcarLista` y `app.guardadoPendiente`; en la Fase 6, `ventana.*` (modo reproductor, pantalla completa, pantalla encendida) y `biblioteca.comprobarPistas`), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
-| **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/` con índice en memoria (id = nombre de carpeta), CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor, vía `main/persistencia/`), reglas de estado (ADR 0006), eventos `cancion:cambiada`. |
+| **Preload / API IPC** | Preload | TS | Expone al renderer `window.shinobi`, una API tipada mínima (`biblioteca.*`, `trabajos.*`, `config.*`, `sistema.*`; `letras.*` en la Fase 4; en la Fase 5, `letras.guardarTiempos`, `biblioteca.guardarEstilo`, `biblioteca.marcarLista` y `app.guardadoPendiente`; en la Fase 6, `ventana.*` (modo reproductor, pantalla completa, pantalla encendida) y `biblioteca.comprobarPistas`; en 0.2.0 fase 3, `temas.*` y `biblioteca.guardarApariencia`, que sustituye a `guardarEstilo`), suscripciones (`alCambiarCancion`, `alCambiarConfig`, `alCambiarTemas`, `trabajos.alCambiar`, `trabajos.alProgreso`, `alAccionMenu`) y `rutaDeArchivo(File)` (síncrono, `webUtils.getPathForFile`). Contrato único en `shared/ipc.ts` (Zod) + nombres de canal en `shared/canales.ts` (sin dependencias, para que el preload con sandbox no empaquete Zod). Respuestas `{ ok, valor } \| { ok: false, error: { codigo, mensaje } }`. |
+| **Servicio de biblioteca** | Main | TS | Escaneo de `biblioteca/` con índice en memoria (id = nombre de carpeta), CRUD de canciones, lectura/validación/migración y escritura atómica de `cancion.json` (único escritor, vía `main/persistencia/`), reglas de estado (ADR 0006), eventos `cancion:cambiada`. Desde 0.2.0 el resumen incluye álbum, claves de identidad y la apariencia **resuelta** (ADR 0016). |
+| **Servicio de temas** (0.2.0) | Main | TS | Único escritor de `biblioteca/temas.json` (catálogo versionado, asignaciones de artista y álbum, predeterminado y diario de borrado). Ejecuta la resolución canción → álbum → artista → base (aleatorio, predeterminado anterior o incluido) → predeterminado → incluido (función pura de `shared/temas.ts`). Mantiene la **cola de apariencia**, que serializa catálogo, cambios de apariencia, metadatos y creación de canciones. Calcula impactos y usos con fichas de confirmación y hace los borrados recuperables. Pide a `ServicioBiblioteca` las escrituras de `cancion.json`. Emite `temas:cambiado` (también, agrupado, cuando cambian los usos) y `temas:progreso`. [ADR 0016](adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md). |
 | **Servicio de configuración y registro** | Main | TS | `config.json` (lectura tolerante, actualización parcial validada, suscripciones), estructura del directorio de datos y registro rotado `registros/app.log`. |
 | **Gestor de trabajos** | Main | TS | Cola de trabajos en segundo plano, lanzamiento del worker, lectura de JSON Lines, progreso/ETA, cancelación (matar árbol de procesos), recuperación de trabajos interrumpidos. |
 | **Gestor de runtime** | Main | TS + binario `uv` | Detección previa de hardware sin Python (SO/arquitectura + `nvidia-smi`) y espacio libre (`fs.statfs`); primer arranque: Python 3.12, venv, dependencias (requisitos fijados por perfil, ADR 0009 §1), modelo **Calidad** (todos los perfiles; Rápido solo con consentimiento, ADR 0004 Revisiones), Deno, con tamaños tomados del manifiesto de runtime; confirmación del perfil con PyTorch; descarga de modelos bajo demanda (Rápido con consentimiento tras un fallo de Calidad; "Volver a Calidad" desde Ajustes); actualización de yt-dlp. |
@@ -115,7 +119,13 @@ erDiagram
     CANCION ||--o| LETRA : tiene
     LETRA ||--|{ LINEA : contiene
     LINEA ||--o{ PALABRA : "contiene (opcional)"
-    CANCION ||--|| ESTILO : tiene
+    CANCION ||--|| ESTILO : "tiene (propio o instantánea)"
+    CANCION ||--o| APARIENCIA : "tiene (0.2.0)"
+    APARIENCIA }o--o| TEMA : "tema_id / base (aleatorio, predeterminado anterior)"
+    CATALOGO ||--o{ TEMA : contiene
+    CATALOGO ||--o{ ASIGNACION : "artista / álbum"
+    ASIGNACION }o--|| TEMA : apunta
+    CATALOGO |o--o| TEMA : predeterminado
     CANCION ||--|| PASOS : "estado por paso"
     CANCION {
         uuid id
@@ -134,6 +144,24 @@ erDiagram
         int inicio_ms "null = sin sincronizar"
         int fin_ms "null = automatico"
     }
+    APARIENCIA {
+        string modo "propio | tema | heredar"
+        uuid tema_id "solo modo tema"
+        object base "opcional: aleatorio(tema_id) | predeterminado_anterior(tema_id) | incluido"
+        string tema_nombre "opcional: nombre para el respaldo"
+    }
+    TEMA {
+        uuid id "estable"
+        string nombre
+        int revision
+        object estilo "completo"
+    }
+    ASIGNACION {
+        string artista "clave de identidad"
+        string album "clave; el álbum pertenece al artista"
+        string nombre "grafía visible al asignar"
+        uuid tema_id
+    }
     ESTILO {
         object fondo "solido | degradado lineal"
         object fuente "incluida (MVP)"
@@ -142,7 +170,9 @@ erDiagram
     }
 ```
 
-Almacenamiento: una carpeta por canción con `cancion.json` + audio (`fuente/mezcla.flac`, `pistas/*.flac`); carpeta oculta `biblioteca/.importando/` para importaciones sin confirmar; `config.json` global (instalación, modo de separación, volumen del reproductor, estilo predeterminado y, desde 0.2.0, distribución de paneles del editor); `runtime/` y `modelos/` compartidos. Ubicación por SO en el ADR 0006.
+Almacenamiento: una carpeta por canción con `cancion.json` + audio (`fuente/mezcla.flac`, `pistas/*.flac`); carpeta oculta `biblioteca/.importando/` para importaciones sin confirmar; `config.json` global (instalación, modo de separación, volumen del reproductor, estilo predeterminado heredado y, desde 0.2.0, distribución de paneles del editor); desde 0.2.0, `biblioteca/temas.json` con el catálogo de temas (ADR 0016); `runtime/` y `modelos/` compartidos. Ubicación por SO en el ADR 0006.
+
+**Apariencia (0.2.0, fase 3)**: `cancion.json` sigue en esquema 1 con un campo opcional `apariencia`. Si falta, equivale a estilo propio, así que las bibliotecas de 0.1.0 no cambian. Con `tema` o `heredar`, `estilo` es la instantánea de respaldo que se pinta si falta la referencia. Main resuelve y el renderer recibe el estilo resuelto y su procedencia: `propio`, `cancion`, `album`, `artista`, `aleatorio`, `predeterminado_anterior`, `predeterminado`, `incluido` o `respaldo`, más `neutra` (decide la portada con miniatura). Quitar el predeterminado fija en las canciones que lo seguían `base: predeterminado_anterior`, de modo que conservan ese tema con vínculo vivo (decisión B1 de `preguntas/0052`). El catálogo que recibe el renderer incluye usos por tema y su desglose, las referencias que faltan y el aviso de catálogo apartado. La preferencia «Agrupar por» de la Biblioteca vive en `config.biblioteca.agrupar`. Las sesiones de reproducción conservan la instantánea tomada al empezar. **Identidad**: `shared/identidad.ts` (NFC, espacios colapsados, `toLowerCase`, diacríticos conservados; el álbum se identifica con el par artista + álbum). La búsqueda flexible del renderer (sin marcas diacríticas) es independiente y cubre título, artista y álbum.
 
 Reglas derivadas (funciones puras en `app/src/shared/`, no se guardan): **paso actual**, **puede marcarse como lista**, **incompleta** (lista con líneas sin inicio), **fin efectivo** de cada línea (ADR 0005). Operaciones puras de edición de tiempos: `moverInicioLinea` y `borrarTiemposLinea` (arrastran las palabras de la línea; ADR 0006).
 
@@ -170,7 +200,8 @@ shinobi-karaoke/
 │   └── src/
 │       ├── shared/               # esquemas Zod (cancion, letra, estilo, config), migraciones, reglas derivadas, operaciones de letra,
 │       │                         # catálogo de errores, protocolo JSON Lines, fuentes incluidas, contrato IPC (ipc.ts) y canales (canales.ts), __fixtures__/,
-│       │                         # letras/ (Fase 4: texto plano, LRC y LRC mejorado, normalización, diff al editar el texto)
+│       │                         # letras/ (Fase 4: texto plano, LRC y LRC mejorado, normalización, diff al editar el texto),
+│       │                         # temas.ts (0.2.0: catálogo, apariencia, resolución pura) e identidad.ts (claves de artista y álbum)
 │       ├── main/
 │       │   ├── index.ts          # ventana, ciclo de vida, registro de protocolos, cableado de servicios
 │       │   ├── rutas.ts          # directorio de datos (SHINOBI_DATOS o ruta por SO)
@@ -186,6 +217,7 @@ shinobi-karaoke/
 │       │   ├── fuente/           # (Fase 2) importación de archivo local y servicio de YouTube
 │       │   ├── separacion/       # (Fase 3) servicio de separación: encolar, args, pistas, reintentos, oferta de Rápido
 │       │   ├── avisos/           # (Fase 3) notificaciones del sistema, Dock y barra de tareas
+│       │   ├── temas/            # (0.2.0) servicio de temas: catálogo, cola de apariencia, impactos y fichas, borrado con diario
 │       │   ├── letras/           # (Fase 4) cliente LRCLIB, búsqueda y candidatos, Lyricsfile (yaml), servicio de letras (guardar, editar, importar)
 │       │   └── ventana/          # (Fase 6) modo reproductor: pantalla completa con estado previo, zoom del menú, powerSaveBlocker
 │       ├── preload/
@@ -283,6 +315,7 @@ Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acce
   - **Edición**: operaciones puras en `shared/letras/tiempos.ts` (incluida `marcarInicioLinea`) y un *reducer* con historial de la visita en `vistas/editor/estado.ts`.
   - **Guardado**: *debounce* en el renderer (1 s, como mucho 2 s). El main escribe al momento: `ServicioLetras.guardarTiempos` (único escritor de `letra`) y `ServicioBiblioteca.guardarEstilo`/`marcarLista`. Antes de salir del editor se vacía lo pendiente; al cerrar la ventana con cambios pendientes, el control de cierre pide al renderer que vacíe (tope de 2 s).
   - **Distribución (0.2.0, subfase 2.1, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--layout-adaptable-y-paneles))**: modelo puro `vistas/editor/distribucion.ts` (tamaños efectivos a partir de preferencias y medidas), constantes en `shared/paneles.ts`, componente `componentes/Divisor.tsx` y preferencia global `config.editor.paneles` ([ADR 0006](adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--preferencias-de-paneles-del-editor)). La ventana tiene un mínimo de contenido de 1024 × 576 (`useContentSize`). No entra en el historial ni en el guardado de la canción.
+  - **Temas (0.2.0, fase 3, [ADR 0016](adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md))**: el panel Estilo escribe con `biblioteca.guardarApariencia` (propio, tema o heredar). El historial guarda la selección. «Editar tema» es un borrador en memoria, fuera del autoguardado, que se persiste con `temas.ejecutar` (editar, tras confirmar el impacto) o `temas.crear`. La vista previa y el reproductor pintan el estilo resuelto.
 
 ## 8. Seguridad
 Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md).
@@ -383,7 +416,7 @@ Implicaciones:
 - **Sincronía**: herramienta de "toque al ritmo" por línea (tecla/botón al inicio de cada línea mientras suena, con velocidad 0,5×–1×; por debajo de 1× el tono baja), ajuste fino por línea (±10/100 ms o arrastre) y desplazamiento global. **Solo por línea en el MVP** (decisión del usuario, `preguntas/0002`); la sincronía por palabra solo existe si viene de LRCLIB/LRC importado, y se muestra pero no se edita (al mover el inicio de una línea sus palabras se desplazan lo mismo y al borrar sus tiempos se borran también; ADR 0006).
 - Para sincronizar, el usuario necesita oír la voz: el editor puede alternar **mezcla original / voz / instrumental** (disponible antes de terminar la separación solo la mezcla original).
 - **Resaltado**: por palabra si hay tiempos de palabra; si no, barrido progresivo de la línea completa (lineal entre su inicio y fin).
-- **Estilo** editable (MVP): fondo sólido o degradado lineal (ángulo + 2–4 colores), color de letra, color de resaltado, fuente. Tamaño, sombra/contorno y posición de la letra: valores fijos que define la UX (no editables en el MVP); si se requieren editables, pedirlo vía pregunta.
+- **Estilo** editable (MVP): fondo sólido o degradado lineal (ángulo + 2–4 colores), color de letra, color de resaltado, fuente. Desde 0.2.0 (fase 3) el estilo puede venir de un **tema** del catálogo (de la canción, el álbum, el artista, aleatorio o predeterminado) o ser propio («Tema personalizado»). La interfaz recibe siempre la procedencia junto al estilo resuelto (ADR 0016). Tamaño, sombra/contorno y posición de la letra: valores fijos que define la UX (no editables en el MVP); si se requieren editables, pedirlo vía pregunta.
 - **Contraste**: la app no impide combinaciones ilegibles (letra/resaltado/fondo); la UX puede querer avisos de contraste o paletas sugeridas.
 - **Autoguardado** continuo: no hay pérdida de cambios; "Guardar borrador" es una acción de tranquilidad/salida, no un requisito técnico.
 - **Marcar como lista** solo es posible si: existen ambas pistas y todas las líneas (no pausas) tienen tiempo de inicio. La UX debe explicar qué falta cuando no se puede. Una canción lista no vuelve sola a borrador (indicador derivado "incompleta").

@@ -25,16 +25,27 @@ import {
   type GuardarLetra,
   type GuardarTiempos,
   type EdicionLetraIpc,
-  type Estilo,
   type EditarTextoLetra,
   type ArchivoLetraLeido,
   CODIGOS_ERROR,
   ErrorDatosInvalidos,
   type Cancion,
-  type Config
+  type CancionIpc,
+  type Config,
+  type CatalogoIpc,
+  type CrearTema,
+  type DuplicarTema,
+  type ImpactoIpc,
+  type OperacionTema,
+  type RenombrarTema,
+  type ResultadoOperacionIpc,
+  type SeleccionApariencia,
+  type TemaIpc
 } from '../../shared'
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
+import { resueltaDeResolucion } from '../biblioteca/resumen'
+import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
 
@@ -46,13 +57,28 @@ export interface BibliotecaIpc {
     id: string,
     cambio: { metadatos: { titulo: string; artista: string; album: string | null } }
   ): Promise<ResumenCancion>
-  guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion>
+  guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion>
+  /** Resolución de la canción con el catálogo vigente (`biblioteca.obtener`). */
+  resolver(cancion: Cancion): ResolucionCancion
   marcarLista(id: string): Promise<ResumenCancion>
   comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
   eliminar(id: string): Promise<void>
   mostrarEnCarpeta(id: string): Promise<void>
   suscribir(cb: (evento: EventoCancion) => void): () => void
+}
+
+/** Subconjunto de `ServicioTemas` (0165–0167) que usa la IPC. */
+export interface TemasIpc {
+  catalogo(): CatalogoIpc
+  previsualizar(op: OperacionTema): Promise<ImpactoIpc>
+  ejecutar(op: OperacionTema, ficha: string): Promise<ResultadoOperacionIpc>
+  crear(datos: CrearTema): Promise<TemaIpc>
+  renombrar(datos: RenombrarTema): Promise<TemaIpc>
+  duplicar(datos: DuplicarTema): Promise<TemaIpc>
+  reanudarBorrado(): Promise<ResultadoOperacionIpc>
+  cancelarBorrado(): Promise<void>
+  descartarAvisoApartado(): Promise<void>
 }
 
 export interface ConfigIpc {
@@ -137,6 +163,8 @@ export interface VentanaIpc {
 export interface DependenciasIpc {
   ventana?: VentanaIpc
   letras?: LetrasIpc
+  /** Catálogo de temas (ADR 0016); ausente, los canales `temas.*` responden `ERROR_INTERNO`. */
+  temas?: TemasIpc
   separacion?: SeparacionIpc
   picos?: Pick<ServicioPicos, 'solicitar' | 'leer' | 'duranteCambio'>
   runtime: RuntimeIpc
@@ -184,12 +212,15 @@ export function aErrorIpc(e: unknown): ErrorIpc {
     return { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Los datos no son válidos.' }
   }
   if (e instanceof Error && esCodigo((e as { codigo?: unknown }).codigo)) {
-    const detalles = (e as { detalles?: unknown }).detalles
-    return {
-      codigo: (e as unknown as ErrorIpc).codigo,
-      mensaje: e.message,
-      ...(typeof detalles === 'string' && detalles ? { detalles } : {})
-    }
+    const { codigo, detalles } = e as unknown as { codigo: ErrorIpc['codigo']; detalles?: unknown }
+    // `CONFIRMACION_OBSOLETA` lleva el impacto nuevo serializado (ADR 0016 §7, §11).
+    const texto =
+      typeof detalles === 'string'
+        ? detalles
+        : codigo === 'CONFIRMACION_OBSOLETA' && detalles !== undefined
+          ? JSON.stringify(detalles)
+          : ''
+    return { codigo, mensaje: e.message, ...(texto ? { detalles: texto } : {}) }
   }
   return { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
 }
@@ -243,7 +274,40 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.letras
   }
 
+  const temas = (): TemasIpc => {
+    if (!deps.temas) throw new Error('El servicio de temas no está disponible.')
+    return deps.temas
+  }
+
+  /** `obtener` con la apariencia resuelta con el catálogo vigente (ADR 0016 §9). */
+  const cancionParaRenderer = (id: string): CancionIpc | null => {
+    const cancion = biblioteca.obtener(id)
+    if (!cancion) return null
+    return { ...cancion, resuelta: resueltaDeResolucion(biblioteca.resolver(cancion)) }
+  }
+
   return {
+    [CANALES.temas.catalogo]: envolver(CANALES.temas.catalogo, () => temas().catalogo()),
+    [CANALES.temas.previsualizar]: envolver(CANALES.temas.previsualizar, (op) =>
+      temas().previsualizar(op)
+    ),
+    [CANALES.temas.ejecutar]: envolver(CANALES.temas.ejecutar, (op, ficha) =>
+      temas().ejecutar(op, ficha)
+    ),
+    [CANALES.temas.crear]: envolver(CANALES.temas.crear, (datos) => temas().crear(datos)),
+    [CANALES.temas.renombrar]: envolver(CANALES.temas.renombrar, (datos) =>
+      temas().renombrar(datos)
+    ),
+    [CANALES.temas.duplicar]: envolver(CANALES.temas.duplicar, (datos) => temas().duplicar(datos)),
+    [CANALES.temas.reanudarBorrado]: envolver(CANALES.temas.reanudarBorrado, () =>
+      temas().reanudarBorrado()
+    ),
+    [CANALES.temas.cancelarBorrado]: envolver(CANALES.temas.cancelarBorrado, () =>
+      temas().cancelarBorrado()
+    ),
+    [CANALES.temas.descartarAvisoApartado]: envolver(CANALES.temas.descartarAvisoApartado, () =>
+      temas().descartarAvisoApartado()
+    ),
     [CANALES.letras.buscar]: envolver(CANALES.letras.buscar, (p) => letras().buscar(p)),
     [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) =>
       resumenParaRenderer(await letras().guardar(p))
@@ -288,15 +352,16 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       biblioteca.listar().map(resumenParaRenderer)
     ),
     [CANALES.biblioteca.obtener]: envolver(CANALES.biblioteca.obtener, (id) =>
-      biblioteca.obtener(id)
+      cancionParaRenderer(id)
     ),
     [CANALES.biblioteca.actualizarMetadatos]: envolver(
       CANALES.biblioteca.actualizarMetadatos,
       async (id, metadatos) => resumenParaRenderer(await biblioteca.actualizar(id, { metadatos }))
     ),
-    [CANALES.biblioteca.guardarEstilo]: envolver(
-      CANALES.biblioteca.guardarEstilo,
-      async (id, estilo) => resumenParaRenderer(await biblioteca.guardarEstilo(id, estilo))
+    [CANALES.biblioteca.guardarApariencia]: envolver(
+      CANALES.biblioteca.guardarApariencia,
+      async (id, seleccion) =>
+        resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
     ),
     [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) =>
       resumenParaRenderer(await biblioteca.marcarLista(id))

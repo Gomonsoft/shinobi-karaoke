@@ -1,3 +1,6 @@
+import type { Procedencia } from '@shared/temas'
+import { TEMA, destinoHeredar, procedenciaCorta } from '../../temas/textos'
+
 /** Microcopy de ux/06. */
 export const E = {
   timeline: {
@@ -120,9 +123,6 @@ export const E = {
   usarBlanca: 'Usar letra blanca',
   usarNegra: 'Usar letra negra',
   sugerirResaltado: 'Sugerir un color de resaltado',
-  resetEstilo: 'Restablecer estilo predeterminado',
-  estiloPredeterminado: 'Usar este estilo en canciones nuevas',
-  estiloPredeterminadoToast: 'Las canciones nuevas usarán este estilo.',
   previa: 'Vista previa',
   previaAria: 'Vista previa de la letra con el estilo actual.',
   deshacer: (mac: boolean) => (mac ? 'Deshacer (⌘Z)' : 'Deshacer (Ctrl+Z)'),
@@ -167,6 +167,121 @@ export const E = {
   ariaLinea: (n: number, tiempo: string | null, texto: string) =>
     `Línea ${n}, ${tiempo ?? 'sin sincronizar'}, ${texto}`,
   atajos: 'Atajos de teclado',
+  /** Fase 3 (spec 06, «Microcopy (fase 3, editor)»). Claves `tema.*`; las compartidas viven en `temas/textos`. */
+  tema: {
+    titulo: 'Tema',
+    modo: 'Modo del tema',
+    definidos: 'Temas definidos',
+    definidosDesc: 'Usa un tema y recibe sus cambios.',
+    personalizado: 'Tema personalizado',
+    personalizadoDesc: 'Estilo propio solo para esta canción.',
+    selector: 'Tema',
+    heredar: 'Volver a heredar',
+    /** `tema.heredar.destino` (sin `respaldo`, que tiene su propia línea). */
+    destino: (
+      destino: { procedencia: Procedencia; temaNombre: string | null },
+      ctx: { album?: string | null; artista?: string | null }
+    ): string => destinoHeredar(destino, ctx),
+    /** `tema.heredar.destino.respaldo` sin el ⚠ (se pinta aparte, `aria-hidden`). */
+    destinoRespaldo:
+      'Su tema de origen no está en tus temas. Se verá con el último aspecto guardado en esta canción («Tema no disponible»).',
+    personalizar: 'Personalizar',
+    editar: 'Editar tema',
+    mas: 'Más acciones del tema',
+    editandoTitulo: (tema: string): string => `Editando el tema «${tema}»`,
+    editandoCuerpo: (n: number): string =>
+      `${TEMA.usos(n)} Los cambios se ven en esta vista previa y no se aplican hasta que los guardes.`,
+    guardarEn: 'Guardar en el tema…',
+    descartar: 'Descartar cambios',
+    guardarNuevo: 'Guardar como tema nuevo…',
+    renombrar: 'Renombrar tema…',
+    duplicar: 'Duplicar tema…',
+    eliminar: 'Eliminar tema…',
+    album: 'Tema del álbum…',
+    artista: 'Tema del artista…',
+    administrar: 'Administrar temas…',
+    sinAlbum: 'Esta canción no tiene álbum. Puedes añadirlo con «Editar datos» en la Biblioteca.',
+    sinArtista:
+      'Esta canción no tiene artista. Puedes añadirlo con «Editar datos» en la Biblioteca.',
+    albumSinArtista: 'Para dar un tema a este álbum, añade antes su artista.',
+    catalogoVacio:
+      'Aún no tienes temas. Personaliza esta canción y usa «Guardar como tema nuevo…» para crear el primero.',
+    noDisponibleTitulo: 'Tema no disponible',
+    noDisponibleCuerpo: (tema: string | null): string =>
+      tema
+        ? `Esta canción usaba «${tema}», que no está en tus temas (quizá viene de otro equipo o de una copia). Se ve con el aspecto que tenía.`
+        : 'Esta canción usaba un tema que no está en tus temas (quizá viene de otro equipo o de una copia). Se ve con el aspecto que tenía.',
+    noDisponibleOpcion: (tema: string | null): string =>
+      tema ? `«${tema}» (no disponible)` : 'Tema no disponible',
+    noDisponiblePersonalizar: 'Usar como tema personalizado',
+    bloqueoSoloLectura: TEMA.soloLectura,
+    bloqueoBorrado: TEMA.borradoPendiente,
+    sinTemaQueEditar: 'Esta canción no usa ningún tema del catálogo.',
+    contrasteAyuda: (conEditar: boolean): string =>
+      conEditar
+        ? 'Para corregirlo, personaliza esta canción o edita el tema.'
+        : 'Para corregirlo, personaliza esta canción.',
+    /** `tema.nuevo.creado` (variantes: tema vinculado, personalizada y sin tema). */
+    nuevoCreado: (nuevo: string, esta: { tema: string | null; personalizada: boolean }): string =>
+      esta.personalizada
+        ? `Tema «${nuevo}» creado. Esta canción sigue con su tema personalizado.`
+        : esta.tema
+          ? `Tema «${nuevo}» creado. Esta canción sigue usando «${esta.tema}».`
+          : `Tema «${nuevo}» creado. Esta canción sigue igual.`,
+    usarNuevo: (nuevo: string): string => `Usar «${nuevo}» en esta canción`,
+    cerrarAviso: 'Cerrar aviso',
+    usarComoTemaEnCancion: 'Usar',
+    dialogoDescartar: {
+      titulo: '¿Descartar los cambios del tema?',
+      cuerpo: (tema: string): string =>
+        `Los cambios que has hecho en «${tema}» no se guardarán. El tema y las canciones que lo usan no cambian.`,
+      seguir: 'Seguir editando',
+      descartar: 'Descartar cambios'
+    },
+    dialogoSalir: {
+      titulo: (tema: string): string => `Tienes cambios sin guardar en el tema «${tema}»`,
+      cuerpo: 'Si sales ahora se perderán. Las canciones que usan el tema no cambian.',
+      seguir: 'Seguir editando',
+      descartar: 'Descartar cambios del tema',
+      guardar: 'Guardar en el tema…'
+    },
+    /** `tema.toast.definidos`: genérica, «estilo incluido» y `respaldo` (sin nombre de tema, 0056). */
+    toastDefinidos: (destino: { procedencia: Procedencia; temaNombre: string | null }): string => {
+      if (destino.procedencia === 'respaldo') {
+        return 'Su tema de origen no está en tus temas: esta canción se ve con el último aspecto guardado en ella.'
+      }
+      if (destino.procedencia === 'incluido') {
+        return 'Esta canción usa ahora el estilo incluido de Shinobi Karaoke.'
+      }
+      return `Esta canción usa ahora «${destino.temaNombre ?? ''}» (${procedenciaCorta(destino.procedencia)}).`
+    },
+    deshacerToast: 'Deshacer',
+    anuncioAsignado: (tema: string): string => `Tema «${tema}» asignado a esta canción.`,
+    /** `tema.anuncio.heredar` (genérica y «estilo incluido») y `tema.anuncio.heredar.respaldo`. */
+    anuncioHeredar: (destino: { procedencia: Procedencia; temaNombre: string | null }): string => {
+      if (destino.procedencia === 'respaldo') {
+        return 'Esta canción vuelve a heredar, pero su tema de origen no está en tus temas. Se ve con el último aspecto guardado.'
+      }
+      if (destino.procedencia === 'incluido') {
+        return 'Esta canción vuelve a heredar: usa el estilo incluido de Shinobi Karaoke.'
+      }
+      return `Esta canción vuelve a heredar: usa «${destino.temaNombre ?? ''}».`
+    },
+    anuncioPersonalizado: 'Tema personalizado. Los cambios solo afectan a esta canción.',
+    anuncioEditando: (tema: string): string =>
+      `Editando el tema «${tema}». Los cambios no se aplican hasta que los guardes.`,
+    anuncioSaleDeEditar: 'Has salido de la edición del tema.',
+    anuncioEliminadoEsta:
+      'Tema eliminado. Esta canción conserva su aspecto como tema personalizado.',
+    pestanaEditando: 'Estilo (editando un tema sin guardar)',
+    expandirEditando: 'Expandir panel (editando un tema sin guardar)',
+    resumen: {
+      fondo: 'Fondo',
+      letra: 'Letra',
+      solido: 'Sólido',
+      degradado: (angulo: number): string => `Degradado · ${angulo}°`
+    }
+  },
   /** Subfase 2.1 (spec 06-editor, «Microcopy añadido»). Claves `edi.layout.*`. */
   layout: {
     divisor: {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Boton } from '../componentes/Boton'
 import { Dialogo } from '../componentes/Dialogo'
 import type { Vista } from './estado'
-import { vaciarAlCerrar } from './salida'
+import { confirmarBorradorAlCerrar, vaciarAlCerrar } from './salida'
 import { cuerpoCierre, TEXTO_CIERRE } from './textosCierre'
 
 interface Datos {
@@ -31,6 +31,8 @@ export function DialogoCierre({ vista }: Props) {
     return api.app.alSolicitudCierre(() => {
       if (tipoVista.current === 'primer-arranque') return
       void (async () => {
+        // Un borrador de tema sin guardar pregunta primero (tema.dialogo.salir, 0171).
+        if (!(await confirmarBorradorAlCerrar())) return
         let trabajos: Awaited<ReturnType<typeof api.trabajos.listar>> = []
         try {
           trabajos = await api.trabajos.listar()

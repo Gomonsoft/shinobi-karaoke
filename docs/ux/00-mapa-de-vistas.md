@@ -18,6 +18,25 @@
 
 Diálogos transversales (definidos en las specs que los originan): aviso legal de YouTube (03), confirmar cierre con trabajos (04), eliminar canción (02), volver a borrador (02/06), atajos de teclado (06/07).
 
+### 0.2.0, fase 3 · Temas y biblioteca
+- **Biblioteca** (02): «Agrupar por» Sin agrupar / Artista / Álbum, búsqueda en título, artista y álbum, modo selección con «Aplicar tema…» y [Tema…] en los encabezados de artista y álbum.
+- **Editor › Estilo** (06): sección «Tema» (Temas definidos / Tema personalizado, procedencia, editar, guardar como, renombrar, duplicar, eliminar, tema del álbum o artista).
+- **Ajustes › Temas** (08): tema predeterminado y lista completa del catálogo. Es el único lugar con todos los temas; el aspecto de un tema se edita solo desde el editor.
+- Diálogos nuevos, definidos en 06 y reutilizados en 02 y 08: confirmar impacto (guardar en el tema, tema de grupo, cambiar o quitar el predeterminado), nombre del tema (nuevo, duplicar, renombrar), eliminar tema, descartar cambios del tema, salir con un borrador de tema (también al cerrar la ventana). En 02: tema de artista o álbum y «Aplicar tema» (con resultado por canción).
+
+```mermaid
+flowchart LR
+    BIB[2 · Biblioteca] -- "[Tema…] de grupo / Aplicar tema…" --> DLG{{Diálogos de tema}}
+    EDI[6 · Editor › Estilo] -- "Guardar en el tema… / Eliminar / Tema del álbum…" --> DLG
+    EDI -- "Administrar temas…" --> AJ[8 · Ajustes › Temas]
+    AJ -- "‹ Volver al editor (si vino del editor)" --> EDI
+    AJ -- "‹ Biblioteca (si vino de la Biblioteca)" --> BIB
+    AJ -- "Renombrar / Duplicar / Eliminar / Predeterminado" --> DLG
+```
+- **Ajustes vuelve a su origen**: «Volver» y Esc regresan a la Biblioteca o al editor de la canción desde la que se abrió (⚙, Ctrl/Cmd + , o «Administrar temas…»).
+- Salir del editor con un borrador de tema pide confirmar antes que cualquier otra cosa (`tema.dialogo.salir`).
+- Atajos nuevos de la Biblioteca (modo selección): Ctrl/Cmd + A selecciona las visibles, Espacio/Intro alternan, Esc termina. En vistas agrupadas, Ctrl/Cmd + Inicio/Fin van a la primera y última tarjeta.
+
 ## 2. Estructura de la ventana
 
 ```
@@ -193,5 +212,11 @@ Los códigos estables de `arquitectura.md §3` se traducen así (detalle y accio
 | canción dañada | 02 | "No se puede abrir esta canción" |
 | fuente del sistema no instalada | — (no aplica en el MVP: solo fuentes incluidas, ver respuesta a 0004) | — |
 | Cualquier código desconocido | todas | "Algo salió mal" + "Copiar detalles" |
+
+| `CONFIRMACION_OBSOLETA` | 02, 06, 08 | Aviso en el diálogo: «Mientras confirmabas cambió qué canciones usan este tema…» (`tema.obsoleto`) |
+| `TEMA_NOMBRE_DUPLICADO` | 06, 08 | «Ya tienes un tema con ese nombre.» (en el campo) |
+| `TEMA_NO_ENCONTRADO` | 02, 06, 08 | «Este tema ya no existe…» (`tema.error.noExiste`) |
+| `TEMAS_SOLO_LECTURA` | 02, 06, 08 | «Tus temas se guardaron con una versión más nueva…» |
+| `BORRADO_PENDIENTE` | 02, 06, 08 | «La eliminación de este tema quedó a medias…» |
 
 Tono del microcopy: tuteo, frases cortas, sin jerga técnica (no se dice "worker", "modelo ONNX", "venv"); cada error dice **qué pasó** y **qué puede hacer** el usuario.

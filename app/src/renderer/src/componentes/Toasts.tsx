@@ -43,6 +43,17 @@ function ToastItem({ toast }: { toast: Toast }) {
             {toast.accion.etiqueta}
           </Boton>
         )}
+        {toast.accionSecundaria && (
+          <Boton
+            variante="fantasma"
+            onClick={() => {
+              toast.accionSecundaria!.alAccionar()
+              cerrarToast(toast.id)
+            }}
+          >
+            {toast.accionSecundaria.etiqueta}
+          </Boton>
+        )}
       </div>
       <BotonIcono icono={X} etiqueta="Cerrar notificación" onClick={() => cerrarToast(toast.id)} />
     </div>

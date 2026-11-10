@@ -4,7 +4,7 @@ import { Boton } from '../componentes/Boton'
 import { BotonIcono } from '../componentes/BotonIcono'
 import { Icono } from '../componentes/Icono'
 import { IndicadorActividad } from './IndicadorActividad'
-import { claveVista, VISTAS_SIN_BARRA, useNavegacion } from './estado'
+import { claveVista, vistaAjustesDesde, VISTAS_SIN_BARRA, useNavegacion } from './estado'
 import estilos from './marco.module.css'
 
 interface MarcoProps {
@@ -64,7 +64,7 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
             <BotonIcono
               icono={Settings}
               etiqueta="Ajustes"
-              onClick={() => ir({ tipo: 'ajustes' })}
+              onClick={() => ir(vistaAjustesDesde(vista))}
             />
             {vista.tipo === 'biblioteca' && !bibliotecaVacia && (
               <Boton variante="primario" onClick={() => ir({ tipo: 'anadir' })}>

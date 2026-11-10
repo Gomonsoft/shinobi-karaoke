@@ -15,6 +15,8 @@ export interface Toast {
   tipo: TipoAviso
   mensaje: string
   accion?: AccionToast
+  /** Segunda acción (p. ej. «Copiar detalles» junto a «Reintentar»). */
+  accionSecundaria?: AccionToast
   persistente?: boolean
 }
 

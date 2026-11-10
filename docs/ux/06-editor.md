@@ -5,7 +5,7 @@
 - Restricciones: [arquitectura.md §7 y "Restricciones e implicaciones para UX" §5–§6](../arquitectura.md)
 - Sistema visual: [sistema-visual.md §6–§10](sistema-visual.md) (componentes, foco, estilo predeterminado, reglas de contraste, valores fijos de render)
 - Preguntas: [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md) (usuario: **sincronía solo por línea** en el MVP), [0004](../preguntas/0004-fuentes-tipograficas-incluidas-y-del-sistema.md) (solo fuentes incluidas), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (pausas, fin automático, precisión del toque, lista incompleta), [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (stepper y volver a Letra), [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) (detalles técnicos de la Fase 5; respondida: pantalla completa en la Fase 6, desplazamiento ±30 s, el tono baja con la velocidad, un solo volumen, API de guardado), [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md) (letra recargada y regla de "color más claro"; respondida)
-- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles).
+- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca).
 
 ## Objetivo
 Dejar la letra **a tiempo** con la música y darle un **estilo** propio con las opciones mínimas del MVP (fondo, color de letra, color de lo ya cantado, fuente), viendo el resultado en todo momento, y marcar la canción como **lista**.
@@ -98,6 +98,8 @@ Qué **no** hace el editor (MVP): no edita el texto de la letra (eso es la vista
 Línea sin inicio: Inicio `[ --:--.-- ]`, botones ± inactivos, "Fijar inicio aquí (I)" activo; la sección Fin queda inactiva con la ayuda `edi.fin.sininicio`. Sin línea seleccionada (no ocurre al entrar; ver "Foco inicial"): texto `edi.sinseleccion`.
 
 ### D — Panel "Estilo"
+> Desde la fase 3 de 0.2.0, el panel empieza por la sección «Tema» y los dos botones finales de este wireframe se retiran. Ver [Fase 3 · Temas y biblioteca](#fase-3-de-020--temas-y-biblioteca).
+
 ```
 │ Fondo                                          │
 │ [ Sólido | Degradado ]                         │
@@ -545,6 +547,9 @@ Respecto a la versión de la Fase 0, sin cambiar el alcance:
 ### Revisión 2026-11-08 (0.2.0, subfase 2.1)
 - Layout a alto completo con cabecera, tres columnas y dock; divisores accesibles, modos minimizados, prioridades de espacio, panel angosto corregido y persistencia global. Ver [Subfase 2.1](#subfase-21--layout-adaptable-y-paneles), con sus criterios 1–25. El seguimiento del cabezal sigue siendo manual a la espera de [0051](../preguntas/0051-seguimiento-automatico-del-cabezal.md).
 
+### Revisión 2026-11-09 (0.2.0, fase 3)
+- Sección «Tema» en el panel Estilo: «Temas definidos» con vínculo vivo y «Tema personalizado» con copia propia, procedencia, «Volver a heredar», edición de tema con confirmación de impacto, «Guardar como tema nuevo…», renombrar, duplicar, eliminar y tema de álbum o artista. Retira «Restablecer estilo predeterminado» y «Usar este estilo en canciones nuevas» (el predeterminado pasa a Ajustes). Ver [Fase 3](#fase-3-de-020--temas-y-biblioteca), con sus criterios T1–T30.
+
 ## Fuera del MVP — ampliación futura: sincronía por palabra
 Decisión del usuario ([0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md)): el MVP solo ofrece herramientas **por línea**; las palabras con tiempos que lleguen de LRCLIB o de un LRC mejorado se **muestran** (◆ en la fila, resaltado por palabra en la vista previa) y se **conservan**, pero no se editan. Esta sección **no se implementa en el MVP**; describe cómo ampliar el diseño en una versión posterior sin rehacer la vista:
 
@@ -927,3 +932,407 @@ Matriz de verificación: los seis viewports de «Unidades y tamaños de prueba»
 
 **Capturas de revisión**
 25. Se guardan en `docs/ux/revision-fase-2.1/` en PNG con el nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` (tamaño físico, p. ej. `editor-1280x720-125-defecto.png`). Como mínimo, para los seis viewports: `defecto` (Sincronía) y `estilo`; y a 1280 × 720 al 100 % y al 125 %: `lista-min`, `panel-min`, `timeline-min`, `todo-min`, `sync` (modo sincronizar) y `foco-divisor`. Además, `panel-300` con la fila del desplazamiento y `bajo-minimo` (disposición B). Cada captura muestra la ventana completa, sin recortes.
+
+## Fase 3 de 0.2.0 · Temas y biblioteca
+
+Origen: [plan, fase 3, feature 5](../versiones/0.2.0/plan-2.md#5-temas-guardables--l) y decisión del usuario en [0047](../preguntas/0047-temas-asignados-edicion-y-borrado.md). Modelo de datos, resolución y escritura del catálogo: [ADR 0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md). Detalles de interfaz acordados con el arquitecto: [0054](../preguntas/0054-detalles-de-interfaz-de-temas-y-biblioteca.md). Esta sección se ocupa del **panel Estilo**. La Biblioteca (agrupación, selección múltiple, tema de artista y álbum desde sus encabezados) está en [02 · Fase 3](02-biblioteca.md#fase-3-de-020--temas-y-biblioteca) y el tema predeterminado y la gestión del catálogo en [08 · Fase 3](08-ajustes-y-acerca.md#fase-3-de-020--temas-y-biblioteca).
+
+**Sustituye**: los dos botones del final del wireframe D, las filas «Restablecer estilo predeterminado» y «Usar este estilo en canciones nuevas» de la tabla «Estilo (panel D)», la frase de «Deshacer y rehacer» sobre «Usar este estilo en canciones nuevas», el criterio 32 y las claves `edi.estilo.reset`, `edi.estilo.predet` y `edi.estilo.predet.toast`. «Volver a heredar» cumple el papel de «Restablecer» y el predeterminado se elige en Ajustes. El resto del panel (controles de fondo y letra, aviso de contraste y sus acciones rápidas) no cambia. **Respeta la [subfase 2.1](#subfase-21--layout-adaptable-y-paneles)**: todo vive dentro del contenido del panel, con su scroll propio, entre 300 y 480 px de ancho; nada añade scroll de página.
+
+### Conceptos y procedencia
+
+Una canción está en uno de dos **modos**:
+- **Temas definidos** (vínculo vivo): su aspecto es el de un tema del catálogo. Si alguien edita ese tema y confirma, la canción cambia en la próxima reproducción.
+- **Tema personalizado** (copia propia): su aspecto es un estilo guardado solo en la canción. Ningún tema lo cambia.
+
+En «Temas definidos», el tema efectivo se resuelve en main con esta precedencia. La **procedencia** es el nivel que la da y siempre se muestra en texto:
+
+| Nivel | Cuándo | Procedencia (`tema.origen.*`) | Corta (tarjeta, `tema.origen.corta.*`) |
+|---|---|---|---|
+| Canción | La canción tiene un tema asignado | Asignado a esta canción | propio |
+| Álbum | Su álbum (de su artista) tiene tema | Del álbum «{álbum}» de {artista} | del álbum |
+| Artista | Su artista tiene tema | Del artista {artista} | del artista |
+| Al azar | Se creó sin predeterminado y recibió un tema al azar del catálogo | Elegido al azar al crear la canción | al azar |
+| Predeterminado anterior | Seguía el tema predeterminado cuando se quitó en Ajustes («Ninguno…») y lo conserva, vinculado | Tema predeterminado anterior | predeterminado anterior |
+| Estilo incluido | Se creó con el catálogo vacío | Estilo incluido de Shinobi Karaoke | incluido |
+| Predeterminado | Hay tema predeterminado en Ajustes y la canción no tiene base fijada | Tema predeterminado | predeterminado |
+
+Las tres filas «Al azar», «Predeterminado anterior» y «Estilo incluido» son la **base** fijada en la canción (ADR 0016 §2): están al mismo nivel y sustituyen al predeterminado global solo para esa canción. Sin base, se usa el predeterminado; sin base ni predeterminado, el estilo incluido (misma procedencia y texto que la fila «Estilo incluido»).
+
+Correspondencia con las procedencias que entrega main (ADR 0016 §3): `cancion` → Canción · `album` → Álbum · `artista` → Artista · `aleatorio` → Al azar · `predeterminado_anterior` → Predeterminado anterior (`tema.origen.anterior`) · `incluido` → Estilo incluido · `predeterminado` → Predeterminado · `propio` → Tema personalizado · `respaldo` → Tema no disponible. El renderer no calcula procedencias: solo las traduce.
+
+Dos casos más:
+- **Tema personalizado**: procedencia `tema.origen.personalizado`. Es el caso de **todas las canciones de 0.1.0** al abrirlas por primera vez: conservan su estilo como copia propia y su aspecto no cambia (plan: «la herencia se activa por decisión explícita»).
+- **Tema no disponible** (procedencia `respaldo`): la canción apunta a un tema que no está en el catálogo (carpeta copiada de otro equipo, catálogo restaurado de una copia anterior, catálogo apartado por ilegible, o su tema «al azar» o «predeterminado anterior» ya no existe) o el catálogo está en solo lectura. Se muestra con el aspecto de respaldo guardado en la canción. No es un borrado: si el tema vuelve a aparecer en el catálogo, la canción lo vuelve a usar sin hacer nada. Un tema **borrado** desde la app nunca deja canciones en este estado (se convierten antes en «Tema personalizado», ver «Eliminar tema»).
+
+«Al azar» y «Estilo incluido» quedan fijados al crear la canción y no cambian al reabrirla. Al cambiar el predeterminado en Ajustes (decisión del usuario en [0052](../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md): A1, B1, C1; detalle en [08 · Fase 3](08-ajustes-y-acerca.md#fase-3-de-020--temas-y-biblioteca)):
+- de un tema a otro, las canciones con «Tema predeterminado» pasan al nuevo;
+- de un tema a «Ninguno…», esas canciones **conservan** el tema que usaban, siguen vinculadas a él (editarlo las cambia) y su procedencia pasa a «Tema predeterminado anterior». Su aspecto y su portada no cambian;
+- elegir un predeterminado nuevo **no** cambia las canciones con base fijada («al azar», «predeterminado anterior» o «estilo incluido»).
+
+«Volver a heredar», «Temas definidos» y elegir un tema conservan la base: una canción con «predeterminado anterior» a la que se asigna y luego se quita un tema vuelve a «Tema predeterminado anterior». Para cambiar de golpe varias de estas canciones está «Aplicar tema…» en la Biblioteca.
+
+### Wireframes del panel Estilo
+
+**D1 — Temas definidos** (estado más habitual)
+```
+│ Tema                                              │  h3
+│ ◉ Temas definidos                                 │  grupo de radio vertical
+│   Usa un tema y recibe sus cambios.               │  (t-pequeno, texto-2)
+│ ○ Tema personalizado                              │
+│   Estilo propio solo para esta canción.           │
+│ ───────────────────────────────────────────       │
+│ [▣ Noche ninja                              ▾ ]   │  selector de tema (muestra + nombre)
+│ Del álbum «A Night at the Opera» de Queen         │  procedencia (t-pequeno, texto-2)
+│ Lo usan 12 canciones.                             │  (t-pequeno, texto-3)
+│ [Personalizar]  [Editar tema]  [⋯]                │  una fila; ⋯ = «Más acciones del tema»
+│ ───────────────────────────────────────────       │
+│ Fondo   ▰▰▰ Degradado · 135°                      │  resumen de solo lectura
+│ Letra   Atkinson Hyperlegible Next                │
+│         ■ Letra #FFFFFF   ■ Lo ya cantado #FFD400 │
+│ ───────────────────────────────────────────       │
+│ ✓ Buen contraste                                  │
+```
+Con el tema **asignado a esta canción**, la procedencia es «Asignado a esta canción» y debajo aparece:
+```
+│ Asignado a esta canción                           │
+│ [Volver a heredar]                                │
+│ Usará «Neón», del artista Queen.                  │  `tema.heredar.destino`
+```
+Si el destino es `respaldo` (la base de la canción apunta a un tema que no está en el catálogo; [0056](../preguntas/0056-destino-respaldo-y-canciones-pendientes.md)):
+```
+│ Asignado a esta canción                           │
+│ [Volver a heredar]                                │
+│ ⚠ Su tema de origen no está en tus temas. Se verá │  `tema.heredar.destino.respaldo`
+│ con el último aspecto guardado en esta canción    │  (⚠ en `aviso`, texto en `texto-2`)
+│ («Tema no disponible»).                           │
+```
+Con el catálogo **vacío** (y procedencia «Estilo incluido»), en lugar del selector: `tema.catalogo.vacio` y solo [Personalizar].
+
+**D2 — Tema personalizado**
+```
+│ Tema                                              │
+│ ○ Temas definidos                                 │
+│ ◉ Tema personalizado                              │
+│ Estilo propio de esta canción. Los cambios no     │
+│ afectan a ningún tema.                            │
+│ [Guardar como tema nuevo…]                        │
+│ ───────────────────────────────────────────       │
+│ Fondo … Letra … (controles completos del wireframe D, sin los dos botones finales) │
+│ aviso de contraste con sus acciones rápidas       │
+```
+
+**D3 — Editando un tema** (tras «Editar tema»)
+```
+│ ┌ ✎ Editando el tema «Noche ninja» ───────────┐   │  aviso en línea `info`
+│ │ Lo usan 12 canciones. Los cambios se ven en   │   │
+│ │ esta vista previa y no se aplican hasta que   │   │
+│ │ los guardes.                                  │   │
+│ └───────────────────────────────────────────────┘   │
+│ Fondo … Letra … (controles completos)             │
+│ aviso de contraste con sus acciones rápidas       │
+│ ══════════════ pie fijo del panel ══════════════  │
+│ [Guardar en el tema…]  [Descartar cambios]        │
+│ [Guardar como tema nuevo…]                        │
+```
+- El grupo «Temas definidos / Tema personalizado», el selector y ⋯ quedan inactivos (`inert`) mientras dura la edición; el banner explica por qué.
+- El pie es fijo dentro del panel (no se desplaza con el contenido) mientras el contenido del panel mida ≥ 200 px de alto; por debajo (disposición «Por debajo del mínimo»), el pie va al final del contenido y se alcanza con el scroll del panel. Dos filas de 36 px; los botones no se parten.
+
+**D4 — Tema no disponible**
+```
+│ ┌ ⚠ Tema no disponible ─────────────────────────┐ │  aviso en línea `aviso`
+│ │ Esta canción usaba «Atardecer», que no está en │ │
+│ │ tus temas (quizá viene de otro equipo o de una │ │
+│ │ copia). Se ve con el aspecto que tenía.        │ │
+│ │ [Guardar como tema nuevo…]                     │ │
+│ │ [Usar como tema personalizado]                 │ │
+│ └────────────────────────────────────────────────┘ │
+│ [▣ «Atardecer» (no disponible)              ▾ ]   │  elegir otro tema lo sustituye
+│ Fondo … Letra … (resumen de solo lectura)         │
+```
+Si la canción no guarda el nombre del tema, el texto usa `tema.noDisponible.sinNombre`.
+
+### Componentes e interacciones
+
+| Elemento | Comportamiento |
+|---|---|
+| **Modo** (grupo de radio «Temas definidos» / «Tema personalizado») | Vertical, con una descripción por opción (cabe a 300 px; un control segmentado no cabría). Flechas ↑/↓ cambian de opción como en cualquier grupo de radio. Pasar a **Tema personalizado** = «Personalizar». Pasar a **Temas definidos** desde personalizado: la canción vuelve a heredar (sin tema asignado) y se descarta su estilo propio; un paso de deshacer y toast `tema.toast.definidos` con [Deshacer]. Sin confirmación: se puede deshacer durante la visita. |
+| **Selector de tema** | Lista desplegable con los temas del catálogo por orden alfabético (comparación del idioma, sin distinguir mayúsculas ni tildes). Cada opción: muestra 16:9 de 48 × 27 px (fondo del tema con «Aa» en su fuente y color de letra, ver sistema visual) + nombre + etiqueta «Predeterminado» si lo es. Elegir un tema lo **asigna a esta canción** (vínculo vivo), sin confirmación (solo afecta a esta canción): vista previa en < 100 ms, autoguardado y un paso de deshacer. Elegir el tema que ya resuelve por herencia también lo asigna (la procedencia pasa a «Asignado a esta canción»). Búsqueda por tecleo como un `select`. |
+| **Procedencia** | Texto `tema.origen.*` bajo el selector, con nombres de álbum y artista tal como se ven en la Biblioteca. Se actualiza en vivo si cambian la asignación de álbum o artista, el predeterminado o los metadatos de la canción. Va en el nombre accesible del selector (`aria-describedby`). |
+| **Usos** | `tema.usos` con el recuento efectivo de canciones que hoy resuelven a ese tema (main; excluye personalizadas y las que usan otro tema por mayor precedencia). Se actualiza en vivo. |
+| **Volver a heredar** | Solo con «Asignado a esta canción». Quita la asignación y conserva la base: la canción usa lo que dé su álbum, su artista, su base («al azar», «predeterminado anterior», «estilo incluido»), el predeterminado o el respaldo. Debajo, `tema.heredar.destino` dice qué tema usará antes de pulsarlo (con `alHeredar` del resumen vivo; ADR 0016 §3). Un paso de deshacer. Foco tras pulsarlo: el selector. **Destino `respaldo`** ([0056](../preguntas/0056-destino-respaldo-y-canciones-pendientes.md)): el botón sigue activo y sin confirmación (se deshace con Ctrl/Cmd + Z), pero la línea pasa a `tema.heredar.destino.respaldo`, con ⚠ en color `aviso`. No se nombra ningún tema: con esta procedencia se ignora `alHeredar.temaNombre`. Tras pulsarlo, el panel pasa a D4 y se anuncia `tema.anuncio.heredar.respaldo`; el foco va al selector de D4. |
+| **Personalizar** | Copia el estilo **efectivo** actual a la canción y pasa a «Tema personalizado» (D2). El aspecto no cambia. Ningún tema cambia. Un paso de deshacer. Anuncio `tema.anuncio.personalizado`. Foco: el radio «Tema personalizado». Disponible también con el catálogo vacío y en «Tema no disponible» (`tema.noDisponible.personalizar`, mismo efecto). |
+| **Editar tema** | Entra en D3 sobre el tema efectivo (no disponible si la procedencia es «Estilo incluido» o «Tema no disponible»: no hay tema que editar). Los controles parten del tema guardado. Los cambios forman un **borrador de tema en memoria**: se ven en la vista previa y en «Probar a pantalla completa», no se escriben en ningún sitio y la canción sigue vinculada al tema. Foco: el banner (`tabindex="-1"`), que se anuncia. |
+| **Guardar en el tema…** (D3) | Abre la confirmación de impacto `tema.dialogo.guardar` (ver «Diálogos»). Al confirmar, se escribe el tema y el editor sale de D3 en «Temas definidos» con el aspecto nuevo. Toast `tema.toast.guardado`. |
+| **Descartar cambios** (D3) | Sin confirmación si el borrador no tiene cambios; con cambios, `tema.dialogo.descartar`. Vuelve a D1 con el tema sin tocar. Foco: «Editar tema». |
+| **Guardar como tema nuevo…** | En D2, D3 y D4. Abre `tema.dialogo.nuevo` (pide el nombre). Crea un tema con el estilo visible (D2: el estilo propio; D3: el borrador; D4: el aspecto de respaldo). **No cambia la canción**: en D3 el editor sale de la edición, descarta el borrador y la canción sigue con el tema original; en D2 sigue personalizada; en D4 sigue igual. Tras crear, aparece el aviso en línea `tema.nuevo.creado` con [Usar «{nuevo}» en esta canción], que es el **paso explícito** para aplicarlo (asigna el tema a la canción, un paso de deshacer). El foco va a ese botón. El aviso se cierra con ✕, al cambiar de modo o de tema, o al salir del editor. |
+| **⋯ Más acciones del tema** (D1) | Menú contextual: «Renombrar tema…», «Duplicar tema…», separador, «Tema del álbum…», «Tema del artista…», separador, «Administrar temas…», separador, «Eliminar tema…» (destructivo, al final). Las tres primeras actúan sobre el tema efectivo; con «Estilo incluido» o «Tema no disponible» solo quedan las de álbum, artista y administrar. |
+| **Renombrar tema…** | `tema.dialogo.renombrar`. No cambia el aspecto de ninguna canción, así que no pide confirmación de impacto. Toast `tema.toast.renombrado`. |
+| **Duplicar tema…** | `tema.dialogo.duplicar` (nombre propuesto `tema.nombre.copia`). Crea una copia sin usos. Mismo aviso en línea `tema.nuevo.creado` que «Guardar como tema nuevo…». |
+| **Eliminar tema…** | `tema.dialogo.eliminar` (ver «Diálogos»). Si la canción abierta estaba entre las afectadas, al terminar pasa a D2 con su aspecto de siempre; foco en el radio «Tema personalizado» y anuncio `tema.anuncio.eliminado.esta`. Si no, foco en el selector. |
+| **Tema del álbum… / Tema del artista…** | Abre el diálogo de asignación de grupo, el mismo de la Biblioteca ([02 · Fase 3](02-biblioteca.md#tema-de-un-artista-o-de-un-álbum)), para el álbum o el artista de esta canción. Sin álbum (o sin artista): opción `aria-disabled` con el motivo `tema.grupo.sinAlbum` / `tema.grupo.sinArtista` en tooltip. Un álbum sin artista tampoco admite tema (`tema.grupo.albumSinArtista`). |
+| **Administrar temas…** | Va a Ajustes, sección Temas ([08 · Fase 3](08-ajustes-y-acerca.md#fase-3-de-020--temas-y-biblioteca)), tras vaciar el guardado como cualquier salida. Desde ahí «‹ Volver al editor» regresa a esta canción. |
+| **Resumen de solo lectura** (D1, D4) | «Fondo»: muestra del fondo (48 × 27) + «Sólido» o «Degradado · {ángulo}°». «Letra»: nombre de la fuente en su propia fuente + dos muestras de 16 px con su nombre y hex. Texto seleccionable, no son controles. |
+| **Aviso de contraste en D1 y D4** | Se evalúa igual que siempre y conserva el punto `aviso` en la pestaña. Las acciones rápidas («Usar letra blanca», «Sugerir un color de resaltado») cambiarían el estilo, así que en D1/D4 se sustituyen por `tema.contraste.ayuda` con [Personalizar] y (en D1) [Editar tema]. En D2 y D3 las acciones rápidas funcionan como antes (en D3 cambian el borrador). |
+| **Portada en la Biblioteca** | Consecuencia sin aviso: ver [02 · Fase 3](02-biblioteca.md#tarjeta-tema-y-portada) (sustituye a la fila «Portada en la Biblioteca» de la tabla del panel D). |
+
+**Deshacer y rehacer**
+- Entran en el historial de la visita (un paso cada uno): elegir tema, «Volver a heredar», «Personalizar», volver a «Temas definidos», «Usar «{nuevo}» en esta canción», «Usar como tema personalizado» y, **dentro de D3**, cada cambio del borrador.
+- **No** entran (como antes «Usar este estilo en canciones nuevas»): guardar en el tema, crear, renombrar, duplicar y eliminar temas, el tema de álbum o artista. Todos pasan por diálogo.
+- Al salir de D3 (guardar, descartar o guardar como nuevo), los pasos del borrador se retiran del historial: Ctrl/Cmd + Z ya no los rehace ni deshace.
+- Si un tema deja de existir (eliminado desde este editor), se retiran del historial los pasos que lo asignarían. Ctrl/Cmd + Z nunca vuelve a vincular la canción a un tema borrado. El resto del historial se conserva.
+
+**Salir con un borrador de tema**
+- Cualquier salida del editor (‹ Biblioteca, Esc, stepper, «Corregir la letra», «Marcar como lista», «Hecho», «Administrar temas…», Ctrl/Cmd + , o N) con D3 abierto y cambios en el borrador muestra `tema.dialogo.salir`: [Seguir editando] (foco inicial, = Esc) · [Descartar cambios del tema] · [Guardar en el tema…] (abre la confirmación de impacto; al confirmar, se sale). Es la **segunda** confirmación de salida del editor, junto a `edi.dialogo.salir`; si ambas aplican, primero esta.
+- «Probar a pantalla completa» no sale del editor: usa el borrador sin preguntar.
+- Cerrar la ventana con un borrador de tema muestra el mismo diálogo (viable según ADR 0016 §10: el renderer declara guardado pendiente mientras el borrador tenga cambios y main espera la confirmación). «Descartar cambios del tema» cierra la app; «Guardar en el tema…» confirma, guarda y cierra; «Seguir editando» cancela el cierre. Un cierre forzado por el sistema pierde el borrador.
+
+**Instantánea de reproducción**: un tema guardado se aplica a las reproducciones que **empiezan** después. Una reproducción ya en marcha (y, en fases posteriores, una exportación o una sesión en otra ventana) conserva el aspecto con el que empezó hasta terminar esa canción. La confirmación de impacto lo dice cuando main informa de una sesión en marcha (`tema.dialogo.guardar.sesion`).
+
+### Diálogos
+
+Todos con el componente «Diálogo modal» de sistema-visual §6: atrapan el foco, Esc = cancelar y devuelven el foco al disparador salvo que se indique otra cosa.
+
+**Confirmar impacto — `tema.dialogo.guardar`** (también lo usan «Tema del álbum/artista…» y el cambio de predeterminado con su propio texto)
+```
+┌ ¿Guardar los cambios en «Noche ninja»? ───────────────┐
+│ Cambiará el aspecto de 12 canciones, incluida esta.   │
+│ · 3 lo tienen asignado                                │
+│ · 7 lo heredan de su álbum o artista                  │
+│ · 2 lo usan como tema predeterminado                  │
+│ (si hay) · 1 lo recibió al azar                       │
+│ (si hay) · 4 lo conservan como predeterminado anterior│
+│ [▸ Ver las canciones]                                 │  revelador: lista de «título — artista»
+│ No cambian las canciones con tema personalizado ni    │
+│ las que usan otro tema.                               │
+│ (si hay sesión) Lo que ya se está reproduciendo       │
+│ seguirá con el aspecto anterior hasta que termine.    │
+│        [Cancelar] [Guardar como tema nuevo…] [Guardar en «Noche ninja»] │
+└───────────────────────────────────────────────────────┘
+```
+- Recuento y desglose los calcula main al abrir el diálogo (`temas.previsualizar`, `ImpactoIpc.desglose`). Correspondencia de líneas, en este orden: `cancion` → «lo tienen asignado»; `album` + `artista` → «lo heredan de su álbum o artista» (una sola línea, suma de los dos); `predeterminado` → «lo usan como tema predeterminado»; `aleatorio` → «lo recibieron al azar»; `predeterminadoAnterior` → «lo conservan como predeterminado anterior» (línea propia, no se suma a la del predeterminado). Las líneas con 0 no se muestran. Si queda una sola línea, se muestra igual (el usuario ve por qué cuenta). Los campos `propio`, `respaldo` e `incluido` del desglose no aparecen en este diálogo (no pueden resolver a un tema que se edita); los usa la Biblioteca.
+- **Foco inicial en «Cancelar»** (cambio masivo; el usuario pidió protegerse de guardar por error). «Guardar como tema nuevo…» cierra este diálogo y abre el del nombre.
+- Lista revelable: hasta 8 filas visibles con scroll propio, ordenadas por título. Es `role="list"`; el botón revelador lleva `aria-expanded`.
+- **Confirmación obsoleta**: el diálogo se abre con `temas.previsualizar` y confirma con `temas.ejecutar` (ADR 0016 §7). Si main responde `CONFIRMACION_OBSOLETA` (p. ej. terminó de crearse una canción que hereda el tema, o se editaron datos), no se ha guardado nada: el diálogo toma el impacto nuevo que viene con el error, actualiza recuento y desglose y muestra arriba el aviso `error`/alerta `tema.obsoleto`. El foco se queda en el botón pulsado. Hay que confirmar otra vez.
+- **Error de escritura**: el diálogo se cierra, el borrador sigue en D3 intacto y aparece el toast `tema.toast.error` con [Reintentar] (vuelve a abrir la confirmación) y [Copiar detalles]. El tema y las canciones no cambian.
+- **El tema ya no existe**: `tema.error.noExiste` en el diálogo con [Guardar como tema nuevo…] y [Cancelar].
+
+**Nombre del tema — `tema.dialogo.nuevo` / `tema.dialogo.duplicar` / `tema.dialogo.renombrar`**
+```
+┌ Guardar como tema nuevo ─────────────────────────────┐
+│ Nombre del tema                                       │
+│ [ Noche ninja (copia)                             ]   │  texto preseleccionado
+│ Se creará un tema nuevo. «Noche ninja» y las          │  ayuda según origen
+│ canciones que lo usan no cambian.                     │
+│                              [Cancelar] [Crear tema]  │
+└───────────────────────────────────────────────────────┘
+```
+- Propuesta: D3 y duplicar `tema.nombre.copia`; D2 `tema.nombre.cancion`; D4 el nombre guardado del tema no disponible (o `tema.nombre.cancion`). Si la propuesta ya existe se añade « 2», « 3»… hasta que sea única.
+- Validación al confirmar y en vivo tras el primer intento: vacío → `tema.nombre.vacio`; repetido (misma identidad: NFC, espacios colapsados y sin distinguir mayúsculas, **conservando tildes**) → `tema.nombre.repetido`. Máximo 60 caracteres (`maxlength`, contador solo a partir de 50). Intro confirma. Error con borde `error` y `aria-describedby`.
+- Renombrar: título `tema.dialogo.renombrar`, botón «Renombrar», sin ayuda de impacto; si el nombre no cambia, el botón cierra sin escribir.
+- La comprobación en vivo es orientativa; la autoridad es main. Si al confirmar responde `TEMA_NOMBRE_DUPLICADO` (también al renombrar, o porque el nombre pasó a estar repetido entre abrir y confirmar), el diálogo sigue abierto, muestra `tema.nombre.repetido` en el campo y devuelve el foco al campo con el texto seleccionado. Nombres de 1 a 60 caracteres tras recortar espacios.
+
+**Eliminar tema — `tema.dialogo.eliminar`**
+```
+┌ ¿Eliminar el tema «Noche ninja»? ─────────────────────┐
+│ 12 canciones lo usan. Conservarán su aspecto actual   │
+│ como tema personalizado y dejarán de estar vinculadas │
+│ a «Noche ninja».                                      │
+│ [▸ Ver las canciones]                                 │
+│ También se quitará de 1 artista y 2 álbumes.          │  si los hay
+│ (si es el predeterminado) Las canciones nuevas        │
+│ recibirán un tema al azar hasta que elijas otro tema  │
+│ predeterminado en Ajustes.                            │
+│ No se puede deshacer.                                 │
+│                          [Cancelar] [Eliminar tema]   │  destructivo; foco en Cancelar
+└───────────────────────────────────────────────────────┘
+```
+- El recuento es **efectivo** (las canciones que hoy resuelven a ese tema por cualquier nivel); las que tienen tema personalizado u otro tema de mayor precedencia no cuentan y no cambian. Con 0: `tema.eliminar.cero`.
+- Mientras se aplica: el botón pasa a «Eliminando…» (cargando) y, si hay más de 5 canciones, se muestra bajo el texto `tema.eliminar.progreso` («Guardando el aspecto de 4 de 12 canciones…»), con `{i}`/`{n}` del evento `temas:progreso` (`hechas`/`total` de la ficha del diálogo; ADR 0016 §7). `total` puede superar al recuento del diálogo porque incluye canciones que solo pierden su base sin cambiar de aspecto: se muestra el `total` del evento. Región `role="status"` que se anuncia al empezar y al terminar, no en cada paso. No se puede cancelar a medias.
+- **Éxito**: se cierra y toast `tema.toast.eliminado`. Foco según dónde se lanzó (editor: ver la tabla; Ajustes: ver 08).
+- **Escritura interrumpida**: el tema **sigue en el catálogo** en «borrado pendiente» (ADR 0016 §8) y el diálogo muestra `tema.eliminar.parcial` con la **lista de lo que falta** (ver «Lista de canciones tras un fallo a mitad», abajo), [Reintentar] (`temas.reanudarBorrado`: repite solo lo pendiente y luego retira el tema), [Cancelar el borrado] (`temas.cancelarBorrado`: el tema vuelve a estar disponible; las ya convertidas siguen como «Tema personalizado» con el mismo aspecto; toast `tema.toast.borradoCancelado`) y [Cerrar] (deja el borrado pendiente; se retoma desde Ajustes › Temas, ver [08](08-ajustes-y-acerca.md#fase-3-de-020--temas-y-biblioteca)). Las canciones ya convertidas quedan como «Tema personalizado» con su mismo aspecto: no hay cambio visible.
+- **Confirmación obsoleta**: como en `tema.dialogo.guardar` (`tema.obsoleto`).
+
+**Lista de canciones tras un fallo a mitad** ([0056](../preguntas/0056-destino-respaldo-y-canciones-pendientes.md)). La usan `tema.eliminar.parcial` (eliminar desde el editor o desde Ajustes, y «Terminar de eliminar» / [Reintentar], que llaman a `temas.reanudarBorrado`) y `aj.temas.ninguno.parcial` (spec 08). Estas operaciones se detienen en el primer fallo, así que el resultado (ADR 0016 §7) trae una canción `error` y el resto `pendiente`.
+```
+┌ ¿Eliminar el tema «Noche ninja»? ─────────────────────┐
+│ No se pudo terminar: falló al guardar «La flaca» y    │  `tema.eliminar.parcial` (role="alert")
+│ el borrado se detuvo. Faltan 3 canciones por          │
+│ conservar su aspecto. El tema no se eliminará hasta   │
+│ que se guarden todas.                                 │
+│ ✕ La flaca — Jarabe de Palo · No se pudo guardar.     │
+│                                    [Copiar detalles]  │
+│ – Lucía — Sin artista · Pendiente                     │  `texto-3`
+│ – Vivir — Queen · Pendiente                           │
+│ Las pendientes no se intentaron porque el proceso se  │  `tema.parcial.notaPendientes` (`texto-3`)
+│ detuvo en el fallo. Reintentar las guarda todas.      │
+│        [Reintentar] [Cancelar el borrado] [Cerrar]    │
+└───────────────────────────────────────────────────────┘
+```
+- Se listan **solo** las canciones `error` y `pendiente`, en el orden del resultado (la que falló, primero). Las `aplicada` no se listan.
+- Fila `error`: ✕ en `error` + «{título} — {artista}» + `tema.parcial.fila.error` + [Copiar detalles] (copia el `codigo` de esa canción, sin rutas, como el resto de «Copiar detalles»).
+- Fila `pendiente`: – en `texto-3` + «{título} — {artista}» + `tema.parcial.fila.pendiente`, todo en `texto-3`. Sin [Copiar detalles]: no hay error que copiar.
+- `tema.parcial.notaPendientes` solo aparece si hay al menos una `pendiente`.
+- El texto principal usa `{f}` = número de filas de la lista (`error` + `pendiente`), no «{k} de {n}». Así el texto sigue siendo cierto en los reintentos, donde main recalcula el conjunto y `n` ya no es el del primer intento.
+- La lista es `role="list"`. El nombre accesible de cada fila incluye su estado, porque los símbolos son decorativos (`aria-hidden`): «La flaca — Jarabe de Palo, no se pudo guardar», «Lucía — Sin artista, pendiente». Hasta 8 filas visibles con scroll propio.
+- Al aparecer, el texto principal se anuncia una vez (`role="alert"`) y el foco va a [Reintentar]. Si [Reintentar] vuelve a fallar, la lista y el texto se sustituyen por los del intento nuevo.
+
+**Descartar — `tema.dialogo.descartar`**: «¿Descartar los cambios del tema?» «Los cambios que has hecho en «{tema}» no se guardarán. El tema y las canciones que lo usan no cambian.» [Seguir editando] (foco) [Descartar cambios] (destructivo).
+
+### Estados
+
+| Estado | Presentación |
+|---|---|
+| Temas definidos, heredado | D1 con la procedencia del nivel. |
+| Temas definidos, asignado | D1 con «Asignado a esta canción», [Volver a heredar] y `tema.heredar.destino`. |
+| Tema personalizado | D2. Canciones de 0.1.0 al abrirlas por primera vez. |
+| Editando tema | D3; punto `info` en la pestaña «Estilo» y en «Expandir panel» si está minimizado, con nombre accesible `tema.pestana.editando`. |
+| Catálogo vacío | D1 sin selector: `tema.catalogo.vacio`; solo [Personalizar]. |
+| Estilo incluido | D1 con procedencia «Estilo incluido de Shinobi Karaoke»; selector con el marcador «Estilo incluido» (no es una opción); sin «Editar tema». |
+| Tema no disponible | D4. |
+| Catálogo apartado por ilegible | Main lo aparta y empieza uno nuevo (ADR 0016 §1). Las canciones que apuntaban a temas perdidos se ven en D4. Sin aviso extra en el editor; el aviso está en Ajustes (`aj.temas.apartado`). |
+| Catálogo en solo lectura (`TEMAS_SOLO_LECTURA`) | Aviso `aviso` en lugar del selector: `tema.soloLectura`. Las canciones con tema se ven con su respaldo (D4 sin acciones de catálogo). Se puede personalizar; «Editar tema», el selector, ⋯ y «Guardar como tema nuevo…» quedan inactivos con ese motivo. |
+| Tema en borrado pendiente (`BORRADO_PENDIENTE`) | El tema sigue resolviendo, pero no se ofrece en el selector. Si es el efectivo de esta canción: D1 con aviso `tema.borradoPendiente` y «Administrar temas…»; «Editar tema», renombrar, duplicar y eliminar inactivos con ese motivo. |
+| Guardando tema | Botón del diálogo en «cargando»; el indicador de guardado de la cabecera **no** cambia (es del archivo de la canción). |
+| Bloqueado por modo sincronizar | Como hoy: el panel Estilo no se abre durante el modo. |
+
+### Accesibilidad
+- Sección con `h3` «Tema». El grupo de modo es `role="radiogroup"` con nombre «Modo del tema»; cada descripción va en `aria-describedby` de su radio.
+- El selector de tema anuncia nombre del tema y procedencia; cada opción, «{nombre}, predeterminado» cuando aplique. Las muestras son decorativas (`aria-hidden`).
+- Anuncios `aria-live="polite"` (región del editor) solo en hitos: asignar, heredar, personalizar, entrar y salir de D3, tema guardado, creado, renombrado y eliminado. El aviso `tema.obsoleto` es `role="alert"`.
+- Foco tras acciones destructivas o que hacen desaparecer el control: definido en la tabla; nunca queda en `body`.
+- Contraste: los textos nuevos usan `texto-2`/`texto-3` sobre `fondo-1` (≥ 4,5:1, sistema-visual §2).
+
+### Microcopy (fase 3, editor)
+
+| Clave | Texto |
+|---|---|
+| `tema.titulo` | Tema |
+| `tema.modo` | Modo del tema |
+| `tema.modo.definidos` | Temas definidos — Usa un tema y recibe sus cambios. |
+| `tema.modo.personalizado` | Tema personalizado — Estilo propio solo para esta canción. |
+| `tema.selector` | Tema |
+| `tema.selector.predeterminado` | Predeterminado |
+| `tema.origen.cancion` | Asignado a esta canción |
+| `tema.origen.album` | Del álbum «{álbum}» de {artista} |
+| `tema.origen.artista` | Del artista {artista} |
+| `tema.origen.predeterminado` | Tema predeterminado |
+| `tema.origen.azar` | Elegido al azar al crear la canción |
+| `tema.origen.anterior` | Tema predeterminado anterior |
+| `tema.origen.incluido` | Estilo incluido de Shinobi Karaoke |
+| `tema.origen.personalizado` | Estilo propio de esta canción. Los cambios no afectan a ningún tema. |
+| `tema.origen.corta.*` | propio · del álbum · del artista · predeterminado · al azar · predeterminado anterior · incluido · (respaldo) no disponible |
+| `tema.usos` | Lo usan {n} canciones. · (n = 1) Lo usa 1 canción. · (n = 0) Ninguna canción lo usa. |
+| `tema.heredar` | Volver a heredar |
+| `tema.heredar.destino` | Usará «{tema}», {procedencia en minúscula}. · (predeterminado anterior) Usará «{tema}», el tema predeterminado anterior. · (estilo incluido) Usará el estilo incluido de Shinobi Karaoke. |
+| `tema.heredar.destino.respaldo` | ⚠ Su tema de origen no está en tus temas. Se verá con el último aspecto guardado en esta canción («Tema no disponible»). |
+| `tema.personalizar` | Personalizar |
+| `tema.editar` | Editar tema |
+| `tema.mas` | Más acciones del tema |
+| `tema.editando.titulo` | Editando el tema «{tema}» |
+| `tema.editando.cuerpo` | Lo usan {n} canciones. Los cambios se ven en esta vista previa y no se aplican hasta que los guardes. |
+| `tema.guardarEn` | Guardar en el tema… |
+| `tema.descartar` | Descartar cambios |
+| `tema.guardarNuevo` | Guardar como tema nuevo… |
+| `tema.renombrar` / `tema.duplicar` / `tema.eliminar` | Renombrar tema… · Duplicar tema… · Eliminar tema… |
+| `tema.album` / `tema.artista` | Tema del álbum… · Tema del artista… |
+| `tema.administrar` | Administrar temas… |
+| `tema.grupo.sinAlbum` | Esta canción no tiene álbum. Puedes añadirlo con «Editar datos» en la Biblioteca. |
+| `tema.grupo.sinArtista` | Esta canción no tiene artista. Puedes añadirlo con «Editar datos» en la Biblioteca. |
+| `tema.grupo.albumSinArtista` | Para dar un tema a este álbum, añade antes su artista. |
+| `tema.catalogo.vacio` | Aún no tienes temas. Personaliza esta canción y usa «Guardar como tema nuevo…» para crear el primero. |
+| `tema.soloLectura` | Tus temas se guardaron con una versión más nueva de Shinobi Karaoke y aquí no se pueden usar ni cambiar. Las canciones se ven con el aspecto guardado en cada una. Puedes personalizar esta canción. |
+| `tema.borradoPendiente` | La eliminación de este tema quedó a medias. Termínala o cancélala en Ajustes › Temas. — [Administrar temas…] |
+| `tema.toast.borradoCancelado` | Eliminación de «{tema}» cancelada. El tema sigue disponible; {k} canciones ya conservan su aspecto como tema personalizado. |
+| `tema.eliminar.cancelar` | Cancelar el borrado |
+| `tema.noDisponible.titulo` | Tema no disponible |
+| `tema.noDisponible.cuerpo` | Esta canción usaba «{tema}», que no está en tus temas (quizá viene de otro equipo o de una copia). Se ve con el aspecto que tenía. |
+| `tema.noDisponible.sinNombre` | Esta canción usaba un tema que no está en tus temas (quizá viene de otro equipo o de una copia). Se ve con el aspecto que tenía. |
+| `tema.noDisponible.opcion` | «{tema}» (no disponible) |
+| `tema.noDisponible.personalizar` | Usar como tema personalizado |
+| `tema.contraste.ayuda` | Para corregirlo, personaliza esta canción o edita el tema. · (sin «Editar tema») Para corregirlo, personaliza esta canción. |
+| `tema.nuevo.creado` | Tema «{nuevo}» creado. Esta canción sigue usando «{tema}». · (personalizada) Tema «{nuevo}» creado. Esta canción sigue con su tema personalizado. — [Usar «{nuevo}» en esta canción] |
+| `tema.dialogo.guardar` | Título: ¿Guardar los cambios en «{tema}»? · Cuerpo: Cambiará el aspecto de {n} canciones[, incluida esta]. · Desglose: {a} lo tienen asignado · {b} lo heredan de su álbum o artista · {c} lo usan como tema predeterminado · {d} lo recibieron al azar · {e} lo conservan como predeterminado anterior · (cada línea con 1) 1 lo tiene asignado · 1 lo hereda de su álbum o artista · 1 lo usa como tema predeterminado · 1 lo recibió al azar · 1 lo conserva como predeterminado anterior · Nota: No cambian las canciones con tema personalizado ni las que usan otro tema. — [Cancelar] [Guardar como tema nuevo…] [Guardar en «{tema}»] |
+| `tema.dialogo.guardar.uno` | (n = 1) Cambiará el aspecto de 1 canción[, que es esta]. |
+| `tema.dialogo.guardar.sesion` | Lo que ya se está reproduciendo seguirá con el aspecto anterior hasta que termine. |
+| `tema.verCanciones` | Ver las canciones · Ocultar las canciones |
+| `tema.obsoleto` | Mientras confirmabas cambió qué canciones usan este tema. Revisa el nuevo recuento y confirma otra vez. |
+| `tema.error.noExiste` | Este tema ya no existe. Puedes guardar tus cambios como un tema nuevo. |
+| `tema.toast.guardado` | Tema «{tema}» guardado. |
+| `tema.toast.error` | No se pudo guardar el tema. Tus cambios siguen aquí. — [Reintentar] [Copiar detalles] |
+| `tema.dialogo.nuevo` | Título: Guardar como tema nuevo · Campo: Nombre del tema · Ayuda (D3): Se creará un tema nuevo. «{tema}» y las canciones que lo usan no cambian. · Ayuda (D2/D4): Se creará un tema con el aspecto de esta canción. La canción no cambia. — [Cancelar] [Crear tema] |
+| `tema.dialogo.duplicar` | Título: Duplicar tema · Ayuda: La copia empieza igual que «{tema}». Ninguna canción la usa todavía. — [Cancelar] [Duplicar] |
+| `tema.dialogo.renombrar` | Título: Renombrar tema · Campo: Nombre del tema — [Cancelar] [Renombrar] |
+| `tema.nombre.copia` | {tema} (copia) |
+| `tema.nombre.cancion` | Tema de «{título}» |
+| `tema.nombre.vacio` | Escribe un nombre. |
+| `tema.nombre.repetido` | Ya tienes un tema con ese nombre. |
+| `tema.toast.creado` | Tema «{nuevo}» creado. |
+| `tema.toast.renombrado` | Tema renombrado: «{nuevo}». |
+| `tema.dialogo.eliminar` | Título: ¿Eliminar el tema «{tema}»? · Cuerpo: {n} canciones lo usan. Conservarán su aspecto actual como tema personalizado y dejarán de estar vinculadas a «{tema}». · Grupos: También se quitará de {x} artistas y {y} álbumes. · Predeterminado: Las canciones nuevas recibirán un tema al azar hasta que elijas otro tema predeterminado en Ajustes. · Cierre: No se puede deshacer. — [Cancelar] [Eliminar tema] |
+| `tema.eliminar.uno` | (n = 1) 1 canción lo usa. Conservará su aspecto actual como tema personalizado y dejará de estar vinculada a «{tema}». |
+| `tema.eliminar.cero` | Ninguna canción lo usa. |
+| `tema.eliminar.progreso` | Guardando el aspecto de {i} de {n} canciones… |
+| `tema.eliminar.parcial` | No se pudo terminar: falló al guardar «{título}» y el borrado se detuvo. Faltan {f} canciones por conservar su aspecto. El tema no se eliminará hasta que se guarden todas. · (f = 1) No se pudo terminar: falló al guardar «{título}». Falta esa canción por conservar su aspecto. El tema no se eliminará hasta que se guarde. — [Reintentar] [Cancelar el borrado] [Cerrar] |
+| `tema.parcial.fila.error` | No se pudo guardar. — [Copiar detalles] |
+| `tema.parcial.fila.pendiente` | Pendiente |
+| `tema.parcial.notaPendientes` | Las pendientes no se intentaron porque el proceso se detuvo en el fallo. Reintentar las guarda todas. |
+| `tema.toast.eliminado` | Tema «{tema}» eliminado. {n} canciones conservan su aspecto como tema personalizado. · (n = 0) Tema «{tema}» eliminado. |
+| `tema.dialogo.descartar` | Título: ¿Descartar los cambios del tema? · Cuerpo: Los cambios que has hecho en «{tema}» no se guardarán. El tema y las canciones que lo usan no cambian. — [Seguir editando] [Descartar cambios] |
+| `tema.dialogo.salir` | Título: Tienes cambios sin guardar en el tema «{tema}» · Cuerpo: Si sales ahora se perderán. Las canciones que usan el tema no cambian. — [Seguir editando] [Descartar cambios del tema] [Guardar en el tema…] |
+| `tema.toast.definidos` | Esta canción usa ahora «{tema}» ({procedencia corta}). · (estilo incluido) Esta canción usa ahora el estilo incluido de Shinobi Karaoke. · (respaldo) Su tema de origen no está en tus temas: esta canción se ve con el último aspecto guardado en ella. — [Deshacer] |
+| `tema.anuncio.asignado` | Tema «{tema}» asignado a esta canción. |
+| `tema.anuncio.heredar` | Esta canción vuelve a heredar: usa «{tema}». · (estilo incluido) Esta canción vuelve a heredar: usa el estilo incluido de Shinobi Karaoke. |
+| `tema.anuncio.heredar.respaldo` | Esta canción vuelve a heredar, pero su tema de origen no está en tus temas. Se ve con el último aspecto guardado. |
+| `tema.anuncio.personalizado` | Tema personalizado. Los cambios solo afectan a esta canción. |
+| `tema.anuncio.editando` | Editando el tema «{tema}». Los cambios no se aplican hasta que los guardes. |
+| `tema.anuncio.eliminado.esta` | Tema eliminado. Esta canción conserva su aspecto como tema personalizado. |
+| `tema.pestana.editando` | Estilo (editando un tema sin guardar) · Expandir panel (editando un tema sin guardar) |
+
+### Criterios de aceptación de la fase 3 (editor)
+
+**Modo y procedencia**
+- T1. Una canción de esquema 1 se abre en «Tema personalizado» con el mismo estilo que tenía (comparación campo a campo) y la procedencia `tema.origen.personalizado`; ningún archivo cambia hasta que el usuario actúa.
+- T2. Con una canción heredando, la procedencia muestra el nivel correcto en los cuatro niveles de la resolución (canción, álbum, artista, predeterminado) y en «al azar», «Tema predeterminado anterior» y «estilo incluido». Quitar sucesivamente asignación de canción, álbum y artista cambia procedencia, selector, usos y vista previa en vivo.
+- T2b. Con una canción en «Tema predeterminado» que usa «Noche ninja», quitar el predeterminado en Ajustes (Ninguno…) deja la canción con el mismo aspecto y la procedencia `tema.origen.anterior`; editar y guardar «Noche ninja» la cambia (el diálogo de impacto la cuenta en la línea «lo conservan como predeterminado anterior»); elegir después otro predeterminado no la cambia. Asignarle otro tema y pulsar «Volver a heredar» (con `tema.heredar.destino` «Usará «Noche ninja», el tema predeterminado anterior.») la devuelve a esa procedencia.
+- T3. Elegir un tema en el selector lo asigna a la canción sin diálogo, la vista previa cambia en < 100 ms, se autoguarda y Ctrl/Cmd + Z lo revierte. «Volver a heredar» quita la asignación y `tema.heredar.destino` dijo antes qué tema usaría.
+- T4. «Personalizar» conserva el aspecto, pasa a D2 y ninguna edición posterior en D2 cambia el tema de origen ni otra canción (comprobar el archivo del catálogo y otra canción que use el tema).
+- T5. Volver a «Temas definidos» desde D2 hace que la canción herede, muestra `tema.toast.definidos` y [Deshacer] recupera el estilo propio exacto.
+- T6. En D1 y D4 los controles de fondo y letra son un resumen de solo lectura; con contraste bajo se ve el aviso con `tema.contraste.ayuda` y sin acciones rápidas; en D2 y D3 las acciones rápidas funcionan.
+
+**Editar y guardar en el tema**
+- T7. «Editar tema» entra en D3: banner anunciado, modo, selector y ⋯ inertes, pie fijo con los tres botones en dos filas sin partir entre 300 y 480 px de ancho del panel. Los cambios se ven en la vista previa y en «Probar a pantalla completa», y no se escribe nada (catálogo y `cancion.json` intactos).
+- T8. «Guardar en el tema…» abre la confirmación con el recuento efectivo y el desglose calculados por main; el foco inicial está en «Cancelar»; la lista revelable contiene exactamente las canciones contadas. Con un tema usado por una canción asignada, una que lo hereda del álbum, otra del artista, otra del predeterminado, una personalizada y una con otro tema asignado, el recuento es 4.
+- T9. Al confirmar, el tema se guarda, las 4 canciones se ven con el aspecto nuevo al abrirlas o reproducirlas, las otras no cambian, y una reproducción que había empezado antes conserva el aspecto anterior hasta terminar.
+- T10. Si entre abrir y confirmar cambia el conjunto afectado (prueba: crear una canción que herede el tema predeterminado mientras el diálogo está abierto), no se guarda nada, se muestra `tema.obsoleto` como alerta con el recuento nuevo y hace falta confirmar otra vez.
+- T11. Con un fallo de escritura simulado, nada cambia, el borrador sigue en D3 y aparece `tema.toast.error` con [Reintentar].
+- T12. Salir del editor con cambios en D3 muestra `tema.dialogo.salir` con el foco en «Seguir editando»; «Descartar cambios del tema» sale sin tocar el tema; «Guardar en el tema…» confirma y sale. Sin cambios en el borrador se sale sin diálogo.
+- T13. Tras guardar, descartar o guardar como nuevo, Ctrl/Cmd + Z no deshace pasos del borrador.
+
+**Guardar como, renombrar, duplicar**
+- T14. «Guardar como tema nuevo…» pide el nombre con la propuesta preseleccionada, rechaza vacío y repetido (con «Noche Ninja» frente a «noche ninja» repetido, y «Canción» frente a «Cancion» distinto), crea el tema y **no** cambia la canción: desde D3 vuelve a D1 con el tema original intacto; desde D2 sigue personalizada.
+- T15. Tras crear, el aviso `tema.nuevo.creado` tiene el foco en [Usar «{nuevo}» en esta canción]; pulsarlo asigna el tema nuevo (procedencia «Asignado a esta canción») y es deshacible.
+- T16. Renombrar cambia el nombre en el selector, en la procedencia de otras canciones y en Ajustes sin cambiar ningún aspecto ni pedir confirmación de impacto. Duplicar crea una copia con 0 usos.
+
+**Eliminar**
+- T17. «Eliminar tema…» muestra el recuento efectivo, los grupos afectados y, si es el predeterminado, la frase de canciones nuevas; foco inicial en «Cancelar».
+- T18. Al confirmar, todas las canciones afectadas (asignadas o que lo heredaban) quedan en «Tema personalizado» con el aspecto idéntico al anterior, el tema desaparece del selector y de Ajustes, y las asignaciones de artista y álbum que lo usaban se quitan. Si la canción abierta estaba afectada, el panel pasa a D2 con el foco en el radio «Tema personalizado» y se anuncia `tema.anuncio.eliminado.esta`.
+- T19. Con una escritura interrumpida simulada en la tercera de cinco canciones, el tema sigue en el catálogo, el diálogo muestra `tema.eliminar.parcial` con las canciones pendientes, y [Reintentar] completa las copias y retira el tema. La lista muestra exactamente 3 filas: la tercera canción con ✕, `tema.parcial.fila.error` y [Copiar detalles] (que copia su código), y la cuarta y la quinta con –, «Pendiente» en `texto-3` y sin [Copiar detalles]; debajo se ve `tema.parcial.notaPendientes`; el texto dice «Faltan 3 canciones» y nombra la canción que falló; el foco está en [Reintentar]. Si el fallo es en la última, solo hay una fila, no aparece la nota y se usa la variante f = 1. Con un fallo simulado al reanudar desde Ajustes («Terminar de eliminar»), la lista y «Faltan {f}» corresponden al intento nuevo. En otra prueba, [Cancelar el borrado] deja el tema disponible y las dos ya convertidas como «Tema personalizado» con el mismo aspecto. Ninguna canción queda en «Tema no disponible».
+- T20. Después de eliminar un tema asignado en esta visita, Ctrl/Cmd + Z nunca vuelve a vincular la canción a ese tema.
+
+**Grupos, recuperación y errores**
+- T21. «Tema del álbum…» y «Tema del artista…» abren el diálogo de grupo de la Biblioteca para el álbum o artista de la canción; sin álbum, sin artista o con álbum sin artista, la opción es `aria-disabled` con su motivo.
+- T22. Una carpeta de canción copiada de otro equipo, que apunta a un tema inexistente, abre en D4 con el aspecto de respaldo; «Usar como tema personalizado» la pasa a D2 sin cambio visible; «Guardar como tema nuevo…» propone el nombre guardado; elegir otro tema lo asigna. Si se restaura el catálogo con ese tema, la canción vuelve a D1 sola al reabrirla.
+- T22b. (Destino `respaldo`, [0056](../preguntas/0056-destino-respaldo-y-canciones-pendientes.md)) Con una canción cuya base («al azar» o «predeterminado anterior») apunta a un tema que no está en el catálogo y que tiene otro tema asignado, D1 muestra bajo [Volver a heredar] `tema.heredar.destino.respaldo` con ⚠ en `aviso` y sin nombre de tema. Pulsarlo, sin diálogo, pasa el panel a D4, anuncia `tema.anuncio.heredar.respaldo` y deja el foco en el selector; Ctrl/Cmd + Z devuelve el tema asignado. Pasar de D2 a «Temas definidos» con ese mismo destino muestra la variante (respaldo) de `tema.toast.definidos`.
+- T23. Con un catálogo de esquema más nuevo (`TEMAS_SOLO_LECTURA`), el panel muestra `tema.soloLectura`, la vista previa usa el aspecto de respaldo, «Personalizar» funciona y ninguna acción escribe el catálogo. Con un tema en borrado pendiente, el selector no lo ofrece y, si es el efectivo, se ve `tema.borradoPendiente`. Cerrar la ventana con cambios en D3 muestra `tema.dialogo.salir` y «Seguir editando» cancela el cierre.
+- T24. Con el catálogo vacío, D1 muestra `tema.catalogo.vacio` y solo [Personalizar].
+
+**Accesibilidad y layout**
+- T25. Todo el flujo (modo, selector, heredar, personalizar, editar, guardar, guardar como, renombrar, duplicar, eliminar, grupo) es operable solo con teclado; los anuncios de «Accesibilidad» suenan una vez por acción; tras cada diálogo el foco queda donde dice la tabla y nunca en `body`.
+- T26. A 300, 360 y 480 px de ancho del panel y en los seis viewports de la subfase 2.1, D1, D2, D3 y D4 no producen scroll de página ni texto cortado; el grupo de modo y la fila [Personalizar] [Editar tema] [⋯] no se parten.
+- T27. Con el panel minimizado en D3, «Expandir panel» lleva el punto `info` y el nombre `tema.pestana.editando`.
+- T28. Las muestras de tema del selector y del resumen reproducen fondo, fuente y color de letra del tema (comparación visual en la captura).
+
+**Capturas de revisión**
+- T29. Se guardan en `docs/ux/revision-fase-3/` (ver su [README](revision-fase-3/README.md)) con el nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 720 al 100 % y al 125 %: `tema-definidos`, `tema-asignado`, `tema-personalizado`, `tema-editando`, `tema-no-disponible`, `tema-catalogo-vacio`, `dialogo-guardar-impacto` (con la lista revelada), `dialogo-guardar-obsoleto`, `dialogo-nuevo-nombre`, `dialogo-eliminar` y `dialogo-salir-borrador`.
+- T30. Sin regresiones de la subfase 2.1: los criterios 1–7, 13 y 20 de la subfase se mantienen con la pestaña Estilo en cada estado D1–D4.

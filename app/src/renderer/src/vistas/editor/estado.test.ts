@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { letra, linea, pausa } from '@shared/__fixtures__'
 import { estiloPredeterminado } from '@shared/estilo'
 import {
+  aparienciaPropia,
   estadoInicial,
   gestoMarcadorVigente,
   iniciarGestoMarcador,
@@ -29,7 +30,7 @@ describe('gesto de marcadores', () => {
           ...letra([conPalabras, { ...pausa('p'), inicio_ms: 2200 }, linea('2', 'Sigue', 3000)]),
           offset_ms
         },
-        estilo: estiloPredeterminado()
+        apariencia: aparienciaPropia(estiloPredeterminado())
       },
       '1'
     )
@@ -140,7 +141,7 @@ describe('gesto de marcadores', () => {
 function editor() {
   return estadoInicial(
     {
-      estilo: estiloPredeterminado(),
+      apariencia: aparienciaPropia(estiloPredeterminado()),
       letra: letra([
         ...[1, 2, 3].map((i) => linea(String(i), `Verso ${i}`, null)),
         pausa('p'),
@@ -193,7 +194,10 @@ describe('sesión de sincronía', () => {
     expect(reducirEditor(e, { tipo: 'borrar_tiempos', ahora: 2 })).toBe(e)
     expect(reducirEditor(e, { tipo: 'mover_seleccion', sentido: -1 })).toBe(e)
     expect(reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: 10, ahora: 2 })).toBe(e)
-    const estilo = { ...e.actual.estilo, fondo: { tipo: 'solido', color: '#112233' } as const }
+    const estilo = {
+      ...e.actual.apariencia.estilo,
+      fondo: { tipo: 'solido', color: '#112233' } as const
+    }
     expect(reducirEditor(e, { tipo: 'estilo', estilo, clave: 'fondo.tipo', ahora: 2 })).toBe(e)
     e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 2 })
     expect(e.actual.letra.offset_ms).toBe(100)
@@ -238,7 +242,10 @@ describe('historial de la visita', () => {
     e = reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: 10, ahora: 2000 })
     expect(e.pasado).toHaveLength(2)
     for (const [i, color] of ['#FFFFFF', '#222222', '#333333'].entries()) {
-      const estilo = { ...e.actual.estilo, letra: { ...e.actual.estilo.letra, color } }
+      const estilo = {
+        ...e.actual.apariencia.estilo,
+        letra: { ...e.actual.apariencia.estilo.letra, color }
+      }
       e = reducirEditor(e, { tipo: 'estilo', estilo, clave: 'letra.color', ahora: 2100 + i * 300 })
     }
     expect(e.pasado).toHaveLength(3)
@@ -246,7 +253,7 @@ describe('historial de la visita', () => {
     e = reducirEditor(e, { tipo: 'deshacer' })
     expect(puedeDeshacer(e)).toBe(true)
     expect(puedeRehacer(e)).toBe(true)
-    expect(e.actual.estilo.letra.color).toBe('#FFFFFF')
+    expect(e.actual.apariencia.estilo.letra.color).toBe('#FFFFFF')
     expect(reducirEditor(e, { tipo: 'rehacer' }).actual).toEqual(editada)
     expect(
       reducirEditor(e, { tipo: 'cargar', instantanea: editada, seleccion: '1' })
@@ -280,7 +287,10 @@ it('edita un fin sin mover la pausa ni la línea vecina y permite deshacerlo', (
     pausa('p', 2500),
     linea('b', 'Mar', 3000)
   ])
-  const inicial = estadoInicial({ letra: l, estilo: estiloPredeterminado() }, 'a')
+  const inicial = estadoInicial(
+    { letra: l, apariencia: aparienciaPropia(estiloPredeterminado()) },
+    'a'
+  )
   const fijar = (ms: number) => ({
     tipo: 'fijar_fin' as const,
     ms,

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { configPredeterminada, type Config } from '@shared/config'
 import { estiloPredeterminado } from '@shared/estilo'
@@ -125,6 +125,10 @@ it('minimizar la lista con su botón deja el riel, anuncia una vez, pasa el foco
 it('Intro en el divisor alterna y el foco se queda en el divisor', async () => {
   montar()
   await esperarEditor()
+  // Causa de la intermitencia: con la letra sin sincronizar, el editor lleva el foco a «Sincronizar al
+  // ritmo» cuando la duración del audio llega (`Editor.tsx`, `focoInicialSync`), de forma asíncrona. Bajo
+  // carga llegaba después de `divisor.focus()` y se lo quitaba. Se espera a ese foco inicial primero.
+  await waitFor(() => expect(boton('Sincronizar al ritmo (S)')).toHaveFocus())
   const divisor = screen.getByRole('separator', { name: 'Ancho del panel' })
   divisor.focus()
   fireEvent.keyDown(divisor, { key: 'Enter' })

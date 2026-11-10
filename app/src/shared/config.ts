@@ -109,12 +109,21 @@ const panelesSchema = objetoTolerante({
 
 const editorSchema = objetoTolerante({ paneles: panelesSchema })
 
+export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album'] as const
+export type AgruparBiblioteca = (typeof AGRUPACIONES_BIBLIOTECA)[number]
+
+/** Preferencias de la Biblioteca (ADR 0016 §9): lectura tolerante, como `editor.paneles`. */
+const bibliotecaSchema = objetoTolerante({
+  agrupar: z.enum(AGRUPACIONES_BIBLIOTECA).catch('ninguno')
+})
+
 export const configSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CONFIG).default(VERSION_ESQUEMA_CONFIG),
   instalacion: instalacionSchema,
   separacion: separacionSchema,
   reproductor: reproductorSchema,
   editor: editorSchema,
+  biblioteca: bibliotecaSchema,
   aviso_youtube_aceptado: z.iso.datetime().nullable().default(null),
   ultima_comprobacion_ytdlp: z.iso.datetime().nullable().default(null),
   estilo_predeterminado: estiloSchema.default(() => estiloPredeterminado())

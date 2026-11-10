@@ -223,6 +223,32 @@ describe('RegistroArchivo', () => {
     expect(() => r.escribir('error', 'm', 'x')).not.toThrow()
   })
 
+  describe('biblioteca.agrupar', () => {
+    it('un valor inválido no aparta el config y conserva el resto', async () => {
+      await writeFile(
+        join(datos, 'config.json'),
+        JSON.stringify({ esquema: 1, reproductor: { volumen: 0.3 }, biblioteca: 3 })
+      )
+      const s = await ServicioConfig.abrir(datos)
+      expect(s.obtener().biblioteca.agrupar).toBe('ninguno')
+      expect(s.obtener().reproductor.volumen).toBe(0.3)
+      expect(await readdir(datos)).not.toContain('config.json.danado')
+    })
+    it('actualizar persiste la agrupación', async () => {
+      const s = await ServicioConfig.abrir(datos)
+      await s.actualizar({ biblioteca: { agrupar: 'album' } })
+      expect((await leerConfigDisco()).biblioteca.agrupar).toBe('album')
+    })
+    it('actualizar con un valor desconocido no cambia lo guardado', async () => {
+      const s = await ServicioConfig.abrir(datos)
+      await s.actualizar({ biblioteca: { agrupar: 'artista' } })
+      const mal = { biblioteca: { agrupar: 'x' } } as never
+      // El servicio es tolerante (`.catch`); el rechazo estricto es del esquema de la IPC.
+      await s.actualizar(mal).catch(() => undefined)
+      expect(s.obtener().biblioteca.agrupar).not.toBe('x')
+    })
+  })
+
   describe('editor.paneles', () => {
     it('un valor inválido no aparta el config y conserva el resto', async () => {
       await writeFile(

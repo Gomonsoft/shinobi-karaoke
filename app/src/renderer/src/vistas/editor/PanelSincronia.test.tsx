@@ -3,11 +3,14 @@ import { expect, it, vi } from 'vitest'
 import { estiloPredeterminado } from '@shared/estilo'
 import { letra, linea, pausa } from '@shared/__fixtures__'
 import { PanelSincronia } from './PanelSincronia'
-import { estadoInicial, reducirEditor } from './estado'
+import { aparienciaPropia, estadoInicial, reducirEditor } from './estado'
 
 it('explica el límite de una pausa junto a Inicio y conecta los campos de tiempo', () => {
   const l = letra([linea('a', 'Uno', 1000), pausa('p', 2000), linea('b', 'Dos', 3000)])
-  const inicial = estadoInicial({ letra: l, estilo: estiloPredeterminado() }, 'a')
+  const inicial = estadoInicial(
+    { letra: l, apariencia: aparienciaPropia(estiloPredeterminado()) },
+    'a'
+  )
   const edicion = reducirEditor(inicial, { tipo: 'fijar_inicio', ms: 2000, ahora: 0 })
   const fijar = vi.fn()
   const panel = (estado = edicion) => (
@@ -55,7 +58,10 @@ it('explica el límite de una pausa junto a Inicio y conecta los campos de tiemp
   expect(screen.getByRole('button', { name: 'Usar fin automático' })).toBeEnabled()
 
   const sinInicio = estadoInicial(
-    { letra: letra([linea('a', 'Uno', null)]), estilo: estiloPredeterminado() },
+    {
+      letra: letra([linea('a', 'Uno', null)]),
+      apariencia: aparienciaPropia(estiloPredeterminado())
+    },
     'a'
   )
   rerender(panel(sinInicio))
@@ -66,7 +72,7 @@ it('explica el límite de una pausa junto a Inicio y conecta los campos de tiemp
 function panelConOffset(offset: number, fijarDesplazamiento = vi.fn()) {
   const base = letra([linea('a', 'Uno', 1000)])
   const inicial = estadoInicial(
-    { letra: { ...base, offset_ms: offset }, estilo: estiloPredeterminado() },
+    { letra: { ...base, offset_ms: offset }, apariencia: aparienciaPropia(estiloPredeterminado()) },
     'a'
   )
   render(

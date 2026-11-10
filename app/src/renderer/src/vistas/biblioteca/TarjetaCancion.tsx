@@ -1,6 +1,6 @@
 import { useRef } from 'react'
-import { Play, TriangleAlert } from 'lucide-react'
-import { estiloPredeterminado, type Estilo } from '@shared/estilo'
+import { Palette, Play, TriangleAlert } from 'lucide-react'
+import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { fondoCss } from '../../karaoke/estiloCss'
 import { Boton } from '../../componentes/Boton'
@@ -9,10 +9,12 @@ import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { LineaPaso } from './LineaPaso'
+import { SEL } from './textosSeleccion'
 import {
   datosDeTarjeta,
   formatearDuracion,
   textoAriaTarjeta,
+  temaDeTarjeta,
   tituloDeTarjeta,
   usaMiniatura,
   type TrabajoVivo
@@ -33,6 +35,8 @@ export interface AccionesTarjeta {
   resepararPistas(id: string): void
   mostrarEnCarpeta(id: string): void
   eliminar(id: string): void
+  /** «Aplicar tema…» del menú ⋯: la cablea 0173; sin ella, el menú no ofrece la opción. */
+  aplicarTema?(id: string): void
 }
 
 const ETIQUETA_ACCION = {
@@ -50,21 +54,24 @@ interface TarjetaProps {
   alEnfocar(id: string): void
   /** Trabajo activo de la canción (en cola o en curso), con su progreso en vivo. */
   vivo?: TrabajoVivo | null
-  /** `config.estilo_predeterminado` vigente (para decidir la miniatura). */
-  estiloUsuario?: Estilo | null
+  /**
+   * Modo selección (0173): la tarjeta muestra su casilla, no tiene acción principal ni ⋯ y el clic,
+   * Espacio e Intro alternan la casilla. Sin él, la tarjeta es la de siempre.
+   */
+  seleccion?: SeleccionTarjeta
 }
 
-function Portada({
-  resumen,
-  accion,
-  estiloUsuario
-}: {
-  resumen: ResumenCancionIpc
-  accion: () => void
-  estiloUsuario?: Estilo | null
-}) {
+export interface SeleccionTarjeta {
+  marcada: boolean
+  /** `false` en las Dañadas con `cancion.json` ilegible: la casilla es `aria-disabled`. */
+  editable: boolean
+  /** `rango`: Mayús + clic (o Mayús + Espacio). */
+  alAlternar(rango: boolean): void
+}
+
+function Portada({ resumen, accion }: { resumen: ResumenCancionIpc; accion: () => void }) {
   const titulo = tituloDeTarjeta(resumen)
-  const miniatura = usaMiniatura(resumen, estiloUsuario)
+  const miniatura = usaMiniatura(resumen)
   const estilo = resumen.estilo ?? estiloPredeterminado()
   const fondo = resumen.danada ? undefined : fondoCss(estilo.fondo)
   const clases = [
@@ -114,7 +121,7 @@ export function TarjetaCancion({
   activa,
   alEnfocar,
   vivo,
-  estiloUsuario
+  seleccion
 }: TarjetaProps) {
   const titulo = tituloDeTarjeta(resumen)
   const raiz = useRef<HTMLElement>(null)
@@ -123,10 +130,13 @@ export function TarjetaCancion({
   const lista = resumen.estado === 'lista' && !resumen.danada
   const duracion = formatearDuracion(resumen.duracionMs)
   const id = resumen.id
+  const tema = temaDeTarjeta(resumen)
 
   const abrirMenu = () =>
     raiz.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.click()
   const alPortada = () => {
+    // En el modo selección el clic llega a la tarjeta y alterna la casilla.
+    if (seleccion) return
     if (resumen.danada) abrirMenu()
     else if (lista) acciones.reproducir(id)
     else acciones.continuar(id)
@@ -157,6 +167,13 @@ export function TarjetaCancion({
       id: 'datos',
       etiqueta: 'Editar datos',
       alSeleccionar: () => acciones.editarDatos(id)
+    })
+  }
+  if (!resumen.danada && acciones.aplicarTema) {
+    items.push({
+      id: 'aplicarTema',
+      etiqueta: 'Aplicar tema…',
+      alSeleccionar: () => acciones.aplicarTema?.(id)
     })
   }
   if (lista) {
@@ -201,12 +218,23 @@ export function TarjetaCancion({
       data-tarjeta={id}
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={activa ? 0 : -1}
-      aria-label={textoAriaTarjeta(resumen, d)}
+      aria-label={`${textoAriaTarjeta(resumen, d)}${seleccion?.marcada ? ' Seleccionada.' : ''}`}
+      data-seleccionada={seleccion?.marcada || undefined}
       onFocus={(e) => {
         if (e.target === e.currentTarget) alEnfocar(id)
       }}
+      onClick={(e) => {
+        if (seleccion) seleccion.alAlternar(e.shiftKey)
+      }}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return
+        if (seleccion) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            seleccion.alAlternar(e.shiftKey)
+          }
+          return
+        }
         if (e.key === 'Enter') {
           e.preventDefault()
           alPortada()
@@ -223,8 +251,20 @@ export function TarjetaCancion({
       }}
     >
       <div className={estilos.portadaEnvoltorio}>
-        <Portada resumen={resumen} accion={alPortada} estiloUsuario={estiloUsuario} />
-        {lista && (
+        <Portada resumen={resumen} accion={alPortada} />
+        {seleccion && (
+          <input
+            type="checkbox"
+            tabIndex={-1}
+            className={estilos.casillaTarjeta}
+            aria-label={SEL.casilla(titulo)}
+            aria-disabled={!seleccion.editable || undefined}
+            title={seleccion.editable ? undefined : SEL.noEditable}
+            checked={seleccion.marcada}
+            onChange={() => undefined}
+          />
+        )}
+        {lista && !seleccion && (
           <button
             type="button"
             tabIndex={-1}
@@ -249,16 +289,24 @@ export function TarjetaCancion({
               : resumen.artista || duracion}
           </p>
         )}
+        {tema && (
+          <p className={`t-pequeno ${estilos.tema}`} title={tema.texto} data-linea-tema>
+            <Icono icono={tema.aviso ? TriangleAlert : Palette} tamano={14} />
+            <span>{tema.texto}</span>
+          </p>
+        )}
         <div className={estilos.filaEstado}>
           <InsigniaEstado estado={d.insignia} />
-          <MenuContextual
-            etiqueta={`Más acciones de «${titulo}»`}
-            items={items}
-            tabIndexDisparador={-1}
-          />
+          {!seleccion && (
+            <MenuContextual
+              etiqueta={`Más acciones de «${titulo}»`}
+              items={items}
+              tabIndexDisparador={-1}
+            />
+          )}
         </div>
         {d.linea && <LineaPaso linea={d.linea} />}
-        {d.accion && (
+        {d.accion && !seleccion && (
           <div className={estilos.accion}>
             <Boton
               variante="secundario"

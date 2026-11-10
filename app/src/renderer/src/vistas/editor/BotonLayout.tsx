@@ -24,6 +24,8 @@ interface Props extends Omit<ComponentPropsWithRef<'button'>, 'aria-label' | 'ch
   noDisponible?: string
   /** Punto `aviso` (contraste) sobre el botón. */
   aviso?: boolean
+  /** Punto `info` (edición de un tema sin guardar). */
+  info?: boolean
 }
 
 /** Botón icono de 32 × 32 que minimiza o expande una zona del editor (spec 2.1, «Cómo se minimiza»). */
@@ -35,6 +37,7 @@ export function BotonLayout({
   controla,
   noDisponible,
   aviso,
+  info,
   onClick,
   className,
   ...resto
@@ -63,6 +66,7 @@ export function BotonLayout({
         >
           <Icono icono={icono} />
           {aviso && <span className={estilos.puntoAvisoLayout} aria-hidden="true" data-aviso />}
+          {info && <span className={estilos.puntoInfoLayout} aria-hidden="true" data-info />}
         </button>
       </Tooltip>
       {noDisponible && (

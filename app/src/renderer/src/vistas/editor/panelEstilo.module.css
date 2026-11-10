@@ -65,3 +65,117 @@
 .bloque p + .acciones {
   margin-top: var(--e-2);
 }
+
+/* ---------- Sección «Tema» (fase 3) ---------- */
+.modos {
+  display: grid;
+  gap: var(--e-1);
+}
+.modo {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+}
+.ayuda,
+.procedencia,
+.usos,
+.destino {
+  margin: 0;
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.modos .ayuda {
+  margin-inline-start: var(--e-6, 1.75rem);
+  color: var(--texto-2);
+}
+.procedencia {
+  color: var(--texto-2);
+}
+.usos {
+  color: var(--texto-3);
+}
+.destino {
+  color: var(--texto-2);
+}
+.avisoSimbolo {
+  color: var(--aviso);
+}
+.heredar {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: start;
+}
+.filaAcciones {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--e-2);
+}
+.tituloBanner {
+  margin: 0;
+}
+.resumen {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--e-2) var(--e-3);
+  margin: 0;
+  user-select: text;
+}
+.resumen dt {
+  color: var(--texto-2);
+}
+.resumen dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+  margin: 0;
+  min-width: 0;
+}
+.muestraFondo {
+  display: inline-block;
+  width: 48px;
+  height: 27px;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+}
+.colorResumen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+}
+.muestraColor {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+}
+.pie {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  /* Dos columnas si caben los textos; a 300 px, una sola columna (0176). */
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--e-2);
+  padding-block: var(--e-2);
+  border-top: 1px solid var(--borde);
+  background: var(--fondo-1);
+}
+.pie > button {
+  white-space: nowrap;
+  min-width: 0;
+  /* Con el panel a 300 px «Guardar en el tema…» no cabía con el relleno normal (0176). */
+  padding-inline: var(--e-2);
+}
+.pieAncho {
+  grid-column: 1 / -1;
+}
+[data-pie-estatico] .pie {
+  position: static;
+}
+:global([data-bajo-minimo]) .pie {
+  position: static;
+}

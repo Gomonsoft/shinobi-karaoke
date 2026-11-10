@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises'
 import { release, type as tipoSO } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
@@ -31,6 +32,7 @@ import { shellConPapeleraDePruebas } from './biblioteca/papelera'
 import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
 import { BusquedaLetras, ServicioLetras, crearClienteLrclib } from './letras'
 import { ServicioConfig } from './configuracion'
+import { ServicioTemas } from './temas'
 import { registrarIpc } from './ipc'
 import { IDS_ZOOM, plantillaMenu } from './menu'
 import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
@@ -75,6 +77,14 @@ export let servicioConfig: ServicioConfig | null = null
 
 /** Servicio de biblioteca (0009); lo usará la IPC (0011). */
 export let servicioBiblioteca: ServicioBiblioteca | null = null
+
+/** Catálogo de temas (ADR 0016, 0168). */
+export let servicioTemas: ServicioTemas | null = null
+
+/** Envía un evento a todas las ventanas. */
+function difundir(canal: string, carga: unknown): void {
+  for (const v of BrowserWindow.getAllWindows()) v.webContents.send(canal, carga)
+}
 
 /** Importación de archivo local (0042). */
 export let importacionArchivo: ServicioImportacionArchivo | null = null
@@ -287,16 +297,27 @@ if (instanciaUnica)
       registro.escribir('error', 'arranque', `no se pudo abrir la configuración: ${String(e)}`)
     }
     try {
-      servicioBiblioteca = new ServicioBiblioteca(rutaDatos(), {
+      const biblioteca = new ServicioBiblioteca(rutaDatos(), {
         registro,
         // `SHINOBI_PAPELERA_PRUEBAS` sustituye la papelera real en E2E; se ignora empaquetada (0023).
         shell: shellConPapeleraDePruebas(shell, { env: process.env, empaquetada: app.isPackaged }),
-        estiloPredeterminado: () =>
-          servicioConfig?.obtener().estilo_predeterminado ?? estiloPredeterminado(),
         // Eliminar una canción cancela antes sus trabajos (0014).
         antesDeEliminar: (id) => gestorTrabajos?.cancelarDeCancion(id) ?? Promise.resolve()
       })
-      await servicioBiblioteca.arrancar()
+      // El catálogo de temas se abre antes de escanear: los resúmenes salen ya resueltos (0168).
+      const dirBiblioteca = join(rutaDatos(), 'biblioteca')
+      await mkdir(dirBiblioteca, { recursive: true })
+      servicioTemas = await ServicioTemas.abrir({
+        dirBiblioteca,
+        puerto: biblioteca.puerto(),
+        estiloInicial: servicioConfig?.obtener().estilo_predeterminado ?? estiloPredeterminado(),
+        registro,
+        alCambiar: (catalogo) => difundir(CANALES.eventos.temasCambiado, catalogo),
+        alProgreso: (progreso) => difundir(CANALES.eventos.temasProgreso, progreso)
+      })
+      biblioteca.conectarTemas(servicioTemas)
+      servicioBiblioteca = biblioteca
+      await biblioteca.arrancar()
     } catch (e) {
       registro.escribir('error', 'arranque', `no se pudo escanear la biblioteca: ${String(e)}`)
     }
@@ -583,6 +604,7 @@ if (instanciaUnica)
         ipcMain,
         {
           biblioteca: servicioBiblioteca,
+          ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
           runtime: runtime.servicio,
           confirmarCierre: async () => {
@@ -655,9 +677,7 @@ if (instanciaUnica)
               BrowserWindow.getAllWindows().map((v) => v.webContents),
               origenRenderer()
             ),
-          difundir: (canal, carga) => {
-            for (const v of BrowserWindow.getAllWindows()) v.webContents.send(canal, carga)
-          }
+          difundir
         }
       )
     }
@@ -692,6 +712,7 @@ app.on('before-quit', (evento) => {
   const cierre = Promise.allSettled([
     gestorTrabajos?.cancelarTodos(),
     servicioPicos?.cerrar(),
+    Promise.resolve(servicioTemas?.cerrar()),
     // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).
     runtime?.servicio.cerrar(),
     importacionArchivo?.cerrar(),

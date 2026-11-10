@@ -67,3 +67,18 @@ Se mantienen como están: `SHINOBI_DATOS` también en builds empaquetados (útil
 ## Revisión para 0.2.0 · Lectura de picos
 
 El IPC de picos valida canción y ventana de lectura en main. El renderer recibe estado y porciones binarias acotadas. Se mantiene confinamiento de archivos y validación de remitente, sin exponer rutas ni ampliar el protocolo de medios. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
+
+## Revisión para 0.2.0 · fase 3
+
+Canales de temas y apariencia ([ADR 0016](0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §11). Fecha: 2026-11-09.
+
+- **Canales nuevos**: `temas.catalogo`, `temas.previsualizar`, `temas.ejecutar`, `temas.crear`, `temas.renombrar`, `temas.duplicar`, `temas.reanudarBorrado`, `temas.cancelarBorrado`, `temas.descartarAvisoApartado` y `biblioteca.guardarApariencia`, que sustituye a `biblioteca.guardarEstilo`. Eventos `temas:cambiado` y `temas:progreso`.
+- **Mismas reglas del punto 4**: argumentos en tupla validados con Zod en main, remitente comprobado (ventana, *frame* principal y origen del renderer) y respuestas `{ ok, valor | error }` sin rutas ni detalles internos.
+- **Límites**:
+  - UUID para temas y fichas;
+  - nombres de 1 a 60 caracteres normalizados en main;
+  - de 1 a 2000 ids únicos en lote;
+  - artista y álbum de 1 a 200 caracteres;
+  - `estiloSchema` completo.
+- **Fichas de confirmación**: son opacas, de un solo uso y caducan. Main las guarda en memoria y recalcula el impacto antes de escribir. No autorizan nada por sí solas: main revalida tema, canciones y estado del catálogo.
+- **Fase 4**: con roles de ventana, `temas.*` y `guardarApariencia` solo se aceptan desde la ventana principal.

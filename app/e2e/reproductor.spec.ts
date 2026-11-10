@@ -97,7 +97,7 @@ test.describe('reproductor sin red', () => {
 
       await ventana.emulateMedia({ reducedMotion: 'reduce' })
       await redimensionar(700)
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -141,7 +141,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: controles, atajos, búsqueda y foco al salir', async () => {
     const { app, datos, ventana } = await iniciar('reproductor-biblioteca')
     try {
-      const buscador = ventana.getByRole('searchbox', { name: 'Buscar título o artista' })
+      const buscador = ventana.getByRole('searchbox', { name: /^Buscar título/ })
       await buscador.fill('Reproductor: lista')
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
@@ -193,7 +193,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: aviso de letra incompleta', async () => {
     const { app, ventana } = await iniciar('reproductor-incompleta')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(incompleta)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(incompleta)
       await tarjeta(ventana, incompleta)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -207,7 +207,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: los controles se ocultan y vuelven con el ratón', async () => {
     const { app, ventana } = await iniciar('reproductor-controles')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -232,7 +232,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: la pantalla final se detiene con actividad y permite volver', async () => {
     const { app, ventana } = await iniciar('reproductor-final')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -252,7 +252,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: la pantalla final vuelve sola al terminar la cuenta atrás', async () => {
     const { app, ventana } = await iniciar('reproductor-final-auto')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -275,7 +275,7 @@ test.describe('reproductor sin red', () => {
     const { app, datos, ventana } = await iniciar('reproductor-pista-ausente')
     try {
       unlinkSync(join(datos, 'biblioteca', idSemilla(20), 'pistas', 'instrumental.flac'))
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
@@ -294,7 +294,7 @@ test.describe('reproductor sin red', () => {
     const { app, datos, ventana } = await iniciar('reproductor-voz-ausente')
     try {
       unlinkSync(join(datos, 'biblioteca', idSemilla(20), 'pistas', 'voz.flac'))
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
@@ -314,7 +314,7 @@ test.describe('reproductor sin red', () => {
   test('toast de «lista para cantar» abre el reproductor y cierra el toast', async () => {
     const { app, ventana } = await iniciar('reproductor-toast')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: `Más acciones de «${lista}»` }).click()
       await ventana.getByRole('menuitem', { name: 'Volver a borrador' }).click()
@@ -338,7 +338,7 @@ test.describe('reproductor sin red', () => {
     test.skip(process.platform === 'linux', 'Xvfb sin gestor de ventanas')
     const { app, ventana } = await iniciar('reproductor-pantalla-real', false)
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -365,7 +365,7 @@ test.describe('reproductor sin red', () => {
     const { app, datos, ventana } = await iniciar('reproductor-editor')
     try {
       await ventana
-        .getByRole('searchbox', { name: 'Buscar título o artista' })
+        .getByRole('searchbox', { name: /^Buscar título/ })
         .fill('Editor: separación interrumpida')
       const cancion = tarjeta(ventana, 'Editor: separación interrumpida')
       const continuar = cancion.getByRole('button', { name: /^Continuar/ })

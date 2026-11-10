@@ -48,11 +48,44 @@ El [reporte](reporte-editor-fase-2.md) contiene pasos y criterios. Decisiones de
 
 La subfase usa las tareas 0154–0162. La fase 3 empieza tras integrar el PR de esta subfase en `develop`.
 
+## Fase 3 · Temas y biblioteca
+
+| Tarea | Estado | Depende de | Entrega |
+|---|---|---|---|
+| [0163 · Modelo puro de temas e identidad](../../tareas/0163-modelo-puro-de-temas-e-identidad.md) | Hecha | Subfase 2.1 | `shared/identidad.ts`, `shared/temas.ts`, `apariencia` en `cancion.ts`, códigos de error |
+| [0164 · Contratos IPC](../../tareas/0164-contratos-ipc-de-temas-y-apariencia.md) | Hecha | 0163 | Canales, esquemas, preload, `config.biblioteca.agrupar`, dobles y puente de `guardarApariencia` |
+| [0165 · Catálogo y cola en main](../../tareas/0165-catalogo-y-cola-de-apariencia-en-main.md) | Hecha | 0163 | `temas.json`, siembra, solo lectura, apartado, cola, crear/renombrar/duplicar, usos |
+| [0166 · Impactos y operaciones confirmadas](../../tareas/0166-impactos-fichas-y-operaciones-confirmadas.md) | Hecha | 0165 | Fichas, obsoleta, editar, lote por canción, grupo, predeterminado (A1/B1/C1), progreso |
+| [0167 · Borrado recuperable](../../tareas/0167-borrado-recuperable-de-temas.md) | Hecha | 0166 | Diario, congelación, retirada, reanudar y cancelar |
+| [0168 · Migración, creación y resolución](../../tareas/0168-migracion-creacion-de-canciones-y-resolucion-en-la-biblioteca.md) | Hecha | 0164, 0165 | Esquema 1 sin reescritura, apariencia inicial, metadatos por la cola, IPC `temas.*`, semilla |
+| [0169 · Base de temas en el renderer](../../tareas/0169-base-de-temas-en-el-renderer.md) | Hecha | 0164 | `renderer/src/temas/`: catálogo, textos, muestra, selector y diálogos compartidos |
+| [0170 · Panel Estilo · sección Tema](../../tareas/0170-panel-estilo-seccion-tema.md) | Hecha | 0169 | D1, D2, D4, historial por selección, retirada de «Usar este estilo…» |
+| [0171 · Editar tema](../../tareas/0171-editar-tema-con-borrador-y-confirmacion.md) | Hecha | 0170 | D3, guardar con impacto, salir y cerrar con borrador |
+| [0172 · Agrupación y búsqueda](../../tareas/0172-biblioteca-agrupacion-busqueda-y-linea-de-tema.md) | Hecha | 0164 | Agrupar por, grupos, búsqueda en álbum, línea de tema, portada, editar datos |
+| [0173 · Selección múltiple y lote](../../tareas/0173-biblioteca-seleccion-multiple-y-aplicar-tema.md) | Hecha | 0169, 0172 | Modo selección, «Aplicar tema…», resultado por canción |
+| [0174 · Tema de artista y álbum](../../tareas/0174-biblioteca-tema-de-artista-y-album.md) | Hecha | 0169, 0172 | [Tema…] del encabezado de grupo |
+| [0175 · Ajustes › Temas](../../tareas/0175-ajustes-seccion-temas.md) | Hecha | 0169 | Predeterminado, lista, avisos, borrado pendiente, volver al origen |
+| [0176 · Verificación, capturas e informe](../../tareas/0176-verificacion-e2e-capturas-e-informe-de-la-fase-3.md) | Hecha | 0163–0175 | E2E sin red (incluida biblioteca de esquema 1), capturas e informe |
+
+Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) (revisado tras [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md), [0054](../../preguntas/0054-detalles-de-interfaz-de-temas-y-biblioteca.md) , [0055](../../preguntas/0055-textos-de-predeterminado-anterior-y-ajustes-de-la-fase-3.md) y [0056](../../preguntas/0056-destino-respaldo-y-canciones-pendientes.md)) y las revisiones de fase 3 de los ADR 0006, 0008 y 0010. Specs: [editor](../../ux/06-editor.md#fase-3-de-020--temas-y-biblioteca), [Biblioteca](../../ux/02-biblioteca.md#fase-3-de-020--temas-y-biblioteca), [Ajustes](../../ux/08-ajustes-y-acerca.md#fase-3-de-020--temas-y-biblioteca) y [revisión visual](../../ux/revision-fase-3/README.md). [0056](../../preguntas/0056-destino-respaldo-y-canciones-pendientes.md) respondida: destino «respaldo» sin nombre de tema y lista común tras un fallo a mitad (`ListaFalloAMitad`, dueña 0169); el resultado por canción lleva `titulo` y `artista` (ADR 0016, revisión 3).
+
+**Paralelismo.** 0163 va primero. Después, 0164 (contratos) y 0165 (catálogo en main) en paralelo. Con 0164 y 0165 integradas pueden avanzar a la vez cuatro líneas: main (0166 → 0167), integración de la biblioteca (0168), renderer de temas (0169 → 0170 → 0171, con 0175 en paralelo a 0170) y Biblioteca (0172 → 0173 y 0174 en paralelo). 0176 cierra la fase.
+
+**Propiedad de archivos.**
+- `shared/cancion.ts`, `shared/temas.ts`, `shared/identidad.ts` y `shared/errores.ts`: solo 0163.
+- `shared/ipc.ts`, `shared/canales.ts`, `shared/config.ts` y `preload/index.ts`: solo 0164. Única excepción: 0170 retira `estilo_predeterminado` de `configParcialRendererSchema`.
+- `main/temas/`: 0165, luego 0166 y luego 0167, en secuencia. 0168 no lo toca: inyecta el puerto de canciones desde `main/index.ts`.
+- `main/biblioteca/servicio.ts`, `main/biblioteca/resumen.ts`, `main/index.ts` y `main/ipc/handlers.ts`: 0168, después de los cambios provisionales de 0164 (puente de `guardarApariencia` y campos nuevos del resumen).
+- `renderer/src/temas/`: solo 0169.
+- `vistas/editor/`: 0170 y después 0171.
+- `vistas/biblioteca/`: 0172 crea `EncabezadoGrupo.tsx` con los huecos `casilla` y `tema`. 0173 y 0174 los rellenan con archivos propios y solo comparten unas líneas de `Biblioteca.tsx`.
+- `vistas/ajustes/` y `navegacion/estado.ts`: 0175.
+
 ## Fases siguientes
 
 | Fase | Alcance | Desglose |
 |---|---|---|
-| 3 | Temas y agrupación de biblioteca | Tras cerrar 2.1, con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) |
+| 3 | Temas y agrupación de biblioteca | Desglosada arriba (0163–0176), con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) y [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) |
 | 4 | Ventana secundaria y cola | Al iniciar la fase, con [0048](../../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) |
 | 5 | Degradados, comodines y Letra lista | Al iniciar la fase |
 | 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |

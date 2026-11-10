@@ -64,3 +64,28 @@ export async function vaciarAlCerrar(topeMs = 2000): Promise<void> {
     clearTimeout(plazo)
   }
 }
+
+type DecisionBorrador = () => Promise<boolean>
+let borradorAlCerrar: DecisionBorrador | null = null
+
+/**
+ * Borrador de tema sin guardar (0171, ADR 0016 §10): al cerrar la ventana, el editor pregunta con
+ * `tema.dialogo.salir`. La función devuelve `true` si se puede cerrar y `false` si el usuario
+ * decide seguir editando.
+ */
+export function registrarBorradorAlCerrar(fn: DecisionBorrador): () => void {
+  borradorAlCerrar = fn
+  return () => {
+    if (borradorAlCerrar === fn) borradorAlCerrar = null
+  }
+}
+
+/** `true` si no hay borrador de tema o el usuario acepta cerrar (guardando o descartando). */
+export async function confirmarBorradorAlCerrar(): Promise<boolean> {
+  if (!borradorAlCerrar) return true
+  try {
+    return await borradorAlCerrar()
+  } catch {
+    return false
+  }
+}

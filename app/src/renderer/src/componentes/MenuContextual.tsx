@@ -21,6 +21,8 @@ export interface ItemMenu {
   destructivo?: boolean
   /** Línea separadora de 1 px antes del ítem (`role="separator"`, no interactiva). */
   separadorAntes?: boolean
+  /** Motivo por el que no está disponible (aria-disabled): sigue enfocable y no hace nada. */
+  noDisponible?: string
   alSeleccionar: () => void
 }
 
@@ -226,7 +228,10 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
                   role="menuitem"
                   tabIndex={-1}
                   className={`${estilos.item} ${it.destructivo ? estilos.itemDestructivo : ''}`}
+                  aria-disabled={it.noDisponible ? true : undefined}
+                  title={it.noDisponible}
                   onClick={() => {
+                    if (it.noDisponible) return
                     cerrar(true)
                     it.alSeleccionar()
                   }}

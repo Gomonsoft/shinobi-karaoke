@@ -84,7 +84,9 @@ async function lanzar(
 
 const subdirs = (d: string): string[] => (existsSync(d) ? readdirSync(d) : [])
 const canciones = (datos: string): string[] =>
-  subdirs(join(datos, 'biblioteca')).filter((x) => x !== '.importando')
+  subdirs(join(datos, 'biblioteca')).filter(
+    (x) => x !== '.importando' && !x.startsWith('temas.json')
+  )
 interface CancionJson {
   metadatos: { titulo: string }
   fuente: { tipo: string } & Record<string, unknown>

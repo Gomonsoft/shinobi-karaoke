@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { estiloSchema } from './estilo'
 import { letraSchema } from './letra'
+import { aparienciaSchema } from './temas'
 
 /** Versión actual del esquema de cancion.json. */
 export const VERSION_ESQUEMA_CANCION = 1
@@ -85,6 +86,9 @@ export const cancionSchema = z.object({
   fuente: fuenteSchema,
   pistas: pistasSchema.nullable(),
   letra: letraSchema.nullable(),
+  /** Selección de tema (ADR 0016 §2). Ausente equivale a propio; no se añade al leer. */
+  apariencia: aparienciaSchema.optional(),
+  /** Con `propio`, la autoridad; con `tema`/`heredar`, la instantánea de respaldo. */
   estilo: estiloSchema,
   pasos: pasosSchema
 })

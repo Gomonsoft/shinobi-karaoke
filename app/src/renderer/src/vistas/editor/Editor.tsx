@@ -46,6 +46,7 @@ import { BotonLayout, type NombreBotonLayout } from './BotonLayout'
 import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
+import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
@@ -56,6 +57,7 @@ import { RielPanel } from './RielPanel'
 import { Transporte, type SeparacionEditor } from './Transporte'
 import { EscuchaComprobacion } from './escuchaComprobacion'
 import {
+  aSeleccionIpc,
   estadoInicial,
   gestoMarcadorVigente,
   iniciarGestoMarcador,
@@ -75,7 +77,8 @@ import {
   type DivisorEditor
 } from './distribucion'
 import { aplicarTamanoVivo, useDistribucion } from './useDistribucion'
-import { useGuardadoEditor } from './useGuardadoEditor'
+import { useGuardadoEditor, type SecuenciaResumen } from './useGuardadoEditor'
+import { useTemaEditor } from './useTemaEditor'
 import { usePreferenciasPaneles } from './usePreferenciasPaneles'
 import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
 import estilos from './editor.module.css'
@@ -100,11 +103,30 @@ export function desdeLinea(letra: Letra, id: string): number {
 }
 
 export function Editor({ id }: { id: string }) {
-  const { ir } = useNavegacion()
+  const { ir, vista } = useNavegacion()
   const [carga, setCarga] = useState<Carga | 'error' | null>(null)
   const sesion = useRef<string | null>(null)
   const generacion = useRef(0)
   const [resumenVivo, setResumenVivo] = useState<ResumenCancionIpc | null>(null)
+  // La respuesta del pedido más reciente manda: guardarApariencia, cancion:cambiada y listar().
+  const secuencia = useRef({ pedida: 0, aplicada: 0 })
+  const resumenes = useMemo<SecuenciaResumen>(
+    () => ({
+      nuevo: () => ++secuencia.current.pedida,
+      aplicar: (token, resumen) => {
+        if (token < secuencia.current.aplicada) return
+        secuencia.current.aplicada = token
+        setResumenVivo(resumen)
+      }
+    }),
+    []
+  )
+  const refrescarResumen = useCallback(async () => {
+    const token = resumenes.nuevo()
+    const lista = await window.shinobi.biblioteca.listar()
+    const actual = lista.find((c) => c.id === id)
+    if (actual) resumenes.aplicar(token, actual)
+  }, [id, resumenes])
 
   const leerVisita = useCallback(async (): Promise<Cancion | null> => {
     const vigente = generacion.current
@@ -123,8 +145,18 @@ export function Editor({ id }: { id: string }) {
     const baja = api.alCambiarCancion((evento) => {
       if (evento.id === id) {
         if (evento.eliminada) setCarga('error')
-        else setResumenVivo(evento.resumen)
+        else resumenes.aplicar(resumenes.nuevo(), evento.resumen)
       }
+    })
+    const bajaTemas = api.alCambiarTemas(() => {
+      const token = resumenes.nuevo()
+      void api.biblioteca.listar().then(
+        (lista) => {
+          const actual = lista.find((c) => c.id === id)
+          if (vigente === generacion.current && actual) resumenes.aplicar(token, actual)
+        },
+        () => undefined
+      )
     })
     void Promise.all([leerVisita(), api.biblioteca.listar(), api.config.obtener()]).then(
       ([cancion, lista, config]) => {
@@ -139,11 +171,12 @@ export function Editor({ id }: { id: string }) {
     return () => {
       generacion.current = vigente + 1
       baja()
+      bajaTemas()
       const token = sesion.current
       sesion.current = null
       if (token) void api.letras.cerrarEdicion(token).catch(() => undefined)
     }
-  }, [id, leerVisita])
+  }, [id, leerVisita, resumenes])
 
   const obtenerSesion = useCallback(() => sesion.current, [])
   const biblioteca = () => ir({ tipo: 'biblioteca' })
@@ -167,6 +200,11 @@ export function Editor({ id }: { id: string }) {
       resumen={resumenVivo ?? carga.resumen}
       leerVisita={leerVisita}
       obtenerSesion={obtenerSesion}
+      resumenes={resumenes}
+      refrescarResumen={refrescarResumen}
+      pestanaInicial={
+        vista.tipo === 'cancion' && vista.pestana === 'estilo' ? 'estilo' : 'sincronia'
+      }
     />
   )
 }
@@ -176,6 +214,10 @@ interface PropsActiva {
   resumen: ResumenCancionIpc
   leerVisita(): Promise<Cancion | null>
   obtenerSesion(): string | null
+  resumenes: SecuenciaResumen
+  refrescarResumen(): Promise<void>
+  /** Al volver de Ajustes se reabre en la pestaña Estilo (0175, A10). */
+  pestanaInicial: Pestana
 }
 
 type EscuchaEditor = { pista: Pista; velocidad: Velocidad }
@@ -185,19 +227,46 @@ type Prueba = EscuchaEditor & {
   grupo: string
 }
 
-function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva) {
+function EditorActivo({
+  carga,
+  resumen,
+  leerVisita,
+  obtenerSesion,
+  resumenes,
+  refrescarResumen,
+  pestanaInicial
+}: PropsActiva) {
   const { cancion, config } = carga
   const { id, metadatos } = cancion
   const { ir } = useNavegacion()
   const { trabajos, progreso } = useTrabajosVivos()
   const letraInicial = cancion.letra ?? VACIA
   const [edicion, despachar] = useReducer(reducirEditor, null, () =>
-    estadoInicial({ letra: letraInicial, estilo: cancion.estilo }, seleccionarInicial(letraInicial))
+    estadoInicial(
+      {
+        letra: letraInicial,
+        apariencia: {
+          seleccion: seleccionDeDisco(cancion.apariencia),
+          estilo: cancion.estilo
+        }
+      },
+      seleccionarInicial(letraInicial)
+    )
   )
-  const { letra, estilo } = edicion.actual
+  const { letra, apariencia } = edicion.actual
   const cuentas = contador(letra)
-  const [pestana, setPestana] = useState<Pestana>('sincronia')
-  const [estiloPredeterminado, setEstiloPredeterminado] = useState(config.estilo_predeterminado)
+  const [pestana, setPestana] = useState<Pestana>(pestanaInicial)
+  const [anuncioLayout, setAnuncioLayout] = useState('')
+  const temporizadorAnuncio = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(temporizadorAnuncio.current), [])
+  /** Anuncio en la región `aria-live` del editor: una vez por cambio; se vacía para poder repetirse. */
+  function anunciar(texto: string) {
+    setAnuncioLayout(texto)
+    clearTimeout(temporizadorAnuncio.current)
+    temporizadorAnuncio.current = setTimeout(() => setAnuncioLayout(''), 4000)
+  }
+  const tema = useTemaEditor({ resumen, edicion, despachar, anunciar, refrescarResumen })
+  const estilo = tema.estiloVisible
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
@@ -232,7 +301,6 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const listaMinimizada = distribucion.lista.minimizado
   const panelMinimizado = distribucion.panel.minimizado
   const lineaTiempoMinimizada = distribucion.lineaTiempo.minimizado
-  const [anuncioLayout, setAnuncioLayout] = useState('')
   const focoPendiente = useRef<NombreBotonLayout | null>(null)
   const focoEnLineaTiempo = useRef(false)
   const [cerradoYaSync, setCerradoYaSync] = useState(false)
@@ -446,15 +514,18 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const {
     estado: guardado,
     cambiarLetra,
-    cambiarEstilo,
+    cambiarApariencia,
     vaciar,
     confirmarSinGuardar,
     dialogoSalida
-  } = useGuardadoEditor(
-    id,
-    metadatos.titulo,
+  } = useGuardadoEditor({
+    cancionId: id,
+    titulo: metadatos.titulo,
     obtenerSesion,
-    async () => {
+    borradorPendiente: tema.borradorModificado,
+    guardaBorrador: tema.pedirSalida,
+    resumenes,
+    alDesactualizada: async () => {
       desarmarBucle()
       cancelarMarcador()
       motor?.pausar()
@@ -463,19 +534,25 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       const seleccion = nueva.lineas.some((l) => l.id === edicion.seleccion && l.tipo === 'linea')
         ? edicion.seleccion
         : seleccionarInicial(nueva)
-      despachar({ tipo: 'cargar', instantanea: { letra: nueva, estilo }, seleccion })
+      despachar({
+        tipo: 'cargar',
+        instantanea: { letra: nueva, apariencia, borrador: edicion.actual.borrador },
+        seleccion
+      })
       mostrarToast({ tipo: 'aviso', mensaje: E.recargada, persistente: true })
     },
-    (destino) => avisarBorradorAlSalir(destino, resumen.estado, edicion.cambiosEnVisita)
-  )
-  const previa = useRef(edicion.actual)
+    alSalirGuardado: (destino) =>
+      avisarBorradorAlSalir(destino, resumen.estado, edicion.cambiosEnVisita)
+  })
+  const previa = useRef({ actual: edicion.actual, version: edicion.version })
   useEffect(() => {
     const ultima = previa.current
-    previa.current = edicion.actual
-    if (edicion.version === 0) return
-    if (ultima.letra !== letra) cambiarLetra(letra)
-    if (ultima.estilo !== estilo) cambiarEstilo(estilo)
-  }, [edicion.actual, edicion.version, letra, estilo, cambiarLetra, cambiarEstilo])
+    previa.current = { actual: edicion.actual, version: edicion.version }
+    // Solo los pasos del historial se guardan; entrar en D3 o retirar un tema no escriben nada.
+    if (edicion.version === 0 || edicion.version === ultima.version) return
+    if (ultima.actual.letra !== letra) cambiarLetra(letra)
+    if (ultima.actual.apariencia !== apariencia) cambiarApariencia(aSeleccionIpc(apariencia))
+  }, [edicion.actual, edicion.version, letra, apariencia, cambiarLetra, cambiarApariencia])
 
   const probarInactivo = edicion.sync.activo || Boolean(audio?.error)
   const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
@@ -615,15 +692,6 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const desplazar = (deltaMs: number) =>
     despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now() })
   const borrar = () => despachar({ tipo: 'borrar_tiempos', ahora: performance.now() })
-
-  const temporizadorAnuncio = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  useEffect(() => () => clearTimeout(temporizadorAnuncio.current), [])
-  /** Anuncio en la región `aria-live` del editor: una vez por cambio; se vacía para poder repetirse. */
-  function anunciar(texto: string) {
-    setAnuncioLayout(texto)
-    clearTimeout(temporizadorAnuncio.current)
-    temporizadorAnuncio.current = setTimeout(() => setAnuncioLayout(''), 4000)
-  }
 
   type ZonaPaneles = 'lista' | 'panel' | 'linea_tiempo'
   const ZONAS = {
@@ -1025,6 +1093,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                 fijarFin={() => fijar('fin')}
                 limiteFin={limiteDeCampo(edicion, 'fin')}
                 avisos={contraste.avisos.length > 0}
+                editandoTema={tema.editando}
                 expandir={() => alternarZona('panel', 'boton')}
               />
             ) : (
@@ -1041,6 +1110,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                           etiqueta: 'Estilo',
                           aviso:
                             contraste.avisos.length > 0 ? 'Hay avisos de contraste' : undefined,
+                          info: tema.editando,
+                          nombre: tema.editando ? E.tema.pestanaEditando : undefined,
                           noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
                         }
                       ]}
@@ -1092,19 +1163,18 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
                     <aside aria-label="Estilo">
                       <PanelEstilo
                         estilo={estilo}
-                        predeterminado={estiloPredeterminado}
                         contraste={contraste}
                         inactivo={edicion.sync.activo}
+                        tema={tema.control}
                         alCambiar={(nuevo, clave, agruparGesto) =>
                           despachar({
-                            tipo: 'estilo',
+                            tipo: tema.editando ? 'estilo_borrador' : 'estilo',
                             estilo: nuevo,
                             clave,
                             ahora: Date.now(),
                             agruparGesto
                           })
                         }
-                        alCambiarPredeterminado={setEstiloPredeterminado}
                       />
                     </aside>
                   )}
@@ -1283,6 +1353,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         />
       )}
       {dialogoSalida}
+      {tema.dialogos}
       {prueba && (
         <Reproductor
           origen="editor"

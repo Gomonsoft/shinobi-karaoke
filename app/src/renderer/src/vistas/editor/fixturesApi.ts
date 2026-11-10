@@ -7,7 +7,16 @@ import {
   type Cancion,
   type CodigoError
 } from '@shared/index'
-import type { ApiShinobi, ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
+import type {
+  AparienciaResumenIpc,
+  ApiShinobi,
+  ErrorIpc,
+  ResueltaIpc,
+  ResumenCancionIpc
+} from '@shared/ipc'
+import { claveAlbumTexto, claveAlbum, claveArtista } from '@shared/index'
+import { aparienciaResumenPrueba } from '../biblioteca/resumenPrueba'
+import { temasFalsos, type TemasFalsos } from '../biblioteca/temasFalsos'
 import { ventanaFalsa } from '../biblioteca/ventanaFalsa'
 
 export function cancionSincronizadaLrclib(): Cancion {
@@ -75,7 +84,10 @@ export function cancionListaIncompleta(): Cancion {
 
 type ApiEditor = {
   [K in 'biblioteca' | 'letras' | 'app' | 'trabajos']: Partial<ApiShinobi[K]>
-} & Pick<ApiShinobi, 'config' | 'alCambiarCancion' | 'alCambiarConfig'> & {
+} & Pick<
+  ApiShinobi,
+  'config' | 'temas' | 'alCambiarCancion' | 'alCambiarConfig' | 'alCambiarTemas'
+> & {
     ventana: ReturnType<typeof ventanaFalsa>
   }
 
@@ -84,6 +96,10 @@ type OpcionesApiEditor = {
   danada?: boolean
   config?: Awaited<ReturnType<ApiShinobi['config']['obtener']>>
   trabajos?: Awaited<ReturnType<ApiShinobi['trabajos']['listar']>>
+  /** Apariencia inicial del resumen y de `resuelta` (por defecto, propio y neutra). */
+  apariencia?: Partial<AparienciaResumenIpc>
+  /** Doble de `temas`; por defecto un catálogo en memoria con un tema. */
+  temas?: TemasFalsos
 }
 
 function error(codigo: CodigoError): ErrorIpc {
@@ -95,10 +111,14 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   api: ApiEditor
   llamadas: { metodo: string; args: unknown[] }[]
   emitirCambio(resumen: ResumenCancionIpc): void
+  /** Cambia la apariencia viva de la canción (p. ej. `alHeredar`) y emite el resumen nuevo (salvo `silencioso`). */
+  fijarApariencia(cambios: Partial<AparienciaResumenIpc>, opciones?: { silencioso?: boolean }): void
   fallar(metodo: string, codigo: CodigoError, veces?: number): void
 } {
   const cancion = structuredClone(opciones.cancion ?? cancionSinSincronizar())
   const config = structuredClone(opciones.config ?? configPredeterminada())
+  let apariencia = aparienciaResumenPrueba(opciones.apariencia)
+  const temas = opciones.temas ?? temasFalsos()
   let sesionActiva: string | null = null
   const llamadas: { metodo: string; args: unknown[] }[] = []
   const fallos = new Map<string, { codigo: CodigoError; veces: number }>()
@@ -127,6 +147,12 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       estado: cancion.estado,
       modificada: cancion.modificada,
       estilo: structuredClone(cancion.estilo),
+      album: cancion.metadatos.album,
+      claves: {
+        artista: claveArtista(cancion.metadatos),
+        album: ((c) => (c ? claveAlbumTexto(c) : null))(claveAlbum(cancion.metadatos))
+      },
+      apariencia: structuredClone(apariencia),
       miniatura: null,
       pasos: {
         fuente: paso('fuente'),
@@ -168,12 +194,41 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       },
       async obtener(id) {
         registrar('biblioteca.obtener', id)
-        return id === cancion.id ? structuredClone(cancion) : null
+        if (id !== cancion.id) return null
+        const resuelta: ResueltaIpc = {
+          estilo: structuredClone(cancion.estilo),
+          procedencia: apariencia.procedencia,
+          temaId: apariencia.temaId,
+          temaNombre: apariencia.temaNombre,
+          alHeredar: structuredClone(apariencia.alHeredar)
+        }
+        return { ...structuredClone(cancion), resuelta }
       },
-      async guardarEstilo(id, estilo) {
-        registrar('biblioteca.guardarEstilo', id, estilo)
+      async guardarApariencia(id, seleccion) {
+        registrar('biblioteca.guardarApariencia', id, seleccion)
         exigirId(id)
-        cancion.estilo = structuredClone(estilo)
+        if (seleccion.modo === 'propio') {
+          cancion.estilo = structuredClone(seleccion.estilo)
+          apariencia = { ...apariencia, modo: 'propio', procedencia: 'propio', temaId: null }
+        } else if (seleccion.modo === 'tema') {
+          apariencia = {
+            ...apariencia,
+            modo: 'tema',
+            procedencia: 'cancion',
+            temaId: seleccion.temaId,
+            temaNombre:
+              (await temas.api.temas.catalogo()).temas.find((t) => t.id === seleccion.temaId)
+                ?.nombre ?? null
+          }
+        } else {
+          apariencia = {
+            ...apariencia,
+            modo: 'heredar',
+            procedencia: apariencia.alHeredar.procedencia,
+            temaId: apariencia.alHeredar.temaId,
+            temaNombre: apariencia.alHeredar.temaNombre
+          }
+        }
         return publicar()
       },
       async marcarLista(id) {
@@ -227,6 +282,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         return publicar()
       }
     },
+    ...temas.api,
     config: {
       async obtener() {
         registrar('config.obtener')
@@ -235,9 +291,6 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async actualizar(cambio) {
         registrar('config.actualizar', cambio)
         if (cambio.reproductor) Object.assign(config.reproductor, cambio.reproductor)
-        if (cambio.estilo_predeterminado) {
-          config.estilo_predeterminado = structuredClone(cambio.estilo_predeterminado)
-        }
         const paneles = cambio.editor?.paneles
         if (paneles) {
           Object.assign(config.editor.paneles.lista, paneles.lista)
@@ -275,6 +328,10 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     api,
     llamadas,
     emitirCambio,
+    fijarApariencia(cambios, { silencioso = false } = {}) {
+      apariencia = { ...apariencia, ...cambios }
+      if (!silencioso) publicar()
+    },
     fallar: (metodo, codigo, veces = 1) => fallos.set(metodo, { codigo, veces })
   }
 }

@@ -1,49 +1,87 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { useReducer, useState } from 'react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { useReducer } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { estiloPredeterminado, type Estilo } from '@shared/estilo'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { ContenedorToasts } from '../../componentes/Toasts'
 import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
 import { evaluarContraste } from '../../karaoke/contraste'
-import { estadoInicial, reducirEditor } from './estado'
-import { apiEditorFalsa } from './fixturesApi'
+import { aparienciaPropia, estadoInicial, reducirEditor } from './estado'
+import { catalogoPrueba } from '../biblioteca/temasFalsos'
+import { resumenPrueba } from '../biblioteca/resumenPrueba'
+import { vistaTema } from './aparienciaVista'
+import type { ControlTema } from './SeccionTema'
 import { PanelEstilo } from './PanelEstilo'
 import { E } from './textos'
 
-function Montaje({
-  inicial,
-  predeterminado,
-  inactivo
-}: {
-  inicial: Estilo
-  predeterminado: Estilo
-  inactivo: boolean
-}) {
+const accionesVacias = (): ControlTema['acciones'] =>
+  Object.fromEntries(
+    [
+      'elegir',
+      'heredar',
+      'personalizar',
+      'pasarADefinidos',
+      'editar',
+      'guardarEn',
+      'descartar',
+      'guardarNuevo',
+      'usarNuevo',
+      'cerrarNuevoCreado',
+      'renombrar',
+      'duplicar',
+      'temaDelAlbum',
+      'temaDelArtista',
+      'administrar',
+      'eliminar'
+    ].map((k) => [k, vi.fn()])
+  ) as unknown as ControlTema['acciones']
+
+/** Control de D2 (estilo propio): la sección Tema no interviene en estas pruebas. */
+function controlPropio(estilo: Estilo): ControlTema {
+  const resumen = resumenPrueba({ estilo })
+  return {
+    vista: vistaTema({
+      seleccion: { modo: 'propio' },
+      estiloPropio: estilo,
+      resumen,
+      catalogo: catalogoPrueba(),
+      borrador: null
+    }),
+    ofrecibles: [],
+    predeterminadoId: null,
+    grupo: { album: null, artista: null },
+    usos: 0,
+    nombreBorrador: null,
+    borradorModificado: false,
+    nuevoCreado: null,
+    foco: null,
+    acciones: accionesVacias()
+  }
+}
+
+function Montaje({ inicial, inactivo }: { inicial: Estilo; inactivo: boolean }) {
   const [estado, despachar] = useReducer(
     reducirEditor,
     estadoInicial(
       {
         letra: { origen: 'manual', lrclib_id: null, offset_ms: 0, lineas: [] },
-        estilo: inicial
+        apariencia: aparienciaPropia(inicial)
       },
       null
     )
   )
-  const [estiloBase, fijarEstiloBase] = useState(predeterminado)
-  const { estilo } = estado.actual
+  const { estilo } = estado.actual.apariencia
 
   return (
     <>
       <PanelEstilo
         estilo={estilo}
-        predeterminado={estiloBase}
         contraste={evaluarContraste(estilo)}
         inactivo={inactivo}
+        tema={controlPropio(estilo)}
         alCambiar={(estilo, clave, agruparGesto) =>
           despachar({ tipo: 'estilo', estilo, clave, agruparGesto, ahora: Date.now() })
         }
-        alCambiarPredeterminado={fijarEstiloBase}
       />
       <button type="button" onClick={() => despachar({ tipo: 'deshacer' })}>
         Deshacer
@@ -54,12 +92,8 @@ function Montaje({
   )
 }
 
-function montar(
-  inicial = estiloPredeterminado(),
-  predeterminado = estiloPredeterminado(),
-  inactivo = false
-) {
-  return render(<Montaje inicial={inicial} predeterminado={predeterminado} inactivo={inactivo} />)
+function montar(inicial = estiloPredeterminado(), inactivo = false) {
+  return render(<Montaje inicial={inicial} inactivo={inactivo} />)
 }
 
 function estiloActual(): Estilo {
@@ -157,40 +191,19 @@ describe('panel Estilo', () => {
     expect(estiloActual().letra.color).toBe('#FFFFFF')
   })
 
-  it('persiste el estilo predeterminado sin incorporar ese guardado al historial', async () => {
-    const { api, llamadas } = apiEditorFalsa()
-    vi.stubGlobal('shinobi', api)
-    const base = estiloPredeterminado()
-    const mismo = { letra: base.letra, fondo: base.fondo, version: base.version }
-    montar(mismo, base)
-    const guardar = screen.getByRole('button', { name: E.estiloPredeterminado })
-    expect(guardar).toBeDisabled()
-    cambiarCampo(E.colorLetra, '#112233')
-    expect(guardar).toBeEnabled()
-    const estilo = estiloActual()
-    fireEvent.click(guardar)
-    expect(await screen.findByText(E.estiloPredeterminadoToast)).toBeVisible()
-    await waitFor(() => expect(guardar).toBeDisabled())
-    expect(llamadas).toContainEqual({
-      metodo: 'config.actualizar',
-      args: [{ estilo_predeterminado: estilo }]
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
-    expect(estiloActual().letra.color).toBe('#FFFFFF')
-    fireEvent.click(screen.getByRole('button', { name: E.resetEstilo }))
-    expect(estiloActual()).toEqual(estilo)
-    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
-    expect(estiloActual().letra.color).toBe('#FFFFFF')
+  it('ya no ofrece restablecer ni guardar el estilo como predeterminado de canciones nuevas', () => {
+    montar()
+    expect(screen.queryByRole('button', { name: /Restablecer estilo predeterminado/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /canciones nuevas/ })).toBeNull()
   })
 
   it('bloquea todas las ediciones de estilo mientras se sincroniza', () => {
     const inicial = estiloPredeterminado()
-    montar(inicial, inicial, true)
+    montar(inicial, true)
     expect(screen.getByRole('heading', { name: E.fondo }).closest('[inert]')).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: E.solido }))
     cambiarCampo(E.colorLetra, '#112233')
     expect(estiloActual()).toEqual(inicial)
-    expect(screen.getByRole('button', { name: E.estiloPredeterminado })).toBeDisabled()
   })
 })
 

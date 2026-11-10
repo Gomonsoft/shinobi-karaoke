@@ -1,5 +1,4 @@
-import type { Estilo } from '@shared/estilo'
-import type { ErrorIpc } from '@shared/ipc'
+import type { ErrorIpc, SeleccionApariencia } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import type { GuardarTiempos } from '@shared/letrasBusqueda'
 import { aPeticionTiempos } from '@shared/letras/tiempos'
@@ -11,7 +10,7 @@ interface Opciones {
   cancionId: string
   api: {
     guardarTiempos(peticion: GuardarTiempos): Promise<unknown>
-    guardarEstilo(id: string, estilo: Estilo): Promise<unknown>
+    guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<unknown>
   }
   debounceMs?: number
   maxEsperaMs?: number
@@ -21,7 +20,7 @@ interface Opciones {
   alDesactualizada(): void | Promise<void>
 }
 
-type Lote = { letra?: Letra; estilo?: Estilo }
+type Lote = { letra?: Letra; apariencia?: SeleccionApariencia }
 type Temporizador = ReturnType<typeof setTimeout>
 
 function errorIpc(e: unknown): ErrorIpc {
@@ -53,9 +52,10 @@ export class GuardadoEditor {
     this.programar()
   }
 
-  cambiarEstilo(estilo: Estilo): void {
+  /** La última selección de apariencia manda (elegir tema, heredar o estilo propio). */
+  cambiarApariencia(seleccion: SeleccionApariencia): void {
     if (this.destruido) return
-    this.pendiente.estilo = estilo
+    this.pendiente.apariencia = seleccion
     this.programar()
   }
 
@@ -64,7 +64,7 @@ export class GuardadoEditor {
   }
 
   private hayLote(): boolean {
-    return !!(this.pendiente.letra || this.pendiente.estilo)
+    return !!(this.pendiente.letra || this.pendiente.apariencia)
   }
 
   private programar(): void {
@@ -103,12 +103,14 @@ export class GuardadoEditor {
   private async escribir(lote: Lote): Promise<boolean> {
     if (this.destruido) return false
     const { cancionId, api } = this.opciones
-    const { letra, estilo } = lote
+    const { letra, apariencia: seleccion } = lote
     const [tiempos, apariencia] = await Promise.allSettled([
       letra
         ? Promise.resolve().then(() => api.guardarTiempos(aPeticionTiempos(cancionId, letra)))
         : undefined,
-      estilo ? Promise.resolve().then(() => api.guardarEstilo(cancionId, estilo)) : undefined
+      seleccion
+        ? Promise.resolve().then(() => api.guardarApariencia(cancionId, seleccion))
+        : undefined
     ])
     if (this.destruido) return false
     let fallo: ErrorIpc | null = null
@@ -124,7 +126,7 @@ export class GuardadoEditor {
     }
     if (this.destruido) return false
     if (apariencia.status === 'rejected') {
-      this.pendiente.estilo ??= estilo
+      this.pendiente.apariencia ??= seleccion
       fallo ??= errorIpc(apariencia.reason)
     }
 

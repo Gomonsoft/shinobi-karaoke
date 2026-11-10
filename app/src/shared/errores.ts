@@ -26,7 +26,12 @@ export const CODIGOS_ERROR = [
   'DEMO_FALLO',
   'PROCESO_TERMINADO',
   'ARCHIVO_SIN_LETRA',
-  'LETRA_DESACTUALIZADA'
+  'LETRA_DESACTUALIZADA',
+  'CONFIRMACION_OBSOLETA',
+  'TEMA_NO_ENCONTRADO',
+  'TEMA_NOMBRE_DUPLICADO',
+  'TEMAS_SOLO_LECTURA',
+  'BORRADO_PENDIENTE'
 ] as const
 
 /**
@@ -38,11 +43,19 @@ export const CODIGOS_ERROR = [
  * la interfaz lo muestra con `let.error.archivo`).
  * `LETRA_DESACTUALIZADA`: la letra guardada ya no tiene los mismos elementos que envía
  * el editor (0090/0091); el editor recarga.
+ * Fase 3 (ADR 0016 §11): `CONFIRMACION_OBSOLETA` (el impacto confirmado ya no coincide; el nuevo va en
+ * `detalles`), `TEMA_NO_ENCONTRADO`, `TEMA_NOMBRE_DUPLICADO`, `TEMAS_SOLO_LECTURA` (catálogo de un esquema
+ * más nuevo) y `BORRADO_PENDIENTE` (tema en borrado: no admite otra operación).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',
   'ARCHIVO_SIN_LETRA',
-  'LETRA_DESACTUALIZADA'
+  'LETRA_DESACTUALIZADA',
+  'CONFIRMACION_OBSOLETA',
+  'TEMA_NO_ENCONTRADO',
+  'TEMA_NOMBRE_DUPLICADO',
+  'TEMAS_SOLO_LECTURA',
+  'BORRADO_PENDIENTE'
 ] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]

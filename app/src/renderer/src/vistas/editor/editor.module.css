@@ -471,3 +471,12 @@
   line-height: var(--t-pequeno-lh);
   text-align: center;
 }
+.puntoInfoLayout {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pildora);
+  background: var(--info);
+}

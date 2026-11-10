@@ -6,6 +6,7 @@ import { FIXTURES } from '../../shared/__fixtures__'
 import { ESTILO_PREDETERMINADO, type Cancion, type Estilo } from '../../shared'
 import { silencioFlac } from './flac'
 import { ErrorBiblioteca, type DatosNuevaCancion, type EventoCancion } from './operaciones'
+import { ServicioTemas } from '../temas'
 import { ServicioBiblioteca } from './servicio'
 import { writeFile } from 'node:fs/promises'
 
@@ -33,8 +34,20 @@ afterEach(async () => {
   await rm(datos, { recursive: true, force: true })
 })
 
-function servicio(): ServicioBiblioteca {
-  const s = new ServicioBiblioteca(datos, { shell, estiloPredeterminado: () => estiloConfig })
+/** Biblioteca con un catálogo cuyo predeterminado es `estiloConfig` (las nuevas heredan ese estilo). */
+async function conTemas(s: ServicioBiblioteca): Promise<ServicioBiblioteca> {
+  s.conectarTemas(
+    await ServicioTemas.abrir({
+      dirBiblioteca: biblio,
+      puerto: s.puerto(),
+      estiloInicial: estiloConfig
+    })
+  )
+  return s
+}
+
+async function servicio(): Promise<ServicioBiblioteca> {
+  const s = await conTemas(new ServicioBiblioteca(datos, { shell }))
   s.suscribir((e) => eventos.push(e))
   return s
 }
@@ -71,7 +84,7 @@ async function cancionLista(s: ServicioBiblioteca): Promise<string> {
 
 describe('comprobarPistas', () => {
   it.each(['instrumental.flac', 'voz.flac'])('detecta que falta %s sin escribir', async (pista) => {
-    const s = servicio()
+    const s = await servicio()
     const id = await cancionLista(s)
     const cancionJson = join(biblio, id, 'cancion.json')
     const antes = await readFile(cancionJson, 'utf8')
@@ -91,7 +104,7 @@ describe('comprobarPistas', () => {
   })
 
   it('devuelve null sin emitir si la canción no existe o tiene JSON ilegible', async () => {
-    const s = servicio()
+    const s = await servicio()
     const id = 'danada'
     await mkdir(join(biblio, id))
     await writeFile(join(biblio, id, 'cancion.json'), '{')
@@ -104,7 +117,7 @@ describe('comprobarPistas', () => {
 
 describe('importación preparada', () => {
   it('prepara, materializa de forma atómica y emite el evento', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id, ruta } = await s.prepararImportacion()
     expect(ruta).toBe(join(biblio, '.importando', id))
     await mkdir(join(ruta, 'fuente'))
@@ -125,7 +138,7 @@ describe('importación preparada', () => {
   })
 
   it('si el destino existe, falla sin tocar nada', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id, ruta } = await s.prepararImportacion()
     await mkdir(join(biblio, id))
     await expect(s.materializar(id, datosNuevos())).rejects.toBeInstanceOf(ErrorBiblioteca)
@@ -135,7 +148,7 @@ describe('importación preparada', () => {
   })
 
   it('materializar sin preparación o con datos inválidos falla', async () => {
-    const s = servicio()
+    const s = await servicio()
     await expect(s.materializar('no-existe', datosNuevos())).rejects.toThrow(ErrorBiblioteca)
     const { id, ruta } = await s.prepararImportacion()
     const malos = datosNuevos()
@@ -145,7 +158,7 @@ describe('importación preparada', () => {
   })
 
   it('descartar no deja restos', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id, ruta } = await s.prepararImportacion()
     await writeFile(join(ruta, 'x.bin'), 'x')
     await s.descartarImportacion(id)
@@ -156,7 +169,7 @@ describe('importación preparada', () => {
 
 describe('crear', () => {
   it('crea biblioteca/<id>/cancion.json y la indexa', async () => {
-    const s = servicio()
+    const s = await servicio()
     const r = await s.crear(datosNuevos())
     expect((await leerDisco(r.id)).id).toBe(r.id)
     expect(s.obtener(r.id)?.estilo).toEqual(estiloConfig)
@@ -165,7 +178,7 @@ describe('crear', () => {
   })
 
   it('rechaza un id repetido o inseguro', async () => {
-    const s = servicio()
+    const s = await servicio()
     await s.crear(datosNuevos(), 'a')
     await expect(s.crear(datosNuevos(), 'a')).rejects.toThrow(ErrorBiblioteca)
     await expect(s.crear(datosNuevos(), '../x')).rejects.toThrow(ErrorBiblioteca)
@@ -196,7 +209,7 @@ describe('actualizar', () => {
   })
 
   it('rechaza un cambio inválido sin escribir ni emitir', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     const antes = await readFile(join(biblio, id, 'cancion.json'), 'utf8')
     const n = eventos.length
@@ -222,7 +235,7 @@ describe('actualizar', () => {
   })
 
   it('canción inexistente o dañada: error', async () => {
-    const s = servicio()
+    const s = await servicio()
     await expect(s.actualizar('nada', {})).rejects.toThrow(ErrorBiblioteca)
     await mkdir(join(biblio, 'rota'))
     await writeFile(join(biblio, 'rota', 'cancion.json'), '{no')
@@ -231,7 +244,7 @@ describe('actualizar', () => {
   })
 
   it('agrupa con debounce: el índice ve el último valor y se escribe una vez', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     const ps = [1, 2, 3].map((i) =>
       s.actualizar(id, { metadatos: { titulo: `T${i}` } }, { debounceMs: 30 })
@@ -242,7 +255,7 @@ describe('actualizar', () => {
   })
 
   it('flushTodo escribe lo pendiente', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     const p = s.actualizar(id, { metadatos: { titulo: 'Pendiente' } }, { debounceMs: 60_000 })
     await s.flushTodo()
@@ -251,7 +264,7 @@ describe('actualizar', () => {
   })
 
   it('recalcula "dañada por pistas" al cambiar las pistas', async () => {
-    const s = servicio()
+    const s = await servicio()
     const id = await cancionLista(s)
     expect(s.obtenerResumen(id)?.danada).toBe(false)
     const r = await s.actualizar(id, {
@@ -263,14 +276,14 @@ describe('actualizar', () => {
 
 describe('estado lista / borrador', () => {
   it('marcarLista falla sin condiciones y no cambia nada', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     await expect(s.marcarLista(id)).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
     expect((await leerDisco(id)).estado).toBe('borrador')
   })
 
   it('marcarLista con condiciones pone estado lista y edición completada', async () => {
-    const s = servicio()
+    const s = await servicio()
     const id = await cancionLista(s)
     await s.volverABorrador(id)
     await s.actualizar(id, { pasos: { edicion: { estado: 'pendiente', actualizado: null } } })
@@ -282,7 +295,7 @@ describe('estado lista / borrador', () => {
   })
 
   it('volverABorrador cambia solo el estado; actualizar nunca cambia estado', async () => {
-    const s = servicio()
+    const s = await servicio()
     const id = await cancionLista(s)
     const antes = s.obtener(id)!
     await s.actualizar(id, { metadatos: { titulo: 'Otro' } })
@@ -298,7 +311,7 @@ describe('estado lista / borrador', () => {
 
 describe('eliminar y mostrar en carpeta', () => {
   it('envía a la papelera, quita del índice y emite eliminada', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     await s.eliminar(id)
     expect(shell.trashItem).toHaveBeenCalledWith(join(biblio, id))
@@ -312,11 +325,7 @@ describe('eliminar y mostrar en carpeta', () => {
       orden.push('antes')
     })
     shell.trashItem.mockImplementation(async () => void orden.push('papelera'))
-    const s = new ServicioBiblioteca(datos, {
-      shell,
-      estiloPredeterminado: () => estiloConfig,
-      antesDeEliminar
-    })
+    const s = await conTemas(new ServicioBiblioteca(datos, { shell, antesDeEliminar }))
     const { id } = await s.crear(datosNuevos())
     await s.eliminar(id)
     expect(antesDeEliminar).toHaveBeenCalledWith(id)
@@ -324,7 +333,7 @@ describe('eliminar y mostrar en carpeta', () => {
   })
 
   it('si la papelera falla, error y la canción sigue indexada', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     shell.trashItem.mockRejectedValue(new Error('no'))
     await expect(s.eliminar(id)).rejects.toMatchObject({ codigo: 'ERROR_INTERNO' })
@@ -333,13 +342,13 @@ describe('eliminar y mostrar en carpeta', () => {
   })
 
   it('eliminar o mostrar una canción inexistente falla', async () => {
-    const s = servicio()
+    const s = await servicio()
     await expect(s.eliminar('x')).rejects.toThrow(ErrorBiblioteca)
     await expect(s.mostrarEnCarpeta('x')).rejects.toThrow(ErrorBiblioteca)
   })
 
   it('mostrarEnCarpeta abre la carpeta y propaga el error de openPath', async () => {
-    const s = servicio()
+    const s = await servicio()
     const { id } = await s.crear(datosNuevos())
     await s.mostrarEnCarpeta(id)
     expect(shell.openPath).toHaveBeenCalledWith(join(biblio, id))
@@ -356,7 +365,7 @@ describe('eliminar y mostrar en carpeta', () => {
 })
 
 it('guarda el estilo inmediatamente y emite el resumen', async () => {
-  const s = servicio()
+  const s = await servicio()
   const { id } = await s.crear(datosNuevos())
   eventos.length = 0
   const estilo = structuredClone(ESTILO_PREDETERMINADO)

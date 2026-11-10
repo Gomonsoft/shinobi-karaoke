@@ -139,7 +139,7 @@ Tamaño mínimo de texto en la interfaz: **13 px**. Respetar el zoom de Electron
 - Lectores de pantalla: las regiones usan *landmarks* (`banner`, `main`, `navigation`, `complementary`); los cambios de progreso se anuncian solo en hitos (inicio, cada 25 %, fin, error) para no saturar.
 
 ## 8. Estilo de karaoke predeterminado y muestras sugeridas
-Estilo que se copia en cada canción nueva (`config.json → estilo_predeterminado`):
+Estilo incluido de Shinobi Karaoke (`ESTILO_PREDETERMINADO`). En 0.1.0 se copiaba en cada canción nueva (`config.json → estilo_predeterminado`). Desde 0.2.0, fase 3, si el usuario no lo había cambiado, siembra el tema «Shinobi» del catálogo y es el aspecto de las canciones con procedencia «Estilo incluido» ([ADR 0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §1 y §3); `config.estilo_predeterminado` queda como campo heredado:
 ```jsonc
 { "version": 1,
   "fondo": { "tipo": "degradado", "angulo_grados": 135,
@@ -205,4 +205,22 @@ Mantener contraste perceptible de estados, límites y foco, también cuando la p
 | Divisor | Franja de agarre de 12 px con línea centrada de 1 px `borde` y agarre `⋮`/`⋯` de 16 px en `texto-3` (objetivo 24 × 24). *Hover*: línea 2 px `borde-control`. Arrastre: 2 px `acento-texto`. Foco: línea 2 px `foco` + anillo de §7. Cursor `col-resize` / `row-resize`. |
 | Riel (panel minimizado) | `fondo-1`, borde `borde` hacia el contenido, botones icono de 32 × 32, valores en `t-tiempo`, etiquetas en `t-pequeno` `texto-2`. Lista 72 px, panel 120 px; la línea de tiempo minimizada es una fila de 44 px (40 en compacto). |
 
-El editor usa márgenes laterales de 16 px y el dock pegado al borde inferior, como excepción a §4. El mínimo de ventana de §4 (1024 × 576) coincide con el mínimo de diseño del editor. Medidas, mínimos y teclado en [Editor, subfase 2.1](06-editor.md#subfase-21--layout-adaptable-y-paneles).
+El editor usa márgenes laterales de 16 px y el dock pegado al borde inferior, como excepción a §4.
+
+## 0.2.0 — Temas y biblioteca agrupada (fase 3)
+
+| Componente | Tratamiento visual |
+|---|---|
+| **Muestra de tema** | Rectángulo 16:9 con radio `r-s` y borde 1 px `borde`: fondo del tema (sólido o degradado) con «Aa» centrado en la fuente y el color de letra del tema y la sombra de §10. Tamaños: 48 × 27 px (selectores, resumen del editor), 64 × 36 px (lista de Ajustes). Decorativa (`aria-hidden`): el nombre del tema siempre va en texto al lado. |
+| **Selector de tema** | Como el selector de fuente de §6: lista desplegable cuyas opciones son muestra + nombre (`t-cuerpo`) + etiqueta «Predeterminado» (`t-pequeno`, `texto-2`, con borde `borde-control`, sin píldora: no es un estado). Opción no disponible: nombre en `texto-2` con « (no disponible)». |
+| **Línea de procedencia** | `t-pequeno` `texto-2` bajo el selector; los usos en `texto-3`. Sin color de estado: es información, no un aviso. |
+| **Grupo de modo** | Radios verticales de 20 px con borde `borde-control`; seleccionado relleno `acento-texto`; etiqueta `t-cuerpo-fuerte`, descripción `t-pequeno` `texto-2`. |
+| **Pie fijo del panel (editar tema)** | `fondo-1` con borde superior 1 px `borde`, relleno 8 px, dos filas de botones secundarios de 36 px. Sin sombra. |
+| **Línea de tema en la tarjeta** | Icono `palette` 14 px + texto `t-pequeno` `texto-3`, una línea con «…». Tema no disponible: icono `alert-triangle` en `aviso`, texto en `texto-3`. |
+| **Encabezado de grupo** | `h2` en `t-subtitulo` dentro de un botón plegable (chevron 20 px, `texto-2`, gira 90° en 120 ms; sin giro animado con movimiento reducido). Recuento en `t-pequeno` `texto-2`. Tema del grupo en `t-pequeno` `texto-2` y [Tema…] como botón fantasma. Separación: 32 px antes de cada grupo, 12 px entre encabezado y rejilla. Sin fondo propio ni línea pegajosa. |
+| **Casilla de selección en tarjeta** | 24 × 24 px sobre la portada, arriba a la izquierda a 8 px de los bordes, sobre una píldora `rgba(0,0,0,0.6)` para que se vea sobre cualquier portada. Marcada: fondo `acento`, check blanco (5,33:1). Tarjeta seleccionada: borde 2 px `acento-texto` (además de la casilla, el color no es la única señal). No disponible: casilla con borde `texto-desactivado` y tooltip. |
+| **Barra de selección** | `fondo-2`, `r-m`, alto 48 px, `position: sticky` bajo la barra de herramientas; contador en `t-cuerpo-fuerte`, «fuera de la vista» en `texto-2`; «Aplicar tema…» secundario (el único primario de la vista sigue siendo «Añadir canción»). |
+| **Lista de canciones en diálogos** | Caja `fondo-2` con borde `borde`, `r-s`, filas de 40 px (título `t-cuerpo`, nota `t-pequeno` `texto-2`), scroll propio (máx. 280 px). Resultados: ✓ `exito`, ✕ `error`, – `texto-3`, siempre con texto. |
+| **Diálogo ancho** | Variante del diálogo modal de 560 px (máx. 90 vw) para «Aplicar tema». |
+
+Contraste: todos los textos nuevos usan `texto-1/2/3` sobre `fondo-1/2` (≥ 4,7:1, §2.2) y los iconos de estado sus colores de §2.3. Las muestras pintan la letra del tema tal cual: el aviso de contraste de §9 se sigue mostrando en el editor para el tema efectivo. Ver [Editor](06-editor.md#fase-3-de-020--temas-y-biblioteca), [Biblioteca](02-biblioteca.md#fase-3-de-020--temas-y-biblioteca) y [Ajustes](08-ajustes-y-acerca.md#fase-3-de-020--temas-y-biblioteca). El mínimo de ventana de §4 (1024 × 576) coincide con el mínimo de diseño del editor. Medidas, mínimos y teclado en [Editor, subfase 2.1](06-editor.md#subfase-21--layout-adaptable-y-paneles).
