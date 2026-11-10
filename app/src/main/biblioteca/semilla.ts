@@ -2,10 +2,16 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { FIXTURES, letra, linea, pausa } from '../../shared/__fixtures__'
 import {
+  crearIndiceCatalogo,
   estiloPredeterminado,
   FUENTES_REGISTRO,
   migrarConfig,
+  resolverApariencia,
+  VERSION_CLAVES,
+  VERSION_ESQUEMA_CATALOGO,
+  type Apariencia,
   type Cancion,
+  type Catalogo,
   type Estilo,
   type Letra
 } from '../../shared'
@@ -231,6 +237,125 @@ function plan(): Plan[] {
   ]
 }
 
+// ---- Temas (fase 3): conjunto de revision-fase-3/README.md#datos-de-prueba ----
+
+const idTema = (n: number): string => `7e3a0000-0000-4000-8000-${String(n).padStart(12, '0')}`
+export const TEMA_NEON = idTema(1)
+export const TEMA_NOCHE_NINJA = idTema(2)
+export const TEMA_SOL = idTema(3)
+/** Tema que no existe en el catálogo: la canción que lo referencia resuelve `respaldo`. */
+export const TEMA_INEXISTENTE = idTema(99)
+
+const estiloNeon = (): Estilo => estiloVariado(2)
+const estiloNoche = (): Estilo => estiloVariado(0)
+const estiloSol = (): Estilo => estiloVariado(1)
+
+/** Catálogo de la semilla: «Neón», «Noche ninja» (predeterminado) y «Sol»; Queen → Neón, su álbum → Sol. */
+export function catalogoDeSemilla(): Catalogo {
+  const marca = '2026-11-03T10:00:00.000Z'
+  const tema = (id: string, nombre: string, estilo: Estilo): Catalogo['temas'][number] => ({
+    id,
+    nombre,
+    creado: marca,
+    modificado: marca,
+    revision: 1,
+    estilo
+  })
+  return {
+    esquema: VERSION_ESQUEMA_CATALOGO,
+    claves: VERSION_CLAVES,
+    predeterminado: TEMA_NOCHE_NINJA,
+    temas: [
+      tema(TEMA_NEON, 'Neón', estiloNeon()),
+      tema(TEMA_NOCHE_NINJA, 'Noche ninja', estiloNoche()),
+      tema(TEMA_SOL, 'Sol', estiloSol())
+    ],
+    asignaciones: {
+      artistas: [{ artista: 'queen', nombre_artista: 'Queen', tema_id: TEMA_NEON }],
+      albumes: [
+        {
+          artista: 'queen',
+          album: 'a night at the opera',
+          nombre_artista: 'Queen',
+          nombre_album: 'A Night at the Opera',
+          tema_id: TEMA_SOL
+        }
+      ]
+    },
+    borrado_pendiente: null,
+    apartado: null
+  }
+}
+
+/** Canciones de la semilla de temas; la instantánea `estilo` es la que daría la resolución. */
+function planTemas(): Plan[] {
+  const catalogo = catalogoDeSemilla()
+  const indice = crearIndiceCatalogo(catalogo)
+  const f = FIXTURES
+  const cancion = (
+    n: number,
+    titulo: string,
+    artista: string,
+    album: string | null,
+    apariencia: Apariencia | undefined,
+    propio?: Estilo
+  ): Plan => {
+    const base = f.lista()
+    const fecha = new Date(Date.UTC(2026, 10, 3, 9, 59 - (n - 30))).toISOString()
+    const metadatos = { ...base.metadatos, titulo, artista, album }
+    const estilo =
+      propio ??
+      resolverApariencia({ metadatos, estilo: estiloPredeterminado(), apariencia }, indice).estilo
+    return {
+      id: idN(n),
+      cancion: {
+        ...base,
+        id: idN(n),
+        modificada: fecha,
+        metadatos,
+        ...(apariencia ? { apariencia } : {}),
+        estilo
+      }
+    }
+  }
+  const heredar: Apariencia = { modo: 'heredar' }
+  const anterior = { tipo: 'predeterminado_anterior' as const, tema_id: TEMA_SOL }
+  const yt = youtube(37, 'Temas: YouTube con miniatura', 'Artista Youtube', 'sEeD0000037', false)
+  yt.cancion.metadatos.album = 'Álbum Youtube'
+  yt.cancion.apariencia = heredar
+  yt.cancion.estilo = estiloNoche()
+  return [
+    cancion(30, 'Bohemian Rhapsody', 'Queen', 'A Night at the Opera', heredar),
+    cancion(31, "Don't Stop Me Now", 'Queen', 'Jazz', heredar),
+    cancion(32, 'We Will Rock You', 'Queen', 'Greatest Hits', heredar),
+    cancion(33, 'Dancing Queen', 'ABBA', 'Greatest Hits', heredar),
+    cancion(34, 'Sin artista ni álbum', '', null, heredar),
+    cancion(35, 'Personalizada de 0.1.0', 'Artista Antiguo', null, undefined, estiloVariado(3)),
+    cancion(
+      36,
+      'Tema que ya no existe',
+      'Artista Perdido',
+      null,
+      { modo: 'tema', tema_id: TEMA_INEXISTENTE, tema_nombre: 'Tema perdido' },
+      estiloVariado(2)
+    ),
+    { ...yt, id: idN(37) },
+    cancion(38, 'Predeterminado anterior', 'Artista Anterior', null, {
+      modo: 'heredar',
+      base: anterior,
+      tema_nombre: 'Sol'
+    }),
+    cancion(39, 'Neón con base anterior', 'Artista Anterior', null, {
+      modo: 'tema',
+      tema_id: TEMA_NEON,
+      base: anterior,
+      tema_nombre: 'Neón'
+    }),
+    cancion(40, 'Doble uno', 'Artista Doble', 'Álbum Doble', heredar),
+    cancion(41, 'Doble dos', 'Artista Doble', 'Álbum Doble', heredar)
+  ]
+}
+
 async function existe(ruta: string): Promise<boolean> {
   try {
     await stat(ruta)
@@ -247,13 +372,14 @@ async function existe(ruta: string): Promise<boolean> {
  */
 export async function sembrar(
   datos: string,
-  opciones: { limpiar?: boolean } = {}
+  opciones: { limpiar?: boolean; temas?: boolean } = {}
 ): Promise<ResultadoSemilla> {
   const biblioteca = join(datos, 'biblioteca')
   if (opciones.limpiar) {
     await rm(biblioteca, { recursive: true, force: true })
     await rm(join(datos, 'config.json'), { force: true })
   }
+  const conTemas = opciones.temas === true
   await mkdir(join(biblioteca, '.importando'), { recursive: true })
 
   const resultado: ResultadoSemilla = { creadas: [], existentes: [] }
@@ -272,7 +398,14 @@ export async function sembrar(
   }
 
   const silencio = silencioFlac()
-  for (const p of plan()) {
+  if (conTemas) {
+    // Sin `.bak` ni sobrescritura: si el catálogo ya existe, se respeta.
+    const rutaTemas = join(biblioteca, 'temas.json')
+    if (!(await existe(rutaTemas))) {
+      await writeFile(rutaTemas, JSON.stringify(catalogoDeSemilla(), null, 2) + '\n')
+    }
+  }
+  for (const p of conTemas ? [...plan(), ...planTemas()] : plan()) {
     const carpeta = join(biblioteca, p.id)
     if (await existe(carpeta)) {
       resultado.existentes.push(p.id)

@@ -1,6 +1,6 @@
 import type { AgruparBiblioteca } from '@shared/config'
 import { claveTexto, nombreVisibleGrupo } from '@shared/identidad'
-import type { ResumenCancionIpc } from '@shared/ipc'
+import type { CatalogoIpc, ResumenCancionIpc } from '@shared/ipc'
 
 /** Tipo de grupo. Solo `artista` y `album` admiten tema (0174); el resto son agrupaciones visuales. */
 export type TipoGrupo = 'artista' | 'album' | 'sinArtista' | 'sinAlbum' | 'albumSinArtista'
@@ -134,4 +134,32 @@ export function textoRecuentoGrupo(visibles: number, total: number, filtrando: b
 export function textoAnuncioResultados(n: number): string {
   if (n === 0) return 'Ninguna canción'
   return n === 1 ? '1 canción' : `${n} canciones`
+}
+
+/**
+ * Tema asignado a un grupo, por **clave** de identidad (nunca por el nombre visible): la clave del
+ * artista, o el par artista + álbum, vienen en el id del grupo. `null` si no tiene o no es asignable.
+ */
+export function temaAsignadoAGrupo(
+  grupo: Pick<Grupo, 'id' | 'tipo'>,
+  asignaciones: CatalogoIpc['asignaciones']
+): string | null {
+  if (grupo.tipo === 'artista') {
+    const artista = grupo.id.slice('artista:'.length)
+    // `CatalogoIpc.asignaciones` trae el nombre visible; la clave de identidad se deriva de él.
+    return asignaciones.artistas.find((a) => claveTexto(a.artista) === artista)?.temaId ?? null
+  }
+  if (grupo.tipo === 'album') {
+    try {
+      const [artista, album] = JSON.parse(grupo.id.slice('album:'.length)) as [string, string]
+      return (
+        asignaciones.albumes.find(
+          (a) => claveTexto(a.artista) === artista && claveTexto(a.album) === album
+        )?.temaId ?? null
+      )
+    } catch {
+      return null
+    }
+  }
+  return null
 }

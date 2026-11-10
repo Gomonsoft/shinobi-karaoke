@@ -20,10 +20,40 @@ export type Vista =
   | { tipo: 'biblioteca'; enfocar?: { id: string; resaltar: boolean } }
   /** `archivo`: ruta de un archivo arrastrado sobre la Biblioteca (la vista 03 lo recibe). */
   | { tipo: 'anadir'; archivo?: string; iniciales?: DatosInicialesAnadir }
-  | { tipo: 'cancion'; id: string; paso: PasoCancion }
-  | { tipo: 'ajustes' }
+  /** `pestana`: pestaña con la que abre el editor (al volver de Ajustes, `estilo`; 0175). */
+  | { tipo: 'cancion'; id: string; paso: PasoCancion; pestana?: 'estilo' }
+  /** `origen`: vista a la que regresa «Volver» y Esc; `seccion`: sección a la que se baja al abrir. */
+  | { tipo: 'ajustes'; origen?: OrigenAjustes; seccion?: SeccionAjustes }
 
 export type TipoVista = Vista['tipo']
+
+/** Vistas desde las que se abre Ajustes y a las que se regresa (docs/ux/08, A10). */
+export type OrigenAjustes = { tipo: 'biblioteca' } | { tipo: 'editor'; id: string }
+export type SeccionAjustes = 'temas'
+
+/** Origen que recuerda Ajustes al abrirse desde `vista`: el editor de una canción o, si no, la Biblioteca. */
+export function origenAjustes(vista: Vista): OrigenAjustes {
+  if (vista.tipo === 'cancion' && vista.paso === 'editor') return { tipo: 'editor', id: vista.id }
+  if (vista.tipo === 'ajustes' && vista.origen) return vista.origen
+  return { tipo: 'biblioteca' }
+}
+
+/** Vista a la que regresan «Volver» y Esc en Ajustes (el editor reabre con la pestaña Estilo). */
+export function vistaDeOrigen(origen: OrigenAjustes | undefined): Vista {
+  if (origen?.tipo === 'editor') {
+    return { tipo: 'cancion', id: origen.id, paso: 'editor', pestana: 'estilo' }
+  }
+  return { tipo: 'biblioteca' }
+}
+
+/** Vista Ajustes abierta desde `vista` (⚙, Ctrl/Cmd + , o «Administrar temas…» con `seccion`). */
+export function vistaAjustesDesde(vista: Vista, seccion?: SeccionAjustes): Vista {
+  return {
+    tipo: 'ajustes',
+    origen: origenAjustes(vista),
+    ...(seccion ? { seccion } : {})
+  }
+}
 
 /** Vistas sin barra superior (docs/ux/00 §2). */
 export const VISTAS_SIN_BARRA: readonly TipoVista[] = ['primer-arranque']

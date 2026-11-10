@@ -22,27 +22,31 @@ test('con la semilla se ven las canciones esperadas con su insignia y su línea'
     await expect(v.getByRole('article')).toHaveCount(20)
     const tarjeta = (titulo: string) => v.getByRole('article', { name: new RegExp(`^${titulo},`) })
 
-    await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Lista\.$/)
-    await expect(tarjeta('Lista con palabras')).toHaveAccessibleName(/Lista\.$/)
+    await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Lista\.(?: Tema: .+\.)?$/)
+    await expect(tarjeta('Lista con palabras')).toHaveAccessibleName(/Lista\.(?: Tema: .+\.)?$/)
     // Lista incompleta: sigue siendo Lista, con aviso (icono + texto) y "Reproducir".
     const incompleta = tarjeta('Lista incompleta')
-    await expect(incompleta).toHaveAccessibleName(/Lista\. Falta 1 línea por sincronizar\.$/)
+    await expect(incompleta).toHaveAccessibleName(
+      /Lista\. Falta 1 línea por sincronizar\.(?: Tema: .+\.)?$/
+    )
     await expect(incompleta.getByText('Falta 1 línea por sincronizar')).toBeVisible()
     await expect(incompleta.locator('svg').nth(1)).toBeVisible()
     await expect(incompleta.getByRole('button', { name: /^Reproducir/ })).toBeVisible()
 
-    await expect(tarjeta('Borrador sin letra')).toHaveAccessibleName(/Borrador\. Falta la letra\.$/)
+    await expect(tarjeta('Borrador sin letra')).toHaveAccessibleName(
+      /Borrador\. Falta la letra\.(?: Tema: .+\.)?$/
+    )
     await expect(tarjeta('Borrador con letra a medias')).toHaveAccessibleName(
-      /Borrador\. Falta 1 línea por sincronizar\.$/
+      /Borrador\. Falta 1 línea por sincronizar\.(?: Tema: .+\.)?$/
     )
     await expect(tarjeta('Separación con error')).toHaveAccessibleName(
-      /Error\. Tu equipo se quedó sin memoria\.$/
+      /Error\. Tu equipo se quedó sin memoria\.(?: Tema: .+\.)?$/
     )
     await expect(tarjeta('Separación interrumpida')).toHaveAccessibleName(
-      /Borrador\. Interrumpido\.$/
+      /Borrador\. Interrumpido\.(?: Tema: .+\.)?$/
     )
     await expect(tarjeta('Sin pistas')).toHaveAccessibleName(
-      /Dañada\. Faltan las pistas separadas\.$/
+      /Dañada\. Faltan las pistas separadas\.(?: Tema: .+\.)?$/
     )
     await expect(
       v.getByRole('article', {

@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import { ESTILO_PREDETERMINADO } from '@shared/estilo'
 import type { TrabajoIpc } from '@shared/ipc'
 import { LineaPaso } from './LineaPaso'
-import { paso, resumenPrueba } from './resumenPrueba'
+import { aparienciaResumenPrueba, paso, resumenPrueba } from './resumenPrueba'
+import { lineaDeTema } from './textosTema'
 import {
   datosDeTarjeta,
   esReintentable,
@@ -13,6 +13,8 @@ import {
   tituloDeTarjeta,
   usaMiniatura
 } from './tarjeta'
+
+const TEMA = ' Tema: Tema personalizado.'
 
 describe('textoSincronia', () => {
   it.each([
@@ -212,13 +214,13 @@ describe('aria y portada', () => {
   it('bib.aria.tarjeta incluye el aviso de la lista incompleta', () => {
     const r = resumenPrueba({ estado: 'lista', incompleta: true, lineasSinSincronizar: 3 })
     expect(textoAriaTarjeta(r, datosDeTarjeta(r))).toBe(
-      'Canción de prueba, Artista, Lista. Faltan 3 líneas por sincronizar.'
+      'Canción de prueba, Artista, Lista. Faltan 3 líneas por sincronizar.' + TEMA
     )
   })
 
   it('sin línea no deja un punto suelto', () => {
     const r = resumenPrueba({ estado: 'lista' })
-    expect(textoAriaTarjeta(r, datosDeTarjeta(r))).toBe('Canción de prueba, Artista, Lista.')
+    expect(textoAriaTarjeta(r, datosDeTarjeta(r))).toBe('Canción de prueba, Artista, Lista.' + TEMA)
   })
 
   it('I1: dañada por JSON usa «Canción sin nombre» en el título y en el aria', () => {
@@ -237,32 +239,42 @@ describe('aria y portada', () => {
     expect(tituloDeTarjeta(pistas)).toBe('Canción de prueba')
   })
 
-  it('miniatura también con el estilo predeterminado vigente del usuario', () => {
+  it('miniatura solo con apariencia neutra y miniatura, sin comparar estilos', () => {
     const url = 'shinobi-media://x/fuente/miniatura.jpg'
-    const usuario = {
-      ...ESTILO_PREDETERMINADO,
-      letra: { ...ESTILO_PREDETERMINADO.letra, color: '#112233' }
-    }
-    expect(usaMiniatura(resumenPrueba({ miniatura: url, estilo: usuario }))).toBe(false)
-    expect(usaMiniatura(resumenPrueba({ miniatura: url, estilo: usuario }), usuario)).toBe(true)
-    expect(
-      usaMiniatura(resumenPrueba({ miniatura: url, estilo: ESTILO_PREDETERMINADO }), usuario)
-    ).toBe(true)
-    expect(usaMiniatura(resumenPrueba({ miniatura: null, estilo: usuario }), usuario)).toBe(false)
+    const neutra = aparienciaResumenPrueba({ procedencia: 'predeterminado', neutra: true })
+    const asignada = aparienciaResumenPrueba({ procedencia: 'album', neutra: false })
+    expect(usaMiniatura(resumenPrueba({ miniatura: url, apariencia: neutra }))).toBe(true)
+    // Mismo estilo en ambos casos: solo manda `neutra`.
+    expect(usaMiniatura(resumenPrueba({ miniatura: url, apariencia: asignada }))).toBe(false)
+    expect(usaMiniatura(resumenPrueba({ miniatura: null, apariencia: neutra }))).toBe(false)
+    expect(usaMiniatura(resumenPrueba({ miniatura: url, apariencia: neutra, danada: true }))).toBe(
+      false
+    )
   })
 
-  it('miniatura solo con estilo predeterminado y miniatura', () => {
-    const url = 'shinobi-media://x/fuente/miniatura.jpg'
-    expect(usaMiniatura(resumenPrueba({ miniatura: url, estilo: ESTILO_PREDETERMINADO }))).toBe(
-      true
+  it('línea de tema en los cuatro niveles y en los casos especiales', () => {
+    const l = (cambios: Parameters<typeof aparienciaResumenPrueba>[0]) =>
+      lineaDeTema(aparienciaResumenPrueba({ temaNombre: 'Noche ninja', ...cambios })).texto
+    expect(l({ procedencia: 'cancion' })).toBe('Noche ninja · propio')
+    expect(l({ procedencia: 'album' })).toBe('Noche ninja · del álbum')
+    expect(l({ procedencia: 'artista' })).toBe('Noche ninja · del artista')
+    expect(l({ procedencia: 'predeterminado' })).toBe('Noche ninja · predeterminado')
+    expect(l({ procedencia: 'aleatorio' })).toBe('Noche ninja · al azar')
+    expect(l({ procedencia: 'predeterminado_anterior' })).toBe(
+      'Noche ninja · predeterminado anterior'
     )
-    expect(usaMiniatura(resumenPrueba({ miniatura: url, estilo: null }))).toBe(true)
-    const propio = {
-      ...ESTILO_PREDETERMINADO,
-      letra: { ...ESTILO_PREDETERMINADO.letra, color: '#000000' }
-    }
-    expect(usaMiniatura(resumenPrueba({ miniatura: url, estilo: propio }))).toBe(false)
-    expect(usaMiniatura(resumenPrueba({ miniatura: null }))).toBe(false)
+    expect(l({ procedencia: 'propio' })).toBe('Tema personalizado')
+    expect(l({ procedencia: 'incluido' })).toBe('Estilo incluido')
+    expect(l({ procedencia: 'respaldo' })).toBe('Tema no disponible')
+  })
+
+  it('el nombre accesible termina con el tema', () => {
+    const r = resumenPrueba({
+      apariencia: aparienciaResumenPrueba({ procedencia: 'artista', temaNombre: 'Neón' })
+    })
+    expect(textoAriaTarjeta(r, datosDeTarjeta(r))).toMatch(/ Tema: Neón · del artista\.$/)
+    const rota = resumenPrueba({ danada: true, motivo: 'json', pasos: null })
+    expect(textoAriaTarjeta(rota, datosDeTarjeta(rota))).not.toContain('Tema:')
   })
 })
 

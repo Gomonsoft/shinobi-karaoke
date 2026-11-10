@@ -25,6 +25,24 @@ export const BibliotecaContexto = createContext<BibliotecaDatos | null>(null)
 export const useBibliotecaCompartida = (): BibliotecaDatos | null => useContext(BibliotecaContexto)
 
 /**
+ * Sustituye cada resumen por su versión nueva **sin cambiar el orden** de los que siguen existiendo;
+ * las canciones nuevas van al final y las que ya no están salen (ADR 0016 §9: refresco tras
+ * `temas:cambiado`; las tarjetas se actualizan en su sitio).
+ */
+export function fusionarResumenes(
+  actual: readonly ResumenCancionIpc[],
+  nueva: readonly ResumenCancionIpc[]
+): ResumenCancionIpc[] {
+  const porId = new Map(nueva.map((c) => [c.id, c]))
+  const conservadas = actual.flatMap((c) => {
+    const n = porId.get(c.id)
+    return n ? [n] : []
+  })
+  const vistas = new Set(actual.map((c) => c.id))
+  return [...conservadas, ...nueva.filter((c) => !vistas.has(c.id))]
+}
+
+/**
  * Canciones de la biblioteca. Se leen al entrar en la vista y, después, los cambios en vivo
  * actualizan las tarjetas **en su sitio**: no se reordenan hasta volver a entrar (docs/ux/02).
  * Una canción nueva se añade al final; una eliminada se quita.
@@ -67,10 +85,24 @@ export function useBiblioteca(): BibliotecaDatos {
         return copia
       })
     })
+    // `temas:cambiado` (catálogo, asignaciones, predeterminado): los resúmenes traen la apariencia
+    // resuelta, así que se vuelve a pedir `listar()` una vez por evento y se fusiona en su sitio.
+    let recarga = 0
+    const bajaTemas = window.shinobi.alCambiarTemas?.(() => {
+      if (!activo || !cargada.current) return
+      const mia = ++recarga
+      window.shinobi.biblioteca.listar().then(
+        (lista) => {
+          if (activo && mia === recarga) setCanciones((actual) => fusionarResumenes(actual, lista))
+        },
+        () => undefined
+      )
+    })
     return () => {
       activo = false
       clearTimeout(temporizador)
       baja()
+      bajaTemas?.()
     }
   }, [intento])
 

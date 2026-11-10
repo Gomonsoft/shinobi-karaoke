@@ -1,4 +1,4 @@
-import { ESTILO_PREDETERMINADO, type Estilo } from '@shared/estilo'
+import type { AgruparBiblioteca } from '@shared/config'
 import type { ApiShinobi } from '@shared/ipc'
 import { temasFalsos, type TemasFalsos } from './temasFalsos'
 import { ventanaFalsa } from './ventanaFalsa'
@@ -8,8 +8,10 @@ type Parcial = {
   alCambiarCancion?: ApiShinobi['alCambiarCancion']
   /** Sustituye operaciones de `biblioteca` (obtener, eliminar, actualizarMetadatos…). */
   biblioteca?: Partial<ApiShinobi['biblioteca']>
-  /** Estilo predeterminado vigente de `config` (por defecto, el de fábrica). */
-  estiloPredeterminado?: Estilo
+  /** `config.biblioteca.agrupar` guardado (por defecto, «Sin agrupar»). */
+  agrupar?: AgruparBiblioteca
+  /** Doble de `config.actualizar`; recibe el parcial escrito. */
+  actualizarConfig?: (parcial: unknown) => Promise<unknown>
   alCambiarConfig?: ApiShinobi['alCambiarConfig']
   /** Doble de `temas` y `alCambiarTemas`; por defecto un catálogo en memoria con un tema. */
   temas?: TemasFalsos
@@ -20,7 +22,8 @@ export function fixtures({
   listar,
   alCambiarCancion,
   biblioteca,
-  estiloPredeterminado = ESTILO_PREDETERMINADO,
+  agrupar = 'ninguno',
+  actualizarConfig = () => Promise.resolve({}),
   alCambiarConfig,
   temas = temasFalsos()
 }: Parcial): ApiShinobi & { ventana: ReturnType<typeof ventanaFalsa> } {
@@ -34,7 +37,10 @@ export function fixtures({
       mostrarEnCarpeta: () => Promise.resolve(),
       ...biblioteca
     },
-    config: { obtener: () => Promise.resolve({ estilo_predeterminado: estiloPredeterminado }) },
+    config: {
+      obtener: () => Promise.resolve({ biblioteca: { agrupar } }),
+      actualizar: actualizarConfig
+    },
     alCambiarConfig: alCambiarConfig ?? (() => () => undefined),
     alCambiarCancion: alCambiarCancion ?? (() => () => undefined)
   } as unknown as ApiShinobi & { ventana: ReturnType<typeof ventanaFalsa> }

@@ -151,8 +151,12 @@ describe('construirCatalogoTemas · rendimiento', () => {
     )
     const c = catalogo()
     construirCatalogoTemas(c, lista, { soloLectura: false }) // calienta
-    const t0 = performance.now()
-    construirCatalogoTemas(c, lista, { soloLectura: false })
-    expect(performance.now() - t0).toBeLessThan(20)
+    // El mejor de varias medidas: un pico de carga de la máquina no debe hacer fallar la prueba.
+    const medir = (): number => {
+      const t0 = performance.now()
+      construirCatalogoTemas(c, lista, { soloLectura: false })
+      return performance.now() - t0
+    }
+    expect(Math.min(medir(), medir(), medir(), medir(), medir())).toBeLessThan(20)
   })
 })

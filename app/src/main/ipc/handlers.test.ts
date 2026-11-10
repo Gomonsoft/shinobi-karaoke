@@ -39,6 +39,25 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
   motivo: null
 })
 
+const TEMA_ID = '0b9f7a4e-3c1d-4f6a-9d2e-5a8b1c7e4f30'
+
+/** Servicio de temas simulado: cada método devuelve lo mínimo que acepta el contrato. */
+function temasSimulados() {
+  const tema = { id: TEMA_ID, nombre: 'Neón', revision: 1, estilo: estiloPredeterminado() }
+  const resultado = { catalogoEscrito: true, canciones: [] }
+  return {
+    catalogo: vi.fn(() => ({ temas: [] })),
+    previsualizar: vi.fn(() => Promise.resolve({ ficha: TEMA_ID })),
+    ejecutar: vi.fn(() => Promise.resolve(resultado)),
+    crear: vi.fn(() => Promise.resolve(tema)),
+    renombrar: vi.fn(() => Promise.resolve(tema)),
+    duplicar: vi.fn(() => Promise.resolve(tema)),
+    reanudarBorrado: vi.fn(() => Promise.resolve(resultado)),
+    cancelarBorrado: vi.fn(() => Promise.resolve()),
+    descartarAvisoApartado: vi.fn(() => Promise.resolve())
+  }
+}
+
 function crearDeps() {
   const oyentesCancion: ((e: EventoCancion) => void)[] = []
   const oyentesTrabajo: ((t: unknown) => void)[] = []
@@ -47,11 +66,20 @@ function crearDeps() {
   const oyentesRtCambio: ((e: unknown) => void)[] = []
   const oyentesConfig: ((c: ReturnType<typeof configPredeterminada>) => void)[] = []
   const deps = {
+    temas: temasSimulados(),
     biblioteca: {
       listar: vi.fn(() => [resumen('abc', '/ruta/absoluta/miniatura.jpg'), resumen('d')]),
       obtener: vi.fn<(id: string) => Cancion | null>(() => null),
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
-      guardarEstilo: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      guardarApariencia: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      resolver: vi.fn(() => ({
+        estilo: estiloPredeterminado(),
+        procedencia: 'artista' as const,
+        temaId: TEMA_ID,
+        temaNombre: 'Neón',
+        neutra: false,
+        alHeredar: { procedencia: 'predeterminado' as const, temaId: TEMA_ID, temaNombre: 'Neón' }
+      })),
       marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
       comprobarPistas: vi.fn((id: string) => Promise.resolve(resumen(id))),
       volverABorrador: vi.fn((id: string) => Promise.resolve(resumen(id))),
@@ -575,7 +603,8 @@ describe('runtime y cierre (0036)', () => {
       CANALES.runtime.aceptarYUsarRapido,
       CANALES.runtime.volverACalidad,
       CANALES.app.confirmarCierre,
-      CANALES.app.salir
+      CANALES.app.salir,
+      ...Object.values(CANALES.temas)
     ]) {
       expect(await manejadores.get(canal)?.('ajeno')).toMatchObject({ ok: false })
     }
@@ -793,7 +822,7 @@ describe('IPC del editor', () => {
     expect(
       await manejadores[CANALES.biblioteca.guardarApariencia](['abc', { modo: 'propio', estilo }])
     ).toMatchObject(error)
-    expect(deps.biblioteca.guardarEstilo).not.toHaveBeenCalled()
+    expect(deps.biblioteca.guardarApariencia).not.toHaveBeenCalled()
   })
 
   it('delega escrituras y cambios de estado y devuelve un resumen seguro', async () => {
@@ -816,37 +845,60 @@ describe('IPC del editor', () => {
     expect(
       await manejadores[CANALES.biblioteca.guardarApariencia](['abc', { modo: 'propio', estilo }])
     ).toMatchObject({ ok: true })
-    expect(deps.biblioteca.guardarEstilo).toHaveBeenCalledWith('abc', estilo)
+    expect(deps.biblioteca.guardarApariencia).toHaveBeenCalledWith('abc', {
+      modo: 'propio',
+      estilo
+    })
     expect(await manejadores[CANALES.biblioteca.marcarLista](['abc'])).toMatchObject({ ok: true })
     expect(deps.biblioteca.marcarLista).toHaveBeenCalledWith('abc')
     expect(await manejadores[CANALES.app.guardadoPendiente]([true])).toMatchObject({ ok: true })
     expect(fijarGuardadoPendiente).toHaveBeenCalledWith(true)
   })
 
-  it('puente provisional de guardarApariencia: solo `propio`; tema y heredar se rechazan', async () => {
+  it('guardarApariencia delega propio, tema y heredar, y rechaza un modo desconocido', async () => {
     const { deps } = crearDeps()
     const manejadores = crearManejadores(deps)
     const guardar = manejadores[CANALES.biblioteca.guardarApariencia]
-    const temaId = '0b9f7a4e-3c1d-4f6a-9d2e-5a8b1c7e4f30'
+    const temaId = TEMA_ID
     for (const seleccion of [{ modo: 'tema', temaId }, { modo: 'heredar' }]) {
-      expect(await guardar(['abc', seleccion])).toMatchObject({
-        ok: false,
-        error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
-      })
+      expect(await guardar(['abc', seleccion])).toMatchObject({ ok: true })
+      expect(deps.biblioteca.guardarApariencia).toHaveBeenLastCalledWith('abc', seleccion)
     }
-    expect(deps.biblioteca.guardarEstilo).not.toHaveBeenCalled()
-    // Un modo desconocido ni llega al puente.
     expect(await guardar(['abc', { modo: 'otro' }])).toMatchObject({ ok: false })
+    expect(await guardar(['abc', { modo: 'tema', temaId: 'no-uuid' }])).toMatchObject({ ok: false })
+    expect(deps.biblioteca.guardarApariencia).toHaveBeenCalledTimes(2)
   })
 
-  it('los canales temas.* validan los argumentos y fallan de forma explícita hasta 0168', async () => {
+  it('los canales temas.* validan argumentos, delegan en el servicio y sin servicio dan ERROR_INTERNO', async () => {
     const { deps } = crearDeps()
     const manejadores = crearManejadores(deps)
-    expect(await manejadores[CANALES.temas.catalogo]([])).toMatchObject({
-      ok: false,
-      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    const ficha = '7c1e5b9a-2d4f-4a63-8b0e-9f1a3c5d7e21'
+    const op = { tipo: 'borrar', temaId: TEMA_ID }
+    expect(await manejadores[CANALES.temas.catalogo]([])).toMatchObject({ ok: true })
+    expect(await manejadores[CANALES.temas.previsualizar]([op])).toMatchObject({ ok: true })
+    expect(await manejadores[CANALES.temas.ejecutar]([op, ficha])).toMatchObject({ ok: true })
+    expect(deps.temas.ejecutar).toHaveBeenCalledWith(op, ficha)
+    const estilo = estiloPredeterminado()
+    expect(await manejadores[CANALES.temas.crear]([{ nombre: 'X', estilo }])).toMatchObject({
+      ok: true
     })
-    // Con argumentos inválidos el rechazo viene de la validación, con su mensaje propio.
+    expect(
+      await manejadores[CANALES.temas.renombrar]([
+        { temaId: TEMA_ID, revisionTema: 1, nombre: 'Y' }
+      ])
+    ).toMatchObject({ ok: true })
+    expect(
+      await manejadores[CANALES.temas.duplicar]([{ temaId: TEMA_ID, nombre: 'Z' }])
+    ).toMatchObject({ ok: true })
+    for (const canal of [
+      CANALES.temas.reanudarBorrado,
+      CANALES.temas.cancelarBorrado,
+      CANALES.temas.descartarAvisoApartado
+    ]) {
+      expect(await manejadores[canal]([])).toMatchObject({ ok: true })
+    }
+    // Argumentos inválidos: rechazo de la validación, sin llegar al servicio.
+    deps.temas.previsualizar.mockClear()
     expect(await manejadores[CANALES.temas.previsualizar]([{ tipo: 'borrar' }])).toMatchObject({
       ok: false,
       error: { mensaje: 'Los argumentos no son válidos.' }
@@ -855,6 +907,32 @@ describe('IPC del editor', () => {
       ok: false,
       error: { mensaje: 'Los argumentos no son válidos.' }
     })
+    expect(await manejadores[CANALES.temas.ejecutar]([op, 'no-uuid'])).toMatchObject({ ok: false })
+    expect(await manejadores[CANALES.temas.crear]([{ nombre: '', estilo }])).toMatchObject({
+      ok: false
+    })
+    expect(deps.temas.previsualizar).not.toHaveBeenCalled()
+    // Sin servicio de temas.
+    const sin = crearManejadores({ ...deps, temas: undefined })
+    expect(await sin[CANALES.temas.catalogo]([])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ERROR_INTERNO' }
+    })
+  })
+
+  it('CONFIRMACION_OBSOLETA lleva el impacto nuevo serializado en detalles', async () => {
+    const { deps } = crearDeps()
+    const impacto = { ficha: TEMA_ID, afectadas: [] }
+    deps.temas.ejecutar.mockRejectedValueOnce(
+      Object.assign(new Error('obsoleta'), { codigo: 'CONFIRMACION_OBSOLETA', detalles: impacto })
+    )
+    const manejadores = crearManejadores(deps)
+    const r = (await manejadores[CANALES.temas.ejecutar]([
+      { tipo: 'borrar', temaId: TEMA_ID },
+      TEMA_ID
+    ])) as { ok: false; error: { codigo: string; detalles?: string } }
+    expect(r.error.codigo).toBe('CONFIRMACION_OBSOLETA')
+    expect(JSON.parse(r.error.detalles ?? 'null')).toEqual(impacto)
   })
 
   it('config.actualizar acepta biblioteca.agrupar y rechaza valores desconocidos', async () => {
@@ -869,20 +947,21 @@ describe('IPC del editor', () => {
     })
   })
 
-  it('biblioteca.obtener añade la apariencia resuelta provisional', async () => {
+  it('biblioteca.obtener añade la apariencia resuelta con el catálogo', async () => {
     const { deps } = crearDeps()
     const cancion = lista()
     deps.biblioteca.obtener.mockReturnValueOnce(cancion)
     const manejadores = crearManejadores(deps)
     const r = await manejadores[CANALES.biblioteca.obtener](['abc'])
+    expect(deps.biblioteca.resolver).toHaveBeenCalledWith(cancion)
     expect(r).toMatchObject({
       ok: true,
       valor: {
         resuelta: {
-          procedencia: 'propio',
-          temaId: null,
-          temaNombre: null,
-          alHeredar: { procedencia: 'incluido' }
+          procedencia: 'artista',
+          temaId: TEMA_ID,
+          temaNombre: 'Neón',
+          alHeredar: { procedencia: 'predeterminado' }
         }
       }
     })

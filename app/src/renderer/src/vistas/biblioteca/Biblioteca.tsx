@@ -1,15 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent
-} from 'react'
-import { Mic, Search } from 'lucide-react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { Mic, Search, SquareCheck } from 'lucide-react'
 import { vistaAlContinuar } from '@shared/derivados'
-import { claveTexto } from '@shared/identidad'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
@@ -20,15 +11,23 @@ import { useReproductor } from '../../navegacion/reproductor'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
+import { useCatalogoTemas } from '../../temas/useCatalogoTemas'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
+import { BarraSeleccion } from './BarraSeleccion'
+import { CasillaGrupo } from './CasillaGrupo'
+import { DialogoAplicarTema, type SalidaLote } from './DialogoAplicarTema'
 import { EncabezadoGrupo } from './EncabezadoGrupo'
+import { TemaGrupo } from './TemaGrupo'
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
 import { agruparCanciones, idGrupoDe, textoAnuncioResultados } from './agrupacion'
 import { detallesDeError } from './errores'
 import { contarPorFiltro, filtrarCanciones, type FiltroBiblioteca } from './filtrado'
 import { pasoConProblema, tituloDeTarjeta, type TrabajoVivo } from './tarjeta'
-import { PROCEDENCIA_CORTA } from './textosTema'
+import { procedenciaCorta } from '../../temas/textos'
+import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
+import { SEL, TEMAS_NO_DISPONIBLES } from './textosSeleccion'
+import { esSeleccionable, reiniciarSeleccionDeSesion, useSeleccion } from './useSeleccion'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
 import {
   reiniciarAgruparDeSesion,
@@ -88,6 +87,7 @@ export function reiniciarFiltroDeSesion(): void {
   filtroDeSesion = 'todas'
   plegadosDeSesion = new Set()
   reiniciarAgruparDeSesion()
+  reiniciarSeleccionDeSesion()
 }
 
 type DialogoActivo =
@@ -149,13 +149,22 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const [plegados, setPlegados] = useState<ReadonlySet<string>>(plegadosDeSesion)
   // Canción que sigue visible tras «Editar datos» aunque ya no coincida, hasta el siguiente cambio.
   const [anclada, setAnclada] = useState<string | null>(null)
-  const [movida, setMovida] = useState<{ id: string; grupoId: string; titulo: string } | null>(
-    null
-  )
+  const [movida, setMovida] = useState<{ id: string; grupoId: string; titulo: string } | null>(null)
   const [anuncio, setAnuncio] = useState('')
   const [cambioDeVista, setCambioDeVista] = useState(0)
   const seccion = useRef<HTMLElement>(null)
   const idBase = useId()
+  const sel = useSeleccion()
+  const catalogo = useCatalogoTemas()
+  const [aplicarTema, setAplicarTema] = useState<{ ids: string[]; desdeTarjeta: boolean } | null>(
+    null
+  )
+  const botonSeleccionar = useRef<HTMLButtonElement>(null)
+  const botonAplicar = useRef<HTMLButtonElement>(null)
+  // Foco que hay que dejar tras el siguiente render (entrar, salir o cerrar el diálogo de lote).
+  const focoPendiente = useRef<{ en: 'seleccionar' | 'aplicar' | 'tarjeta'; id?: string } | null>(
+    null
+  )
 
   const visibles = useMemo(
     () => filtrarCanciones(canciones, filtro, busqueda, anclada),
@@ -181,6 +190,24 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   })
 
   const cancionParaEnfocar = canciones.find((c) => c.id === enfocar?.id)
+
+  // Selección: las eliminadas salen sin aviso; las que pasan a Dañada siguen contadas.
+  const seleccionadas = useMemo(
+    () => canciones.filter((c) => sel.ids.has(c.id)),
+    [canciones, sel.ids]
+  )
+  const idsVisibles = useMemo(() => new Set(visibles.map((c) => c.id)), [visibles])
+  const fuera = seleccionadas.filter((c) => !idsVisibles.has(c.id)).length
+  const temasUsables =
+    catalogo.catalogo !== null && !catalogo.soloLectura && catalogo.ofrecibles.length > 0
+  const motivoTemas = !catalogo.catalogo
+    ? undefined
+    : catalogo.soloLectura
+      ? TEMAS_NO_DISPONIBLES.soloLectura
+      : catalogo.ofrecibles.length === 0
+        ? TEMAS_NO_DISPONIBLES.vacio
+        : undefined
+  const motivoAplicar = motivoTemas ?? (seleccionadas.length === 0 ? SEL.ninguna : undefined)
 
   useEffect(() => {
     if (
@@ -288,10 +315,10 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   // Si desaparece la tarjeta enfocada (eliminada aquí o en otra parte), el foco pasa a la siguiente
   // del orden visual, si no a la anterior, si no al título. Nunca queda en `body`.
   const ordenPrevio = useRef<string[]>([])
-  const ordenClave = ordenVisual.map((c) => c.id).join(' ')
+  const ordenClave = ordenVisual.map((c) => c.id).join('|')
   useEffect(() => {
     const antes = ordenPrevio.current
-    const orden = ordenClave === '' ? [] : ordenClave.split(' ')
+    const orden = ordenClave === '' ? [] : ordenClave.split('|')
     ordenPrevio.current = orden
     if (!activa || orden.includes(activa) || !antes.includes(activa)) return
     const i = antes.indexOf(activa)
@@ -306,6 +333,43 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     }, 0)
     return () => clearTimeout(plazo)
   }, [ordenClave, activa])
+
+  // Foco tras entrar o salir del modo selección o cerrar «Aplicar tema».
+  useEffect(() => {
+    const f = focoPendiente.current
+    if (!f) return
+    if (f.en === 'seleccionar') {
+      if (sel.activo) return
+      botonSeleccionar.current?.focus()
+    } else if (f.en === 'aplicar') {
+      if (!sel.activo) return
+      botonAplicar.current?.focus()
+    } else {
+      const id = f.id ?? refs.current.orden[0]
+      const nodo = id
+        ? rejilla.current?.querySelector<HTMLElement>(`[data-tarjeta="${CSS.escape(id)}"]`)
+        : null
+      nodo?.focus()
+    }
+    focoPendiente.current = null
+  })
+
+  const terminarSeleccion = sel.salir
+  // Esc termina el modo si no hay diálogo ni menú abierto y la búsqueda no tiene texto.
+  useEffect(() => {
+    if (!sel.activo) return
+    const alTeclear = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
+      const campo = campoBusqueda.current
+      if (campo && document.activeElement === campo && campo.value !== '') return
+      e.preventDefault()
+      focoPendiente.current = { en: 'seleccionar' }
+      terminarSeleccion()
+    }
+    document.addEventListener('keydown', alTeclear)
+    return () => document.removeEventListener('keydown', alTeclear)
+  }, [sel.activo, terminarSeleccion])
 
   // Ctrl/Cmd+F enfoca la búsqueda.
   useEffect(() => {
@@ -337,13 +401,17 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     }
   }, [])
 
-  /** Tras eliminar, la tarjeta enfocada desaparece: el foco pasa a la tarjeta activa o al título. */
-  const recuperarFoco = () => {
+  /** Tras eliminar, el foco pasa a la tarjeta siguiente del orden visual, si no a la anterior, si no al título. */
+  const recuperarFoco = (eliminada: string) => {
+    const orden = refs.current.orden
+    const i = orden.indexOf(eliminada)
+    const vecina = orden[i + 1] ?? orden[i - 1]
     setTimeout(() => {
       if (document.activeElement && document.activeElement !== document.body) return
       const destino =
-        document.querySelector<HTMLElement>('[data-tarjeta][tabindex="0"]') ??
-        document.querySelector<HTMLElement>('[data-foco-inicial]')
+        (vecina
+          ? rejilla.current?.querySelector<HTMLElement>(`[data-tarjeta="${CSS.escape(vecina)}"]`)
+          : null) ?? document.querySelector<HTMLElement>('[data-foco-inicial]')
       destino?.focus()
     }, 0)
   }
@@ -355,7 +423,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       await window.shinobi.biblioteca.eliminar(id)
       setDialogo(null)
       mostrarToast({ tipo: 'exito', mensaje: `«${titulo}» se movió a la papelera.` })
-      recuperarFoco()
+      recuperarFoco(id)
     } catch (err) {
       setDialogo(null)
       mostrarToast({
@@ -488,17 +556,132 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       cancelarTrabajo,
       resepararPistas: (id) => void resepararPistas(id),
       mostrarEnCarpeta: (id) => void window.shinobi.biblioteca.mostrarEnCarpeta(id),
-      eliminar: (id) => setDialogo({ tipo: 'eliminar', id })
+      eliminar: (id) => setDialogo({ tipo: 'eliminar', id }),
+      // Con el catálogo vacío o en solo lectura el menú no ofrece la opción (ver notas de 0173).
+      ...(temasUsables
+        ? { aplicarTema: (id: string) => setAplicarTema({ ids: [id], desdeTarjeta: true }) }
+        : null)
     }),
-    [ir, abrir, continuar, abrirEditarDatos, reintentarPaso, cancelarTrabajo, resepararPistas]
+    [
+      ir,
+      abrir,
+      continuar,
+      abrirEditarDatos,
+      reintentarPaso,
+      cancelarTrabajo,
+      resepararPistas,
+      temasUsables
+    ]
+  )
+
+  const seleccionablesVisibles = () => ordenVisual.filter(esSeleccionable).map((c) => c.id)
+
+  const entrarSeleccion = () => {
+    sel.entrar()
+    focoPendiente.current = { en: 'tarjeta', id: idActiva }
+    setAnuncio(SEL.anuncioEntrar)
+  }
+
+  const abrirAplicarLote = () => {
+    if (!catalogo.catalogo || motivoAplicar) return
+    setAplicarTema({ ids: seleccionadas.map((c) => c.id), desdeTarjeta: false })
+  }
+
+  const cerrarAplicarTema = (salida: SalidaLote) => {
+    const abierto = aplicarTema
+    setAplicarTema(null)
+    if (!abierto) return
+    if (abierto.desdeTarjeta) {
+      focoPendiente.current = { en: 'tarjeta', id: abierto.ids[0] }
+    } else if (salida.tipo === 'terminado') {
+      if (salida.conFallos) {
+        sel.fijar(salida.reintentables)
+        focoPendiente.current = { en: 'aplicar' }
+      } else {
+        sel.salir()
+        focoPendiente.current = { en: 'seleccionar' }
+      }
+    }
+  }
+
+  /** Tras «Editar datos»: la tarjeta se mueve de grupo en ese momento y se avisa si cambia su tema. */
+  const alEditarDatos = (antes: ResumenCancionIpc, nuevo: ResumenCancionIpc) => {
+    setAnclada(nuevo.id)
+    const grupoNuevo = idGrupoDe(nuevo, agrupar)
+    if (grupoNuevo !== null && grupoNuevo !== idGrupoDe(antes, agrupar)) {
+      if (plegados.has(grupoNuevo)) {
+        const siguiente = new Set(plegados)
+        siguiente.delete(grupoNuevo)
+        plegadosDeSesion = siguiente
+        setPlegados(siguiente)
+      }
+      setMovida({ id: nuevo.id, grupoId: grupoNuevo, titulo: tituloDeTarjeta(nuevo) })
+    }
+    const a = antes.apariencia
+    const n = nuevo.apariencia
+    if (a.temaId !== n.temaId || a.procedencia !== n.procedencia) {
+      const tema = n.temaNombre
+        ? `el tema «${n.temaNombre}», ${procedenciaCorta(n.procedencia)}`
+        : `${lineaDeTema(n).texto.toLowerCase()}`
+      mostrarToast({ tipo: 'info', mensaje: `«${tituloDeTarjeta(nuevo)}» usa ahora ${tema}.` })
+    }
+  }
+
+  const renderTarjeta = (c: ResumenCancionIpc) => (
+    <div
+      role="listitem"
+      key={c.id}
+      className={estilos.item}
+      data-resaltada={resaltada?.id === c.id ? true : undefined}
+    >
+      <TarjetaCancion
+        resumen={c}
+        acciones={acciones}
+        activa={c.id === idActiva}
+        alEnfocar={setActiva}
+        vivo={trabajoVivoDe(c.id, vivos)}
+        seleccion={
+          sel.activo
+            ? {
+                marcada: sel.ids.has(c.id),
+                editable: esSeleccionable(c),
+                alAlternar: (rango) => {
+                  if (!esSeleccionable(c)) {
+                    mostrarToast({ tipo: 'info', mensaje: SEL.noEditable })
+                  } else if (rango) {
+                    sel.rango(c.id, refs.current.orden, (id) => {
+                      const r = resumenDe(id)
+                      return r !== undefined && esSeleccionable(r)
+                    })
+                  } else sel.alternar(c.id)
+                }
+              }
+            : undefined
+        }
+      />
+    </div>
   )
 
   const teclasRejilla = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.target instanceof HTMLElement && e.target.dataset.tarjeta === undefined) return
+    // Ctrl/Cmd + A con el foco en la rejilla: entra en el modo y marca las visibles editables.
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      !e.altKey &&
+      !e.shiftKey &&
+      e.key.toLowerCase() === 'a' &&
+      e.target instanceof HTMLElement &&
+      e.target.tagName !== 'INPUT'
+    ) {
+      e.preventDefault()
+      if (!sel.activo) setAnuncio(SEL.anuncioEntrar)
+      sel.entrar(seleccionablesVisibles())
+      return
+    }
+    if (!(e.target instanceof HTMLElement) || e.target.dataset.tarjeta === undefined) return
     const teclas = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End']
     if (!teclas.includes(e.key)) return
     const tarjetas = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-tarjeta]'))
-    const i = tarjetas.indexOf(e.target as HTMLElement)
+    const i = tarjetas.indexOf(e.target)
     const origen = tarjetas[i]
     if (!origen) return
     e.preventDefault()
@@ -506,10 +689,16 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     let destino = i
     if (e.key === 'ArrowRight') destino = Math.min(i + 1, tarjetas.length - 1)
     else if (e.key === 'ArrowLeft') destino = Math.max(i - 1, 0)
-    else if (e.key === 'Home') destino = 0
-    else if (e.key === 'End') destino = tarjetas.length - 1
-    else {
-      // Arriba/abajo: la tarjeta de la fila contigua más cercana en horizontal.
+    else if (e.key === 'Home' || e.key === 'End') {
+      // Inicio/Fin: primera y última del grupo; con Ctrl/Cmd, de toda la biblioteca.
+      const ambito = e.ctrlKey || e.metaKey ? null : origen.closest('[data-grupo-tarjetas]')
+      const lista = ambito
+        ? Array.from(ambito.querySelectorAll<HTMLElement>('[data-tarjeta]'))
+        : tarjetas
+      const elegida = e.key === 'Home' ? lista[0] : lista[lista.length - 1]
+      destino = elegida ? tarjetas.indexOf(elegida) : i
+    } else {
+      // Arriba/abajo: la tarjeta de la fila contigua más cercana en horizontal (cruza grupos).
       const sentido = e.key === 'ArrowDown' ? 1 : -1
       const actual = rect(origen)
       let mejor = Infinity
@@ -570,9 +759,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     )
   }
 
-  const visibles = filtrarCanciones(canciones, filtro, busqueda)
   const cuentas = contarPorFiltro(canciones)
-  const idActiva = visibles.some((c) => c.id === activa) ? activa : visibles[0]?.id
+  const filtrando = filtro !== 'todas' || busqueda.trim() !== ''
   const texto = busqueda.trim()
 
   const dialogoResumen = dialogo ? resumenDe(dialogo.id) : undefined
@@ -591,10 +779,13 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         : ''
 
   return (
-    <section aria-labelledby="titulo-vista">
+    <section ref={seccion} aria-labelledby="titulo-vista">
       <h1 id="titulo-vista" className="t-titulo" tabIndex={-1} data-foco-inicial>
         Biblioteca
       </h1>
+      <p role="status" className={estilos.soloLector}>
+        {anuncio}
+      </p>
       <div className={estilos.barraHerramientas}>
         <ControlSegmentado
           etiqueta="Filtrar canciones"
@@ -606,26 +797,62 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             { valor: 'borradores', etiqueta: `Borradores ${cuentas.borradores}` }
           ]}
         />
+        <div className={estilos.controlAgrupar}>
+          <span className="t-pequeno" aria-hidden="true">
+            Agrupar por
+          </span>
+          <ControlSegmentado
+            etiqueta="Agrupar por"
+            valor={agrupar}
+            onCambio={setAgrupacion}
+            opciones={[
+              { valor: 'ninguno', etiqueta: 'Sin agrupar' },
+              { valor: 'artista', etiqueta: 'Artista' },
+              { valor: 'album', etiqueta: 'Álbum' }
+            ]}
+          />
+        </div>
+        {!sel.activo && (
+          <Boton ref={botonSeleccionar} onClick={entrarSeleccion}>
+            <Icono icono={SquareCheck} tamano={16} />
+            {SEL.boton}
+          </Boton>
+        )}
         <div className={estilos.busqueda}>
           <Icono icono={Search} tamano={16} className={estilos.busquedaIcono} />
           <input
             ref={campoBusqueda}
             type="search"
             className={estilos.campoBusqueda}
-            placeholder="Buscar título o artista"
-            aria-label="Buscar título o artista"
+            placeholder="Buscar título, artista o álbum"
+            aria-label="Buscar título, artista o álbum"
             value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            onChange={(e) => cambiarBusqueda(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape' && busqueda !== '') {
                 e.preventDefault()
                 e.stopPropagation()
-                setBusqueda('')
+                cambiarBusqueda('')
               }
             }}
           />
         </div>
       </div>
+      {sel.activo && (
+        <BarraSeleccion
+          ref={botonAplicar}
+          seleccionadas={seleccionadas.length}
+          fuera={fuera}
+          motivoInactivo={motivoAplicar}
+          alAplicar={abrirAplicarLote}
+          alSeleccionarVisibles={() => sel.anadir(seleccionablesVisibles())}
+          alQuitar={sel.vaciar}
+          alTerminar={() => {
+            focoPendiente.current = { en: 'seleccionar' }
+            sel.salir()
+          }}
+        />
+      )}
       {visibles.length === 0 ? (
         <div className={estilos.sinResultados} role="status">
           <p>{textoSinResultados(filtro, texto)}</p>
@@ -634,7 +861,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
               <Boton
                 variante="fantasma"
                 onClick={() => {
-                  setBusqueda('')
+                  cambiarBusqueda('')
                   campoBusqueda.current?.focus()
                 }}
               >
@@ -649,31 +876,50 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           )}
         </div>
       ) : (
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-        <div
-          ref={rejilla}
-          role="list"
-          aria-label="Canciones"
-          className={estilos.rejilla}
-          onKeyDown={teclasRejilla}
-        >
-          {visibles.map((c) => (
-            <div
-              role="listitem"
-              key={c.id}
-              className={estilos.item}
-              data-resaltada={resaltada?.id === c.id ? true : undefined}
-            >
-              <TarjetaCancion
-                resumen={c}
-                acciones={acciones}
-                activa={c.id === idActiva}
-                alEnfocar={setActiva}
-                vivo={trabajoVivoDe(c.id, vivos)}
-                estiloUsuario={estiloUsuario}
-              />
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+        <div ref={rejilla} onKeyDown={teclasRejilla}>
+          {agrupar === 'ninguno' ? (
+            <div role="list" aria-label="Canciones" className={estilos.rejilla} data-grupo-tarjetas>
+              {visibles.map(renderTarjeta)}
             </div>
-          ))}
+          ) : (
+            grupos.map((g) => {
+              const plegado = plegados.has(g.id)
+              const idRegion = `${idBase}-${g.id}`
+              return (
+                <div key={g.id} className={estilos.grupo} data-grupo={g.id}>
+                  <EncabezadoGrupo
+                    grupo={g}
+                    plegado={plegado}
+                    filtrando={filtrando}
+                    idRegion={idRegion}
+                    alAlternar={() => alternarPlegado(g.id)}
+                    casilla={
+                      sel.activo ? (
+                        <CasillaGrupo
+                          nombreGrupo={g.nombre}
+                          ids={g.canciones.filter(esSeleccionable).map((c) => c.id)}
+                          seleccion={sel.ids}
+                          alAlternar={(ids, marcar) => (marcar ? sel.anadir(ids) : sel.quitar(ids))}
+                        />
+                      ) : undefined
+                    }
+                    tema={g.asignable ? <TemaGrupo grupo={g} catalogo={catalogo} /> : undefined}
+                  />
+                  <div
+                    id={idRegion}
+                    role="list"
+                    aria-label={g.nombre}
+                    className={estilos.rejilla}
+                    data-grupo-tarjetas
+                    hidden={plegado}
+                  >
+                    {!plegado && g.canciones.map(renderTarjeta)}
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       )}
       {dialogo?.tipo === 'datos' && (
@@ -681,8 +927,10 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           inicial={dialogo.inicial}
           alCancelar={() => setDialogo(null)}
           alGuardar={async (datos) => {
-            await window.shinobi.biblioteca.actualizarMetadatos(dialogo.id, datos)
+            const antes = resumenDe(dialogo.id)
+            const nuevo = await window.shinobi.biblioteca.actualizarMetadatos(dialogo.id, datos)
             setDialogo(null)
+            if (antes && nuevo) alEditarDatos(antes, nuevo)
           }}
         />
       )}
@@ -718,6 +966,14 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           destructivo
           alCancelar={() => setDialogo(null)}
           alConfirmar={() => confirmarEliminar(dialogo.id)}
+        />
+      )}
+      {aplicarTema && (
+        <DialogoAplicarTema
+          canciones={aplicarTema.ids.flatMap((id) => resumenDe(id) ?? [])}
+          catalogo={catalogo}
+          desdeTarjeta={aplicarTema.desdeTarjeta}
+          alCerrar={cerrarAplicarTema}
         />
       )}
     </section>

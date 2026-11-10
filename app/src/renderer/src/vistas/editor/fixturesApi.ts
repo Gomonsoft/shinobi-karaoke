@@ -111,8 +111,8 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   api: ApiEditor
   llamadas: { metodo: string; args: unknown[] }[]
   emitirCambio(resumen: ResumenCancionIpc): void
-  /** Cambia la apariencia viva de la canción (p. ej. `alHeredar`) y emite el resumen nuevo. */
-  fijarApariencia(cambios: Partial<AparienciaResumenIpc>): void
+  /** Cambia la apariencia viva de la canción (p. ej. `alHeredar`) y emite el resumen nuevo (salvo `silencioso`). */
+  fijarApariencia(cambios: Partial<AparienciaResumenIpc>, opciones?: { silencioso?: boolean }): void
   fallar(metodo: string, codigo: CodigoError, veces?: number): void
 } {
   const cancion = structuredClone(opciones.cancion ?? cancionSinSincronizar())
@@ -215,7 +215,10 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
             ...apariencia,
             modo: 'tema',
             procedencia: 'cancion',
-            temaId: seleccion.temaId
+            temaId: seleccion.temaId,
+            temaNombre:
+              (await temas.api.temas.catalogo()).temas.find((t) => t.id === seleccion.temaId)
+                ?.nombre ?? null
           }
         } else {
           apariencia = {
@@ -288,9 +291,6 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async actualizar(cambio) {
         registrar('config.actualizar', cambio)
         if (cambio.reproductor) Object.assign(config.reproductor, cambio.reproductor)
-        if (cambio.estilo_predeterminado) {
-          config.estilo_predeterminado = structuredClone(cambio.estilo_predeterminado)
-        }
         const paneles = cambio.editor?.paneles
         if (paneles) {
           Object.assign(config.editor.paneles.lista, paneles.lista)
@@ -328,9 +328,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     api,
     llamadas,
     emitirCambio,
-    fijarApariencia(cambios) {
+    fijarApariencia(cambios, { silencioso = false } = {}) {
       apariencia = { ...apariencia, ...cambios }
-      publicar()
+      if (!silencioso) publicar()
     },
     fallar: (metodo, codigo, veces = 1) => fallos.set(metodo, { codigo, veces })
   }

@@ -1,6 +1,6 @@
 # 0170 — Panel Estilo: sección «Tema» (modo, selector, procedencia y acciones)
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0169](0169-base-de-temas-en-el-renderer.md) (prueba con dobles; la integración real se verifica en [0176](0176-verificacion-e2e-capturas-e-informe-de-la-fase-3.md))
 - ADRs: [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §3 (`alHeredar`), §9–§10, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-3)
@@ -51,3 +51,11 @@ Sustituir el final del panel Estilo por la sección «Tema» de la spec: modo «
 - [ ] El editor ya no lee ni escribe `config.estilo_predeterminado`; `config.actualizar({ estilo_predeterminado })` se rechaza.
 
 ## Notas de implementación
+
+**Hecha.** Sección «Tema» del panel Estilo (D1, D2, D4; D3 inerte) sobre los componentes de `temas/` de 0169, sin duplicarlos.
+
+- Archivos: `vistas/editor/SeccionTema.tsx` (modo, selector, procedencia, usos, Volver a heredar con destino, Personalizar, Editar tema, menú ⋯, aviso «tema creado», D4), `aparienciaVista.ts` (`vistaTema`, `estiloVisible`, `seleccionDeDisco`: solo traducen el resumen vivo, el catálogo y `alHeredar`; ninguna ruta del editor importa `resolverApariencia`, hay una prueba), `useTemaEditor.tsx` (acciones, diálogos de nombre/eliminar/grupo, foco), `PanelEstilo.tsx` (resumen de solo lectura en D1/D4, `tema.contraste.ayuda`; retirados «Restablecer estilo predeterminado» y «Usar este estilo en canciones nuevas»), `estado.ts` (historial `{ letra, apariencia, borrador }`; acciones `apariencia` y `tema_eliminado`), `guardado.ts` y `useGuardadoEditor.tsx` (`cambiarApariencia`, selección reenviada; secuenciador de resúmenes), `textos.ts` (`E.tema`, variantes de 0056), `Editor.tsx` (`temas:cambiado` → `listar()` descartando respuestas antiguas, pestaña Estilo al volver de Ajustes, «Administrar temas…» con `vistaAjustesDesde`). En `shared/ipc.ts` se retira `estilo_predeterminado` de `configParcialRendererSchema` (la tarea decía `config.ts`, pero el esquema vive en `ipc.ts`), con prueba en `shared/config.test.ts`.
+- Cambios mínimos fuera de la zona: `componentes/MenuContextual.tsx` (`noDisponible` → `aria-disabled` con motivo), `Toasts.tsx` y `gestorToasts.ts` (`accionSecundaria` para [Reintentar] + [Copiar detalles]), `ControlSegmentado.tsx` (`info` y `nombre`). Doble del editor: `fijarApariencia(cambios, { silencioso })` y nombre del tema en `guardarApariencia`.
+- Probar: `cd app && npx vitest run src/renderer/src/vistas/editor src/renderer/src/temas src/renderer/src/navegacion` (297 pruebas, 35 archivos). Integración en `Editor.temas.test.tsx` (T1, T2b, T4–T5, T14–T15, T18, T21, T22, T22b, T24).
+- Decisiones: la selección inicial sale de `cancion.apariencia` (de `abrirEdicion`), sin una llamada extra a `obtener`; mientras la selección no ha llegado a main, procedencia y estilo se traducen del catálogo o de `alHeredar` (nunca se recorren niveles). `tema.nuevo.creado` desde D4 usa «Esta canción sigue igual.» (la spec no define esa variante). El pie de D3 usa `position: sticky` y pasa a estático por debajo de 200 px de alto o bajo el mínimo de diseño.
+- Deuda: sin E2E ni capturas (0176): comprobar a 300/360/480 px que la fila [Personalizar] [Editar tema] [⋯] y el pie de D3 no se parten ni se cortan, y la integración real con main.

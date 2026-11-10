@@ -22,6 +22,8 @@ interface Props {
   limiteFin?: { mensaje: string; clave: number }
   /** Hay avisos de contraste en Estilo: el botón «Expandir panel» lleva el punto `aviso`. */
   avisos: boolean
+  /** Hay un borrador de tema abierto (D3): el botón lleva el punto `info`. */
+  editandoTema?: boolean
   expandir(): void
 }
 
@@ -37,6 +39,7 @@ export function RielPanel({
   fijarFin,
   limiteFin,
   avisos,
+  editandoTema = false,
   expandir
 }: Props) {
   const idMotivo = useId()
@@ -63,11 +66,18 @@ export function RielPanel({
     >
       <BotonLayout
         icono={PanelRightOpen}
-        etiqueta={avisos ? E.layout.panel.expandirAviso : E.layout.panel.expandir}
+        etiqueta={
+          editandoTema
+            ? E.tema.expandirEditando
+            : avisos
+              ? E.layout.panel.expandirAviso
+              : E.layout.panel.expandir
+        }
         nombre="panel-expandir"
         expandido={false}
         controla="zona-panel"
         aviso={avisos}
+        info={editandoTema}
         onClick={expandir}
       />
       <div className={estilos.rielDato}>

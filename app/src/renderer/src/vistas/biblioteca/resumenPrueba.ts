@@ -1,4 +1,5 @@
 import type { Cancion } from '@shared/cancion'
+import { claveAlbum, claveArtista } from '@shared/identidad'
 import type { AparienciaResumenIpc, CancionIpc, ResumenCancionIpc } from '@shared/ipc'
 
 type Paso = NonNullable<ResumenCancionIpc['pasos']>['fuente']
@@ -76,4 +77,27 @@ export function resumenPrueba(cambios: Partial<ResumenCancionIpc> = {}): Resumen
     motivo: null,
     ...cambios
   }
+}
+
+/** Resumen con identidad derivada de artista y álbum, como la entrega main. */
+export function resumenConIdentidad(
+  id: string,
+  artista: string,
+  album: string | null,
+  extra: Partial<ResumenCancionIpc> = {}
+): ResumenCancionIpc {
+  const meta = { artista, album }
+  const pareja = claveAlbum(meta)
+  return resumenPrueba({
+    id,
+    titulo: `Tema ${id}`,
+    artista,
+    album,
+    claves: {
+      artista: claveArtista(meta),
+      album: pareja ? JSON.stringify([pareja.artista, pareja.album]) : null
+    },
+    apariencia: aparienciaResumenPrueba(),
+    ...extra
+  })
 }

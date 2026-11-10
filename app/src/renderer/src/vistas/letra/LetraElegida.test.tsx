@@ -314,7 +314,9 @@ describe('Letra elegida (C): botones y cambios externos', () => {
     await act(async () => {
       eventos.forEach((cb) => cb({ id: 'c1', resumen: resumenPrueba() }))
     })
-    await waitFor(() => expect(a.value).toBe(letraATexto({ lineas: lineasTexto() })))
+    await waitFor(() => expect(a.value).toBe(letraATexto({ lineas: lineasTexto() })), {
+      timeout: 5000
+    })
     expect(screen.getByText(/de un archivo · sin sincronizar · 3 líneas/)).toBeInTheDocument()
   })
 

@@ -97,7 +97,7 @@ describe('filtros y búsqueda', () => {
       resumenPrueba({ id: 'y', titulo: 'Otra', artista: 'Nadie' })
     ])
     await screen.findAllByRole('article')
-    const campo = screen.getByRole('searchbox', { name: 'Buscar título o artista' })
+    const campo = screen.getByRole('searchbox', { name: 'Buscar título, artista o álbum' })
     fireEvent.change(campo, { target: { value: 'CANCION' } })
     expect(titulos()).toEqual(['x'])
     fireEvent.change(campo, { target: { value: 'nandu' } })
@@ -201,13 +201,20 @@ describe('menú ⋯', () => {
       'Reproducir',
       'Editar',
       'Editar datos',
+      'Aplicar tema…',
       'Volver a borrador',
       'Mostrar en la carpeta',
       'Eliminar…'
     ])
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     await abrirMenu('La flaca')
-    expect(opciones()).toEqual(['Continuar', 'Editar datos', 'Mostrar en la carpeta', 'Eliminar…'])
+    expect(opciones()).toEqual([
+      'Continuar',
+      'Editar datos',
+      'Aplicar tema…',
+      'Mostrar en la carpeta',
+      'Eliminar…'
+    ])
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
     await abrirMenu('Canción sin nombre')
     expect(opciones()).toEqual(['Mostrar en la carpeta', 'Eliminar…'])

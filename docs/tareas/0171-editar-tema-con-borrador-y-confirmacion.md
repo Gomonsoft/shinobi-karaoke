@@ -1,6 +1,6 @@
 # 0171 — «Editar tema»: borrador en memoria, guardar con impacto y salir con borrador
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0170](0170-panel-estilo-seccion-tema.md)
 - ADRs: [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §7, §10, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-3)
@@ -35,3 +35,10 @@ Implementar D3: borrador del tema en memoria con los controles completos, banner
 - [ ] T27: con el panel minimizado en D3, «Expandir panel» lleva el punto `info` y su nombre accesible.
 
 ## Notas de implementación
+
+**Hecha.** D3 con borrador en memoria dentro del historial del editor.
+
+- Archivos: `vistas/editor/useBorradorTema.tsx` (diálogos de impacto, descartar y salir; guarda de salida y de cierre; toasts de guardado y de error con [Reintentar] y [Copiar detalles]), `estado.ts` (`borrador` en la instantánea; pasos con clave `borrador:`, retirados al salir; en D3 deshacer y rehacer solo recorren pasos del borrador), `SeccionTema.tsx` y `PanelEstilo.tsx` (banner con foco, modo/selector/⋯ `inert`, pie de tres botones en dos filas), `RielPanel.tsx`, `BotonLayout.tsx` y la pestaña Estilo (punto `info`, `tema.pestana.editando`), `navegacion/salida.ts` (`registrarBorradorAlCerrar`, `confirmarBorradorAlCerrar`) y `DialogoCierre.tsx` (pregunta antes que los trabajos; `app.confirmarCierre()` solo si se decide cerrar). `useGuardadoEditor` declara `app.guardadoPendiente(true)` mientras el borrador tiene cambios y ejecuta primero la guarda del borrador y después `edi.dialogo.salir`. Sin cambios en main.
+- Probar: mismas carpetas que 0170 (T7–T13, T23, T27 en `Editor.temas.test.tsx`; `estado.apariencia.test.ts`; `salida.test.ts` y `DialogoCierre.test.tsx`).
+- Decisiones: «Descartar cambios del tema» en la salida no borra el borrador (si luego se cancela la otra confirmación, sigue ahí); al guardar, el editor relee el resumen antes de salir de D3 para no mostrar un instante el aspecto antiguo; sin cambios no hay diálogo.
+- Deuda: el comportamiento real de `CONFIRMACION_OBSOLETA` y de la escritura se verifica en 0176; `Editor.paneles.test.tsx` («Intro en el divisor») sigue siendo intermitente bajo carga.

@@ -54,7 +54,7 @@ export async function conEditor(
 /** Biblioteca → «Continuar» de la canción → editor con el audio cargado. */
 export async function abrirEditor(v: Page, titulo: string): Promise<void> {
   // Filtrar sube las tarjetas al principio: un menú abierto en una tarjeta que hay que desplazar se cierra.
-  await v.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(titulo)
+  await v.getByRole('searchbox', { name: /^Buscar título/ }).fill(titulo)
   const t = tarjeta(v, titulo)
   await expect(t).toBeVisible()
   const continuar = t.getByRole('button', { name: /^Continuar/ })

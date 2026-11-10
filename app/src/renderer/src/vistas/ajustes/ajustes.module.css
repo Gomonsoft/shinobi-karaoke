@@ -67,3 +67,111 @@
   justify-content: space-between;
   gap: var(--e-3);
 }
+
+/* ---------- Temas (fase 3) ---------- */
+.subsubtitulo {
+  margin: var(--e-2) 0 0;
+  font-size: var(--t-cuerpo-fuerte, 1rem);
+  font-weight: 600;
+}
+
+.subsubtitulo:focus,
+.subtitulo:focus {
+  outline: none;
+}
+
+.nota3 {
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+
+.accionesAviso {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  flex-wrap: wrap;
+}
+
+.listaTemas {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.filaTema {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  padding: var(--e-2) var(--e-3);
+}
+
+.filaTema + .filaTema {
+  border-top: 1px solid var(--borde);
+}
+
+.filaTemaCabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.filaTemaTextos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nombreTema {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filaTemaDetalle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+
+.etiquetaPredet {
+  padding: 0 var(--e-1);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+}
+
+.esqueletos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+
+.esqueletoFila {
+  height: 3.25rem;
+  border-radius: var(--r-m);
+  background: var(--fondo-2);
+}
+
+.brillo {
+  animation: brillo-temas 1.6s ease-in-out infinite;
+}
+
+@keyframes brillo-temas {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

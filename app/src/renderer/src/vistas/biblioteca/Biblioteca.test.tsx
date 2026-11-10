@@ -98,17 +98,19 @@ describe('tarjetas', () => {
   it('muestra título, artista · duración, insignia y la accesibilidad bib.aria.tarjeta', async () => {
     montar([lista, incompleta, borrador, danada])
     const t = await screen.findByRole('article', {
-      name: 'Bohemian Rhapsody, Artista, Lista.'
+      name: 'Bohemian Rhapsody, Artista, Lista. Tema: Tema personalizado.'
     })
     expect(within(t).getByText('Artista · 3:55')).toBeInTheDocument()
     expect(within(t).getByText('Lista')).toBeInTheDocument()
     expect(
       screen.getByRole('article', {
-        name: 'Casi lista, Artista, Lista. Falta 1 línea por sincronizar.'
+        name: 'Casi lista, Artista, Lista. Falta 1 línea por sincronizar. Tema: Tema personalizado.'
       })
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('article', { name: 'La flaca, Artista, Borrador. Falta la letra.' })
+      screen.getByRole('article', {
+        name: 'La flaca, Artista, Borrador. Falta la letra. Tema: Tema personalizado.'
+      })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('article', {

@@ -1,6 +1,6 @@
 # 0169 — Base de temas en el renderer: catálogo, muestras, selector y diálogos compartidos
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 5
 - Depende de: [0164](0164-contratos-ipc-de-temas-y-apariencia.md) (trabaja con los dobles; no necesita main)
 - ADRs: [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §3, §7, §9, §11 (revisión 2: progreso de `reanudarBorrado` y estado `pendiente`; revisión 3: `titulo`/`artista` en el resultado por canción y destino `respaldo`)
@@ -64,3 +64,10 @@ Crear en `renderer/src/temas/` las piezas que comparten editor, Biblioteca y Aju
 - [ ] Todo operable con teclado; ningún diálogo deja el foco en `body` al cerrarse; pruebas con Testing Library y `axe` si el proyecto ya lo usa.
 
 ## Notas de implementación
+
+**Hecha.** Todo en `app/src/renderer/src/temas/` (sin tocar vistas existentes ni main).
+
+- Archivos: `textos.ts` (claves compartidas; `ORIGEN_ANTERIOR` es la única cadena de `tema.origen.anterior` y `aj.temas.origen.anterior`; `procedenciaCorta`, `procedenciaLarga`, `destinoHeredar`, `lineasDesglose`, objetos `TEMA`, `BIB_GRUPO`, `AJ_TEMAS`), `useCatalogoTemas.ts`, `useOperacionTema.ts` (con `derivarFallo`), `MuestraTema.tsx`, `SelectorTema.tsx`, `DialogoNombreTema.tsx` (con `nombreRepetido` y `proponerNombre`), `ListaFalloAMitad.tsx`, `piezas.tsx` (`ListaCancionesImpacto`, `ProgresoOperacion`), `DialogoImpactoTema.tsx`, `DialogoEliminarTema.tsx`, `impactoGrupo.ts`, `DialogoTemaGrupo.tsx`, `temas.module.css`, `pruebas.ts` (ayudas de tests) y pruebas (`textos.test.ts`, `base.test.tsx` y una por diálogo).
+- Probar: `npx vitest run src/renderer/src/temas` (49 pruebas en 6 archivos); suite del renderer: 1037 pruebas en 84 archivos, todas pasan.
+- Decisiones menores: `procedenciaCorta` de `propio` y `cancion` devuelve «propio» (la tarjeta usa «Tema personalizado» aparte); `aj.temas.dialogo.predet`/`ninguno` no pintan el desglose (el cuerpo ya da el recuento); el progreso se muestra si el `total` del evento es > 5; la región `role="status"` solo cambia al empezar y al terminar; la lista de canciones muestra 8 filas de 40 px (320 px; sistema-visual dice 280 px); `bib.grupo.futuras` solo se muestra al asignar un tema; guardar con 0 afectadas usa `tema.usos(0)` como cuerpo.
+- Deuda: sin `axe` (el proyecto no lo usa); los textos de toast (`tema.toast.*`) están en `TEMA`, pero los muestran los consumidores.

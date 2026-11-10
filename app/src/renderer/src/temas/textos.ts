@@ -12,7 +12,8 @@ export const ORIGEN_ANTERIOR = 'Tema predeterminado anterior'
 export const SIN_TITULO = 'Canción sin nombre'
 export const SIN_ARTISTA = 'Sin artista'
 
-export const nombreCancion = (titulo: string): string => (titulo.trim() === '' ? SIN_TITULO : titulo)
+export const nombreCancion = (titulo: string): string =>
+  titulo.trim() === '' ? SIN_TITULO : titulo
 export const nombreArtista = (artista: string): string =>
   artista.trim() === '' ? SIN_ARTISTA : artista
 /** «{título} — {artista}» con los valores por defecto de la Biblioteca. */

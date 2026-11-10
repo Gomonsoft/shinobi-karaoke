@@ -7,6 +7,7 @@ import {
   estaIncompleta,
   estiloPredeterminado,
   finEfectivo,
+  migrarCatalogo,
   migrarConfig,
   numerosLineasSinInicio
 } from '../../shared'
@@ -113,4 +114,22 @@ it('siembra los casos del editor y reproductor con FLAC de 30 s y letras válida
       expect(Number(flac.readBigUInt64BE(18) & 0xfffffffffn)).toBe(30 * 44_100)
     }
   }
+})
+
+describe('sembrar con temas', () => {
+  it('añade el catálogo y 12 canciones, sin tocar el conjunto base', async () => {
+    const r = await sembrar(datos, { temas: true })
+    expect(r.creadas).toHaveLength(32)
+    const catalogo = migrarCatalogo(
+      JSON.parse(await readFile(join(datos, 'biblioteca', 'temas.json'), 'utf8'))
+    )
+    expect(catalogo.tipo).toBe('ok')
+    if (catalogo.tipo === 'ok') {
+      expect(catalogo.catalogo.temas.map((t) => t.nombre)).toEqual(['Neón', 'Noche ninja', 'Sol'])
+      expect(catalogo.catalogo.predeterminado).toBe(catalogo.catalogo.temas[1]?.id)
+    }
+    expect((await sembrar(datos, { temas: true })).creadas).toHaveLength(0)
+    // Sin la opción, el conjunto sigue siendo el de siempre.
+    expect((await sembrar(datos, { limpiar: true })).creadas).toHaveLength(20)
+  })
 })

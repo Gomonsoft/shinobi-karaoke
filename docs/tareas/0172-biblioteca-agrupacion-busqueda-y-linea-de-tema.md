@@ -1,6 +1,6 @@
 # 0172 — Biblioteca: agrupar por artista y álbum, búsqueda en álbum y línea de tema
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 5
 - Depende de: [0164](0164-contratos-ipc-de-temas-y-apariencia.md) (y las funciones de [0163](0163-modelo-puro-de-temas-e-identidad.md)); en paralelo con 0169–0171 y 0175
 - ADRs: [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §3 (`neutra`), §4, §9
@@ -27,12 +27,17 @@ Añadir «Agrupar por» persistente, grupos por artista y por álbum con identid
 
 ## Criterios de aceptación
 
-- [ ] B1: «Agrupar por» ofrece las tres opciones, persiste al cambiar de vista y al reiniciar (comprobado con el doble de `config`), y «Sin agrupar» es idéntica a la rejilla anterior.
-- [ ] B2–B3: «Queen», «QUEEN » y «queen» forman un grupo; «Canción» y «Cancion», dos; «Greatest Hits» de ABBA y de Queen, dos; los grupos sin metadatos van al final sin [Tema…] y con su texto.
-- [ ] B4: «queen   greatest» encuentra «Queen · Greatest Hits»; la búsqueda exige todas las palabras, se combina con filtro y agrupación, oculta grupos vacíos y anuncia el recuento una vez.
-- [ ] B6 y B14 (con resúmenes de prueba): la línea de tema muestra nombre y procedencia en los cuatro niveles y en `aleatorio`, `predeterminado_anterior` e `incluido`; la miniatura solo con `neutra`. Al cambiar el resumen de una canción de YouTube de `predeterminado` a `predeterminado_anterior` (los dos `neutra: true`), la portada no cambia y la línea pasa a «… · predeterminado anterior». Una línea de tema larga a 1280 × 720 al 125 % se corta con «…» y conserva el texto completo en `title` y en el nombre accesible.
-- [ ] B7: editar el artista mueve la tarjeta, despliega el grupo, deja el foco en ella, anuncia `bib.anuncio.movida` y muestra `bib.toast.temaCambiado` solo si cambió el tema efectivo.
-- [ ] B12–B13, B15: foco y desplazamiento según la spec; flechas cruzan grupos y saltan plegados; volver del reproductor conserva agrupación, plegado, filtro, búsqueda y desplazamiento.
-- [ ] Con 500 canciones, agrupar y filtrar tarda < 16 ms por pulsación en Vitest (medición orientativa) y no reordena por eventos en vivo.
+- [x] B1: «Agrupar por» ofrece las tres opciones, persiste al cambiar de vista y al reiniciar (comprobado con el doble de `config`), y «Sin agrupar» es idéntica a la rejilla anterior.
+- [x] B2–B3: «Queen», «QUEEN » y «queen» forman un grupo; «Canción» y «Cancion», dos; «Greatest Hits» de ABBA y de Queen, dos; los grupos sin metadatos van al final sin [Tema…] y con su texto.
+- [x] B4: «queen   greatest» encuentra «Queen · Greatest Hits»; la búsqueda exige todas las palabras, se combina con filtro y agrupación, oculta grupos vacíos y anuncia el recuento una vez.
+- [x] B6 y B14 (con resúmenes de prueba): la línea de tema muestra nombre y procedencia en los cuatro niveles y en `aleatorio`, `predeterminado_anterior` e `incluido`; la miniatura solo con `neutra`. Al cambiar el resumen de una canción de YouTube de `predeterminado` a `predeterminado_anterior` (los dos `neutra: true`), la portada no cambia y la línea pasa a «… · predeterminado anterior». Una línea de tema larga a 1280 × 720 al 125 % se corta con «…» y conserva el texto completo en `title` y en el nombre accesible.
+- [x] B7: editar el artista mueve la tarjeta, despliega el grupo, deja el foco en ella, anuncia `bib.anuncio.movida` y muestra `bib.toast.temaCambiado` solo si cambió el tema efectivo.
+- [x] B12–B13, B15: foco y desplazamiento según la spec; flechas cruzan grupos y saltan plegados; volver del reproductor conserva agrupación, plegado, filtro, búsqueda y desplazamiento.
+- [x] Con 500 canciones, agrupar y filtrar tarda < 16 ms por pulsación en Vitest (medición orientativa) y no reordena por eventos en vivo.
 
 ## Notas de implementación
+
+- **Hecho**: «Agrupar por» persistente (`useAgrupar` en `useBiblioteca.ts`, `config.biblioteca.agrupar`), agrupación pura (`agrupacion.ts`), `EncabezadoGrupo.tsx` con los huecos `casilla` y `tema`, búsqueda por palabras en título, artista y álbum, línea de tema en la tarjeta (`textosTema.ts`), portada por `apariencia.neutra` (`usaMiniatura(r)` ya no compara estilos ni lee `config.estilo_predeterminado`), teclado *roving* entre grupos, anuncio de resultados (500 ms), «Editar datos» que mueve la tarjeta (despliega, enfoca, anuncia, toast de tema) y foco tras eliminar a la vecina.
+- **Puntos de extensión**: 0173 pasa `casilla` a `EncabezadoGrupo` (antes del botón de plegar) y añade `aplicarTema` a `AccionesTarjeta` (el menú ⋯ ofrece «Aplicar tema…» solo si existe); 0174 pasa `tema` (solo se pinta en grupos `asignable`; `Grupo` trae `artista` y `album` visibles). Ambos comparten únicamente unas líneas de `Biblioteca.tsx` (`grupos.map`).
+- **Deuda / a unificar**: `textosTema.ts` (`PROCEDENCIA_CORTA`, `lineaDeTema`) es provisional; debe unificarse con `procedenciaCorta` de 0169 (`renderer/src/temas/textos.ts`). El toast `bib.toast.temaCambiado` sin nombre de tema usa la línea de tema en minúscula. Con búsqueda o filtro activos el recuento siempre es «{v} de {n}» (también si v = n). El anclaje del desplazamiento ante eventos en vivo se deja al `overflow-anchor` del navegador. Faltan los E2E y las capturas B16 (0176).
+- **Probar**: `npx vitest run src/renderer/src/vistas/biblioteca` (127 pruebas; nuevas en `agrupacion.test.ts`, `Biblioteca.agrupacion.test.tsx`, `filtrado.test.ts`, `tarjeta.test.tsx`).

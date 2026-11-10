@@ -1,6 +1,6 @@
 # 0168 — Migración, creación de canciones y resolución en la biblioteca
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 1, 4 y 5
 - Depende de: [0164](0164-contratos-ipc-de-temas-y-apariencia.md), [0165](0165-catalogo-y-cola-de-apariencia-en-main.md) (en paralelo con [0166](0166-impactos-fichas-y-operaciones-confirmadas.md) y [0167](0167-borrado-recuperable-de-temas.md): cablea su fachada)
 - ADRs: [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §2, §5, §6, §9–§11, [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-3), [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-3)
@@ -43,3 +43,22 @@ Conectar `ServicioTemas` con `ServicioBiblioteca`, el arranque y el IPC: resumen
 - [ ] `tsc`, Vitest y los E2E existentes en verde; `SHINOBI_SEMILLA` (o el mecanismo actual) siembra el conjunto de temas sin red.
 
 ## Notas de implementación
+
+**Qué se hizo.**
+- `ServicioBiblioteca` (`main/biblioteca/servicio.ts`): deja de recibir `estiloPredeterminado`; `conectarTemas(servicio)` (antes de `arrancar`), `puerto()` (el `PuertoCanciones` de 0165: `indice()` síncrono, `leer`, `actualizar(id, mutador)` sin tocar `modificada`), `resolver(cancion)`, `guardarApariencia(id, seleccion)` por la cola (`propio`, `tema`, `heredar`; conserva `base` también al pasar a `tema`; `TEMA_NO_ENCONTRADO`, `BORRADO_PENDIENTE`, `TEMAS_SOLO_LECTURA`). `guardarEstilo` ahora delega en `guardarApariencia`.
+- Resolución en vivo: `listar()` y `obtenerResumen()` recalculan `estilo` y `apariencia` con el catálogo vigente en cada llamada (el índice guarda el resumen, pero el catálogo puede cambiar sin tocar la canción). Toda escritura (`guardar`) refresca `estilo` y `tema_nombre` con `refrescarInstantanea` (de `main/temas/operaciones.ts`) si el modo es `tema`/`heredar`.
+- Creación (`crear`, `materializar`): dentro de `temas.enCola`, con `aparienciaInicial`. `actualizar` pasa por la cola solo si cambia el artista o el álbum (un cambio de título con debounce sigue síncrono en el índice). `notificarIndiceCambiado()` tras crear, cambiar metadatos/apariencia y eliminar.
+- `resumen.ts`: `resumirCancion` recibe la `ResolucionCancion`; se eliminó `aparienciaProvisional`; `resolucionSinCatalogo` solo para servicios sin temas (pruebas).
+- `main/index.ts`: abre `ServicioTemas` (con `config.estilo_predeterminado`) antes de `arrancar`; `alCambiar` y `alProgreso` difunden `temas:cambiado` y `temas:progreso`; se cierra en `before-quit`.
+- `main/ipc/handlers.ts`: todos los `temas.*` contra `deps.temas` (sin servicio, `ERROR_INTERNO`), `guardarApariencia` completo, `obtener` con `resuelta` real; `CONFIRMACION_OBSOLETA` serializa `ErrorTemas.detalles` (el impacto nuevo) en `detalles`.
+- `main/temas/`: `CatalogoTemas` y `ResultadoTemas` pasan a ser alias de los tipos de `shared/ipc.ts`; `ResolucionCancion.alHeredar` usa `DestinoHeredarIpc`.
+- Semilla: `sembrar(datos, { temas: true })` (y `npm run semilla -- --temas`) escribe `temas.json` («Neón», «Noche ninja» predeterminado, «Sol»; Queen -> Neón, «A Night at the Opera» de Queen -> Sol) y 12 canciones (ids `5eed...30` a `41`: álbum con tema, artista con tema, dos «Greatest Hits», sin artista/álbum, personalizada de 0.1.0, tema inexistente con `tema_nombre`, YouTube con miniatura, `predeterminado_anterior` (38), asignada a Neón con esa base (39), dos de un artista/álbum sin tema (40, 41)). Sin la opción, el conjunto base no cambia (20 canciones).
+
+**Archivos clave.** `main/biblioteca/{servicio,resumen,semilla}.ts`, `main/index.ts`, `main/ipc/handlers.ts`, `scripts/semilla.mjs`; pruebas: `main/biblioteca/temas.test.ts` (nueva), `escritura.test.ts`, `semilla.test.ts`, `main/ipc/handlers.test.ts`.
+
+**Cómo probarlo.** `npx vitest run src/main`; `npm run semilla -- --limpiar --temas` y `npm run dev`.
+
+**Notas y deuda.**
+- Esquema 1: al abrir/listar no se reescribe nada. Excepción heredada de 0.1.0 (ADR 0006): una canción con un paso `en_curso` pasa a `interrumpido` y se escribe al arrancar; la prueba lo admite solo en ese caso.
+- Los E2E existentes no usan `temas: true`: la semilla de temas la usarán 0176 y las capturas.
+- `main/temas/index.ts` no exporta `refrescarInstantanea`; `servicio.ts` lo importa de `../temas/operaciones`.

@@ -1,21 +1,23 @@
 import type { AparienciaResumenIpc } from '@shared/ipc'
+import { procedenciaCorta } from '../../temas/textos'
 
 /*
- * Textos mínimos de la línea de tema (`bib.tarjeta.tema`, `tema.origen.corta.*`). Provisionales:
- * 0169 define `procedenciaCorta` en `renderer/src/temas/textos.ts`; al integrarse, esta tabla debe
- * unificarse con la suya y borrarse de aquí.
+ * Textos de la línea de tema de la tarjeta (`bib.tarjeta.tema`) y del encabezado de grupo
+ * (`bib.grupo.tema`, `bib.grupo.sinTemaPropio`, `bib.grupo.temaBorrando`, `bib.grupo.boton`). La
+ * procedencia corta es la única de la app: `procedenciaCorta` de `renderer/src/temas/textos.ts`.
  */
-export const PROCEDENCIA_CORTA: Record<AparienciaResumenIpc['procedencia'], string> = {
-  propio: 'propio',
-  cancion: 'propio',
-  album: 'del álbum',
-  artista: 'del artista',
-  aleatorio: 'al azar',
-  predeterminado_anterior: 'predeterminado anterior',
-  predeterminado: 'predeterminado',
-  incluido: 'incluido',
-  respaldo: 'no disponible'
-}
+
+export const GRUPO = {
+  boton: 'Tema…',
+  /** `bib.grupo.boton`: nombre accesible de [Tema…]. */
+  nombreBoton: (nivel: 'artista' | 'album', nombre: string): string =>
+    `Tema del ${nivel === 'album' ? 'álbum' : 'artista'} ${nombre}…`,
+  tema: (nivel: 'artista' | 'album', tema: string): string =>
+    `Tema del ${nivel === 'album' ? 'álbum' : 'artista'}: ${tema}`,
+  sinTemaPropio: (nivel: 'artista' | 'album'): string =>
+    `Sin tema de ${nivel === 'album' ? 'álbum' : 'artista'}`,
+  temaBorrando: (tema: string): string => `${tema}: eliminación sin terminar`
+} as const
 
 export interface LineaTema {
   texto: string
@@ -34,7 +36,7 @@ export function lineaDeTema(a: AparienciaResumenIpc): LineaTema {
       return { texto: 'Estilo incluido', aviso: false }
     default:
       return {
-        texto: `${a.temaNombre ?? 'Tema'} · ${PROCEDENCIA_CORTA[a.procedencia]}`,
+        texto: `${a.temaNombre ?? 'Tema'} · ${procedenciaCorta(a.procedencia)}`,
         aviso: false
       }
   }

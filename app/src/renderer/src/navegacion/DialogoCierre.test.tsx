@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { DialogoCierre } from './DialogoCierre'
+import { registrarBorradorAlCerrar } from './salida'
 import { cuerpoCierre, listaBreve } from './textosCierre'
 import type { Vista } from './estado'
 
@@ -90,5 +91,21 @@ describe('DialogoCierre', () => {
     await pedir({ tipo: 'primer-arranque' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(confirmarCierre).not.toHaveBeenCalled()
+  })
+
+  it('con un borrador de tema sin guardar delega en su diálogo: seguir cancela el cierre', async () => {
+    instalar([], {})
+    const baja = registrarBorradorAlCerrar(async () => false)
+    await pedir()
+    expect(confirmarCierre).not.toHaveBeenCalled()
+    baja()
+  })
+
+  it('con un borrador de tema, descartarlo o guardarlo permite el cierre', async () => {
+    instalar([], {})
+    const baja = registrarBorradorAlCerrar(async () => true)
+    await pedir()
+    expect(confirmarCierre).toHaveBeenCalledOnce()
+    baja()
   })
 })

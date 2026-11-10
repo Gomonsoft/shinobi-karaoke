@@ -106,6 +106,12 @@ describe('configSchema (lectura tolerante)', () => {
       true
     )
   })
+  it('el renderer ya no puede escribir estilo_predeterminado (0170)', () => {
+    expect(
+      configParcialRendererSchema.safeParse({ estilo_predeterminado: ESTILO_PREDETERMINADO })
+        .success
+    ).toBe(false)
+  })
   it('rechaza valores fuera de rango o de enumeraciones', () => {
     expect(configSchema.safeParse({ reproductor: { volumen: 1.5 } }).success).toBe(false)
     expect(configSchema.safeParse({ separacion: { modo: 'turbo' } }).success).toBe(false)

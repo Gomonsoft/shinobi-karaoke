@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
-import type { Estilo } from '@shared/estilo'
+import type { ResumenCancionIpc, SeleccionApariencia } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
@@ -8,13 +8,35 @@ import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { registrarVaciadoAlCerrar } from '../../navegacion/salida'
 import { GuardadoEditor, type EstadoGuardado } from './guardado'
 
-export function useGuardadoEditor(
-  cancionId: string,
-  titulo: string,
-  obtenerSesion: () => string | null,
-  alDesactualizada: () => void | Promise<void>,
+/** Secuenciador de resúmenes vivos: la respuesta del pedido más reciente manda (ADR 0016 §9). */
+export interface SecuenciaResumen {
+  nuevo(): number
+  aplicar(token: number, resumen: ResumenCancionIpc): void
+}
+
+interface Opciones {
+  cancionId: string
+  titulo: string
+  obtenerSesion: () => string | null
+  alDesactualizada: () => void | Promise<void>
   alSalirGuardado?: (destino: Vista) => void
-) {
+  /** Hay un borrador de tema con cambios: main debe esperar al cerrar la ventana (ADR 0016 §10). */
+  borradorPendiente?: boolean
+  /** Primera guarda de salida: el aviso del borrador de tema (`tema.dialogo.salir`). */
+  guardaBorrador?: () => Promise<boolean>
+  resumenes?: SecuenciaResumen
+}
+
+export function useGuardadoEditor({
+  cancionId,
+  titulo,
+  obtenerSesion,
+  alDesactualizada,
+  alSalirGuardado,
+  borradorPendiente = false,
+  guardaBorrador,
+  resumenes
+}: Opciones) {
   const { registrarGuardaSalida } = useNavegacion()
   const instancia = useRef<GuardadoEditor | null>(null)
   const confirmacion = useRef<{
@@ -27,6 +49,14 @@ export function useGuardadoEditor(
   const recargar = useEffectEvent(alDesactualizada)
   const tituloActual = useEffectEvent(() => titulo)
   const salidaGuardada = useEffectEvent((destino: Vista) => alSalirGuardado?.(destino))
+  const guardaDeBorrador = useEffectEvent(() => guardaBorrador?.() ?? Promise.resolve(true))
+  const sincronizarMain = useRef<() => void>(() => undefined)
+  const borradorRef = useRef(borradorPendiente)
+
+  useEffect(() => {
+    borradorRef.current = borradorPendiente
+    sincronizarMain.current()
+  }, [borradorPendiente])
 
   const confirmarSinGuardar = useCallback((): Promise<boolean> => {
     if (confirmacion.current) return confirmacion.current.promesa
@@ -42,11 +72,14 @@ export function useGuardadoEditor(
   useEffect(() => {
     let avisado = false
     let pendiente = false
-    const avisarMain = (valor: boolean) => {
+    let enError = false
+    const avisarMain = () => {
+      const valor = (guardado.hayPendiente() || enError || borradorRef.current) ?? false
       if (valor === pendiente) return
       pendiente = valor
       void window.shinobi.app.guardadoPendiente(valor).catch(() => undefined)
     }
+    sincronizarMain.current = avisarMain
     const guardado = new GuardadoEditor({
       cancionId,
       api: {
@@ -56,12 +89,17 @@ export function useGuardadoEditor(
             ? window.shinobi.letras.guardarTiempos(peticion, id)
             : Promise.reject({ codigo: 'LETRA_DESACTUALIZADA', mensaje: 'La visita ha terminado.' })
         },
-        guardarApariencia: (id, seleccion) =>
-          window.shinobi.biblioteca.guardarApariencia(id, seleccion)
+        guardarApariencia: async (id, seleccion: SeleccionApariencia) => {
+          const token = resumenes?.nuevo()
+          const resumen = await window.shinobi.biblioteca.guardarApariencia(id, seleccion)
+          if (token !== undefined) resumenes?.aplicar(token, resumen)
+          return resumen
+        }
       },
       alEstado: (e) => {
         setEstado(e.estado)
-        avisarMain(guardado.hayPendiente() || e.estado === 'error')
+        enError = e.estado === 'error'
+        avisarMain()
         if (e.estado === 'guardado') avisado = false
         if (e.estado !== 'error' || avisado) return
         avisado = true
@@ -86,10 +124,13 @@ export function useGuardadoEditor(
       }
     })
     instancia.current = guardado
+    avisarMain()
     const cancelarVaciado = registrarVaciadoAlCerrar(() => guardado.vaciar())
     const cancelarGuarda = registrarGuardaSalida?.(async (destino) => {
       if (destino.tipo === 'cancion' && destino.id === cancionId && destino.paso === 'editor')
         return true
+      // Primero el borrador de tema; después, el aviso de guardado de la canción.
+      if (!(await guardaDeBorrador())) return false
       if (await guardado.vaciar()) {
         salidaGuardada(destino)
         return true
@@ -101,15 +142,16 @@ export function useGuardadoEditor(
       cancelarGuarda?.()
       guardado.destruir()
       instancia.current = null
+      sincronizarMain.current = () => undefined
       confirmacion.current?.resolver(false)
       confirmacion.current = null
-      avisarMain(false)
+      if (pendiente) void window.shinobi.app.guardadoPendiente(false).catch(() => undefined)
     }
-  }, [cancionId, confirmarSinGuardar, registrarGuardaSalida])
+  }, [cancionId, confirmarSinGuardar, registrarGuardaSalida, resumenes])
 
   const cambiarLetra = useCallback((letra: Letra) => instancia.current?.cambiarLetra(letra), [])
-  const cambiarEstilo = useCallback(
-    (estilo: Estilo) => instancia.current?.cambiarEstilo(estilo),
+  const cambiarApariencia = useCallback(
+    (seleccion: SeleccionApariencia) => instancia.current?.cambiarApariencia(seleccion),
     []
   )
   const vaciar = useCallback(() => instancia.current?.vaciar() ?? Promise.resolve(true), [])
@@ -123,7 +165,7 @@ export function useGuardadoEditor(
   return {
     estado,
     cambiarLetra,
-    cambiarEstilo,
+    cambiarApariencia,
     vaciar,
     confirmarSinGuardar,
     dialogoSalida: (

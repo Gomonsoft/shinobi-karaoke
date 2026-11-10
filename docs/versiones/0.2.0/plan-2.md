@@ -9,7 +9,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 1 | Fin independiente y barrido por renglón | Cerrada · [informe](informe-fase-1.md)|
 | 2 | Regiones editables, bucle, zoom y picos de voz | Implementada · [informe](informe-fase-2.md) |
 | 2.1 | Estabilización del editor y paneles adaptables | Cerrada · [informe](informe-fase-2.1.md) |
-| 3 | Temas y agrupación de biblioteca | En curso |
+| 3 | Temas y agrupación de biblioteca | Implementada · [informe](informe-fase-3.md) |
 | 4 | Ventana secundaria y cola | Pendiente |
 | 5 | Degradados, ayudas de espera y Letra lista | Pendiente |
 | 6 | Exportación de video | Pendiente · prueba técnica |

@@ -390,8 +390,16 @@ export class ServicioBiblioteca {
       const candidata = this.aplicarCambio(previa, cambio)
       return this.guardar(id, candidata, opciones.debounceMs ?? 0)
     }
-    // Los metadatos pueden cambiar la resolución (artista o álbum con tema): pasan por la cola.
-    if (!cambio.metadatos) return escribir()
+    // Cambiar artista o álbum puede cambiar la resolución (tema de artista o álbum): pasa por la
+    // cola. Un cambio solo de título o de otro campo escribe directamente (autoguardado con debounce).
+    const m = cambio.metadatos
+    const previos = this.indice.get(id)?.cancion?.metadatos
+    const cambiaIdentidad =
+      m !== undefined &&
+      previos !== undefined &&
+      (('artista' in m && m.artista !== previos.artista) ||
+        ('album' in m && (m.album ?? null) !== (previos.album ?? null)))
+    if (!cambiaIdentidad) return escribir()
     return this.enColaDeTemas(escribir).then((r) => this.tras(r))
   }
 
@@ -413,6 +421,8 @@ export class ServicioBiblioteca {
         c.apariencia = { modo: 'propio' }
         c.estilo = structuredClone(seleccion.estilo)
       } else {
+        // La `base` se conserva: «Volver a heredar» sigue yendo a donde iba (ADR 0016 §2).
+        const base = previa.apariencia?.base
         const catalogo = this.temas?.datos() ?? null
         if (!catalogo) {
           throw new ErrorBiblioteca('TEMAS_SOLO_LECTURA', 'Los temas están en solo lectura.')
@@ -424,9 +434,10 @@ export class ServicioBiblioteca {
           if (catalogo.borrado_pendiente?.tema_id === seleccion.temaId) {
             throw new ErrorBiblioteca('BORRADO_PENDIENTE', 'El tema está pendiente de borrarse.')
           }
-          c.apariencia = { modo: 'tema', tema_id: seleccion.temaId }
+          c.apariencia = base
+            ? { modo: 'tema', tema_id: seleccion.temaId, base }
+            : { modo: 'tema', tema_id: seleccion.temaId }
         } else {
-          const base = previa.apariencia?.modo === 'heredar' ? previa.apariencia.base : undefined
           c.apariencia = base ? { modo: 'heredar', base } : { modo: 'heredar' }
         }
       }

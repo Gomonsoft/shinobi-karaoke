@@ -1,6 +1,6 @@
 # 0176 — Verificación E2E sin red, capturas e informe de la fase 3
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 1, 4 y 5
 - Depende de: [0163](0163-modelo-puro-de-temas-e-identidad.md)–[0175](0175-ajustes-seccion-temas.md)
 - ADRs: [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) («Pruebas»), [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-3)
@@ -38,11 +38,19 @@ En `docs/ux/revision-fase-3/`, con el procedimiento de [revision-fase-2.1](../ux
 
 ## Criterios de aceptación
 
-- [ ] Los cuatro archivos de E2E pasan en CI (Windows, macOS y Linux) sin red y sin ventanas de sistema.
-- [ ] El escenario 1 demuestra con hashes que una biblioteca de esquema 1 no se reescribe y conserva tiempos y estilos.
-- [ ] El escenario de B1 demuestra que quitar el predeterminado no cambia ningún aspecto ni portada y mantiene el vínculo vivo, y el de A15 que un fallo a mitad no cambia ningún aspecto.
-- [ ] Existen las 50 capturas de la tabla del README (editor 11 × 2, Biblioteca 9 × 2, Ajustes 10 × 1) con el nombre esperado, incluida `ajustes-1280x800-100-dialogo-quitar-predeterminado.png`.
-- [ ] El informe lista cada criterio de las specs con su resultado y enlaza las capturas.
-- [ ] `tsc`, Vitest, lint y la suite E2E completa en verde.
+- [ ] Los cuatro archivos de E2E pasan en CI (Windows, macOS y Linux) sin red y sin ventanas de sistema. (Pasan en Windows; falta el CI de macOS y Linux al abrir el PR.)
+- [x] El escenario 1 demuestra con hashes que una biblioteca de esquema 1 no se reescribe y conserva tiempos y estilos.
+- [x] El escenario de B1 demuestra que quitar el predeterminado no cambia ningún aspecto ni portada y mantiene el vínculo vivo, y el de A15 que un fallo a mitad no cambia ningún aspecto.
+- [x] Existen las 50 capturas de la tabla del README (editor 11 × 2, Biblioteca 9 × 2, Ajustes 10 × 1) con el nombre esperado, incluida `ajustes-1280x800-100-dialogo-quitar-predeterminado.png`.
+- [x] El informe lista cada criterio de las specs con su resultado y enlaza las capturas.
+- [x] `tsc`, Vitest, lint y la suite E2E completa en verde.
 
 ## Notas de implementación
+
+**Hecha.** Cuatro especificaciones E2E nuevas (48 casos), ayudantes, 50 capturas, informe y estabilización de pruebas. Ver el [informe](../versiones/0.2.0/informe-fase-3.md).
+
+- **Archivos.** `app/e2e/temas-migracion.spec.ts`, `temas-editor.spec.ts`, `temas-biblioteca.spec.ts`, `temas-ajustes.spec.ts`, `temas-capturas.spec.ts` (opt-in con `SHINOBI_CAPTURAS_3=1`) y `fixtures/temas.ts` (siembra, hashes, `envenenarEscritura`/`repararEscritura`, `clonarCancion`, `botonesDentroDelDialogo`). `docs/ux/revision-fase-3/*.png` y README, `informe-fase-3.md`, `plan-2.md`, `backlog.md`, pregunta 0057.
+- **Cómo probarlo.** Desde `app/`: `npm run build` y `npx playwright test e2e/temas-*.spec.ts --workers=1`. Capturas: `SHINOBI_CAPTURAS_3=1 npx playwright test e2e/temas-capturas.spec.ts --workers=1`.
+- **Errores reales corregidos con su prueba** (detalle en el informe): lista del selector inerte dentro de diálogos (`SelectorTema.tsx`), encabezado de grupo sin tema por usar claves en vez de la grafía visible (`agrupacion.ts`), botones del diálogo de salida cortados (`.acciones` sin `flex-wrap`, corregido por la sesión principal) y pie de D3 cortado a 300 px (`panelEstilo.module.css`).
+- **E2E existentes** actualizados: caja de búsqueda `/^Buscar título/`, nombre accesible de la tarjeta con «Tema: …» y exclusión de `temas.json` al listar canciones.
+- **Deuda.** Ver el informe: «Aplicar tema…» oculto con catálogo vacío, toasts de una sola acción, criterios cubiertos solo en Vitest, scroll horizontal de 11 px a 1024 px (pregunta 0057) y los casos sin probar en macOS y Linux.

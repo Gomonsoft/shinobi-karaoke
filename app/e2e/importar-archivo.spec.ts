@@ -100,7 +100,9 @@ async function cerrar(app: ElectronApplication): Promise<void> {
 
 const subdirs = (d: string): string[] => (existsSync(d) ? readdirSync(d) : [])
 const canciones = (datos: string): string[] =>
-  subdirs(join(datos, 'biblioteca')).filter((x) => x !== '.importando')
+  subdirs(join(datos, 'biblioteca')).filter(
+    (x) => x !== '.importando' && !x.startsWith('temas.json')
+  )
 const importando = (datos: string): string[] => subdirs(join(datos, 'biblioteca', '.importando'))
 
 async function irAAnadir(v: Page): Promise<void> {

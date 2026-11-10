@@ -489,7 +489,7 @@ export const configParcialRendererSchema = z.strictObject({
     .optional(),
   // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
   // cambian `aceptarYUsarRapido` y `volverACalidad` (0057).
-  estilo_predeterminado: estiloSchema.optional(),
+  // `estilo_predeterminado` (0.1.0) ya no lo escribe el renderer: el predeterminado es un tema (0170).
   // «Agrupar por» de la Biblioteca (ADR 0016 §9): enum estricto, sin `.catch`.
   biblioteca: z.strictObject({ agrupar: z.enum(AGRUPACIONES_BIBLIOTECA) }).optional(),
   aviso_youtube_aceptado: z.iso.datetime().nullable().optional(),
