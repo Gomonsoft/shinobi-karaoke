@@ -709,7 +709,10 @@ describe('registrarIpc', () => {
       remitenteValido: (e) => e === 'mio',
       difundir
     })
-    expect(manejadores.size).toBe(Object.keys(CONTRATO).length)
+    // Los canales de la fase 4 (pantallas, sesión y cola) no tienen manejador hasta 0181.
+    expect(manejadores.size).toBe(
+      Object.keys(CONTRATO).filter((c) => !/^(pantallas|sesion|cola):/.test(c)).length
+    )
     expect(await manejadores.get(CANALES.sistema.info)?.('ajeno')).toMatchObject({ ok: false })
     expect(await manejadores.get(CANALES.sistema.info)?.('mio')).toMatchObject({ ok: true })
 

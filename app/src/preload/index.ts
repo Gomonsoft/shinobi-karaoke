@@ -57,6 +57,33 @@ const api: ApiShinobi = {
     evitarReposo: (activo) => invocar(CANALES.ventana.evitarReposo, activo),
     alCambiarPantallaCompleta: (cb) => suscribir(CANALES.eventos.pantallaCompleta, cb)
   },
+  pantallas: {
+    listar: () => invocar(CANALES.pantallas.listar)
+  },
+  sesion: {
+    estado: () => invocar(CANALES.sesion.estado),
+    abrir: (peticion) => invocar(CANALES.sesion.abrir, peticion),
+    mostrar: () => invocar(CANALES.sesion.mostrar),
+    moverAPantalla: (pantallaId) => invocar(CANALES.sesion.moverAPantalla, { pantallaId }),
+    fijarPantallaCompleta: (activa) => invocar(CANALES.sesion.fijarPantallaCompleta, activa),
+    transporte: (accion, entradaId) => invocar(CANALES.sesion.transporte, { accion, entradaId }),
+    siguiente: (desdeEntradaId) => invocar(CANALES.sesion.siguiente, { desdeEntradaId }),
+    empezar: (candidataId) => invocar(CANALES.sesion.empezar, { candidataId }),
+    detenerTransicion: (transicionId) =>
+      invocar(CANALES.sesion.detenerTransicion, { transicionId }),
+    repetir: (entradaId) => invocar(CANALES.sesion.repetir, { entradaId }),
+    forzarCierre: () => invocar(CANALES.sesion.forzarCierre),
+    solicitarCierre: () => invocar(CANALES.sesion.solicitarCierre),
+    confirmarCierre: (cola, revision) =>
+      invocar(CANALES.sesion.confirmarCierre, { cola, revision }),
+    cancelarCierre: () => invocar(CANALES.sesion.cancelarCierre)
+  },
+  cola: {
+    agregar: (cancionId, donde) => invocar(CANALES.cola.agregar, { cancionId, donde }),
+    mover: (entradaId, antesDe) => invocar(CANALES.cola.mover, { entradaId, antesDe }),
+    quitar: (entradaId) => invocar(CANALES.cola.quitar, { entradaId }),
+    vaciar: (contexto) => invocar(CANALES.cola.vaciar, { contexto })
+  },
   trabajos: {
     listar: () => invocar(CANALES.trabajos.listar),
     cancelar: (id) => invocar(CANALES.trabajos.cancelar, id),
@@ -142,6 +169,9 @@ const api: ApiShinobi = {
   alCambiarCancion: (cb) => suscribir(CANALES.eventos.cancion, cb),
   alCambiarConfig: (cb) => suscribir(CANALES.eventos.config, cb),
   alCambiarTemas: (cb) => suscribir(CANALES.eventos.temasCambiado, cb),
+  alCambiarSesion: (cb) => suscribir(CANALES.eventos.sesionEstado, cb),
+  alPosicionSesion: (cb) => suscribir(CANALES.eventos.sesionPosicion, cb),
+  alCambiarPantallas: (cb) => suscribir(CANALES.eventos.pantallasCambiadas, cb),
   alCambiarEstadoInfo: (cb) => suscribir(CANALES.eventos.estadoInfo, cb),
   alAccionMenu: (cb) => suscribir(CANALES.eventos.menu, cb),
   rutaDeArchivo: (archivo) => webUtils.getPathForFile(archivo)

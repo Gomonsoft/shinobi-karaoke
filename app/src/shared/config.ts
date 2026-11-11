@@ -62,15 +62,62 @@ const separacionSchema = z
 export const VOLUMEN_VOZ_PREDETERMINADO = 0.3
 export const VOZ_SILENCIADA_PREDETERMINADA = true
 
-const reproductorSchema = z
+/** Duración de la cuenta entre canciones (ADR 0006, rev. fase 4): entero de 1 a 30 s, 4 por defecto. */
+export const TRANSICION_S = { min: 1, max: 30, defecto: 4 } as const
+
+/** Última pantalla elegida para la ventana secundaria (ADR 0006, rev. fase 4); solo la escribe main. */
+export const pantallaSecundariaGuardadaSchema = z.object({
+  id: z.number().int(),
+  etiqueta: z.string().max(200),
+  ancho: z.number().int().positive(),
+  alto: z.number().int().positive()
+})
+
+const secundariaSchema = z
   .object({
-    volumen: z.number().min(0).max(1).default(0.8),
-    silenciado: z.boolean().default(false),
-    /** Volumen propio de la voz guía, aplicado antes del volumen general. */
-    voz_guia: z.number().min(0).max(1).default(VOLUMEN_VOZ_PREDETERMINADO),
-    voz_guia_silenciada: z.boolean().default(VOZ_SILENCIADA_PREDETERMINADA)
+    pantalla: pantallaSecundariaGuardadaSchema,
+    pantalla_completa: z.boolean()
   })
-  .prefault({})
+  .nullable()
+  .catch(null)
+
+/** Campos de volumen y voz guía: los únicos que escribe la secundaria (`sesion.guardarPreferencias`). */
+const camposPreferenciasSecundaria = {
+  volumen: z.number().min(0).max(1),
+  silenciado: z.boolean(),
+  voz_guia: z.number().min(0).max(1),
+  voz_guia_silenciada: z.boolean()
+}
+
+/** Parcial estricto de la secundaria: sin `transicion_s` ni `secundaria` (ADR 0017 §10). */
+export const preferenciasSecundariaSchema = z.strictObject({
+  volumen: camposPreferenciasSecundaria.volumen.optional(),
+  silenciado: camposPreferenciasSecundaria.silenciado.optional(),
+  voz_guia: camposPreferenciasSecundaria.voz_guia.optional(),
+  voz_guia_silenciada: camposPreferenciasSecundaria.voz_guia_silenciada.optional()
+})
+export type PreferenciasSecundaria = z.infer<typeof preferenciasSecundariaSchema>
+
+export const reproductorSchema = z
+  .object({
+    volumen: camposPreferenciasSecundaria.volumen.default(0.8),
+    silenciado: camposPreferenciasSecundaria.silenciado.default(false),
+    /** Volumen propio de la voz guía, aplicado antes del volumen general. */
+    voz_guia: camposPreferenciasSecundaria.voz_guia.default(VOLUMEN_VOZ_PREDETERMINADO),
+    voz_guia_silenciada: camposPreferenciasSecundaria.voz_guia_silenciada.default(
+      VOZ_SILENCIADA_PREDETERMINADA
+    ),
+    /** Cuenta entre canciones de la cola, en segundos; lectura tolerante. */
+    transicion_s: z
+      .number()
+      .int()
+      .min(TRANSICION_S.min)
+      .max(TRANSICION_S.max)
+      .catch(TRANSICION_S.defecto),
+    secundaria: secundariaSchema
+  })
+  .prefault(() => ({ transicion_s: TRANSICION_S.defecto, secundaria: null }))
+export type ConfigReproductor = z.infer<typeof reproductorSchema>
 
 /** Objeto cuyo valor, si no es un objeto, se lee como `{}` (cada hoja toma su defecto). */
 function objetoTolerante<T extends z.ZodRawShape>(forma: T) {

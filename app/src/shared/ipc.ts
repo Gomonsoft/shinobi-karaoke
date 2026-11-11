@@ -6,7 +6,7 @@ import { CODIGOS_ERROR } from './errores'
 import { estiloSchema } from './estilo'
 import { claveTexto } from './identidad'
 import { nombreTemaSchema, type Procedencia } from './temas'
-import { AGRUPACIONES_BIBLIOTECA, configSchema } from './config'
+import { AGRUPACIONES_BIBLIOTECA, TRANSICION_S, configSchema, reproductorSchema } from './config'
 import { LIMITES_PANELES } from './paneles'
 import { MODELOS_SEPARACION, perfilSchema, plataformaSchema } from './manifiesto'
 import {
@@ -16,6 +16,43 @@ import {
   detalleSeparandoSchema
 } from './protocolo'
 import { intentoSchema } from './separacion'
+import {
+  abrirSesionSchema,
+  agregarColaResSchema,
+  agregarColaSchema,
+  confirmarCierreSesionSchema,
+  detenerTransicionSchema,
+  empezarSesionSchema,
+  estadoDelRolSchema,
+  estadoSesionIpcSchema,
+  idCancionSchema,
+  informeAplicadoSchema,
+  informeSecundariaIpcSchema,
+  listaPantallasIpcSchema,
+  moverAPantallaSchema,
+  moverColaSchema,
+  quitarColaResSchema,
+  quitarColaSchema,
+  repetirSesionSchema,
+  sesionInicialSchema,
+  siguienteSesionSchema,
+  transporteSesionSchema,
+  vaciarColaSchema,
+  type AbrirSesion,
+  type ComandoSecundariaIpc,
+  type DondeAgregar,
+  type EstadoSecundariaIpc,
+  type EstadoSesionIpc,
+  type InformeSecundariaIpc,
+  type ListaPantallasIpc,
+  type PosicionSesionIpc,
+  type SesionInicialIpc
+} from './sesion'
+import {
+  preferenciasSecundariaSchema,
+  type ConfigReproductor,
+  type PreferenciasSecundaria
+} from './config'
 import {
   archivoLetraLeidoSchema,
   busquedaLetraSchema,
@@ -41,7 +78,7 @@ export { CANALES } from './canales'
 
 // --- Esquemas de datos ---------------------------------------------------
 
-export const idCancionSchema = z.string().min(1).max(200)
+export { idCancionSchema }
 
 const idSesionEdicionSchema = z.uuid()
 const edicionLetraSchema = z.object({ cancion: cancionSchema, sesionId: idSesionEdicionSchema })
@@ -484,7 +521,9 @@ export const configParcialRendererSchema = z.strictObject({
       volumen: z.number().min(0).max(1).optional(),
       silenciado: z.boolean().optional(),
       voz_guia: z.number().min(0).max(1).optional(),
-      voz_guia_silenciada: z.boolean().optional()
+      voz_guia_silenciada: z.boolean().optional(),
+      // Cuenta entre canciones (ADR 0006, rev. fase 4). `secundaria` solo lo escribe main.
+      transicion_s: z.number().int().min(TRANSICION_S.min).max(TRANSICION_S.max).optional()
     })
     .optional(),
   // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
@@ -872,7 +911,49 @@ export const CONTRATO = {
   [CANALES.letras.leerArchivo]: { args: vacio, res: archivoLetraLeidoSchema },
   [CANALES.app.guardadoPendiente]: { args: z.tuple([z.boolean()]), res: z.void() },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
-  [CANALES.app.salir]: { args: vacio, res: z.void() }
+  [CANALES.app.salir]: { args: vacio, res: z.void() },
+  // --- Fase 4 (ADR 0017 §11) ---
+  [CANALES.pantallas.listar]: { args: vacio, res: listaPantallasIpcSchema },
+  [CANALES.sesion.estado]: { args: vacio, res: estadoSesionIpcSchema },
+  [CANALES.sesion.abrir]: { args: z.tuple([abrirSesionSchema]), res: estadoSesionIpcSchema },
+  [CANALES.sesion.mostrar]: { args: vacio, res: z.void() },
+  [CANALES.sesion.moverAPantalla]: {
+    args: z.tuple([moverAPantallaSchema]),
+    res: estadoSesionIpcSchema
+  },
+  [CANALES.sesion.fijarPantallaCompleta]: { args: unBooleano, res: z.void() },
+  [CANALES.sesion.transporte]: {
+    args: z.tuple([transporteSesionSchema]),
+    res: estadoSesionIpcSchema
+  },
+  [CANALES.sesion.siguiente]: { args: z.tuple([siguienteSesionSchema]), res: estadoDelRolSchema },
+  [CANALES.sesion.empezar]: { args: z.tuple([empezarSesionSchema]), res: estadoDelRolSchema },
+  [CANALES.sesion.detenerTransicion]: {
+    args: z.tuple([detenerTransicionSchema]),
+    res: estadoDelRolSchema
+  },
+  [CANALES.sesion.repetir]: { args: z.tuple([repetirSesionSchema]), res: estadoDelRolSchema },
+  [CANALES.sesion.forzarCierre]: { args: vacio, res: estadoSesionIpcSchema },
+  [CANALES.sesion.solicitarCierre]: { args: vacio, res: estadoDelRolSchema },
+  [CANALES.sesion.confirmarCierre]: {
+    args: z.tuple([confirmarCierreSesionSchema]),
+    res: z.void()
+  },
+  [CANALES.sesion.cancelarCierre]: { args: vacio, res: z.void() },
+  [CANALES.sesion.inicial]: { args: vacio, res: sesionInicialSchema },
+  [CANALES.sesion.informar]: {
+    args: z.tuple([informeSecundariaIpcSchema]),
+    res: informeAplicadoSchema
+  },
+  [CANALES.sesion.preferencias]: { args: vacio, res: reproductorSchema },
+  [CANALES.sesion.guardarPreferencias]: {
+    args: z.tuple([preferenciasSecundariaSchema]),
+    res: reproductorSchema
+  },
+  [CANALES.cola.agregar]: { args: z.tuple([agregarColaSchema]), res: agregarColaResSchema },
+  [CANALES.cola.mover]: { args: z.tuple([moverColaSchema]), res: estadoSesionIpcSchema },
+  [CANALES.cola.quitar]: { args: z.tuple([quitarColaSchema]), res: quitarColaResSchema },
+  [CANALES.cola.vaciar]: { args: z.tuple([vaciarColaSchema]), res: estadoSesionIpcSchema }
 } as const
 
 export type CanalInvocable = keyof typeof CONTRATO
@@ -924,6 +1005,43 @@ export interface ApiShinobi {
     evitarReposo(activo: boolean): Promise<void>
     /** Cambios reales de pantalla completa, incluidos los del sistema. */
     alCambiarPantallaCompleta(cb: (activa: boolean) => void): () => void
+  }
+  /** Pantallas del sistema (ADR 0017 §2). */
+  pantallas: {
+    listar(): Promise<ListaPantallasIpc>
+  }
+  /** Sesión en la ventana secundaria; solo la principal (ADR 0017 §11). */
+  sesion: {
+    estado(): Promise<EstadoSesionIpc>
+    abrir(peticion: AbrirSesion): Promise<EstadoSesionIpc>
+    /** Muestra la secundaria sin robar el foco ni cambiar de pantalla. */
+    mostrar(): Promise<void>
+    moverAPantalla(pantallaId: number): Promise<EstadoSesionIpc>
+    fijarPantallaCompleta(activa: boolean): Promise<void>
+    transporte(
+      accion: 'pausar' | 'reanudar' | 'reiniciar',
+      entradaId: string
+    ): Promise<EstadoSesionIpc>
+    siguiente(desdeEntradaId: string): Promise<EstadoSesionIpc>
+    empezar(candidataId: string): Promise<EstadoSesionIpc>
+    detenerTransicion(transicionId: string): Promise<EstadoSesionIpc>
+    repetir(entradaId: string): Promise<EstadoSesionIpc>
+    /** Destruye la secundaria que no responde, conservando la cola. */
+    forzarCierre(): Promise<EstadoSesionIpc>
+    solicitarCierre(): Promise<EstadoSesionIpc>
+    /** `CONFIRMACION_OBSOLETA` si la revisión cambió. */
+    confirmarCierre(cola: 'eliminar' | 'conservar', revision: number): Promise<void>
+    cancelarCierre(): Promise<void>
+  }
+  /** Cola de reproducción; las entradas se refieren por id (ADR 0017 §6). */
+  cola: {
+    agregar(
+      cancionId: string,
+      donde: DondeAgregar
+    ): Promise<{ estado: EstadoSesionIpc; entradaId: string }>
+    mover(entradaId: string, antesDe: string | null): Promise<EstadoSesionIpc>
+    quitar(entradaId: string): Promise<{ estado: EstadoSesionIpc; antesDe: string | null }>
+    vaciar(contexto: boolean): Promise<EstadoSesionIpc>
   }
   trabajos: {
     /** Trabajos en curso y en cola (los terminados solo llegan por `alCambiar`). */
@@ -1047,6 +1165,11 @@ export interface ApiShinobi {
   alCambiarConfig(cb: (config: Config) => void): () => void
   /** El catálogo de temas cambió (ADR 0016 §9); lleva el catálogo completo. */
   alCambiarTemas(cb: (catalogo: CatalogoIpc) => void): () => void
+  /** Estado de la sesión y la cola; descarta las revisiones menores a la última recibida. */
+  alCambiarSesion(cb: (estado: EstadoSesionIpc) => void): () => void
+  /** Posición de la canción activa, como mucho 1 por segundo. */
+  alPosicionSesion(cb: (posicion: PosicionSesionIpc) => void): () => void
+  alCambiarPantallas(cb: (lista: ListaPantallasIpc) => void): () => void
   /** Estado de una consulta de YouTube que espera una actualización de yt-dlp (0050). */
   alCambiarEstadoInfo(cb: (evento: EventoEstadoInfoIpc) => void): () => void
   /** Acciones del menú nativo de la aplicación (0018): Ctrl/Cmd+N y Ctrl/Cmd+,. */
@@ -1054,3 +1177,37 @@ export interface ApiShinobi {
   /** Ruta en disco de un archivo arrastrado o elegido en la ventana (Electron no expone `File.path`). */
   rutaDeArchivo(archivo: File): string
 }
+
+/**
+ * API de la ventana secundaria (`window.shinobiReproductor`, ADR 0017 §2 y §10). Solo lo que el
+ * reproductor de la sesión necesita: sin biblioteca, temas, configuración ni cola.
+ */
+export interface ApiReproductor {
+  sesion: {
+    /** Al cargar el documento: sesión, último comando y estado reducido. */
+    inicial(): Promise<SesionInicialIpc>
+    informar(informe: InformeSecundariaIpc): Promise<{ aplicado: boolean }>
+    siguiente(desdeEntradaId: string): Promise<EstadoDelRol>
+    empezar(candidataId: string): Promise<EstadoDelRol>
+    detenerTransicion(transicionId: string): Promise<EstadoDelRol>
+    repetir(entradaId: string): Promise<EstadoDelRol>
+    cierre: {
+      solicitar(): Promise<EstadoDelRol>
+      confirmar(cola: 'eliminar' | 'conservar', revision: number): Promise<void>
+      cancelar(): Promise<void>
+    }
+    preferencias(): Promise<ConfigReproductor>
+    guardarPreferencias(parcial: PreferenciasSecundaria): Promise<ConfigReproductor>
+  }
+  ventana: {
+    fijarPantallaCompleta(activa: boolean): Promise<void>
+    estaEnPantallaCompleta(): Promise<boolean>
+    alCambiarPantallaCompleta(cb: (activa: boolean) => void): () => void
+  }
+  alComando(cb: (comando: ComandoSecundariaIpc) => void): () => void
+  alEstado(cb: (estado: EstadoSecundariaIpc) => void): () => void
+  alPreferencias(cb: (preferencias: ConfigReproductor) => void): () => void
+}
+
+/** Respuesta de los canales compartidos: el estado del rol que llama. */
+export type EstadoDelRol = EstadoSesionIpc | EstadoSecundariaIpc

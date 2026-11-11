@@ -227,8 +227,18 @@ export function aErrorIpc(e: unknown): ErrorIpc {
 
 export type ManejadorIpc = (args: unknown[]) => Promise<RespuestaIpc<unknown>>
 
+/**
+ * Canales de la fase 4 (ADR 0017 §11) cuyo manejador llega con 0181. Provisional: 0181 retira esta exclusión.
+ */
+export type CanalDeSesionPendiente = Extract<
+  CanalInvocable,
+  `pantallas:${string}` | `sesion:${string}` | `cola:${string}`
+>
+
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
-export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
+export function crearManejadores(
+  deps: DependenciasIpc
+): Record<Exclude<CanalInvocable, CanalDeSesionPendiente>, ManejadorIpc> {
   const { biblioteca, config, trabajos, fuente, runtime } = deps
   /** Módulo desactivado: los canales de YouTube responden `ARGUMENTOS_NO_VALIDOS`. */
   const youtube = (): YoutubeIpc => {
@@ -490,7 +500,7 @@ export function registrarIpc(
   opciones: OpcionesRegistro
 ): () => void {
   const manejadores = crearManejadores(deps)
-  const canales = Object.keys(manejadores) as CanalInvocable[]
+  const canales = Object.keys(manejadores) as Exclude<CanalInvocable, CanalDeSesionPendiente>[]
   for (const canal of canales) {
     ipc.handle(canal, (evento, ...args) => {
       if (opciones.remitenteValido && !opciones.remitenteValido(evento)) {

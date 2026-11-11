@@ -81,12 +81,73 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 - `vistas/biblioteca/`: 0172 crea `EncabezadoGrupo.tsx` con los huecos `casilla` y `tema`. 0173 y 0174 los rellenan con archivos propios y solo comparten unas líneas de `Biblioteca.tsx`.
 - `vistas/ajustes/` y `navegacion/estado.ts`: 0175.
 
+## Fase 4 · Ventana secundaria y cola
+
+| Tarea | Estado | Depende de | Entrega |
+|---|---|---|---|
+| [0177 · Contratos compartidos](../../tareas/0177-contratos-compartidos-de-sesion-cola-y-roles.md) | Hecha | Fase 3 | `shared/sesion.ts`, canales y `ROLES_POR_CANAL`, contrato IPC, códigos, `config.reproductor.transicion_s`/`secundaria`, `preload/secundaria.ts`, dobles |
+| [0178 · Cola y máquina de sesión](../../tareas/0178-modelo-puro-de-cola-y-maquina-de-sesion.md) | Pendiente | 0177 | `main/sesion/{cola,maquina,proyeccion}.ts` puros: avance, cuenta, eventos tardíos, cierre, reanudación |
+| [0179 · Roles de ventana](../../tareas/0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md) | Pendiente | 0177 | `RegistroVentanas`, remitente por rol y documento, eventos dirigidos, `reproductor.html` y entradas de build |
+| [0180 · Pantallas y ventana secundaria](../../tareas/0180-pantallas-ventana-secundaria-pantalla-completa-y-reposo.md) | Pendiente | 0179 | `ControlPantallaCompleta`, `GestorReposo`, pantallas y Wayland, ventana secundaria, recuperación, dobles de pantallas |
+| [0181 · Servicio de sesión e IPC](../../tareas/0181-servicio-de-sesion-e-ipc-en-main.md) | Pendiente | 0178, 0180 | `ServicioSesion`, revalidación, defensas de edición, silencio y reposo, canales nuevos, cierre de la app |
+| [0182 · Reproductor en la secundaria](../../tareas/0182-reproductor-en-la-ventana-secundaria.md) | Pendiente | 0177, 0179 | Modo `sesion`, S1–S4, cuenta, reanudación, atajos, diálogo de cierre en la secundaria |
+| [0183 · Estado de sesión y bloqueo](../../tareas/0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md) | Pendiente | 0177 | `renderer/src/sesion/`, textos, `edi.bloqueo` en todos los puntos de entrada, indicador de sesión |
+| [0184 · Diálogo de pantallas](../../tareas/0184-dialogo-abrir-el-reproductor-en-otra-pantalla.md) | Pendiente | 0183 | «Abrir el reproductor en otra pantalla», Wayland, errores, cabecera |
+| [0185 · Panel: sesión y cierre](../../tareas/0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md) | Pendiente | 0183, 0184 | Panel, P1–P6, controles, banners de recuperación, `ses.cierre` en la principal |
+| [0186 · Panel: pendientes](../../tareas/0186-panel-de-cola-lista-de-pendientes.md) | Pendiente | 0183 | Lista, reordenar con ratón, teclado y menú, quitar y deshacer, vaciar |
+| [0187 · Tarjetas y menús](../../tareas/0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) | Pendiente | 0183, 0184 | «A la cola», ⋯ de Lista, toasts, línea de cola, bloqueos de la tarjeta |
+| [0188 · Ajustes › Reproductor](../../tareas/0188-ajustes-cuenta-entre-canciones.md) | Pendiente | 0177 | Selector «Cuenta entre canciones» |
+| [0189 · Salir con sesión o cola](../../tareas/0189-salir-de-la-app-con-sesion-o-cola.md) | Pendiente | 0181, 0183 | `ses.salir`, variante con trabajos y variante de macOS |
+| [0190 · Verificación, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Pendiente | 0177–0189 | E2E sin red, capturas, verificación manual en dos pantallas e informe |
+
+**Decisiones.**
+
+- [ADR 0017](../../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md), con la revisión 1 tras las specs y las preguntas, y las revisiones de fase 4 de los ADR [0006](../../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-4), [0008](../../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-4), [0010](../../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-4) y [0011](../../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-4).
+- Specs: [Biblioteca](../../ux/02-biblioteca.md#fase-4-de-020--ventana-secundaria-y-cola), [Editor](../../ux/06-editor.md#fase-4-de-020--ventana-secundaria-y-cola), [Reproductor](../../ux/07-reproductor.md#fase-4-de-020--ventana-secundaria-y-cola), [Ajustes](../../ux/08-ajustes-y-acerca.md#fase-4-de-020--ventana-secundaria-y-cola), [mapa](../../ux/00-mapa-de-vistas.md) y [sistema visual](../../ux/sistema-visual.md).
+- Preguntas respondidas:
+  - [0058](../../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md) (interfaz);
+  - [0059](../../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md): 1B (la pantalla perdida no pausa), 2A (pantalla encendida toda la sesión), **3B (con la cola agotada, añadir arranca la cuenta)** y 4A (confirmar al salir);
+  - [0060](../../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md): 1A (Letra bloqueada) y 2A (sin volumen en el panel);
+  - [0061](../../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) (Wayland).
+- La cuenta acepta enteros de 1 a 30 s, con 4 por defecto, y el selector ofrece 2, 3, 4, 5, 8, 10 y 15 s.
+
+**Paralelismo.**
+
+1. 0177 va primero.
+2. Después pueden avanzar a la vez tres líneas:
+   - **main**: 0178 (puro) en paralelo con 0179 → 0180, y las dos confluyen en 0181;
+   - **secundaria**: 0182, contra la `ApiReproductor` falsa;
+   - **principal**: 0183, y 0188 en paralelo.
+3. Con 0183 integrada:
+   - 0184 → 0185 y 0187;
+   - 0186 en paralelo con 0185, como componente aislado que se monta en su hueco.
+4. 0189 espera a 0181 y 0183.
+5. La integración en Electron de 0182 y 0184–0187 necesita 0181. Hasta entonces, cada una se prueba con dobles.
+6. 0190 cierra la fase.
+
+**Propiedad de archivos.**
+- `shared/{sesion,canales,ipc,errores,config}.ts`, `shared/__fixtures__/sesion.ts` y `preload/`: solo 0177.
+- `main/sesion/{cola,maquina,proyeccion}.ts`: solo 0178.
+- `main/ventana/registro.ts`, `main/seguridad.ts`, `electron.vite.config.ts`, `renderer/reproductor.html` y la parte de registro de `main/ipc/handlers.ts`: 0179.
+- `main/ventana/{pantallaCompleta,reposo,modoReproductor}.ts` y `main/sesion/{pantallas,ventanaSecundaria,pantallasPrueba}.ts`: 0180.
+- `main/sesion/servicio.ts`, el resto de `main/ipc/handlers.ts` y `main/cierre.ts`: 0181.
+- `main/index.ts`: en secuencia 0179 → 0180 (solo la inyección de `GestorReposo`) → 0181.
+- `renderer/src/secundaria/**` (0179 deja el provisional) y `vistas/reproductor/**`: 0182.
+- `renderer/src/sesion/**` (estado, textos de las specs 02 y 06 y diálogo de bloqueo), `App.tsx`, `navegacion/{Marco,reproductor,estado,useAvisosTrabajos}`, y la escucha y el stepper de `vistas/progreso/` y `vistas/anadir/`: 0183.
+- `vistas/biblioteca/sesion/`: 0184.
+- `vistas/biblioteca/cola/**`: 0185, salvo `ListaPendientes.tsx`, `FilaPendiente.tsx` y el arrastre, que son de 0186.
+- `TarjetaCancion.tsx`, `tarjeta.ts`, `DialogosCancion.tsx` y `BarraSeleccion.tsx`: 0187.
+- `Biblioteca.tsx`: 0184 (cabecera), 0185 (colocación del panel y botón «Cola») y 0187 (menú). Son pocas líneas cada una y se integran en ese orden.
+- `vistas/ajustes/`: 0188.
+- `navegacion/{DialogoCierre,textosCierre}`: 0189.
+- `e2e/`: cada tarea puede añadir su propio `*.spec.ts`. 0190 reúne y completa la batería.
+
 ## Fases siguientes
 
 | Fase | Alcance | Desglose |
 |---|---|---|
 | 3 | Temas y agrupación de biblioteca | Desglosada arriba (0163–0176), con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) y [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) |
-| 4 | Ventana secundaria y cola | Al iniciar la fase, con [0048](../../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) |
+| 4 | Ventana secundaria y cola | Desglosada arriba (0177–0190), con [0048](../../preguntas/0048-escucha-editor-durante-evento.md), [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) y [0058](../../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)–[0061](../../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) |
 | 5 | Degradados, comodines y Letra lista | Al iniciar la fase |
 | 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
 

@@ -59,7 +59,9 @@ describe('ServicioConfig', () => {
       volumen: 0.3,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
     expect(c.separacion.modo).toBe('calidad')
   })
@@ -73,7 +75,9 @@ describe('ServicioConfig', () => {
       volumen: 0.8,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
     expect(await readFile(ruta + '.danado', 'utf8')).toBe(invalido)
   })
@@ -85,7 +89,9 @@ describe('ServicioConfig', () => {
       volumen: 0.5,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
     expect(r.separacion.modo).toBe('rapido')
     expect(r.instalacion.estado).toBe('pendiente')
