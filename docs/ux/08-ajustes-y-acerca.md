@@ -5,6 +5,7 @@
 - Restricciones: [arquitectura.md "Restricciones e implicaciones para UX" §7](../arquitectura.md)
 - Preguntas respondidas: [0003](../preguntas/0003-elegir-calidad-o-rapidez-separacion.md) (sustituida en parte), [0019](../preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md) (sin elección de modo: sección informativa y "Volver a Calidad"), [0047](../preguntas/0047-temas-asignados-edicion-y-borrado.md) (tema predeterminado y borrado de temas)
 - 0.2.0, fase 3 (2026-11-09): sección «Temas» con el tema predeterminado y la gestión del catálogo; «Volver» regresa a la vista de origen. Ver [Fase 3 · Temas y biblioteca](#fase-3-de-020--temas-y-biblioteca). Respondidas: [0052](../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) (A1, B1, C1) y [0055](../preguntas/0055-textos-de-predeterminado-anterior-y-ajustes-de-la-fase-3.md) (textos de «Tema predeterminado anterior», aviso de referencias que faltan).
+- 0.2.0, fase 4 (2026-11-11): sección «Reproductor» con la duración de la cuenta entre canciones de la cola ([0049](../preguntas/0049-politica-cola-de-reproduccion.md): configurable, 4 s por defecto). Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola).
 
 ## Objetivo
 Una vista mínima para: (1) ver **con qué modelo se separa la voz** y, solo si se usa el modelo Rápido, **volver al modelo Calidad** (decisión del usuario, 0019: no se puede elegir modo; Rápido solo se ofrece tras un fallo de Calidad, specs 01 y 04); (2) consultar **Acerca de / Licencias** (obligatorio: GPL-3.0 y créditos de terceros) y releer el aviso de YouTube. Nada más en el MVP.
@@ -290,3 +291,51 @@ Orden de secciones: Separación de voz · **Temas** · Acerca de.
 - A13. (B1) Con «Noche ninja» como predeterminado y 3 canciones que lo siguen (una de YouTube), elegir «Ninguno…» muestra `aj.temas.dialogo.ninguno` con 3 canciones y foco en «Cancelar»; al confirmar, ninguna cambia de aspecto ni de portada, su procedencia pasa a «Tema predeterminado anterior» (editor) y «predeterminado anterior» (tarjeta), y una canción nueva recibe un tema al azar. Editar después «Noche ninja» cambia esas 3 canciones.
 - A14. (A1 y C1) Con «Noche ninja» como predeterminado, elegir «Neón» cambia las canciones que lo seguían; las que tienen un tema al azar, «Tema predeterminado anterior» o el estilo incluido fijado no cambian y no se cuentan en el diálogo. Desde «Ninguno…», elegir un tema muestra la variante «sin anterior» si hay canciones con estilo incluido sin base, y se aplica sin diálogo si no hay ninguna.
 - A15. Con un fallo simulado en la segunda de cuatro canciones al quitar el predeterminado, el diálogo muestra `aj.temas.ninguno.parcial` con «Faltan 3 canciones» y el título de la segunda; la lista tiene 3 filas (la segunda con ✕ y [Copiar detalles]; la tercera y la cuarta con «Pendiente» en `texto-3` y sin [Copiar detalles]), la nota `tema.parcial.notaPendientes` y el foco en [Reintentar]; el selector sigue en «Noche ninja», ninguna canción cambia de aspecto y la primera ya muestra «Tema predeterminado anterior»; [Reintentar] confirma solo las 3 que faltan y termina con el selector en «Ninguno…». Con más de 5 canciones se ve `aj.temas.ninguno.progreso` avanzando.
+
+## Fase 4 de 0.2.0 — ventana secundaria y cola
+
+Origen: [plan, fase 4, feature 11](../versiones/0.2.0/plan-2.md#11-cola--m) y [0049](../preguntas/0049-politica-cola-de-reproduccion.md) («contador en el centro y animado con tiempo configurable, por defecto 4 segundos»). Cómo se ve la cuenta: [07 · Fase 4, «Cuenta entre canciones»](07-reproductor.md#cuenta-entre-canciones-s1). Esta sección **amplía** la vista con una sección nueva; lo demás no cambia.
+
+Orden de secciones: Separación de voz · Temas · **Reproductor** · Acerca de.
+
+### Wireframe
+```
+│  Reproductor                                                             │  h2
+│                                                                          │
+│  Cuenta entre canciones                                                  │  etiqueta
+│  [ 4 s (predeterminado)  ▾ ]                                             │  selector (2 · 3 · 4 · 5 · 8 · 10 · 15 s)
+│  Cuando termina una canción y hay otra en la cola, la pantalla del       │
+│  reproductor cuenta estos segundos antes de empezarla.                   │  ayuda (t-pequeno, texto-3)
+```
+
+### Componentes e interacciones
+| Elemento | Comportamiento |
+|---|---|
+| **Cuenta entre canciones** | Selector (no campo numérico: menos errores y valores que se distinguen) con 2 s · 3 s · 4 s (predeterminado) · 5 s · 8 s · 10 s · 15 s. Se guarda al elegir en `config.reproductor.transicion_s` con `config.actualizar` ([ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §12) y persiste entre reinicios. Un valor válido del esquema (1–30) que no está en la lista (archivo editado a mano) se añade como opción extra «{n} s» y se respeta; un valor no válido se muestra y usa como 4 s. Sin acciones de confirmación ni toast de éxito: el valor elegido queda visible. |
+| Efecto durante una sesión | Se aplica a la **siguiente** cuenta que empiece. Una cuenta en marcha no cambia (tampoco si se reinicia por cambio de candidata: usa la duración con que empezó). |
+| Fallo al guardar | El selector vuelve al valor anterior y aparece el toast `aj.rep.toast.error` con [Copiar detalles]. |
+| Teclado | Selector nativo accesible; foco y Esc como el resto de la vista. |
+
+No hay otros ajustes del reproductor en Ajustes: la pantalla y la pantalla completa se recuerdan desde el diálogo de apertura (spec 02), y el volumen y la voz guía desde el propio reproductor (spec 07). El selector de dispositivo de audio queda como mejora futura de prioridad baja ([0048](../preguntas/0048-escucha-editor-durante-evento.md)).
+
+### Estados
+| Estado | Presentación |
+|---|---|
+| Normal | Wireframe con el valor guardado. |
+| Sin valor guardado | 4 s (predeterminado). |
+| Error al guardar | Valor anterior + toast. |
+
+### Microcopy (fase 4, Ajustes)
+| Clave | Texto |
+|---|---|
+| `aj.rep.titulo` | Reproductor |
+| `aj.rep.cuenta` | Cuenta entre canciones |
+| `aj.rep.cuenta.opcion` | {n} s · (4) 4 s (predeterminado) |
+| `aj.rep.cuenta.ayuda` | Cuando termina una canción y hay otra en la cola, la pantalla del reproductor cuenta estos segundos antes de empezarla. |
+| `aj.rep.toast.error` | No se pudo guardar el ajuste. — [Copiar detalles] |
+
+### Criterios de aceptación de la fase 4 (Ajustes)
+- AR1. Ajustes muestra la sección «Reproductor» entre «Temas» y «Acerca de» con el selector «Cuenta entre canciones» en 4 s por defecto; la etiqueta y la ayuda están asociadas al selector (`aria-describedby`).
+- AR2. Elegir 10 s persiste al salir, al volver y al reiniciar; la siguiente cuenta de la secundaria dura 10 s. Cambiarlo durante una cuenta no altera la que está en marcha.
+- AR3. Con un fallo de escritura simulado, el selector vuelve al valor anterior y aparece `aj.rep.toast.error`.
+- AR4. Captura `docs/ux/revision-fase-4/ajustes-1280x800-100-reproductor.png`.

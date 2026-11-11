@@ -129,3 +129,19 @@ Restricciones: ADR 0008 (IPC mínima, validada con Zod y con el remitente compro
 - Esc y pantalla completa HTML en Electron: https://github.com/electron/electron/issues/40342 , https://github.com/electron/electron/issues/40365
 - `Element.requestFullscreen` y activación de usuario (MDN): https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 - `AudioBufferSourceNode.start(when, offset)`, programación con el reloj del `AudioContext` (MDN): https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/start
+
+## Revisión para 0.2.0 — fase 4
+
+Reproductor en la ventana secundaria y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md).
+
+- **§1 Pantalla completa.** De `ControlModoReproductor` sale un `ControlPantallaCompleta` por ventana, que guarda el estado deseado, lo reaplica tras las transiciones asíncronas de macOS y difunde los cambios reales. La principal conserva el envoltorio actual, que restaura el estado previo y desactiva el zoom. La secundaria usa el control base sin restauración, en la pantalla que elige el usuario (ADR 0017 §2). El doble `SHINOBI_PANTALLA_COMPLETA_SIMULADA` pasa a aplicarse por ventana.
+- **§2 Pantalla encendida.** Hay un único `GestorReposo` con titulares. El reproductor local mantiene esta regla: retiene solo mientras suena. La sesión en vivo retiene durante toda su vida, también en pausa y entre canciones, y libera al terminar por cualquier causa (ADR 0017 §4). `ventana.evitarReposo` sigue siendo solo de la principal.
+- **§3 Motor.** No cambia. La secundaria usa el mismo `MotorReproductor` y es el **único** motor de audio durante una sesión. No se precarga la canción siguiente.
+- **§4 Capas.** `Reproductor.tsx` gana `origen: 'sesion'`. En ese modo:
+  - ocupa todo el documento de la secundaria, sin `inert`, sin `aria-modal` y sin retener toasts;
+  - no usa `CuentaFinal`: el fin natural solo se informa a main, que decide la transición, el fin de cola o el error;
+  - pinta la cuenta de transición y la vista previa a partir del restante que envía main;
+  - recibe los comandos de transporte de la principal a través de main.
+
+  Mientras haya una sesión no se abren las capas locales: ni «Reproducir» de la Biblioteca ni «Probar a pantalla completa». Main rechaza `ventana.modoReproductor(true)` con `SESION_EN_CURSO`.
+- **§5 Pistas que faltan.** El mismo criterio se aplica en la sesión. Con `no_encontrada`, main llama a `comprobarPistas`. Además revalida la canción y el instrumental cada vez que una entrada de la cola pasa a activa.

@@ -82,3 +82,29 @@ Canales de temas y apariencia ([ADR 0016](0016-catalogo-de-temas-e-identidad-de-
   - `estiloSchema` completo.
 - **Fichas de confirmación**: son opacas, de un solo uso y caducan. Main las guarda en memoria y recalcula el impacto antes de escribir. No autorizan nada por sí solas: main revalida tema, canciones y estado del catálogo.
 - **Fase 4**: con roles de ventana, `temas.*` y `guardarApariencia` solo se aceptan desde la ventana principal.
+
+## Revisión para 0.2.0 — fase 4
+
+Ventana secundaria, sesión en vivo y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md), §1, §2 y §11.
+
+- **Roles de ventana.** Hay dos roles fijos, `principal` y `secundaria`. Main los asigna al crear cada ventana y los guarda por identidad de `webContents` en `RegistroVentanas`. Nunca los toma de la URL ni de un argumento del renderer.
+- **Punto 7 ampliado.** `remitenteIpcValido(evento, canal)` pasa a comprobar:
+  1. que el `webContents` esté registrado;
+  2. que su rol tenga permitido el canal según `ROLES_POR_CANAL`, una tabla en `shared/canales.ts` que cubre **todos** los canales y que un test mantiene completa;
+  3. que el *frame* sea el principal;
+  4. el origen del renderer;
+  5. la ruta del documento del rol: `/index.html` (o `/` en desarrollo) para la principal y `/reproductor.html` para la secundaria.
+
+  Los canales de la secundaria exigen además que el `webContents` sea el de la sesión vigente. El fallo devuelve el mismo error genérico de hoy y no revela el motivo.
+- **Superficie mínima de la secundaria.** Usa una entrada HTML propia (`reproductor.html`, misma CSP) y un preload propio (`preload/secundaria.ts`). Ese preload expone `window.shinobiReproductor` con unos pocos canales (`sesion.inicial`, `sesion.informar`, cierre, preferencias de `reproductor` y pantalla completa de su propia ventana), y no expone `window.shinobi`. Las demás medidas:
+  - `will-navigate` se bloquea siempre, además de la política común del punto 4;
+  - `setMenu(null)` en Windows y Linux;
+  - zoom fijo en 1;
+  - `backgroundThrottling: false`;
+  - `autoplayPolicy` explícito (`no-user-gesture-required`, que ya es el valor por defecto).
+- **Eventos dirigidos.** `difundir` pasa a `enviarA(rol, …)`. La secundaria solo recibe sus comandos de sesión, su estado de pantalla completa y sus preferencias de reproducción. No recibe la biblioteca, ni los trabajos, ni el catálogo.
+- **Medios.** No cambia nada. La secundaria comparte el origen `shinobi-app://app`, así que el CORS exacto del punto 2 la cubre. Recibe datos de la canción sin rutas y construye las URL `shinobi-media://` como el reproductor actual. Se mantiene descartado el token por URL del punto 10.
+- **Permisos.** No cambian. La ventana se pone a pantalla completa y se coloca desde main, así que no se concede `window-management` ni `fullscreen`.
+- **Silencio de la principal.** Durante una sesión, main silencia la principal con `webContents.setAudioMuted(true)` como garantía de un único audio.
+- **Dobles de prueba.** `SHINOBI_PANTALLAS_SIMULADAS` y su puerto de pruebas en main solo existen sin empaquetar, como los demás `SHINOBI_*`.
+- **Nota sobre la fase 3.** La restricción «con roles de ventana, `temas.*` y `guardarApariencia` solo desde la principal» queda aplicada por `ROLES_POR_CANAL`.

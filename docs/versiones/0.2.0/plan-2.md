@@ -10,7 +10,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 2 | Regiones editables, bucle, zoom y picos de voz | Implementada · [informe](informe-fase-2.md) |
 | 2.1 | Estabilización del editor y paneles adaptables | Cerrada · [informe](informe-fase-2.1.md) |
 | 3 | Temas y agrupación de biblioteca | Implementada · [informe](informe-fase-3.md) |
-| 4 | Ventana secundaria y cola | Pendiente |
+| 4 | Ventana secundaria y cola | En curso · [backlog](backlog.md#fase-4--ventana-secundaria-y-cola) |
 | 5 | Degradados, ayudas de espera y Letra lista | Pendiente |
 | 6 | Exportación de video | Pendiente · prueba técnica |
 
@@ -144,7 +144,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Aceptación.** Elegir pantalla y fullscreen, alternar en la secundaria y mantener operable la principal. Recuperarse al desconectar monitor o cerrar la secundaria. La sesión bloquea edición incluso al pausar y entre canciones, y permite editar al cerrarse. Con un editor abierto, se resuelve su guardado antes de iniciar. Main valida payloads y origen, ventana, frame y rol de cada llamada. Sin duplicar audio, rutas de medios por protocolo autorizado y limpieza del bloqueo de reposo al terminar. Verificar en dos pantallas reales.
 
-**ADRs y specs.** ADR nuevo con 11, revisar 0008, 0010 y 0011. [Biblioteca](../../ux/02-biblioteca.md), [Editor](../../ux/06-editor.md), [Reproductor](../../ux/07-reproductor.md) y [Mapa](../../ux/00-mapa-de-vistas.md).
+**ADRs y specs.** [ADR 0017](../../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) (con 11), revisiones de 0006, 0008, 0010 y 0011. Tareas 0177–0190 en el [backlog](backlog.md#fase-4--ventana-secundaria-y-cola). [Biblioteca](../../ux/02-biblioteca.md), [Editor](../../ux/06-editor.md), [Reproductor](../../ux/07-reproductor.md) y [Mapa](../../ux/00-mapa-de-vistas.md).
 
 **Riesgo.** Eventos de sistema tardíos, pérdida de monitor, caída de renderer y permisos excesivos.
 
