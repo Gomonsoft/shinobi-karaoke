@@ -1,6 +1,6 @@
 # 0178 — Modelo puro de la cola y máquina de la sesión
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0177](0177-contratos-compartidos-de-sesion-cola-y-roles.md)
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §5–§8 y §13 (pruebas unitarias), respuestas [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) (3B) y [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)
@@ -71,3 +71,24 @@ Cada punto es al menos una prueba de Vitest con reloj simulado:
 - [ ] Cobertura de líneas de `main/sesion/{cola,maquina,proyeccion}.ts` ≥ 95 %.
 
 ## Notas de implementación
+
+Hecho en `app/src/main/sesion/`: `cola.ts`, `maquina.ts`, `proyeccion.ts`, `index.ts` y pruebas (`cola`, `maquina`, `proyeccion`; 105 pruebas, cobertura de líneas ≥ 99 %). Probar: `npx vitest run --project node src/main/sesion`.
+
+Decisiones de diseño (para 0181):
+- `reducir(estado, evento, ahoraMs)` devuelve `{ estado, efectos, error?, aplicado?, entradaId?, antesDe? }`. Un fallo (`COLA_LLENA`, `ENTRADA_NO_ENCONTRADA`, `CONFIRMACION_OBSOLETA`, `SESION_EN_CURSO`, `SESION_NO_ACTIVA`, `CANCION_EN_REPRODUCCION`) deja el estado intacto. Sin cambio, el estado es la misma referencia.
+- El estado lleva un `Entorno { nuevoId, transicionS }` inyectado. La revisión sube con cada cambio observable (no con la posición ni con operaciones nulas) y añade `difundir`.
+- Los comandos `cargar` salen sin el DTO (solo `entradaId`, `cancionId`, `desdeMs`, `pausada`, `anuncio`) y sin `sesionId`/`revision`: el servicio los completa.
+- Apertura: `abrir` (bloquea edición) → `aceptadaApertura` (pantalla; guarda preferencia) → `documentoListo` (consume según el inicio). `abrir` valida `SESION_EN_CURSO` y `COLA_LLENA`.
+- `revalidada` admite `duracionMs` y `primeraLineaMs` (opcionales), necesarios para la duración y para reanudar desde el principio si la posición es anterior a la primera línea.
+- El cierre sin pendientes y `confirmarCierre` emiten `cerrarVentana`; la sesión termina con el evento `cerrada` (`confirmada` aplica la opción elegida; `forzada`, `caida` y `salida` conservan la cola; `caida` deja la incidencia `secundaria_caida`).
+- `aIpcSecundaria(estado, ahoraMs, estiloDe?)` recibe una función para el estilo vigente de la candidata (por defecto, el predeterminado), porque la máquina no conoce estilos.
+- Eventos de biblioteca: `disponibilidad`, `cancionEliminada` y `titulos`.
+
+Opciones provisionales (no bloqueantes):
+- Fin natural con el cierre pendiente: pasa a `espera` (o `fin_de_cola`), sin cuenta; `cancelarCierre` no la arranca.
+- Activa fallida o aún cargando al conservar: vuelve al frente de las pendientes (con su disponibilidad); si era una reanudación, vuelve a ser contexto reanudable.
+- `abrir` con `cola` y un contexto interrumpido consume la primera pendiente; con contexto terminado, abre en `espera`.
+- Los informes de error de la pista de voz se ignoran (con `aplicado: true`); el código de error de revalidación es `CANCION_NO_DISPONIBLE`.
+- `reanudacion_fallida` no la genera la máquina todavía (0181 puede añadir un evento si lo necesita).
+
+Deuda: ninguna conocida. `ServicioSesion` (0181) debe ejecutar los efectos y alimentar los eventos.
