@@ -1,6 +1,6 @@
 # 0218 — Capturas de revisión de la fase 5
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0211](0211-editor-controles-de-degradado-y-movimiento.md)–[0217](0217-biblioteca-insignia-letra-lista.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)
@@ -24,8 +24,8 @@ Generar las capturas que el diseñador pide para revisar la fase 5, siguiendo el
 
 ## Criterios de aceptación
 
-- [ ] Con `SHINOBI_CAPTURAS_5=1` se generan todas las capturas listadas. Sin la variable, la spec se salta.
-- [ ] Se anota en el inventario de `docs/pruebas.md` como secundaria _opt-in_.
+- [x] Con `SHINOBI_CAPTURAS_5=1` se generan todas las capturas listadas. Sin la variable, la spec se salta.
+- [x] Se anota en el inventario de `docs/pruebas.md` como secundaria _opt-in_.
 
 ## Pruebas de feedback
 
@@ -35,3 +35,9 @@ Generar las capturas que el diseñador pide para revisar la fase 5, siguiendo el
 - Manual: el diseñador revisa las capturas.
 
 ## Notas de implementación
+
+- `app/e2e/fase5-capturas.spec.ts` (opt-in con `SHINOBI_CAPTURAS_5=1`; sin la variable se salta, comprobado). Genera 35 capturas en `docs/ux/revision-0.2.0-fase-5/` (22 de editor, 12 de reproductor, 1 de biblioteca) y su `README.md`. Cada estado es independiente (`intentar`).
+- La carpeta es `revision-0.2.0-fase-5/` (spec F5-1/R14/LB7 y este contrato), no `revision-fase-5/`, que es del MVP.
+- Cómo: `cd app && npm run build && SHINOBI_CAPTURAS_5=1 npx playwright test e2e/fase5-capturas.spec.ts --workers=1` (~4 min).
+- Los estados de silencios necesitan una voz con silencios reales y fines largos; el diálogo y el aplicado los fabrican ellos mismos.
+- Deuda: las capturas del reproductor a 1920 × 1080 salen recortadas en alto (pantalla menor que 1080 en este equipo).
