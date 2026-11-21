@@ -1,6 +1,6 @@
 # 0216 — Reproductor, sesión y «Probar»: modalidad, espera y movimiento
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 5–6
 - Depende de: [0203](0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md), [0213](0213-pantalla-de-letra-fondo-en-movimiento-indicadores-y-sin-barrido.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §2 y §5, [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-5), [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §10
@@ -44,3 +44,11 @@ Conectar la modalidad, la espera y el movimiento con las tres superficies de rep
 - Manual (guía de la fase): que una Letra lista se lea bien sin barrido en una canción rápida, y el movimiento fluido en la secundaria con dos pantallas.
 
 ## Notas de implementación
+
+- **Qué se hizo**:
+  - `Reproductor.tsx`: `CancionReproductor.modalidad?` (por defecto `karaoke`); `barrido` se fija al montar con `useState` (R13: un cambio posterior no afecta a la reproducción en curso). `alAnunciarEspera` escribe `rep.espera.aria` (`R.espera.aria`, en `textos.ts`) en la región `aria-live` existente. La pantalla final deja `--k-fondo` en la fase del último instante (fase 0 con movimiento reducido).
+  - Orígenes de la modalidad: local (`modalidadEfectiva(cancion)` de `obtener` en `ReproductorBiblioteca`), sesión (`activa.entrada.modalidad` en `AppSecundaria`) y «Probar» (`resumen.modalidad` en `Editor.tsx`, una línea; LL8). La vista previa del editor no pasa `barrido` (siempre con barrido, R12).
+  - Secundaria: S1, S2 y S4 ya usaban `variablesEstilo` (= `fondoCss` sin geometría, fase 0), así que no hizo falta `fondoEstatico`; no usan `PantallaLetra`. S3 conserva la fase del último instante: `AppSecundaria` guarda la última posición informada y `PantallaEstadoSesion` pinta `fondoCssEn(fondo, posicionFinalMs)`. El movimiento reducido se lee con `useMovimientoReducido` en la ventana donde se ve.
+- **Pruebas**: `Reproductor.modalidad.test.tsx` (barrido por origen, R13, anuncio de espera) y dos casos nuevos en `AppSecundaria.test.tsx` (R4 y S3).
+- **Manual**: que una Letra lista se lea bien sin barrido en una canción rápida; el movimiento fluido en la secundaria con dos pantallas; R13 completo en la secundaria (Lista ⇄ Letra lista durante la reproducción) va en el E2E de 0219; el anuncio `rep.espera.aria` con un lector de pantalla.
+- **Deuda**: la fase final de la pantalla final local se lee de `motor.posicionMs()` durante el render (es estable tras el fin); sin prueba de captura de píxeles (R1/R12 por captura quedan para 0218/0219).

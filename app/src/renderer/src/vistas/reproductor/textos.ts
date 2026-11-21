@@ -54,6 +54,11 @@ export const R = {
     ventana: 'Ver en una ventana (F)'
   },
   atajos: { titulo: 'Atajos de teclado' },
+  /** Fase 5 (spec 07): `rep.espera.aria`. */
+  espera: {
+    aria: (n: number): string =>
+      n === 1 ? 'La letra sigue en 1 segundo.' : `La letra sigue en ${n} segundos.`
+  },
   /** Fase 4 (spec 07): ventana secundaria y cola. */
   cola: {
     ventana: 'Shinobi Karaoke · Reproductor',

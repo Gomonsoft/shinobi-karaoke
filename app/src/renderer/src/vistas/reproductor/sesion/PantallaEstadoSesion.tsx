@@ -8,7 +8,8 @@ import { Deslizador } from '../../../componentes/Deslizador'
 import estilosComponentes from '../../../componentes/componentes.module.css'
 import { Icono } from '../../../componentes/Icono'
 import { Tooltip } from '../../../componentes/Tooltip'
-import { variablesEstilo } from '../../../karaoke/estiloCss'
+import { fondoCssEn, variablesEstilo } from '../../../karaoke/estiloCss'
+import { useMovimientoReducido } from '../../../karaoke/useMovimientoReducido'
 import type { useVolumenCompartido } from '../../../karaoke/useVolumenCompartido'
 import { accionDeTeclaReproductor } from '../atajos'
 import { DialogoAtajosReproductor } from '../DialogoAtajosReproductor'
@@ -30,6 +31,8 @@ export interface UltimaEntrada {
   titulo: string
   artista: string
   estilo: Estilo
+  /** Posición del último informe de la entrada: S3 conserva la fase del fondo de ese instante. */
+  posicionFinalMs?: number
 }
 
 interface Props {
@@ -176,6 +179,20 @@ export function PantallaEstadoSesion({
 
   const estiloFondo = candidata?.estilo ?? (enFin ? ultima?.estilo : undefined)
   const conFondo = !enFallo && estiloFondo !== undefined
+  const reducido = useMovimientoReducido()
+  // S1, S2 y S4: fase 0 (`variablesEstilo`). S3: la fase del último instante de la última canción.
+  const variablesFondo = estiloFondo
+    ? {
+        ...variablesEstilo(estiloFondo),
+        ...(enFin && !candidata && ultima?.posicionFinalMs !== undefined
+          ? {
+              '--k-fondo': fondoCssEn(estiloFondo.fondo, ultima.posicionFinalMs, {
+                estatico: reducido
+              })
+            }
+          : {})
+      }
+    : undefined
   const retener = (motivo: string, activa: boolean) =>
     visibilidad.current?.fijarRetenida(motivo, activa)
   const franjas = enCuenta || enEspera
@@ -191,7 +208,7 @@ export function PantallaEstadoSesion({
       className={`${estilosSesion.estado} ${conFondo ? estilosSesion.conFondo : ''} ${
         visible ? '' : estilosSesion.sinCursor
       }`}
-      style={estiloFondo ? (variablesEstilo(estiloFondo) as CSSProperties) : undefined}
+      style={variablesFondo as CSSProperties | undefined}
       onPointerMove={() => visibilidad.current?.actividad()}
       onPointerDown={() => visibilidad.current?.actividad()}
     >

@@ -1455,6 +1455,8 @@ function EditorActivo({
             gananciaDb: cancion.fuente.ganancia_db ?? 0,
             letra,
             estilo,
+            // LL8: «Probar» muestra lo que verá el público (una Letra lista, sin barrido).
+            modalidad: resumen.modalidad,
             lineasSinSincronizar: 0
           }}
           volumen={volumen}

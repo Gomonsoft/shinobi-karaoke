@@ -66,6 +66,7 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
   const [estado, setEstado] = useState<EstadoSecundariaIpc | null>(null)
   const [activa, setActiva] = useState<Activa | null>(null)
   const [ultima, setUltima] = useState<UltimaEntrada | null>(null)
+  const ultimaPosicion = useRef(0)
   const [pantallaCompleta, setPantallaCompleta] = useState(false)
 
   const sesionId = useRef<string | null>(null)
@@ -137,6 +138,10 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
           break
         case 'fin_de_cola':
         case 'error':
+          if (c.tipo === 'fin_de_cola') {
+            const posicionFinalMs = ultimaPosicion.current
+            setUltima((u) => (u ? { ...u, posicionFinalMs } : u))
+          }
           fijarActiva(null)
           break
       }
@@ -178,6 +183,7 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
       const id = sesionId.current
       if (id === null) return
       if (informe.tipo === 'fin' && activaRef.current?.clave === a.clave) a.terminada = true
+      if ('posicionMs' in informe) ultimaPosicion.current = informe.posicionMs
       const completo: InformeSecundariaIpc = {
         ...informe,
         sesionId: id,
@@ -226,6 +232,7 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
             gananciaDb: activa.entrada.gananciaDb,
             letra: activa.entrada.letra,
             estilo: activa.entrada.estilo,
+            modalidad: activa.entrada.modalidad,
             lineasSinSincronizar: activa.entrada.lineasSinSincronizar
           }}
           origen="sesion"
