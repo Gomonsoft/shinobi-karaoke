@@ -1,6 +1,6 @@
 # 0201 — Contratos de canción, apariencia, configuración e IPC de la fase 5
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, §5 y §7, [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-5), [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md#revisión-para-020--fase-5), [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §10–§11
@@ -58,3 +58,9 @@ Los de «Objetivo» y sus pruebas. Si falta una función de main al compilar, se
 - Manual: nada.
 
 ## Notas de implementación
+
+- **Qué se hizo**: `modalidad`/`modalidadEfectiva`/`MODALIDADES` en `shared/cancion.ts`; `reemplazosSchema` y su regla `propio` en `aparienciaSchema`; `motivosParaNoEstarLetraLista`, `puedeMarcarseLetraLista` y `FIN_NO_VALIDO` en `derivados.ts`; `editor.omitir_aviso_letra_lista` (tolerante en `configSchema`, estricto y opcional en `configParcialRendererSchema`; `editor.paneles` pasa a opcional en el parcial para poder escribir solo el aviso); `marcarLista(id, opciones?)` (`opcionesMarcarListaSchema`), `reemplazos` en `seleccionAparienciaSchema` (modos `tema` y `heredar`), `modalidad` y `apariencia.procedenciaEspera` en el resumen, `procedenciaEspera` en `resuelta`; `modalidad` en `entradaCargarIpcSchema` (sesión); preload reenvía `opciones`.
+- **Dobles**: `shared/__fixtures__/fase5.ts` (`resumenDePrueba`, `entradaCargarDePrueba`). Se ajustaron los dobles existentes del renderer (`resumenPrueba.ts`, `fixturesApi.ts` de editor y letra, `AppSecundaria.test.tsx`) solo con los valores por defecto para que compile.
+- **Stubs para 0202/0203**: `main/biblioteca/resumen.ts` pone `procedenciaEspera = procedencia` (provisional, lo sustituye 0202). `modalidad` del resumen y de la entrada de sesión ya usa `modalidadEfectiva` (0203 solo añade pruebas). `ServicioBiblioteca.marcarLista` aún ignora `opciones` (0203): el manejador del IPC no se ha tocado.
+- **Pruebas**: `shared/fase5.test.ts` (modalidad, reemplazos, motivos, config, contrato IPC y dobles).
+- **Deuda**: ninguna.

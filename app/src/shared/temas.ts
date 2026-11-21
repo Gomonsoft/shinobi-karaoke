@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { esperaSchema } from './espera'
 import { ESTILO_PREDETERMINADO, estiloSchema, normalizarEstilo, type Estilo } from './estilo'
 import {
   claveAlbum,
@@ -240,14 +241,26 @@ export type BaseApariencia = z.infer<typeof baseAparienciaSchema>
  * Con `propio`, el `estilo` de la canción es la autoridad; con `tema`/`heredar`, es la instantánea de
  * respaldo. `tema_id` solo y obligatorio con `modo: "tema"` (`null` se tolera como ausente).
  */
+export const reemplazosSchema = z.strictObject({ espera: esperaSchema.optional() })
+export type Reemplazos = z.infer<typeof reemplazosSchema>
+
 export const aparienciaSchema = z
   .object({
     modo: z.enum(['propio', 'tema', 'heredar']),
     tema_id: z.uuid().nullable().optional(),
     base: baseAparienciaSchema.optional(),
-    tema_nombre: nombreTemaSchema.optional()
+    tema_nombre: nombreTemaSchema.optional(),
+    /** Lista blanca (ADR 0018 §3): solo `espera`, y solo con `tema` o `heredar`. */
+    reemplazos: reemplazosSchema.optional()
   })
   .superRefine((a, ctx) => {
+    if (a.modo === 'propio' && a.reemplazos !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['reemplazos'],
+        message: 'reemplazos no es válido con modo "propio"'
+      })
+    }
     const tiene = a.tema_id != null
     if (a.modo === 'tema' && !tiene) {
       ctx.addIssue({ code: 'custom', path: ['tema_id'], message: 'Falta tema_id con modo "tema"' })

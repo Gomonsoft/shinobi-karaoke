@@ -32,7 +32,7 @@ const api: ApiShinobi = {
       invocar(CANALES.biblioteca.actualizarMetadatos, id, metadatos),
     guardarApariencia: (id, seleccion) =>
       invocar(CANALES.biblioteca.guardarApariencia, id, seleccion),
-    marcarLista: (id) => invocar(CANALES.biblioteca.marcarLista, id),
+    marcarLista: (id, opciones) => invocar(CANALES.biblioteca.marcarLista, id, opciones),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),

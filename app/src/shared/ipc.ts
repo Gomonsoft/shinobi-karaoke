@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { CANALES } from './canales'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
-import { cancionSchema, ESTADOS_PASO, NOMBRES_PASO } from './cancion'
+import { cancionSchema, ESTADOS_PASO, MODALIDADES, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
 import { estiloSchema } from './estilo'
 import { claveTexto } from './identidad'
+import { esperaSchema } from './espera'
 import { nombreTemaSchema, type Procedencia } from './temas'
 import { AGRUPACIONES_BIBLIOTECA, TRANSICION_S, configSchema, reproductorSchema } from './config'
 import { LIMITES_PANELES } from './paneles'
@@ -191,7 +192,9 @@ export const aparienciaResumenSchema = z.object({
   temaId: temaIdSchema.nullable(),
   temaNombre: z.string().nullable(),
   neutra: z.boolean(),
-  alHeredar: destinoHeredarSchema
+  alHeredar: destinoHeredarSchema,
+  /** De dónde sale la espera: `cancion` si hay reemplazo; si no, la del estilo (ADR 0018 §3). */
+  procedenciaEspera: procedenciaSchema
 })
 export type AparienciaResumenIpc = z.infer<typeof aparienciaResumenSchema>
 
@@ -205,7 +208,8 @@ export const resueltaSchema = z.object({
   procedencia: procedenciaSchema,
   temaId: temaIdSchema.nullable(),
   temaNombre: z.string().nullable(),
-  alHeredar: destinoHeredarSchema
+  alHeredar: destinoHeredarSchema,
+  procedenciaEspera: procedenciaSchema
 })
 export type ResueltaIpc = z.infer<typeof resueltaSchema>
 
@@ -213,10 +217,23 @@ export type ResueltaIpc = z.infer<typeof resueltaSchema>
 export const cancionIpcSchema = cancionSchema.extend({ resuelta: resueltaSchema })
 export type CancionIpc = z.infer<typeof cancionIpcSchema>
 
+/** Ausente conserva los reemplazos, `null` los quita y un objeto los sustituye (ADR 0018 §3). */
+const reemplazosSeleccionSchema = z
+  .strictObject({ espera: esperaSchema.optional() })
+  .nullable()
+  .optional()
+
+export const opcionesMarcarListaSchema = z.strictObject({ modalidad: z.enum(MODALIDADES) })
+export type OpcionesMarcarLista = z.infer<typeof opcionesMarcarListaSchema>
+
 export const seleccionAparienciaSchema = z.discriminatedUnion('modo', [
   z.strictObject({ modo: z.literal('propio'), estilo: estiloSchema }),
-  z.strictObject({ modo: z.literal('tema'), temaId: temaIdSchema }),
-  z.strictObject({ modo: z.literal('heredar') })
+  z.strictObject({
+    modo: z.literal('tema'),
+    temaId: temaIdSchema,
+    reemplazos: reemplazosSeleccionSchema
+  }),
+  z.strictObject({ modo: z.literal('heredar'), reemplazos: reemplazosSeleccionSchema })
 ])
 export type SeleccionApariencia = z.infer<typeof seleccionAparienciaSchema>
 
@@ -416,6 +433,8 @@ export const resumenCancionSchema = z.object({
   artista: z.string(),
   duracionMs: z.number().nullable(),
   estado: z.enum(['borrador', 'lista']),
+  /** Modalidad efectiva (`modalidadEfectiva`): `karaoke` salvo lista con `letra_lista`. */
+  modalidad: z.enum(MODALIDADES),
   modificada: z.string(),
   /**
    * Estilo **resuelto** (ADR 0016 §9). Sigue siendo `nullable` solo para la canción dañada por
@@ -536,42 +555,45 @@ export const configParcialRendererSchema = z.strictObject({
   // Preferencias de paneles del editor (0155): estrictas y sin `.catch`; un valor inválido se rechaza.
   editor: z
     .strictObject({
-      paneles: z.strictObject({
-        lista: z
-          .strictObject({
-            ancho: z
-              .number()
-              .int()
-              .min(LIMITES_PANELES.lista.min)
-              .max(LIMITES_PANELES.lista.max)
-              .optional(),
-            minimizado: z.boolean().optional()
-          })
-          .optional(),
-        panel: z
-          .strictObject({
-            ancho: z
-              .number()
-              .int()
-              .min(LIMITES_PANELES.panel.min)
-              .max(LIMITES_PANELES.panel.max)
-              .optional(),
-            minimizado: z.boolean().optional()
-          })
-          .optional(),
-        linea_tiempo: z
-          .strictObject({
-            alto: z
-              .number()
-              .int()
-              .min(LIMITES_PANELES.linea_tiempo.min)
-              .max(LIMITES_PANELES.linea_tiempo.max)
-              .nullable()
-              .optional(),
-            minimizado: z.boolean().optional()
-          })
-          .optional()
-      })
+      omitir_aviso_letra_lista: z.boolean().optional(),
+      paneles: z
+        .strictObject({
+          lista: z
+            .strictObject({
+              ancho: z
+                .number()
+                .int()
+                .min(LIMITES_PANELES.lista.min)
+                .max(LIMITES_PANELES.lista.max)
+                .optional(),
+              minimizado: z.boolean().optional()
+            })
+            .optional(),
+          panel: z
+            .strictObject({
+              ancho: z
+                .number()
+                .int()
+                .min(LIMITES_PANELES.panel.min)
+                .max(LIMITES_PANELES.panel.max)
+                .optional(),
+              minimizado: z.boolean().optional()
+            })
+            .optional(),
+          linea_tiempo: z
+            .strictObject({
+              alto: z
+                .number()
+                .int()
+                .min(LIMITES_PANELES.linea_tiempo.min)
+                .max(LIMITES_PANELES.linea_tiempo.max)
+                .nullable()
+                .optional(),
+              minimizado: z.boolean().optional()
+            })
+            .optional()
+        })
+        .optional()
     })
     .optional()
 })
@@ -812,7 +834,10 @@ export const CONTRATO = {
   [CANALES.temas.reanudarBorrado]: { args: vacio, res: resultadoOperacionIpcSchema },
   [CANALES.temas.cancelarBorrado]: { args: vacio, res: z.void() },
   [CANALES.temas.descartarAvisoApartado]: { args: vacio, res: z.void() },
-  [CANALES.biblioteca.marcarLista]: { args: unId, res: resumenCancionSchema },
+  [CANALES.biblioteca.marcarLista]: {
+    args: z.tuple([idCancionSchema, opcionesMarcarListaSchema.optional()]),
+    res: resumenCancionSchema
+  },
   [CANALES.biblioteca.volverABorrador]: { args: unId, res: resumenCancionSchema },
   [CANALES.biblioteca.eliminar]: { args: unId, res: z.void() },
   [CANALES.biblioteca.mostrarEnCarpeta]: { args: unId, res: z.void() },
@@ -974,7 +999,7 @@ export interface ApiShinobi {
     /** Escribe al momento (propio, tema o heredar); el debounce lo hace el editor. */
     guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancionIpc>
     /** Pasa a lista si las pistas y la sincronía están completas. */
-    marcarLista(id: string): Promise<ResumenCancionIpc>
+    marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancionIpc>
     /** Vuelve a comprobar las pistas de la canción, que puede pasar a Dañada. */
     comprobarPistas(id: string): Promise<ResumenCancionIpc | null>
     volverABorrador(id: string): Promise<ResumenCancionIpc>

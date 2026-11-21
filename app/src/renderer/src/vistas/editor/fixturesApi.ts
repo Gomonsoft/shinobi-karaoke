@@ -14,6 +14,7 @@ import type {
   ResueltaIpc,
   ResumenCancionIpc
 } from '@shared/ipc'
+import { modalidadEfectiva } from '@shared/cancion'
 import { claveAlbumTexto, claveAlbum, claveArtista } from '@shared/index'
 import { aparienciaResumenPrueba } from '../biblioteca/resumenPrueba'
 import { temasFalsos, type TemasFalsos } from '../biblioteca/temasFalsos'
@@ -145,6 +146,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       artista: cancion.metadatos.artista,
       duracionMs: cancion.metadatos.duracion_ms,
       estado: cancion.estado,
+      modalidad: modalidadEfectiva(cancion),
       modificada: cancion.modificada,
       estilo: structuredClone(cancion.estilo),
       album: cancion.metadatos.album,
@@ -200,7 +202,8 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           procedencia: apariencia.procedencia,
           temaId: apariencia.temaId,
           temaNombre: apariencia.temaNombre,
-          alHeredar: structuredClone(apariencia.alHeredar)
+          alHeredar: structuredClone(apariencia.alHeredar),
+          procedenciaEspera: apariencia.procedenciaEspera
         }
         return { ...structuredClone(cancion), resuelta }
       },

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { preferenciasSecundariaSchema } from './config'
+import { MODALIDADES } from './cancion'
 import { estiloSchema } from './estilo'
 import { letraSchema } from './letra'
 
@@ -218,6 +219,8 @@ export const entradaCargarIpcSchema = z.strictObject({
   gananciaDb: z.number().finite().min(-60).max(60),
   letra: letraSchema,
   estilo: estiloSchema,
+  /** Modalidad efectiva tomada al consumir la entrada (ADR 0018 §5). */
+  modalidad: z.enum(MODALIDADES),
   lineasSinSincronizar: z.int().min(0),
   silencioPrevio: z.boolean()
 })

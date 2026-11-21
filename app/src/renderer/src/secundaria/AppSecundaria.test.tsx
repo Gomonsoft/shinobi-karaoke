@@ -35,6 +35,7 @@ function entradaCargar(extra: Partial<EntradaCargarIpc> = {}): EntradaCargarIpc 
     gananciaDb: 0,
     letra: letra([linea('l1', 'Luz sobre el río', 2_000)]),
     estilo: estiloPredeterminado(),
+    modalidad: 'karaoke',
     lineasSinSincronizar: 0,
     silencioPrevio: true,
     ...extra
