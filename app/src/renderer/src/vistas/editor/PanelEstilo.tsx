@@ -21,6 +21,7 @@ import { buscarFuente } from '@shared/fuentes'
 import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from './SeccionTema'
 import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
 import { paradasRepartidas } from './estilo/paradas'
+import { SeccionEspera, type ControlEspera } from './estilo/SeccionEspera'
 import { E } from './textos'
 import estilos from './panelEstilo.module.css'
 
@@ -31,6 +32,8 @@ export interface PanelEstiloProps {
   inactivo: boolean
   alCambiar(estilo: Estilo, clave: string, agruparGesto?: boolean): void
   tema: ControlTema
+  /** Sección «Indicadores de espera» (0212); sin él no se muestra. */
+  espera?: ControlEspera
 }
 
 type OrigenColor = 'hex' | 'nativo' | 'sugerido'
@@ -130,7 +133,14 @@ export function PanelEstilo(props: PanelEstiloProps | { estilo?: undefined }) {
   return props.estilo ? <PanelEstiloActivo {...props} /> : null
 }
 
-function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: PanelEstiloProps) {
+function PanelEstiloActivo({
+  estilo,
+  contraste,
+  inactivo,
+  alCambiar,
+  tema,
+  espera
+}: PanelEstiloProps) {
   const id = useId()
   const secuencia = useRef(0)
   const selectorNativo = useRef<{ campo: string; clave: string } | null>(null)
@@ -326,6 +336,7 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
           </section>
         </>
       )}
+      {espera && <SeccionEspera control={espera} inactivo={inactivo} />}
       <div className={estilos.bloque}>
         <div role="status">
           {contraste.nivel === 'aviso' ? (
