@@ -1,14 +1,77 @@
-name: Empaquetado (manual)
+name: Empaquetado y publicación
 
 on:
   workflow_dispatch:
+  push:
+    tags: ['v*']
 
 permissions:
   contents: read
 
+concurrency:
+  group: empaquetado-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  comprobar-version:
+    name: Comprobar versión
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      etiqueta: ${{ steps.version.outputs.etiqueta }}
+      previa: ${{ steps.version.outputs.previa }}
+      version_pep440: ${{ steps.version.outputs.version_pep440 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Comprobar que app y worker dicen la misma versión
+        if: github.ref_type != 'tag'
+        id: version_manual
+        run: node app/scripts/version.mjs comprobar --salida-github
+      - name: Comprobar versión y etiqueta
+        if: github.ref_type == 'tag'
+        id: version_etiqueta
+        env:
+          ETIQUETA_EVENTO: ${{ github.ref_name }}
+        run: node app/scripts/version.mjs comprobar --etiqueta "$ETIQUETA_EVENTO" --salida-github
+      - name: Comprobar que la etiqueta apunta a un commit de main
+        if: github.ref_type == 'tag'
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::El commit de la etiqueta no está en main: fusiona antes de etiquetar."
+            exit 1
+          fi
+      - name: Avisar si la etiqueta de esta versión ya existe
+        if: github.ref_type != 'tag'
+        env:
+          ETIQUETA_PREVISTA: v${{ steps.version_manual.outputs.version }}
+        run: |
+          if [[ -n "$(git ls-remote --tags origin "refs/tags/$ETIQUETA_PREVISTA")" ]]; then
+            echo "**Aviso:** la etiqueta \`$ETIQUETA_PREVISTA\` ya existe en el remoto." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Exponer la versión
+        id: version
+        env:
+          VERSION: ${{ steps.version_manual.outputs.version || steps.version_etiqueta.outputs.version }}
+          ETIQUETA: ${{ steps.version_manual.outputs.etiqueta || steps.version_etiqueta.outputs.etiqueta }}
+          PREVIA: ${{ steps.version_manual.outputs.previa || steps.version_etiqueta.outputs.previa }}
+          PEP440: ${{ steps.version_manual.outputs.version_pep440 || steps.version_etiqueta.outputs.version_pep440 }}
+        run: |
+          {
+            echo "version=$VERSION"
+            echo "etiqueta=$ETIQUETA"
+            echo "previa=$PREVIA"
+            echo "version_pep440=$PEP440"
+          } >> "$GITHUB_OUTPUT"
+
   construir:
     name: Construir (${{ matrix.os }})
+    needs: comprobar-version
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:

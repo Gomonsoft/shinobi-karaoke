@@ -10,7 +10,7 @@ interface Paso {
 }
 
 interface Trabajo {
-  needs?: string
+  needs?: string | string[]
   permissions?: Record<string, string>
   'timeout-minutes'?: number
   steps: Paso[]
@@ -23,17 +23,37 @@ interface Trabajo {
 const flujo = parse(
   readFileSync(new URL('../../.github/workflows/empaquetado.yml', import.meta.url), 'utf8')
 ) as {
-  on: Record<string, unknown>
+  on: { workflow_dispatch: unknown; push: { tags: string[] } }
   permissions: Record<string, string>
+  concurrency: Record<string, unknown>
   jobs: Record<string, Trabajo>
 }
 
 describe('workflow manual de empaquetado', () => {
-  it('solo admite ejecución manual y concede lectura del repositorio', () => {
-    expect(Object.keys(flujo.on)).toEqual(['workflow_dispatch'])
+  it('se dispara a mano o con etiquetas v* y solo publicar escribe', () => {
+    expect(Object.keys(flujo.on).sort()).toEqual(['push', 'workflow_dispatch'])
+    expect(flujo.on.push).toEqual({ tags: ['v*'] })
     expect(flujo.permissions).toEqual({ contents: 'read' })
-    for (const trabajo of Object.values(flujo.jobs)) {
+    expect(flujo.concurrency).toEqual({
+      group: 'empaquetado-${{ github.ref }}',
+      'cancel-in-progress': false
+    })
+    for (const [nombre, trabajo] of Object.entries(flujo.jobs)) {
+      if (nombre === 'publicar') continue
       if (trabajo.permissions) expect(trabajo.permissions).toEqual({ contents: 'read' })
+    }
+  })
+
+  it('comprueba la versión antes de construir y no interpola datos del evento en run', () => {
+    const comprobar = flujo.jobs['comprobar-version']!
+    expect(comprobar['timeout-minutes']).toBe(10)
+    expect(comprobar.steps.some(({ run }) => run?.includes('npm ci'))).toBe(false)
+    expect(flujo.jobs.construir!.needs).toBe('comprobar-version')
+    expect(comprobar.steps.find(({ uses }) => uses?.startsWith('actions/checkout@'))?.with).toEqual(
+      { 'fetch-depth': 0 }
+    )
+    for (const trabajo of Object.values(flujo.jobs)) {
+      for (const { run } of trabajo.steps) expect(run ?? '').not.toContain('${{')
     }
   })
 
