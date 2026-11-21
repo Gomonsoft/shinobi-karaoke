@@ -10,7 +10,7 @@ import {
   type ReactNode
 } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import type { Letra } from '@shared/letra'
+import { tienePalabrasManuales, type Letra } from '@shared/letra'
 import { formatearTiempo, limitesInicio } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { BotonLayout } from './BotonLayout'
@@ -43,6 +43,8 @@ interface Props {
   seleccionar(id: string): void
   /** Doble clic en el cuerpo de una región; `false` si la línea queda fuera del audio. */
   escucharLinea?(id: string): boolean
+  /** Línea abierta en el editor preciso: sin tiradores y con el tooltip `edi.preciso.ocupado`. */
+  ocupadaId?: string | null
   iniciarMarcador(borde: Borde): boolean
   moverMarcador(ms: number): void
   terminarMarcador(confirmar: boolean): void
@@ -151,6 +153,12 @@ function Tirador({
   )
 }
 
+/** Inicios de las palabras hechas a mano salvo el primero: fronteras de 1 px de la región (P19). */
+function fronterasDe(letra: Letra, id: string): number[] {
+  const el = letra.lineas.find((l) => l.id === id)
+  return el && tienePalabrasManuales(el) ? el.palabras!.slice(1).map((p) => p.inicio_ms) : []
+}
+
 export function PistaSincronia({
   letra,
   seleccion,
@@ -162,6 +170,7 @@ export function PistaSincronia({
   buscar,
   seleccionar,
   escucharLinea,
+  ocupadaId = null,
   iniciarMarcador,
   moverMarcador,
   terminarMarcador,
@@ -391,7 +400,7 @@ export function PistaSincronia({
                   data-fin-recortado={visible.finRecortado || undefined}
                   data-resaltada={resaltadas?.has(r.id) || undefined}
                   disabled={inactiva}
-                  title={E.regionTooltip(r.texto)}
+                  title={r.id === ocupadaId ? E.preciso.ocupado : E.regionTooltip(r.texto)}
                   style={{
                     left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
                     width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`
@@ -402,6 +411,18 @@ export function PistaSincronia({
                   }}
                 >
                   {r.texto}
+                  {fronterasDe(letra, r.id).map((ms) => {
+                    const k =
+                      (ms + letra.offset_ms - visible.inicioMs) / (visible.finMs - visible.inicioMs)
+                    return k > 0 && k < 1 ? (
+                      <span
+                        key={ms}
+                        aria-hidden="true"
+                        className={estilos.frontera}
+                        style={{ left: `${100 * k}%` }}
+                      />
+                    ) : null
+                  })}
                 </button>
                 {fuera === r.id && (
                   <span
@@ -418,6 +439,7 @@ export function PistaSincronia({
           {activa &&
             limites &&
             !inactiva &&
+            activa.id !== ocupadaId &&
             (['inicio', 'fin'] as const).map((borde) => {
               const ms = borde === 'inicio' ? activa.real.inicioMs : activa.real.finMs
               if (bordeArrastrado !== borde && (ms < inicioMs || ms > finMs)) return null

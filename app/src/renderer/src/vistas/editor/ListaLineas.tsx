@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleDashed, PanelLeftClose, Play } from 'lucide-react'
-import type { Letra } from '@shared/letra'
+import { CircleDashed, PanelLeftClose, Play, WholeWord } from 'lucide-react'
+import { tienePalabrasManuales, type Letra } from '@shared/letra'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
@@ -21,6 +21,9 @@ interface Props {
   banner?: ReactNode
   /** Minimiza la lista; sin él no hay botón (disposición bajo el mínimo de diseño). */
   minimizar?(): void
+  /** Abre el editor preciso de la línea seleccionada; `motivoPreciso` = por qué no se puede ahora. */
+  abrirPreciso?(): void
+  motivoPreciso?: string
 }
 
 const FILA_PX = 56
@@ -37,7 +40,9 @@ export function ListaLineas({
   escuchar,
   corregir,
   banner,
-  minimizar
+  minimizar,
+  abrirPreciso,
+  motivoPreciso
 }: Props) {
   const lista = useRef<HTMLDivElement>(null)
   const cajaLineas = useRef<HTMLDivElement>(null)
@@ -109,6 +114,21 @@ export function ListaLineas({
         ) : (
           <span className={estilos.completa}>{E.contador(sincronizadas, total)} ✓</span>
         )}
+        {abrirPreciso && (
+          <Tooltip contenido={motivoPreciso ?? E.preciso.abrir}>
+            <button
+              type="button"
+              className={estilos.botonLayout}
+              aria-label={E.preciso.abrir}
+              aria-keyshortcuts="P"
+              aria-disabled={motivoPreciso ? true : undefined}
+              data-abrir-preciso
+              onClick={() => !motivoPreciso && abrirPreciso()}
+            >
+              <Icono icono={WholeWord} />
+            </button>
+          </Tooltip>
+        )}
         {minimizar && (
           <BotonLayout
             icono={PanelLeftClose}
@@ -167,7 +187,7 @@ export function ListaLineas({
                 }}
                 type="button"
                 role="option"
-                aria-label={E.ariaLinea(n, tiempo, el.texto)}
+                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}`}
                 aria-selected={el.id === seleccion}
                 aria-current={sonando || undefined}
                 aria-posinset={n}
@@ -184,6 +204,11 @@ export function ListaLineas({
                 <span className={estilos.textoLinea} title={el.texto}>
                   {el.texto}
                 </span>
+                {tienePalabrasManuales(el) && (
+                  <Tooltip contenido={E.preciso.indicador}>
+                    <Icono icono={WholeWord} tamano={14} />
+                  </Tooltip>
+                )}
                 {!tiempo && (
                   <Tooltip contenido={E.faltaTooltip}>
                     <Icono icono={CircleDashed} tamano={16} />

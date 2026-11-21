@@ -87,6 +87,11 @@ it('S, coma y punto ya no hacen nada; Mayús + L escucha el tramo de la línea',
   ).toBeNull()
 })
 
+it('P abre el editor preciso, salvo en el modo al ritmo', () => {
+  expect(accionDeTecla(tecla('p'), opciones)).toEqual({ tipo: 'abrir_preciso' })
+  expect(accionDeTecla(tecla('p'), { ...opciones, sync: true })).toBeNull()
+})
+
 it('Ctrl/Cmd + E exporta, salvo en un campo de texto', () => {
   expect(accionDeTecla(tecla('e', { ctrlKey: true }), opciones)?.tipo).toBe('exportar')
   expect(accionDeTecla(tecla('e', { metaKey: true }), opciones)?.tipo).toBe('exportar')

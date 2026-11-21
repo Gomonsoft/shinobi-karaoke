@@ -511,3 +511,17 @@
   border-radius: var(--r-pildora);
   background: var(--info);
 }
+
+.indicadorPanel,
+.avisoPanel {
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.indicadorPanel {
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+}
+.panelSincronia .avisoPanel {
+  color: var(--texto-3);
+}

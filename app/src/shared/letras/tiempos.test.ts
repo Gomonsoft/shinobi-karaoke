@@ -7,14 +7,10 @@ import {
   aPeticionTiempos,
   borrarTiempos,
   contador,
-  desplazar,
-  fijarDesplazamiento,
   fijarFin,
   fijarInicio,
-  formatearDesplazamiento,
   formatearTiempo,
   indiceLineaActual,
-  interpretarDesplazamiento,
   interpretarTiempo,
   limitesInicio,
   lineaVecina,
@@ -170,17 +166,9 @@ describe('edición de tiempos', () => {
     expect(r.letra.lineas[1]).not.toHaveProperty('origen_palabras')
   })
 
-  it('aplica el desplazamiento al consultar los tiempos y conserva el original en la petición', () => {
+  it('aplica offset_ms al consultar los tiempos y conserva el original en la petición', () => {
     const l = ejemplo()
-    expect(fijarDesplazamiento(l, -31_000)).toMatchObject({
-      letra: { offset_ms: -30_000 },
-      limite: { tipo: 'desplazamiento' }
-    })
-    expect(desplazar({ ...l, offset_ms: 30_000 }, 100)).toMatchObject({
-      cambiado: false,
-      limite: { tipo: 'desplazamiento' }
-    })
-    const ajustada = desplazar(l, 250).letra
+    const ajustada = { ...l, offset_ms: 250 }
     expect(indiceLineaActual(ajustada, 1249)).toBe(-1)
     expect(indiceLineaActual(ajustada, 5250)).toBe(1)
     expect(aPeticionTiempos('id', ajustada)).toMatchObject({
@@ -234,8 +222,7 @@ describe('edición de tiempos', () => {
         () => ajustarFin(l, id, delta, 30_000),
         () => usarFinAutomatico(l, id),
         () => borrarTiempos(l, id),
-        () => marcarInicioLinea(l, id, ms),
-        () => fijarDesplazamiento(l, ms * 3 - 45_000)
+        () => marcarInicioLinea(l, id, ms)
       ]
       l = operaciones[azar(operaciones.length)]!().letra
       expect(validarInvariantesLetra(l.lineas), `operación ${i}`).toEqual([])
@@ -252,12 +239,5 @@ describe('formato de los campos', () => {
     expect(['1:5', '01:60', '01:05,20', '01:05.123', 'texto'].map(interpretarTiempo)).toEqual(
       Array(5).fill(null)
     )
-  })
-  it('muestra el signo y lee desplazamientos en segundos', () => {
-    expect([250, -100, 0].map(formatearDesplazamiento)).toEqual(['+0,25 s', '−0,10 s', '+0,00 s'])
-    expect(['+0,25', '−1,5', '0.3', '-30'].map(interpretarDesplazamiento)).toEqual([
-      250, -1500, 300, -30_000
-    ])
-    expect(['0.125', '5 s', 'x', ''].map(interpretarDesplazamiento)).toEqual(Array(4).fill(null))
   })
 })

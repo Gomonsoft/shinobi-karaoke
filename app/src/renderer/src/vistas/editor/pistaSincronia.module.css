@@ -265,3 +265,11 @@
   border-inline-start: 2px solid var(--acento-texto);
   pointer-events: none;
 }
+
+.frontera {
+  position: absolute;
+  inset-block: 0;
+  width: 1px;
+  background: var(--texto-3);
+  pointer-events: none;
+}

@@ -26,6 +26,8 @@ interface Opciones {
   /** Primera guarda de salida: el aviso del borrador de tema (`tema.dialogo.salir`). */
   guardaBorrador?: () => Promise<boolean>
   resumenes?: SecuenciaResumen
+  /** Letra con la que arranca la visita (para saber qué textos cambian). */
+  letraInicial?: Letra
 }
 
 export function useGuardadoEditor({
@@ -36,7 +38,8 @@ export function useGuardadoEditor({
   alSalirGuardado,
   borradorPendiente = false,
   guardaBorrador,
-  resumenes
+  resumenes,
+  letraInicial
 }: Opciones) {
   const { registrarGuardaSalida } = useNavegacion()
   const instancia = useRef<GuardadoEditor | null>(null)
@@ -53,6 +56,7 @@ export function useGuardadoEditor({
   const guardaDeBorrador = useEffectEvent(() => guardaBorrador?.() ?? Promise.resolve(true))
   const sincronizarMain = useRef<() => void>(() => undefined)
   const borradorRef = useRef(borradorPendiente)
+  const letraInicialRef = useRef(letraInicial)
 
   useEffect(() => {
     borradorRef.current = borradorPendiente
@@ -83,7 +87,14 @@ export function useGuardadoEditor({
     sincronizarMain.current = avisarMain
     const guardado = new GuardadoEditor({
       cancionId,
+      letraInicial: letraInicialRef.current,
       api: {
+        editarTextoLinea: (peticion) => {
+          const id = sesion()
+          return id
+            ? window.shinobi.letras.editarTextoLinea(peticion, id)
+            : Promise.reject({ codigo: 'LETRA_DESACTUALIZADA', mensaje: 'La visita ha terminado.' })
+        },
         guardarTiempos: (peticion) => {
           const id = sesion()
           return id
@@ -153,6 +164,10 @@ export function useGuardadoEditor({
     (seleccion: SeleccionApariencia) => instancia.current?.cambiarApariencia(seleccion),
     []
   )
+  const sincronizarTextos = useCallback(
+    (letra: Letra) => instancia.current?.sincronizarTextos(letra),
+    []
+  )
   const vaciar = useCallback(() => instancia.current?.vaciar() ?? Promise.resolve(true), [])
 
   function confirmar(salir: boolean) {
@@ -166,6 +181,7 @@ export function useGuardadoEditor({
     cambiarLetra,
     cambiarApariencia,
     vaciar,
+    sincronizarTextos,
     confirmarSinGuardar,
     dialogoSalida: (
       <Dialogo

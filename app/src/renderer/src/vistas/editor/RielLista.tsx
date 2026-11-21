@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, PanelLeftOpen } from 'lucide-react'
+import { ArrowDown, ArrowUp, PanelLeftOpen, WholeWord } from 'lucide-react'
 import type { Letra } from '@shared/letra'
 import { contador, formatearTiempo, numeroDeLinea, tiempoMostrado } from '@shared/letras/tiempos'
 import { Icono } from '../../componentes/Icono'
@@ -19,6 +19,10 @@ interface Props {
   siguiente(): void
   fijarInicio(): void
   expandir(): void
+  abrirPreciso?(): void
+  motivoPreciso?: string
+  /** La línea está abierta en el editor preciso: «I» no está disponible. */
+  ocupada?: boolean
 }
 
 /** Riel de 72 px de la lista de líneas minimizada (spec 06-editor 2.1, «Lista minimizada»). */
@@ -30,7 +34,10 @@ export function RielLista({
   anterior,
   siguiente,
   fijarInicio,
-  expandir
+  expandir,
+  abrirPreciso,
+  motivoPreciso,
+  ocupada = false
 }: Props) {
   const linea = letra.lineas.find((el) => el.id === seleccion && el.tipo === 'linea')
   const { total } = contador(letra)
@@ -111,12 +118,28 @@ export function RielLista({
           className={estilos.botonLayout}
           aria-label={E.layout.riel.fijarInicio}
           aria-keyshortcuts="I"
-          disabled={!linea || sincronizando}
+          disabled={!linea || sincronizando || ocupada}
+          title={ocupada ? E.preciso.ocupado : undefined}
           onClick={fijarInicio}
         >
           I
         </button>
       </Tooltip>
+      {abrirPreciso && (
+        <Tooltip contenido={motivoPreciso ?? E.preciso.abrir}>
+          <button
+            type="button"
+            className={estilos.botonLayout}
+            aria-label={E.preciso.abrir}
+            aria-keyshortcuts="P"
+            aria-disabled={motivoPreciso ? true : undefined}
+            data-abrir-preciso
+            onClick={() => !motivoPreciso && abrirPreciso()}
+          >
+            <Icono icono={WholeWord} />
+          </button>
+        </Tooltip>
+      )}
     </section>
   )
 }

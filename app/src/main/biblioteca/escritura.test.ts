@@ -294,6 +294,19 @@ describe('estado lista / borrador', () => {
     expect((await leerDisco(id)).estado).toBe('lista')
   })
 
+  it('una Lista con líneas sin inicio puede cambiar de modalidad; un borrador incompleto, no', async () => {
+    const s = await servicio()
+    const id = await cancionLista(s)
+    const letra = structuredClone(s.obtener(id)!.letra!)
+    letra.lineas[0]!.inicio_ms = null
+    letra.lineas[0]!.fin_ms = null
+    await s.actualizar(id, { letra })
+    const r = await s.marcarLista(id, { modalidad: 'letra_lista' })
+    expect(r).toMatchObject({ estado: 'lista', modalidad: 'letra_lista' })
+    await s.volverABorrador(id)
+    await expect(s.marcarLista(id)).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+  })
+
   it('volverABorrador cambia solo el estado; actualizar nunca cambia estado', async () => {
     const s = await servicio()
     const id = await cancionLista(s)

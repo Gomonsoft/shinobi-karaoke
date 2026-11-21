@@ -296,3 +296,36 @@ it('edita un fin sin mover la pausa ni la línea vecina y permite deshacerlo', (
     reducirEditor(fijado, { tipo: 'fin_automatico', ahora: 10 }).actual.letra.lineas[0]?.fin_ms
   ).toBeNull()
 })
+
+it('aplicar_preciso escribe texto, límites y palabras en un solo paso y Ctrl+Z lo devuelve todo', () => {
+  const l = letra([linea('a', 'Sol y mar', 1000, { fin_ms: 3000 }), linea('b', 'Otra', 5000)])
+  const inicial = estadoInicial(
+    { letra: l, apariencia: aparienciaPropia(estiloPredeterminado()) },
+    'a'
+  )
+  const e = reducirEditor(inicial, {
+    tipo: 'aplicar_preciso',
+    id: 'a',
+    duracionMs: 30_000,
+    ahora: 0,
+    borrador: {
+      texto: 'Sol y mar azul',
+      inicio_ms: 1000,
+      fin_ms: 3000,
+      quitar: false,
+      palabras: [
+        { texto: 'Sol', inicio_ms: 1000, fin_ms: 1500, marcada: true },
+        { texto: 'y', inicio_ms: 1500, fin_ms: 1800, marcada: true },
+        { texto: 'mar', inicio_ms: 1800, fin_ms: 2400, marcada: true },
+        { texto: 'azul', inicio_ms: 2400, fin_ms: 3000, marcada: true }
+      ]
+    }
+  })
+  expect(e.pasado).toHaveLength(1)
+  expect(e.actual.letra.lineas[0]).toMatchObject({
+    texto: 'Sol y mar azul',
+    origen_palabras: 'manual'
+  })
+  const deshecho = reducirEditor(e, { tipo: 'deshacer' })
+  expect(deshecho.actual.letra).toBe(l)
+})

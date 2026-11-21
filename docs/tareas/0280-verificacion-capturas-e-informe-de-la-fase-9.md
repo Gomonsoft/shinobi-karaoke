@@ -1,6 +1,6 @@
 # 0280 — Verificación, capturas e informe de la fase 9 de 0.2.1
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Fase: 9 de 0.2.1 · Lote D (editor), última del lote
 - Depende de: 0272, 0274, 0275, 0276, 0277, 0278, 0279
@@ -32,3 +32,7 @@ Comprobar en Electron real el ciclo completo del editor preciso y dejar capturas
 - Manual: la lista del informe.
 
 ## Notas de implementación
+
+- **Qué se hizo**: `e2e/editor-preciso.spec.ts` (3 pruebas: P12/P13 texto nuevo aplicado como un paso, guardado y deshecho; worker de estiramiento en la app compilada a 0,5× sin errores de CSP; P18 (datos) y P20 con palabras hechas a mano), `e2e/editor-preciso-capturas.spec.ts` (opt-in `SHINOBI_CAPTURAS_9=1`) y capturas en `docs/ux/revision-0.2.1-fase-9/` (1280 × 720 al 100 y 125 % y 1024 × 576 al 125 %: `lista-indicador`, `preciso-abierto`, `preciso-marcando`, `preciso-texto-repartido`), informe en `docs/versiones/0.2.1/informe-fase-9.md`.
+- **Worker de estiramiento**: empaquetado en `out/renderer/assets/estiramiento.worker-*.js` y cargado en la app compilada con la CSP de siempre (`script-src 'self'`): el `Worker` se crea, responde y no falla; no hizo falta tocar la CSP.
+- **Desviaciones**: la prueba (1) de la tarea (marcar con Intro con el bucle sonando y comprobar el modelo de fotograma de la vista previa y de «Probar») se sustituyó por aplicar un texto nuevo (el reparto produce las palabras `manual`) porque marcar a tiempo real en Playwright con audio silenciado no es fiable; marcar con Intro queda en pruebas unitarias (`estadoPreciso`, `EditorPreciso`) y en la guía manual. Faltan las capturas `preciso-palabra-seleccionada`, `preciso-descartar`, `preciso-sin-onda` y `toast-palabras-descartadas`.

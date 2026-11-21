@@ -9,14 +9,13 @@ import {
   type ElementoLetra,
   type Letra
 } from '../letra'
-import { OFFSET_MAXIMO_MS, type GuardarTiempos } from '../letrasBusqueda'
+import type { GuardarTiempos } from '../letrasBusqueda'
 
 type TipoElemento = ElementoLetra['tipo']
 
 export type Limite =
   | { tipo: 'inicio_anterior' | 'inicio_siguiente'; vecino: TipoElemento }
   | { tipo: 'fin_antes_del_inicio' | 'fin_siguiente' }
-  | { tipo: 'desplazamiento' }
   | { tipo: 'demasiado_pronto' }
 
 export interface ResultadoTiempos {
@@ -196,20 +195,6 @@ export function marcarInicioLinea(
   }
 }
 
-export function fijarDesplazamiento(letra: Letra, offsetMs: number): ResultadoTiempos {
-  const offset_ms = Math.max(-OFFSET_MAXIMO_MS, Math.min(OFFSET_MAXIMO_MS, offsetMs))
-  const cambiado = offset_ms !== letra.offset_ms
-  return resultado(
-    cambiado ? { ...letra, offset_ms } : letra,
-    cambiado,
-    offset_ms === offsetMs ? null : { tipo: 'desplazamiento' }
-  )
-}
-
-export function desplazar(letra: Letra, deltaMs: number): ResultadoTiempos {
-  return fijarDesplazamiento(letra, letra.offset_ms + deltaMs)
-}
-
 export function indiceLineaActual(letra: Letra, tAudioMs: number): number {
   return letra.lineas.findLastIndex(
     ({ tipo, inicio_ms }) =>
@@ -273,15 +258,4 @@ export function interpretarTiempo(texto: string): number | null {
   if (!partes) return null
   const [, minutos, segundos, centesimas = ''] = partes
   return Number(minutos) * 60_000 + Number(segundos) * 1000 + Number(centesimas.padEnd(2, '0')) * 10
-}
-
-export function formatearDesplazamiento(ms: number): string {
-  return `${ms < 0 ? '−' : '+'}${(Math.abs(ms) / 1000).toFixed(2).replace('.', ',')} s`
-}
-
-export function interpretarDesplazamiento(texto: string): number | null {
-  const valor = texto.trim().replace('−', '-').replace(',', '.')
-  if (!/^[+-]?\d+(?:\.\d{1,2})?$/.test(valor)) return null
-  const ms = Math.round(Number(valor) * 1000)
-  return Number.isFinite(ms) ? ms : null
 }

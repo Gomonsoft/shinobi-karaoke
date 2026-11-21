@@ -23,6 +23,24 @@ export const E = {
     intervalo: (inicio: string, fin: string) => `De ${inicio} a ${fin} visibles`
   },
   /** Fase 8 de 0.2.1 (spec 06, 8.6). Claves `edi.funciones.*`. */
+  /** Fase 9 de 0.2.1, lado del editor (spec 06). Claves `edi.preciso.*`. */
+  preciso: {
+    abrir: 'Editor preciso de línea (P)',
+    abrirPuntos: 'Editor preciso de línea… (P)',
+    noSinInicio: 'Fija primero el inicio de esta línea.',
+    noRitmo: 'No disponible mientras sincronizas al ritmo.',
+    ocupado: 'Esta línea está abierta en el editor preciso.',
+    indicador: 'Tiempos por palabra hechos a mano: se resalta palabra a palabra.',
+    indicadorAria: ', con tiempos por palabra',
+    indicadorPanel: 'Tiempos por palabra hechos a mano',
+    avisoDescartar:
+      'Si cambias su inicio o su fin aquí o en la línea de tiempo, se quitarán (podrás deshacerlo).',
+    avisoTirador: 'Moverlo quitará los tiempos por palabra de esta línea.',
+    atajosTitulo: 'Editor preciso de línea',
+    escucharLineaMenu: 'Escuchar la línea (Mayús + L)',
+    escucharDesdeMenu: 'Escuchar desde esta línea (L)',
+    borrarMenu: 'Borrar tiempos de esta línea (Supr)'
+  },
   funciones: {
     nombre: 'Funciones',
     exportar: {

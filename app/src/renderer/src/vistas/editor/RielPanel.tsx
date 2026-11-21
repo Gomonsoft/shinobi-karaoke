@@ -28,6 +28,8 @@ interface Props {
   expandir(): void
   /** Expande el panel en la pestaña «Funciones» (no disponible en el modo al ritmo). */
   abrirFunciones(): void
+  /** La línea está abierta en el editor preciso (`edi.preciso.ocupado`). */
+  ocupada?: boolean
 }
 
 /** Riel de 120 px del panel minimizado (spec 06-editor 2.1, «Panel minimizado»). */
@@ -44,7 +46,8 @@ export function RielPanel({
   avisos,
   editandoTema = false,
   expandir,
-  abrirFunciones
+  abrirFunciones,
+  ocupada = false
 }: Props) {
   const idMotivo = useId()
   const linea = letra.lineas.find((el) => el.id === seleccion && el.tipo === 'linea')
@@ -52,13 +55,21 @@ export function RielPanel({
   const tiempo = (ms: number | null | undefined) =>
     ms == null ? '--:--' : formatearTiempo(tiempoMostrado(ms, letra.offset_ms))
   const fin = linea && !sinInicio ? finEfectivo(letra, linea.id, duracionMs) : null
-  const motivoFin = sincronizando ? E.syncTitulo : sinInicio ? E.finSinInicio : undefined
+  const motivoFin = sincronizando
+    ? E.syncTitulo
+    : ocupada
+      ? E.preciso.ocupado
+      : sinInicio
+        ? E.finSinInicio
+        : undefined
   const motivoCasilla = sincronizando
     ? E.syncTitulo
-    : bucle
-      ? undefined
-      : (motivoBucle ?? undefined)
-  const casillaInactiva = !bucle && (sincronizando || !!motivoBucle || !alternarBucle)
+    : ocupada
+      ? E.preciso.ocupado
+      : bucle
+        ? undefined
+        : (motivoBucle ?? undefined)
+  const casillaInactiva = ocupada || (!bucle && (sincronizando || !!motivoBucle || !alternarBucle))
   const [claveInicial] = useState(limiteFin?.clave)
   const limite = limiteFin && limiteFin.clave !== claveInicial ? limiteFin : undefined
 

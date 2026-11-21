@@ -13,6 +13,7 @@ export type AccionAtajo =
         | 'fijar_fin'
         | 'escuchar_linea'
         | 'escuchar_tramo_linea'
+        | 'abrir_preciso'
         | 'deshacer'
         | 'rehacer'
         | 'probar'
@@ -81,6 +82,7 @@ export function accionDeTecla(
   if (tecla === 'delete' && !sync) return { tipo: 'borrar_tiempos' }
   if (tecla === 'i' && !sync) return { tipo: 'fijar_inicio' }
   if (tecla === 'o' && !sync) return { tipo: 'fijar_fin' }
+  if (tecla === 'p' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'abrir_preciso' }
   if (tecla === 'l' && !sync)
     return { tipo: e.shiftKey ? 'escuchar_tramo_linea' : 'escuchar_linea' }
   const pistas: Record<string, Pista> = { '1': 'original', '2': 'voz', '3': 'instrumental' }

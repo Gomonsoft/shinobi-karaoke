@@ -18,11 +18,30 @@ const ATAJOS = [
   ['I / O', 'Fijar inicio / fin en la posición actual'],
   ['L', E.escucharLinea],
   ['Mayús + L', 'Escuchar la línea seleccionada (de 0,5 s antes a 0,5 s después)'],
+  ['P', 'Abrir el editor preciso de la línea seleccionada'],
+  ['F6 / Mayús + F6', 'Pasar el foco entre el editor preciso y el resto del editor'],
   ['1 / 2 / 3', 'Escuchar Original / Voz / Instrumental'],
   ['Ctrl/Cmd + Z', 'Deshacer'],
   ['Ctrl/Cmd + Mayús + Z (Ctrl + Y)', 'Rehacer'],
   ['Ctrl/Cmd + E', 'Exportar video'],
   ['F1 / ?', E.atajos]
+] as const
+
+const ATAJOS_PRECISO = [
+  ['Espacio', 'Reproducir / pausar el bucle de la línea'],
+  ['Mayús + Espacio', 'Escuchar la palabra seleccionada'],
+  ['Intro', 'Marcar el inicio de la palabra; mantener, marcar también su fin'],
+  ['Retroceso', 'Deshacer la última marca de la pasada'],
+  ['← / → (en la tira)', 'Palabra anterior / siguiente'],
+  ['Alt + ← / →', 'Inicio de la palabra −/+ 10 ms (con Mayús, 100 ms)'],
+  ['Ctrl/Cmd + ← / →', 'Fin de la palabra −/+ 10 ms (con Mayús, 100 ms)'],
+  ['I / O', 'Fijar inicio / fin de la palabra en el cabezal'],
+  ['↑ / ↓', 'Línea anterior / siguiente (aplicando)'],
+  ['1 / 2 / 3', 'Escuchar Original / Voz / Instrumental'],
+  ['Ctrl/Cmd + Z', 'Deshacer en el borrador'],
+  ['Ctrl/Cmd + Intro', 'Aplicar'],
+  ['Esc', 'Cancelar el arrastre o el campo; si no, cerrar aplicando'],
+  ['F6 / Mayús + F6', 'Pasar el foco al editor']
 ] as const
 
 export function DialogoAtajos({ abierto, cerrar }: { abierto: boolean; cerrar: () => void }) {
@@ -43,6 +62,17 @@ export function DialogoAtajos({ abierto, cerrar }: { abierto: boolean; cerrar: (
         </thead>
         <tbody>
           {ATAJOS.map(([tecla, accion]) => (
+            <tr key={tecla}>
+              <th scope="row">{tecla}</th>
+              <td>{accion}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h3>{E.preciso.atajosTitulo}</h3>
+      <table className={estilos.atajos}>
+        <tbody>
+          {ATAJOS_PRECISO.map(([tecla, accion]) => (
             <tr key={tecla}>
               <th scope="row">{tecla}</th>
               <td>{accion}</td>

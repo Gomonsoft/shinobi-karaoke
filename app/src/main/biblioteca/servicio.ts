@@ -6,8 +6,6 @@ import {
   crearIndiceCatalogo,
   estiloPredeterminado,
   migrarCancion,
-  puedeMarcarseLista,
-  puedeMarcarseLetraLista,
   motivosParaNoEstarLista,
   motivosParaNoEstarLetraLista,
   type Apariencia,
@@ -469,15 +467,15 @@ export class ServicioBiblioteca {
   async marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion> {
     const previa = this.exigirCancion(id)
     const letraLista = opciones?.modalidad === 'letra_lista'
-    if (!(letraLista ? puedeMarcarseLetraLista(previa) : puedeMarcarseLista(previa))) {
-      const motivos = (
-        letraLista ? motivosParaNoEstarLetraLista(previa) : motivosParaNoEstarLista(previa)
-      )
-        .map((m) => m.mensaje)
-        .join(' ')
+    // Una canción ya lista puede cambiar de modalidad aunque tenga líneas sin inicio (Lista
+    // incompleta, spec 06 · 8.6): solo se exige lo demás.
+    const motivos = (
+      letraLista ? motivosParaNoEstarLetraLista(previa) : motivosParaNoEstarLista(previa)
+    ).filter((m) => !(previa.estado === 'lista' && m.codigo === 'LINEAS_SIN_INICIO'))
+    if (motivos.length > 0) {
       throw new ErrorBiblioteca(
         'ARGUMENTOS_NO_VALIDOS',
-        `La canción no puede marcarse lista. ${motivos}`
+        `La canción no puede marcarse lista. ${motivos.map((m) => m.mensaje).join(' ')}`
       )
     }
     const marca = this.ahora().toISOString()
