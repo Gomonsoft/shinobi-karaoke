@@ -11,9 +11,11 @@ Software libre y gratuito para crear karaokes: fuente (archivo/YouTube) → sepa
 - `arquitecto` — decisiones tecnológicas (ADRs en `docs/adr/`), arquitectura y tareas.
 - `disenador-ux` — vistas y experiencia de usuario (`docs/ux/`).
 - `programador` — implementa tareas de `docs/tareas/`.
+- `qa` — suite crítica del flujo principal, clasificación de fallos del CI y guías manuales (`docs/Test-manuales/`).
 
 Flujo y formatos: `docs/02-flujo-de-agentes.md`. Los agentes se comunican mediante `docs/preguntas/`; la sesión principal revisa las preguntas con estado `Abierta` y lanza al agente destinatario (o pregunta al usuario si `Para: usuario`).
 
 ## Reglas
 - No elegir tecnologías fuera de los ADRs aceptados.
 - Antes de implementar algo con interfaz, debe existir su spec en `docs/ux/`.
+- Pruebas: solo como feedback para los agentes (`docs/pruebas.md`). Por tarea: typecheck, lint, format:check, `npm run test:cambios`, specs E2E cambiadas y, si toca el flujo principal, `npm run test:e2e:criticos`. La regresión completa es del CI; lo demás va a guías manuales.
