@@ -14,7 +14,6 @@ const tecla = (key: string, modificadores: Partial<KeyboardEvent> = {}) => ({
 it.each([
   [' ', 'reproducir'],
   ['Home', 'principio'],
-  ['s', 'entrar_sync'],
   ['f', 'probar'],
   ['Backspace', 'borrar_tiempos'],
   ['Delete', 'borrar_tiempos'],
@@ -24,8 +23,6 @@ it.each([
   ['i', 'fijar_inicio'],
   ['o', 'fijar_fin'],
   ['l', 'escuchar_linea'],
-  [',', 'desplazar'],
-  ['.', 'desplazar'],
   ['1', 'pista'],
   ['2', 'pista'],
   ['3', 'pista'],
@@ -75,9 +72,19 @@ it('con el foco en un divisor las flechas y Inicio son suyas, pero Espacio y el 
     expect(accionDeTecla(tecla(key, { shiftKey: true }), divisor)).toBeNull()
   }
   expect(accionDeTecla(tecla(' '), divisor)).toEqual({ tipo: 'reproducir' })
-  expect(accionDeTecla(tecla('s'), divisor)).toEqual({ tipo: 'entrar_sync' })
   expect(accionDeTecla(tecla('i'), divisor)).toEqual({ tipo: 'fijar_inicio' })
   expect(accionDeTecla(tecla('Escape'), divisor)).toEqual({ tipo: 'escapar' })
+})
+
+it('S, coma y punto ya no hacen nada; Mayús + L escucha el tramo de la línea', () => {
+  for (const key of ['s', 'S', ',', '.']) expect(accionDeTecla(tecla(key), opciones)).toBeNull()
+  expect(accionDeTecla(tecla('L', { shiftKey: true }), opciones)).toEqual({
+    tipo: 'escuchar_tramo_linea'
+  })
+  expect(accionDeTecla(tecla('L', { shiftKey: true }), { ...opciones, sync: true })).toBeNull()
+  expect(
+    accionDeTecla(tecla('L', { shiftKey: true }), { ...opciones, enCampoTexto: true })
+  ).toBeNull()
 })
 
 it('Ctrl/Cmd + E exporta, salvo en un campo de texto', () => {

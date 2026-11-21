@@ -149,6 +149,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       estado: cancion.estado,
       modalidad: modalidadEfectiva(cancion),
       modificada: cancion.modificada,
+      creada: cancion.creada,
       estilo: structuredClone(cancion.estilo),
       album: cancion.metadatos.album,
       claves: {
@@ -268,6 +269,20 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async cerrarEdicion(id) {
         registrar('letras.cerrarEdicion', id)
         if (sesionActiva === id) sesionActiva = null
+      },
+      async editarTextoLinea(peticion, sesionId) {
+        registrar('letras.editarTextoLinea', peticion, sesionId)
+        exigirId(peticion.cancionId)
+        const { letra } = cancion
+        const i = letra?.lineas.findIndex((l) => l.id === peticion.id) ?? -1
+        const actual = letra?.lineas[i]
+        if (sesionId !== sesionActiva || !letra || !actual) throw error('LETRA_DESACTUALIZADA')
+        if (actual.tipo !== 'linea') throw error('ARGUMENTOS_NO_VALIDOS')
+        const lineas = letra.lineas.map((l, j) =>
+          j === i ? { ...l, texto: peticion.texto, palabras: null } : l
+        )
+        cancion.letra = letraSchema.parse({ ...letra, lineas })
+        return publicar()
       },
       async guardarTiempos(peticion, sesionId) {
         registrar('letras.guardarTiempos', peticion, sesionId)

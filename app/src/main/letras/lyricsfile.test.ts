@@ -10,7 +10,7 @@ const id = (): string => `id-${n++}`
 const conv = (t: string) => convertirLyricsfile(t, id)
 
 describe('convertirLyricsfile', () => {
-  it('con palabras: conserva palabras y no fija los fines derivados', () => {
+  it('con palabras: no importa palabras y fija el fin de la línea', () => {
     const r = conv(leerFixtureLetra('con-palabras.lyricsfile.yaml'))!
     expect(validarInvariantesLetra(r)).toEqual([])
     expect(r).toHaveLength(2)
@@ -20,12 +20,10 @@ describe('convertirLyricsfile', () => {
       inicio_ms: 10000,
       fin_ms: 12500
     })
-    expect(r[0]!.palabras).toHaveLength(4)
-    expect(r[0]!.palabras![0]).toEqual({ texto: 'Barcos ', inicio_ms: 10000, fin_ms: 10600 })
-    // Última línea sin end_ms: fin automático; palabras sin end_ms.
+    // Ya no se importan tiempos por palabra (ADR 0021 §5).
+    expect(r.map((e) => e.palabras)).toEqual([null, null])
+    // Última línea sin end_ms de línea ni de su última palabra: fin automático.
     expect(r[1]!.fin_ms).toBeNull()
-    expect(r[1]!.palabras![0]).toEqual({ texto: 'Por ', inicio_ms: 14000, fin_ms: 14400 })
-    expect(r[1]!.palabras![3]).toEqual({ texto: 'seco', inicio_ms: 15200, fin_ms: 16200 })
   })
 
   it('sin palabras: líneas con inicio y sin fines fijados', () => {
@@ -79,15 +77,17 @@ describe('convertirLyricsfile', () => {
     ])
   })
 
-  it('palabras sin end_ms: la última termina en min(siguiente, inicio + 1000)', () => {
+  it('sin end_ms de línea, el fin sale del end_ms de su última palabra si cumple la regla', () => {
     const r = conv(
       base(
-        `  - text: "a b"\n    start_ms: 1000\n    words:\n      - {text: "a ", start_ms: 1000}\n      - {text: "b", start_ms: 1200}\n  - {text: "c", start_ms: 1500}\n`
+        `  - text: "a b"\n    start_ms: 1000\n    words:\n      - {text: "a ", start_ms: 1000}\n      - {text: "b", start_ms: 1200, end_ms: 1400}\n  - text: "c d"\n    start_ms: 1500\n    words:\n      - {text: "c ", start_ms: 1500}\n      - {text: "d", start_ms: 1700, end_ms: 1500}\n  - text: "e"\n    start_ms: 3000\n    words:\n      - {text: "e", start_ms: 3000}\n`
       )
     )!
-    expect(r[0]!.palabras).toEqual([
-      { texto: 'a ', inicio_ms: 1000, fin_ms: 1200 },
-      { texto: 'b', inicio_ms: 1200, fin_ms: 1500 }
+    // Fin de la última palabra; fin de palabra no válido (≤ inicio); sin end_ms en ningún lado.
+    expect(r.map((e) => [e.fin_ms, e.palabras])).toEqual([
+      [1400, null],
+      [null, null],
+      [null, null]
     ])
   })
 

@@ -26,6 +26,8 @@ import {
   usarFinAutomatico
 } from './tiempos'
 
+const D = 20_000
+
 function ejemplo(): Letra {
   return letra([
     linea('a', 'Llueve', 1000, {
@@ -102,20 +104,70 @@ describe('edición de tiempos', () => {
     })
   })
 
-  it('desplaza palabras y avisa si hay que descartarlas o anular un fin', () => {
-    const l = congelar(ejemplo())
-    expect(fijarInicio(l, 'a', 1200).letra.lineas[0]?.palabras).toEqual([
-      { texto: 'Llueve', inicio_ms: 1300, fin_ms: 1900 }
-    ])
-    expect(fijarInicio(l, 'b', 1400)).toMatchObject({
+  it('editar inicio o fin descarta las palabras; solo las manuales se avisan', () => {
+    const manual = (): Letra => {
+      const l = ejemplo()
+      l.lineas[0]!.origen_palabras = 'manual'
+      return l
+    }
+    const sinOrigen = (r: { letra: Letra }) => {
+      expect(r.letra.lineas[0]?.palabras).toBeNull()
+      expect(r.letra.lineas[0]).not.toHaveProperty('origen_palabras')
+    }
+    // importadas: se borran sin aviso
+    for (const r of [
+      fijarInicio(congelar(ejemplo()), 'a', 1200),
+      ajustarInicio(congelar(ejemplo()), 'a', 100),
+      fijarFin(congelar(ejemplo()), 'a', 2500, D),
+      ajustarFin(congelar(ejemplo()), 'a', -100, D),
+      usarFinAutomatico(congelar(ejemplo()), 'a'),
+      borrarTiempos(congelar(ejemplo()), 'a')
+    ]) {
+      expect(r.cambiado).toBe(true)
+      sinOrigen(r)
+      expect(r.palabrasDescartadas).toEqual([])
+    }
+    // manuales: se avisan
+    for (const r of [
+      fijarInicio(congelar(manual()), 'a', 1200),
+      ajustarInicio(congelar(manual()), 'a', 100),
+      fijarFin(congelar(manual()), 'a', 2500, D),
+      ajustarFin(congelar(manual()), 'a', -100, D),
+      usarFinAutomatico(congelar(manual()), 'a'),
+      borrarTiempos(congelar(manual()), 'a')
+    ]) {
+      sinOrigen(r)
+      expect(r.palabrasDescartadas).toEqual(['a'])
+    }
+    // sin cambio, nada se descarta
+    const igual = fijarFin(congelar(manual()), 'a', 2900, D)
+    expect(igual.cambiado).toBe(false)
+    expect(igual.letra.lineas[0]?.palabras).not.toBeNull()
+  })
+
+  it('mover el inicio siguiente descarta las palabras de la anterior y anula su fin', () => {
+    const l = ejemplo()
+    l.lineas[0]!.origen_palabras = 'manual'
+    expect(fijarInicio(congelar(l), 'b', 1400)).toMatchObject({
       palabrasDescartadas: ['a'],
       finesAutomaticos: ['a']
     })
-    expect(borrarTiempos(l, 'a').letra.lineas[0]).toMatchObject({
-      inicio_ms: null,
-      fin_ms: null,
-      palabras: null
-    })
+  })
+
+  it('marcarInicioLinea descarta también las de las líneas posteriores que pierden su tiempo', () => {
+    const l = letra([
+      linea('a', 'Uno', 1000),
+      linea('b', 'Dos', 3000, {
+        palabras: [{ texto: 'Dos', inicio_ms: 3000, fin_ms: 3500 }],
+        origen_palabras: 'manual'
+      }),
+      linea('c', 'Tres', 6000)
+    ])
+    const r = marcarInicioLinea(congelar(l), 'a', 4000)
+    expect(r.borrados).toEqual(['b'])
+    expect(r.palabrasDescartadas).toEqual(['b'])
+    expect(r.letra.lineas[1]).toMatchObject({ inicio_ms: null, palabras: null })
+    expect(r.letra.lineas[1]).not.toHaveProperty('origen_palabras')
   })
 
   it('aplica el desplazamiento al consultar los tiempos y conserva el original en la petición', () => {

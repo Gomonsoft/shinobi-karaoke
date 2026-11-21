@@ -7,8 +7,10 @@ import {
   sincroniaDe,
   urlBaseLrclib,
   URL_BASE_LRCLIB,
-  ENTORNO_LRCLIB_URL
+  ENTORNO_LRCLIB_URL,
+  tiempoElementoSchema
 } from './letrasBusqueda'
+import { aPeticionTiempos } from './letras/tiempos'
 import { linea, pausa, letraConPalabras, letraSincronizada } from './__fixtures__'
 import { leerFixtureLetraJson } from './__fixtures__/letras'
 
@@ -138,5 +140,52 @@ describe('fixtures de letras', () => {
     expect(
       leerFixtureLetraJson<{ instrumental: boolean }>('lrclib-instrumental.json').instrumental
     ).toBe(true)
+  })
+})
+
+describe('letras.editarTextoLinea', () => {
+  const sesion = '00000000-0000-4000-8000-000000000009'
+  const peticion = (texto: string) => [{ cancionId: 'c1', id: 'l1', texto }, sesion]
+  it('exige texto de una línea, recortado y no vacío, y la sesión como segundo argumento', () => {
+    const canal = CANALES.letras.editarTextoLinea
+    expect(ok(canal, peticion('Canta el río'))).toBe(true)
+    for (const mal of ['', ' a', 'a ', 'a\nb', 'a\rb', 'x'.repeat(501)]) {
+      expect(ok(canal, peticion(mal))).toBe(false)
+    }
+    expect(ok(canal, [{ cancionId: 'c1', id: 'l1', texto: 'a' }])).toBe(false)
+    expect(ok(canal, [{ cancionId: 'c1', id: 'l1', texto: 'a', extra: 1 }, sesion])).toBe(false)
+  })
+})
+
+describe('origen_palabras en guardarTiempos', () => {
+  const base = { id: 'a', inicio_ms: 0, fin_ms: 500, palabras: null }
+  const palabras = [{ texto: 'a', inicio_ms: 0, fin_ms: 400 }]
+  it('admite solo "manual" y aPeticionTiempos lo envía solo con palabras manuales', () => {
+    expect(tiempoElementoSchema.safeParse({ ...base, origen_palabras: 'manual' }).success).toBe(
+      true
+    )
+    for (const mal of ['importada', 'otro', 1]) {
+      expect(tiempoElementoSchema.safeParse({ ...base, origen_palabras: mal }).success).toBe(false)
+    }
+    const letra = {
+      origen: 'manual' as const,
+      lrclib_id: null,
+      offset_ms: 0,
+      lineas: [
+        {
+          id: 'a',
+          tipo: 'linea' as const,
+          texto: 'a',
+          inicio_ms: 0,
+          fin_ms: 500,
+          palabras,
+          origen_palabras: 'manual' as const
+        },
+        { id: 'b', tipo: 'linea' as const, texto: 'a', inicio_ms: 600, fin_ms: 900, palabras }
+      ]
+    }
+    const [a, b] = aPeticionTiempos('c', letra).tiempos
+    expect(a).toHaveProperty('origen_palabras', 'manual')
+    expect(b).not.toHaveProperty('origen_palabras')
   })
 })

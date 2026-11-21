@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -40,6 +41,8 @@ interface Props {
   obtenerTiempoAudio(): number
   buscar(ms: number): void
   seleccionar(id: string): void
+  /** Doble clic en el cuerpo de una región; `false` si la línea queda fuera del audio. */
+  escucharLinea?(id: string): boolean
   iniciarMarcador(borde: Borde): boolean
   moverMarcador(ms: number): void
   terminarMarcador(confirmar: boolean): void
@@ -158,6 +161,7 @@ export function PistaSincronia({
   obtenerTiempoAudio,
   buscar,
   seleccionar,
+  escucharLinea,
   iniciarMarcador,
   moverMarcador,
   terminarMarcador,
@@ -195,6 +199,12 @@ export function PistaSincronia({
       }
     }
   }, [activa, letra, duracionMs])
+  const [fuera, setFuera] = useState<string | null>(null)
+  useEffect(() => {
+    if (fuera === null) return
+    const t = setTimeout(() => setFuera(null), 2000)
+    return () => clearTimeout(t)
+  }, [fuera])
   const eje = useRef<HTMLDivElement>(null)
   const cabezal = useRef<HTMLDivElement>(null)
 
@@ -372,24 +382,37 @@ export function PistaSincronia({
             if (!visible) return null
             const esActiva = r.id === seleccion
             return (
-              <button
-                type="button"
-                key={r.id}
-                className={estilos.region}
-                aria-pressed={esActiva}
-                data-inicio-recortado={visible.inicioRecortado || undefined}
-                data-fin-recortado={visible.finRecortado || undefined}
-                data-resaltada={resaltadas?.has(r.id) || undefined}
-                disabled={inactiva}
-                title={r.texto}
-                style={{
-                  left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
-                  width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`
-                }}
-                onClick={() => seleccionar(r.id)}
-              >
-                {r.texto}
-              </button>
+              <Fragment key={r.id}>
+                <button
+                  type="button"
+                  className={estilos.region}
+                  aria-pressed={esActiva}
+                  data-inicio-recortado={visible.inicioRecortado || undefined}
+                  data-fin-recortado={visible.finRecortado || undefined}
+                  data-resaltada={resaltadas?.has(r.id) || undefined}
+                  disabled={inactiva}
+                  title={E.regionTooltip(r.texto)}
+                  style={{
+                    left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
+                    width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`
+                  }}
+                  onClick={() => seleccionar(r.id)}
+                  onDoubleClick={() => {
+                    if (escucharLinea?.(r.id) === false) setFuera(r.id)
+                  }}
+                >
+                  {r.texto}
+                </button>
+                {fuera === r.id && (
+                  <span
+                    role="tooltip"
+                    className={estilos.regionFuera}
+                    style={{ left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%` }}
+                  >
+                    {E.timeline.fuera}
+                  </span>
+                )}
+              </Fragment>
             )
           })}
           {activa &&

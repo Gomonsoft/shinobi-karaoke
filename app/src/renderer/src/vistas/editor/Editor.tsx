@@ -13,7 +13,8 @@ import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { preferenciasPanelesPredeterminadas } from '@shared/paneles'
-import { finEfectivo, type Letra } from '@shared/letra'
+import { MARGEN_ESCUCHA_LINEA_MS, tramoEscuchaLinea } from '@shared/escucha'
+import { finEfectivo, tienePalabrasManuales, type Letra } from '@shared/letra'
 import {
   contador,
   indiceLineaActual,
@@ -50,7 +51,7 @@ import {
   BotonLista,
   DialogoVolverABorradorEditor
 } from './BotonLista'
-import { BotonLetraLista } from './BotonLetraLista'
+import { BotonCambiarModalidad, BotonLetraLista } from './BotonLetraLista'
 import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
 import { LL } from './textosLetraLista'
 import { useExportarDesdeEditor } from './useExportarDesdeEditor'
@@ -58,12 +59,12 @@ import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
+import { PanelFunciones, type EstadoCancion } from './PanelFunciones'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
 import { useControlEspera, useEjemploEspera, esperaVisible } from './estilo/useEspera'
-import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
+import { BotonAjustarSilencios } from './silencios/BotonAjustarSilencios'
 import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
-import { S as SILENCIOS } from './silencios/textos'
 import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
 import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
@@ -99,7 +100,7 @@ import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
 import estilos from './editor.module.css'
 
 type Carga = { cancion: Cancion; config: Config; resumen: ResumenCancionIpc }
-type Pestana = 'sincronia' | 'estilo'
+type Pestana = 'sincronia' | 'estilo' | 'funciones'
 const VACIA: Letra = { origen: 'manual', lrclib_id: null, offset_ms: 0, lineas: [] }
 
 function seleccionarInicial(letra: Letra): string | null {
@@ -239,7 +240,6 @@ type EscuchaEditor = { pista: Pista; velocidad: Velocidad }
 type Prueba = EscuchaEditor & {
   desdeMs: number
   modo: PropsReproductor['modo']
-  grupo: string
 }
 
 function EditorActivo({
@@ -289,11 +289,23 @@ function EditorActivo({
   const hayMovimiento = estilo.fondo.tipo === 'degradado' && Boolean(estilo.fondo.movimiento)
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
+  // «Hecho» y «Marcar como …» comparten el aviso de líneas sin inicio: una vez por visita (8.6).
+  const incompletaVista = useRef(false)
+  const primeraPulsacionIncompleta = useCallback(() => {
+    const antes = incompletaVista.current
+    incompletaVista.current = true
+    return !antes
+  }, [])
+  const tituloEstado = useRef<HTMLHeadingElement>(null)
+  const enfocarTituloEstado = useRef(false)
+  const enfocarFunciones = useRef(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
   // Fase 5 · 0214: aviso de «Letra lista» y cambio de modalidad desde el menú ⋯.
   const [omitirAvisoLL, setOmitirAvisoLL] = useState(config.editor.omitir_aviso_letra_lista)
   const [dialogoCambioLL, setDialogoCambioLL] = useState(false)
   const esLetraLista = resumen.estado === 'lista' && resumen.modalidad === 'letra_lista'
+  const estadoCancion: EstadoCancion =
+    resumen.estado === 'borrador' ? 'borrador' : esLetraLista ? 'letra_lista' : 'lista'
   // En Letra lista, «resaltado» y «diferencia» solo afectan al editor: no encienden el punto (LL7).
   const avisosPestana = contraste.avisos.filter(
     (a) => !(esLetraLista && !tema.editando && a !== 'letra')
@@ -337,6 +349,7 @@ function EditorActivo({
   const gestoActual = useRef<GestoMarcador | null>(null)
   const [bucleArmado, setBucleArmado] = useState(false)
   const bucle = useRef<{ previa: number; sonaba: boolean | null } | null>(null)
+  const cancelarEntradaBucle = useRef<(() => void) | null>(null)
   const volumen = useVolumenCompartido(config.reproductor)
   const { motor, estado: audio } = useMotorAudio({
     cancionId: id,
@@ -362,7 +375,7 @@ function EditorActivo({
 
   const picos = usePicosVoz(
     id,
-    pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+    pestana !== 'estilo' && cuentas.total > 0 && prueba === null && separacion.disponible
   )
 
   const pistaInicial = useRef<Pista>(
@@ -410,10 +423,16 @@ function EditorActivo({
     const aviso = edicion.aviso
     if (aviso?.tipo !== 'consecuencias') return
     const accion = { etiqueta: 'Deshacer', alAccionar: () => despachar({ tipo: 'deshacer' }) }
-    for (const id of aviso.palabrasDescartadas) {
-      if (letra.lineas.some((el) => el.id === id && el.tipo === 'linea')) {
-        mostrarToast({ tipo: 'aviso', mensaje: E.toastPalabras(numeroDeLinea(letra, id)), accion })
-      }
+    // Durante «Sincronizar al ritmo» no hay toasts de palabras: al salir sale uno solo (spec 8.2).
+    const perdidas = aviso.palabrasDescartadas.filter((id) =>
+      letra.lineas.some((el) => el.id === id && el.tipo === 'linea')
+    )
+    if (perdidas.length > 0 && !edicion.sync.activo) {
+      mostrarToast({
+        tipo: 'aviso',
+        mensaje: E.toastPalabras(perdidas.map((id) => numeroDeLinea(letra, id))),
+        accion
+      })
     }
     for (const id of aviso.finesAutomaticos) {
       if (letra.lineas.some((el) => el.id === id && el.tipo === 'linea')) {
@@ -423,6 +442,32 @@ function EditorActivo({
     // Un aviso solo se anuncia una vez, aunque el usuario siga editando.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edicion.aviso])
+
+  // Al salir del modo al ritmo: un único toast si alguna línea perdió sus palabras hechas a mano.
+  const letraAlEntrarRitmo = useRef<Letra | null>(null)
+  useEffect(() => {
+    const antes = letraAlEntrarRitmo.current
+    if (edicion.sync.activo) {
+      letraAlEntrarRitmo.current ??= letra
+      return
+    }
+    letraAlEntrarRitmo.current = null
+    if (!antes) return
+    const perdidas = antes.lineas.filter(
+      (el) =>
+        el.tipo === 'linea' &&
+        tienePalabrasManuales(el) &&
+        letra.lineas.some((l) => l.id === el.id && l.tipo === 'linea' && !tienePalabrasManuales(l))
+    )
+    if (perdidas.length > 0) {
+      mostrarToast({
+        tipo: 'info',
+        mensaje: E.toastPalabrasRitmo(perdidas.map((el) => numeroDeLinea(letra, el.id)))
+      })
+    }
+    // Solo reacciona a entrar o salir del modo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edicion.sync.activo])
 
   const sonando = audio?.sonando ?? false
   const duracionMs = audio?.duracionMs ?? metadatos.duracion_ms
@@ -453,7 +498,7 @@ function EditorActivo({
     letra,
     separacionDisponible: separacion.disponible,
     picos:
-      pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+      pestana !== 'estilo' && cuentas.total > 0 && prueba === null && separacion.disponible
         ? picos.estado.estado
         : null,
     borradorTema: tema.editando
@@ -498,6 +543,7 @@ function EditorActivo({
   function desarmarBucle(restaurar = true) {
     const sesion = bucle.current
     if (!sesion || !motor) return
+    cancelarEntradaBucle.current?.()
     bucle.current = null
     setBucleArmado(false)
     if (restaurar) motor.pausar()
@@ -661,8 +707,7 @@ function EditorActivo({
           pistaInicial.current,
         velocidad: audioEditor?.velocidad ?? 1,
         desdeMs,
-        modo: separacion.disponible ? 'karaoke' : 'original',
-        grupo: crypto.randomUUID()
+        modo: separacion.disponible ? 'karaoke' : 'original'
       }
     }
   })
@@ -685,6 +730,42 @@ function EditorActivo({
       setDialogoCambioLL(false)
     }
   }
+
+  /** Cambiar a Letra lista (con aviso la primera vez) o a Lista desde la pestaña Funciones. */
+  function cambiarModalidadDesdeFunciones(destino: 'karaoke' | 'letra_lista') {
+    if (destino === 'letra_lista' && !omitirAvisoLL) setDialogoCambioLL(true)
+    else void cambiarModalidad(destino)
+  }
+
+  /** Botón Funciones del riel: expande el panel en esa pestaña con el foco en su primer botón. */
+  function expandirEnFunciones() {
+    if (edicion.sync.activo) return
+    actualizarPaneles(
+      { ...preferencias, panel: { ...preferencias.panel, minimizado: false } },
+      'inmediato'
+    )
+    anunciar(E.layout.anuncio.expandido(E.layout.panel.nombre, false))
+    cancelarMarcador()
+    setPestana('funciones')
+    enfocarFunciones.current = true
+  }
+  useLayoutEffect(() => {
+    if (!enfocarFunciones.current || panelMinimizado || pestana !== 'funciones') return
+    // El primer botón disponible; si ninguno lo está, el primero (los no disponibles son enfocables).
+    const botones = refRaiz.current?.querySelectorAll<HTMLElement>(
+      '#zona-panel button[data-funcion]'
+    )
+    const boton =
+      Array.from(botones ?? []).find((b) => b.getAttribute('aria-disabled') !== 'true') ??
+      botones?.[0]
+    enfocarFunciones.current = false
+    boton?.focus({ preventScroll: true })
+  })
+  useLayoutEffect(() => {
+    if (!enfocarTituloEstado.current || resumen.estado !== 'borrador') return
+    enfocarTituloEstado.current = false
+    tituloEstado.current?.focus({ preventScroll: true })
+  })
 
   async function abrirPrueba(): Promise<void> {
     if (probarInactivo || !cuentas.sincronizadas || prueba || abrirPendiente.current) return
@@ -744,6 +825,54 @@ function EditorActivo({
     escucha?.cancelar()
     if (!edicion.sync.activo) void motor?.reproducir({ desdeMs: desdeLinea(letra, id) })
   }
+  /**
+   * Doble clic en una región y Mayús + L (spec 06, 8.4): de 0,5 s antes a 0,5 s después de la línea,
+   * con pausa al final. Devuelve `false` si la línea queda fuera del audio (no suena).
+   */
+  function escucharTramoLinea(id: string): boolean {
+    if (!motor || edicion.sync.activo) return true
+    if (!letra.lineas.some((l) => l.id === id && l.inicio_ms !== null)) {
+      mostrarToast({ tipo: 'info', mensaje: E.escucharLineaSinInicio })
+      return true
+    }
+    const tramo = tramoEscuchaLinea(letra, id, duracionMs)
+    if (!tramo) return false
+    cancelarMarcador()
+    escucha?.cancelar()
+    cancelarEntradaBucle.current?.()
+    const sesionBucle = bucle.current
+    if (sesionBucle && id === edicion.seleccion && sesionBucle.sonaba === null) {
+      // Misma línea con «Bloquear enunciado»: el bucle sigue. La primera vuelta incluye el margen.
+      const intervalo = intervaloDeSeleccion(letra)
+      if (!intervalo) return false
+      const desdeMs = Math.max(0, intervalo.inicioMs - MARGEN_ESCUCHA_LINEA_MS)
+      if (desdeMs >= intervalo.inicioMs) {
+        motor.buscar(intervalo.inicioMs)
+        void motor.reproducir()
+        return true
+      }
+      // El motor suelta el bucle al buscar fuera de él: se suena el margen y se vuelve a armar.
+      motor.pausar()
+      const baja = motor.suscribir((e) => {
+        if (e.sonando || motor.posicionMs() < intervalo.inicioMs - 5) return
+        cancelarEntradaBucle.current?.()
+        if (bucle.current && motor.fijarBucle(intervalo)) {
+          motor.buscar(intervalo.inicioMs)
+          void motor.reproducir()
+        }
+      })
+      cancelarEntradaBucle.current = () => {
+        baja()
+        cancelarEntradaBucle.current = null
+      }
+      void motor.reproducir({ desdeMs, hastaMs: intervalo.inicioMs })
+      return true
+    }
+    // Otra línea: el bucle termina sin restaurar la posición y suena el tramo nuevo.
+    if (sesionBucle) desarmarBucle(false)
+    void motor.reproducir(tramo)
+    return true
+  }
   function seleccionar(id: string, enfocar = false) {
     if (id !== edicion.seleccion) {
       desarmarBucle()
@@ -793,8 +922,6 @@ function EditorActivo({
         : { tipo: 'fijar_fin', ms, duracionMs, ahora }
     )
   }
-  const desplazar = (deltaMs: number) =>
-    despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now() })
   const borrar = () => despachar({ tipo: 'borrar_tiempos', ahora: performance.now() })
 
   type ZonaPaneles = 'lista' | 'panel' | 'linea_tiempo'
@@ -974,8 +1101,8 @@ function EditorActivo({
         case 'escuchar_linea':
           if (edicion.seleccion) escuchar(edicion.seleccion)
           break
-        case 'desplazar':
-          desplazar(accion.deltaMs)
+        case 'escuchar_tramo_linea':
+          if (edicion.seleccion) escucharTramoLinea(edicion.seleccion)
           break
         case 'borrar_tiempos':
           borrar()
@@ -988,9 +1115,6 @@ function EditorActivo({
           break
         case 'exportar':
           exportarVideo.exportar()
-          break
-        case 'entrar_sync':
-          entrarSync()
           break
         case 'marcar':
           sync.marcar(evento.timeStamp, 'teclado')
@@ -1094,43 +1218,12 @@ function EditorActivo({
             }}
             menu={[
               { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) },
-              exportarVideo.item,
               {
                 id: 'restablecer-distribucion',
                 etiqueta: E.layout.restablecer,
+                separadorAntes: true,
                 alSeleccionar: restablecerDistribucion
-              },
-              {
-                id: 'ajustar-silencios',
-                etiqueta: SILENCIOS.menu,
-                noDisponible: edicion.sync.activo
-                  ? SILENCIOS.falta.ritmo
-                  : motivosAjuste.map(textoMotivo).join(' · ') || undefined,
-                alSeleccionar: () => void silencios.pedir()
-              },
-              ...(resumen.estado === 'lista'
-                ? [
-                    esLetraLista
-                      ? {
-                          id: 'a-lista',
-                          etiqueta: LL.menuALista,
-                          alSeleccionar: () => void cambiarModalidad('karaoke')
-                        }
-                      : {
-                          id: 'a-letra-lista',
-                          etiqueta: LL.menuALetraLista,
-                          alSeleccionar: () =>
-                            omitirAvisoLL
-                              ? void cambiarModalidad('letra_lista')
-                              : setDialogoCambioLL(true)
-                        },
-                    {
-                      id: 'borrador',
-                      etiqueta: E.menuBorrador,
-                      alSeleccionar: () => setDialogoBorrador(true)
-                    }
-                  ]
-                : [])
+              }
             ]}
           />
         </header>
@@ -1239,6 +1332,7 @@ function EditorActivo({
                 avisos={avisosPestana.length > 0}
                 editandoTema={tema.editando}
                 expandir={() => alternarZona('panel', 'boton')}
+                abrirFunciones={expandirEnFunciones}
               />
             ) : (
               <>
@@ -1255,6 +1349,11 @@ function EditorActivo({
                           aviso: avisosPestana.length > 0 ? 'Hay avisos de contraste' : undefined,
                           info: tema.editando,
                           nombre: tema.editando ? E.tema.pestanaEditando : undefined,
+                          noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
+                        },
+                        {
+                          valor: 'funciones',
+                          etiqueta: E.funciones.nombre,
                           noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
                         }
                       ]}
@@ -1276,7 +1375,28 @@ function EditorActivo({
                   )}
                 </div>
                 <div id="zona-panel" className={estilos.panel}>
-                  {pestana === 'sincronia' ? (
+                  {pestana === 'funciones' ? (
+                    <section aria-label={E.funciones.nombre}>
+                      <PanelFunciones
+                        estado={estadoCancion}
+                        exportacion={{
+                          activa: exportarVideo.activa,
+                          motivo: exportarVideo.motivo,
+                          exportar: exportarVideo.exportar
+                        }}
+                        silencios={{
+                          motivos: motivosAjuste,
+                          buscando: silencios.buscando,
+                          pedir: () => void silencios.pedir(),
+                          reintentar: picos.reintentar,
+                          irAPrimera: irAPrimeraSinInicio
+                        }}
+                        cambiarModalidad={cambiarModalidadDesdeFunciones}
+                        volverABorrador={() => setDialogoBorrador(true)}
+                        tituloEstado={tituloEstado}
+                      />
+                    </section>
+                  ) : pestana === 'sincronia' ? (
                     <section aria-label="Ajuste de sincronía">
                       <PanelSincronia
                         edicion={edicion}
@@ -1296,10 +1416,9 @@ function EditorActivo({
                           if (edicion.seleccion) escuchar(edicion.seleccion)
                         }}
                         borrar={borrar}
-                        desplazar={desplazar}
-                        fijarDesplazamiento={(ms) =>
-                          despachar({ tipo: 'fijar_desplazamiento', ms, ahora: performance.now() })
-                        }
+                        escucharTramo={() => {
+                          if (edicion.seleccion) escucharTramoLinea(edicion.seleccion)
+                        }}
                       />
                     </section>
                   ) : (
@@ -1329,7 +1448,7 @@ function EditorActivo({
           </div>
         )}
         <div className={estilos.dock}>
-          {pestana === 'sincronia' && cuentas.total > 0 && (
+          {pestana !== 'estilo' && cuentas.total > 0 && (
             <Divisor {...propsDivisor('dock')} className={estilos.franjaDock} />
           )}
           <div ref={refDock} className={estilos.cajaDock}>
@@ -1366,7 +1485,7 @@ function EditorActivo({
                 refSync={refSync}
                 acciones={
                   <>
-                    {resumen.estado === 'borrador' && (
+                    {resumen.estado === 'borrador' ? (
                       <BotonLetraLista
                         resumen={resumen}
                         cancion={cancion}
@@ -1375,10 +1494,18 @@ function EditorActivo({
                         omitirAviso={omitirAvisoLL}
                         alOmitirAviso={() => setOmitirAvisoLL(true)}
                         vaciar={vaciar}
-                        alEnfocarPrimera={() => {
-                          const primera = primeraSinInicio(letra)
-                          if (primera) seleccionar(primera, true)
-                        }}
+                        alEnfocarPrimera={irAPrimeraSinInicio}
+                      />
+                    ) : (
+                      <BotonCambiarModalidad
+                        destino={esLetraLista ? 'karaoke' : 'letra_lista'}
+                        resumen={resumen}
+                        letra={letra}
+                        omitirAviso={omitirAvisoLL}
+                        alOmitirAviso={() => setOmitirAvisoLL(true)}
+                        vaciar={vaciar}
+                        alEnfocarPrimera={irAPrimeraSinInicio}
+                        primeraPulsacionIncompleta={primeraPulsacionIncompleta}
                       />
                     )}
                     <BotonLista
@@ -1386,17 +1513,15 @@ function EditorActivo({
                       letra={letra}
                       separacion={separacion}
                       vaciar={vaciar}
-                      alEnfocarPrimera={() => {
-                        const primera = primeraSinInicio(letra)
-                        if (primera) seleccionar(primera, true)
-                      }}
+                      alEnfocarPrimera={irAPrimeraSinInicio}
+                      primeraPulsacionIncompleta={primeraPulsacionIncompleta}
                     />
                   </>
                 }
                 sincronizando={edicion.sync.activo}
               />
             </div>
-            {pestana === 'sincronia' && cuentas.total > 0 && (
+            {pestana !== 'estilo' && cuentas.total > 0 && (
               <div ref={refExtraSync}>
                 {edicion.sync.activo && (
                   <BannerSincronizar
@@ -1469,6 +1594,7 @@ function EditorActivo({
                   obtenerTiempoAudio={obtenerTiempoAudio}
                   buscar={buscar}
                   seleccionar={seleccionar}
+                  escucharLinea={escucharTramoLinea}
                   iniciarMarcador={(borde) => {
                     const gesto = iniciarGestoMarcador(edicion, borde, duracionMs)
                     if (!gesto) return false
@@ -1533,6 +1659,10 @@ function EditorActivo({
         <DialogoVolverABorradorEditor
           resumen={resumen}
           alCerrar={() => setDialogoBorrador(false)}
+          alVolver={() => {
+            // El botón de volver a borrador desaparece: el foco va al título de su sección.
+            enfocarTituloEstado.current = true
+          }}
         />
       )}
       {dialogoCambioLL && (
@@ -1563,9 +1693,6 @@ function EditorActivo({
           }}
           volumen={volumen}
           alSalir={terminarPrueba}
-          alDesplazar={(deltaMs) =>
-            despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now(), grupo: prueba.grupo })
-          }
         />
       )}
     </div>

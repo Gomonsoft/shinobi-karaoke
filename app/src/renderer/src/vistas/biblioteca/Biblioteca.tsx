@@ -184,9 +184,11 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     () => filtrarCanciones(canciones, filtro, busqueda, anclada),
     [canciones, filtro, busqueda, anclada]
   )
+  // Los grupos por fecha se calculan al mostrar la vista (no bajo el cursor ni al pasar la medianoche).
+  const [ahora] = useState(() => new Date())
   const grupos = useMemo(
-    () => agruparCanciones(visibles, canciones, agrupar),
-    [visibles, canciones, agrupar]
+    () => agruparCanciones(visibles, canciones, agrupar, ahora),
+    [visibles, canciones, agrupar, ahora]
   )
   // Tarjetas que existen en pantalla en orden visual (las de grupos plegados no participan).
   const ordenVisual = useMemo(
@@ -314,7 +316,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     if (!movida) return
     const actual = canciones.find((c) => c.id === movida.id)
     // Aún no ha llegado `cancion:cambiada` con los datos nuevos.
-    if (!actual || idGrupoDe(actual, agrupar) !== movida.grupoId) return
+    if (!actual || idGrupoDe(actual, agrupar, ahora) !== movida.grupoId) return
     const grupo = grupos.find((g) => g.id === movida.grupoId)
     const tarjeta = rejilla.current?.querySelector<HTMLElement>(
       `[data-tarjeta="${CSS.escape(movida.id)}"]`
@@ -324,7 +326,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     tarjeta.focus({ preventScroll: true })
     setAnuncio(`«${movida.titulo}» está ahora en ${grupo.nombre}.`)
     setMovida(null)
-  }, [movida, canciones, grupos, agrupar])
+  }, [movida, canciones, grupos, agrupar, ahora])
 
   // Si desaparece la tarjeta enfocada (eliminada aquí o en otra parte), el foco pasa a la siguiente
   // del orden visual, si no a la anterior, si no al título. Nunca queda en `body`.
@@ -641,8 +643,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   /** Tras «Editar datos»: la tarjeta se mueve de grupo en ese momento y se avisa si cambia su tema. */
   const alEditarDatos = (antes: ResumenCancionIpc, nuevo: ResumenCancionIpc) => {
     setAnclada(nuevo.id)
-    const grupoNuevo = idGrupoDe(nuevo, agrupar)
-    if (grupoNuevo !== null && grupoNuevo !== idGrupoDe(antes, agrupar)) {
+    const grupoNuevo = idGrupoDe(nuevo, agrupar, ahora)
+    if (grupoNuevo !== null && grupoNuevo !== idGrupoDe(antes, agrupar, ahora)) {
       if (plegados.has(grupoNuevo)) {
         const siguiente = new Set(plegados)
         siguiente.delete(grupoNuevo)
@@ -873,7 +875,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
               opciones={[
                 { valor: 'ninguno', etiqueta: 'Sin agrupar' },
                 { valor: 'artista', etiqueta: 'Artista' },
-                { valor: 'album', etiqueta: 'Álbum' }
+                { valor: 'album', etiqueta: 'Álbum' },
+                { valor: 'fecha', etiqueta: 'Fecha de añadido' }
               ]}
             />
           </div>

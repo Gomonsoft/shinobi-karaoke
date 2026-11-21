@@ -50,7 +50,7 @@ export interface MedidasEditor {
 export interface EntradaDistribucion {
   medidas: MedidasEditor
   preferencias: PreferenciasPaneles
-  pestana: 'sincronia' | 'estilo'
+  pestana: 'sincronia' | 'estilo' | 'funciones'
   sincronizando: boolean
 }
 
@@ -123,7 +123,7 @@ export function calcularDistribucion(e: EntradaDistribucion): Distribucion {
   const minLT = filasFijas + ALTO_PISTA_VOZ_MIN
   const base =
     MARGEN_SUPERIOR[modo] + medidas.altoCabecera + HUECO_BAJO_CABECERA + medidas.altoTransporte
-  const visible = pestana === 'sincronia'
+  const visible = pestana !== 'estilo'
 
   let altoZonaCalculado: number
   const linea: Distribucion['lineaTiempo'] = {

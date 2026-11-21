@@ -1,6 +1,6 @@
 # 0283 — Contratos compartidos de 0.2.1 y canal `letras.editarTextoLinea`
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 3–6 (contratos IPC)
 - Fase: 8 y 9 de 0.2.1 (y 7) · Lote B1 (contratos y main de letras), **primera del lote: empezar por aquí; 0258, 0260 y 0266 la esperan**
 - Depende de: —
@@ -37,3 +37,10 @@ Concentrar en una sola tarea temprana los cambios de los archivos de contrato qu
 - Manual: ninguna.
 
 ## Notas de implementación
+
+- **Hecho**: `resumenCancionSchema` y `ResumenCancion` con `creada: string | null` (`resumirCancion` devuelve `cancion.creada`, `resumenDanadaPorJson` devuelve `null`; el cálculo real es de 0266). `ErrorExportacionIpc` (en `shared/exportacion.ts`, archivo del lote A: cambio mínimo) y `exportacionIpcSchema` con `detalle` estricto `{ causa: "captura", reintentable } | { campo: "destino" } | { trabajoId }` (`detalleErrorExportacionSchema`). Código `CANCION_EXPORTANDOSE` en `CODIGOS_ERROR` y `CODIGOS_SOLO_MAIN`. Canal `letras.editarTextoLinea` (canales, `ROLES_POR_CANAL` principal, contrato `[editarTextoLineaSchema, uuid]`, preload, `main/index.ts`, `main/ipc/handlers.ts` con `sinSesion()` -> `EDICION_BLOQUEADA`). `ServicioLetras.editarTextoLinea` y `escribirTiempos` (cola compartida con `guardarTiempos`). Dobles de `fixturesApi` (editor y letra: método nuevo; editor y letra: `creada`).
+- **Decisión (sin tope previo)**: la vista Letra no tenía máximo por línea; se fija `MAX_CARACTERES_LINEA = 500` en `shared/letrasBusqueda.ts` (lo puede reutilizar el editor preciso para su campo de texto).
+- **Decisión sobre la referencia**: `editarTextoLinea` actualiza el **texto** de la línea en la referencia de la visita y **conserva sus palabras** (importadas o no), para que Deshacer pueda restaurar con `guardarTiempos` unas palabras importadas (ADR 0021 §7). En el archivo la línea queda con `palabras: null` y sin `origen_palabras`.
+- Archivos: `shared/{canales,errores,ipc,exportacion,letrasBusqueda}.ts`, `preload/index.ts`, `main/index.ts`, `main/ipc/handlers.ts`, `main/letras/servicio.ts`, `main/biblioteca/resumen.ts`, `renderer/src/vistas/{editor,letra}/fixturesApi.ts`; tests: `servicio.test.ts` (5 casos), `letrasBusqueda.test.ts`, `handlers.sesion.test.ts`, `separacion.test.ts`, `exportacionIpc.test.ts`, y fixtures con `creada` (`handlers.test.ts`, `__fixtures__/fase5.ts`, `temasIpc.test.ts`).
+- Probar: `npx vitest run src/main/letras/servicio.test.ts src/shared/letrasBusqueda.test.ts src/main/ipc`.
+- Deuda: `biblioteca/fixturesApi.ts` no necesitó cambios (compila). La integración de `useGuardadoEditor` con el canal es de 0279.

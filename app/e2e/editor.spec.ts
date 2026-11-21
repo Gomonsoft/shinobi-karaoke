@@ -54,9 +54,9 @@ const contador = (v: Page, a: number, b: number) =>
 const opcionLinea = (v: Page, n: number) =>
   v.getByRole('option', { name: new RegExp(`^Línea ${n},`) })
 
-/** S → cuenta atrás → listo para marcar. */
+/** Botón «Sincronizar al ritmo» → cuenta atrás → listo para marcar (la tecla S ya no existe). */
 async function entrarSync(v: Page): Promise<void> {
-  await v.keyboard.press('s')
+  await v.getByRole('button', { name: /^Sincronizar al ritmo/ }).click()
   await expect(v.getByRole('heading', { name: E.syncTitulo })).toBeVisible()
   await expect(botonMarcar(v)).toBeEnabled({ timeout: 10_000 })
 }
@@ -128,7 +128,7 @@ test.describe('editor sin red', () => {
     })
   })
 
-  test('ajuste fino, límites, deshacer/rehacer y desplazamiento', async () => {
+  test('ajuste fino, límites y deshacer/rehacer', async () => {
     await conEditor('editor-ajuste', async (v, datos) => {
       await abrir(v, T19)
       await opcionLinea(v, 1).click()
@@ -148,11 +148,11 @@ test.describe('editor sin red', () => {
         .poll(() => soloLineas(datos, T19)[0]!.inicio_ms!, { timeout: 5000 })
         .toBeLessThanOrEqual(5500)
 
-      // Desplazamiento de toda la letra.
-      for (let i = 0; i < 3; i++) await v.keyboard.press('.')
-      await expect.poll(() => leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(300)
-      await v.getByRole('button', { name: E.restablecer }).click()
-      await expect.poll(() => leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(0)
+      // «,» y «.» ya no desplazan la letra.
+      await v.keyboard.press('.')
+      await v.keyboard.press(',')
+      await expect(v.getByText(/Desplazamiento de toda la letra/)).toHaveCount(0)
+      expect(leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(0)
     })
   })
 
@@ -163,17 +163,17 @@ test.describe('editor sin red', () => {
         await abrir(v, T19)
         await opcionLinea(v, 1).click()
         const fin = v.getByRole('textbox', { name: E.fin, exact: true })
-        await fin.fill('00:15.80')
+        // Con offset_ms: 500 (dato del archivo), 16,30 s mostrados se guardan como 15 800 ms.
+        await fin.fill('00:16.30')
         await fin.press('Enter')
         await expect.poll(() => soloLineas(datos, T19)[0]!.fin_ms).toBe(15_800)
         await v.getByRole('button', { name: 'Biblioteca', exact: true }).click()
         await abrir(v, T19)
         await opcionLinea(v, 1).click()
-        await expect(fin).toHaveValue('00:15.80')
-        await expect(opcionLinea(v, 2)).toContainText('00:17.10')
+        await expect(fin).toHaveValue('00:16.30')
+        await expect(opcionLinea(v, 2)).toContainText('00:17.60')
 
-        for (let i = 0; i < 5; i++) await v.keyboard.press('.')
-        await expect.poll(() => leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(500)
+        expect(leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(500)
 
         const barra = v.getByRole('slider', { name: 'Tiempo de reproducción' })
         await v.getByRole('button', { name: 'Reproducir', exact: true }).click()
@@ -201,6 +201,7 @@ test.describe('editor sin red', () => {
       },
       (datos) => {
         const cancion = leerCancion(datos, idDe(T19))
+        cancion.letra.offset_ms = 500
         cancion.letra.lineas = [
           { ...cancion.letra.lineas[0], inicio_ms: 12_400, fin_ms: null },
           {
@@ -268,6 +269,25 @@ test.describe('editor sin red', () => {
     })
   })
 
+  test('Funciones: las funciones mayores se alcanzan sin el ⋯ y el menú queda con dos ítems', async () => {
+    await conEditor('editor-funciones', async (v) => {
+      await abrir(v, T19)
+      await v.getByRole('button', { name: 'Más acciones del editor' }).click()
+      await expect(v.getByRole('menuitem')).toHaveText([
+        'Atajos de teclado (F1)',
+        E.layout.restablecer
+      ])
+      await v.keyboard.press('Escape')
+      await v.getByRole('radio', { name: E.funciones.nombre }).click()
+      await expect(v.getByRole('button', { name: E.funciones.exportar.boton })).toBeVisible()
+      await expect(v.getByRole('button', { name: E.funciones.silencios.boton })).toBeVisible()
+      await expect(v.getByRole('button', { name: E.funciones.modo.aLetraLista })).toBeVisible()
+      await expect(v.getByRole('button', { name: E.funciones.estado.volver })).toBeVisible()
+      // La línea de tiempo se ve con Funciones; solo Estilo la oculta.
+      await expect(v.getByRole('region', { name: E.timeline.titulo })).toBeVisible()
+    })
+  })
+
   test('lista incompleta: insignia y popover de Hecho', async () => {
     await conEditor('editor-incompleta', async (v) => {
       await abrir(v, T19)
@@ -291,7 +311,7 @@ test.describe('editor sin red', () => {
       await expect(v.getByText(E.borradorGuardado)).toHaveCount(0)
 
       await abrir(v, T17)
-      await v.keyboard.press('.')
+      await v.keyboard.press('i')
       await biblioteca()
       await expect(v.getByText(E.borradorGuardado)).toBeVisible()
     })
@@ -386,14 +406,13 @@ function tiemposCortos(datos: string, offset: number, fin: number, titulo = T19)
 test.describe('línea de tiempo del editor', () => {
   test.describe.configure({ timeout: 45_000 })
 
-  test('los marcadores previsualizan, cancelan y guardan un único paso con y sin offset', async () => {
+  test('los marcadores previsualizan, cancelan y guardan un único paso', async () => {
     await conEditor(
       'timeline-marcadores',
       async (v, datos) => {
         await abrir(v, T19)
         await opcionLinea(v, 1).click()
         const inicio = v.getByRole('slider', { name: E.timeline.inicio })
-        const fin = v.getByRole('slider', { name: E.timeline.fin, exact: true })
         const guardada = () => soloLineas(datos, T19)[0]!
         await expect(inicio).toHaveAttribute('aria-valuenow', '2000')
         await dragMarcador(v, E.timeline.inicio, 800)
@@ -414,16 +433,46 @@ test.describe('línea de tiempo del editor', () => {
         await expect.poll(() => guardada().inicio_ms).toBe(2000)
         await inicio.press('Shift+ArrowRight')
         await expect.poll(() => guardada().inicio_ms).toBe(2100)
+      },
+      (datos) => tiemposCortos(datos, 0, 4000)
+    )
+  })
 
-        for (let i = 0; i < 5; i++) await v.keyboard.press('.')
+  test('los marcadores con offset_ms del archivo muestran y guardan el tiempo desplazado', async () => {
+    await conEditor(
+      'timeline-marcadores-offset',
+      async (v, datos) => {
+        await abrir(v, T19)
+        await opcionLinea(v, 1).click()
+        const fin = v.getByRole('slider', { name: E.timeline.fin, exact: true })
         await expect(fin).toHaveAttribute('aria-valuenow', '4500')
         await dragMarcador(v, E.timeline.fin, 500)
         await v.mouse.up()
         const finAudio = Number(await fin.getAttribute('aria-valuenow'))
         expect(Math.abs(finAudio - 5000)).toBeLessThan(45)
-        await expect.poll(() => guardada().fin_ms).toBe(finAudio - 500)
+        await expect.poll(() => soloLineas(datos, T19)[0]!.fin_ms).toBe(finAudio - 500)
         expect(leerCancion(datos, idDe(T19)).letra.offset_ms).toBe(500)
         expect(soloLineas(datos, T19)[1]!.inicio_ms).toBe(6000)
+      },
+      (datos) => tiemposCortos(datos, 500, 4000)
+    )
+  })
+
+  test('doble clic en el cuerpo de una región escucha la línea con 0,5 s de margen y se pausa', async () => {
+    await conEditor(
+      'timeline-doble-clic',
+      async (v) => {
+        await abrir(v, T19)
+        const region = v.locator('#zona-linea-tiempo button[aria-pressed]').first()
+        await expect(region).toHaveAttribute('title', /Doble clic: escuchar esta línea/)
+        await region.dblclick()
+        // La línea va de 2,0 s a 4,0 s: suena desde 1,5 s hasta 4,5 s y el cabezal se queda ahí.
+        await expect(v.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible()
+        await expect(v.getByRole('button', { name: 'Reproducir', exact: true })).toBeVisible({
+          timeout: 8000
+        })
+        const final = Number(await tiempoEditor(v).inputValue())
+        expect(Math.abs(final - 4500)).toBeLessThan(300)
       },
       (datos) => tiemposCortos(datos, 0, 4000)
     )

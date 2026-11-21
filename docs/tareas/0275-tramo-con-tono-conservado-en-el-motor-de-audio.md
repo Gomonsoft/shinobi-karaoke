@@ -1,6 +1,6 @@
 # 0275 — `MotorAudio`: tramo con tono conservado para el editor preciso
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor, motor de audio)
 - Fase: 9 de 0.2.1 · Lote E (motor de audio)
 - Depende de: 0274
@@ -32,3 +32,9 @@ Que, con la ventana del editor preciso abierta y una velocidad < 1×, el bucle d
 - Manual: guía de la fase 9 — a 0,5×, la primera vuelta puede sonar grave y las siguientes no.
 
 ## Notas de implementación
+
+- Hecho en el lote E. Archivo: `motorAudio.ts` (+ pruebas en `motorAudio.test.ts`); `reloj.ts` no cambia (la fórmula del reloj es la de siempre).
+- API nueva: `fijarTramoConTono(intervalo: IntervaloBucle | null): void` (tiempo de audio); `EstadoMotor.tonoConservado: boolean` (`true` salvo que el estiramiento del tramo y velocidad actuales haya fallado; la ventana muestra `edi.preciso.tono` solo con `tonoConservado === false` y velocidad < 1×); opción de constructor `estirar?` (inyectable en pruebas; por defecto `estirarEnWorker`).
+- Comportamiento: caché de un buffer estirado por (buffer de la pista, tramo alineado a muestra, velocidad); se prepara al fijar tramo, velocidad < 1× o pista y se descarta al cambiar cualquiera, con `fijarTramoConTono(null)`, `liberarAudio()` y `destruir()`. Una reproducción (bucle o `hastaMs`) que empieza y termina dentro del tramo usa el buffer estirado con `playbackRate = 1`, desplazamientos, `loopStart`/`loopEnd` y movimiento del bucle convertidos con `(t − inicioTramo) / velocidad`; el anclaje conserva la velocidad elegida. Mientras se prepara suena con `playbackRate`; al estar listo y si suena un bucle dentro del tramo, relevo programado en el siguiente paso por el inicio del bucle (fuente nueva arranca a `ctxCambio` y la vieja se detiene ahí; tramo nuevo de anclaje). Si cambian los límites del bucle con un relevo pendiente o el estirado no cubre los nuevos, se reinicia la fuente en la posición audible (no se puede deshacer un `start` programado). Si el estiramiento falla o devuelve una duración distinta de `round(n/v)` ± 1: `console.warn` (registro del renderer) y `tonoConservado = false`; no se reintenta la misma clave.
+- Pruebas: 6 nuevas con un `AudioContext` doble (límites y desplazamientos, reloj con tramo estirado a 0,5× y 0,75×/envoltura del bucle, relevo, mover el bucle, caché e invalidación, fallo); las 12 anteriores pasan sin cambios.
+- Deuda: dos fixtures ajenos (`vistas/editor/escuchaComprobacion.test.ts`, `useSincronizarAlRitmo.test.ts`) construyen `EstadoMotor` literal y necesitan `tonoConservado: true` (lo exige el typecheck). Manual: a 0,5× la primera vuelta puede sonar grave y las siguientes no.

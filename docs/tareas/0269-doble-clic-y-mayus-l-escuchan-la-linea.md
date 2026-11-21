@@ -1,6 +1,6 @@
 # 0269 — Doble clic en una región y Mayús + L: escuchar la línea con 0,5 s de margen
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor)
 - Fase: 8 de 0.2.1 · Lote D (editor)
 - Depende de: 0268 (mismo lote: `Editor.tsx`, `atajos.ts`, `DialogoAtajos.tsx`)
@@ -19,10 +19,10 @@ Escuchar una línea con un doble clic (feedback, punto 5), con el margen en una 
 
 ## Criterios de aceptación
 
-- [ ] Doble clic en el **cuerpo** de una región: reproduce con `reproducir({ desdeMs, hastaMs })` desde `máx(0, inicio mostrado − 500)` hasta `mín(duración, fin efectivo mostrado + 500)` y se pausa ahí; con la reproducción en curso salta sin pausa; con el inicio a 0,3 s empieza en 0 (E8-7, reloj simulado ± 20 ms). Sobre un tirador no reproduce (E8-8). Tooltip de la región `edi.timeline.region.tooltip`.
-- [ ] «Bloquear enunciado» en la misma línea: busca a `máx(0, inicio audible − 500)`, el bucle sigue y no se pausa al final; en otra línea, el bucle termina sin restaurar la posición y suena el tramo nuevo (E8-8). Sustituye a la escucha de comprobación si estaba en curso. Región recortada: no suena y tooltip `edi.timeline.bucle.fuera`.
-- [ ] **Mayús + L** hace lo mismo sobre la línea seleccionada (fuera de campos de texto); sin inicio no hace nada y muestra `edi.escucharLinea.sinInicio`. **L** y el doble clic en la lista no cambian (E8-9). El diálogo de atajos tiene la fila `edi.atajo.escucharLinea`.
-- [ ] El valor sale de `MARGEN_ESCUCHA_LINEA_MS` (sin literales 500 en el renderer).
+- [x] Doble clic en el **cuerpo** de una región: reproduce con `reproducir({ desdeMs, hastaMs })` desde `máx(0, inicio mostrado − 500)` hasta `mín(duración, fin efectivo mostrado + 500)` y se pausa ahí; con la reproducción en curso salta sin pausa; con el inicio a 0,3 s empieza en 0 (E8-7, reloj simulado ± 20 ms). Sobre un tirador no reproduce (E8-8). Tooltip de la región `edi.timeline.region.tooltip`.
+- [x] «Bloquear enunciado» en la misma línea: busca a `máx(0, inicio audible − 500)`, el bucle sigue y no se pausa al final; en otra línea, el bucle termina sin restaurar la posición y suena el tramo nuevo (E8-8). Sustituye a la escucha de comprobación si estaba en curso. Región recortada: no suena y tooltip `edi.timeline.bucle.fuera`.
+- [x] **Mayús + L** hace lo mismo sobre la línea seleccionada (fuera de campos de texto); sin inicio no hace nada y muestra `edi.escucharLinea.sinInicio`. **L** y el doble clic en la lista no cambian (E8-9). El diálogo de atajos tiene la fila `edi.atajo.escucharLinea`.
+- [x] El valor sale de `MARGEN_ESCUCHA_LINEA_MS` (sin literales 500 en el renderer).
 
 ## Pruebas de feedback
 
@@ -32,3 +32,8 @@ Escuchar una línea con un doble clic (feedback, punto 5), con el margen en una 
 - Manual: guía de la fase 8 — el doble clic se siente natural con ratón y *touchpad*.
 
 ## Notas de implementación
+
+- **Qué se hizo**: `app/src/shared/escucha.ts` con `MARGEN_ESCUCHA_LINEA_MS = 500`, `MARGEN_ESCUCHA_PALABRA_MS = 250` y `tramoEscuchaLinea(letra, id, duracionMs, margen?)` (tiempo de audio con `offset_ms`; `null` sin inicio o fuera del audio). Doble clic en el cuerpo de la región (`PistaSincronia` → `escucharLinea`, el tirador es un elemento aparte y no la dispara; título `edi.timeline.region.tooltip`; con la línea fuera del audio muestra `edi.timeline.bucle.fuera` 2 s junto a la región). `Editor.escucharTramoLinea(id)`: `motor.reproducir({ desdeMs, hastaMs })` (se pausa al final); con «Bloquear enunciado» en otra línea cierra el bucle sin restaurar la posición. Mayús + L (`escuchar_tramo_linea` en `atajos.ts`) y botón «Escuchar la línea (Mayús + L)» en el panel Sincronía (con `noDisponible` = `edi.escucharLinea.sinInicio` si no hay inicio; la tecla muestra el mismo texto en un toast). Fila en el diálogo de atajos.
+- **Archivos clave**: `shared/escucha.ts` y `escucha.test.ts`; `vistas/editor/{Editor,PistaSincronia,PanelSincronia,atajos,DialogoAtajos,textos}.ts(x)`, `pistaSincronia.module.css`.
+- **Pruebas**: `escucha.test.ts`, `PistaSincronia.test.tsx` (cuerpo y tirador), `atajos.test.ts`, `Editor.test.tsx` (Mayús + L), `PanelSincronia.test.tsx`; E2E `editor.spec.ts` («doble clic en el cuerpo de una región…», sin ejecutar).
+- **Deuda / límite conocido**: con «Bloquear enunciado» en la **misma** línea, `MotorAudio.buscar` suelta el bucle si se busca fuera de él, así que la primera vuelta con margen se hace con `reproducir({ desdeMs, hastaMs: inicio })` y, al terminar, se vuelve a armar el bucle (`fijarBucle` + `buscar` + `reproducir`); puede notarse un corte de decenas de ms. Lo limpio sería que el motor (lote E) permitiera buscar antes de `loopStart` conservando el bucle. Manual: el doble clic se siente natural con ratón y touchpad (guía de la fase 8).

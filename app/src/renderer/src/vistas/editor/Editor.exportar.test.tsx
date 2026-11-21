@@ -60,7 +60,7 @@ afterEach(() => {
 
 it('Ctrl/Cmd + E pausa el audio, vacía el guardado y abre el diálogo de exportación (EX1)', async () => {
   const { abrir, cancion } = montar()
-  await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
+  await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
   fireEvent.keyDown(window, { key: 'e', ctrlKey: true })
   await waitFor(() =>
     expect(abrir).toHaveBeenCalledWith({ cancionId: cancion.id, temaBorrador: false })
@@ -68,27 +68,32 @@ it('Ctrl/Cmd + E pausa el audio, vacía el guardado y abre el diálogo de export
   expect(motor.pausar).toHaveBeenCalled()
 })
 
-it('el ⋯ ofrece «Exportar video… (Ctrl/Cmd + E)» entre los atajos y volver a borrador', async () => {
+const abrirFunciones = () => fireEvent.click(screen.getByRole('radio', { name: 'Funciones' }))
+
+it('la pestaña Funciones ofrece «Exportar video…» y el ⋯ ya no (EX1, E8-14, E8-16)', async () => {
   const { abrir, cancion } = montar()
-  await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
+  await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
   abrirMenu()
-  const items = screen.getAllByRole('menuitem').map((i) => i.textContent)
-  expect(items.indexOf('Exportar video… (Ctrl/Cmd + E)')).toBe(
-    items.indexOf('Atajos de teclado (F1)') + 1
-  )
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Exportar video… (Ctrl/Cmd + E)' }))
+  expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+    'Atajos de teclado (F1)',
+    'Restablecer distribución de paneles'
+  ])
+  fireEvent.keyDown(screen.getByRole('menuitem', { name: /Atajos/ }), { key: 'Escape' })
+  abrirFunciones()
+  fireEvent.click(screen.getByRole('button', { name: 'Exportar video…' }))
   await waitFor(() =>
     expect(abrir).toHaveBeenCalledWith({ cancionId: cancion.id, temaBorrador: false })
   )
 })
 
-it('con la separación sin completar el ítem está aria-disabled y Ctrl/Cmd + E no hace nada (EX2)', async () => {
+it('con la separación sin completar el botón está aria-disabled, con su motivo visible, y Ctrl/Cmd + E no hace nada (EX2, E8-15)', async () => {
   const { abrir } = montar(cancionSeparando())
-  await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
-  abrirMenu()
-  const item = screen.getByRole('menuitem', { name: /Exportar video…/ })
-  expect(item).toHaveAttribute('aria-disabled', 'true')
-  fireEvent.keyDown(item, { key: 'Escape' })
+  await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
+  abrirFunciones()
+  const boton = screen.getByRole('button', { name: 'Exportar video…' })
+  expect(boton).toHaveAttribute('aria-disabled', 'true')
+  expect(boton).toHaveAccessibleDescription('Podrás exportar cuando termine la separación.')
+  fireEvent.click(boton)
   fireEvent.keyDown(window, { key: 'e', ctrlKey: true })
   await act(async () => undefined)
   expect(abrir).not.toHaveBeenCalled()
@@ -96,7 +101,7 @@ it('con la separación sin completar el ítem está aria-disabled y Ctrl/Cmd + E
 
 it('el diálogo de atajos incluye Ctrl/Cmd + E (EX7)', async () => {
   montar()
-  await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
+  await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
   fireEvent.keyDown(window, { key: 'F1' })
   expect(await screen.findByRole('rowheader', { name: 'Ctrl/Cmd + E' })).toBeInTheDocument()
 })

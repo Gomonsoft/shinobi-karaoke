@@ -1,6 +1,6 @@
 # 0272 — Operaciones puras del editor preciso (palabras, reparto, texto y aplicar)
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor)
 - Fase: 9 de 0.2.1 · Lote B2 (modelo de palabras en `shared/`)
 - Depende de: 0261
@@ -31,9 +31,9 @@ Dar a la ventana (0279) y al *reducer* del editor (0280) todas las operaciones d
 
 ## Criterios de aceptación
 
-- [ ] Todas las funciones son puras y no mutan la entrada.
-- [ ] Ninguna operación produce un borrador que incumpla las reglas de validez (orden, dentro de la línea, sin solapes, ≥ 20 ms).
-- [ ] Los casos de P5, P6, P7 (lógica), P10, P11, P13 y P21 tienen su prueba.
+- [x] Todas las funciones son puras y no mutan la entrada.
+- [x] Ninguna operación produce un borrador que incumpla las reglas de validez (orden, dentro de la línea, sin solapes, ≥ 20 ms).
+- [x] Los casos de P5, P6, P7 (lógica), P10, P11, P13 y P21 tienen su prueba.
 
 ## Pruebas de feedback
 
@@ -43,3 +43,17 @@ Dar a la ventana (0279) y al *reducer* del editor (0280) todas las operaciones d
 - Manual: ninguna propia.
 
 ## Notas de implementación
+
+**Qué se hizo.** `app/src/shared/letras/palabras.ts` (nuevo, reexportado desde `letras/index.ts`) y `palabras.test.ts`. API: `cargarBorrador` (`{ borrador, invalidas }`), `repartir`, `repartirDeNuevo`, `quitarPalabras`, `marcarAlVuelo` (`{ borrador, siguiente, motivo }`), `finAlSoltar`, `moverPalabra` y `ajustarPalabra` (`{ borrador, limite: 'anterior'|'siguiente'|'minimo'|null }`), `limitesEditorDe(letra, id, duracionMs)` → `LimitesEditor { inicioMin, inicioMax, finMax }`, `moverLimiteLinea(borrador, campo, ms, limites)` (`{ borrador, limite: 'editor'|'linea'|null }`), `reaplicarTexto` (`{ borrador, repartidas }`), `validarBorrador` y `aplicarEdicionPrecisa(letra, id, borrador, duracionMs)` (lanza `RangeError` si el borrador no cumple las reglas).
+
+**Decisiones (conservadoras, no bloquean).**
+- `PalabraBorrador` lleva un campo opcional extra, `finAbierto`, para representar la pulsación corta («fin abierto»): el fin es provisional, la siguiente marca lo recorta a su inicio y, si no hay más, lo resuelve el reparto (la palabra encabeza el tramo a repartir con su inicio fijo).
+- `marcarAlVuelo`: `fuera` también si tras el instante no queda sitio para las palabras que faltan (20 ms cada una); no hay un motivo propio.
+- Cuando un texto nuevo o un cambio de límites deja un tramo sin sitio, `normalizar` recorta primero el fin de la marcada anterior y, si no basta, desmarca la vecina (nunca produce un borrador inválido; si la línea entera mide menos de 20 ms por palabra no hay solución y la UI debería impedirlo).
+- Mover el inicio de una palabra marcada con fin cerrado se detiene en `fin − 20 ms` (límite `minimo`); en una sin marcar o con fin abierto empuja el fin.
+- `aplicarEdicionPrecisa` guarda siempre todas las palabras (con el reparto de las sin marcar) salvo `quitar`; que un borrador sin cambios solo cierra lo decide la ventana (0279/0280). El fin se fija si quedan palabras, si ya era fijado o si el usuario lo cambió; si no, sigue automático.
+
+**Pruebas.** `vitest` de `shared/letras/palabras.test.ts`: 43 correctas (P5 con las cifras de la spec, P6, P7 lógica, P10, P11, P13, P21 y una prueba pseudoaleatoria de 40 rondas de operaciones que comprueba la validez tras cada una; se verificó también con 3000 rondas).
+
+**Deuda.** El mensaje de `RangeError` de `aplicarEdicionPrecisa` es técnico (no es microcopy). Ningún E2E ni guía manual propios.
+

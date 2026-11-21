@@ -117,6 +117,8 @@ const api: ApiShinobi = {
     buscar: (peticion) => invocar(CANALES.letras.buscar, peticion),
     guardar: (letra) => invocar(CANALES.letras.guardar, letra),
     editarTexto: (peticion) => invocar(CANALES.letras.editarTexto, peticion),
+    editarTextoLinea: (peticion, sesionId) =>
+      invocar(CANALES.letras.editarTextoLinea, peticion, sesionId),
     guardarTiempos: (peticion, sesionId) =>
       invocar(CANALES.letras.guardarTiempos, peticion, sesionId),
     abrirEdicion: (id) => invocar(CANALES.letras.abrirEdicion, id),

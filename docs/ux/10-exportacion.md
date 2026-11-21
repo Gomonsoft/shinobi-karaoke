@@ -513,13 +513,13 @@ Origen: [plan 0.2.1, fase 7](../versiones/0.2.1/plan-3.md#fase-7--correcciones-p
 - **Motivo nuevo `captura`**: además del codificador y la memoria, el sondeo de la primera apertura comprueba que el equipo puede **preparar la imagen** del video a ese tamaño (la ventana de captura del tamaño del perfil, [0260](../tareas/0260-sondeo-de-perfiles-con-captura-real.md)). Los perfiles que no caben se marcan como no soportados con ese motivo **antes** de que el usuario los elija.
 - **Cómo se ven** (sin cambios respecto a la fase 6): en la lista de resoluciones y en FPS, la opción en `texto-desactivado` con el sufijo `exp.perfil.noDisponible` («— no disponible en este equipo»), enfocable y no seleccionable, sin candado; al enfocarla o pasar el ratón, tooltip `exp.perfil.noSoportado` con el motivo. Con `captura`, el motivo es «tu equipo no puede preparar la imagen del video a este tamaño».
 - Las reglas de sustitución automática (FPS y resolución soportados más cercanos por debajo, anuncios `exp.anuncio.fps` / `exp.anuncio.resolucion`, proporción sin ninguna resolución disponible, opciones recordadas que ya no valen) se aplican igual con `captura`.
-- **Cargando perfiles**: el sondeo de captura forma parte de «Comprobando qué puede exportar tu equipo…» (`exp.cargando`). Si en 10 s no ha terminado, el formulario se muestra con los perfiles comprobados y los pendientes marcados con el motivo `no_comprobado` **(decisión provisional; duración real en [0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §1)**.
+- **Cargando perfiles**: el sondeo de captura forma parte de «Comprobando qué puede exportar tu equipo…» (`exp.cargando`). Normalmente tarda < 1 s y no alarga la comprobación. Si en 10 s no ha terminado, el formulario se muestra con los perfiles comprobados y los pendientes marcados con el motivo `no_comprobado`. Si el sondeo de captura **falla con una excepción** (no por tiempo), no marca ningún perfil (solo se registra en el log), para no esconder perfiles por un error propio ([0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §1).
 - **Cambia la pantalla** con la app abierta (otro monitor, otra escala): el sondeo es de la primera apertura en cada arranque; si después una exportación falla por la captura, se aplica «Fallo de captura al exportar».
 
 ### Fallo de captura al exportar y «Reintentar»
 
 Si una exportación termina con `PERFIL_NO_SOPORTADO` porque la captura no consiguió el tamaño (falla en «Preparar la canción», antes de escribir fotogramas):
-1. Main vuelve a comprobar ese perfil antes de mostrar el fallo ([0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §2).
+1. Main vuelve a comprobar ese perfil (≤ 3 s) antes de mostrar el fallo; el error lleva `detalle: { causa: "captura", reintentable }` (`false` → caso 2, `true` → caso 3; [0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §2).
 2. **Sigue sin poderse**: D muestra `exp.error.captura` con [Cambiar opciones] (primario, foco) y [Copiar detalles]. **No** hay [Reintentar]: repetir con los mismos datos no lo arregla (tarea 0260). El perfil queda marcado como no disponible (`captura`) para el resto de la sesión; al pulsar [Cambiar opciones], A se abre con el perfil soportado más cercano por debajo ya elegido y `exp.anuncio.resolucion`.
 3. **Ahora sí se puede** (fallo pasajero): D muestra `exp.error.capturaPasajera` con [Reintentar] (primario, foco), [Cambiar opciones] y [Copiar detalles].
 
@@ -566,7 +566,7 @@ Si una exportación termina con `PERFIL_NO_SOPORTADO` porque la captura no consi
 │ │   termine o cancélala para empezar otra.  [Ver exportación]    │ │
 │ └────────────────────────────────────────────────────────────────┘ │
 ```
-- [Ver exportación] cambia el diálogo al estado de esa exportación (B, B2, C o D) y el foco va a su acción inicial. «Exportar» queda `aria-disabled` con ese mismo texto en el tooltip mientras dure. Si esa exportación termina o se cancela con A abierto, el aviso desaparece y «Exportar» vuelve a estar disponible.
+- [Ver exportación] (con el `detalle.trabajoId` del error) cambia el diálogo al estado de esa exportación (B, B2, C o D) y el foco va a su acción inicial. «Exportar» queda `aria-disabled` con ese mismo texto en el tooltip mientras dure. Si esa exportación termina o se cancela con A abierto, el aviso desaparece y «Exportar» vuelve a estar disponible.
 - `DESTINO_OCUPADO` sigue siendo solo «otra canción ya se está exportando a ese archivo».
 
 ### Efectos de la fase 8 en el video
@@ -586,7 +586,7 @@ Si una exportación termina con `PERFIL_NO_SOPORTADO` porque la captura no consi
 
 ### Criterios de aceptación de la fase 7
 - V31. Con un doble de ventana de captura que no admite 2160 líneas, al abrir el diálogo las resoluciones 3840 × 2160 y 2880 × 2160 aparecen con `exp.perfil.noDisponible`, no se pueden elegir y su tooltip dice el motivo `captura`; una opción recordada de 2160 líneas pasa a la soportada más alta por debajo con `exp.anuncio.resolucion`. En este equipo de referencia (pantalla de 3440 × 1440 con la tarea 0244 aplicada) no aparece ningún perfil con ese motivo.
-- V32. Si el sondeo de captura no termina en 10 s (doble lento), el formulario aparece con esos perfiles como `no_comprobado`.
+- V32. Si el sondeo de captura no termina en 10 s (doble lento), el formulario aparece con esos perfiles como `no_comprobado`; si el sondeo lanza una excepción (doble que falla), ningún perfil queda marcado por la captura y el fallo queda en el log.
 - V33. Una exportación que falla por la captura en «Preparar la canción»: si la nueva comprobación falla, D muestra `exp.error.captura` sin [Reintentar], con el foco en [Cambiar opciones], y A se abre después con otra resolución y ese perfil no disponible; si la nueva comprobación pasa, D muestra `exp.error.capturaPasajera` con el foco en [Reintentar].
 - V34. Cada código de la tabla «Reintentar en el diálogo de fallo» muestra exactamente esas acciones y el foco en la marcada (doble por código).
 - V35. Con una carpeta de destino sin permiso de escritura (doble), «Exportar» no arranca el codificador ni crea temporales (comprobado en el doble del worker y en la carpeta), el diálogo sigue en A con `exp.error.destino.titulo` y `exp.error.destino.permiso` debajo de «Guardar como», el campo con borde `error`, `role="alert"` y el foco en [Cambiar…]; elegir otra carpeta quita el error.

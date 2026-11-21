@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cancionSchema, resumirErroresZod } from './cancion'
+import { CREADA_POR_DEFECTO, cancionSchema, resumirErroresZod } from './cancion'
 import {
   FIXTURES,
   aparienciaDePrueba,
@@ -30,9 +30,16 @@ describe('cancionSchema', () => {
     expect(cancionSchema.safeParse({ ...lista(), esquema: 2 }).success).toBe(false)
   })
 
+  it('lee una `creada` ausente o ilegible como la fecha por defecto, sin dañar la canción', () => {
+    for (const creada of ['ayer', undefined, 5]) {
+      const r = cancionSchema.safeParse({ ...lista(), creada })
+      expect(r.success && r.data.creada).toBe(CREADA_POR_DEFECTO)
+    }
+    expect(cancionSchema.parse(lista()).creada).toBe(lista().creada)
+  })
+
   it('rechaza estados, fechas y tipos inválidos', () => {
     expect(cancionSchema.safeParse({ ...lista(), estado: 'otra' }).success).toBe(false)
-    expect(cancionSchema.safeParse({ ...lista(), creada: 'ayer' }).success).toBe(false)
     expect(
       cancionSchema.safeParse({ ...lista(), fuente: { ...lista().fuente, tipo: 'cd' } }).success
     ).toBe(false)

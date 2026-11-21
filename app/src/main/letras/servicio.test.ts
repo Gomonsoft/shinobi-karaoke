@@ -337,6 +337,202 @@ describe('leerArchivo', () => {
   })
 })
 
+describe('editarTextoLinea', () => {
+  async function abrir() {
+    const id = await cancionConFuente(biblioteca, datos, { mezcla: silencioFlac() })
+    const a = el('a', 'Canta el río', 1000)
+    a.fin_ms = 2500
+    a.palabras = [
+      { texto: 'Canta', inicio_ms: 1050, fin_ms: 1250 },
+      { texto: 'el', inicio_ms: 1300, fin_ms: 1400 },
+      { texto: 'río', inicio_ms: 1450, fin_ms: 1900 }
+    ]
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 32,
+      lineas: [a, pausa('pausa', 3000), el('b', 'El aire vuelve', 5000)]
+    })
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const peticion = aPeticionTiempos(id, cancion.letra!)
+    const [ia, ip, ib] = peticion.tiempos.map((t) => t.id) as [string, string, string]
+    return { id, sesionId, peticion, ia, ip, ib }
+  }
+
+  it('cambia el texto, conserva id y tiempos, quita las palabras y no invalida la visita', async () => {
+    const { id, sesionId, peticion, ia } = await abrir()
+    const resumen = await servicio.editarTextoLinea(
+      { cancionId: id, id: ia, texto: 'Canta al río' },
+      sesionId
+    )
+    expect(resumen.id).toBe(id)
+    expect((await enDisco(id)).letra?.lineas[0]).toMatchObject({
+      id: ia,
+      texto: 'Canta al río',
+      inicio_ms: 1000,
+      fin_ms: 2500,
+      palabras: null
+    })
+    // La visita sigue vigente: unos tiempos válidos contra el texto nuevo se guardan.
+    const tiempos = peticion.tiempos.map((t, i) =>
+      i === 0 ? { ...t, palabras: null, fin_ms: 2600 } : t
+    )
+    await servicio.guardarTiempos({ ...peticion, tiempos }, sesionId)
+    expect((await enDisco(id)).letra?.lineas[0]).toMatchObject({
+      texto: 'Canta al río',
+      fin_ms: 2600
+    })
+  })
+
+  it('deshacer: reenviar el texto anterior y las palabras originales vuelve al estado inicial', async () => {
+    const { id, sesionId, peticion, ia } = await abrir()
+    const antes = await enDisco(id)
+    await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Otro texto' }, sesionId)
+    await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Canta el río' }, sesionId)
+    await servicio.guardarTiempos(peticion, sesionId)
+    expect((await enDisco(id)).letra).toEqual(antes.letra)
+  })
+
+  it('sin cambio de texto no escribe', async () => {
+    const { id, sesionId, ia } = await abrir()
+    const actualizar = vi.spyOn(biblioteca, 'actualizar')
+    await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Canta el río' }, sesionId)
+    expect(actualizar).not.toHaveBeenCalled()
+  })
+
+  it('rechaza una visita caducada, una pausa y un id que no existe', async () => {
+    const { id, sesionId, ia, ip } = await abrir()
+    await expect(
+      servicio.editarTextoLinea({ cancionId: id, id: ip, texto: 'x' }, sesionId)
+    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    await expect(
+      servicio.editarTextoLinea({ cancionId: id, id: 'zzz', texto: 'x' }, sesionId)
+    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    servicio.cerrarEdicion(sesionId)
+    await expect(
+      servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'x' }, sesionId)
+    ).rejects.toMatchObject({ codigo: 'LETRA_DESACTUALIZADA' })
+  })
+
+  it('texto y tiempos enviados seguidos se escriben en orden', async () => {
+    const { id, sesionId, peticion, ib } = await abrir()
+    const tiempos = peticion.tiempos.map((t, i) => (i === 2 ? { ...t, inicio_ms: 5200 } : t))
+    await Promise.all([
+      servicio.editarTextoLinea({ cancionId: id, id: ib, texto: 'El aire se va' }, sesionId),
+      servicio.guardarTiempos({ ...peticion, tiempos }, sesionId)
+    ])
+    expect((await enDisco(id)).letra?.lineas[2]).toMatchObject({
+      texto: 'El aire se va',
+      inicio_ms: 5200
+    })
+  })
+})
+
+describe('guardarTiempos con palabras hechas a mano', () => {
+  const manuales = [
+    { texto: 'Canta', inicio_ms: 1100, fin_ms: 1500 },
+    { texto: 'el', inicio_ms: 1500, fin_ms: 1700 },
+    { texto: 'río', inicio_ms: 1800, fin_ms: 2400 }
+  ]
+  async function abrir() {
+    const id = await cancionConFuente(biblioteca, datos, { mezcla: silencioFlac() })
+    const a = el('a', 'Canta el río', 1000)
+    a.fin_ms = 2500
+    a.palabras = [{ texto: 'Canta', inicio_ms: 1050, fin_ms: 1250 }]
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 32,
+      lineas: [a, el('b', 'El aire vuelve', 5000)]
+    })
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const peticion = aPeticionTiempos(id, cancion.letra!)
+    return { id, sesionId, peticion }
+  }
+  const con = (p: ReturnType<typeof aPeticionTiempos>, cambio: object) => ({
+    ...p,
+    tiempos: p.tiempos.map((t, i) => (i === 0 ? { ...t, ...cambio } : t))
+  })
+
+  it('escribe origen_palabras solo con palabras manuales válidas y las conserva al reabrir', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    const manual = con(peticion, { palabras: manuales, origen_palabras: 'manual' })
+    await servicio.guardarTiempos(manual, sesionId)
+    expect((await enDisco(id)).letra?.lineas[0]).toMatchObject({
+      palabras: manuales,
+      origen_palabras: 'manual'
+    })
+    const reabierta = servicio.abrirEdicion(id)!
+    expect(aPeticionTiempos(id, reabierta.cancion.letra!)).toEqual(manual)
+  })
+
+  it('rechaza texto distinto, solapes, duraciones cortas y palabras fuera de la línea', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    const original = await enDisco(id)
+    const casos = [
+      [manuales[0]!, manuales[1]!],
+      [{ ...manuales[0]!, texto: 'Otra' }, manuales[1]!, manuales[2]!],
+      [{ ...manuales[0]!, fin_ms: 1600 }, manuales[1]!, manuales[2]!],
+      [{ ...manuales[0]!, fin_ms: 1110 }, manuales[1]!, manuales[2]!],
+      [{ ...manuales[0]!, inicio_ms: 900 }, manuales[1]!, manuales[2]!],
+      [manuales[0]!, manuales[1]!, { ...manuales[2]!, fin_ms: 2600 }]
+    ]
+    for (const palabras of casos) {
+      await expect(
+        servicio.guardarTiempos(con(peticion, { palabras, origen_palabras: 'manual' }), sesionId)
+      ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    }
+    expect(await enDisco(id)).toEqual(original)
+  })
+
+  it('con fin automático valida contra el inicio del siguiente elemento', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    const ultima = { ...manuales[2]!, fin_ms: 5200 }
+    const palabras = [manuales[0]!, manuales[1]!, ultima]
+    await expect(
+      servicio.guardarTiempos(
+        con(peticion, { fin_ms: null, palabras, origen_palabras: 'manual' }),
+        sesionId
+      )
+    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    await servicio.guardarTiempos(
+      con(peticion, {
+        fin_ms: null,
+        palabras: [manuales[0]!, manuales[1]!, { ...ultima, fin_ms: 4900 }],
+        origen_palabras: 'manual'
+      }),
+      sesionId
+    )
+    expect((await enDisco(id)).letra?.lineas[0]).toMatchObject({ fin_ms: null })
+  })
+
+  it('quita el campo con palabras null y restaura las importadas tras borrarlas', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    await servicio.guardarTiempos(
+      con(peticion, { palabras: manuales, origen_palabras: 'manual' }),
+      sesionId
+    )
+    await servicio.guardarTiempos(
+      con(peticion, { palabras: null, origen_palabras: 'manual' }),
+      sesionId
+    )
+    const linea = (await enDisco(id)).letra?.lineas[0]
+    expect(linea).toMatchObject({ palabras: null })
+    expect(linea).not.toHaveProperty('origen_palabras')
+    await servicio.guardarTiempos(peticion, sesionId)
+    const restaurada = (await enDisco(id)).letra?.lineas[0]
+    expect(restaurada).toMatchObject({ palabras: [{ texto: 'Canta', inicio_ms: 1050 }] })
+    expect(restaurada).not.toHaveProperty('origen_palabras')
+  })
+
+  it('un guardado sin tocar las palabras importadas no escribe nada', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    const antes = await readFile(join(datos, 'biblioteca', id, 'cancion.json'), 'utf8')
+    await servicio.guardarTiempos(peticion, sesionId)
+    expect(await readFile(join(datos, 'biblioteca', id, 'cancion.json'), 'utf8')).toBe(antes)
+  })
+})
+
 describe('guardarTiempos en una visita', () => {
   async function abrir(inicios = true) {
     const id = await cancionConFuente(biblioteca, datos, { mezcla: silencioFlac() })

@@ -3,7 +3,8 @@ import { claveTexto, nombreVisibleGrupo } from '@shared/identidad'
 import type { CatalogoIpc, ResumenCancionIpc } from '@shared/ipc'
 
 /** Tipo de grupo. Solo `artista` y `album` admiten tema (0174); el resto son agrupaciones visuales. */
-export type TipoGrupo = 'artista' | 'album' | 'sinArtista' | 'sinAlbum' | 'albumSinArtista'
+export type TipoGrupo =
+  'artista' | 'album' | 'sinArtista' | 'sinAlbum' | 'albumSinArtista' | 'fecha' | 'sinFecha'
 
 export interface Grupo {
   /** Identidad estable (clave de main, sin tildes perdidas): sirve para el plegado de sesión. */
@@ -30,11 +31,64 @@ interface Identidad {
   tipo: TipoGrupo
 }
 
+const MESES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre'
+]
+
+interface GrupoFecha extends Identidad {
+  nombre: string
+  /** Posición en la lista: 0 = Hoy; los meses, por antigüedad; `Infinity` = Sin agrupar. */
+  orden: number
+}
+
+/**
+ * Grupo por fecha de añadido (B8-4), en hora local: Hoy · Ayer · Esta semana (desde el lunes) ·
+ * Este mes · un grupo por mes y año. Cada canción va al primero que la contiene; una fecha futura
+ * es Hoy; sin `creada` válida (`null`) va a «Sin agrupar».
+ */
+export function grupoDeFecha(creada: string | null, ahora: Date): GrupoFecha {
+  const t = creada === null ? NaN : new Date(creada).getTime()
+  if (Number.isNaN(t))
+    return { id: 'sinFecha', tipo: 'sinFecha', nombre: 'Sin agrupar', orden: Infinity }
+  const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
+  const dia = (desplazamiento: number) =>
+    new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + desplazamiento).getTime()
+  const lunes = dia(-((hoy.getDay() + 6) % 7))
+  const mes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).getTime()
+  const fijo = (clave: string, nombre: string, orden: number): GrupoFecha => ({
+    id: `fecha:${clave}`,
+    tipo: 'fecha',
+    nombre,
+    orden
+  })
+  if (t >= dia(0)) return fijo('hoy', 'Hoy', 0)
+  if (t >= dia(-1)) return fijo('ayer', 'Ayer', 1)
+  if (t >= lunes) return fijo('semana', 'Esta semana', 2)
+  if (t >= mes) return fijo('mes', 'Este mes', 3)
+  const d = new Date(t)
+  const meses = (hoy.getFullYear() - d.getFullYear()) * 12 + hoy.getMonth() - d.getMonth()
+  const clave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return fijo(clave, `${MESES[d.getMonth()]} de ${d.getFullYear()}`, 3 + meses)
+}
+
 /** Grupo al que pertenece una canción según la agrupación (`ninguno` no tiene grupos). */
 export function identidadDeGrupo(
   c: ResumenCancionIpc,
-  modo: Exclude<AgruparBiblioteca, 'ninguno'>
+  modo: Exclude<AgruparBiblioteca, 'ninguno'>,
+  ahora: Date = new Date()
 ): Identidad {
+  if (modo === 'fecha') return grupoDeFecha(c.creada, ahora)
   if (modo === 'artista') {
     return c.claves.artista === null
       ? { id: 'sinArtista', tipo: 'sinArtista' }
@@ -48,8 +102,12 @@ export function identidadDeGrupo(
 }
 
 /** Id del grupo de una canción, o `null` sin agrupar. */
-export function idGrupoDe(c: ResumenCancionIpc, modo: AgruparBiblioteca): string | null {
-  return modo === 'ninguno' ? null : identidadDeGrupo(c, modo).id
+export function idGrupoDe(
+  c: ResumenCancionIpc,
+  modo: AgruparBiblioteca,
+  ahora: Date = new Date()
+): string | null {
+  return modo === 'ninguno' ? null : identidadDeGrupo(c, modo, ahora).id
 }
 
 const comparar = new Intl.Collator(undefined, { sensitivity: 'base' }).compare
@@ -60,7 +118,9 @@ const RANGO: Record<TipoGrupo, number> = {
   album: 0,
   albumSinArtista: 1,
   sinArtista: 2,
-  sinAlbum: 2
+  sinAlbum: 2,
+  fecha: 0,
+  sinFecha: 2
 }
 
 /**
@@ -71,9 +131,11 @@ const RANGO: Record<TipoGrupo, number> = {
 export function agruparCanciones(
   visibles: ResumenCancionIpc[],
   todas: ResumenCancionIpc[],
-  modo: AgruparBiblioteca
+  modo: AgruparBiblioteca,
+  ahora: Date = new Date()
 ): Grupo[] {
   if (modo === 'ninguno') return []
+  if (modo === 'fecha') return agruparPorFecha(visibles, todas, ahora)
   const totales = new Map<string, ResumenCancionIpc[]>()
   for (const c of todas) {
     const { id } = identidadDeGrupo(c, modo)
@@ -122,6 +184,48 @@ export function agruparCanciones(
     }
     return comparar(a.album ?? a.nombre, b.album ?? b.nombre)
   })
+}
+
+function agruparPorFecha(
+  visibles: ResumenCancionIpc[],
+  todas: ResumenCancionIpc[],
+  ahora: Date
+): Grupo[] {
+  const totales = new Map<string, number>()
+  for (const c of todas) {
+    const { id } = grupoDeFecha(c.creada, ahora)
+    totales.set(id, (totales.get(id) ?? 0) + 1)
+  }
+  const grupos = new Map<string, Grupo>()
+  const ordenes = new Map<string, number>()
+  for (const c of visibles) {
+    const g = grupoDeFecha(c.creada, ahora)
+    const existente = grupos.get(g.id)
+    if (existente) existente.canciones.push(c)
+    else {
+      grupos.set(g.id, {
+        id: g.id,
+        tipo: g.tipo,
+        nombre: g.nombre,
+        artista: null,
+        album: null,
+        asignable: false,
+        canciones: [c],
+        total: totales.get(g.id) ?? 1
+      })
+      ordenes.set(g.id, g.orden)
+    }
+  }
+  // Dentro de un grupo, por `creada` descendente; en «Sin agrupar», por `modificada` (B8-5).
+  const reciente = (a: string | null, b: string | null) => (b ?? '').localeCompare(a ?? '')
+  return [...grupos.values()]
+    .sort((a, b) => ordenes.get(a.id)! - ordenes.get(b.id)!)
+    .map((g) => ({
+      ...g,
+      canciones: [...g.canciones].sort((a, b) =>
+        g.tipo === 'sinFecha' ? reciente(a.modificada, b.modificada) : reciente(a.creada, b.creada)
+      )
+    }))
 }
 
 /** `bib.grupo.recuento`: «{n} canciones», «1 canción» o, con búsqueda o filtro, «{v} de {n} canciones». */

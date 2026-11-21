@@ -61,7 +61,7 @@ it('tiene exactamente dos filas con los controles en el orden de la spec', () =>
     'Original',
     'Voz',
     'Instrumental',
-    'Sincronizar al ritmo (S)',
+    'Sincronizar al ritmo',
     'Marcar como lista'
   ])
 })

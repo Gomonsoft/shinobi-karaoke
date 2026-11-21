@@ -30,6 +30,7 @@ export function resumenDePrueba(
     estado: 'lista',
     modalidad: 'karaoke',
     modificada: '2026-11-20T10:00:00Z',
+    creada: '2026-11-20T10:00:00Z',
     estilo: estiloPredeterminado(),
     album: null,
     claves: { artista: 'artista', album: null },

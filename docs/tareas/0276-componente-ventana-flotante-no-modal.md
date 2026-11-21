@@ -1,6 +1,6 @@
 # 0276 — Componente «ventana flotante» no modal
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor)
 - Fase: 9 de 0.2.1 · Lote F (ventana del editor preciso), primera del lote
 - Depende de: —
@@ -36,3 +36,22 @@ Un componente genérico y probado de subventana tipo Adobe (sin contenido del ed
 - Manual: guía de la fase 9 — mover y redimensionar es cómodo en 1366 × 768.
 
 ## Notas de implementación
+
+Hecho. Archivos: `app/src/renderer/src/componentes/VentanaFlotante.tsx`, `ventanaFlotante.module.css`, `geometriaVentana.ts` y sus tests.
+
+**API para 0279** (`<VentanaFlotante>` se pinta en un portal sobre `document.body`, `position: fixed`, z-index 20):
+- `titulo` (contenido del `h2`), `botones` (ranura de la barra: Anterior, Siguiente, ✕; no arrastra), `children`.
+- `limites: Area` (`{left, top, width, height}`; un `DOMRect` sirve): área del editor bajo la cabecera, en coordenadas de ventana. Si cambia, la ventana se reacota sola.
+- `referencia?: Area | null`: la lista de líneas (se coloca a su derecha + 12 px).
+- `preferencia?: Geometria | null` (`{x, y, ancho, alto}` con `x`/`y` **relativas a la esquina superior izquierda de `limites`**) y `alCambiarPreferencia(g)` (al soltar, tras ráfaga de teclado de 400 ms, o doble clic en la barra, que emite la geometría inicial). `preferencia = null` (p. ej. tras «Restablecer distribución») vuelve a inicial.
+- `alSalirDelFoco()`: F6 con el foco dentro. F6 con el foco fuera (y sin diálogo modal) la componente devuelve el foco sola al último interno; `ref` (`VentanaFlotanteApi`): `enfocarUltimo()` y `elemento()`.
+- Contenedor con `data-ventana-flotante` (`ATRIBUTO_VENTANA_FLOTANTE`); los atajos del editor deben ignorar eventos con `target.closest('[data-ventana-flotante]')` (los eventos React burbujean por el portal).
+- Textos por defecto: «Mover la ventana», «Cambiar el tamaño de la ventana» (sobrescribibles por prop). No gestiona Esc salvo para cancelar un arrastre; el foco inicial y el cierre son del contenedor.
+- Tamaños de diseño en `rem` (760 × 440 / 560 × 360 con `rem = 16`), leídos de la fuente raíz.
+
+**Pruebas**: Vitest `VentanaFlotante.test.tsx` (11) y `geometriaVentana.test.ts` (8), pasan. prettier y eslint limpios; typecheck sin errores en estos archivos (hay errores ajenos de e2e por otros lotes).
+
+**Manual**: mover y redimensionar es cómodo en 1366 × 768 y sin scroll de página a 560 px (guía de la fase 9).
+
+**Deuda**: la preferencia usa `x`/`y` relativas al área; 0273 debe guardarlas tal cual (solo habla de px CSS).
+

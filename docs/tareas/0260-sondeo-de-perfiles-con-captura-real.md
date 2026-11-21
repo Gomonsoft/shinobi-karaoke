@@ -1,6 +1,6 @@
 # 0260 — Sondeo de perfiles con una captura real y «Reintentar» tras un fallo de captura
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (exportación)
 - Fase: 7 de 0.2.1 · Lote A (exportación)
 - Depende de: 0258 (mismo lote: `servicio.ts` y el diálogo), 0283 (`detalle` del error en `shared/ipc.ts`). 0244 y 0246 ya están hechas.
@@ -37,3 +37,12 @@ Que el diálogo no ofrezca perfiles que el equipo no puede capturar ([QA](../Tes
 - Manual: guía de la fase 7 — caso 10.1 de la guía de la fase 6 (perfiles del diálogo) en Windows con monitor < 4K y, si hay equipo, Linux con GPU (8.10).
 
 ## Notas de implementación
+
+- `main/exportacion/ventana.ts`: `probarCaptura(ancho, alto, deps)` (ventana offscreen sin preload ni rol, `about:blank`, silenciada, navegación bloqueada, `setContentSize`, `capturePage`, tamaño exacto; destruida siempre; ≤ 3 s, rechaza si se pasa) y `opcionesOffscreen` compartida con la ventana de exportación. Los fallos de tamaño de la ventana llevan `causa: "captura"`.
+- `servicio.ts`: `perfiles()` lanza a la vez los codificadores y el sondeo de captura (dependencia opcional `probarCaptura`; por proporción, de mayor a menor, de una en una, una vez por arranque). Mayores que el máximo → `captura` (V31); lo no comprobado a los 10 s (`plazoSondeoCapturaMs`) → `no_comprobado` (V32); una excepción no marca nada y se registra. Un fallo de captura de un trabajo se recomprueba antes de cerrarlo y el error lleva `detalle: { causa: "captura", reintentable }`; con `false` el tamaño queda `captura` hasta reiniciar. Si la recomprobación misma falla, se registra y se deja reintentar.
+- `shared/exportacion.ts`: motivo `captura`.
+- Renderer: `DialogoSeguimiento.tsx` (`exp.error.captura` y `exp.error.capturaPasajera`; [Reintentar] solo con `reintentable`), `textos.ts` (`MOTIVOS_PERFIL.captura`, `ERRORES_CAPTURA`), `useFormulario.ts` (la resolución sustituida al abrir se anuncia con `exp.anuncio.resolucion`, V31/V33). La tabla de acciones de D (V34) ya coincidía con la spec; se añadió la prueba de foco por código.
+- E2E: `app/e2e/exportacion-captura.spec.ts` ya no omite 3840 × 2160 en Linux (si la captura no es exacta, comprueba que `exportacion.perfiles()` marca 3840×2160 y 2880×2160 con `captura`). Escrita **sin ejecutar**.
+- **Falta (otros lotes / sesión principal)**: conectar el sondeo en `app/src/main/index.ts`, en `new ServicioExportacion({...})`: `probarCaptura: (ancho, alto) => probarCaptura(ancho, alto, { crear: (o) => new BrowserWindow(o) as never })` (importar `probarCaptura` de `./exportacion/ventana`). Sin eso no se sondea y ningún perfil sale `captura`. Además, `qa` debe actualizar la regla 10 de `docs/pruebas.md` (ya no se omite 4K en Linux).
+- Manual (guía de la fase 7): caso 10.1 de la guía de la fase 6 en Windows con monitor < 4K y, con equipo, Linux con GPU (8.10); en el equipo de referencia (3440 × 1440) ningún perfil con `captura`.
+- Cierra la 0242 (ver su estado).

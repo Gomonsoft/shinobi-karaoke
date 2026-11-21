@@ -1,6 +1,6 @@
 # 0265 — Barra de espera como barra de carga
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4, 5 y 6 (render compartido)
 - Fase: 8 de 0.2.1 · Lote C (render, biblioteca y preferencias), primera del lote
 - Depende de: —
@@ -32,3 +32,9 @@ Sustituir la barra centrada que se encoge por una barra de ancho fijo que se lle
 - Manual: guía de la fase 8 — la barra se entiende a 5 m en una TV con fondos claros y oscuros; en Letra lista se distingue el relleno de la pista. Capturas R8-7 en 0271.
 
 ## Notas de implementación
+
+- Qué se hizo: `.barra` pasa a ser la pista (40 % del ancho, `max(6px, 1cqh)`, `letra.color`, sombra, `overflow: hidden`) y lleva dentro un `.relleno` (`color_resaltado`) con `transform: scaleX(var(--k-fraccion))` y origen izquierdo. Con `.sinBarrido`, la pista es `color-mix(letra.color 35 %)` y el relleno `letra.color`. `render.ts` y el reloj no cambian: la variable se sigue escribiendo en el mismo `requestAnimationFrame` y en el efecto del modo fotograma. Sin animaciones de entrada ni salida (no las había).
+- Archivos: `app/src/renderer/src/karaoke/PantallaLetra.tsx`, `pantallaLetra.module.css`, `PantallaLetra.test.tsx` (prueba «R8-3 a R8-6»).
+- Probar: `npx vitest run src/renderer/src/karaoke/PantallaLetra.test.tsx`.
+- Para 0271 (lote D): ninguna aserción de `fase5.spec.ts`/`reproductor.spec.ts` revisada (no se tocaron); si alguna mide el ancho de `[data-indicador=barra]` como el de la barra que se encogía, ahora el ancho es fijo y el avance está en `[data-relleno]`.
+- Deuda: los colores/medidas reales (R8-3 en píxeles, R8-4) solo se ven en el navegador real; capturas R8-7 en 0271.

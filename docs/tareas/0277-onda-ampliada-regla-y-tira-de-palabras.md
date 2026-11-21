@@ -1,6 +1,6 @@
 # 0277 — Onda ampliada, regla, tiradores y tira de palabras del editor preciso
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor)
 - Fase: 9 de 0.2.1 · Lote F (ventana del editor preciso)
 - Depende de: 0276 (mismo lote), 0272 (tipos `BorradorLinea`, `PalabraBorrador` y límites)
@@ -33,3 +33,11 @@ Los componentes visuales de la zona central de la ventana, controlados por props
 - Manual: guía de la fase 9 — la onda deja ver dónde empieza cada palabra.
 
 ## Notas de implementación
+
+Hecho. Todo en `app/src/renderer/src/vistas/editor/preciso/` (componentes controlados, sin estado de edición):
+- `vistaPrecisa.ts`: `vistaPrecisa(inicio, fin, margen, duracion)`, `tiempoAPorcentaje`, `pixelATiempo`, `casiCoinciden` (para escalonar tiradores).
+- `EjePrecisa` (contenedor posicionado que comparte el ancho de la vista), `ReglaPrecisa` (`vista`, `posicionMs`, `alBuscar`), `OndaLinea` (`cancionId`, `separada`, `vista`, `inicioLineaMs`, `finLineaMs`, `offsetMs?`; reutiliza `usePicosVoz` y `LienzoPicosVoz` de `PistaOndaVoz.tsx`, que ya aportan presupuesto = ancho ≤ 4096, descarte por `generacion` y estados), `TiraPalabras` (`palabras: PalabraBorrador[]`, `seleccionada`, `vista`, `atenuada`, `alSeleccionar`, `alEscucharPalabra`, `alTeclear?` para Intro/Alt/Ctrl + flechas, `ref` al listbox, `children` = tiradores de la palabra), `TiradorPreciso` (`tipo` linea|palabra, `borde`, `ms`, `vista`, `etiqueta`, `automatico`, `escalonado`, `min`/`max`, `limitar(ms) -> {valor, limite}`, `textoLimite`, `alMover`, `alConfirmar`, `alCancelar`, `alAjustar`), `textosPreciso.ts` (microcopy `edi.preciso.*`) y `preciso.module.css`.
+- Las coordenadas son tiempo de letra; `OndaLinea` suma `offsetMs` para leer los picos. Los tiradores de la línea van como hijos de `EjePrecisa`; los de palabra, como hijos de `TiraPalabras`.
+- Pruebas: `vistaPrecisa.test.ts`, `TiraPalabras.test.tsx`, `TiradorPreciso.test.tsx`, `OndaLinea.test.tsx` (22 con las de 0276, verdes).
+- Deuda: el rótulo de la regla usa `Posición en la ventana` (no hay clave en la spec). `OndaLinea` depende de `PistaOndaVoz.tsx` (solo importa). Sin cursor/cabezal propio: lo pinta 0278 si lo necesita.
+

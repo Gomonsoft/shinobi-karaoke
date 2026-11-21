@@ -1,8 +1,16 @@
 import { mkdtemp, mkdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { CADUCIDAD_DESTINO_MS, Destinos, discoReal, type PuertosDestinos } from './destinos'
+import { readdir } from 'node:fs/promises'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  CADUCIDAD_DESTINO_MS,
+  Destinos,
+  discoReal,
+  probarEscritura,
+  type FsPrueba,
+  type PuertosDestinos
+} from './destinos'
 
 let raiz: string
 let datos: string
@@ -176,5 +184,58 @@ describe('temporal y sustitución', () => {
       codigo: 'LIMPIEZA_FALLIDA',
       detalles: '/x/.a.parcial'
     })
+  })
+})
+
+describe('probarEscritura', () => {
+  const fsQue = (open: FsPrueba['open'], rm: FsPrueba['rm'] = async () => undefined): FsPrueba => ({
+    open,
+    rm
+  })
+
+  it('crea el archivo de prueba, lo cierra y lo borra', async () => {
+    expect(await probarEscritura(videos)).toBe(true)
+    expect(await readdir(videos)).toEqual([])
+  })
+
+  it.each(['EACCES', 'EPERM', 'EROFS', 'ENOENT', 'ENOTDIR'])('%s: no escribible', async (code) => {
+    const fs = fsQue(async () => {
+      throw Object.assign(new Error('x'), { code })
+    })
+    expect(await probarEscritura(videos, { fs })).toBe(false)
+  })
+
+  it('otro error (disco lleno) no declara la carpeta inservible', async () => {
+    const fs = fsQue(async () => {
+      throw Object.assign(new Error('x'), { code: 'ENOSPC' })
+    })
+    expect(await probarEscritura(videos, { fs })).toBe(true)
+  })
+
+  it('un fallo al borrar se registra y no cuenta como error', async () => {
+    const registrar = vi.fn()
+    const fs = fsQue(
+      async () => ({ close: async () => undefined }),
+      async () => {
+        throw new Error('no se borra')
+      }
+    )
+    expect(await probarEscritura(videos, { fs, registrar })).toBe(true)
+    expect(registrar).toHaveBeenCalledOnce()
+  })
+
+  it('consumir rechaza con detalle de campo destino y no gasta el destinoId', async () => {
+    let escribible = true
+    const d = crear({
+      disco: { ...discoReal, esCarpetaEscribible: async () => escribible }
+    })
+    const a = await d.destinoPropuesto(cancion, 'mkv_av1', null)
+    escribible = false
+    await expect(d.consumir(a.destinoId)).rejects.toMatchObject({
+      codigo: 'DESTINO_NO_DISPONIBLE',
+      detalle: { campo: 'destino' }
+    })
+    escribible = true
+    await expect(d.consumir(a.destinoId)).resolves.toBe(a.ruta)
   })
 })

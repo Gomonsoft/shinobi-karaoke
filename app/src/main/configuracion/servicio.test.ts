@@ -281,7 +281,8 @@ describe('RegistroArchivo', () => {
       expect(c.editor.paneles).toEqual({
         lista: { ancho: 320, minimizado: false },
         panel: { ancho: 360, minimizado: false },
-        linea_tiempo: { alto: null, minimizado: false }
+        linea_tiempo: { alto: null, minimizado: false },
+        preciso: { geometria: null, margen_ms: 500 }
       })
     })
   })

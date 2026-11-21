@@ -1,6 +1,6 @@
 # 0263 — Importar letras sin tiempos por palabra
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 3 (letra)
 - Fase: 8 de 0.2.1 · Lote B1 (contratos y main de letras)
 - Depende de: 0262 (mismo lote: comparte `shared/letrasBusqueda.ts`), 0261 (`palabrasVisibles` para el exportador LRC)
@@ -35,3 +35,8 @@ Que ninguna importación nueva (LRCLIB, LRC mejorado pegado o en archivo) cree t
 - Manual: guía de la fase 8 — buscar una canción con sincronía por palabra en LRCLIB, guardarla y comprobar que el editor la barre por línea.
 
 ## Notas de implementación
+
+- **Hecho**: `convertirLyricsfile` y `lrcALetra` dejan `palabras: null`. Fin de línea: `end_ms` de la línea si `inicio < fin < siguiente`; si no, el `end_ms` **explícito de la última palabra** con la misma regla (LRCLIB), y en LRC mejorado el fin (cierre o estimado) de la última palabra con la misma regla; la marca final vacía sigue fijando el fin de la última línea. El exportador (`exportar` en `lrc.ts`) solo escribe `palabrasVisibles(e, inicio del siguiente)`. `busqueda.ts`: `sincroniaOrden` mantiene `palabra` en el candidato de un registro con `hasWordSync` solo para ordenar (`sincroniaDe` no cambia). Vista Letra: los candidatos `palabra` se ven como ◇ «Sincronizada por línea» (`BusquedaLetra.tsx`); `sincroniaActual` devuelve `palabra` solo con palabras `origen_palabras: "manual"` (0149); se retiró `TEXTO.sync.palabra` y `.sync_palabra`.
+- Archivos: `main/letras/{lyricsfile,busqueda}.ts` y tests, `shared/letras/lrc.ts` y `letras.test.ts`, `renderer/src/vistas/letra/{BusquedaLetra.tsx,modeloElegida.ts,textos.ts,letra.module.css}` y tests, `e2e/letras.spec.ts` (aserciones «por palabra» → «por línea»; **escrito sin ejecutar**: `npx playwright test e2e/letras.spec.ts`). `normalizar.ts` no cambió.
+- Interpretación: «última palabra con `end_ms` explícito» = la última palabra de la línea, si tiene `end_ms`.
+- Manual (guía de la fase 8): buscar en LRCLIB una canción con sincronía por palabra, guardarla y comprobar que el editor la barre por línea.

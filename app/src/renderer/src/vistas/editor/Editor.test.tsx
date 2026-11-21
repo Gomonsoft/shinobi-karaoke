@@ -16,6 +16,7 @@ import {
   cancionSinSincronizar
 } from './fixturesApi'
 import { Editor } from './Editor'
+import { E } from './textos'
 import { LL } from './textosLetraLista'
 
 const motor = vi.hoisted(() => ({
@@ -97,7 +98,7 @@ afterEach(() => {
 
 it('abre un borrador sin tiempos en Voz, selecciona la primera línea y enfoca Sincronizar', async () => {
   montar()
-  const boton = await screen.findByRole('button', { name: 'Sincronizar al ritmo (S)' })
+  const boton = await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
   await waitFor(() => expect(boton).toHaveFocus())
   expect(screen.getByRole('option', { name: /^Línea 1, sin sincronizar/ })).toHaveAttribute(
     'aria-selected',
@@ -154,11 +155,13 @@ it('Esc cierra el diálogo de atajos antes de volver a la Biblioteca', async () 
   expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca' })
 })
 
-it('S entra en Sincronizar al ritmo con cuenta atrás y Esc la cancela sin marcar', async () => {
+it('S no hace nada; el botón entra en Sincronizar al ritmo con cuenta atrás y Esc la cancela sin marcar', async () => {
   const { ir } = montar()
-  const boton = await screen.findByRole('button', { name: /Sincronizar al ritmo/ })
+  const boton = await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
   await waitFor(() => expect(boton).toBeEnabled())
   fireEvent.keyDown(boton, { key: 's' })
+  expect(screen.queryByRole('region', { name: 'Sincronizando al ritmo' })).toBeNull()
+  fireEvent.click(boton)
   expect(await screen.findByRole('region', { name: 'Sincronizando al ritmo' })).toBeVisible()
   expect(screen.getByRole('button', { name: 'Deshacer (Retroceso)' })).toBeDisabled()
   expect(screen.getByRole('radio', { name: 'Estilo' })).toHaveAttribute('aria-disabled', 'true')
@@ -180,11 +183,12 @@ it('mantiene menos de 100 opciones montadas para una letra de mil líneas', asyn
   await waitFor(() => expect(screen.getAllByRole('option').length).toBeLessThan(100))
 })
 
-it('I aplica el desplazamiento, y deshacer restaura palabras descartadas por un ajuste', async () => {
+it('I respeta offset_ms, y deshacer restaura palabras hechas a mano descartadas por un ajuste', async () => {
   const c = cancionSincronizadaLrclib()
   const l = c.letra!
   l.offset_ms = 250
   l.lineas[0]!.palabras = [{ texto: 'Baila', inicio_ms: 2000, fin_ms: 4200 }]
+  l.lineas[0]!.origen_palabras = 'manual'
   const { llamadas } = montar(c)
   const segunda = await screen.findByRole('option', { name: /^Línea 2,/ })
   fireEvent.click(screen.getByRole('checkbox', { name: 'Escuchar al ajustar' }))
@@ -200,12 +204,27 @@ it('I aplica el desplazamiento, y deshacer restaura palabras descartadas por un 
     },
     { timeout: 2500 }
   )
-  expect(screen.getByText(/La línea 1 ya no se resaltará palabra a palabra/)).toBeVisible()
+  expect(screen.getByText(/La línea 1 vuelve al barrido progresivo/)).toBeVisible()
   const aviso = screen
-    .getByText(/La línea 1 ya no se resaltará palabra a palabra/)
+    .getByText(/La línea 1 vuelve al barrido progresivo/)
     .closest('[data-testid=toast]')!
   fireEvent.click(aviso.querySelector('button')!)
   expect(screen.getByRole('option', { name: /^Línea 2, 00:05.25/ })).toBeVisible()
+})
+
+it('Mayús + L escucha la línea seleccionada con 0,5 s de margen y L sigue sin pausa al final', async () => {
+  montar(cancionSincronizadaLrclib())
+  const primera = await screen.findByRole('option', { name: /^Línea 1, 00:02.00/ })
+  await act(async () => {})
+  fireEvent.keyDown(primera, { key: 'L', shiftKey: true })
+  expect(motor.reproducir).toHaveBeenLastCalledWith({
+    desdeMs: 1500,
+    hastaMs: expect.any(Number)
+  })
+  const { hastaMs } = (motor.reproducir.mock.lastCall as unknown as [{ hastaMs: number }])[0]
+  expect(hastaMs).toBeGreaterThan(2500)
+  fireEvent.keyDown(primera, { key: 'l' })
+  expect(motor.reproducir).toHaveBeenLastCalledWith({ desdeMs: 0 })
 })
 
 it('selecciona una región y ajusta un tirador por teclado sin mover el cabezal', async () => {
@@ -304,7 +323,8 @@ it('recarga una visita desactualizada en pausa, vacía historial y no reintenta'
   // aparezca la línea y la tecla se perdía (~10 % con 8 procesos en paralelo).
   await act(async () => {})
   fallar('letras.guardarTiempos', 'LETRA_DESACTUALIZADA')
-  fireEvent.keyDown(primero, { key: '.' })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Escuchar al ajustar' }))
+  fireEvent.keyDown(primero, { key: 'ArrowRight', altKey: true })
   // Esperar a que React aplique el cambio: en la CI de Linux la aserción
   // síncrona se adelantaba al render.
   await waitFor(() => expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeEnabled())
@@ -327,7 +347,7 @@ it('F vacía el guardado y prueba la mezcla desde la selección cuando la separa
   const { llamadas } = montar(cancion)
   const segunda = await screen.findByRole('option', { name: /^Línea 2,/ })
   fireEvent.click(segunda)
-  fireEvent.click(screen.getByRole('button', { name: '+0,1 s' }))
+  fireEvent.keyDown(segunda, { key: 'ArrowRight', altKey: true, shiftKey: true })
   await screen.findByRole('option', { name: /^Línea 2, 00:05.10/ })
   motor.estado.mockReturnValueOnce({
     sonando: false,
@@ -348,7 +368,12 @@ it('F vacía el guardado y prueba la mezcla desde la selección cuando la separa
   expect(llamadas).toContainEqual(
     expect.objectContaining({
       metodo: 'letras.guardarTiempos',
-      args: [expect.objectContaining({ offset_ms: 100 }), expect.any(String)]
+      args: [
+        expect.objectContaining({
+          tiempos: expect.arrayContaining([expect.objectContaining({ id: 'l2', inicio_ms: 5100 })])
+        }),
+        expect.any(String)
+      ]
     })
   )
   await waitFor(() => expect(motorPrueba.reproducir).toHaveBeenCalledWith({ desdeMs: 2100 }))
@@ -383,7 +408,7 @@ it('deshabilita la prueba sin líneas sincronizadas y durante la sincronía al r
   montar(cancion)
   const sync = await screen.findByRole('button', { name: /Sincronizar al ritmo/ })
   await waitFor(() => expect(sync).toBeEnabled())
-  fireEvent.keyDown(sync, { key: 's' })
+  fireEvent.click(sync)
   const banda = await screen.findByRole('region', { name: 'Sincronizando al ritmo' })
   expect(screen.getByRole('button', { name: 'Probar a pantalla completa' })).toBeDisabled()
   fireEvent.keyDown(banda, { key: 'f' })
@@ -394,7 +419,8 @@ it('si el vaciado falla, usa la confirmación del editor antes de abrir la prueb
   const { fallar } = montar(cancionSincronizadaLrclib())
   const probar = await screen.findByRole('button', { name: 'Probar a pantalla completa' })
   fallar('letras.guardarTiempos', 'ERROR_INTERNO', 2)
-  fireEvent.click(screen.getByRole('button', { name: '+0,1 s' }))
+  const primera = await screen.findByRole('option', { name: /^Línea 1,/ })
+  fireEvent.keyDown(primera, { key: 'ArrowRight', altKey: true, shiftKey: true })
   await screen.findByRole('option', { name: /^Línea 1, 00:02.10/ })
   fireEvent.click(probar)
   const quedarse = await screen.findByRole('button', { name: 'Quedarme en el editor' })
@@ -410,8 +436,10 @@ it('si el vaciado falla, usa la confirmación del editor antes de abrir la prueb
   expect(motor.liberarAudio).toHaveBeenCalledOnce()
 })
 
-it('guarda el desplazamiento desde la prueba con pistas y lo deshace en un paso', async () => {
-  const { llamadas } = montar(cancionSincronizadaLrclib())
+it('«,» y «.» no hacen nada en la prueba desde el editor ni crean pasos de deshacer', async () => {
+  const c = cancionSincronizadaLrclib()
+  c.letra!.offset_ms = 1500
+  const { llamadas } = montar(c)
   const probar = await screen.findByRole('button', { name: 'Probar a pantalla completa' })
   fireEvent.click(probar)
   const dialogo = await screen.findByRole('dialog', { name: /Reproductor de/ })
@@ -420,35 +448,23 @@ it('guarda el desplazamiento desde la prueba con pistas y lo deshace en un paso'
   )
 
   fireEvent.keyDown(dialogo, { key: '.' })
-  await screen.findByText('Desplazamiento: +0,10 s')
-  fireEvent.keyDown(dialogo, { key: '.' })
-  await screen.findByText('Desplazamiento: +0,20 s')
-  await waitFor(
-    () => {
-      expect(llamadas).toContainEqual(
-        expect.objectContaining({
-          metodo: 'letras.guardarTiempos',
-          args: [expect.objectContaining({ offset_ms: 200 }), expect.any(String)]
-        })
-      )
-    },
-    { timeout: 2500 }
-  )
+  fireEvent.keyDown(dialogo, { key: ',' })
+  expect(screen.queryByText(/Desplazamiento/)).toBeNull()
 
   fireEvent.keyDown(dialogo, { key: 'Escape' })
-  await screen.findByRole('option', { name: /^Línea 1, 00:02.20/ })
+  // offset_ms se sigue aplicando: 2,0 s + 1,5 s.
+  await screen.findByRole('option', { name: /^Línea 1, 00:03.50/ })
   expect(probar).toHaveFocus()
-  fireEvent.keyDown(probar, { key: 'z', ctrlKey: true })
-  await screen.findByRole('option', { name: /^Línea 1, 00:02.00/ })
   expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
+  expect(llamadas.filter((l) => l.metodo === 'letras.guardarTiempos')).toHaveLength(0)
 })
 
-it('cambia entre Lista y Letra lista desde el menú ⋯ sin salir ni tocar el historial', async () => {
+it('cambia entre Lista y Letra lista desde Funciones sin salir ni tocar el historial', async () => {
   const { llamadas, ir } = montar(cancionLista())
   await screen.findByRole('button', { name: 'Más acciones del editor' })
   expect(screen.getByText('Lista')).toBeVisible()
-  fireEvent.click(screen.getByRole('button', { name: 'Más acciones del editor' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: LL.menuALetraLista }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Funciones' }))
+  fireEvent.click(screen.getByRole('button', { name: E.funciones.modo.aLetraLista }))
   const dialogo = await screen.findByRole('dialog', { name: LL.dialogoTitulo })
   fireEvent.click(within(dialogo).getByRole('button', { name: LL.confirmarCambio }))
   expect(await screen.findByText('Letra lista')).toBeVisible()
@@ -458,9 +474,54 @@ it('cambia entre Lista y Letra lista desde el menú ⋯ sin salir ni tocar el hi
   })
   expect(ir).not.toHaveBeenCalled()
   expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
+  // El foco pasa al botón que sustituye al pulsado.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: E.funciones.modo.aLista })).toHaveFocus()
+  )
 
-  fireEvent.click(screen.getByRole('button', { name: 'Más acciones del editor' }))
-  fireEvent.click(screen.getByRole('menuitem', { name: LL.menuALista }))
+  fireEvent.click(screen.getByRole('button', { name: E.funciones.modo.aLista }))
   expect(await screen.findByText('Lista')).toBeVisible()
   expect(screen.getAllByText(LL.toastKaraoke).length).toBeGreaterThan(0)
+})
+
+it('el dock de una Lista ofrece «Marcar como letra lista» y «Hecho»; el primero cambia la modalidad y vuelve a la Biblioteca (E8-12, E8-13)', async () => {
+  const { llamadas, ir } = montar(cancionLista())
+  const letraLista = await screen.findByRole('button', { name: 'Marcar como letra lista' })
+  expect(screen.getByRole('button', { name: 'Hecho' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: 'Marcar como lista' })).toBeNull()
+  fireEvent.click(letraLista)
+  const dialogo = await screen.findByRole('dialog', { name: LL.dialogoTitulo })
+  fireEvent.click(within(dialogo).getByRole('button', { name: LL.boton }))
+  await waitFor(() =>
+    expect(ir).toHaveBeenCalledWith({
+      tipo: 'biblioteca',
+      enfocar: { id: expect.any(String), resaltar: true }
+    })
+  )
+  expect(llamadas.find((l) => l.metodo === 'biblioteca.marcarLista')?.args[1]).toEqual({
+    modalidad: 'letra_lista'
+  })
+})
+
+it('el dock de una Letra lista ofrece «Marcar como lista» y «Hecho»; con líneas sin inicio, el aviso sale una sola vez entre los dos', async () => {
+  const cancion = cancionLista()
+  cancion.modalidad = 'letra_lista'
+  cancion.letra!.lineas[1]!.inicio_ms = null
+  const { llamadas, ir } = montar(cancion)
+  const lista = await screen.findByRole('button', { name: 'Marcar como lista' })
+  expect(screen.getByRole('button', { name: 'Hecho' })).toBeVisible()
+  fireEvent.click(lista)
+  const popover = await screen.findByRole('dialog', { name: /falta 1 línea por sincronizar/ })
+  expect(ir).not.toHaveBeenCalled()
+  fireEvent.click(within(popover).getByRole('button', { name: 'Salir igualmente' }))
+  // El doble de main exige todas las líneas con inicio y rechaza el cambio (ver preguntas/0151).
+  await waitFor(() =>
+    expect(llamadas.find((l) => l.metodo === 'biblioteca.marcarLista')?.args[1]).toEqual({
+      modalidad: 'karaoke'
+    })
+  )
+  // Una segunda pulsación ya no repite el aviso: va directa a cambiar.
+  fireEvent.click(screen.getByRole('button', { name: 'Hecho' }))
+  expect(screen.queryByRole('dialog', { name: /falta 1 línea por sincronizar/ })).toBeNull()
+  expect(ir).toHaveBeenCalledOnce()
 })

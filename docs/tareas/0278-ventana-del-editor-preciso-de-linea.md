@@ -1,6 +1,6 @@
 # 0278 — Ventana del editor preciso de línea: borrador, marcar al vuelo, texto, bucle y teclado
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor)
 - Fase: 9 de 0.2.1 · Lote F (ventana del editor preciso), última del lote
 - Depende de: 0276, 0277 (mismo lote), 0272 (operaciones puras), 0269 (`shared/escucha.ts`), 0273 (preferencias), 0275 (`fijarTramoConTono`, `tonoConservado`; si aún no está, la ventana funciona con `playbackRate` y la nota)
@@ -35,3 +35,18 @@ El contenido completo de la ventana como un componente autónomo: recibe la lín
 - Manual: guía de la fase 9 — marcar a mano una línea rápida y una lenta de una canción real a 0,5× y a 1×.
 
 ## Notas de implementación
+
+Hecho. En `app/src/renderer/src/vistas/editor/preciso/`: `EditorPreciso.tsx` (ventana completa: monta `VentanaFlotante` y los componentes de 0277), `estadoPreciso.ts` (reducer del borrador con historial y pasada), `atajosPreciso.ts` (tabla de teclas pura), `textosPreciso.ts` (ampliado), `editorPreciso.module.css` y tests (`estadoPreciso`, `atajosPreciso`, `EditorPreciso`, con un motor doble).
+
+API para 0279 (`EditorPrecisoProps`):
+- Datos: `letra`, `lineaId`, `duracionMs`, `cancionId`, `separada`, `numeroLinea`, `totalLineas`, `hayAnterior`, `haySiguiente`. El borrador se recarga cuando cambia la identidad de `letra` o `lineaId` (pasar una `letra` estable).
+- Motor: `motor: PuertoMotorPreciso` = el `MotorAudio` del editor (mismo que el transporte; usa `estado`, `suscribir`, `posicionMs`, `reproducir`, `pausar`, `buscar`, `fijarBucle`, `fijarTramoConTono`, `fijarVelocidad`, `tiempoDeEvento`). La velocidad es la del motor (estado compartido). Al cerrar se llama a `fijarBucle(null)`, `fijarTramoConTono(null)` y se pausa si el bucle sonaba.
+- Controlado: `margenMs` + `alCambiarMargen(0|500|1000)`, `preferencia` (geometría) + `alCambiarPreferencia`, `limites`, `referencia`.
+- Interno: borrador con historial, selección, pasada, texto del campo, avisos, estado del bucle y la confirmación de descarte.
+- Salidas: `alAplicar({borrador, textoNuevo})` (solo si hay cambios; luego `alCerrar` o `alCambiarLinea`), `alCerrar()`, `alCambiarLinea(-1|1)`, `alElegirPista(1|2|3)`, `alFijarInicioAqui()`, `alCambiarBorrador(borrador|null)` (vista previa en vivo), `alSalirDelFoco()` (F6), `anunciar(texto)`.
+- `ref` (`EditorPrecisoApi`): `obtenerCambios()` (para aplicar el borrador desde fuera: F, Ctrl+E, ⟲, sincronizar…), `enfocarTira()`, `enfocarUltimo()` y `elemento()`.
+
+Decisiones: la ventana trabaja en tiempo de letra (campos y tira; `offset_ms` solo al hablar con el motor y los picos). El tramo con tono es toda la vista (inicio − máx(margen, 250) a fin + máx(margen, 250)). Si una línea mide menos de 20 ms por palabra se muestra un aviso en lugar del editor. Ctrl/Cmd + Intro, ✕ y Esc aplican y cierran; sin cambios solo cierran.
+
+Deuda: la detección de «volver a empezar el bucle» (reinicio de la pasada) usa un salto atrás del cabezal en un bucle de `requestAnimationFrame` y no tiene prueba automática (sí la tiene el reducer); la ayuda de límite de campos/tiradores se muestra en la línea del recuento y no como tooltip anclado; los anuncios de «cambiar de línea» los hace la apertura de la nueva línea. Manual: marcar a mano una línea rápida y otra lenta de una canción real a 0,5× y a 1×; comprobar el tono conservado dentro de la ventana y el reinicio de la pasada al volver el bucle.
+

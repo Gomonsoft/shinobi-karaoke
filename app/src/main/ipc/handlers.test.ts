@@ -21,6 +21,7 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
   estado: 'borrador',
   modalidad: 'karaoke',
   modificada: '2026-01-01T00:00:00.000Z',
+  creada: '2026-01-01T00:00:00.000Z',
   estilo: null,
   album: null,
   claves: { artista: 'a', album: null },

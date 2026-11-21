@@ -148,10 +148,11 @@ test.describe('letras con el doble local de LRCLIB', () => {
       await v.getByRole('button', { name: 'Buscar la letra mientras tanto' }).click({
         timeout: 30_000
       })
-      // La búsqueda se lanza sola: tres resultados, palabra > línea > texto.
+      // La búsqueda se lanza sola: tres resultados; el de sincronía por palabra va primero pero
+      // se muestra «por línea» (ya no se importan palabras, 0149).
       const opciones = v.getByRole('option')
       await expect(opciones).toHaveCount(3)
-      await expect(opciones.nth(0)).toContainText(TEXTO.sync.palabra)
+      await expect(opciones.nth(0)).toContainText(TEXTO.sync.linea)
       await expect(opciones.nth(1)).toContainText(TEXTO.sync.linea)
       await expect(opciones.nth(2)).toContainText(TEXTO.sync.texto)
       await expect(opciones.nth(0)).toContainText('5 s más larga que tu audio')
@@ -181,7 +182,7 @@ test.describe('letras con el doble local de LRCLIB', () => {
 
       await usar(v).click()
       await expect(
-        v.getByText('Letra actual · de LRCLIB · sincronizada por palabra · 2 líneas')
+        v.getByText('Letra actual · de LRCLIB · sincronizada por línea · 2 líneas')
       ).toBeVisible()
       await expect(
         v.getByRole('button', { name: 'Paso 3, Letra, completado, paso actual' })
@@ -197,12 +198,12 @@ test.describe('letras con el doble local de LRCLIB', () => {
       const c = leerCancion(env.datos, id)
       expect(cancionSchema.safeParse(c).success).toBe(true)
       expect(c.letra).toMatchObject({ origen: 'lrclib', lrclib_id: 9002 })
-      expect(c.letra.lineas[0].palabras.length).toBeGreaterThan(1)
+      expect(c.letra.lineas[0].palabras).toBeNull()
       expect(c.pasos.letra.estado).toBe('completado')
       // La separación terminada no se llevó la letra por delante.
       await v.getByRole('button', { name: /^Paso 3, Letra/ }).click()
       await expect(
-        v.getByText('Letra actual · de LRCLIB · sincronizada por palabra · 2 líneas')
+        v.getByText('Letra actual · de LRCLIB · sincronizada por línea · 2 líneas')
       ).toBeVisible()
 
       // El cliente declara su URL base en `app.log`; nada va a lrclib.net.
@@ -382,11 +383,11 @@ test.describe('letras con el doble local de LRCLIB', () => {
       conArchivo(d, leerFixtureLetra('mejorado.lrc'))
       await botonImportar(v).click()
       await expect(
-        v.getByText('Letra actual · de un archivo · sincronizada por palabra · 2 líneas')
+        v.getByText('Letra actual · de un archivo · sincronizada por línea · 2 líneas')
       ).toBeVisible()
       let c = json(d, d.id)
       expect(c.letra.origen).toBe('archivo')
-      expect(c.letra.lineas[0].palabras).toHaveLength(4)
+      expect(c.letra.lineas[0].palabras).toBeNull()
 
       // .txt en Windows-1252: se decodifica bien y pide confirmar la sustitución.
       conArchivo(d, Buffer.from('Canción de añoranza\nÚltimo bis', 'latin1'))
@@ -414,12 +415,10 @@ test.describe('letras con el doble local de LRCLIB', () => {
     const d = await sembrarCon('letras-sustituir', SIN_LETRA, TITULOS.completa)
     await conApp(d, async (v) => {
       await abrirLetra(v, TITULOS.completa)
-      // Primera elección (sin letra previa, sin diálogo): la de palabra, 9002.
+      // Primera elección (sin letra previa, sin diálogo): la de sincronía por palabra (primera), 9002.
       await expect(v.getByRole('option')).toHaveCount(3)
       await usar(v).click()
-      await expect(
-        v.getByText(/^Letra actual · de LRCLIB · sincronizada por palabra/)
-      ).toBeVisible()
+      await expect(v.getByText(/^Letra actual · de LRCLIB · sincronizada por línea/)).toBeVisible()
       await v.getByRole('button', { name: TEXTO_ELEGIDA.otra }).click()
       await expect(v.getByRole('option')).toHaveCount(3)
       const antes = json(d, d.id).letra

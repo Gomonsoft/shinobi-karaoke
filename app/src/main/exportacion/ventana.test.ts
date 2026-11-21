@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { CANALES } from '../../shared/canales'
-import { crearVentanaExportacion, type DepsVentanaExportacion } from './ventana'
+import { crearVentanaExportacion, probarCaptura, type DepsVentanaExportacion } from './ventana'
 
 /** `respeta`: sigue el tamaño pedido; `recorta`: nace recortada y `setContentSize` la arregla; `rebelde`: no se deja fijar. */
 function montar(imagen = { w: 640, h: 480 }, modo: 'respeta' | 'recorta' | 'rebelde' = 'respeta') {
@@ -157,5 +157,39 @@ describe('crearVentanaExportacion', () => {
     const evento = { preventDefault: vi.fn() }
     wc.emit('will-navigate', evento)
     expect(evento.preventDefault).toHaveBeenCalled()
+  })
+})
+
+describe('probarCaptura', () => {
+  it('captura una ventana sin preload, de una vez, y la destruye', async () => {
+    const { ventana, deps } = montar({ w: 640, h: 480 })
+    expect(await probarCaptura(640, 480, { crear: deps.crear })).toBe(true)
+    const o = vi.mocked(deps.crear).mock.calls[0]![0]
+    expect(o.webPreferences.preload).toBeUndefined()
+    expect(ventana.loadURL).toHaveBeenCalledWith('about:blank')
+    expect(ventana.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('un tamaño recortado a 2159 líneas da false', async () => {
+    const { ventana, deps } = montar({ w: 3840, h: 2159 })
+    expect(await probarCaptura(3840, 2160, { crear: deps.crear })).toBe(false)
+    expect(ventana.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('pasar del plazo rechaza y destruye la ventana', async () => {
+    const { ventana, deps } = montar()
+    ventana.loadURL.mockReturnValue(new Promise(() => undefined))
+    await expect(probarCaptura(640, 480, { crear: deps.crear, plazoMs: 20 })).rejects.toThrow(
+      /sin respuesta/
+    )
+    expect(ventana.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('el fallo de captura de un trabajo lleva causa «captura»', async () => {
+    const { deps } = montar(undefined, 'rebelde')
+    await expect(crearVentanaExportacion(opciones, deps)).rejects.toMatchObject({
+      codigo: 'PERFIL_NO_SOPORTADO',
+      causa: 'captura'
+    })
   })
 })

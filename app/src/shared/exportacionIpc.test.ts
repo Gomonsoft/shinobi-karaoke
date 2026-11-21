@@ -176,7 +176,12 @@ describe('errores y protocolo', () => {
     ]) {
       expect(CODIGOS_ERROR).toContain(c)
     }
-    for (const c of ['DESTINO_OCUPADO', 'PERFIL_NO_SOPORTADO', 'LIMPIEZA_FALLIDA']) {
+    for (const c of [
+      'DESTINO_OCUPADO',
+      'PERFIL_NO_SOPORTADO',
+      'LIMPIEZA_FALLIDA',
+      'CANCION_EXPORTANDOSE'
+    ]) {
       expect(CODIGOS_SOLO_MAIN).toContain(c)
     }
     expect(CODIGOS_ERROR).not.toContain('EXPORTACION_BLOQUEADA')

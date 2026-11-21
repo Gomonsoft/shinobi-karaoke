@@ -236,7 +236,7 @@ test.describe('layout del editor a alto completo', () => {
           comprobarLayout(await medir(v), `${vp.nombre} tras encoger`, 'sincronia')
 
           // Modo sincronizar: sin scroll de página y la zona superior conserva su mínimo.
-          await v.keyboard.press('s')
+          await v.getByRole('button', { name: /^Sincronizar al ritmo/ }).click()
           await expect(v.getByRole('heading', { name: E.syncTitulo })).toBeVisible()
           const sync = await medir(v)
           expect(sync.vp.scrollAlto, `${vp.nombre} sincronizando`).toBeLessThanOrEqual(sync.vp.alto)
@@ -288,7 +288,7 @@ test.describe('layout del editor a alto completo', () => {
       test.skip(w !== 1280 || h !== 720, 'la pantalla no admite 1280 x 720')
       await abrirEditor(v, T19)
       const antes = await medir(v)
-      await v.keyboard.press('s')
+      await v.getByRole('button', { name: /^Sincronizar al ritmo/ }).click()
       await expect(v.getByRole('heading', { name: E.syncTitulo })).toBeVisible()
       const en = await medir(v)
       expect(en.vp.scrollAlto).toBeLessThanOrEqual(en.vp.alto)
@@ -325,7 +325,7 @@ test.describe('layout del editor a alto completo', () => {
   })
 
   for (const ancho of [1024, 1280]) {
-    test(`el transporte y el desplazamiento no se parten a ${ancho} px`, async () => {
+    test(`el transporte no se parte a ${ancho} px`, async () => {
       await conEditor('layout-filas', async (v, _datos, app) => {
         const [w] = await ajustarVentana(app, v, ancho, 720)
         test.skip(w !== ancho, `la pantalla no admite ${ancho}`)
@@ -334,16 +334,7 @@ test.describe('layout del editor a alto completo', () => {
         expect(new Set(m.filas.fila1).size).toBe(1)
         expect(new Set(m.filas.fila2).size).toBe(1)
         expect(m.filas.barra).toBeGreaterThanOrEqual(240)
-        const grupo = v.getByRole('group', { name: E.offsetTitulo })
-        await expect(v.getByText(E.offsetTitulo)).toHaveCount(1)
-        await grupo.scrollIntoViewIfNeeded()
-        const tops = await grupo.evaluate((g) =>
-          [...g.querySelectorAll('button, input')].map((e) =>
-            Math.round(e.getBoundingClientRect().top)
-          )
-        )
-        expect(tops).toHaveLength(4)
-        expect(new Set(tops).size).toBe(1)
+        await expect(v.getByText(/Desplazamiento de toda la letra/)).toHaveCount(0)
       })
     })
   }
@@ -811,7 +802,7 @@ test.describe('persistencia de la distribución (0161)', () => {
   })
 })
 
-test('el desplazamiento de toda la letra no se parte con el panel a 300, 360 y 480 px', async () => {
+test('el panel Sincronía no se desborda con el panel a 300, 360 y 480 px', async () => {
   await conEditor('panel-angosto', async (v, _datos, app) => {
     await ajustarVentana(app, v, 1280, 720)
     await abrirEditor(v, T19)
@@ -825,16 +816,23 @@ test('el desplazamiento de toda la letra no se parte con el panel a 300, 360 y 4
       await panel.focus()
       await accion()
       await expect(panel).toHaveAttribute('aria-valuenow', String(ancho))
-      const grupo = v.getByRole('group', { name: E.offsetTitulo })
-      await grupo.scrollIntoViewIfNeeded()
-      const tops = await grupo.evaluate((g) =>
-        [...g.querySelectorAll('button, input')].map((e) =>
-          Math.round(e.getBoundingClientRect().top)
+      const desborde = await v.locator('#zona-panel').evaluate((p) => p.scrollWidth - p.clientWidth)
+      expect(desborde, `panel a ${ancho} px`).toBeLessThanOrEqual(0)
+      await expect(v.getByText(/Desplazamiento de toda la letra/)).toHaveCount(0)
+      // Las tres pestañas y «Minimizar» caben en una fila sin partirse (E8-17).
+      const filas = await v
+        .locator('[role="radiogroup"][aria-label="Panel del editor"] [role="radio"]')
+        .evaluateAll((radios) =>
+          radios.map((r) => ({
+            top: Math.round(r.getBoundingClientRect().top),
+            ancho: r.scrollWidth - r.clientWidth
+          }))
         )
+      expect(filas, `pestañas a ${ancho} px`).toHaveLength(3)
+      expect(new Set(filas.map((f) => f.top)).size, `pestañas a ${ancho} px`).toBe(1)
+      expect(Math.max(...filas.map((f) => f.ancho)), `pestañas a ${ancho} px`).toBeLessThanOrEqual(
+        0
       )
-      expect(tops, `panel a ${ancho} px`).toHaveLength(4)
-      expect(new Set(tops).size, `panel a ${ancho} px`).toBe(1)
-      await expect(v.getByText(E.offsetTitulo)).toHaveCount(1)
     }
   })
 })
@@ -1031,7 +1029,7 @@ test.describe('capturas de revisión de la subfase 2.1', () => {
           await capturar('todo-min')
           await expandir('lista', 'panel', 'timeline')
 
-          await v.keyboard.press('s')
+          await v.getByRole('button', { name: /^Sincronizar al ritmo/ }).click()
           await expect(v.getByRole('heading', { name: E.syncTitulo })).toBeVisible()
           await capturar('sync')
           await v.keyboard.press('Escape')
@@ -1044,11 +1042,6 @@ test.describe('capturas de revisión de la subfase 2.1', () => {
 
           await v.keyboard.press('Home')
           await expect(divisor(v, 'panel')).toHaveAttribute('aria-valuenow', '300')
-          await v
-            .getByRole('group', { name: E.offsetTitulo })
-            .evaluate((g) =>
-              g.querySelector('input')!.scrollIntoView({ block: 'center', inline: 'nearest' })
-            )
           await capturar('panel-300')
           await divisor(v, 'panel').dblclick()
 

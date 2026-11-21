@@ -301,3 +301,190 @@ describe('MotorAudio', () => {
     expect(motor.estado().sonando).toBe(true)
   })
 })
+
+describe('MotorAudio: tramo con el tono conservado', () => {
+  const SR = 1000
+
+  function dobleTono(estirar?: (...args: unknown[]) => Promise<Float32Array[]>) {
+    const base = doble()
+    const origen = {
+      duration: 30,
+      sampleRate: SR,
+      numberOfChannels: 1,
+      getChannelData: () => new Float32Array(30 * SR)
+    }
+    base.ctx.decodeAudioData.mockResolvedValue(origen as never)
+    const creados: { duration: number; sampleRate: number }[] = []
+    Object.assign(base.ctx, {
+      createBuffer: (_canales: number, longitud: number, sampleRate: number) => {
+        const buffer = { duration: longitud / sampleRate, sampleRate, copyToChannel: vi.fn() }
+        creados.push(buffer)
+        return buffer
+      }
+    })
+    const falso =
+      estirar ??
+      (async (canales: unknown, _sr: unknown, v: unknown) =>
+        (canales as Float32Array[]).map(
+          (c) => new Float32Array(Math.round(c.length / (v as number)))
+        ))
+    const estirarMock = vi.fn(falso)
+    const motor = new MotorAudio({
+      cancionId: 'prueba',
+      gananciaDb: -6,
+      volumen: 0.6,
+      crearContexto: () => base.ctx as unknown as AudioContext,
+      fetch: base.cargar,
+      ahoraPerf: () => 1234,
+      estirar: estirarMock as never
+    })
+    return { ...base, motor, estirarMock, creados }
+  }
+
+  const vaciar = () => new Promise((resolver) => setTimeout(resolver, 0))
+
+  it('reproduce el bucle del tramo con el buffer estirado y la fórmula de reloj de siempre', async () => {
+    const { motor, ctx, fuentes, estirarMock, creados } = dobleTono()
+    await motor.usarPista('original')
+    motor.fijarVelocidad(0.5)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    await vaciar()
+    expect(estirarMock).toHaveBeenCalledOnce()
+    expect(estirarMock.mock.calls[0]![1]).toBe(SR)
+    expect(creados).toHaveLength(1)
+    expect(creados[0]!.duration).toBeCloseTo(8)
+    expect(motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })).toBe(true)
+    await motor.reproducir({ desdeMs: 2500 })
+    const fuente = fuentes[0]!
+    expect(fuente.buffer).toBe(creados[0])
+    expect(fuente).toMatchObject({ loop: true, loopStart: 2, loopEnd: 6 })
+    expect(fuente.playbackRate.value).toBe(1)
+    expect(fuente.start).toHaveBeenCalledWith(1, 3)
+    // A 0,5× avanza media canción por segundo de contexto; el oído va 40 ms por detrás.
+    ctx.currentTime = 2.04
+    expect(motor.posicionMs()).toBeCloseTo(3000)
+    // Al pasar el extremo envuelve igual que con playbackRate.
+    ctx.currentTime = 5.04
+    expect(motor.posicionMs()).toBeCloseTo(2000 + ((2500 + 2000 - 4000) % 2000))
+  })
+
+  it('usa playbackRate fuera del tramo y con 1x, y estira las escuchas puntuales dentro', async () => {
+    const { motor, fuentes, creados } = dobleTono()
+    await motor.usarPista('original')
+    motor.fijarVelocidad(0.75)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    await vaciar()
+    await motor.reproducir({ desdeMs: 1500, hastaMs: 2500 })
+    expect(fuentes[0]!.buffer).toBe(creados[0])
+    expect(fuentes[0]!.start).toHaveBeenCalledWith(1, (1500 - 1000) / 1000 / 0.75)
+    expect(fuentes[0]!.stop).toHaveBeenCalledWith(1 + 1000 / (1000 * 0.75))
+    await motor.reproducir({ desdeMs: 500, hastaMs: 900 })
+    expect(fuentes[1]!.buffer).not.toBe(creados[0])
+    expect(fuentes[1]!.playbackRate.value).toBe(0.75)
+    await motor.reproducir({ desdeMs: 1500 })
+    expect(fuentes[2]!.playbackRate.value).toBe(0.75)
+    motor.fijarVelocidad(1)
+    await motor.reproducir({ desdeMs: 1500, hastaMs: 2500 })
+    expect(fuentes.at(-1)!.playbackRate.value).toBe(1)
+    expect(fuentes.at(-1)!.buffer).not.toBe(creados[0])
+  })
+
+  it('mientras se prepara suena con playbackRate y relevo al pasar por el inicio del bucle', async () => {
+    let terminar!: (c: Float32Array[]) => void
+    const { motor, ctx, fuentes, creados } = dobleTono(
+      () => new Promise<Float32Array[]>((resolver) => (terminar = resolver))
+    )
+    await motor.usarPista('original')
+    motor.fijarVelocidad(0.5)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })
+    await motor.reproducir({ desdeMs: 2500 })
+    expect(fuentes[0]).toMatchObject({ loopStart: 2, loopEnd: 4 })
+    expect(fuentes[0]!.playbackRate.value).toBe(0.5)
+    ctx.currentTime = 1.5
+    terminar([new Float32Array(8000)])
+    await vaciar()
+    // En 0,5 s de contexto lleva 250 ms: va por 2750 y faltan 1250 ms de canción = 2,5 s.
+    expect(fuentes[0]!.stop).toHaveBeenCalledWith(4)
+    expect(fuentes[1]!.buffer).toBe(creados[0])
+    expect(fuentes[1]!.start).toHaveBeenCalledWith(4, 2)
+    ctx.currentTime = 3.04
+    expect(motor.posicionMs()).toBeCloseTo(2500 + 0.5 * 1000 * 2)
+    ctx.currentTime = 4.54
+    expect(motor.posicionMs()).toBeCloseTo(2000 + 0.5 * 500)
+    motor.pausar()
+    expect(fuentes[1]!.stop).toHaveBeenCalled()
+    expect(motor.estado().sonando).toBe(false)
+  })
+
+  it('convierte los límites al mover el bucle dentro del tramo y reinicia al salir de él', async () => {
+    const { motor, ctx, fuentes, creados } = dobleTono()
+    await motor.usarPista('original')
+    motor.fijarVelocidad(0.5)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    await vaciar()
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })
+    await motor.reproducir({ desdeMs: 2500 })
+    expect(motor.fijarBucle({ inicioMs: 1500, finMs: 4500 })).toBe(true)
+    expect(fuentes).toHaveLength(1)
+    expect(fuentes[0]).toMatchObject({ loopStart: 1, loopEnd: 7 })
+    ctx.currentTime = 2.04
+    expect(motor.fijarBucle({ inicioMs: 3000, finMs: 6000 })).toBe(true)
+    expect(fuentes).toHaveLength(2)
+    expect(fuentes[1]!.buffer).not.toBe(creados[0])
+    expect(fuentes[1]!.playbackRate.value).toBe(0.5)
+  })
+
+  it('descarta la caché al cambiar tramo o velocidad y al cerrar la ventana', async () => {
+    const { motor, fuentes, estirarMock, creados } = dobleTono()
+    await motor.usarPista('original')
+    motor.fijarVelocidad(0.5)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    await vaciar()
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    expect(estirarMock).toHaveBeenCalledOnce()
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 6000 })
+    await vaciar()
+    expect(estirarMock).toHaveBeenCalledTimes(2)
+    motor.fijarVelocidad(0.75)
+    await vaciar()
+    expect(estirarMock).toHaveBeenCalledTimes(3)
+    expect(estirarMock.mock.calls[2]![2]).toBe(0.75)
+    motor.fijarTramoConTono(null)
+    await motor.reproducir({ desdeMs: 1500, hastaMs: 2500 })
+    expect(fuentes[0]!.buffer).not.toBe(creados.at(-1))
+    expect(fuentes[0]!.playbackRate.value).toBe(0.75)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 6000 })
+    motor.fijarVelocidad(1)
+    motor.liberarAudio()
+    motor.destruir()
+    expect(estirarMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('si el estiramiento falla o no cumple la duración, queda en playbackRate y lo comunica', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { motor, fuentes, estirarMock } = dobleTono(async () => {
+      throw new Error('worker caído')
+    })
+    await motor.usarPista('original')
+    expect(motor.estado().tonoConservado).toBe(true)
+    motor.fijarVelocidad(0.5)
+    motor.fijarTramoConTono({ inicioMs: 1000, finMs: 5000 })
+    await vaciar()
+    expect(motor.estado().tonoConservado).toBe(false)
+    expect(aviso).toHaveBeenCalledOnce()
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })
+    await motor.reproducir({ desdeMs: 2500 })
+    expect(fuentes[0]).toMatchObject({ loop: true, loopStart: 2, loopEnd: 4 })
+    expect(fuentes[0]!.playbackRate.value).toBe(0.5)
+    expect(estirarMock).toHaveBeenCalledOnce()
+    motor.fijarVelocidad(1)
+    expect(motor.estado().tonoConservado).toBe(true)
+
+    estirarMock.mockResolvedValueOnce([new Float32Array(10)])
+    motor.fijarVelocidad(0.75)
+    await vaciar()
+    expect(motor.estado().tonoConservado).toBe(false)
+    aviso.mockRestore()
+  })
+})

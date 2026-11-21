@@ -1,5 +1,5 @@
 import { CUENTA_MS, ESPERA_LEGADA, UMBRAL_PRIMERA_ENTRADA_MS, type Espera } from '@shared/espera'
-import { finEfectivo, type ElementoLetra, type Letra } from '@shared/letra'
+import { finEfectivo, palabrasVisibles, type ElementoLetra, type Letra } from '@shared/letra'
 
 export interface LineaRender {
   id: string
@@ -71,12 +71,13 @@ function dibujar(
   proporcion: number,
   proporcionPalabra: (palabra: NonNullable<ElementoLetra['palabras']>[number], i: number) => number
 ): LineaRender {
+  // Solo las palabras hechas a mano se pintan una a una; las importadas se barren con la línea.
   return {
     id: linea.id,
     texto: linea.texto,
     progreso: proporcion,
     palabras:
-      linea.palabras?.map((p, i) => ({
+      palabrasVisibles(linea)?.map((p, i) => ({
         texto: p.texto,
         progreso: proporcionPalabra(p, i)
       })) ?? null
@@ -166,7 +167,7 @@ export function fotogramaEstatico(letra: Letra, id: string | null): FotogramaLet
         )
   const actual = lineas[indice]
   const siguiente = lineas[indice + 1]
-  const mitad = (actual?.palabras?.length ?? 0) / 2
+  const mitad = (actual ? (palabrasVisibles(actual)?.length ?? 0) : 0) / 2
   return {
     titulo: null,
     actual: actual ? dibujar(actual, 0.5, (_p, i) => progreso(mitad, i, i + 1)) : null,

@@ -1,8 +1,15 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page
+} from '@playwright/test'
 import { configPredeterminada } from '../src/shared/config'
 import { estiloPredeterminado } from '../src/shared/estilo'
+import type { ApiShinobi } from '../src/shared/ipc'
 import { instantaneaDePrueba } from '../src/shared/__fixtures__/exportacion'
 import { crearTemporal } from './temporales'
 
@@ -12,19 +19,34 @@ import { crearTemporal } from './temporales'
  */
 /**
  * En Linux con Xvfb y GPU por software (CI), Chromium recorta la superficie offscreen de 4K en 1 px
- * (3839×2159) y la app, con razón, la rechaza con PERFIL_NO_SOPORTADO. Es un límite del entorno,
- * no de la lógica: solo se omite ahí y solo con ese error. Queda cubierto por la guía manual de la
- * fase 6 (Linux real con GPU, docs/Test-manuales/). En macOS y Windows sigue siendo obligatoria.
+ * (3839×2159) y la app, con razón, la rechaza con PERFIL_NO_SOPORTADO. Es un límite del entorno, no
+ * de la lógica, y desde la 0260 ya no se omite: el sondeo de captura marca esos perfiles con
+ * `captura` antes de que nadie los elija, y es eso lo que se comprueba. Linux real con GPU queda en
+ * la guía manual (docs/Test-manuales/). En macOS y Windows la captura exacta sigue siendo obligatoria.
  */
-function omitirSiEntornoSinSuperficie(e: unknown, ancho: number, alto: number): void {
+async function comprobarMarcadoPorCaptura(
+  e: unknown,
+  principal: Page,
+  ancho: number,
+  alto: number
+): Promise<void> {
   const m = e instanceof Error ? /captura es de (\d+)×(\d+)/.exec(e.message) : null
-  if (process.platform !== 'linux' || !m) return
+  if (process.platform !== 'linux' || !m) throw e
   const [w, h] = [Number(m[1]), Number(m[2])]
-  const mayor = ancho >= 3840
-  test.skip(
-    mayor && w <= ancho && h <= alto && ancho - w <= 2 && alto - h <= 2,
-    `El entorno Linux sin GPU no crea la superficie offscreen de ${ancho}×${alto} (da ${w}×${h}). Verificar en Linux real con GPU.`
-  )
+  if (!(ancho >= 3840 && w <= ancho && h <= alto && ancho - w <= 2 && alto - h <= 2)) throw e
+  const marcados = await principal.evaluate(async () => {
+    const api = (globalThis as unknown as { shinobi: ApiShinobi }).shinobi.exportacion
+    const { perfiles } = await api.perfiles()
+    return perfiles
+      .filter((p) => p.alto === 2160 && p.fps === 30)
+      .map((p) => `${p.formato} ${p.ancho}x${p.alto} ${p.soportado} ${p.motivo}`)
+  })
+  expect(marcados).toEqual([
+    'mkv_av1 3840x2160 false captura',
+    'mkv_av1 2880x2160 false captura',
+    'webm_vp9 3840x2160 false captura',
+    'webm_vp9 2880x2160 false captura'
+  ])
 }
 
 /**
@@ -98,8 +120,9 @@ for (const [ancho, alto] of [
           { ancho, alto, instantanea }
         )
       } catch (e) {
-        omitirSiEntornoSinSuperficie(e, ancho, alto)
-        throw e
+        // Sin superficie exacta (Linux sin GPU): vale que el sondeo marque los perfiles 4K.
+        await comprobarMarcadoPorCaptura(e, principal, ancho, alto)
+        return
       }
       expect(resultado.longitud).toBe(ancho * alto * 4)
       expect(resultado.pixel.join(',')).toBe('0,0,255,255')

@@ -1,6 +1,6 @@
 # 0262 — `guardarTiempos` acepta palabras hechas a mano
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 5 (guardado)
 - Fase: 8 de 0.2.1 (prepara la 9) · Lote B1 (contratos y main de letras)
 - Depende de: 0261 (lote B2: `palabrasVisibles`, `validarPalabrasManuales` y `aPeticionTiempos` en `tiempos.ts`), 0283 (mismo lote: `servicio.ts`, `letrasBusqueda.ts`)
@@ -38,3 +38,8 @@ Que el único escritor de `letra` acepte y valide las palabras con `origen_palab
 - Manual: ninguna propia (la cubre la guía de la fase 9).
 
 ## Notas de implementación
+
+- **Hecho**: `tiempoElementoSchema` admite `origen_palabras: z.literal('manual').optional()`. `aPeticionTiempos` lo envía solo con palabras y origen manual. `ServicioLetras.guardarTiempos`: con `origen_palabras: "manual"` valida con `validarPalabrasManuales` contra el texto **guardado** y el tope `fin_ms ?? inicio del siguiente elemento de la petición` (sin compararlas con la referencia; falla con `ARGUMENTOS_NO_VALIDOS`); sin origen conserva la regla de hoy (referencia + delta). Cada línea se parte de `sinPalabras(guardada)`, así que `origen_palabras` solo se escribe con palabras manuales.
+- Archivos: `shared/letrasBusqueda.ts`, `shared/letras/tiempos.ts` (solo `aPeticionTiempos`), `main/letras/servicio.ts`; tests en `servicio.test.ts` (describe «con palabras hechas a mano», incluye reabrir con P18 y no escribir en un guardado sin cambios) y `shared/letrasBusqueda.test.ts` (esquema y `aPeticionTiempos`; no se tocó `tiempos.test.ts`, que es de B2).
+- Probar: `npx vitest run src/main/letras/servicio.test.ts src/shared/letrasBusqueda.test.ts`.
+- Nota: «siguiente elemento» = el elemento inmediato de la petición (`tiempos[i+1]`), sea línea o pausa; si no tiene inicio, no hay tope.

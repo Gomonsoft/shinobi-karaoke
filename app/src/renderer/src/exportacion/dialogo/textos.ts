@@ -44,6 +44,7 @@ export const PISTA_FORMATO: Record<FormatoId, string> = {
 export const MOTIVOS_PERFIL: Record<MotivoPerfilNoSoportado, string> = {
   codificador: 'el formato elegido no admite esta resolución en tu equipo',
   memoria: 'hace falta un equipo con al menos 8 GB de memoria',
+  captura: 'tu equipo no puede preparar la imagen del video a este tamaño',
   no_comprobado: 'no se pudo comprobar'
 }
 
@@ -133,7 +134,16 @@ export const EXP = {
   sinPerfilesNoComprobado:
     'No se pudo comprobar qué videos puede crear tu equipo. Cierra este cuadro y vuelve a intentarlo; si sigue igual, reinicia Shinobi Karaoke.',
   reparar: 'Reparar el motor de audio',
-  noCancion: 'No se pudo cargar la canción para exportarla.'
+  noCancion: 'No se pudo cargar la canción para exportarla.',
+  /** `exp.error.destino.*` (0258, V35): error al empezar, bajo «Guardar como». */
+  errorDestinoTitulo: 'No se puede guardar en esa carpeta.',
+  errorDestinoPermiso:
+    'No tienes permiso para escribir en ella o el disco no está disponible. Elige otra con «Cambiar…».',
+  /** `exp.error.cancionExportandose` (0258, V36). */
+  errorCancionExportandoseTitulo: 'Esta canción ya se está exportando.',
+  errorCancionExportandoseTexto:
+    'Solo puede tener una exportación a la vez. Espera a que termine o cancélala para empezar otra.',
+  verExportacion: 'Ver exportación'
 } as const
 
 export interface TextoError {
@@ -153,6 +163,11 @@ export const ERRORES_EXP: Partial<Record<CodigoError, TextoError>> & {
     titulo: 'No se puede guardar en esa carpeta.',
     explicacion:
       'Puede que no tengas permiso, que el disco se haya desconectado o que el archivo esté abierto en otro programa. Elige otra carpeta o cierra ese programa.'
+  },
+  CANCION_EXPORTANDOSE: {
+    titulo: 'Esta canción ya se está exportando.',
+    explicacion:
+      'Solo puede tener una exportación a la vez. Espera a que termine o cancélala para empezar otra.'
   },
   DESTINO_OCUPADO: {
     titulo: 'Ya se está exportando un video a ese archivo.',
@@ -221,4 +236,33 @@ export function codigoDeError(err: unknown): CodigoError {
   if (err && typeof err === 'object' && 'codigo' in err && typeof err.codigo === 'string')
     return err.codigo as CodigoError
   return 'ERROR_INTERNO'
+}
+
+/** `exp.error.captura` y `exp.error.capturaPasajera` (0260): fallo de captura de un trabajo. */
+export const ERRORES_CAPTURA = {
+  captura: (ancho: number, alto: number): TextoError => ({
+    titulo: 'Tu equipo no puede crear el video a este tamaño.',
+    explicacion: `No consigue preparar la imagen a ${ancho} × ${alto}. Elige una resolución menor; esta ya no se ofrecerá hasta que reinicies Shinobi Karaoke.`
+  }),
+  pasajera: {
+    titulo: 'No se pudo preparar la imagen del video.',
+    explicacion:
+      'Puede haber sido un cambio de pantalla. Tu equipo sí admite este tamaño: vuelve a intentarlo.'
+  }
+} as const
+
+/** `trabajoId` del `detalle` de un error de la IPC (`detalle` o, serializado, `detalles`). */
+export function trabajoIdDeError(err: unknown): string | undefined {
+  if (!err || typeof err !== 'object') return undefined
+  const { detalle, detalles } = err as { detalle?: unknown; detalles?: unknown }
+  let valor: unknown = detalle
+  if (valor === undefined && typeof detalles === 'string') {
+    try {
+      valor = JSON.parse(detalles)
+    } catch {
+      return undefined
+    }
+  }
+  const id = (valor as { trabajoId?: unknown } | null | undefined)?.trabajoId
+  return typeof id === 'string' ? id : undefined
 }

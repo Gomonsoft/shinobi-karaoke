@@ -91,6 +91,8 @@ interface Opciones {
   ventanaFalla?: boolean
   /** La ventana doble nunca asienta la captura. */
   sinAsentar?: boolean
+  probarCaptura?: (ancho: number, alto: number) => Promise<boolean>
+  plazoSondeoCapturaMs?: number
 }
 
 function montar(o: Opciones = {}) {
@@ -231,7 +233,9 @@ function montar(o: Opciones = {}) {
     nucleos: () => 8,
     plataforma: 'linux',
     ahora: () => ahoraMs,
-    registrar
+    registrar,
+    ...(o.probarCaptura ? { probarCaptura: o.probarCaptura } : {}),
+    ...(o.plazoSondeoCapturaMs ? { plazoSondeoCapturaMs: o.plazoSondeoCapturaMs } : {})
   })
   const cambios: ExportacionIpc[] = []
   servicio.suscribir((e) => cambios.push(e))
@@ -640,12 +644,42 @@ describe('validaciones y destinos', () => {
         audio: 'instrumental',
         destinoId: otro.destinoId
       })
-    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    ).rejects.toMatchObject({
+      codigo: 'CANCION_EXPORTANDOSE',
+      detalle: { trabajoId: primera.trabajoId },
+      detalles: JSON.stringify({ trabajoId: primera.trabajoId })
+    })
     g.abrir()
     await hasta(() => m.ultimo(segunda.trabajoId)?.estado === 'terminada')
     expect(m.ultimo(primera.trabajoId)!.resultado).toBe('completada')
     expect(m.ultimo(segunda.trabajoId)!.resultado).toBe('completada')
     expect(m.servicio.hayEnCurso()).toBe(false)
+  })
+
+  it('una carpeta sin permiso se rechaza al empezar, sin worker, ventana ni diario (V35)', async () => {
+    let escribible = true
+    const m = montar({ disco: { esCarpetaEscribible: async () => escribible } })
+    const destino = await m.servicio.destinoPropuesto({ cancionId: ID_A, formato: 'mkv_av1' })
+    escribible = false
+    await expect(
+      m.servicio.iniciar({
+        cancionId: ID_A,
+        formato: 'mkv_av1',
+        ancho: 640,
+        alto: 480,
+        fps: 24,
+        audio: 'instrumental',
+        destinoId: destino.destinoId
+      })
+    ).rejects.toMatchObject({
+      codigo: 'DESTINO_NO_DISPONIBLE',
+      detalle: { campo: 'destino' }
+    })
+    expect(m.llamadas).toHaveLength(0)
+    expect(m.crearVentana).not.toHaveBeenCalled()
+    expect(m.servicio.hayEnCurso()).toBe(false)
+    // El destinoId sigue vigente: elegir otra carpeta o arreglar permisos basta.
+    expect(m.destinos.rutaDe(destino.destinoId)).toBe(destino.ruta)
   })
 
   it('hayEnCurso cuenta una exportación en cola', async () => {
@@ -896,5 +930,71 @@ describe('progreso', () => {
     expect(m.servicio.estado()[0]!.progreso!.fotograma).toBe(8)
     g.abrir()
     await hasta(() => m.ultimo(trabajoId)?.estado === 'terminada')
+  })
+})
+
+describe('sondeo de captura (0260)', () => {
+  const motivos = async (m: Montaje, alto: number) =>
+    (await m.servicio.perfiles()).perfiles
+      .filter((p) => p.alto === alto && p.formato === 'mkv_av1' && p.fps === 30)
+      .map((p) => p.motivo)
+
+  it('marca con `captura` lo mayor que el máximo capturable de cada proporción (V31)', async () => {
+    const probarCaptura = vi.fn(async (_a: number, alto: number) => alto <= 1440)
+    const m = montar({ probarCaptura })
+    expect(await motivos(m, 2160)).toEqual(['captura', 'captura'])
+    expect(await motivos(m, 1440)).toEqual([null])
+    expect(await motivos(m, 1200)).toEqual([null])
+    // Una vez por arranque: de 3840×2160 baja a 2560×1440 y de 2880×2160 a 1600×1200.
+    expect(probarCaptura.mock.calls.map(([a, h]) => `${a}x${h}`)).toEqual([
+      '3840x2160',
+      '2560x1440',
+      '2880x2160',
+      '1600x1200'
+    ])
+    await m.servicio.perfiles()
+    expect(probarCaptura).toHaveBeenCalledTimes(4)
+  })
+
+  it('lo no comprobado a los plazos sale `no_comprobado` (V32)', async () => {
+    const m = montar({
+      probarCaptura: () => new Promise<boolean>(() => undefined),
+      plazoSondeoCapturaMs: 30
+    })
+    expect(await motivos(m, 1080)).toEqual(['no_comprobado'])
+    expect(await motivos(m, 768)).toEqual(['no_comprobado'])
+  })
+
+  it('una excepción del sondeo no marca nada y se registra (V32)', async () => {
+    const m = montar({ probarCaptura: () => Promise.reject(new Error('sin GPU')) })
+    expect(await motivos(m, 2160)).toEqual([null, null])
+    expect(m.registrar).toHaveBeenCalledWith('aviso', expect.stringContaining('sondeo de captura'))
+  })
+
+  it.each([
+    [true, true],
+    [false, false]
+  ])('un fallo de captura recomprueba: reintentable %s (V33)', async (vuelve, reintentable) => {
+    let sondeos = 0
+    const m = montar({
+      probarCaptura: async () => (sondeos++ === 0 ? true : vuelve),
+      ventanaFalla: false
+    })
+    m.crearVentana.mockImplementationOnce(async () => {
+      throw Object.assign(new Error('La captura es de 639×480.'), {
+        codigo: 'PERFIL_NO_SOPORTADO',
+        causa: 'captura'
+      })
+    })
+    const r = await iniciar(m, ID_A)
+    await hasta(() => m.ultimo(r.trabajoId)?.estado === 'terminada')
+    expect(m.ultimo(r.trabajoId)!.error).toMatchObject({
+      codigo: 'PERFIL_NO_SOPORTADO',
+      detalle: { causa: 'captura', reintentable }
+    })
+    const motivo = (await m.servicio.perfiles()).perfiles.find(
+      (p) => p.formato === 'mkv_av1' && p.ancho === 640 && p.fps === 24
+    )!.motivo
+    expect(motivo).toBe(reintentable ? null : 'captura')
   })
 })

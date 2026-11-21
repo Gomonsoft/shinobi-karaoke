@@ -27,8 +27,6 @@ describe('atajos del reproductor', () => {
     ['0', { tipo: 'principio' }],
     ['f', { tipo: 'pantalla_completa' }],
     ['Escape', { tipo: 'salir' }],
-    [',', { tipo: 'desplazar', deltaMs: -100 }],
-    ['.', { tipo: 'desplazar', deltaMs: 100 }],
     ['F1', { tipo: 'atajos' }],
     ['?', { tipo: 'atajos' }]
   ])('interpreta %j', (key, accion) => {
@@ -66,7 +64,9 @@ describe('atajos del reproductor', () => {
       tipo: 'alternar'
     })
     expect(accionDeTeclaReproductor(tecla('v'), { ...opciones, vozDisponible: false })).toBeNull()
-    expect(accionDeTeclaReproductor(tecla('.'), { ...opciones, origen: 'biblioteca' })).toBeNull()
+    // `,` y `.` ya no desplazan la letra, tampoco desde el editor (0.2.1).
+    expect(accionDeTeclaReproductor(tecla('.'), opciones)).toBeNull()
+    expect(accionDeTeclaReproductor(tecla(','), opciones)).toBeNull()
     expect(accionDeTeclaReproductor(tecla('Tab'), opciones)).toBeNull()
   })
 })

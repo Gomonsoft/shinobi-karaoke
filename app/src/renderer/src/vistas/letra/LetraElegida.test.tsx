@@ -97,7 +97,12 @@ describe('Letra elegida (C): resumen', () => {
     const parte = lineasPorLinea()
     parte[1] = { ...parte[1]!, inicio_ms: null }
     const casos: [ElementoLetra[], string][] = [
-      [lineasPorPalabra(), 'sincronizada por palabra · 2 líneas'],
+      [
+        lineasPorPalabra().map((e) => ({ ...e, origen_palabras: 'manual' as const })),
+        'sincronizada por palabra · 2 líneas'
+      ],
+      // Las palabras importadas (canciones de 0.2.0) se describen por línea.
+      [lineasPorPalabra(), 'sincronizada por línea · 2 líneas'],
       [lineasPorLinea(), 'sincronizada por línea · 3 líneas'],
       [parte, 'sincronizada en parte · 3 líneas'],
       [lineasTexto(), 'sin sincronizar · 3 líneas']
@@ -301,7 +306,7 @@ describe('Letra elegida (C): botones y cambios externos', () => {
       await screen.findByText('Hemos ignorado 2 renglones sin tiempo del archivo.')
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/Letra actual · de un archivo · sincronizada por palabra · 2 líneas/)
+      screen.getByText(/Letra actual · de un archivo · sincronizada por línea · 2 líneas/)
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar el aviso' }))
     expect(screen.queryByText(/Hemos ignorado/)).toBeNull()

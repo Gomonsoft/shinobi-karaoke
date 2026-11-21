@@ -22,12 +22,44 @@ export const E = {
     general: 'Vista general',
     intervalo: (inicio: string, fin: string) => `De ${inicio} a ${fin} visibles`
   },
+  /** Fase 8 de 0.2.1 (spec 06, 8.6). Claves `edi.funciones.*`. */
+  funciones: {
+    nombre: 'Funciones',
+    exportar: {
+      titulo: 'Exportar video',
+      ayuda: 'Crea un archivo de video con la letra y el instrumental para verlo fuera de la app.',
+      boton: 'Exportar video…',
+      ver: 'Ver exportación',
+      atajo: 'Ctrl/Cmd + E'
+    },
+    silencios: {
+      titulo: 'Ajustar los silencios',
+      ayuda: 'Lleva el fin de cada línea al último momento con voz antes de un silencio.',
+      boton: 'Ajustar los silencios…'
+    },
+    modo: {
+      titulo: 'Modo de reproducción',
+      borrador:
+        'Se elige al terminar la canción: «Marcar como lista» (con barrido) o «Marcar como letra lista» (sin barrido).',
+      lista: '✓ Lista: se canta con barrido.',
+      letraLista: '✓ Letra lista: la letra cambia línea a línea, sin barrido.',
+      aLetraLista: 'Cambiar a «Letra lista»…',
+      aLista: 'Cambiar a «Lista»'
+    },
+    estado: {
+      titulo: 'Estado de la canción',
+      borrador: 'Borrador. Se guarda sola mientras trabajas; para cantarla, márcala como lista.',
+      lista:
+        'Lista. Si vuelve a borrador, no se podrá reproducir hasta que la marques otra vez. No se pierde nada.',
+      letraLista:
+        'Letra lista. Si vuelve a borrador, no se podrá reproducir hasta que la marques otra vez y se volverá a elegir el modo. No se pierde nada.',
+      volver: 'Volver a borrador…'
+    }
+  },
   lineas: 'Líneas',
   contador: (a: number, b: number) => `${a}/${b} sincronizadas`,
   pausa: '♪ pausa',
   pausaTiempo: 'Esta pausa viene con tiempo en la letra importada.',
-  palabrasTooltip:
-    'Esta línea trae tiempos por palabra: se resaltará palabra a palabra. Si mueves la línea, sus palabras se mueven con ella.',
   faltaTooltip: 'Sin sincronizar',
   corregir: 'Corregir la letra',
   sinSeleccion: 'Elige una línea de la lista para ajustar sus tiempos.',
@@ -61,12 +93,10 @@ export const E = {
   syncTerminar: 'Terminar (Esc)',
   syncPronto: 'Demasiado pronto: aún no ha empezado la línea anterior.',
   syncFin: '¡Todas las líneas tienen tiempo! Revisa con ▶ y ajusta lo que haga falta.',
-  sinSync:
-    'Empieza por sincronizar: pulsa Sincronizar al ritmo (o la tecla S) y marca cada línea al oírla.',
+  sinSync: 'Empieza por sincronizar: pulsa Sincronizar al ritmo y marca cada línea al oírla.',
   yaSync:
-    'Esta letra ya viene sincronizada. Escúchala y, si va adelantada o atrasada, usa el desplazamiento de toda la letra.',
+    'Esta letra ya viene sincronizada. Escúchala y ajusta las líneas que no coincidan con la voz.',
   lineaN: (n: number, total: number) => `Línea ${n} de ${total}`,
-  palabrasEtiqueta: 'por palabra',
   inicio: 'Inicio',
   fin: 'Fin',
   finAuto: 'Fin automático',
@@ -77,6 +107,9 @@ export const E = {
   fijarInicio: 'Fijar inicio aquí',
   fijarFin: 'Fijar fin aquí',
   escucharLinea: 'Escuchar desde esta línea',
+  escucharLineaTramo: 'Escuchar la línea (Mayús + L)',
+  escucharLineaSinInicio: 'Fija primero el inicio de esta línea.',
+  regionTooltip: (texto: string) => `${texto} · Doble clic: escuchar esta línea`,
   borrarTiempos: 'Borrar tiempos de esta línea',
   limiteAnterior: (pausa: boolean) =>
     `No puede ir antes de la ${pausa ? 'pausa' : 'línea'} anterior`,
@@ -85,19 +118,19 @@ export const E = {
   limiteFinInicio: 'El fin tiene que ir después del inicio.',
   limiteFinSiguiente: 'El fin no puede pasar del inicio de la línea siguiente.',
   escucharAjustar: 'Escuchar al ajustar',
-  toastPalabras: (n: number) =>
-    `La línea ${n} ya no se resaltará palabra a palabra: sus tiempos no cabían.`,
+  /** `edi.toast.palabras`: una vez por gesto; `numeros` = líneas que pierden sus palabras hechas a mano. */
+  toastPalabras: (numeros: number[]) =>
+    numeros.length === 1
+      ? `La línea ${numeros[0]} vuelve al barrido progresivo: se quitaron sus tiempos por palabra.`
+      : `${numeros.length} líneas vuelven al barrido progresivo: se quitaron sus tiempos por palabra.`,
+  /** `edi.toast.palabras.ritmo`: al salir del modo al ritmo. */
+  toastPalabrasRitmo: (numeros: number[]) =>
+    numeros.length === 1
+      ? `Al marcarla de nuevo, la línea ${numeros[0]} volvió al barrido progresivo.`
+      : `Al marcarlas de nuevo, ${numeros.length} líneas volvieron al barrido progresivo.`,
   toastFinAuto: (n: number) => `El fin de la línea ${n} vuelve a ser automático.`,
-  offsetTitulo: 'Desplazamiento de toda la letra',
-  offsetAyuda:
-    'Úsalo si toda la letra va adelantada o atrasada respecto a la música. Con + la letra sale más tarde.',
-  offsetRango: 'Máximo 30 segundos hacia cada lado.',
-  restablecer: 'Restablecer',
-  // edi.offset.campo / edi.offset.restablecer (spec 06-editor, subfase 2.1)
-  offsetCampo: 'Segundos de desplazamiento',
-  offsetRestablecer: 'Restablecer desplazamiento (0,00 s)',
   bluetooth:
-    '¿Usas auriculares o altavoces Bluetooth? Si toda la letra queda atrasada, usa el desplazamiento de toda la letra.',
+    '¿Usas auriculares o altavoces Bluetooth? Añaden un retraso que cambia de un equipo a otro: para sincronizar, mejor con cable o con los altavoces del equipo.',
   fondo: 'Fondo',
   solido: 'Sólido',
   degradado: 'Degradado',
@@ -128,7 +161,6 @@ export const E = {
   deshacer: (mac: boolean) => (mac ? 'Deshacer (⌘Z)' : 'Deshacer (Ctrl+Z)'),
   rehacer: (mac: boolean) => (mac ? 'Rehacer (⌘⇧Z)' : 'Rehacer (Ctrl+Mayús+Z)'),
   menuAtajos: 'Atajos de teclado (F1)',
-  menuBorrador: 'Volver a borrador…',
   guardado: 'Guardado',
   guardando: 'Guardando…',
   errorGuardado: 'No se pudo guardar',
@@ -320,6 +352,8 @@ export const E = {
       fijarInicio: 'Fijar inicio aquí (I)',
       fijarFin: 'Fijar fin (O)',
       fijarFinNombre: 'Fijar fin aquí (O)',
+      funciones: 'Funciones',
+      funcionesNombre: 'Expandir panel en Funciones',
       auto: 'automático'
     },
     restablecer: 'Restablecer distribución de paneles',

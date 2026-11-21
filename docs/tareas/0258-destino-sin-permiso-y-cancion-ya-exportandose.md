@@ -1,6 +1,6 @@
 # 0258 — Exportación: carpeta sin permiso detectada al empezar y código propio para «canción ya exportándose»
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (exportación)
 - Fase: 7 de 0.2.1 · Lote A (exportación)
 - Depende de: 0257 (mismo lote), 0283 (código `CANCION_EXPORTANDOSE` y `detalle` en `shared/errores.ts` y `shared/ipc.ts`)
@@ -35,3 +35,11 @@ QA encontró dos discrepancias ([informe](../Test-manuales/0.2.0/ejecucion-2026-
 - Manual: guía de la fase 7 — carpeta con `icacls <carpeta> /deny %USERNAME%:(W)` en Windows (casos 6.3 y 17.3 de la guía de la fase 6).
 
 ## Notas de implementación
+
+- `main/exportacion/destinos.ts`: `probarEscritura(carpeta, { fs, uuid, registrar })` crea con `open(…, "wx")` `.exportacion.<8 hex>.shinobi-prueba`, lo cierra y lo borra (fallo al borrar: se registra y no cuenta). `EACCES`, `EPERM`, `EROFS`, `ENOENT`, `ENOTDIR` = no escribible; otro código (p. ej. `ENOSPC`) no declara la carpeta inservible (decisión mía: eso lo dirá `SIN_ESPACIO`). `discoReal.esCarpetaEscribible` (stat + `probarEscritura`) sustituye a `fs.access(W_OK)` y lo usan `destinoPropuesto`, `destinoDesdeRuta`, `carpetaInicial`, `elegirDestino` y `consumir`; `consumir` valida antes de gastar el `destinoId`. `ErrorDestino` lleva `detalle: { campo: "destino" }` en los `DESTINO_NO_DISPONIBLE` de destino.
+- `servicio.ts`: `iniciar` responde `CANCION_EXPORTANDOSE` con `detalle: { trabajoId }` (trabajo activo o `iniciar` en vuelo; el id del trabajo se reserva antes). `DESTINO_OCUPADO` solo con dos canciones distintas.
+- Transporte provisional del `detalle` en rechazos (viaja serializado en `detalles`): ver [0151](../preguntas/0151-detalle-del-error-en-los-rechazos-de-la-ipc.md).
+- Renderer: `Formulario.tsx` (error `exp.error.destino.*` bajo «Guardar como» con `aria-invalid`, `aria-describedby`, borde `error` y foco en [Cambiar…]; aviso `exp.error.cancionExportandose` con [Ver exportación] encima de las acciones), `DialogoFormulario.tsx` («Exportar» `aria-disabled` con el texto en el tooltip mientras el trabajo siga; [Ver exportación] usa `alIniciada(trabajoId)`), `useFormulario.ts` y `textos.ts`.
+- Pruebas: `destinos.test.ts`, `servicio.test.ts` (V35 sin worker, ventana ni diario; V36), `DialogoExportacion.test.tsx` (V35 y V36).
+- Manual (guía de la fase 7): carpeta con `icacls <carpeta> /deny %USERNAME%:(W)` en Windows (casos 6.3 y 17.3 de la guía de la fase 6); dos exportaciones de la misma canción.
+- Deuda: si se aprueba la 0151, quitar la serialización en `detalles` y el parseo del renderer.

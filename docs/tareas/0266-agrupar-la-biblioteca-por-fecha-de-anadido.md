@@ -1,6 +1,6 @@
 # 0266 — Agrupar la Biblioteca por «Fecha de añadido»
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (Biblioteca)
 - Fase: 8 de 0.2.1 · Lote C (render, biblioteca y preferencias)
 - Depende de: 0283 (`creada` en el resumen), 0264 (mismo lote, en orden)
@@ -36,3 +36,9 @@ Cuarta opción de «Agrupar por» con los grupos Hoy · Ayer · Esta semana · E
 - Manual: guía de la fase 8 — elegir «Fecha de añadido» con la biblioteca real y reiniciar. Captura B8-7 en 0271.
 
 ## Notas de implementación
+
+- Qué se hizo: `CREADA_POR_DEFECTO` y `creada` con `.catch` en `shared/cancion.ts`; `AGRUPACIONES_BIBLIOTECA` con `"fecha"`; `resumirCancion` da `creada: null` si falta, es ilegible o es la fecha por defecto. `agrupacion.ts`: `grupoDeFecha(creada, ahora)` (Hoy, Ayer, Esta semana desde el lunes, Este mes, un grupo por mes y año, «Sin agrupar» al final; fecha futura = Hoy; hora local) y `agruparCanciones(..., modo, ahora)` con orden por `creada` descendente (por `modificada` en «Sin agrupar»). `EncabezadoGrupo` muestra `bib.grupo.sinFecha.ayuda` (singular/plural) en lugar del tema. `Biblioteca.tsx`: cuarta opción «Fecha de añadido» y `ahora` fijado al montar la vista (los grupos no cambian bajo el cursor).
+- Archivos: `shared/cancion.ts`, `config.ts` (+ tests), `main/biblioteca/resumen.ts`, `resumen.test.ts` (nuevo), `vistas/biblioteca/agrupacion.ts`, `agrupacion.test.ts` (B8-4 a B8-6), `EncabezadoGrupo.tsx`, `Biblioteca.tsx`, `resumenPrueba.ts` (`creada`).
+- Probar: `npx vitest run src/shared src/main/biblioteca/resumen.test.ts src/renderer/src/vistas/biblioteca`.
+- Ajuste ajeno por consecuencia: ninguno de `handlers.test.ts`, `__fixtures__/fase5.ts` falló en typecheck.
+- Deuda: la captura B8-7 y la guía manual (elegir «Fecha de añadido» con la biblioteca real y reiniciar) van en 0271. `e2e/temas-biblioteca.spec.ts` no comprueba las opciones del control: no se tocó.

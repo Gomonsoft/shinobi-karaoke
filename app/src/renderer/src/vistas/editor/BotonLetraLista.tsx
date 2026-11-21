@@ -5,6 +5,7 @@ import type { Cancion } from '@shared/cancion'
 import type { Letra } from '@shared/letra'
 import { motivosParaNoEstarLetraLista } from '@shared/derivados'
 import { contador } from '@shared/letras/tiempos'
+import { Boton } from '../../componentes/Boton'
 import { Popover } from '../../componentes/Popover'
 import estilosBoton from '../../componentes/componentes.module.css'
 import { mostrarToast } from '../../componentes/gestorToasts'
@@ -14,6 +15,7 @@ import { useSesion } from '../../sesion/ProveedorSesion'
 import { mensajeListaMarcada } from '../biblioteca/tarjeta'
 import { avisarError, RenglonesFaltas } from './BotonLista'
 import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
+import { E } from './textos'
 import { LL } from './textosLetraLista'
 import type { SeparacionEditor } from './Transporte'
 
@@ -137,6 +139,136 @@ export function BotonLetraLista({
           variante="marcar"
           alCancelar={() => setDialogo(false)}
           alConfirmar={marcar}
+        />
+      )}
+    </>
+  )
+}
+
+interface PropsCambio {
+  /** Modalidad a la que cambia: `letra_lista` desde Lista, `karaoke` («Marcar como lista») desde Letra lista. */
+  destino: 'letra_lista' | 'karaoke'
+  resumen: ResumenCancionIpc
+  letra: Letra
+  omitirAviso: boolean
+  alOmitirAviso(): void
+  vaciar(): Promise<boolean>
+  alEnfocarPrimera(): void
+  /** Compartida con «Hecho»: `true` solo la primera vez en la visita (el aviso de líneas sin inicio). */
+  primeraPulsacionIncompleta(): boolean
+}
+
+/**
+ * «Marcar como letra lista» (en Lista) y «Marcar como lista» (en Letra lista) del dock (spec 06, 8.6):
+ * cambian la modalidad y vuelven a la Biblioteca con la tarjeta enfocada y resaltada. No exigen que
+ * todas las líneas tengan inicio: con líneas sin inicio comparten con «Hecho» el aviso de la primera pulsación.
+ */
+export function BotonCambiarModalidad({
+  destino,
+  resumen,
+  letra,
+  omitirAviso,
+  alOmitirAviso,
+  vaciar,
+  alEnfocarPrimera,
+  primeraPulsacionIncompleta
+}: PropsCambio) {
+  const { ir } = useNavegacion()
+  const { abrir } = useReproductor()
+  const { haySesion } = useSesion()
+  const ancla = useRef<HTMLButtonElement>(null)
+  const [popover, setPopover] = useState(false)
+  const [dialogo, setDialogo] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const cambiando = useRef(false)
+  const { sincronizadas, total } = contador(letra)
+  const pendientes = total - sincronizadas
+  const id = resumen.id
+  const aLetraLista = destino === 'letra_lista'
+
+  async function cambiar(omitir: boolean) {
+    if (cambiando.current) return
+    cambiando.current = true
+    setOcupado(true)
+    try {
+      if (omitir) {
+        await guardarOmitirAviso()
+        alOmitirAviso()
+      }
+      if (!(await vaciar())) return
+      const guardada = await window.shinobi.biblioteca.marcarLista(id, { modalidad: destino })
+      setDialogo(false)
+      setPopover(false)
+      ir({ tipo: 'biblioteca', enfocar: { id, resaltar: true } })
+      mostrarToast({
+        tipo: 'exito',
+        mensaje: mensajeListaMarcada(guardada),
+        accion: haySesion
+          ? undefined
+          : { etiqueta: 'Reproducir', icono: Play, alAccionar: () => abrir(id) }
+      })
+    } catch (error) {
+      setDialogo(false)
+      avisarError(LL.errorCambiar, error)
+    } finally {
+      cambiando.current = false
+      setOcupado(false)
+    }
+  }
+
+  function aplicar() {
+    setPopover(false)
+    if (aLetraLista && !omitirAviso) setDialogo(true)
+    else void cambiar(false)
+  }
+
+  function pulsar() {
+    if (cambiando.current) return
+    if (pendientes > 0 && primeraPulsacionIncompleta()) {
+      setPopover(true)
+    } else aplicar()
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={ancla}
+        className={`${estilosBoton.boton} ${estilosBoton.secundario}`}
+        aria-disabled={ocupado || undefined}
+        aria-busy={ocupado || undefined}
+        aria-haspopup={pendientes > 0 ? 'dialog' : undefined}
+        aria-expanded={pendientes > 0 ? popover : undefined}
+        onClick={pulsar}
+      >
+        {aLetraLista ? LL.boton : E.marcarLista}
+      </button>
+      <Popover
+        abierto={popover && pendientes > 0}
+        ancla={ancla}
+        alCerrar={() => setPopover(false)}
+        etiqueta={E.hechoIncompleta(pendientes)}
+        anunciar
+      >
+        <p>{E.hechoIncompleta(pendientes)}</p>
+        <Boton
+          variante="primario"
+          onClick={() => {
+            setPopover(false)
+            alEnfocarPrimera()
+          }}
+        >
+          {E.sincronizarAhora}
+        </Boton>
+        <Boton variante="fantasma" onClick={aplicar}>
+          {E.salirIgualmente}
+        </Boton>
+      </Popover>
+      {dialogo && (
+        <DialogoLetraLista
+          variante="marcar"
+          alCancelar={() => setDialogo(false)}
+          alConfirmar={cambiar}
         />
       )}
     </>

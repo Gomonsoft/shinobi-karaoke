@@ -35,6 +35,15 @@ export interface OpcionesBusquedaLetras {
 
 const RANGO: Record<Sincronia, number> = { palabra: 0, linea: 1, texto: 2 }
 
+/**
+ * Sincronía para ordenar los candidatos: un registro con tiempos por palabra sigue yendo primero
+ * (trae fines de línea) aunque ya no se importen las palabras (ADR 0021 §5).
+ */
+const sincroniaOrden = (r: RegistroLrclib, lineas: readonly ElementoLetra[]): Sincronia => {
+  const s = sincroniaDe(lineas)
+  return s === 'linea' && r.hasWordSync ? 'palabra' : s
+}
+
 const tieneLinea = (lineas: readonly ElementoLetra[]): boolean =>
   lineas.some((l) => l.tipo === 'linea')
 
@@ -256,7 +265,7 @@ export class BusquedaLetras {
         artista: r.artistName ?? '',
         album: r.albumName ?? null,
         duracion_ms: Math.max(0, dur),
-        sincronia: sincroniaDe(lineas),
+        sincronia: sincroniaOrden(r, lineas),
         diferencia_ms: Math.max(0, dur) - duracionMs,
         lineas
       })

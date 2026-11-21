@@ -6,6 +6,7 @@ import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { NavegacionContexto } from '../../navegacion/estado'
+import { useExportaciones } from '../contexto'
 import { useSesion } from '../../sesion/ProveedorSesion'
 import { Formulario } from './Formulario'
 import { EXP, ERRORES_EXP, formatearPosicion, textoErrorExp } from './textos'
@@ -56,6 +57,7 @@ export function DialogoFormulario({
   const f = useFormulario(cancionId, opcionesIniciales, desdeTrabajoId)
   const { haySesion } = useSesion()
   const navegacion = useContext(NavegacionContexto)
+  const { exportaciones } = useExportaciones()
   const idCabecera = useId()
   const raiz = useRef<HTMLDivElement>(null)
   const [lento, setLento] = useState(false)
@@ -182,7 +184,15 @@ export function DialogoFormulario({
 
   const listo = f.carga.tipo === 'listo'
   const sustituye = f.destino?.existe === true
+  // `CANCION_EXPORTANDOSE`: mientras esa exportación siga (o no se la vea terminada), «Exportar» no vale.
+  const existente =
+    f.error?.codigo === 'CANCION_EXPORTANDOSE' && f.error.trabajoId
+      ? exportaciones.find((e) => e.trabajoId === f.error!.trabajoId)?.estado === 'terminada'
+        ? null
+        : f.error.trabajoId
+      : null
   const exportar = async () => {
+    if (existente) return
     const trabajoId = await f.iniciar()
     if (trabajoId) alIniciada(trabajoId)
   }
@@ -199,6 +209,7 @@ export function DialogoFormulario({
           <Boton
             variante="primario"
             disabled={!listo}
+            noDisponible={existente ? EXP.errorCancionExportandoseTitulo : undefined}
             cargando={f.iniciando}
             textoCargando={EXP.botonValidando}
             onClick={() => void exportar()}
@@ -235,6 +246,8 @@ export function DialogoFormulario({
               alCambiarFps={f.cambiarFps}
               alCambiarFormato={f.cambiarFormato}
               alCambiarDestino={() => void f.cambiarDestino()}
+              exportacionExistente={existente}
+              alVerExportacion={alIniciada}
             />
           </div>
         </div>

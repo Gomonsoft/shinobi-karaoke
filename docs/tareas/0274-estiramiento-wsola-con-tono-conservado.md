@@ -1,6 +1,6 @@
 # 0274 — Estiramiento temporal WSOLA con el tono conservado (función pura y *worker*)
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 (editor, motor de audio)
 - Fase: 9 de 0.2.1 · Lote E (motor de audio), primera del lote
 - Depende de: —
@@ -38,3 +38,9 @@ Preparar un tramo de audio estirado (más lento) sin cambiar el tono, como funci
 - Manual: guía de la fase 9 — escuchar una línea de voz a 0,5× y 0,75× en la ventana: la voz se entiende y no suena grave.
 
 ## Notas de implementación
+
+- Hecho en el lote E. Archivos: `estiramiento.ts` (función pura `estirarTramo`), `estiramiento.worker.ts`, `estiramientoCliente.ts` (`estirarEnWorker(canales, sampleRate, velocidad, signal?)`, un `Worker` de módulo por llamada, transfiere los buffers —toma posesión de los arrays recibidos— y se cancela con `AbortSignal` terminando el worker) y `estiramiento.test.ts`.
+- WSOLA propio con 40 / 15 / 8 ms; correlación normalizada sobre la mezcla a mono con búsqueda gruesa (media móvil y paso 4) más refinado a resolución completa; mismo desplazamiento en todos los canales; fundido lineal. Ajuste respecto a la letra de la tarea: la posición nominal de cada bloque es la de su **centro** (no la de su inicio), lo que reparte el error de ritmo: con el inicio, el error de un clic llegaba a 13,4 ms a 0,5×; con el centro, 7,4 ms.
+- Medidas (Vitest, equipo de desarrollo): error máximo de posición de clic (clics cada 250 ms durante 10 s, a 48 kHz) **7,44 ms a 0,5× y 3,75 ms a 0,75×** (≤ 10 ms); frecuencia de un seno de 440 Hz dentro de ±2 %; longitud de salida `round(n/v)` ± 1; sin saltos en las juntas (diferencia máxima entre muestras < 2× la pendiente del seno); 10 s estéreo a 48 kHz: **~20 ms a 0,5× y ~14 ms a 0,75×** (límite de la tarea 300 ms; la prueba solo falla pasados 5 s). La medida del clic usa la copia más cercana a lo esperado: a 0,5× WSOLA repite fragmentos de la entrada, por lo que un clic puede salir duplicado (inherente al método).
+- Límites: tramos más cortos que 80 ms se remuestrean linealmente (cambia el tono; no ocurre con líneas reales).
+- Sin verificar (requiere la app): que `npm run build` empaquete el worker como archivo propio y que cargue con la CSP (`worker-src`/`'self'`) sin errores en consola. Si la CSP de `index.html` o `main/` no admite workers de módulo, hace falta ajustarla en otro lote (se trata en el informe del lote). Calidad con voz real: guía manual (voz inteligible, sin sonar grave, sin «flanger» apreciable).

@@ -25,7 +25,10 @@ interface Props {
 }
 
 /** `bib.grupo.sinTema.*`: agrupaciones visuales que no admiten tema. */
-function textoSinTema(tipo: Grupo['tipo']): string | null {
+function textoSinTema(tipo: Grupo['tipo'], total: number): string | null {
+  if (tipo === 'sinFecha') {
+    return total === 1 ? 'No tiene fecha de añadido válida.' : 'No tienen fecha de añadido válida.'
+  }
   if (tipo === 'sinArtista') return 'Añade el artista con «Editar datos» para darles un tema.'
   if (tipo === 'sinAlbum') return 'Añade el álbum con «Editar datos» para darles un tema.'
   if (tipo === 'albumSinArtista') return 'Añade el artista para darle un tema.'
@@ -43,7 +46,7 @@ export function EncabezadoGrupo({
   tema
 }: Props) {
   const recuento = textoRecuentoGrupo(grupo.canciones.length, grupo.total, filtrando)
-  const sinTema = textoSinTema(grupo.tipo)
+  const sinTema = textoSinTema(grupo.tipo, grupo.total)
   return (
     <div className={estilos.encabezadoGrupo} data-encabezado-grupo={grupo.id}>
       {casilla}

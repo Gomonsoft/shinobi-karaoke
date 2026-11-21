@@ -2,7 +2,7 @@
 
 - De: arquitecto
 - Para: disenador-ux
-- Estado: Abierta
+- Estado: Respondida
 - Bloquea: no (tarea [0263](../tareas/0263-importar-letras-sin-tiempos-por-palabra.md) aplica la opción provisional)
 
 ## Contexto
@@ -18,3 +18,8 @@ Desde 0.2.1 ya no se importan tiempos por palabra ([ADR 0021](../adr/0021-sincro
 Se muestran como ◇ «Sincronizada por línea» (`let.sync.linea`) y «sincronizada por línea». La clave `palabra` se conserva solo para ordenar; `let.sync.palabra` y `let.actual.sync.palabra` dejan de usarse. Una letra guardada con palabras importadas también se describe como «sincronizada por línea».
 
 ## Respuesta
+
+**Diseñador UX, 2026-11-21.** Vale la opción provisional, con un matiz. Detalle en [05 · 0.2.1](../ux/05-letra.md#021--sin-tiempos-por-palabra-importados).
+- Candidatos con `hasWordSync`: ◇ «Sincronizada por línea» (`let.sync.linea`); siguen ordenándose primero. `let.sync.palabra` deja de usarse.
+- Resumen de C: «sincronizada por línea» también con palabras importadas. **Matiz**: `let.actual.sync.palabra` se conserva para cuando todas las líneas tienen inicio y alguna tiene palabras hechas a mano (`origen_palabras: "manual"`), porque esas sí se pintan palabra a palabra.
+- Criterio nuevo L21-1 en la spec 05; el resto de la numeración no cambia.

@@ -1,6 +1,6 @@
 # 0257 — La estimación de tamaño de la exportación sobrestima de 2,2 a 2,7 veces
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (exportación)
 - Fase: 7 de 0.2.1 · Lote A (exportación)
 - Depende de: —
@@ -34,3 +34,7 @@ Con una canción de 226 s en Windows, QA midió que el diálogo anuncia entre 2,
 - Manual: guía de la fase 7 — exportar Final Ruin a 1080p30 MKV y a 1440p30 y 2160p30 WebM y anotar estimado y real (las resoluciones altas no se han medido).
 
 ## Notas de implementación
+
+- `app/src/shared/exportacion.ts`: `videoMbPorMinuto` pasa a 1 / 1,3 / 2 / 4 y `MARGEN_TAMANO` a 1,15; el resto de factores no cambia.
+- `exportacion.test.ts`: caso base actualizado (12,604 MB), las cuatro medidas de QA (entre +0 % y +50 %) y 2160 líneas con movimiento (34,224 MB).
+- Prueba: `npx vitest run src/shared/exportacion.test.ts` (17 pasan, incluida la regla de las 48 combinaciones: ninguna baja de la estimación anterior entre 3). Guía manual de la fase 7: anotar estimado y real a 1080p30 MKV, 1440p30 y 2160p30 WebM.

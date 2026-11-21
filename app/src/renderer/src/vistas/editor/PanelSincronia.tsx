@@ -1,17 +1,9 @@
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
-import { Icono } from '../../componentes/Icono'
-import { Diamond, RotateCcw, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { contarLineas, finEfectivo } from '@shared/letra'
-import {
-  formatearDesplazamiento,
-  formatearTiempo,
-  interpretarDesplazamiento,
-  numeroDeLinea,
-  tiempoMostrado,
-  type Limite
-} from '@shared/letras/tiempos'
+import { formatearTiempo, numeroDeLinea, tiempoMostrado, type Limite } from '@shared/letras/tiempos'
 import { CampoTiempo } from './CampoTiempo'
 import type { EstadoEditor } from './estado'
 import { E } from './textos'
@@ -29,9 +21,9 @@ interface Props {
   fijar(campo: Campo, msAudio?: number): void
   finAutomatico(): void
   escuchar(): void
+  /** Mayús + L: de 0,5 s antes a 0,5 s después de la línea. */
+  escucharTramo(): void
   borrar(): void
-  desplazar(delta: number): void
-  fijarDesplazamiento(ms: number): void
   ayudaBluetooth?: boolean
   cerrarBluetooth?(): void
 }
@@ -55,24 +47,22 @@ export function textoLimite(limite: Limite, pausaFin: boolean): string | null {
       return pausaFin
         ? 'El fin no puede pasar del inicio de la pausa siguiente.'
         : E.limiteFinSiguiente
-    case 'desplazamiento':
-      return E.offsetRango
     default:
       return null
   }
 }
 
 /**
- * Aviso de límite vigente de un campo de la línea seleccionada (o del desplazamiento). Lo comparten
+ * Aviso de límite vigente de un campo de la línea seleccionada. Lo comparten
  * el panel completo, que lo enseña junto al campo, y los rieles minimizados, junto a su botón.
  */
 export function limiteDeCampo(
   edicion: EstadoEditor,
-  campo: Campo | 'desplazamiento'
+  campo: Campo
 ): { mensaje: string; clave: number } | undefined {
   const { aviso, seleccion } = edicion
   if (!aviso?.limite || !aviso.limite.tipo.startsWith(campo)) return undefined
-  if (campo !== 'desplazamiento' && aviso.id !== seleccion) return undefined
+  if (aviso.id !== seleccion) return undefined
   const { letra } = edicion.actual
   const indice = letra.lineas.findIndex((el) => el.id === seleccion && el.tipo === 'linea')
   const siguiente = letra.lineas.slice(indice + 1).find((e) => e.inicio_ms !== null)
@@ -91,9 +81,8 @@ export function PanelSincronia({
   fijar,
   finAutomatico,
   escuchar,
+  escucharTramo,
   borrar,
-  desplazar,
-  fijarDesplazamiento,
   ayudaBluetooth,
   cerrarBluetooth
 }: Props) {
@@ -105,20 +94,13 @@ export function PanelSincronia({
   const fin = linea ? finEfectivo(letra, linea.id, duracionMs) : null
   const tiempo = (ms: number | null) =>
     formatearTiempo(ms === null ? null : tiempoMostrado(ms, letra.offset_ms))
-  const limite = (campo: Campo | 'desplazamiento') => limiteDeCampo(edicion, campo)
+  const limite = (campo: Campo) => limiteDeCampo(edicion, campo)
   return (
     <fieldset className={estilos.panelSincronia} disabled={bloqueado} aria-label="Sincronía">
       {linea ? (
         <div className={estilos.ajustesLinea}>
           <h3>{E.lineaN(numeroDeLinea(letra, linea.id), contarLineas(letra))}</h3>
-          <p className={estilos.lineaDetalle}>
-            «{linea.texto}»{' '}
-            {linea.palabras && (
-              <span>
-                <Icono icono={Diamond} tamano={14} /> {E.palabrasEtiqueta}
-              </span>
-            )}
-          </p>
+          <p className={estilos.lineaDetalle}>«{linea.texto}»</p>
           <CampoTiempo
             etiqueta={E.inicio}
             valor={tiempo(linea.inicio_ms)}
@@ -152,6 +134,13 @@ export function PanelSincronia({
           </Boton>
           {linea.fin_ms !== null && <Boton onClick={finAutomatico}>{E.usarFinAuto}</Boton>}
           <Boton onClick={escuchar}>{E.escucharLinea} (L)</Boton>
+          <Boton
+            aria-keyshortcuts="Shift+L"
+            noDisponible={linea.inicio_ms === null ? E.escucharLineaSinInicio : undefined}
+            onClick={escucharTramo}
+          >
+            {E.escucharLineaTramo}
+          </Boton>
           <Boton disabled={linea.inicio_ms === null} onClick={borrar}>
             {E.borrarTiempos} (Supr)
           </Boton>
@@ -181,38 +170,14 @@ export function PanelSincronia({
       ) : (
         <p>{E.sinSeleccion}</p>
       )}
-      <div className={estilos.desplazamiento} role="group" aria-labelledby="titulo-desplazamiento">
-        <h3 id="titulo-desplazamiento">{E.offsetTitulo}</h3>
-        <div className={estilos.ajustesTiempo}>
-          <Boton onClick={() => desplazar(-100)}>−0,1 s</Boton>
-          <CampoTiempo
-            etiqueta={E.offsetCampo}
-            etiquetaOculta
-            describedBy="ayuda-desplazamiento"
-            valor={formatearDesplazamiento(letra.offset_ms).replace(' s', '')}
-            aplicar={fijarDesplazamiento}
-            interpretar={interpretarDesplazamiento}
-            errorFormato={E.offsetRango}
-            limite={limite('desplazamiento')}
-          />
-          <Boton onClick={() => desplazar(100)}>+0,1 s</Boton>
-          <BotonIcono
-            icono={RotateCcw}
-            etiqueta={E.offsetRestablecer}
-            disabled={letra.offset_ms === 0}
-            onClick={() => fijarDesplazamiento(0)}
-          />
-        </div>
-        <p id="ayuda-desplazamiento">{E.offsetAyuda}</p>
-        {ayudaBluetooth && (
-          <AvisoEnLinea
-            tipo="info"
-            accion={<BotonIcono icono={X} etiqueta="Cerrar aviso" onClick={cerrarBluetooth} />}
-          >
-            {E.bluetooth}
-          </AvisoEnLinea>
-        )}
-      </div>
+      {ayudaBluetooth && (
+        <AvisoEnLinea
+          tipo="info"
+          accion={<BotonIcono icono={X} etiqueta="Cerrar aviso" onClick={cerrarBluetooth} />}
+        >
+          {E.bluetooth}
+        </AvisoEnLinea>
+      )}
     </fieldset>
   )
 }

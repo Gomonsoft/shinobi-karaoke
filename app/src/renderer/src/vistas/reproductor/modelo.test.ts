@@ -81,8 +81,7 @@ describe('modelo del reproductor', () => {
       volumen: 0.6,
       silenciado: false,
       volumenVoz: 0.3,
-      vozSilenciada: false,
-      offsetMs: 0
+      vozSilenciada: false
     }
     expect(textoIndicador({ tipo: 'alternar' }, ctx)).toBe('▶')
     expect(textoIndicador({ tipo: 'alternar' }, { ...ctx, sonando: false })).toBe('❚❚')
@@ -93,13 +92,6 @@ describe('modelo del reproductor', () => {
     expect(textoIndicador({ tipo: 'silenciar' }, { ...ctx, silenciado: true })).toBe('Silenciado')
     expect(textoIndicador({ tipo: 'nivel_voz', delta: 0.1 }, ctx)).toBe('Voz 30 %')
     expect(textoIndicador({ tipo: 'voz' }, { ...ctx, vozSilenciada: true })).toBe('Voz silenciada')
-    expect(textoIndicador({ tipo: 'desplazar', deltaMs: 100 }, ctx)).toBe('Desplazamiento: +0,00 s')
-    expect(textoIndicador({ tipo: 'desplazar', deltaMs: 100 }, { ...ctx, offsetMs: 250 })).toBe(
-      'Desplazamiento: +0,25 s'
-    )
-    expect(textoIndicador({ tipo: 'desplazar', deltaMs: -100 }, { ...ctx, offsetMs: -300 })).toBe(
-      'Desplazamiento: −0,30 s'
-    )
     expect(textoIncompleta(1)).toBe('⚠ Falta 1 línea por sincronizar: no se verá.')
     expect(textoIncompleta(3)).toBe('⚠ Faltan 3 líneas por sincronizar: no se verán.')
   })

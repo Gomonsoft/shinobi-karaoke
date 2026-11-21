@@ -109,9 +109,15 @@ describe('proponerAjusteSilencios', () => {
 
   it('no toca líneas con palabras ni pausas, y la pausa limita la ventana', () => {
     const palabras = [{ texto: 'A', inicio_ms: 1000, fin_ms: 2000 }]
-    const conPalabras = letraDe([linea('a', 'A', 1000, { palabras }), linea('b', 'B', 3700)])
-    const r1 = ajustar(conPalabras)
-    expect(r1.letra.lineas[0]).toStrictEqual(conPalabras.lineas[0])
+    const manual = letraDe([
+      linea('a', 'A', 1000, { palabras, origen_palabras: 'manual' }),
+      linea('b', 'B', 3700)
+    ])
+    expect(ajustar(manual).letra.lineas[0]).toStrictEqual(manual.lineas[0])
+
+    // Las importadas se ajustan como una línea normal y quedan sin palabras.
+    const importada = ajustar(letraDe([linea('a', 'A', 1000, { palabras }), linea('b', 'B', 3700)]))
+    expect(importada.letra.lineas[0]).toStrictEqual(linea('a', 'A', 1000, { fin_ms: 3300 }))
 
     const r2 = ajustar(letraDe([linea('a', 'A', 3700), pausa('p', 5000), linea('b', 'B', 11000)]))
     // La voz llega hasta la pausa: la ventana acaba ahí y no hay silencio.

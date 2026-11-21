@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleDashed, Diamond, PanelLeftClose, Play } from 'lucide-react'
+import { CircleDashed, PanelLeftClose, Play } from 'lucide-react'
 import type { Letra } from '@shared/letra'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
@@ -187,11 +187,6 @@ export function ListaLineas({
                 {!tiempo && (
                   <Tooltip contenido={E.faltaTooltip}>
                     <Icono icono={CircleDashed} tamano={16} />
-                  </Tooltip>
-                )}
-                {el.palabras && (
-                  <Tooltip contenido={E.palabrasTooltip}>
-                    <Icono icono={Diamond} tamano={14} />
                   </Tooltip>
                 )}
               </button>

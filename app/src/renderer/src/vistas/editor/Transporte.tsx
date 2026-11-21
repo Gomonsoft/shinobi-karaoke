@@ -189,7 +189,7 @@ export function Transporte({
         {!sincronizando && (
           <div className={estilos.acciones}>
             <Boton ref={refSync} onClick={entrarSync} disabled={!listo}>
-              <Icono icono={CircleDot} tamano={16} /> {E.botonSync} (S)
+              <Icono icono={CircleDot} tamano={16} /> {E.botonSync}
             </Boton>
             {acciones}
           </div>

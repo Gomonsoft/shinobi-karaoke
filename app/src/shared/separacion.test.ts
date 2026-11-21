@@ -145,7 +145,8 @@ describe('errores', () => {
       'COLA_LLENA',
       'DESTINO_OCUPADO',
       'PERFIL_NO_SOPORTADO',
-      'LIMPIEZA_FALLIDA'
+      'LIMPIEZA_FALLIDA',
+      'CANCION_EXPORTANDOSE'
     ])
   })
 })

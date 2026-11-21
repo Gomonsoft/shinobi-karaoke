@@ -99,6 +99,19 @@
   white-space: nowrap;
   cursor: pointer;
 }
+.regionFuera {
+  position: absolute;
+  bottom: calc(50% + 20px);
+  z-index: 3;
+  padding: var(--e-1) var(--e-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  color: var(--texto-1);
+  background: var(--fondo-3);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+  pointer-events: none;
+}
 .region[aria-pressed='true'] {
   border-color: var(--acento-texto);
 }

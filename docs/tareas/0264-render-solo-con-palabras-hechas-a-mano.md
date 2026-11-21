@@ -1,6 +1,6 @@
 # 0264 — El render solo pinta palabra a palabra las palabras hechas a mano
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4, 5 y 6 (render compartido: editor, reproductor, secundaria y exportación)
 - Fase: 8 de 0.2.1 · Lote C (render y biblioteca)
 - Depende de: 0261 (`palabrasVisibles`)
@@ -31,3 +31,8 @@ Que las líneas con palabras importadas se barran de forma progresiva entre su i
 - Manual: guía de la fase 8 — Final Ruin y Valiente en el reproductor y exportadas: el barrido termina con la línea.
 
 ## Notas de implementación
+
+- Qué se hizo: `dibujar` y `fotogramaEstatico` usan `palabrasVisibles(linea)`; con palabras importadas (o manuales inválidas) `palabras` es `null` y el progreso es el de la línea. El fin y la espera siguen saliendo de `finEfectivo`. Se llama solo con la línea (sin inicio del siguiente): el tope de validez es el `fin_ms` fijado.
+- Archivos: `app/src/renderer/src/karaoke/render.ts`, `render.test.ts` (prueba nueva de línea importada; la manual lleva `origen_palabras: 'manual'`), `PantallaLetra.test.tsx` (las líneas por palabras de dos pruebas llevan `origen_palabras: 'manual'`).
+- Probar: `npx vitest run src/renderer/src/karaoke` (107 pasan).
+- Para 0271/lote A: si `reproductor.spec.ts` o `exportacion.spec.ts` dependen de palabras de la semilla sin `origen_palabras`, ahora se pintan como línea completa.
