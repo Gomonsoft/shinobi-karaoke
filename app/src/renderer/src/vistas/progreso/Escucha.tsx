@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play } from 'lucide-react'
 import { Icono } from '../../componentes/Icono'
+import { Tooltip } from '../../componentes/Tooltip'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { Candado } from '../../sesion/useAccionBloqueable'
+import { EDI_BLOQUEO } from '../../sesion/textos'
 import { SEP } from './textos'
 import estilos from './progreso.module.css'
 
@@ -15,20 +19,29 @@ function ReproductorPista({
   pista,
   activa,
   alActivar,
-  alDesactivar
+  alDesactivar,
+  bloqueada
 }: {
   cancionId: string
   pista: Pista
   activa: Pista | null
   alActivar: (p: Pista) => void
   alDesactivar: (p: Pista) => void
+  /** Hay sesión: no suena nada en la principal (`edi.bloqueo.escucha`). */
+  bloqueada: boolean
 }) {
   const audio = useRef<HTMLAudioElement>(null)
   const [sonando, setSonando] = useState(false)
   const [tiempo, setTiempo] = useState(0)
   const [duracion, setDuracion] = useState(0)
   const [fallo, setFallo] = useState(false)
+  const [explicar, setExplicar] = useState(false)
   const nombre = NOMBRE[pista]
+
+  // Si la sesión empieza con la pista sonando, se calla.
+  useEffect(() => {
+    if (bloqueada) audio.current?.pause()
+  }, [bloqueada])
 
   // Solo suena una pista a la vez.
   useEffect(() => {
@@ -43,6 +56,10 @@ function ReproductorPista({
   const alternar = () => {
     const el = audio.current
     if (!el) return
+    if (bloqueada) {
+      setExplicar(true)
+      return
+    }
     if (el.paused) {
       alActivar(pista)
       void Promise.resolve(el.play()).catch(() => setFallo(true))
@@ -51,17 +68,32 @@ function ReproductorPista({
     }
   }
 
+  const boton = (
+    <button
+      type="button"
+      className={estilos.botonPista}
+      aria-label={
+        (sonando ? SEP.pausar(nombre) : SEP.reproducir(nombre)) +
+        (bloqueada ? EDI_BLOQUEO.aria : '')
+      }
+      aria-disabled={bloqueada || undefined}
+      onClick={alternar}
+      onBlur={() => setExplicar(false)}
+    >
+      {bloqueada ? <Candado /> : <Icono icono={sonando ? Pause : Play} tamano={16} />}
+      <span aria-hidden="true">{nombre}</span>
+    </button>
+  )
+
   return (
     <div className={estilos.pista}>
-      <button
-        type="button"
-        className={estilos.botonPista}
-        aria-label={sonando ? SEP.pausar(nombre) : SEP.reproducir(nombre)}
-        onClick={alternar}
-      >
-        <Icono icono={sonando ? Pause : Play} tamano={16} />
-        <span aria-hidden="true">{nombre}</span>
-      </button>
+      {bloqueada ? (
+        <Tooltip contenido={EDI_BLOQUEO.escucha} forzar={explicar}>
+          {boton}
+        </Tooltip>
+      ) : (
+        boton
+      )}
       <input
         type="range"
         className={estilos.posicion}
@@ -71,7 +103,7 @@ function ReproductorPista({
         max={duracion || 0}
         step={1}
         value={Math.min(tiempo, duracion || 0)}
-        disabled={fallo || duracion === 0}
+        disabled={fallo || duracion === 0 || bloqueada}
         onChange={(e) => {
           const v = Number(e.target.value)
           if (audio.current) audio.current.currentTime = v
@@ -113,6 +145,7 @@ function ReproductorPista({
 /** `prog.escuchar`: reproductor mínimo en línea de las dos pistas (ux/04 §1). */
 export function Escucha({ cancionId }: { cancionId: string }) {
   const [activa, setActiva] = useState<Pista | null>(null)
+  const { haySesion } = useSesion()
   return (
     <div className={estilos.escucha} role="group" aria-label={SEP.escuchar}>
       <p className={estilos.escuchaTitulo}>{SEP.escuchar}</p>
@@ -124,6 +157,7 @@ export function Escucha({ cancionId }: { cancionId: string }) {
           activa={activa}
           alActivar={setActiva}
           alDesactivar={(q) => setActiva((a) => (a === q ? null : a))}
+          bloqueada={haySesion}
         />
       ))}
     </div>

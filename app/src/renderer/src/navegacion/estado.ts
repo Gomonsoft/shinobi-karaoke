@@ -55,6 +55,11 @@ export function vistaAjustesDesde(vista: Vista, seccion?: SeccionAjustes): Vista
   }
 }
 
+/** Vistas que cambian el contenido de la canción: Letra y Editor (bloqueadas con sesión, spec 06). */
+export function esVistaDeEdicion(vista: Vista): boolean {
+  return vista.tipo === 'cancion' && (vista.paso === 'letra' || vista.paso === 'editor')
+}
+
 /** Vistas sin barra superior (docs/ux/00 §2). */
 export const VISTAS_SIN_BARRA: readonly TipoVista[] = ['primer-arranque']
 

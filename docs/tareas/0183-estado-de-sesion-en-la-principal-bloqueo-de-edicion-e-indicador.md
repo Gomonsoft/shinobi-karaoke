@@ -1,6 +1,6 @@
 # 0183 — Estado de la sesión en la principal, bloqueo de edición e indicador
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4 y 6
 - Depende de: [0177](0177-contratos-compartidos-de-sesion-cola-y-roles.md). Para integrarse en Electron necesita [0181](0181-servicio-de-sesion-e-ipc-en-main.md).
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §9 y §11 (eventos), [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-4)
@@ -46,3 +46,21 @@ Crear la base de la sesión en el renderer principal: el estado compartido, los 
 - [ ] Al terminar la sesión, la misma acción abre el editor sin recargar (E3).
 
 ## Notas de implementación
+
+### Qué se hizo
+- `renderer/src/sesion/`: `ProveedorSesion`/`useSesion` (estado, `recibidoEn`, posición, pantallas, panel, `abrirBloqueo`, `acciones` finas sobre `sesion` y `cola`), `estadoSesion.ts` (descarte de revisiones viejas, datos del indicador), `textos.ts` (claves `ses.*`, `cola.*`, `bib.cola.*`, `edi.bloqueo.*`, `paso.motivo.sesion`), `DialogoBloqueo`, `useAccionBloqueable` (+ `Candado`), `IndicadorSesion`, `foco.ts` y `pruebas.ts` (doble de la API de sesión para 0184–0189).
+- `App.tsx`: `ProveedorSesion` envuelve la app; la navegación rechaza Letra y Editor con sesión (defensa, abre el diálogo). `estado.ts`: `esVistaDeEdicion`.
+- Puntos bloqueados: botones de Letra/Editor de Progreso, pasos 3–4 del stepper (`CabeceraCancion` + `pasos.ts`, campo `bloqueadoPorSesion`), toast «Abrir editor» (`useAvisosTrabajos`), escucha de Progreso (`Escucha.tsx`). El panel de actividad solo ofrece «Ir» a Progreso (no bloqueado), nada que cambiar. Añadir canción: su stepper nunca es navegable.
+- `useReproductor().abrir` no abre con sesión; `BotonLista` omite [▶ Reproducir] del toast con sesión.
+- Indicador en `Marco.tsx`, con reloj local de la cuenta.
+
+### Cómo probarlo
+`cd app && npx vitest run --project renderer src/renderer/src/sesion src/renderer/src/vistas/progreso src/renderer/src/navegacion`
+
+### Decisiones y deuda
+- Contrato de foco para 0185/0187: el panel debe llevar `data-panel-cola` y el botón «Cola» `data-boton-cola` (`sesion/foco.ts`).
+- Toques fuera de la lista de archivos, mínimos: `componentes/Boton.tsx` respeta un `aria-disabled` propio sin anular el clic; `vistas/editor/BotonLista.tsx` oculta la acción del toast con sesión.
+- Con sesión, `incidencia` (cualquier tipo) o fallo pone el indicador en «Requiere atención»; sin sesión, solo la incidencia de fuera de sesión o la cola.
+- «Cerrar el reproductor…» llama a `solicitarCierre`; el diálogo `ses.cierre` lo pinta 0185 a partir de `cierrePendiente`.
+- Integración real con Electron pendiente de 0181 (probado contra dobles).
+
