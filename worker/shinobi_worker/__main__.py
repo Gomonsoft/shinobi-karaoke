@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         protocolo.error(e.codigo, e.mensaje, e.reintentable)
         return SALIDA_ARGUMENTOS
     except ErrorWorker as e:
-        protocolo.error(e.codigo, e.mensaje, e.reintentable)
+        protocolo.error(e.codigo, e.mensaje, e.reintentable, e.detalle)
         return SALIDA_ERROR
     except Exception as e:
         traceback.print_exc()
