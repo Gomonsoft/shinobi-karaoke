@@ -27,3 +27,4 @@ Ideas de mejora **todavía sin definir ni autorizar**. No forman parte del alcan
 | [016](016-ajustar-el-fin-de-una-linea-con-la-voz.md) | Ajustar el fin de una sola línea con la voz | ADR 0018 | Idea |
 | [007](007-codificacion-de-video-por-hardware.md) | Codificar el video con la GPU cuando el equipo la tenga | ADR 0019 (prueba técnica de la fase 6) | Idea |
 | [008](008-formato-de-video-de-maxima-compatibilidad.md) | Formato de video de máxima compatibilidad (MP4 con H.264 y AAC) | ADR 0019 (fase 6) | Idea |
+| [017](017-estructura-de-releases.md) | Estructura de releases inspirada en RPCS3 y DroidDeck | Usuario (2026-11-21) | Aceptada (0.2.0, fase 10) |

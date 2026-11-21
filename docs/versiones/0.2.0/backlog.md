@@ -304,3 +304,72 @@ Petición del usuario (2026-11-20): desde 0.2.0, cada versión tiene su *Release
 **Preguntas.** [0140](../../preguntas/0140-publicar-las-alfas-como-pre-release-publica.md) (usuario: publicar alfas como *pre-release* antes de cerrar la puerta de 0142, *immutable releases* y protección de etiquetas) condiciona solo la primera etiqueta real. [0141](../../preguntas/0141-readme-y-notas-con-solo-versiones-preliminares.md) (diseñador: README y notas con solo versiones preliminares) no bloquea; 0193 usa textos provisionales. [0036](../../preguntas/0036-numero-de-version-y-politica-de-versiones.md) queda con opción provisional.
 
 **Verificación.** Las pruebas de feedback validan la estructura del YAML con Vitest (y `actionlint` si está disponible). El ensayo de 0195 demuestra en GitHub todo menos la creación de la *Release*. La publicación real se verifica con la primera etiqueta `v0.2.0-alpha.N`, en la guía manual de la versión.
+
+## 0.2.0-alpha.2 · Fase 10 (detalles de release) y correcciones de alpha.1
+
+Contenido aprobado el 2026-11-21:
+- [Fase 10 del plan](plan-2.md#fase-10--detalles-de-release), a partir de la [propuesta 017](../../propuestas/017-estructura-de-releases.md);
+- solo las **correcciones de defectos** del [feedback de alpha.1](feedback-alpha-1.md) §1.1, §1.2 y fase 7 (no las fases 8 y 9);
+- la corrección pequeña I-5 de la [ejecución de las guías en Windows](../../Test-manuales/0.2.0/ejecucion-2026-11-21-windows.md).
+
+Decisiones: revisiones del [ADR 0020](../../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md#revisión-para-020--fase-10-detalles-de-release) (fase 10), del [0013](../../adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md) (disparador nocturno), del [0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) (§2 «Tamaño» y alpha.2) y del [0012](../../adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) (icono en las ventanas). Specs: [08 · Fase 10](../../ux/08-ajustes-y-acerca.md#fase-10-de-020--número-de-compilación), [09](../../ux/09-descarga-e-instalacion.md) (§1.1b, §1.4, §1.5, §2, §3 y §3b) y [10](../../ux/10-exportacion.md) (V20). Preguntas: [0142](../../preguntas/0142-numero-de-compilacion-canal-de-desarrollo-y-notas.md), respondida, y [0143](../../preguntas/0143-canal-de-desarrollo-configuracion-y-carpeta-de-datos.md) (usuario, no bloquea: configuración del canal y carpeta de datos compartida).
+
+| Tarea | Tamaño | Estado | Depende de | Entrega |
+|---|---|---|---|---|
+| [0244 · Tamaño exacto de la ventana offscreen](../../tareas/0244-tamano-exacto-de-la-ventana-offscreen-de-exportacion.md) | S | Pendiente | — | `setContentSize` + `getContentSize` antes de `loadURL`; `PERFIL_NO_SOPORTADO` temprano; nunca escalar |
+| [0245 · Fallos de exportación en `app.log`](../../tareas/0245-registrar-en-app-log-los-fallos-de-exportacion.md) | S | Pendiente | — | Una línea `error` por fallo, con código, perfil y fotogramas |
+| [0246 · E2E de captura en Windows y cierre de 0242](../../tareas/0246-e2e-de-captura-en-windows-y-cierre-de-0242.md) | S | Pendiente | 0244 | `exportacion-captura.spec.ts` en `windows-latest` con 1080p y un tamaño mayor que la pantalla; resultado de Linux |
+| [0247 · Icono de las ventanas y AppUserModelId de desarrollo](../../tareas/0247-icono-de-las-ventanas-y-appusermodelid-de-desarrollo.md) | S | Pendiente | — | `icon` en principal y secundaria, id de desarrollo, verificación del icono del exe |
+| [0248 · Número de compilación en el build y en `sistema.info()`](../../tareas/0248-numero-de-compilacion-en-el-build-y-en-sistema-info.md) | M | Pendiente | — | `compilacion.mjs`, `define`, `shared/compilacion.ts`, `InfoSistema.compilacion`, log de arranque, panel de macOS |
+| [0249 · «Acerca de» con número y «Copiar versión»](../../tareas/0249-acerca-de-con-numero-de-compilacion-y-copiar-version.md) | S | Pendiente | 0248 | AC1–AC5 y AC8 de la spec 08 |
+| [0250 · Línea de versión en todos los «Copiar detalles»](../../tareas/0250-linea-de-version-en-todos-los-copiar-detalles.md) | M | Pendiente | 0248 | Ayudante común y unos 22 sitios del renderer, más los detalles del runtime (AC6) |
+| [0251 · Workflow: commit objetivo, número y nocturna](../../tareas/0251-workflow-commit-objetivo-numero-y-disparador-nocturno.md) | M | Pendiente | 0248 | `schedule`, decisión del canal, `checkout` del `sha` y variables del build |
+| [0252 · Workflow: notas en dos partes](../../tareas/0252-workflow-notas-de-la-release-en-dos-partes.md) | S–M | Pendiente | 0251 | Cabecera nueva, `pie.md`, «Qué cambió» con `generate-notes` en `publicar` y bloqueo de `> Borrador` |
+| [0253 · Workflow: canal de desarrollo](../../tareas/0253-workflow-canal-de-compilaciones-de-desarrollo.md) | M | Pendiente | 0251, 0252 | `preparar-desarrollo` y `publicar-desarrollo` (el token solo ahí), README del canal y `docs/workflow.md` |
+| [0254 · README e `INSTALAR.md` con descarga directa](../../tareas/0254-readme-e-instalar-con-descarga-directa.md) | S–M | Pendiente | — | E½ con botones SVG y enlaces a la etiqueta; el README como sexto sitio de `version.mjs` |
+| [0256 · Esc en la ayuda de Formato](../../tareas/0256-esc-con-el-foco-en-la-ayuda-de-formato.md) | S | Pendiente | — | `cerrarAyuda` solo intercepta Esc con la ayuda abierta (QA I-5) |
+| [0255 · Cierre: versión, notas, paquete y ensayo](../../tareas/0255-cierre-version-0-2-0-alpha-2-notas-y-ensayo.md) | S | Pendiente | 0244–0254, 0256 | `version:subir -- 0.2.0-alpha.2`, notas con la plantilla de §3, paquete reconstruido y `test:paquete` (QA I-9), ensayo en verde |
+
+**Paralelismo.**
+1. Pueden empezar a la vez, sin dependencias: 0244, 0245, 0247, 0248, 0254 y 0256.
+2. 0244 y 0245 tocan archivos distintos (`ventana.ts` y `servicio.ts`). 0247 y 0248 tocan los dos `app/src/main/index.ts`, en zonas distintas (líneas 250, 313 y 344 frente al arranque y el manejador `info`, 826–845): se integra primero la que termine antes y la otra hace *rebase*.
+3. Cuando 0248 esté integrada: 0249 y 0250 en paralelo (vistas distintas; `AcercaDe.tsx` solo es de 0249) y 0251.
+4. 0251 → 0252 → 0253, en secuencia: editan `empaquetado.yml`, `workflow-empaquetado.test.ts` y `preparar-publicacion.mjs`.
+5. 0246 después de 0244, con el CI de `alpha-2`.
+6. 0255 cierra.
+
+**Propiedad de archivos.**
+- `main/exportacion/ventana.ts` y su test: 0244. `main/exportacion/servicio.ts` y su test: 0245.
+- `.github/workflows/ci.yml` y `e2e/exportacion-captura.spec.ts`: 0246.
+- `main/index.ts` (ventanas y AppUserModelId), `shared/titulo.ts`, `electron-builder.yml` y `scripts/verificar-paquete.mjs`: 0247.
+- `scripts/compilacion.mjs`, `electron.vite.config.ts`, `shared/compilacion.ts`, `main/compilacion.ts`, `shared/ipc.ts` (`infoSistemaSchema`) y `main/index.ts` (arranque e `info`): 0248.
+- `vistas/acerca/`: 0249. El ayudante de detalles, los sitios que copian y `main/runtime/servicio.ts`: 0250.
+- `.github/workflows/empaquetado.yml` y `scripts/workflow-empaquetado.test.ts`: 0251 → 0252 → 0253. `scripts/preparar-publicacion.mjs` y `.github/publicacion/`: 0252 → 0253. `docs/workflow.md`: 0253.
+- `README.md`, `INSTALAR.md`, `docs/imagenes/descarga/`, `scripts/version.mjs` y `scripts/guia-instalacion.test.ts`: 0254.
+- `exportacion/dialogo/Formulario.tsx`: 0256.
+- Los 5 archivos de versión y `docs/versiones/0.2.0/notas/0.2.0-alpha.2.md`: 0255.
+
+**Pasos del usuario** (no son tareas de agente; ADR 0020, fase 10, §6, y [0143](../../preguntas/0143-canal-de-desarrollo-configuracion-y-carpeta-de-datos.md)):
+1. Crear el repositorio público `Gomonsoft/shinobi-karaoke-builds`, con un commit inicial.
+2. Crear un token *fine-grained* con acceso solo a ese repositorio y **Contents: Read and write**, y guardarlo como el secreto `COMPILACIONES_TOKEN`.
+3. Crear la variable `COMPILACIONES_REPO`.
+4. Proteger `develop`.
+5. Revisar las notas y quitar `> Borrador`.
+6. Fusionar en `main`, etiquetar y publicar `v0.2.0-alpha.2`.
+
+Sin el canal configurado, la nocturna se omite en verde.
+
+**Informe de QA del 2026-11-21: incidencias que van al backlog** (no entran en alpha.2; son mejoras o necesitan diseño):
+
+| Tarea | Incidencia | Por qué no entra |
+|---|---|---|
+| [0257 · Estimación de tamaño sobrestimada](../../tareas/0257-estimacion-de-tamano-de-la-exportacion-sobrestimada.md) | I-4 | Mejora: hace falta medir más y revisar el ADR 0019 §11 |
+| [0258 · Destino sin permiso y canción ya exportándose](../../tareas/0258-destino-sin-permiso-y-cancion-ya-exportandose.md) | I-6, I-7 | Necesita textos y estados del diseñador |
+| [0259 · Calibración de silencios con verdad fiable](../../tareas/0259-calibracion-de-silencios-con-verdad-fiable.md) | I-8 | Herramienta de desarrollo; depende de la fase 8 |
+| [0260 · Sondeo de perfiles con captura real](../../tareas/0260-sondeo-de-perfiles-con-captura-real.md) | I-2 (lo que quede tras 0244) | Opcional; se decide con el resultado de 0244 y 0246 |
+
+- I-1 e I-3 son 0244/0246 y 0245.
+- I-9 (paquete posiblemente obsoleto) se comprueba en 0255.
+- I-10 (foco inicial del diálogo de exportación, sin confirmar): `qa` lo comprueba a mano en la guía; si se confirma, se abre una tarea.
+
+**Verificación.** Pruebas de feedback de cada tarea según [pruebas.md](../../pruebas.md). El CI de `alpha-2` ejecuta además la captura en Windows (0246). El ensayo `gh workflow run empaquetado.yml --ref alpha-2` (0255) demuestra en GitHub todo menos la publicación. La publicación real, la nocturna (cuando el archivo esté en `main` y el canal configurado), el icono y las exportaciones de 1440p y 4K en Windows van a la guía manual de la versión, que escribe `qa`.

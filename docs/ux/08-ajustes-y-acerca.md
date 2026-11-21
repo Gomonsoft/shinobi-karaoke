@@ -6,6 +6,7 @@
 - Preguntas respondidas: [0003](../preguntas/0003-elegir-calidad-o-rapidez-separacion.md) (sustituida en parte), [0019](../preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md) (sin elección de modo: sección informativa y "Volver a Calidad"), [0047](../preguntas/0047-temas-asignados-edicion-y-borrado.md) (tema predeterminado y borrado de temas)
 - 0.2.0, fase 3 (2026-11-09): sección «Temas» con el tema predeterminado y la gestión del catálogo; «Volver» regresa a la vista de origen. Ver [Fase 3 · Temas y biblioteca](#fase-3-de-020--temas-y-biblioteca). Respondidas: [0052](../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) (A1, B1, C1) y [0055](../preguntas/0055-textos-de-predeterminado-anterior-y-ajustes-de-la-fase-3.md) (textos de «Tema predeterminado anterior», aviso de referencias que faltan).
 - 0.2.0, fase 4 (2026-11-11): sección «Reproductor» con la duración de la cuenta entre canciones de la cola ([0049](../preguntas/0049-politica-cola-de-reproduccion.md): configurable, 4 s por defecto). Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola).
+- 0.2.0, fase 10 (2026-11-21): **número de compilación** `<versión>-<N>` en «Acerca de» (con el canal y el commit, y [Copiar versión]) y **línea de versión** común a todos los «Copiar detalles» y a «Copiar información para soporte». Ver [Fase 10 de 0.2.0 — número de compilación](#fase-10-de-020--número-de-compilación). Pregunta abierta: [0142](../preguntas/0142-numero-de-compilacion-canal-de-desarrollo-y-notas.md) (origen de N, commit y canal; provisional tomado).
 
 ## Objetivo
 Una vista mínima para: (1) ver **con qué modelo se separa la voz** y, solo si se usa el modelo Rápido, **volver al modelo Calidad** (decisión del usuario, 0019: no se puede elegir modo; Rápido solo se ofrece tras un fallo de Calidad, specs 01 y 04); (2) consultar **Acerca de / Licencias** (obligatorio: GPL-3.0 y créditos de terceros) y releer el aviso de YouTube. Nada más en el MVP.
@@ -339,3 +340,126 @@ No hay otros ajustes del reproductor en Ajustes: la pantalla y la pantalla compl
 - AR2. Elegir 10 s persiste al salir, al volver y al reiniciar; la siguiente cuenta de la secundaria dura 10 s. Cambiarlo durante una cuenta no altera la que está en marcha.
 - AR3. Con un fallo de escritura simulado, el selector vuelve al valor anterior y aparece `aj.rep.toast.error`.
 - AR4. Captura `docs/ux/revision-fase-4/ajustes-1280x800-100-reproductor.png`.
+
+## Fase 10 de 0.2.0 — número de compilación
+
+Origen: [plan, fase 10, feature 14](../versiones/0.2.0/plan-2.md#14-estructura-de-releases--m), punto 3 («`<versión>-<N>`, con N = número de commits, visible en «Acerca de» y en los detalles de error que se copian»), y [propuesta 017](../propuestas/017-estructura-de-releases.md). Problema que resuelve: el error de exportación de alpha.1 solo decía «Versión: 0.2.0-alpha.1» y no había forma de saber de qué commit salió esa compilación. Detalles técnicos (origen de N, del commit y del canal): [0142](../preguntas/0142-numero-de-compilacion-canal-de-desarrollo-y-notas.md), con provisional tomado. Dónde se publica cada canal: [09 · §3 y §3b](09-descarga-e-instalacion.md#3-notas-de-cada-release).
+
+Esta sección **amplía** el bloque «Acerca de» (también el diálogo Acerca de del primer arranque, que es el mismo bloque) y **sustituye**: la fila «Copiar información para soporte» (primera línea), `aj.acerca.version` y el criterio 9 (se añade la línea de versión).
+
+### Conceptos
+| Concepto | Definición |
+|---|---|
+| **Número de compilación** | `<versión>-<N>`: la versión de `app/package.json` del commit construido, un guion y N, el número de commits de su historial. Ejemplo: `0.2.0-alpha.2-1234`. Lo que se ve y se copia es siempre esta cadena; nunca se separa en dos datos. |
+| **Commit** | Hash corto del commit construido (7 caracteres, provisional 0142), p. ej. `3f9c2a1`. Va siempre junto al número allí donde se copia: dos ramas pueden dar el mismo N. |
+| **Canal** | De dónde sale la compilación. `publicada`: construida por la etiqueta de una versión (`v0.2.0-alpha.2`) y publicada en las *Releases* del repositorio principal. `desarrollo`: construida por el CI sin etiqueta (compilación nocturna de `develop` en `shinobi-karaoke-builds`, o ensayo del workflow). `local`: construida en el equipo de quien desarrolla (`npm run dev`, `npm run empaquetar`); **no lleva número**. |
+| **Previa** | Una versión `publicada` con sufijo (`-alpha.N`, `-beta.N`, `-rc.N`). Se deduce del número; no es otro canal. |
+| **Identificador de compilación** | Cadena única que se copia en todos los sitios: `{número} ({canal}, commit {hash})`. Ver `aj.compilacion.id`. |
+
+### Wireframe
+
+Bloque «Acerca de» de una **versión preliminar publicada**:
+```
+│  Acerca de Shinobi Karaoke                                               │  h2
+│  Versión 0.2.0-alpha.2-1234 · Software libre con licencia GPL-3.0 o      │  aj.acerca.version
+│  posterior.                                                              │
+│  Versión preliminar publicada · commit 3f9c2a1      [ Copiar versión ]   │  aj.acerca.canal.previa (t-pequeno, texto-2) + botón fantasma
+│  [Ver licencia]  [Créditos y licencias de terceros]  [Web del proyecto]  │
+│  …                                                                       │
+```
+
+**Versión estable publicada**:
+```
+│  Versión 0.3.0-1302 · Software libre con licencia GPL-3.0 o posterior.   │
+│  Versión publicada · commit 8d41b07                 [ Copiar versión ]   │
+```
+
+**Compilación de desarrollo** (canal `desarrollo`):
+```
+│  Versión 0.2.0-alpha.3-1260 · Software libre con licencia GPL-3.0 o      │
+│  posterior.                                                              │
+│  ⚠ Compilación de desarrollo: no es una versión publicada y puede        │  aviso (color `aviso`, icono ⚠)
+│    fallar. · commit 9e07c55                         [ Copiar versión ]   │
+```
+
+**Compilación local** (canal `local`, sin número):
+```
+│  Versión 0.2.0-alpha.3 · Software libre con licencia GPL-3.0 o posterior.│
+│  Compilación local, sin número de compilación · commit 9e07c55           │  (sin «· commit …» si no se sabe)
+│                                                     [ Copiar versión ]   │
+```
+
+### Componentes e interacciones
+| Elemento | Comportamiento |
+|---|---|
+| **Línea de versión** (`aj.acerca.version`) | `{v}` es el número de compilación; en `local`, solo la versión. El número va en `t-cuerpo` como el resto de la línea (no monoespaciado: se lee como una versión). El texto es **seleccionable** con el ratón (`user-select: text`) y se puede copiar con Ctrl/Cmd + C. |
+| **Línea de canal** | Justo debajo, en `t-pequeno`. `publicada` sin sufijo: `aj.acerca.canal.publicada` en `texto-2`. `publicada` con sufijo: `aj.acerca.canal.previa` en `texto-2`. `desarrollo`: `aj.acerca.canal.desarrollo` en color `aviso` con icono ⚠ (decorativo, `aria-hidden`; el texto ya lo dice). `local`: `aj.acerca.canal.local` en `texto-3`. El hash va en fuente monoespaciada. El commit **no es un enlace**: abrir GitHub no ayuda a quien usa la app, y quien lo necesita lo pega en una incidencia. |
+| **Copiar versión** | Botón fantasma pequeño, al final de la línea de canal (en ventanas estrechas pasa a la línea siguiente, alineado a la izquierda). Copia `aj.acerca.copiado`: `Shinobi Karaoke {identificador}` (una sola línea, la misma que encabeza «Copiar información para soporte»). Toast `aj.acerca.toast.version`. Si el portapapeles falla, toast `error` `aj.acerca.toast.versionError`. El foco se queda en el botón. |
+| **Copiar información para soporte** | Sin cambios salvo la **primera línea**, que pasa de `Shinobi Karaoke {versión}` a `Shinobi Karaoke {identificador}`. El resto de líneas y su orden no cambian. |
+| **«Copiar detalles» (todas las specs)** | Ver [«Línea de versión en los detalles copiados»](#línea-de-versión-en-los-detalles-copiados). |
+| Información aún no cargada | Como hoy: la línea de versión y la de canal no se muestran hasta tener `sistema.info()`; no hay esqueleto (llega en < 100 ms). [Copiar versión] tampoco aparece hasta entonces. |
+| Datos de compilación ausentes | Si una compilación empaquetada no trae número ni canal (fallo del empaquetado), se muestra como `local`; nunca se inventa un número ni se muestra `undefined` o `null`. Sin hash: se omite «· commit …» y en el identificador se escribe `sin commit`. |
+| Teclado | [Copiar versión] está en el orden de tabulación entre la línea de canal y [Ver licencia]. |
+
+### Línea de versión en los detalles copiados
+Regla **transversal**: todo texto que la app copia para que el usuario lo pegue en una incidencia termina con **la misma línea de versión**, `aj.detalles.version`:
+
+```text
+Versión: 0.2.0-alpha.2-1234 (publicada, commit 3f9c2a1)
+```
+
+- Es **la última línea** del bloque, siempre, también cuando el bloque acaba con líneas de registro (primer arranque, spec 01). Donde el bloque ya llevaba la versión (spec 01, «versión, SO, fase…»; spec 10, «Versión: 0.2.0-alpha.1»), esta línea la **sustituye**: no se repite.
+- Aplica a **todos** los [Copiar detalles]: primer arranque (01), añadir canción (03), progreso (04), Biblioteca (02: toasts y listas de fallos de temas), editor (06: temas y listas de fallo a mitad), reproductor (07), Ajustes (08: temas y reproductor) y exportación (10). Una fila de una lista de fallos copia su código **y** la línea de versión.
+- «Copiar información para soporte» no lleva `Versión:` al final: su primera línea (`Shinobi Karaoke {identificador}`) ya da lo mismo.
+- Nunca incluye rutas, nombres de usuario ni el título de las canciones más allá de lo que ya copiaba cada spec.
+- La línea sale de una **sola función compartida** (la misma que da `{identificador}`), para que los 9 sitios no puedan divergir.
+
+Ejemplo, error de exportación (spec 10) en una compilación de desarrollo:
+```text
+ERROR_INTERNO: El codificador terminó con un error.
+Perfil: 1920 × 1080 · 30 FPS · Solo instrumental
+Formato: MKV (AV1 + Opus)
+Posición: 1:23 de 3:45
+Versión: 0.2.0-alpha.3-1260 (desarrollo, commit 9e07c55)
+```
+
+### Estados
+| Estado | Presentación |
+|---|---|
+| Publicada estable | Número + `aj.acerca.canal.publicada`. |
+| Publicada previa | Número + `aj.acerca.canal.previa`. |
+| Desarrollo | Número + `aj.acerca.canal.desarrollo` en `aviso`. |
+| Local | Solo la versión + `aj.acerca.canal.local` (con o sin commit). |
+| Cargando | Sin líneas de versión ni botón (como hoy). |
+| Error al copiar | Toast `aj.acerca.toast.versionError`; nada más cambia. |
+
+### Accesibilidad
+- La línea de canal es texto normal, no un `role="status"`: no cambia mientras la vista está abierta.
+- El canal `desarrollo` no se comunica solo con color: el texto dice «Compilación de desarrollo». `aviso` sobre `fondo-1` da 10,1:1 y `texto-3` 6,1:1 (sistema visual).
+- [Copiar versión] tiene nombre accesible `aj.acerca.copiarVersion.aria`, que incluye el número para que se oiga qué se copia. El toast se anuncia con el gestor de toasts (`aria-live="polite"`).
+
+### Microcopy (fase 10, Acerca de)
+| Clave | Texto |
+|---|---|
+| `aj.acerca.version` | Versión {v} · Software libre con licencia GPL-3.0 o posterior. ({v}: número de compilación, o la versión sola en `local`. **Sustituye** al de la fase 0) |
+| `aj.acerca.canal.publicada` | Versión publicada · commit {hash} |
+| `aj.acerca.canal.previa` | Versión preliminar publicada · commit {hash} |
+| `aj.acerca.canal.desarrollo` | Compilación de desarrollo: no es una versión publicada y puede fallar. · commit {hash} |
+| `aj.acerca.canal.local` | Compilación local, sin número de compilación · commit {hash} · (sin commit) Compilación local, sin número de compilación |
+| `aj.acerca.copiarVersion` | Copiar versión |
+| `aj.acerca.copiarVersion.aria` | Copiar versión {v} |
+| `aj.acerca.copiado` | Shinobi Karaoke {identificador} |
+| `aj.acerca.toast.version` | Versión copiada. |
+| `aj.acerca.toast.versionError` | No se pudo copiar la versión. |
+| `aj.compilacion.id` | {número} ({canal}, commit {hash}) · (local con commit) {versión} (local, sin número, commit {hash}) · (local sin commit) {versión} (local, sin número, sin commit) · (sin commit en otro canal) {número} ({canal}, sin commit). `{canal}` es literalmente `publicada`, `desarrollo` o `local`: es texto para incidencias y no se traduce ni cambia con la previa. |
+| `aj.detalles.version` | Versión: {identificador} |
+
+### Criterios de aceptación de la fase 10 (Acerca de)
+- AC1. En una compilación construida por la etiqueta `v0.2.0-alpha.2` con N = 1234 y commit `3f9c2a1…`, Acerca de (en Ajustes y en el diálogo del primer arranque) muestra «Versión 0.2.0-alpha.2-1234 · Software libre…» y debajo «Versión preliminar publicada · commit 3f9c2a1». En una estable (`v0.3.0`), «Versión publicada · commit …».
+- AC2. En una compilación del CI sin etiqueta, la línea de canal es `aj.acerca.canal.desarrollo`, en color `aviso` con ⚠, y el número sigue el formato `<versión>-<N>`.
+- AC3. En `npm run dev`, la versión no lleva `-<N>` y la línea dice «Compilación local, sin número de compilación» (con «· commit …» solo si se conoce). Nunca aparecen `undefined`, `null`, `NaN` ni un número vacío (`0.2.0-alpha.3-`).
+- AC4. [Copiar versión] copia exactamente una línea, `Shinobi Karaoke 0.2.0-alpha.2-1234 (publicada, commit 3f9c2a1)`, y muestra `aj.acerca.toast.versionError` si el portapapeles falla. Es alcanzable con Tab y su nombre accesible incluye el número.
+- AC5. «Copiar información para soporte» empieza por la misma línea que copia [Copiar versión]; el resto del bloque no cambia (criterio 9).
+- AC6. Cada [Copiar detalles] de las specs 01, 02, 03, 04, 06, 07, 08 y 10 termina con `Versión: {identificador}` como última línea, una sola vez. El error de exportación ya no termina con «Versión: 0.2.0-alpha.1» sin número ni commit. Un test unitario de la función compartida cubre los cuatro casos de `aj.compilacion.id`.
+- AC7. El número y el hash de AC1 corresponden al commit construido: `git rev-list --count <hash>` da N y `git rev-parse --short=7` da el hash (comprobación de la tarea, según la respuesta a 0142).
+- AC8. Captura `docs/ux/revision-fase-10/ajustes-1280x800-100-acerca-{previa|desarrollo|local}.png`.

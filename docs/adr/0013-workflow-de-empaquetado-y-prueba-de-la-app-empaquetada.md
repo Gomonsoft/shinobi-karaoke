@@ -129,3 +129,13 @@ Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportac
 
 - La verificación del paquete comprueba que `exportacion.html` y el preload de exportación están en el asar.
 - No se añade ninguna exportación real a la prueba de humo (necesita el runtime con PyAV). La codificación en los 3 SO la cubre la pytest del worker en `ci.yml`, y los tiempos reales, la guía manual de la fase.
+
+## Revisión para 0.2.0 — fase 10 (detalles de release)
+
+Fecha: 2026-11-21. Detalle en el [ADR 0020, «Revisión para 0.2.0 — fase 10»](0020-publicacion-en-github-releases-y-politica-de-versiones.md#revisión-para-020--fase-10-detalles-de-release). Tareas 0251–0253.
+
+- **Disparador nocturno.** §1 «Disparador» y la tabla de alternativas («Disparador») cambian: además de `workflow_dispatch` y de `push: tags: ['v*']` (ADR 0020), `schedule` con `cron: '23 4 * * *'`. La razón para descartar `push`/`pull_request` sigue en pie: la nocturna **no** se dispara por cada fusión, y solo construye si la cabeza de `develop` no tiene ya su compilación en `shinobi-karaoke-builds` y el canal está configurado. Si no, termina en verde tras `comprobar-version`. `ci.yml` no cambia por esto.
+- **Commit objetivo.** `schedule` siempre corre con el archivo y el commit de `main`, así que `comprobar-version` resuelve el commit que se construye (la cabeza de `develop` en la nocturna; `GITHUB_SHA` en lo demás). `construir`, `probar-instalador` y los trabajos de preparación hacen `checkout` de ese commit y nombran sus artefactos con él, no con `GITHUB_SHA`.
+- **Número de compilación.** `comprobar-version` hace `checkout` con `fetch-depth: 0` para contar los commits. `construir` recibe el número, el commit y el canal como variables para `npm run build`, así que su `checkout` puede seguir siendo superficial.
+- **Lo que no cambia**: los runners, la matriz, las pruebas de humo e instalación, las cuatro acciones y sus SHA (no se añade ninguna), `permissions: contents: read` en la raíz y `retention-days: 14`. El trabajo nuevo `publicar-desarrollo` usa un secreto de este repositorio para escribir **en otro repositorio** y no hace `checkout`.
+- **Consecuencia nueva**: en un repositorio público, `schedule` se desactiva tras 60 días sin actividad (documentación de GitHub); se reactiva a mano.

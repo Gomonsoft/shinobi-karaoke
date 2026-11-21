@@ -267,7 +267,7 @@ Ninguna nota bloquea la exportación. El espacio libre lo da main al proponer o 
 | Fallo con el diálogo cerrado | Toast `error` persistente `exp.toast.error` con [Ver] (abre D). Notificación como en spec 04 §3. |
 | Reintentar (D) | Vuelve a exportar con las mismas opciones y una **instantánea nueva** (la canción puede haber cambiado). |
 | Cambiar opciones (D) | Vuelve a A con las opciones anteriores. |
-| Copiar detalles | Copia código, mensaje técnico, perfil, formato, posición alcanzada y versión de la app; toast «Detalles copiados.» (el de las demás specs). |
+| Copiar detalles | Copia código, mensaje técnico, perfil, formato, posición alcanzada y, como última línea, la **línea de versión** común (`aj.detalles.version`, [08 · Fase 10](08-ajustes-y-acerca.md#línea-de-versión-en-los-detalles-copiados)): `Versión: 0.2.0-alpha.2-1234 (publicada, commit 3f9c2a1)`. Sustituye a la antigua `Versión: {versión}` sin número ni commit. Toast «Detalles copiados.» (el de las demás specs). Ejemplo completo en 08. |
 
 ### Varias exportaciones
 - **Una exportación a la vez**, en una cola propia de la exportación; las demás esperan en cola (B2, `exp.cola`).
@@ -457,7 +457,7 @@ Retiradas en la revisión del 2026-11-20 (no se implementan): `exp.bloqueo.titul
 - V19. La marca de agua aparece en todos los fotogramas, abajo a la derecha con margen del 3 % del alto, cuerpo `máx(14 px, 2,2 % del alto)`, píldora `rgba(0,0,0,0.5)` y opacidad 85 %, en 4:3 y en 16:9, y nunca se superpone a la letra.
 
 **Fallos**
-- V20. Cada código de la tabla «Errores» (`SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA`, `ERROR_INTERNO`) muestra su título, explicación y acciones (doble de prueba por código); en los de ejecución, D muestra `exp.error.posicion`, el temporal se borra y un archivo previo se conserva, con `exp.error.conservado`. «Reintentar» toma una instantánea nueva; «Cambiar opciones» vuelve a A con las opciones anteriores; «Copiar detalles» copia el código.
+- V20. Cada código de la tabla «Errores» (`SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA`, `ERROR_INTERNO`) muestra su título, explicación y acciones (doble de prueba por código); en los de ejecución, D muestra `exp.error.posicion`, el temporal se borra y un archivo previo se conserva, con `exp.error.conservado`. «Reintentar» toma una instantánea nueva; «Cambiar opciones» vuelve a A con las opciones anteriores; «Copiar detalles» copia el código y termina con `Versión: {identificador}` (número de compilación, canal y commit; 08 · Fase 10, AC6).
 - V21. Un fallo con el diálogo cerrado muestra `exp.toast.error` persistente con [Ver], que abre D.
 - V22. Si la limpieza falla, aparece `exp.toast.limpieza` con «Mostrar en la carpeta».
 
@@ -497,3 +497,5 @@ Para la guía de la fase en `docs/Test-manuales/0.2.0/` (la escribe `qa`). No so
 - **Errores**: códigos finales del ADR §10 (`ERROR_INTERNO` sustituye a «desconocido», sin `EXPORTACION_BLOQUEADA`); posición siempre disponible.
 - **Estimación y espacio** según ADR §11; **cierre inesperado** y **suspensión** dejan de estar condicionados; «Mostrar en la carpeta» en Linux abre la carpeta sin garantizar la selección.
 - Criterios: cambian V1, V3–V5, V7, V9, V10, V12, V14–V18, V20, V23, V26 y V29; V24 retirado; V30 nuevo. Verificación manual: M1, M3–M8 actualizados y M9 nuevo.
+
+2026-11-21, fase 10 de 0.2.0 ([plan](../versiones/0.2.0/plan-2.md#fase-10--detalles-de-release)): «Copiar detalles» termina con la línea de versión común de [08 · Fase 10](08-ajustes-y-acerca.md#línea-de-versión-en-los-detalles-copiados) (número de compilación, canal y commit) en lugar de `Versión: {versión}`. Cambia V20.

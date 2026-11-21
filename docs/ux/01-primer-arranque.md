@@ -273,7 +273,7 @@ B6b solo la ven los Mac con chip Apple en macOS 13 (todos pueden actualizar grat
 | Cerrar la ventana (X) | Mismo diálogo que "Pausar y salir". |
 | "Reintentar" | Relanza desde la fase fallida (las fases son idempotentes). En la fase de modelo, con el modelo que se estaba descargando (Calidad, o Rápido si ya se aceptó). |
 | "Usar el modelo Rápido…" (B4) | Solo visible con `ofrecerRapido`. Abre el diálogo de consentimiento `aviso-rapido` con el motivo `rapido.motivo.preparar`. Ver "B4 con oferta del modelo Rápido". |
-| "Ver detalles" / "Copiar detalles" | Copia al portapapeles versión de la app, SO, fase, código de error y últimas 50 líneas del registro. Toast "Detalles copiados". |
+| "Ver detalles" / "Copiar detalles" | Copia al portapapeles SO, fase, código de error, últimas 50 líneas del registro y, como última línea, la línea de versión común `Versión: {identificador}` (número de compilación, canal y commit; [08 · Fase 10](08-ajustes-y-acerca.md#línea-de-versión-en-los-detalles-copiados), 0.2.0). Toast "Detalles copiados". |
 | "Empezar" | Abre la Biblioteca (estado vacío). Foco inicial de B3. |
 | Licencias (B1) | Abre Ajustes → Acerca de (en un diálogo, ya que aún no hay barra superior). |
 | Teclado | Tab recorre los botones; Intro activa; Esc en B2 = "Pausar y salir". |
@@ -389,7 +389,7 @@ B6b solo la ven los Mac con chip Apple en macOS 13 (todos pueden actualizar grat
 5c. En un equipo solo CPU, B1 muestra la descarga del perfil con Calidad incluida (≈ 1,3 GB con el manifiesto actual) y "necesitas al menos 4 GB libres".
 6. Cerrar la ventana o pulsar "Pausar y salir" muestra el diálogo de confirmación; al confirmar se cierra la app y, al reabrir, se muestra B5 con lo que falta por descargar.
 7. Ante `SIN_CONEXION`, `SIN_ESPACIO`, fallo de servidor o verificación SHA-256 fallida se muestra B4 con el texto de su clave; "Reintentar" continúa desde la fase fallida sin repetir las completadas.
-8. "Copiar detalles" copia al portapapeles versión, SO, fase, código y las últimas 50 líneas del registro, y muestra el toast "Detalles copiados".
+8. "Copiar detalles" copia al portapapeles SO, fase, código, las últimas 50 líneas del registro y, al final, `Versión: {identificador}` (08 · Fase 10, AC6), y muestra el toast "Detalles copiados".
 9. Toda la secuencia se puede completar solo con teclado (Tab + Intro) y el foco inicial está en el botón primario de cada pantalla.
 10. Los lectores de pantalla reciben anuncios en cada cambio de fase, cada 25 % del total, en error y al terminar (no en cada evento de progreso).
 11. "Empezar" abre la Biblioteca en estado vacío (spec 02).

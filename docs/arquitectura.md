@@ -384,6 +384,10 @@ Detalle en los ADR [0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-l
 - **Instaladores**: `Shinobi-Karaoke-Windows-x64.exe`, `Shinobi-Karaoke-Mac-chip-Apple.dmg`, `Shinobi-Karaoke-Linux-x64.AppImage` y `shinobi-karaoke-linux-x64.deb` (`preguntas/0040`).
 - **Build**: `npm run build` → `npm run uv:descargar` → `npm run empaquetar` → `npm run paquete:verificar`.
 - **CI**: `empaquetado.yml` («Empaquetado y publicación»); construye en `windows-2025`, `macos-26` y `ubuntu-24.04`, prueba el paquete y el instalador y guarda artefactos 14 días. Con `workflow_dispatch` ensaya la publicación sin publicar; con una etiqueta `v*` que coincide con la versión crea la *Release* (*pre-release* si lleva sufijo) con los 4 instaladores, `SHA256SUMS.txt` y notas. Solo el trabajo `publicar` tiene `contents: write` ([ADR 0020](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), tareas 0191–0195).
+- **Fase 10 de 0.2.0** ([ADR 0020, revisión de la fase 10](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md#revisión-para-020--fase-10-detalles-de-release), tareas 0248–0255):
+  - **Disparador nocturno.** Compila la cabeza de `develop` si aún no tiene compilación y la publica en el repositorio aparte `shinobi-karaoke-builds`: etiqueta `build-<sha>`, título `<versión>-<N>`. Usa el secreto `COMPILACIONES_TOKEN`, que solo ve `publicar-desarrollo`, un trabajo sin `checkout`. Sin el secreto o sin el repositorio, la nocturna se omite en verde.
+  - **Número de compilación.** `N` = `git rev-list --count`. El número, el commit y el canal (`publicada`, `desarrollo` o `local`) se inyectan al compilar como `__SHINOBI_COMPILACION__` y llegan al renderer en `sistema.info().compilacion`. Las cadenas visibles salen de `shared/compilacion.ts`.
+  - **Notas.** Las notas de cada versión tienen dos partes: las escritas a mano y «Qué cambió», generada por GitHub en `publicar`.
 - **Versión**: un solo número SemVer para app y worker (PEP 440 en el worker), en 5 archivos; `npm run version:subir` y `version:comprobar` (`app/scripts/version.mjs`).
 - **Datos**: los desinstaladores no tocan el directorio de datos (`preguntas/0043`).
 
