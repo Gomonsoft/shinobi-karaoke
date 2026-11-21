@@ -173,6 +173,11 @@ jobs:
         run: npm run build
       - run: npm run uv:descargar
       - run: npm run empaquetar
+      # `npm ci` no descarga el binario de Electron (se baja al primer uso) y la verificación
+      # compara el icono del .exe con el de `electron.exe` (0247).
+      - name: Descargar el Electron de referencia para comparar el icono
+        if: runner.os == 'Windows'
+        run: node node_modules/electron/install.js
       - name: Verificar contenido, fuses y firma
         env:
           CARPETA_PAQUETE: ${{ matrix.carpeta }}

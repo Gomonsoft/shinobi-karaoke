@@ -73,7 +73,7 @@ export function comprobarIconoExe(propio, electron) {
 function verificarIconoExe(ruta, leerIconos) {
   exigir(
     existsSync(EXE_ELECTRON),
-    `No se encuentra ${EXE_ELECTRON}: hace falta para comparar el icono (npm ci)`
+    `No se encuentra ${EXE_ELECTRON}: hace falta para comparar el icono (node node_modules/electron/install.js)`
   )
   comprobarIconoExe(leerIconos(ruta), leerIconos(EXE_ELECTRON))
 }

@@ -17,7 +17,7 @@ import { crearTemporal } from './temporales'
  * fase 6 (Linux real con GPU, docs/Test-manuales/). En macOS y Windows sigue siendo obligatoria.
  */
 function omitirSiEntornoSinSuperficie(e: unknown, ancho: number, alto: number): void {
-  const m = e instanceof Error ? /La captura es de (\d+)×(\d+)/.exec(e.message) : null
+  const m = e instanceof Error ? /captura es de (\d+)×(\d+)/.exec(e.message) : null
   if (process.platform !== 'linux' || !m) return
   const [w, h] = [Number(m[1]), Number(m[2])]
   const mayor = ancho >= 3840
