@@ -94,7 +94,7 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 | [0183 · Estado de sesión y bloqueo](../../tareas/0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md) | Hecha | 0177 | `renderer/src/sesion/`, textos, `edi.bloqueo` en todos los puntos de entrada, indicador de sesión |
 | [0184 · Diálogo de pantallas](../../tareas/0184-dialogo-abrir-el-reproductor-en-otra-pantalla.md) | Pendiente | 0183 | «Abrir el reproductor en otra pantalla», Wayland, errores, cabecera |
 | [0185 · Panel: sesión y cierre](../../tareas/0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md) | Pendiente | 0183, 0184 | Panel, P1–P6, controles, banners de recuperación, `ses.cierre` en la principal |
-| [0186 · Panel: pendientes](../../tareas/0186-panel-de-cola-lista-de-pendientes.md) | Pendiente | 0183 | Lista, reordenar con ratón, teclado y menú, quitar y deshacer, vaciar |
+| [0186 · Panel: pendientes](../../tareas/0186-panel-de-cola-lista-de-pendientes.md) | Hecha | 0183 | Lista, reordenar con ratón, teclado y menú, quitar y deshacer, vaciar |
 | [0187 · Tarjetas y menús](../../tareas/0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) | Pendiente | 0183, 0184 | «A la cola», ⋯ de Lista, toasts, línea de cola, bloqueos de la tarjeta |
 | [0188 · Ajustes › Reproductor](../../tareas/0188-ajustes-cuenta-entre-canciones.md) | Hecha | 0177 | Selector «Cuenta entre canciones» |
 | [0189 · Salir con sesión o cola](../../tareas/0189-salir-de-la-app-con-sesion-o-cola.md) | Pendiente | 0181, 0183 | `ses.salir`, variante con trabajos y variante de macOS |
