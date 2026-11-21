@@ -316,19 +316,19 @@ Decisiones: revisiones del [ADR 0020](../../adr/0020-publicacion-en-github-relea
 
 | Tarea | Tamaño | Estado | Depende de | Entrega |
 |---|---|---|---|---|
-| [0244 · Tamaño exacto de la ventana offscreen](../../tareas/0244-tamano-exacto-de-la-ventana-offscreen-de-exportacion.md) | S | Pendiente | — | `setContentSize` + `getContentSize` antes de `loadURL`; `PERFIL_NO_SOPORTADO` temprano; nunca escalar |
-| [0245 · Fallos de exportación en `app.log`](../../tareas/0245-registrar-en-app-log-los-fallos-de-exportacion.md) | S | Pendiente | — | Una línea `error` por fallo, con código, perfil y fotogramas |
-| [0246 · E2E de captura en Windows y cierre de 0242](../../tareas/0246-e2e-de-captura-en-windows-y-cierre-de-0242.md) | S | Pendiente | 0244 | `exportacion-captura.spec.ts` en `windows-latest` con 1080p y un tamaño mayor que la pantalla; resultado de Linux |
-| [0247 · Icono de las ventanas y AppUserModelId de desarrollo](../../tareas/0247-icono-de-las-ventanas-y-appusermodelid-de-desarrollo.md) | S | Pendiente | — | `icon` en principal y secundaria, id de desarrollo, verificación del icono del exe |
-| [0248 · Número de compilación en el build y en `sistema.info()`](../../tareas/0248-numero-de-compilacion-en-el-build-y-en-sistema-info.md) | M | Pendiente | — | `compilacion.mjs`, `define`, `shared/compilacion.ts`, `InfoSistema.compilacion`, log de arranque, panel de macOS |
-| [0249 · «Acerca de» con número y «Copiar versión»](../../tareas/0249-acerca-de-con-numero-de-compilacion-y-copiar-version.md) | S | Pendiente | 0248 | AC1–AC5 y AC8 de la spec 08 |
-| [0250 · Línea de versión en todos los «Copiar detalles»](../../tareas/0250-linea-de-version-en-todos-los-copiar-detalles.md) | M | Pendiente | 0248 | Ayudante común y unos 22 sitios del renderer, más los detalles del runtime (AC6) |
-| [0251 · Workflow: commit objetivo, número y nocturna](../../tareas/0251-workflow-commit-objetivo-numero-y-disparador-nocturno.md) | M | Pendiente | 0248 | `schedule`, decisión del canal, `checkout` del `sha` y variables del build |
-| [0252 · Workflow: notas en dos partes](../../tareas/0252-workflow-notas-de-la-release-en-dos-partes.md) | S–M | Pendiente | 0251 | Cabecera nueva, `pie.md`, «Qué cambió» con `generate-notes` en `publicar` y bloqueo de `> Borrador` |
-| [0253 · Workflow: canal de desarrollo](../../tareas/0253-workflow-canal-de-compilaciones-de-desarrollo.md) | M | Pendiente | 0251, 0252 | `preparar-desarrollo` y `publicar-desarrollo` (el token solo ahí), README del canal y `docs/workflow.md` |
-| [0254 · README e `INSTALAR.md` con descarga directa](../../tareas/0254-readme-e-instalar-con-descarga-directa.md) | S–M | Pendiente | — | E½ con botones SVG y enlaces a la etiqueta; el README como sexto sitio de `version.mjs` |
-| [0256 · Esc en la ayuda de Formato](../../tareas/0256-esc-con-el-foco-en-la-ayuda-de-formato.md) | S | Pendiente | — | `cerrarAyuda` solo intercepta Esc con la ayuda abierta (QA I-5) |
-| [0255 · Cierre: versión, notas, paquete y ensayo](../../tareas/0255-cierre-version-0-2-0-alpha-2-notas-y-ensayo.md) | S | Pendiente | 0244–0254, 0256 | `version:subir -- 0.2.0-alpha.2`, notas con la plantilla de §3, paquete reconstruido y `test:paquete` (QA I-9), ensayo en verde |
+| [0244 · Tamaño exacto de la ventana offscreen](../../tareas/0244-tamano-exacto-de-la-ventana-offscreen-de-exportacion.md) | S | Hecha | — | `setContentSize` + `getContentSize` antes de `loadURL`; `PERFIL_NO_SOPORTADO` temprano; nunca escalar |
+| [0245 · Fallos de exportación en `app.log`](../../tareas/0245-registrar-en-app-log-los-fallos-de-exportacion.md) | S | Hecha | — | Una línea `error` por fallo, con código, perfil y fotogramas |
+| [0246 · E2E de captura en Windows y cierre de 0242](../../tareas/0246-e2e-de-captura-en-windows-y-cierre-de-0242.md) | S | En curso | 0244 | `exportacion-captura.spec.ts` en `windows-latest` con 1080p y un tamaño mayor que la pantalla; resultado de Linux |
+| [0247 · Icono de las ventanas y AppUserModelId de desarrollo](../../tareas/0247-icono-de-las-ventanas-y-appusermodelid-de-desarrollo.md) | S | Hecha | — | `icon` en principal y secundaria, id de desarrollo, verificación del icono del exe |
+| [0248 · Número de compilación en el build y en `sistema.info()`](../../tareas/0248-numero-de-compilacion-en-el-build-y-en-sistema-info.md) | M | Hecha | — | `compilacion.mjs`, `define`, `shared/compilacion.ts`, `InfoSistema.compilacion`, log de arranque, panel de macOS |
+| [0249 · «Acerca de» con número y «Copiar versión»](../../tareas/0249-acerca-de-con-numero-de-compilacion-y-copiar-version.md) | S | Hecha | 0248 | AC1–AC5 y AC8 de la spec 08 |
+| [0250 · Línea de versión en todos los «Copiar detalles»](../../tareas/0250-linea-de-version-en-todos-los-copiar-detalles.md) | M | Hecha | 0248 | Ayudante común y unos 22 sitios del renderer, más los detalles del runtime (AC6) |
+| [0251 · Workflow: commit objetivo, número y nocturna](../../tareas/0251-workflow-commit-objetivo-numero-y-disparador-nocturno.md) | M | Hecha | 0248 | `schedule`, decisión del canal, `checkout` del `sha` y variables del build |
+| [0252 · Workflow: notas en dos partes](../../tareas/0252-workflow-notas-de-la-release-en-dos-partes.md) | S–M | Hecha | 0251 | Cabecera nueva, `pie.md`, «Qué cambió» con `generate-notes` en `publicar` y bloqueo de `> Borrador` |
+| [0253 · Workflow: canal de desarrollo](../../tareas/0253-workflow-canal-de-compilaciones-de-desarrollo.md) | M | Hecha | 0251, 0252 | `preparar-desarrollo` y `publicar-desarrollo` (el token solo ahí), README del canal y `docs/workflow.md` |
+| [0254 · README e `INSTALAR.md` con descarga directa](../../tareas/0254-readme-e-instalar-con-descarga-directa.md) | S–M | Hecha | — | E½ con botones SVG y enlaces a la etiqueta; el README como sexto sitio de `version.mjs` |
+| [0256 · Esc en la ayuda de Formato](../../tareas/0256-esc-con-el-foco-en-la-ayuda-de-formato.md) | S | Hecha | — | `cerrarAyuda` solo intercepta Esc con la ayuda abierta (QA I-5) |
+| [0255 · Cierre: versión, notas, paquete y ensayo](../../tareas/0255-cierre-version-0-2-0-alpha-2-notas-y-ensayo.md) | S | En curso | 0244–0254, 0256 | `version:subir -- 0.2.0-alpha.2`, notas con la plantilla de §3, paquete reconstruido y `test:paquete` (QA I-9), ensayo en verde |
 
 **Paralelismo.**
 1. Pueden empezar a la vez, sin dependencias: 0244, 0245, 0247, 0248, 0254 y 0256.

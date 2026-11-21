@@ -1,5 +1,5 @@
 # 0255 — Cierre: versión 0.2.0-alpha.2, notas y ensayo del workflow
-- Estado: Pendiente
+- Estado: En curso (versión, notas y paquete local hechos; falta el ensayo en GitHub y la instalación del NSIS)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0244–0254 y 0256
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md) (§2–§4 y «Revisión para 0.2.0 — fase 10»), [0013](../adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md)
@@ -40,3 +40,10 @@ Dejar `alpha-2` con el número `0.2.0-alpha.2`, sus notas y un ensayo en verde, 
 2. Un PR a `develop` con `npm run version:subir -- 0.2.0-alpha.3` (ADR 0020, revisión de la fase 10, §2).
 
 ## Notas de implementación
+
+- 2026-11-21, sesión principal. `version:subir` a `0.2.0-alpha.2` y `version:comprobar` pasan. El README sigue en E0 (0254, pregunta 0144), así que el sexto sitio no tiene citas que cambiar todavía.
+- Notas en `docs/versiones/0.2.0/notas/0.2.0-alpha.2.md`, con la línea `> Borrador:` hasta que el usuario las revise.
+- Con todo integrado: typecheck, lint y format:check pasan; Vitest da 3204 pasan y 8 fallan, las 8 por `EPERM` al crear enlaces simbólicos en Windows sin privilegio (`appProtocolo.test.ts` y `medios.test.ts`); la suite E2E completa da 197 pasan, 29 omitidas y 0 fallos en Windows (antes de subir la versión).
+- Paquete local: `empaquetar:dir` desde cero; `verificar-paquete.mjs release/win-unpacked` pasa, incluida «icono del .exe distinto del de Electron».
+- `test:paquete` (QA I-9): con el paquete nuevo fallaban las mismas 2 de 6. La causa no es el paquete: `e2e-paquete/paquete.spec.ts:51-57` supone el perfil `cpu` salvo `SHINOBI_PAQUETE_PERFIL`, y en este equipo la app detecta `cuda` (3,9 GB frente a 1,3 GB, y «Reparar» en vez de Biblioteca). Con `SHINOBI_PAQUETE_PERFIL=cuda` pasan las 6. No es un defecto del producto; conviene documentar esa variable en `docs/pruebas.md` (para `qa`).
+- Pendiente: push, ensayo con `workflow_dispatch`, comprobación de artefactos, instalación del NSIS del ensayo (AC7) y casos manuales de `qa`.
