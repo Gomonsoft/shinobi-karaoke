@@ -4,6 +4,7 @@ import { useSesion } from '../../sesion/ProveedorSesion'
 import { COLA, SES } from '../../sesion/textos'
 import { detallesDeError } from './errores'
 import { tituloDeError } from './textosError'
+import { copiarDetalles } from '../../soporte/detalles'
 
 const codigoDe = (err: unknown): string =>
   err && typeof err === 'object' && 'codigo' in err && typeof err.codigo === 'string'
@@ -85,7 +86,7 @@ export function useAgregarACola(): (
           mensaje: tituloDeError(codigo),
           accion: {
             etiqueta: 'Copiar detalles',
-            alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+            alAccionar: () => void copiarDetalles(detallesDeError(err))
           }
         })
       }

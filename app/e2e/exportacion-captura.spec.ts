@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { _electron as electron, expect, test } from '@playwright/test'
+import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { configPredeterminada } from '../src/shared/config'
 import { estiloPredeterminado } from '../src/shared/estilo'
 import { instantaneaDePrueba } from '../src/shared/__fixtures__/exportacion'
@@ -17,7 +17,7 @@ import { crearTemporal } from './temporales'
  * fase 6 (Linux real con GPU, docs/Test-manuales/). En macOS y Windows sigue siendo obligatoria.
  */
 function omitirSiEntornoSinSuperficie(e: unknown, ancho: number, alto: number): void {
-  const m = e instanceof Error ? /La captura es de (\d+)×(\d+)/.exec(e.message) : null
+  const m = e instanceof Error ? /captura es de (\d+)×(\d+)/.exec(e.message) : null
   if (process.platform !== 'linux' || !m) return
   const [w, h] = [Number(m[1]), Number(m[2])]
   const mayor = ancho >= 3840
@@ -27,8 +27,28 @@ function omitirSiEntornoSinSuperficie(e: unknown, ancho: number, alto: number): 
   )
 }
 
+/**
+ * 0246: el defecto de 0244 (la ventana offscreen heredaba el área de trabajo del monitor) solo
+ * aparece si la captura es mayor que esa área. En Windows el runner tiene una pantalla pequeña, así
+ * que 3840×2160 la cubre; la prueba falla (no se omite) si algún día deja de ser mayor. En Linux, la
+ * pantalla virtual de Xvfb ya mide 3840×2160 y esta comprobación no aplica.
+ */
+async function exigirMayorQueElAreaDeTrabajo(
+  app: ElectronApplication,
+  ancho: number,
+  alto: number
+): Promise<void> {
+  if (process.platform === 'linux') return
+  const area = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workAreaSize)
+  expect(
+    ancho > area.width || alto > area.height,
+    `El caso ${ancho}×${alto} ya no es mayor que el área de trabajo (${area.width}×${area.height}): ya no cubre el recorte de la ventana offscreen (0244). Usa un caso mayor.`
+  ).toBe(true)
+}
+
 for (const [ancho, alto] of [
   [640, 480],
+  [1920, 1080],
   [3840, 2160]
 ] as const) {
   test(`captura ${ancho}x${alto} exacta y en BGRA`, async () => {
@@ -46,6 +66,7 @@ for (const [ancho, alto] of [
     try {
       const principal = await app.firstWindow()
       await expect(principal.getByRole('banner')).toBeVisible()
+      if (ancho === 3840) await exigirMayorQueElAreaDeTrabajo(app, ancho, alto)
       let resultado: { longitud: number; pixel: number[] }
       try {
         resultado = await app.evaluate(

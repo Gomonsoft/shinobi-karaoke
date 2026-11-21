@@ -23,6 +23,7 @@ import { Miniatura } from './Miniatura'
 import { AvisoLarga } from './AvisoLarga'
 import { TEXTO, TEXTO_YT as YT } from './textos'
 import estilos from './anadir.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface ErrorVista {
   codigo: string
@@ -255,7 +256,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
   }
 
   const copiar = (e: ErrorVista) =>
-    void navigator.clipboard?.writeText([detallesDeError(e), e.detalles].filter(Boolean).join('\n'))
+    void copiarDetalles([detallesDeError(e), e.detalles].filter(Boolean).join('\n'))
 
   if (aceptado === null) return null
 

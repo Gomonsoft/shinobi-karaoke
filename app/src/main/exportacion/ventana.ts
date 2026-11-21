@@ -37,6 +37,8 @@ export interface BrowserWindowOffscreen {
   once(evento: 'closed', cb: () => void): unknown
   destroy(): void
   isDestroyed(): boolean
+  setContentSize(ancho: number, alto: number): void
+  getContentSize(): number[]
 }
 
 export interface OpcionesVentanaOffscreen {
@@ -136,6 +138,16 @@ export async function crearVentanaExportacion(
       preload: deps.preload
     }
   })
+  // Windows recorta la ventana al área de trabajo al crearla: se fija el tamaño después y,
+  // si aun así no coincide, se falla pronto. Nunca se escala (ADR 0019, revisión alpha.2).
+  ventana.setContentSize(ancho, alto)
+  const [anchoReal, altoReal] = ventana.getContentSize()
+  if (anchoReal !== ancho || altoReal !== alto) {
+    const mensaje = `La ventana de captura es de ${anchoReal}×${altoReal} y se esperaba ${ancho}×${alto}.`
+    deps.registrar?.('error', `exportacion: ${mensaje}`)
+    ventana.destroy()
+    throw errorConCodigo('PERFIL_NO_SOPORTADO', mensaje)
+  }
   const wc = ventana.webContents
   deps.registrarRol(ventana)
   bloquearNavegacionTotal(wc)

@@ -683,7 +683,6 @@ export class ServicioExportacion<V = unknown> {
       const salida = await this.ejecutarTrabajo(t)
       await this.cerrarTrabajo(t, salida)
     } catch (e) {
-      this.deps.registrar?.('error', `exportación ${t.id}: ${String(e)}`)
       this.terminar(t, { resultado: 'error', error: this.errorDe(t, e) })
     } finally {
       this.liberarBloqueo()
@@ -994,11 +993,37 @@ export class ServicioExportacion<V = unknown> {
     }
   }
 
+  /** Una línea en `app.log` por fallo (`error`) o cancelación (`info`); las completadas no escriben. */
+  private registrarFin(
+    t: Trabajo,
+    r: { resultado: 'completada' | 'error' | 'cancelada'; error?: ExportacionIpc['error'] }
+  ): void {
+    if (r.resultado === 'completada') return
+    const alcanzados = (ms: number | null | undefined): number =>
+      ms ? Math.round((ms * t.fps) / 1000) : 0
+    if (r.resultado === 'cancelada') {
+      const n = alcanzados(t.progreso?.posicionMs)
+      this.deps.registrar?.(
+        'info',
+        `exportación ${t.id} cancelada en el fotograma ${n} de ${t.total}`
+      )
+      return
+    }
+    const e = r.error
+    const perfil = `${t.formato.replace('_', ' ').toUpperCase()} ${t.ancho}×${t.alto} a ${t.fps} fps, audio ${t.audio}`
+    const detalles = e?.detalles ? ` · ${e.detalles}` : ''
+    this.deps.registrar?.(
+      'error',
+      `exportación ${t.id} falló: ${e?.codigo}: ${e?.mensaje} · ${perfil} · ${alcanzados(e?.posicionMs)} de ${t.total} fotogramas${detalles}`
+    )
+  }
+
   /** Estado final: emite el cambio, avisa al sistema y despierta a quien espera. */
   private terminar(
     t: Trabajo,
     r: { resultado: 'completada' | 'error' | 'cancelada'; error?: ExportacionIpc['error'] }
   ): void {
+    this.registrarFin(t, r) // antes de vaciar `progreso`
     t.estado = 'terminada'
     t.resultado = r.resultado
     t.error = r.error ?? null

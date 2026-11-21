@@ -368,7 +368,9 @@ describe('Eliminar…', () => {
       await screen.findByText('No se pudo mover «Canción lista» a la papelera.')
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Copiar detalles' }))
-    expect(escribir).toHaveBeenCalledWith('ERROR_INTERNO: No se pudo usar la papelera')
+    await waitFor(() =>
+      expect(escribir).toHaveBeenCalledWith('ERROR_INTERNO: No se pudo usar la papelera')
+    )
     expect(screen.getAllByRole('article')).toHaveLength(1)
   })
 

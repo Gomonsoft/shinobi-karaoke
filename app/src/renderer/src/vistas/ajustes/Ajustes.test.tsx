@@ -88,7 +88,12 @@ function montar(o: Opciones = {}) {
   ;(window as unknown as { shinobi: ApiShinobi }).shinobi = {
     runtime,
     sistema: {
-      info: vi.fn().mockResolvedValue({ version: '0.1.0', so: 'Darwin 25', plataforma: 'darwin' }),
+      info: vi.fn().mockResolvedValue({
+        version: '0.1.0',
+        compilacion: { canal: 'local', numero: null, commit: null },
+        so: 'Darwin 25',
+        plataforma: 'darwin'
+      }),
       textoLegal: vi.fn().mockResolvedValue('# Avisos de terceros'),
       abrirEnlace: vi.fn(),
       abrirCarpetaDatos: vi.fn()

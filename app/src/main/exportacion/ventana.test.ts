@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { CANALES } from '../../shared/canales'
 import { crearVentanaExportacion, type DepsVentanaExportacion } from './ventana'
 
-function montar(imagen = { w: 640, h: 480 }) {
+/** `respeta`: sigue el tamaño pedido; `recorta`: nace recortada y `setContentSize` la arregla; `rebelde`: no se deja fijar. */
+function montar(imagen = { w: 640, h: 480 }, modo: 'respeta' | 'recorta' | 'rebelde' = 'respeta') {
+  const tam = { w: 0, h: 0 }
   const wc = Object.assign(new EventEmitter(), {
     send: vi.fn(),
     setWindowOpenHandler: vi.fn(),
@@ -23,10 +25,21 @@ function montar(imagen = { w: 640, h: 480 }) {
     webContents: wc,
     loadURL: vi.fn(() => Promise.resolve()),
     destroy: vi.fn(),
-    isDestroyed: () => false
+    isDestroyed: () => false,
+    setContentSize: vi.fn((w: number, h: number) => {
+      if (modo !== 'rebelde') Object.assign(tam, { w, h })
+    }),
+    getContentSize: () => [tam.w, tam.h]
   })
   const deps: DepsVentanaExportacion = {
-    crear: vi.fn(() => ventana as never),
+    crear: vi.fn((o) => {
+      // Al crearla: respeta el tamaño pedido, o la recorta (como Windows con el área de trabajo).
+      Object.assign(
+        tam,
+        modo === 'respeta' ? { w: o.width, h: o.height } : { w: o.width, h: o.height - 48 }
+      )
+      return ventana as never
+    }),
     url: 'shinobi-app://app/exportacion.html',
     preload: '/x/exportacion.js',
     registrarRol: vi.fn(),
@@ -51,6 +64,27 @@ describe('crearVentanaExportacion', () => {
     expect(wc.setFrameRate).toHaveBeenCalledWith(240)
     expect(deps.registrarRol).toHaveBeenCalled()
     expect(deps.bajarPrioridad).toHaveBeenCalledWith(4242)
+  })
+
+  it('fija el tamaño tras crear una ventana recortada, antes de cargar', async () => {
+    const { ventana, deps } = montar(undefined, 'recorta')
+    const v = await crearVentanaExportacion(opciones, deps)
+    expect((await v.capturar()).imagen.length).toBe(640 * 480 * 4)
+    expect(ventana.setContentSize.mock.invocationCallOrder[0]).toBeLessThan(
+      ventana.loadURL.mock.invocationCallOrder[0]!
+    )
+  })
+
+  it('si el tamaño no se deja fijar, falla con PERFIL_NO_SOPORTADO sin dejar rastro', async () => {
+    const { ventana, deps } = montar(undefined, 'rebelde')
+    deps.registrar = vi.fn()
+    await expect(crearVentanaExportacion(opciones, deps)).rejects.toMatchObject({
+      codigo: 'PERFIL_NO_SOPORTADO'
+    })
+    expect(ventana.destroy).toHaveBeenCalled()
+    expect(deps.registrarRol).not.toHaveBeenCalled()
+    expect(ventana.loadURL).not.toHaveBeenCalled()
+    expect(deps.registrar).toHaveBeenCalledWith('error', expect.stringContaining('640×432'))
   })
 
   it('pintar espera el listo del mismo trabajo y fotograma', async () => {

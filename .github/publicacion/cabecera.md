@@ -2,6 +2,6 @@
 
 Los Mac con procesador Intel no son compatibles por ahora. Los archivos **Source code** son el código fuente, no la app.
 
-La app no está firmada: tu sistema te avisará la primera vez. **[Lee la guía de instalación](https://github.com/Gomonsoft/shinobi-karaoke/blob/main/INSTALAR.md)** antes de abrirla.
+La app no está firmada: tu navegador y tu sistema pueden avisarte la primera vez. **[Lee la guía de instalación](https://github.com/Gomonsoft/shinobi-karaoke/blob/main/INSTALAR.md)** antes de abrirla.
 
 Si quieres comprobar la descarga, las sumas de verificación están en `SHA256SUMS.txt`.

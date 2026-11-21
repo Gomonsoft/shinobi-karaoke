@@ -240,7 +240,7 @@ describe('AnadirCancion (archivo)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Algo salió mal.')
     fireEvent.click(screen.getByRole('button', { name: 'Copiar detalles' }))
-    expect(escribir).toHaveBeenCalledWith('ERROR_INTERNO: fallo\ntraza')
+    await waitFor(() => expect(escribir).toHaveBeenCalledWith('ERROR_INTERNO: fallo\ntraza'))
   })
 
   it('soltar varios archivos usa el primero y avisa', async () => {

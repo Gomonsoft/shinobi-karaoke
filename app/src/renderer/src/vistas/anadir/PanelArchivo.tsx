@@ -14,6 +14,7 @@ import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { AvisoLarga } from './AvisoLarga'
 import { TEXTO, textoLeido } from './textos'
 import estilos from './anadir.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface ErrorVista {
   codigo: string
@@ -204,7 +205,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
   const cancelar = () => ir({ tipo: 'biblioteca' })
 
   const copiar = (e: ErrorVista) =>
-    void navigator.clipboard?.writeText([detallesDeError(e), e.detalles].filter(Boolean).join('\n'))
+    void copiarDetalles([detallesDeError(e), e.detalles].filter(Boolean).join('\n'))
 
   const alSoltar = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()

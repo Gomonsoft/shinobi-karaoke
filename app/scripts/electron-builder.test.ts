@@ -71,7 +71,8 @@ describe('electron-builder.yml', () => {
       { from: '../LICENSE', to: 'LICENSE' },
       { from: '../THIRD_PARTY_NOTICES.md', to: 'THIRD_PARTY_NOTICES.md' },
       { from: 'resources/fonts', to: 'fonts', filter: ['**/*.woff2', '**/OFL.txt'] },
-      { from: 'resources/bin', to: 'bin', filter: ['uv', 'uv.exe'] }
+      { from: 'resources/bin', to: 'bin', filter: ['uv', 'uv.exe'] },
+      { from: 'build/icon.png', to: 'icon.png' }
     ])
   })
 

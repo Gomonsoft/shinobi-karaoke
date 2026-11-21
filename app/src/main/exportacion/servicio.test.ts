@@ -393,6 +393,12 @@ describe('cancelación y fallos', () => {
     expect(m.ventanas[0]!.destruir).toHaveBeenCalled()
     expect(m.avisarSistema).not.toHaveBeenCalled()
     expect(m.bloqueador.stop).toHaveBeenCalled()
+    // Cancelar es `info`, nunca `error`.
+    expect(m.registrar).toHaveBeenCalledTimes(1)
+    expect(m.registrar).toHaveBeenCalledWith(
+      'info',
+      expect.stringContaining(`exportación ${trabajoId} cancelada en el fotograma`)
+    )
   })
 
   it('cancelar una exportación en cola la quita sin rastro y la siguiente avanza', async () => {
@@ -432,6 +438,12 @@ describe('cancelación y fallos', () => {
     expect(await existe(m.destinos.rutaTemporal(destino.ruta, trabajoId))).toBe(false)
     expect(await existe(m.diario.ruta)).toBe(false)
     expect(m.avisarSistema).toHaveBeenCalledWith('«Mi canción»: no se pudo exportar el video.')
+    // Una sola línea de error, con código, mensaje, perfil y fotogramas.
+    expect(m.registrar).toHaveBeenCalledTimes(1)
+    expect(m.registrar).toHaveBeenCalledWith(
+      'error',
+      `exportación ${trabajoId} falló: SIN_ESPACIO: Disco lleno · MKV AV1 640×480 a 24 fps, audio instrumental · 12 de 24 fotogramas`
+    )
   })
 
   it('PROCESO_TERMINADO es MEMORIA_INSUFICIENTE; sin fotogramas, posicionMs es null', async () => {
@@ -474,6 +486,11 @@ describe('cancelación y fallos', () => {
     })
     expect(await readFile(destino.ruta, 'utf8')).toBe('anterior')
     expect(await existe(m.destinos.rutaTemporal(destino.ruta, trabajoId))).toBe(false)
+    expect(m.registrar).toHaveBeenCalledTimes(1)
+    expect(m.registrar).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining(`exportación ${trabajoId} falló: DESTINO_NO_DISPONIBLE`)
+    )
   })
 
   it('si el temporal no se puede borrar: limpiezaFallida con el resultado real y «mostrar» lo señala', async () => {
@@ -538,6 +555,11 @@ describe('cancelación y fallos', () => {
       resultado: 'error',
       error: { codigo: 'ERROR_INTERNO' }
     })
+    expect(m.registrar).toHaveBeenCalledTimes(1)
+    expect(m.registrar).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining('falló: ERROR_INTERNO')
+    )
   })
 })
 

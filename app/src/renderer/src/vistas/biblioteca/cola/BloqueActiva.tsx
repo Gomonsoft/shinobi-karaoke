@@ -10,6 +10,7 @@ import { textoSincronia } from '../tarjeta'
 import { useAgregarACola } from '../useAgregarACola'
 import estilos from './panelCola.module.css'
 import { segundosRestantes, textoTiempoLargo, useAhora } from './tiempo'
+import { copiarDetalles } from '../../../soporte/detalles'
 
 const sinAccion = (): void => undefined
 
@@ -71,9 +72,7 @@ export function BloqueActiva({ canciones }: { canciones: readonly ResumenCancion
               {COLA.descartar}
             </Boton>
           )}
-          <Boton onClick={() => void navigator.clipboard?.writeText(e.codigo)}>
-            Copiar detalles
-          </Boton>
+          <Boton onClick={() => void copiarDetalles(e.codigo)}>Copiar detalles</Boton>
         </div>
       </div>
     )

@@ -66,6 +66,16 @@ jobs:
         # que la interacción de una detenga la cuenta atrás del reproductor en otra.
         run: xvfb-run --auto-servernum -s "-screen 0 3840x2160x24" npm run test:e2e -- --workers=1
 
+      # Solo la spec de captura (0246): 3840×2160 es mayor que el área de trabajo del runner de Windows,
+      # que es donde se vio el recorte de 0244. No se ejecuta la suite E2E completa: lanzar muchos
+      # procesos Electron falla ahí por el entorno (0xC0000142).
+      - name: Compilar para la spec de captura (Windows)
+        if: runner.os == 'Windows'
+        run: npm run build
+      - name: E2E de captura de exportación (Windows)
+        if: runner.os == 'Windows'
+        run: npx playwright test e2e/exportacion-captura.spec.ts --workers=1
+
   worker:
     name: worker (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

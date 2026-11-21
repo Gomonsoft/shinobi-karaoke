@@ -20,7 +20,7 @@ Cada versión publicada tiene su *Release* en GitHub, creada por el workflow `em
    npm run version:comprobar
    ```
    Cambia `app/package.json`, `app/package-lock.json`, `worker/pyproject.toml`, `worker/shinobi_worker/__init__.py` y `worker/uv.lock` (en el worker con la forma PEP 440: `0.2.0a1`).
-2. Escribe las novedades en `docs/versiones/<X.Y.Z>/notas/<versión>.md`, con una sección "Sin probar en esta versión". Si no existe, la *Release* usa las notas que genera GitHub.
+2. Escribe las novedades en `docs/versiones/<X.Y.Z>/notas/<versión>.md` (plantilla de la [spec 09 §3](ux/09-descarga-e-instalacion.md#3-notas-de-cada-release), con "Sin probar en esta versión"). Son **obligatorias**: con una etiqueta, el workflow falla si no existen o si conservan una línea `> Borrador`. «Qué cambió», «Todos los cambios» y «Compilación» los añade el workflow debajo.
 3. Opcional, recomendado: ensaya sin publicar con `gh workflow run empaquetado.yml --ref <rama>`. El resumen de la ejecución muestra los instaladores, `SHA256SUMS.txt` y las notas tal como saldrán; el artefacto `publicacion-<versión>` los contiene.
 4. Fusiona en `main` por PR. La etiqueta tiene que apuntar a un commit contenido en `main`; si no, el workflow falla sin construir.
 5. Crea y sube la etiqueta anotada sobre ese commit:
@@ -31,8 +31,25 @@ Cada versión publicada tiene su *Release* en GitHub, creada por el workflow `em
    ```
 6. Sigue la ejecución (`gh run watch`). Si todo pasa, aparece la *Release* con los 4 instaladores, `SHA256SUMS.txt`, las notas y los archivos de código fuente. Si falla antes de `publicar`, no se ha publicado nada: corrige, sube la siguiente versión y etiqueta de nuevo (no muevas la etiqueta si ya hay *Release*).
 
+7. Justo después de publicar `vX.Y.Z-pre.N`, sube `develop` a la siguiente previa (`-pre.N+1`) con `npm run version:subir` y abre un PR propio hacia `develop` ([ADR 0020](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), fase 10 §2). Así ninguna compilación de desarrollo lleva el número de una versión ya publicada.
+
+### Canal de compilaciones de desarrollo
+Cada compilación de `develop` se publica como una *Release* en `Gomonsoft/shinobi-karaoke-builds`, un repositorio público aparte, para que las *Releases* de este repositorio sean solo versiones y su «Latest» siga siendo la última versión. Es el mismo `empaquetado.yml`: construye y prueba los instaladores y, si el canal está configurado, publica con el título `<versión>-<N>` y la etiqueta `build-<SHA de 40>` ([ADR 0020](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), fase 10 §1 y §4; [spec 09 §3b](ux/09-descarga-e-instalacion.md#3b-canal-de-compilaciones-de-desarrollo-fase-10)).
+
+- **Cuándo.** Cada noche (04:23 UTC) sobre la cabeza de `develop`, solo si ese commit aún no tiene su compilación. Sin canal configurado o sin cambios, la ejecución termina en verde tras `comprobar-version` y el resumen dice por qué. `schedule` solo corre desde el archivo de `main` y se desactiva tras 60 días sin actividad en el repositorio (se reactiva en la pestaña Actions).
+- **A mano.** `gh workflow run empaquetado.yml --ref develop` construye y, con el canal configurado, publica. Contra otra rama (`--ref alpha-2`) hace un ensayo: construye, prueba y sube el artefacto `compilacion-<versión>-<N>` sin publicar. El archivo tiene que estar en `main`.
+- **Misma app.** Una compilación se instala en lugar de la versión publicada y usa la misma carpeta de datos (provisional, [0143](preguntas/0143-canal-de-desarrollo-configuracion-y-carpeta-de-datos.md)); el cuerpo de cada compilación pide copiar la carpeta `biblioteca` antes.
+- **Pasos del usuario para activarlo** (hasta entonces no se publica nada):
+  1. Crea el repositorio **público** `Gomonsoft/shinobi-karaoke-builds` con un commit inicial cuyo README sea [`versiones/0.2.0/compilaciones-README.md`](versiones/0.2.0/compilaciones-README.md). Opcional: *immutable releases*.
+  2. Crea un token *fine-grained*: propietario `Gomonsoft`, acceso solo a `shinobi-karaoke-builds`, permiso **Contents: Read and write**, caducidad de un año como máximo. Si la organización pide aprobación, apruébalo.
+  3. En este repositorio (Settings → Secrets and variables → Actions) crea el secreto `COMPILACIONES_TOKEN` con el token y la variable `COMPILACIONES_REPO` = `Gomonsoft/shinobi-karaoke-builds`.
+  4. Protege `develop` contra *force push* y borrado: cada compilación enlaza al commit de su código fuente (GPL).
+- **Si falla.** Un token caducado o sin permiso hace **fallar** `publicar-desarrollo` (a propósito, para que se vea). Renuévalo antes de que caduque. Si una ejecución publica y otra se adelantó, la segunda avisa y termina en verde.
+
 ### Ajustes del repositorio (los hace el usuario)
 - Variable `PUBLICACION_BORRADOR` (Settings → Secrets and variables → Actions → Variables): con `true`, la *Release* se queda en borrador hasta publicarla a mano. Sin la variable, se publica sola ([0140](preguntas/0140-publicar-las-alfas-como-pre-release-publica.md)).
+- Variable `COMPILACIONES_REPO` y secreto `COMPILACIONES_TOKEN` (mismo sitio): activan el canal de compilaciones de desarrollo. El secreto solo lo lee el trabajo `publicar-desarrollo`, que no hace `checkout` ni ejecuta código del repositorio. Pasos en [Canal de compilaciones de desarrollo](#canal-de-compilaciones-de-desarrollo).
+- Recomendado: protección de `develop` contra *force push* y borrado (Settings → Rules → Rulesets).
 - Recomendado: *immutable releases* (Settings → General → Releases) y una regla de etiquetas `v*` que solo permita a administradores crearlas, moverlas o borrarlas (Settings → Rules → Rulesets).
 
 ### Sin firma de código

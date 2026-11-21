@@ -19,7 +19,8 @@ import {
 import { estiloPredeterminado } from '@shared/estilo'
 import { CANALES } from '@shared/canales'
 import { ENTORNO_LRCLIB_URL } from '@shared/letrasBusqueda'
-import { ID_APP_WINDOWS, TITULO_APP } from '@shared/titulo'
+import { hashCorto, identificador, lineaVersion, numeroVisible } from '@shared/compilacion'
+import { ID_APP_WINDOWS, ID_APP_WINDOWS_DESARROLLO, TITULO_APP } from '@shared/titulo'
 import { ServicioBiblioteca } from './biblioteca'
 import {
   ejecutarConCerrojo,
@@ -40,6 +41,7 @@ import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
 import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
 import { RegistroArchivo } from './registro'
+import { COMPILACION } from './compilacion'
 import {
   bloquearNavegacionTotal,
   conPlazo,
@@ -80,6 +82,7 @@ import { ServicioPicos } from './picos/servicio'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
 import { RegistroVentanas } from './ventana/registro'
+import { rutaIcono } from './ventana/icono'
 import {
   crearVentanaExportacion,
   type OpcionesExportacion,
@@ -246,8 +249,20 @@ const controlCierre = crearControlCierre({
 const ANCHO_MINIMO_VENTANA = 1024
 const ALTO_MINIMO_VENTANA = 576
 
+/** Icono de las ventanas (`undefined` donde lo da el ejecutable o el bundle). */
+function iconoVentanas(): string | undefined {
+  return rutaIcono({
+    empaquetada: app.isPackaged,
+    plataforma: process.platform,
+    dirApp: app.getAppPath(),
+    dirRecursos: process.resourcesPath
+  })
+}
+
 function crearVentana(): BrowserWindow {
+  const icon = iconoVentanas()
   const ventana = new BrowserWindow({
+    ...(icon ? { icon } : {}),
     width: 1280,
     height: 800,
     minWidth: ANCHO_MINIMO_VENTANA,
@@ -310,7 +325,8 @@ function crearVentana(): BrowserWindow {
  * `reproductor.html` como documento. La colocación y los avisos los pone `abrirSecundaria`.
  */
 function crearVentanaSecundaria(opciones: OpcionesVentanaSecundaria): VentanaSecundariaLike {
-  const ventana = new BrowserWindow(opciones)
+  const icon = iconoVentanas()
+  const ventana = new BrowserWindow(icon ? { ...opciones, icon } : opciones)
   ventanas.registrar(ventana, 'secundaria')
   bloquearNavegacionTotal(ventana.webContents)
   const urlDev = process.env.ELECTRON_RENDERER_URL
@@ -341,7 +357,8 @@ protocol.registerSchemesAsPrivileged([
 
 app.setName(TITULO_APP)
 // Windows: el id del instalador, necesario para las notificaciones (0072, arquitectura §6).
-if (process.platform === 'win32') app.setAppUserModelId(ID_APP_WINDOWS)
+if (process.platform === 'win32')
+  app.setAppUserModelId(app.isPackaged ? ID_APP_WINDOWS : ID_APP_WINDOWS_DESARROLLO)
 // Perfil de Chromium separado de los datos del usuario (ADR 0006).
 app.setPath('userData', join(rutaDatos(), 'electron'))
 
@@ -370,6 +387,17 @@ if (instanciaUnica)
   void app.whenReady().then(async () => {
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
+    registro.escribir(
+      'info',
+      'arranque',
+      `Shinobi Karaoke ${identificador(app.getVersion(), COMPILACION)}`
+    )
+    if (process.platform === 'darwin') {
+      app.setAboutPanelOptions({
+        applicationVersion: numeroVisible(app.getVersion(), COMPILACION),
+        version: hashCorto(COMPILACION) ?? ''
+      })
+    }
 
     /**
      * Crea la ventana offscreen de exportación (ADR 0019 §2): rol `exportacion`, `exportacion.html`
@@ -575,7 +603,7 @@ if (instanciaUnica)
           dirApp: app.getAppPath(),
           plataforma: process.platform,
           ejecutandoBajoTraduccionArm64: app.runningUnderARM64Translation,
-          versionApp: app.getVersion(),
+          lineaVersion: lineaVersion(app.getVersion(), COMPILACION),
           descripcionSo: `${tipoSO()} ${release()}`,
           config: servicioConfig,
           registro,
@@ -831,6 +859,7 @@ if (instanciaUnica)
               : null
             return {
               version: app.getVersion(),
+              compilacion: COMPILACION,
               so: `${tipoSO()} ${release()}`,
               plataforma: process.platform,
               youtube: YOUTUBE_ACTIVO,

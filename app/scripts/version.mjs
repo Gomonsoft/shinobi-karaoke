@@ -37,6 +37,45 @@ export const SITIOS = [
   }
 ]
 
+const SEMVER_SUELTO = String.raw`\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?`
+
+/**
+ * Sexto sitio (fase 10, estado E½ del README): los enlaces de descarga y las novedades llevan la
+ * versión de la etiqueta. Solo se tocan estos patrones acotados; el grupo 2 es la versión.
+ * Si el archivo no los contiene (estado E0) no se comprueba ni se cambia nada.
+ */
+export const ARCHIVOS_ENLACES = ['README.md', 'INSTALAR.md']
+export const PATRONES_ENLACES = [
+  new RegExp(
+    String.raw`(github\.com/Gomonsoft/shinobi-karaoke/releases/(?:download|tag)/v)(${SEMVER_SUELTO})([/)])`,
+    'g'
+  ),
+  new RegExp(String.raw`(\*\*Última versión: )(${SEMVER_SUELTO})(, versión preliminar)`, 'g'),
+  new RegExp(String.raw`(\[Novedades de )(${SEMVER_SUELTO})(\])`, 'g')
+]
+
+function leerSiExiste(raiz, ruta) {
+  try {
+    return leer(raiz, ruta)
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return null
+    throw error
+  }
+}
+
+/** @returns {{ archivo: string, valor: string }[]} las versiones citadas en los enlaces. */
+export function leerEnlaces(raiz) {
+  const citas = []
+  for (const archivo of ARCHIVOS_ENLACES) {
+    const texto = leerSiExiste(raiz, archivo)
+    if (texto === null) continue
+    for (const patron of PATRONES_ENLACES) {
+      for (const m of texto.matchAll(patron)) citas.push({ archivo, valor: m[2] })
+    }
+  }
+  return citas
+}
+
 /** @returns {boolean} */
 export function validar(version) {
   return SEMVER.test(version)
@@ -120,6 +159,11 @@ export function comprobarVersiones(raiz, { etiqueta } = {}) {
       )
     }
   }
+  for (const { archivo, valor } of leerEnlaces(raiz)) {
+    if (valor !== version) {
+      throw new Error(`${archivo} enlaza a la versión «${valor}» y se esperaba «${version}»`)
+    }
+  }
   if (etiqueta !== undefined && analizarEtiqueta(etiqueta) !== version) {
     throw new Error(`La etiqueta ${etiqueta} no coincide con la versión ${version}`)
   }
@@ -144,6 +188,15 @@ export function subirVersion(raiz, nueva) {
       ruta,
       texto.replace(sitio.patron, (_, antes, _viejo, despues) => `${antes}${valor}${despues}`)
     )
+  }
+  for (const archivo of ARCHIVOS_ENLACES) {
+    const texto = leerSiExiste(raiz, archivo)
+    if (texto === null) continue
+    const nuevo = PATRONES_ENLACES.reduce(
+      (t, patron) => t.replace(patron, (_, antes, _viejo, despues) => `${antes}${nueva}${despues}`),
+      texto
+    )
+    if (nuevo !== texto) archivos.set(archivo, nuevo)
   }
   for (const [ruta, texto] of archivos) writeFileSync(join(raiz, ruta), texto)
   return { anterior: actual, nueva }

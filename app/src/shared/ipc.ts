@@ -3,6 +3,7 @@ import { CANALES } from './canales'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
 import { cancionSchema, ESTADOS_PASO, MODALIDADES, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
+import { compilacionSchema } from './compilacion'
 import { estiloSchema } from './estilo'
 import {
   AUDIOS_EXPORTACION,
@@ -622,6 +623,8 @@ export type ConfigParcialRenderer = z.infer<typeof configParcialRendererSchema>
 
 export const infoSistemaSchema = z.object({
   version: z.string(),
+  /** Número de compilación, commit y canal (0248). `version` no cambia. */
+  compilacion: compilacionSchema,
   so: z.string(),
   plataforma: z.string(),
   /** Módulo de YouTube compilado (ADR 0003, mitigación 5). */

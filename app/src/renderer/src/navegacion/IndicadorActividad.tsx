@@ -22,6 +22,7 @@ import {
 import { faseDeTrabajo } from './actividad'
 import { useNavegacion } from './estado'
 import estilos from './marco.module.css'
+import { copiarDetalles } from '../soporte/detalles'
 
 /** `act.boton`: "{n} en curso · {m} en cola", omitiendo la parte que vale 0. */
 export function textoActividad(enCurso: number, enCola: number): string {
@@ -216,7 +217,7 @@ export function IndicadorActividad() {
             : 'No se pudo cancelar la descarga.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }

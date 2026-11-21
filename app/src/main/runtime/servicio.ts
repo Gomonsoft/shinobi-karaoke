@@ -78,7 +78,8 @@ export interface DependenciasServicioRuntime {
   manifiesto: Manifiesto
   /** Directorio de datos: sus rutas se ocultan en los detalles. */
   datos: string
-  versionApp: string
+  /** `Versión: {identificador}` (`lineaVersion`): última línea de los detalles copiables. */
+  lineaVersion: string
   /** `so` legible, p. ej. `Darwin 24.1.0`. */
   descripcionSo: string
   /** Últimas líneas del registro del runtime (más antigua primero). */
@@ -470,7 +471,6 @@ export function crearServicioRuntime(deps: DependenciasServicioRuntime): Servici
         'completa'
       const error = c.instalacion.error
       const lineas = [
-        `Shinobi Karaoke ${deps.versionApp}`,
         `SO: ${deps.descripcionSo}`,
         `Equipo: ${previos.equipo.so} ${previos.equipo.versionSo} ${previos.equipo.arquitectura}${previos.emulada ? ' (emulada)' : ''}`,
         `Estado: ${estadoPersistido(c)}`,
@@ -498,6 +498,7 @@ export function crearServicioRuntime(deps: DependenciasServicioRuntime): Servici
         `Registro del runtime (últimas ${String(LINEAS_DETALLES)} líneas):`,
         ...registro
       )
+      lineas.push(deps.lineaVersion)
       return ocultarRutas(lineas.join('\n'), deps.datos, usuario)
     },
     estimarSeparacion(duracionMs, modeloPedido) {

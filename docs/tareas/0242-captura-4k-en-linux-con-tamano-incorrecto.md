@@ -1,6 +1,6 @@
 # 0242 — Captura de 3840 × 2160 con un píxel de menos en Linux
 
-- Estado: Pendiente (condicionada: solo se hace si el paso 8.10 de la guía manual de la fase 6 falla en Linux con GPU real)
+- Estado: Pendiente (condicionada: solo se hace si el paso 8.10 de la guía manual de la fase 6 falla en Linux con GPU real). **2026-11-21:** probablemente es el mismo recorte por pantalla que la tarea [0244](0244-tamano-exacto-de-la-ventana-offscreen-de-exportacion.md) corrige en Windows. La tarea [0246](0246-e2e-de-captura-en-windows-y-cierre-de-0242.md) comprueba en el CI de Linux si `setContentSize` la resuelve, y la cierra o anota aquí el resultado.
 - Paso del pipeline: 6
 - Depende de: [0234](0234-ventana-offscreen-de-exportacion-y-rol.md), [0237](0237-servicio-de-exportacion-e-ipc.md)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §2 («Tamaño», riesgo abierto)

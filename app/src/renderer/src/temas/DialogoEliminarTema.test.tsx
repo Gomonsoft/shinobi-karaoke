@@ -151,7 +151,7 @@ describe('DialogoEliminarTema', () => {
     expect(within(filas[1]!).queryByRole('button')).toBeNull()
     expect(within(filas[2]!).queryByRole('button')).toBeNull()
     fireEvent.click(within(filas[0]!).getByRole('button', { name: 'Copiar detalles' }))
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('ERROR_INTERNO')
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('ERROR_INTERNO'))
     expect(screen.getByText(/Las pendientes no se intentaron/)).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus())
     expect(screen.getByRole('button', { name: 'Cancelar el borrado' })).toBeInTheDocument()

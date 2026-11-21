@@ -3,7 +3,8 @@ import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { verificarPaquete } from './verificar-paquete.mjs'
+import { existsSync, readFileSync } from 'node:fs'
+import { comprobarIconoExe, iconosDelExe, verificarPaquete } from './verificar-paquete.mjs'
 
 const FUSES_OK = {
   version: '1',
@@ -73,6 +74,7 @@ describe('verificar-paquete', () => {
     escribir('bin/uv')
     chmodSync(join(recursos, 'bin/uv'), 0o755)
     escribir('apparmor-profile')
+    escribir('icon.png')
     escribir('shinobi-karaoke')
   })
 
@@ -169,5 +171,24 @@ describe('verificar-paquete', () => {
   it('rechaza dependencias transitivas fuera de zod y yaml', async () => {
     listaAsar.push('/node_modules/scheduler/index.js')
     await expect(verificar()).rejects.toThrow('Dependencia no permitida en app.asar: scheduler')
+  })
+})
+
+describe('icono del .exe', () => {
+  const electron = { grupos: 1, imagenes: ['aaa', 'bbb'] }
+
+  it('acepta un icono propio y rechaza ninguno o el de Electron', () => {
+    expect(() => comprobarIconoExe({ grupos: 1, imagenes: ['ccc'] }, electron)).not.toThrow()
+    expect(() => comprobarIconoExe({ grupos: 0, imagenes: [] }, electron)).toThrow(/ningún icono/)
+    expect(() => comprobarIconoExe({ grupos: 1, imagenes: ['ccc', 'bbb'] }, electron)).toThrow(
+      /icono de Electron/
+    )
+  })
+
+  const exeElectron = join(__dirname, '..', 'node_modules', 'electron', 'dist', 'electron.exe')
+  it.skipIf(!existsSync(exeElectron))('detecta electron.exe como icono de Electron', () => {
+    const iconos = iconosDelExe(readFileSync(exeElectron))
+    expect(iconos.grupos).toBeGreaterThan(0)
+    expect(() => comprobarIconoExe(iconos, iconos)).toThrow(/icono de Electron/)
   })
 })

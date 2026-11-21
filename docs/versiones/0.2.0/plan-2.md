@@ -13,6 +13,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 4 | Ventana secundaria y cola | Implementada · [informe](informe-fase-4.md) |
 | 5 | Degradados, ayudas de espera, Letra lista y ajuste de silencios | Implementada · [informe](informe-fase-5.md) |
 | 6 | Exportación de video | Implementada · [informe](informe-fase-6.md) |
+| 10 | Detalles de release (sale en `0.2.0-alpha.2`) | En curso · tareas 0244–0256 en el [backlog](backlog.md) |
 
 ```mermaid
 flowchart LR
@@ -228,6 +229,30 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Riesgo.** Coste de bitmaps, soporte de códecs, licencias de builds y discrepancias tipográficas. La marca de agua no otorga derechos sobre el material de origen.
 
+## Fase 10 · Detalles de release
+
+**Objetivo.** Que cada versión se descargue desde GitHub Releases, se sepa de qué commit salió y haya un canal aparte para las compilaciones de desarrollo. Aprobada por el usuario el 2026-11-21 a partir de la [propuesta 017](../../propuestas/017-estructura-de-releases.md), con RPCS3 y DroidDeck como referentes. Sale en `0.2.0-alpha.2`.
+
+**Numeración.** Los números 7 a 9 quedan reservados para las fases del [feedback de alpha.1](feedback-alpha-1.md), todavía sin aprobar. Esta fase no depende de ellas.
+
+### 14. Estructura de releases · M
+
+**Decisión final.** Se conserva el flujo del [ADR 0020](../../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md) (etiqueta → borrador → recursos → publicar, `SHA256SUMS.txt`, *pre-release* para las alfas) y se añade:
+
+1. **Primera Release publicada.** `v0.2.0-alpha.2` es la primera etiqueta que se publica; la descarga deja de salir de los artefactos de Actions. Etiquetar y publicar lo ordena el usuario.
+2. **Canal de compilaciones de desarrollo.** Repositorio aparte `shinobi-karaoke-builds`, con una Release por compilación de `develop`: etiqueta `build-<hash>`, título `<versión>-<N>` y SHA-256 en el cuerpo. Compilación nocturna solo si hubo cambios. Los instaladores de este canal llevan la versión en el nombre.
+3. **Número de compilación.** `<versión>-<N>`, con N = número de commits, visible en «Acerca de» y en los detalles de error que se copian.
+4. **Notas en dos partes.** Las escritas a mano y, debajo, siempre «Qué cambió» generado por GitHub con los PR, el enlace de comparación y la ejecución de CI que construyó los instaladores.
+5. **README con descarga directa** por sistema, pasos numerados y aviso de bajar solo desde Releases. Mientras solo haya alfas, el enlace apunta a la etiqueta concreta.
+
+Los instaladores de las versiones conservan su nombre sin versión ([pregunta 0040](../../preguntas/0040-nombres-de-instaladores-y-enlaces-de-descarga.md)). Siguen fuera la autoactualización (pregunta 0037) y la firma de código, que va por su propia solicitud.
+
+**Aceptación.** La Release `v0.2.0-alpha.2` existe con los 4 instaladores, `SHA256SUMS.txt` y notas en dos partes. Una fusión en `develop` produce, como mucho al día siguiente, una Release `build-<hash>` en el repositorio de compilaciones. «Acerca de» y un error copiado muestran `<versión>-<N>` y ese N lleva al commit. Los enlaces del README descargan el instalador de la última versión publicada.
+
+**ADRs y specs.** Revisión del ADR 0020 (canal de desarrollo, número de compilación, notas) y del 0013 (disparador nocturno). [Descarga e instalación](../../ux/09-descarga-e-instalacion.md) y [Ajustes y Acerca](../../ux/08-ajustes-y-acerca.md).
+
+**Riesgo.** El canal de desarrollo necesita un secreto con escritura en otro repositorio. Tiempo de CI de macOS en las compilaciones nocturnas. El instalador sigue sin firmar: Chrome y SmartScreen avisarán también desde Releases.
+
 ## Prioridades
 
 | Feature | Prioridad | Fase |
@@ -245,6 +270,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 | 11 · Cola | Media | 4 |
 | 12 · Letra lista | Media | 5 |
 | 13 · Ajustar los silencios | Media | 5 |
+| 14 · Estructura de releases | Alta | 10 |
 
 ## Decisiones y verificaciones pendientes
 

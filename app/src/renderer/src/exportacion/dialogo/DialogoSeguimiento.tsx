@@ -23,6 +23,7 @@ import {
 } from './textos'
 import { EXP_PROGRESO, EXP_TOAST, formatearDuracionTrabajo } from './textosProgreso'
 import estilos from './exportacion.module.css'
+import { copiarDetalles as copiarConVersion } from '../../soporte/detalles'
 
 /** Tiempo que se espera a que aparezca la exportación recién iniciada antes de cerrar. */
 const ESPERA_EXPORTACION_MS = 3000
@@ -128,12 +129,8 @@ function Subpasos({ e, cancelando }: { e: ExportacionVista; cancelando: boolean 
   )
 }
 
-/** Texto de «Copiar detalles»: código, mensaje, perfil, formato, posición y versión de la app. */
-async function detallesDe(e: ExportacionVista): Promise<string> {
-  const version = await window.shinobi.sistema
-    ?.info()
-    .then((i) => i.version)
-    .catch(() => '')
+/** Texto de «Copiar detalles»: código, mensaje, perfil, formato y posición (la versión la añade `copiarConVersion`). */
+function detallesDe(e: ExportacionVista): string {
   return [
     `${e.error?.codigo ?? 'ERROR_INTERNO'}: ${e.error?.mensaje ?? ''}`.trim(),
     e.error?.detalles ?? '',
@@ -141,8 +138,7 @@ async function detallesDe(e: ExportacionVista): Promise<string> {
     `Formato: ${FORMATOS[e.formato].nombre}`,
     e.error?.posicionMs != null
       ? `Posición: ${formatearPosicion(e.error.posicionMs)} de ${formatearPosicion(e.duracionMs)}`
-      : 'Posición: antes del primer fotograma',
-    version ? `Versión: ${version}` : ''
+      : 'Posición: antes del primer fotograma'
   ]
     .filter(Boolean)
     .join('\n')
@@ -398,7 +394,7 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
   const reparar = codigo === 'RUNTIME_NO_DISPONIBLE'
 
   const copiar = async () => {
-    void navigator.clipboard?.writeText(await detallesDe(e))
+    await copiarConVersion(detallesDe(e)).catch(() => undefined)
     mostrarToast({ tipo: 'exito', mensaje: EXP.copiados })
   }
   const cambiarOpciones = () => {

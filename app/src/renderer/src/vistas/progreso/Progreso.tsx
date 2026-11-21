@@ -53,6 +53,7 @@ import {
   textoDeErrorSeparacion
 } from './textos'
 import estilos from './progreso.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 const ICONOS: Record<IconoFila, LucideIcon> = {
   pendiente: Circle,
@@ -417,7 +418,7 @@ export function Progreso({ id }: { id: string }) {
         mensaje: 'No se pudo cancelar la descarga.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -428,7 +429,7 @@ export function Progreso({ id }: { id: string }) {
       mensaje,
       accion: {
         etiqueta: 'Copiar detalles',
-        alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+        alAccionar: () => void copiarDetalles(detallesDeError(err))
       }
     })
   const abrirReparacion = async () => {
@@ -512,7 +513,7 @@ export function Progreso({ id }: { id: string }) {
         mensaje: 'No se pudo volver a intentar la descarga.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -686,7 +687,7 @@ export function Progreso({ id }: { id: string }) {
                       <Boton
                         variante="fantasma"
                         onClick={() =>
-                          void navigator.clipboard?.writeText(
+                          void copiarDetalles(
                             detallesDeError({ codigo: bloque.codigo, mensaje: bloque.mensaje })
                           )
                         }
@@ -764,7 +765,7 @@ export function Progreso({ id }: { id: string }) {
                       <Boton
                         variante={motorPorReparar ? 'secundario' : 'fantasma'}
                         onClick={() =>
-                          void navigator.clipboard?.writeText(
+                          void copiarDetalles(
                             detallesDeError({ codigo: bloque.codigo, mensaje: bloque.mensaje })
                           )
                         }

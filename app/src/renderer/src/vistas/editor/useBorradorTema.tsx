@@ -8,6 +8,7 @@ import { TEMA } from '../../temas/textos'
 import { borradorModificado, type AccionEditor, type BorradorTema } from './estado'
 import type { DestinoFocoTema } from './SeccionTema'
 import { E } from './textos'
+import { copiarDetalles } from '../../soporte/detalles'
 
 type Dialogos = 'impacto' | 'descartar' | 'salir' | null
 
@@ -84,9 +85,9 @@ export function useBorradorTema({
       accionSecundaria: {
         etiqueta: TEMA.copiarDetalles,
         alAccionar: () =>
-          void navigator.clipboard
-            ?.writeText(`${e?.codigo ?? 'ERROR_INTERNO'}: ${e?.mensaje ?? ''}`)
-            .catch(() => undefined)
+          void copiarDetalles(`${e?.codigo ?? 'ERROR_INTERNO'}: ${e?.mensaje ?? ''}`).catch(
+            () => undefined
+          )
       }
     })
   }

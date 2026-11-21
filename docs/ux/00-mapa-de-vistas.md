@@ -318,4 +318,6 @@ Los códigos estables de `arquitectura.md §3` se traducen así (detalle y accio
 
 Códigos estables en el [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §11: `EDICION_BLOQUEADA`, `SESION_EN_CURSO`, `GUARDADO_PENDIENTE`, `PANTALLA_NO_DISPONIBLE`, `CANCION_NO_DISPONIBLE`, `ENTRADA_NO_ENCONTRADA`, `COLA_LLENA` (texto `cola.llena`, spec 02) y `CONFIRMACION_OBSOLETA` (al confirmar el cierre: el diálogo se actualiza y pide confirmar otra vez).
 
+Todo «Copiar detalles» termina con la línea de versión común `Versión: {identificador}` (número de compilación, canal y commit): [08 · Fase 10](08-ajustes-y-acerca.md#línea-de-versión-en-los-detalles-copiados) (0.2.0).
+
 Tono del microcopy: tuteo, frases cortas, sin jerga técnica (no se dice "worker", "modelo ONNX", "venv"); cada error dice **qué pasó** y **qué puede hacer** el usuario.

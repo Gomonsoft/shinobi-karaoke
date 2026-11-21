@@ -183,6 +183,9 @@ describe('DialogoExportacion · formulario (A)', () => {
     expect(screen.queryByRole('region', { name: 'Qué formato elegir' })).not.toBeInTheDocument()
     expect(boton).toHaveFocus()
     expect(alCerrar).not.toHaveBeenCalled()
+    // Con la ayuda ya cerrada, el siguiente Esc llega al diálogo y lo cierra.
+    fireEvent.keyDown(boton, { key: 'Escape' })
+    expect(alCerrar).toHaveBeenCalledTimes(1)
   })
 
   it('un formato sin soporte queda aria-disabled y se elige el otro', async () => {

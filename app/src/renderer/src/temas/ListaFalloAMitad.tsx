@@ -2,6 +2,7 @@ import { Boton } from '../componentes/Boton'
 import { TEMA, AJ_TEMAS, nombreCancion, tituloYArtista } from './textos'
 import type { FalloAMitad } from './useOperacionTema'
 import estilos from './temas.module.css'
+import { copiarDetalles } from '../soporte/detalles'
 
 export type TextoFallo = { clave: 'eliminar' } | { clave: 'ninguno'; anterior: string }
 
@@ -46,10 +47,7 @@ export function ListaFalloAMitad({ fallo, texto }: Props) {
               <span className={estilos.filaTexto}>
                 {tituloYArtista(fila.titulo, fila.artista)} · {TEMA.parcial.filaError}
               </span>
-              <Boton
-                variante="fantasma"
-                onClick={() => void navigator.clipboard?.writeText(fila.codigo ?? '')}
-              >
+              <Boton variante="fantasma" onClick={() => void copiarDetalles(fila.codigo ?? '')}>
                 {TEMA.copiarDetalles}
               </Boton>
             </li>
