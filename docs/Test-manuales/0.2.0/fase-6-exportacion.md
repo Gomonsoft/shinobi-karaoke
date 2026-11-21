@@ -189,6 +189,7 @@ Criterio: ADR 0019 §3 y M4 (guía de la fase). Para cada sistema, exporta **la 
 | 8.7 | Compara el tiempo real con la **estimación** del diálogo en cada caso | La estimación está dentro de **± 50 %** | ☐ |
 | 8.8 | Repite una **segunda exportación** del mismo perfil | La estimación **mejora** (se corrige con lo que tardó antes en este equipo). Anota si la primera se quedó corta | ☐ |
 | 8.9 | Mira que los videos de 4K/60 estén completos (duración correcta, sin cortarse) | Completos | ☐ |
+| 8.10 | **Linux con GPU real** (no una máquina virtual sin aceleración): exporta a 3840 × 2160 y a 2880 × 2160 | La exportación **completa** y el video mide exactamente esa resolución. En el CI (Linux sin GPU) la captura sale de 3839 × 2159 y la prueba automática se omite: aquí se confirma si es un límite del entorno o de Linux. Si falla con «perfil no soportado», anótalo como incidencia grave | ☐ |
 
 ### 9. Equipo modesto: perfil modesto y 4K/60, y la app sigue usable
 
