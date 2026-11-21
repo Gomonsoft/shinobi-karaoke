@@ -112,7 +112,13 @@ export function PantallaLetra({
   )
   const [vivo, setVivo] = useState<{ fotograma: FotogramaLetra; sube: boolean } | null>(null)
   const fotograma = reproduciendo
-    ? (vivo?.fotograma ?? fotogramaEn(letra, -letra.offset_ms, { duracionMs, titulo, artista }))
+    ? (vivo?.fotograma ??
+      fotogramaEn(letra, -letra.offset_ms, {
+        duracionMs,
+        titulo,
+        artista,
+        espera: estilo.espera
+      }))
     : fotogramaEstatico(letra, idEstatico)
   const { actual, siguiente } = fotograma
 
@@ -135,9 +141,14 @@ export function PantallaLetra({
       const f = fotogramaEn(letra, obtenerTiempoAudio() - letra.offset_ms, {
         duracionMs,
         titulo,
-        artista
+        artista,
+        espera: estilo.espera
       })
-      if (f.claveTransicion !== anterior?.claveTransicion || f.puntos !== anterior.puntos) {
+      if (
+        f.claveTransicion !== anterior?.claveTransicion ||
+        f.espera?.puntos !== anterior.espera?.puntos ||
+        f.espera?.cuenta !== anterior.espera?.cuenta
+      ) {
         const sube = f.actual !== null && f.actual.id === anterior?.siguiente?.id
         setVivo({ fotograma: f, sube })
       }
@@ -150,7 +161,7 @@ export function PantallaLetra({
     }
     raf = requestAnimationFrame(avanzar)
     return () => cancelAnimationFrame(raf)
-  }, [reproduciendo, obtenerTiempoAudio, letra, duracionMs, titulo, artista])
+  }, [reproduciendo, obtenerTiempoAudio, letra, duracionMs, titulo, artista, estilo.espera])
 
   useLayoutEffect(() => {
     const contenedor = raiz.current!
@@ -224,8 +235,8 @@ export function PantallaLetra({
           )}
           {siguiente && (
             <div ref={nodoSiguiente} className={estilos.siguiente}>
-              {fotograma.puntos > 0 && (
-                <div className={estilos.puntos}>{'●'.repeat(fotograma.puntos)}</div>
+              {(fotograma.espera?.puntos ?? 0) > 0 && (
+                <div className={estilos.puntos}>{'●'.repeat(fotograma.espera?.puntos ?? 0)}</div>
               )}
               <span>{siguiente.texto}</span>
             </div>
