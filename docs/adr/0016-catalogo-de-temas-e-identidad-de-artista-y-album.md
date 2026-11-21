@@ -406,3 +406,18 @@ Los nombres de canal van en `shared/canales.ts` y los esquemas en `shared/ipc.ts
 - Node.js `crypto.randomInt`: https://nodejs.org/api/crypto.html#cryptorandomintmin-max-callback
 - Zod 4, objetos y claves desconocidas (`z.object` las descarta): https://zod.dev/api#objects
 - Decisión de producto: [0047](../preguntas/0047-temas-asignados-edicion-y-borrado.md). Discusión: [R1](../versiones/0.2.0/discusion/r1-arquitecto.md), [R2](../versiones/0.2.0/discusion/r2-arquitecto.md), [R4](../versiones/0.2.0/discusion/r4-arquitecto.md).
+
+## Revisión para 0.2.0 — fase 5
+
+Fecha: 2026-11-20. Concreta el §3 («Fase 5») y el §12 según el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1, §3 y §4.
+
+- **Sin migración del catálogo**: el estilo ampliado son campos opcionales del mismo `estiloSchema` (`estilo.version: 1`). `temas.esquema` sigue en 1. La «migración v1 → lineal estático y comodines heredados» es la normalización en memoria `normalizarEstilo`, que no se escribe.
+- **`apariencia.reemplazos`**:
+  - Es opcional, solo con `tema` o `heredar`, y tiene lista blanca con un único campo: `espera`, como bloque completo.
+  - `resolverApariencia` fusiona `espera` después de los pasos 2 y 3 y devuelve `procedenciaEspera`: `"cancion"` si hay reemplazo y, si no, la procedencia del estilo. El dato viaja en el resumen y en `resuelta`.
+  - La instantánea de respaldo y la congelación al borrar guardan el resultado fusionado y retiran `reemplazos`.
+  - Pasar entre `tema` y `heredar` los conserva. «Personalizar», que pasa a `propio`, los integra en `estilo`.
+  - `guardarApariencia` acepta `reemplazos`: ausente conserva los actuales, `null` los quita y un objeto los sustituye. Las operaciones en lote de `temas.ejecutar` los conservan.
+- **Igualdad de estilos**: `estilosIguales` compara la forma normalizada. Así `neutra` y el nombre «Shinobi» o «Mi estilo» no cambian para estilos sin los campos nuevos.
+- **Impacto de editar un tema**: el recuento de usos no cambia. Las canciones con espera personalizada siguen recibiendo fondo y letra del tema, pero no su espera. La spec decide si la confirmación lo menciona.
+- **Contraste**: se calcula sobre el estilo resuelto o el borrador del tema, con el muestreo por tramos y el cierre del cónico (ADR 0018 §4).

@@ -5,7 +5,7 @@
 - Restricciones: [arquitectura.md §7 y "Restricciones e implicaciones para UX" §5–§6](../arquitectura.md)
 - Sistema visual: [sistema-visual.md §6–§10](sistema-visual.md) (componentes, foco, estilo predeterminado, reglas de contraste, valores fijos de render)
 - Preguntas: [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md) (usuario: **sincronía solo por línea** en el MVP), [0004](../preguntas/0004-fuentes-tipograficas-incluidas-y-del-sistema.md) (solo fuentes incluidas), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (pausas, fin automático, precisión del toque, lista incompleta), [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (stepper y volver a Letra), [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) (detalles técnicos de la Fase 5; respondida: pantalla completa en la Fase 6, desplazamiento ±30 s, el tono baja con la velocidad, un solo volumen, API de guardado), [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md) (letra recargada y regla de "color más claro"; respondida)
-- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca); 2026-11-11, bloqueo de edición durante la sesión en otra pantalla de la [fase 4 de 0.2.0](#fase-4-de-020--ventana-secundaria-y-cola).
+- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca); 2026-11-11, bloqueo de edición durante la sesión en otra pantalla de la [fase 4 de 0.2.0](#fase-4-de-020--ventana-secundaria-y-cola); 2026-11-20, degradados, indicadores de espera, Letra lista y «Ajustar los silencios» de la [fase 5 de 0.2.0](#fase-5-de-020--estilo-espera-y-letra-lista); 2026-11-20, «Exportar video…» de la [fase 6 de 0.2.0](#fase-6-de-020--exportación).
 
 ## Objetivo
 Dejar la letra **a tiempo** con la música y darle un **estilo** propio con las opciones mínimas del MVP (fondo, color de letra, color de lo ya cantado, fuente), viendo el resultado en todo momento, y marcar la canción como **lista**.
@@ -1407,3 +1407,450 @@ Por eso al abrir la secundaria nunca hay un editor montado: el orden del [ADR 00
 - E6. Durante la sesión, la escucha de Voz / Instrumental de la vista de progreso está `aria-disabled` con `edi.bloqueo.escucha` y no suena nada en la principal.
 - E7. Los elementos bloqueados conservan el foco con teclado, llevan el icono de candado y su nombre accesible incluye `edi.bloqueo.aria`.
 - E8. Captura `docs/ux/revision-fase-4/editor-1280x800-100-dialogo-bloqueo.png`.
+
+## Fase 5 de 0.2.0 — estilo, espera y Letra lista
+
+Origen: [plan, fase 5, features 8, 9, 12 y 13](../versiones/0.2.0/plan-2.md#fase-5--estilo-espera-y-letra-lista); decisión del usuario sobre «Letra lista» en [0048](../preguntas/0048-escucha-editor-durante-evento.md) y sobre «Ajustar los silencios» del 2026-11-20 (en el plan); rondas [R2 UX](../versiones/0.2.0/discusion/r2-disenador-ux.md), [R2 arquitectura](../versiones/0.2.0/discusion/r2-arquitecto.md) y [R4 UX](../versiones/0.2.0/discusion/r4-disenador-ux.md#cierre--respuesta-ampliada). Contratos de datos (estilo ampliado, espera, reemplazo por canción, modalidad, preferencia del aviso y cálculo del ajuste): [ADR 0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md), con los puntos de interfaz respondidos en [0101](../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md). Lo que ve el público: [07 · Fase 5](07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista). Tarjetas: [02 · Fase 5](02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista). Valores visuales: [sistema visual · fase 5](sistema-visual.md#020--estilo-espera-y-letra-lista-fase-5). Decisiones provisionales: [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) (arquitecto → usuario: cuenta tras ajustar, «Probar» y cambio de modalidad) y [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) (UX → usuario: velocidades, sentido, aviso de contraste en Letra lista); lo marcado **(provisional)** puede cambiar con sus respuestas.
+
+Esta sección **amplía** la spec. Respeta la [subfase 2.1](#subfase-21--layout-adaptable-y-paneles) (todo dentro del panel, con su scroll, entre 300 y 480 px; nada añade scroll de página) y los modos D1–D4 de la [fase 3](#fase-3-de-020--temas-y-biblioteca): en D2 (Tema personalizado) y D3 (editando un tema) los controles nuevos son editables; en D1 y D4 se ven como resumen de solo lectura, salvo los indicadores de espera, que admiten un cambio solo para la canción.
+
+**Sustituye**: las filas «Sólido / Degradado» y «Ángulo» de la tabla «Estilo (panel D)» (se amplían con forma, centro y movimiento); la frase «peor caso sobre 11 muestras del degradado» de «Niveles del aviso de contraste» (ver G · Contraste); el criterio 28 (solo lineal); las filas «Insignia de estado» de «Cabecera» y «Marcar como lista» de «Guardado, borrador y lista» (se añaden «Letra lista» y su botón); la fila «Indicador de entrada» de sistema-visual §10 (ver [sistema visual · fase 5](sistema-visual.md#020--estilo-espera-y-letra-lista-fase-5)). Lo no mencionado no cambia.
+
+| Feature | Dónde | Qué añade |
+|---|---|---|
+| 8 · Degradados y movimiento | Estilo › Fondo; bajo la vista previa | Forma lineal, radial o cónica; centro; movimiento opcional con velocidad; «Detener el movimiento» en la vista previa |
+| 9 · Indicadores de espera | Estilo › Indicadores de espera | Puntos, barra y cuenta 3·2·1 combinables, primera entrada, silencio mínimo, cambio solo en la canción y ejemplo |
+| 12 · Letra lista | Dock (fila 2); cabecera; menú ⋯ | «Marcar como letra lista», aviso de primera activación, insignia y cambio de modalidad |
+| 13 · Ajustar los silencios | Fila de controles de la línea de tiempo; menú ⋯ | Botón con precondición, diálogo con recuentos y lista de líneas, resultado deshacible |
+
+La elección de indicadores **hueco a hueco** no forma parte de esta fase: los indicadores se derivan de cada hueco con la configuración de la canción (ADR 0018 §3). Queda como [propuesta 015](../propuestas/015-comodin-de-espera-hueco-a-hueco.md).
+
+### G · Degradados y movimiento (feature 8)
+
+#### Wireframes
+
+**Fondo en D2 y D3** (sustituye la parte «Fondo» del wireframe D)
+```
+│ Fondo                                             │  h3
+│ [ Sólido | Degradado ]                            │
+│ Forma  [ Lineal | Radial | Cónico ]               │  solo con Degradado
+│                                                   │
+│ (Lineal)  Ángulo [ 135 ] ° ◐                      │  como hasta ahora
+│                                                   │
+│ (Radial)  Centro  ┌────┬────┬────┐                │  cuadrícula 3 × 3
+│                   │ ○  │ ○  │ ○  │                │  (celdas de 40 × 32 px)
+│                   ├────┼────┼────┤                │
+│                   │ ○  │ ●  │ ○  │                │
+│                   ├────┼────┼────┤                │
+│                   │ ○  │ ○  │ ○  │                │
+│                   └────┴────┴────┘                │
+│                                                   │
+│ (Cónico)  Ángulo de inicio [ 0 ] ° ◐              │
+│           Centro  (la misma cuadrícula)           │
+│                                                   │
+│ Colores  [■ #1B1033] [■ #5A1E6E] [✕]              │  como hasta ahora (2 a 4)
+│          [+ Añadir color]                         │
+│ Sugeridos ■■■■■■■■                                │
+│                                                   │
+│ ☐ Movimiento                                      │  casilla, desmarcada por defecto
+│   Velocidad [ Lenta | Media | Rápida ]            │  solo con Movimiento (60 / 30 / 15 s por vuelta)
+│   El degradado gira despacio. Se mueve con la     │  `edi.fondo.mov.ayuda.*` (t-pequeno, texto-2)
+│   canción: en pausa se queda quieto.              │
+│   (ⓘ Tu sistema pide reducir el movimiento: en    │  `edi.fondo.mov.reducido`, solo si aplica
+│    este equipo el fondo se verá quieto.)          │
+```
+
+**Vista previa con movimiento** (sustituye la fila del botón bajo el lienzo)
+```
+│        ┌──────────────────────────────┐           │
+│        │             16:9             │           │
+│        └──────────────────────────────┘           │
+│        [⛶ Probar a pantalla completa   ][❚❚]      │  ❚❚ = «Detener el movimiento del fondo»
+```
+
+**Resumen en D1 y D4** (fila «Fondo» del resumen de solo lectura)
+```
+│ Fondo   ▰▰▰ Degradado radial · centro · en movimiento (media) │
+```
+
+#### Componentes e interacciones
+
+| Elemento | Comportamiento |
+|---|---|
+| **Forma** | Control segmentado «Lineal / Radial / Cónico», visible solo con «Degradado». Pasar de Sólido a Degradado empieza en **Lineal** (como hoy). Cambiar de forma conserva colores, ángulo, centro y movimiento (cada forma usa lo que necesita) y es un paso de deshacer; la vista previa cambia en < 100 ms. Los degradados existentes (canciones y temas anteriores) son **lineales sin movimiento** y se ven exactamente igual. |
+| **Ángulo** (lineal) | Sin cambios: campo 0–359 + dial; ←/→ ±15° con el dial enfocado (Mayús: ±1°). |
+| **Centro** (radial y cónico) | Cuadrícula 3 × 3 de posiciones (`role="radiogroup"`, nombre `edi.fondo.centro`); cada celda es un radio con nombre `edi.fondo.centro.pos.*` y un punto que se rellena en la elegida. ←/→/↑/↓ mueven la selección en dos dimensiones, sin dar la vuelta en los bordes; Inicio/Fin, primera y última. Por defecto, **Centro**. Se guarda como `centro` 0 / 0,5 / 1 en cada eje (ADR 0018 §1). En el radial, el primer color está en el centro elegido y el último llega a la esquina más lejana (círculo, `circle farthest-corner`). Un centro guardado fuera de las 9 posiciones (archivo editado a mano) se respeta: ninguna celda aparece elegida y la descripción del grupo dice `edi.fondo.centro.otro`. |
+| **Ángulo de inicio** (cónico) | Mismo campo y dial que «Ángulo» (mismo dato, `angulo_grados`; en el radial no tiene efecto y se conserva). Indica dónde empieza el primer color; los colores avanzan en sentido horario y el último **se funde de nuevo con el primero** (cierre suave, ADR 0018 §2). Para que no quede costura, en el cónico las paradas se reparten en **i/n** (2 colores: 0 y ½; 3: 0, ⅓ y ⅔; 4: 0, ¼, ½ y ¾) y el tramo de cierre mide lo mismo que los demás; al volver a lineal o radial se reparten otra vez de 0 a 1. Una canción cuyo cónico tenga la última parada en 100 % (archivo editado a mano) se pinta con su costura sin aviso. |
+| **Colores** | Sin cambios para las tres formas (2 a 4 paradas, ordenadas y repartidas por igual, salvo el reparto del cónico de la fila anterior; variante de luminosidad al añadir). |
+| **Movimiento** | Casilla, **desmarcada** al empezar (también al crear un degradado o un tema). Al marcarla aparece «Velocidad» en **Media**. Qué se mueve (la paleta nunca cambia): **Lineal** y **cónico**, el ángulo gira una vuelta por ciclo; **Radial**, el centro recorre una órbita pequeña que pasa por la posición elegida (amplitud fija, 10 % del área). Sentido **horario**: el sentido no se ofrece en la interfaz; uno antihorario guardado (archivo editado a mano) se respeta y se conserva **(provisional, [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) §1)**. Desmarcar guarda `movimiento: null`. |
+| **Velocidad** | Control segmentado «Lenta / Media / Rápida» = `periodo_s` **60 / 30 / 15** (una vuelta cada tantos segundos) **(provisional, 0110 §1)**. Cada cambio es un paso de deshacer. Un periodo guardado distinto (10–120 s) se muestra como cuarta opción «{n} s» seleccionada, que desaparece al elegir otra. |
+| **Fase del movimiento** | Depende **solo de la posición de la canción** (tiempo de audio, sin el desplazamiento de la letra; ADR 0018 §2): en el mismo instante, la vista previa, el reproductor y el video muestran la misma fase. En pausa el fondo está quieto; al buscar, salta a la fase de ese instante. La **fase 0** es la geometría que muestran los controles (la que se ve en pausa en 0:00). |
+| **Detener el movimiento del fondo** (vista previa) | Botón icono de 36 × 36 a la derecha de «Probar a pantalla completa», visible solo si el estilo efectivo tiene movimiento y el sistema no pide reducir el movimiento. `aria-pressed`; icono ❚❚ / ▶; tooltip y nombre `edi.fondo.mov.detener` / `edi.fondo.mov.reanudar`. Detenido, la vista previa muestra la **fase 0** (como con movimiento reducido). Solo afecta a la vista previa de esta visita: no se guarda, no entra en el historial y no cambia el reproductor ni «Probar a pantalla completa». El botón «Probar» se estrecha 44 px para dejarle sitio. |
+| **Movimiento reducido** (`prefers-reduced-motion: reduce`) | La vista previa y el reproductor de este equipo muestran siempre la fase 0. La casilla «Movimiento» sigue editable (el estilo se guarda para otros equipos y para el video) y bajo ella aparece `edi.fondo.mov.reducido` (`info`). El botón «Detener» no aparece. |
+| **Modo «Sincronizar al ritmo»** | La vista previa sigue moviendo el fondo mientras suena (el panel Estilo está inactivo como siempre). |
+| **Temas** | Forma, centro, ángulo, movimiento y velocidad son parte del estilo: se guardan en temas, en «Personalizar», en «Guardar como tema nuevo…», en las copias al eliminar un tema y en «Aplicar tema…». Las muestras de tema (selector, resumen, Ajustes) son **estáticas en fase 0**. |
+| **Resumen D1/D4** | `edi.fondo.resumen`: forma, ángulo o centro y, si hay movimiento, « · en movimiento ({velocidad})». |
+
+#### Contraste
+- Sustituye «peor caso sobre 11 muestras del degradado» por: **peor caso sobre todos los tramos del degradado**, con 9 muestras por tramo (extremos incluidos) entre paradas consecutivas y, en el **cónico**, también el **tramo de cierre** (del último color al primero) (ADR 0018 §4). El cambio de muestreo puede variar levemente el ratio de un degradado de 3 o 4 colores respecto a 0.1.0 (nunca a mejor en un tramo corto), pero no cambia ningún estilo.
+- El movimiento solo desplaza la geometría: cualquier color del degradado puede quedar detrás de la letra en algún momento. Por eso la evaluación es **la misma con o sin movimiento** y no hay un aviso específico «durante el movimiento» (acuerdo de la [R2](../versiones/0.2.0/discusion/r2-arquitecto.md)).
+- Niveles, textos, acciones rápidas, punto `aviso` de la pestaña y comportamiento en D1/D4 (`tema.contraste.ayuda`): sin cambios. Para Letra lista, ver LL · Contraste.
+
+### IE · Indicadores de espera (feature 9)
+
+#### Conceptos
+- **Hueco**: intervalo entre el fin efectivo de una línea y el inicio de la siguiente línea con inicio (las pausas con tiempo ya limitan el fin efectivo; las líneas sin inicio cuentan como hueco, como hoy). La **primera entrada** dura siempre **4 s**: desde que desaparece el título (inicio de la primera línea − 4 s) hasta ese inicio, y no usa el umbral (ADR 0018 §3).
+- **Indicadores** (combinables): **Puntos ●●●** (el indicador de entrada de siempre: tres puntos que se apagan uno por segundo en los 3 s previos), **Barra hasta la próxima línea** (se vacía a lo largo de todo el hueco y termina al entrar la línea) y **Cuenta 3·2·1** (los números ocupan los últimos 3 s disponibles). Cómo se dibujan: [07 · Fase 5](07-reproductor.md#indicadores-de-espera) y [sistema visual](sistema-visual.md#020--estilo-espera-y-letra-lista-fase-5).
+- **Silencio mínimo** (umbral): entre líneas, los indicadores salen en huecos **iguales o mayores** que este valor. Es también el umbral de «silencio largo» de «Ajustar los silencios».
+- **Antes de la primera línea** (casilla propia, `primera_entrada`): si está marcada, los indicadores elegidos salen en la primera entrada sea cual sea el umbral.
+- **Valores por defecto y compatibilidad** (`ESPERA_LEGADA`): solo **Puntos**, «Antes de la primera línea» marcada y silencio mínimo **4,0 s**. Es exactamente el comportamiento de 0.1.0: canciones y temas anteriores se ven igual.
+- **Dónde viven y quién manda**: los **indicadores propios de la canción** (bloque completo, cambio solo para la canción aunque siga un tema; `apariencia.reemplazos.espera`) y, si no hay, los del **estilo efectivo** (tema o tema personalizado). La procedencia la da main (`procedenciaEspera`).
+
+#### Wireframes
+
+**Sección en Estilo, D2 y D3** (después de «Letra» y antes del aviso de contraste)
+```
+│ Indicadores de espera                             │  h3
+│ Avisan de cuándo vuelve la letra tras un silencio.│  t-pequeno, texto-2
+│ ☑ Puntos ●●●                                      │
+│ ☐ Barra hasta la próxima línea                    │
+│ ☐ Cuenta 3·2·1                                    │
+│ ☑ Antes de la primera línea                       │
+│ Silencio mínimo  [−] [ 4,0 s ] [+]                │  spinbutton
+│ Salen en silencios de 4,0 s o más y antes de la   │  `edi.espera.resumen` (t-pequeno, texto-3)
+│ primera línea.                                    │
+│ [▶ Ver un ejemplo]                                │  botón secundario
+```
+
+**Sección en D1 y D4** (tema vinculado; resumen)
+```
+│ Indicadores de espera                             │
+│ Puntos ●●● · silencios de 4,0 s o más             │  `edi.espera.resumen.corto`
+│ Del tema «Noche ninja»                            │  procedencia (t-pequeno, texto-2)
+│ [Cambiar solo en esta canción]  [▶ Ver un ejemplo]│
+```
+
+**D1 y D4 con indicadores propios de la canción**
+```
+│ Indicadores de espera                             │
+│ Propios de esta canción. El resto del aspecto     │  `edi.espera.propios`
+│ sigue el tema «Noche ninja».                      │
+│ ☑ Puntos ●●●  ☐ Barra …  ☑ Cuenta 3·2·1           │  controles editables (como D2)
+│ Silencio mínimo  [−] [ 6,0 s ] [+]                │
+│ [Usar los del tema]  [▶ Ver un ejemplo]           │
+```
+
+#### Componentes e interacciones
+
+| Elemento | Comportamiento |
+|---|---|
+| **Casillas** (Puntos, Barra, Cuenta) | Cada cambio es un paso de deshacer y se ve en la vista previa en < 100 ms. Ninguna marcada = sin indicadores en ningún hueco. |
+| **Antes de la primera línea** | Casilla (`primera_entrada`), marcada por defecto. Desmarcada, la primera entrada solo muestra el título y la línea en espera. Inactiva (con su valor) si no hay ninguno de los tres indicadores marcado. |
+| **Silencio mínimo** | `role="spinbutton"` con nombre `edi.espera.umbral`, valor en segundos con un decimal y coma («4,5 s»). Rango **1,0–60,0 s** (`umbral_ms` 1000–60 000), paso **0,5 s**: botones [−]/[+] y ↑/↓ con el foco en el campo; Re Pág / Av Pág ±5 s. Acepta «4,5» y «4.5» y redondea a la décima; fuera de rango se limita y muestra `edi.espera.umbral.rango` debajo, sin mover la fila. Una ráfaga de cambios en < 1 s es un paso de deshacer. Siempre editable (aunque no haya casillas marcadas, porque también lo usa «Ajustar los silencios»). |
+| **Resumen dinámico** | `edi.espera.resumen`: dice con qué umbral salen y si salen antes de la primera línea; sin casillas, `edi.espera.resumen.ninguno`. |
+| **Ver un ejemplo** | Solo con el audio en pausa (en reproducción el botón pausa primero). La vista previa muestra un hueco **simulado de 6 s** con los indicadores efectivos de la canción: la línea seleccionada termina, pasa el hueco con sus indicadores y entra la siguiente con su resaltado; luego vuelve al estado de pausa. Una píldora `edi.espera.ejemplo.etiqueta` («Ejemplo») arriba a la izquierda del lienzo lo distingue. El botón pasa a «■ Detener el ejemplo»; Esc, cualquier tecla de transporte o un cambio de selección lo detienen. No suena audio, no mueve el cabezal ni entra en el historial. Respeta el movimiento reducido. Disponible también en D1/D4 (es solo una vista). |
+| **Procedencia** (D1, D4) | `edi.espera.origen.*` a partir de `procedenciaEspera`: «Del tema «{tema}»» (o el estilo incluido, o el respaldo) o, con reemplazo, `edi.espera.propios`. |
+| **Cambiar solo en esta canción** (D1, D4) | Copia el bloque completo de indicadores efectivo a la canción como **propio** (`reemplazos.espera`) y hace editable la sección; el resto del aspecto sigue vinculado al tema. Un paso de deshacer. Foco: la primera casilla. Anuncio `edi.espera.anuncio.propios`. |
+| **Usar los del tema** | Quita los indicadores propios (`reemplazos: null`); la canción vuelve a usar los del tema. Un paso de deshacer, sin confirmación. Foco: «Cambiar solo en esta canción». |
+| **Elegir otro tema, «Volver a heredar»** (fase 3) | Los indicadores propios **se conservan** (el reemplazo no depende del tema). |
+| **Personalizar** (fase 3) | La copia del estilo incluye los indicadores efectivos (los propios, si los hay). En D2 los indicadores son parte del estilo propio y no hay «Cambiar solo en esta canción». |
+| **Volver a «Temas definidos»** (fase 3) | El estilo propio se descarta con sus indicadores (como hoy; deshacible); la canción usa los del tema. |
+| **Eliminar el tema** (fase 3) | La copia «Tema personalizado» guarda los indicadores que la canción veía (los propios, si los había). |
+| **Editar tema (D3)** | La sección edita los indicadores **del tema**. Si la canción tiene indicadores propios, la vista previa de D3 muestra los del borrador del tema y bajo la sección aparece `edi.espera.d3.propios` (fuera de la edición, la canción seguirá con los suyos). |
+| **Contraste** | Los indicadores se pintan con el color de lo ya cantado (Letra lista: color de la letra), así que los cubre el aviso de contraste existente; no hay avisos nuevos. |
+
+### LL · Letra lista (feature 12)
+
+#### Conceptos
+- Una canción terminada puede ser **Lista** (karaoke: en el reproductor la línea se rellena con el barrido) o **Letra lista** (la letra aparece sincronizada por línea, **sin barrido ni color de progreso**, en el reproductor y en el video). Las dos tienen el mismo estado «lista»: se reproducen, se ponen en cola, se exportan y cuentan en el filtro *Listas*.
+- Requisitos de «Marcar como letra lista»: **los mismos que «Marcar como lista»** (separación completada, al menos una línea y todas las líneas con inicio; el fin efectivo de cada línea es válido, incluidos los fines automáticos de una letra importada). Una letra de la API con todos sus tiempos se puede marcar sin tocar nada.
+- El **editor siempre muestra el barrido** en la vista previa, para revisar la sincronía.
+
+#### Wireframes
+
+**Dock, fila 2** (borrador)
+```
+│ Escuchar [Original|Voz|Instrumental]   [◉ Sincronizar al ritmo (S)] [Marcar como letra lista] [Marcar como lista] │
+```
+«Marcar como letra lista» es **secundario**, a la izquierda del primario. En una canción Lista o Letra lista la fila tiene solo «Hecho» (primario), como hoy.
+
+**Diálogo de primera activación** (480 px)
+```
+┌ ¿Marcar como letra lista? ──────────────────────────────┐
+│ La letra aparecerá sincronizada por línea. Durante la   │
+│ reproducción y en el video, el texto se mostrará sin    │
+│ barrido ni cambio de color de progreso. Puedes seguir   │
+│ revisando el barrido en el editor.                      │
+│                                                         │
+│ ☐ No volver a mostrar este aviso                        │
+│                  [Cancelar] [Marcar como letra lista]   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Cabecera**: insignias `✎ Borrador` · `✓ Lista` · **`✓ Letra lista`** (icono `captions`, `exito`) · `✓ Letra lista · ⚠ Faltan {n} líneas` (`edi.letraLista.incompleta`).
+
+#### Componentes e interacciones
+
+| Elemento | Comportamiento |
+|---|---|
+| **Marcar como letra lista** (borrador) | Mismas condiciones que «Marcar como lista». Si falta algo: `aria-disabled`, enfocable, y al pulsarlo o enfocarlo con teclado el popover de siempre con el título `edi.falta.titulo.letra` y los mismos renglones y acciones (`edi.falta.*`). El renglón de líneas sin inicio usa la lista del motivo `LINEAS_SIN_INICIO` para «Ir a la primera». Si se puede: si `config.editor.omitir_aviso_letra_lista` es `false`, abre el diálogo; si no, actúa directamente. Al confirmar: vacía el guardado, llama a `biblioteca.marcarLista` con `modalidad: "letra_lista"` y vuelve a la Biblioteca como «Marcar como lista» (filtro, foco, resalte de 2 s) con el toast `bib.toast.letraLista`. |
+| **Diálogo** | Componente «Diálogo modal». Foco inicial en «Marcar como letra lista» (no es destructivo y se puede revertir). Esc = Cancelar. **Cancelar** no cambia la canción **ni** la preferencia (aunque la casilla estuviera marcada) y devuelve el foco al botón que lo abrió. **Confirmar con la casilla marcada** guarda `config.editor.omitir_aviso_letra_lista: true` (global, persiste al reiniciar) y el aviso no vuelve a salir en ninguna canción. Confirmar sin marcarla deja el aviso para la próxima vez. |
+| **Menú ⋯ de la cabecera** | En **Lista**: se añade «Cambiar a «Letra lista»…» (antes de «Volver a borrador…»), que aplica la misma lógica del aviso y, al confirmar, cambia la modalidad **sin salir del editor**: insignia «✓ Letra lista» y toast `edi.letraLista.toast.cambio`. En **Letra lista**: «Cambiar a «Lista»», sin diálogo, insignia «✓ Lista» y toast `edi.letraLista.toast.karaoke`. Ninguno entra en el historial de deshacer (como «Volver a borrador»); se revierte con la opción contraria. Los dos usan `biblioteca.marcarLista` con la modalidad nueva (cambio directo, ADR 0018 §5). «Volver a borrador…» funciona igual en las dos modalidades y **olvida la modalidad**: al terminarla otra vez se elige de nuevo. **(provisional, [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) §2 y [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) §3)** |
+| **Letra lista incompleta** | Si se borran tiempos en una Letra lista, sigue siendo Letra lista (como una Lista incompleta): insignia `edi.letraLista.incompleta` y «Hecho» con `edi.hecho.incompleta`. |
+| **Vista previa** | Siempre con barrido y color de lo ya cantado (decisión del usuario). |
+| **Probar a pantalla completa** | Muestra lo que verá el público: en una canción **Letra lista**, sin barrido ([07 · Modo Letra lista](07-reproductor.md#modo-letra-lista)). En un borrador o una Lista, con barrido. **(provisional, [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) §2)** |
+| **Contraste en Letra lista** | El color de lo ya cantado solo se usa en el editor. La evaluación es la misma (ADR 0018 §4), pero los avisos «Resaltado < 3:1» y «Resaltado vs letra ΔE < 25» se **presentan** como `ⓘ` (`info`) con `edi.contraste.soloEditor` en lugar de `⚠`, y no encienden el punto `aviso` de la pestaña. El aviso de la **letra** sigue igual (es la legibilidad). En D3 (editar un tema) se mantienen como `⚠`, porque el tema lo usan otras canciones. **(provisional, [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) §2)** |
+
+### AS · Ajustar los silencios (feature 13)
+
+#### Wireframes
+
+**Fila de controles de la línea de tiempo** (pestaña Sincronía)
+```
+│ Línea de tiempo [−][+][Zoom a la línea][Ver canción completa][Centrar en el cabezal]   [⌇ Ajustar los silencios] [⌄] │
+```
+- Botón secundario con icono `audio-waveform`, alineado a la derecha, justo antes de «Minimizar». Con la ventana por debajo de 1280 px de ancho se muestra **solo el icono** (36 × 36, tooltip y nombre accesible `edi.silencios.boton`) para que la fila no se parta (criterio 6 de la subfase 2.1).
+- También en el menú ⋯ de la cabecera: «Ajustar los silencios…» (alcanzable con la línea de tiempo minimizada o desde la pestaña Estilo).
+
+**No disponible** (popover al pulsar o enfocar con teclado, como «Marcar como lista»)
+```
+┌ Para ajustar los silencios falta: ───────────────────┐
+│ · Sincronizar 3 líneas            [Ir a la primera]  │
+│ · La forma de onda de la voz (se está preparando…)   │
+└──────────────────────────────────────────────────────┘
+```
+
+**Diálogo** (480 px)
+```
+┌ ¿Ajustar los silencios? ─────────────────────────────────┐
+│ Shinobi Karaoke buscará en la voz el primer silencio     │  `edi.silencios.explicacion`
+│ después de cada línea y llevará su fin al último momento │
+│ con voz. Las líneas sin silencio, las que tienen tiempos │
+│ por palabra y las pausas no cambian.                     │
+│                                                          │
+│ · Cambiará el fin de 18 de 52 líneas.                    │  `edi.silencios.lineas`
+│ · ⚠ 5 de ellas tenían un fin fijado (a mano o con la     │  `edi.silencios.manuales` (icono `aviso`)
+│   letra). También se ajustarán.                          │
+│ · Quedarán 3 silencios de 4,0 s o más. Se activará la    │  `edi.silencios.cuenta.activar`
+│   cuenta 3·2·1 en esta canción: saldrá en ellos y en     │  (o `edi.silencios.cuenta.yaActiva`)
+│   cualquier otro silencio de 4,0 s o más.                │
+│ [▸ Ver las líneas]                                       │  revelador
+│ Puedes deshacerlo de una vez con Ctrl+Z.                 │  `edi.silencios.deshacer` (⌘Z en macOS)
+│                       [Cancelar] [Ajustar los silencios] │
+└──────────────────────────────────────────────────────────┘
+```
+Lista revelada (hasta 8 filas visibles, scroll propio, orden de la letra; datos de `cambios`):
+```
+│ Línea 4 · «Is this the real life?»   00:15.80 → 00:14.92 · fijado │
+│ Línea 9 · «Caught in a landslide»    00:41.10 → 00:39.65 · silencio largo │
+```
+
+**Resultado**: toast `edi.silencios.toast` con [Deshacer]; en la línea de tiempo, las regiones cambiadas se resaltan 2 s con su fin ya fijado (contorno continuo).
+
+#### Componentes e interacciones
+
+| Elemento | Comportamiento |
+|---|---|
+| **Precondición** | 1) **Todas las líneas tienen inicio** (la misma que «Letra lista»; las pausas no cuentan); 2) **picos de voz disponibles** (estado listo de la forma de onda, [ADR 0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md); no se decodifica otra vez). Si falla alguna: `aria-disabled`, enfocable, popover `edi.silencios.falta.titulo` con un renglón por motivo: líneas sin inicio `edi.falta.lineas` [Ir a la primera] (misma acción que en «Marcar como lista»); separación pendiente, en cola o en curso `edi.silencios.falta.separacion`; picos preparándose `edi.silencios.falta.preparando` (se actualiza en vivo y se cierra solo al estar listos); picos con error `edi.silencios.falta.error` [Reintentar] (el reintento de la forma de onda de la fase 2); picos no disponibles por otra causa `edi.silencios.falta.noDisponible`. Inactivo también durante el modo «Sincronizar al ritmo» (tooltip `edi.silencios.falta.ritmo`) y con un **borrador de tema abierto** (D3; renglón `edi.silencios.falta.tema`) (ADR 0018 §6.2). |
+| **Pulsar** | Calcula la propuesta **sin aplicarla** (`proponerAjusteSilencios` con los picos de voz y los parámetros provisionales de ADR 0018 §6.4) y abre el diálogo con los recuentos. Si tarda más de 300 ms, el botón pasa a «Buscando silencios…» (cargando). Con el audio sonando, sigue sonando. |
+| **Qué hace** (decisión del usuario; ADR 0018 §6.1) | Para cada línea con inicio y **sin tiempos por palabra**, entre su inicio y el inicio del siguiente elemento con tiempo, busca el **primer silencio** de la voz después de la primera voz; si lo hay, el fin de la línea pasa al **último instante con voz** más un pequeño margen y se guarda como fin fijado. Si no lo hay, la línea no cambia. Las líneas con palabras y las pausas no se tocan. Respeta `inicio < fin ≤ inicio del siguiente`. Los **fines fijados también se ajustan**. Si queda algún hueco **igual o mayor que el silencio mínimo** y la canción no tiene la cuenta activa, se activa la casilla **Cuenta 3·2·1 de la canción** (indicadores propios si sigue un tema; su estilo si es un tema personalizado); las demás casillas y el umbral no cambian. Como los indicadores se derivan de cada hueco, la cuenta sale en esos silencios y en cualquier otro hueco largo **(provisional, [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) §1)**. |
+| **Diálogo · recuentos** | `edi.silencios.lineas` (`lineasCambiadas` de las líneas totales). `edi.silencios.manuales` (`finesFijadosCambiados`): **solo aviso**, no impide nada; se omite con 0. Silencios largos (`huecosLargos`): si se activará la cuenta, `edi.silencios.cuenta.activar`; si la cuenta ya estaba activa, `edi.silencios.cuenta.yaActiva`; con 0, se omite. El umbral que se cita es el silencio mínimo efectivo de la canción. |
+| **Diálogo · lista** | «Ver las líneas» (`aria-expanded`) muestra cada línea de `cambios` con su número, texto (truncado con «…»), fin anterior → fin nuevo, «fijado» si `eraFijado` y «silencio largo» si su hueco nuevo es ≥ umbral. `role="list"`; nombre accesible de cada fila `edi.silencios.aria.fila`. |
+| **Diálogo · botones** | Foco inicial en «Ajustar los silencios» (primario; es deshacible en un paso). Esc = Cancelar (no cambia nada; foco al botón de origen). |
+| **Nada que ajustar** | Con `lineasCambiadas = 0` no hay nada que aplicar ni paso de deshacer (ADR 0018 §6.2): no se abre el diálogo; toast `edi.silencios.nada` (`info`, se cierra solo) y anuncio. |
+| **Aplicar** | **Una sola operación** del historial: fines y, si procede, la activación de la cuenta. Se autoguarda como cualquier ajuste de tiempos y de apariencia. Toast `edi.silencios.toast` con [Deshacer] (= Ctrl/Cmd + Z; restaura todos los fines y los indicadores anteriores en un paso). Foco: vuelve al botón «Ajustar los silencios». La selección, el cabezal, el zoom y el bucle no cambian (si el bucle está activo, adopta los límites nuevos de su línea como con cualquier ajuste). |
+| **Cómo se ve después** | Lista: sin cambios visibles (los fines no se ven en la fila). Línea de tiempo: el fin de las líneas cambiadas pasa a **fijado** (contorno continuo; el automático era discontinuo), sus regiones se resaltan 2 s con borde `info` (sin fundido con movimiento reducido). Vista previa y reproductor: la línea sale al final de la voz y en los huecos largos aparecen los indicadores. Panel C de una línea cambiada: «Fin» en `texto-1` con «Usar fin automático» disponible. Estilo › Indicadores de espera: «Cuenta 3·2·1» marcada (y, si la canción seguía un tema, procedencia `edi.espera.propios`). |
+| **Si cambia algo con el diálogo abierto** | Al confirmar, si los tiempos cambiaron desde el cálculo (p. ej. una recarga por `LETRA_DESACTUALIZADA`), se vuelve a calcular (ADR 0018 §6.2). Si los recuentos nuevos son iguales, se aplica; si cambian, no se aplica: el diálogo sigue abierto con los recuentos nuevos, el aviso `edi.silencios.obsoleto` arriba (`role="alert"`) y el foco en el botón pulsado. |
+| **Teclado** | Sin atajo de una tecla (evita ajustes accidentales). Tab alcanza el botón en la fila de la línea de tiempo; el ítem del menú ⋯ es la alternativa. |
+
+### Estados (fase 5, editor)
+| Estado | Presentación |
+|---|---|
+| Degradado con movimiento, reproduciendo | Fondo moviéndose en la vista previa; botón «Detener el movimiento del fondo» visible. |
+| Movimiento detenido en la vista previa | Fondo en fase 0; botón con `aria-pressed="true"`. |
+| Sistema con movimiento reducido | Fase 0 siempre; nota `edi.fondo.mov.reducido`; sin botón «Detener». |
+| Indicadores del tema / propios de la canción | D1/D4: resumen con procedencia / controles editables con «Usar los del tema». |
+| Ejemplo de espera en curso | Píldora «Ejemplo» en la vista previa; botón «■ Detener el ejemplo». |
+| Borrador listo para terminar | Dock con «Marcar como letra lista» y «Marcar como lista» activos. |
+| Letra lista / Letra lista incompleta | Insignia `✓ Letra lista` / `edi.letraLista.incompleta`; «Hecho»; ⋯ con «Cambiar a «Lista»». |
+| Ajustar no disponible | Botón `aria-disabled` con su popover de motivos. |
+| Buscando silencios | Botón «Buscando silencios…» (cargando) si tarda > 300 ms. |
+| Ajuste aplicado | Toast con [Deshacer]; regiones resaltadas 2 s. |
+
+### Accesibilidad (fase 5, editor)
+- **Forma** y **Velocidad** son `radiogroup` (control segmentado de §6). La cuadrícula de **Centro** es un `radiogroup` con navegación en dos dimensiones y nombres de posición; su punto es decorativo.
+- «Movimiento», «Detener el movimiento del fondo» (`aria-pressed`) y las casillas de indicadores tienen nombre visible o accesible; «Silencio mínimo» es `spinbutton` con `aria-valuetext` «4,5 segundos».
+- Anuncios (`aria-live="polite"`, región del editor), una vez por acción: indicadores propios activados o retirados, inicio y fin del ejemplo (`edi.espera.anuncio.ejemplo`), resultado del ajuste (el texto del toast), cambio de modalidad. El diálogo de Letra lista y el de ajuste son modales estándar. No se anuncia el movimiento del fondo ni el avance del ejemplo.
+- El estado nunca depende solo del color: «Letra lista» lleva icono y texto; los fines fijados se distinguen por contorno (continuo/discontinuo) además del color.
+- Los nuevos textos de interfaz usan `texto-1/2/3` sobre `fondo-1/2` (≥ 4,7:1). Objetivos ≥ 32 × 32 px (celdas de la cuadrícula 40 × 32).
+- **Movimiento reducido**: fondo en fase 0, ejemplo sin fundidos ni escalas, resalte de regiones sin fundido. El vaciado de la barra y el barrido siguen siendo continuos (son contenido, sistema-visual §4).
+
+### Microcopy (fase 5, editor)
+| Clave | Texto |
+|---|---|
+| `edi.fondo.forma` | Forma |
+| `edi.fondo.forma.opciones` | Lineal · Radial · Cónico |
+| `edi.fondo.centro` | Centro del degradado (etiqueta visible: Centro) |
+| `edi.fondo.centro.pos.*` | Arriba a la izquierda · Arriba · Arriba a la derecha · Izquierda · Centro · Derecha · Abajo a la izquierda · Abajo · Abajo a la derecha |
+| `edi.fondo.anguloInicio` | Ángulo de inicio |
+| `edi.fondo.mov` | Movimiento |
+| `edi.fondo.mov.velocidad` | Velocidad |
+| `edi.fondo.mov.velocidades` | Lenta · Media · Rápida |
+| `edi.fondo.mov.ayuda.lineal` | El degradado gira despacio. Se mueve con la canción: en pausa se queda quieto. |
+| `edi.fondo.mov.ayuda.radial` | El centro del degradado describe una órbita lenta. Se mueve con la canción: en pausa se queda quieto. |
+| `edi.fondo.mov.periodo` | {n} s (cuarta opción de Velocidad, solo con un periodo guardado distinto de 60, 30 o 15 s) |
+| `edi.fondo.centro.otro` | Centro en otra posición, guardada en esta canción. |
+| `edi.fondo.mov.ayuda.conico` | El degradado gira alrededor de su centro. Se mueve con la canción: en pausa se queda quieto. |
+| `edi.fondo.mov.reducido` | Tu sistema pide reducir el movimiento: en este equipo el fondo se verá quieto. |
+| `edi.fondo.mov.detener` | Detener el movimiento del fondo (tooltip: Detener el movimiento del fondo · solo en esta vista previa) |
+| `edi.fondo.mov.reanudar` | Mover el fondo (tooltip: Mover el fondo · solo en esta vista previa) |
+| `edi.fondo.resumen` | Sólido · Degradado lineal · {ángulo}° · Degradado radial · {centro en minúscula} · Degradado cónico · {ángulo}° · {centro en minúscula} — con movimiento se añade: · en movimiento ({lenta/media/rápida}) |
+| `edi.espera.titulo` | Indicadores de espera |
+| `edi.espera.ayuda` | Avisan de cuándo vuelve la letra tras un silencio. |
+| `edi.espera.puntos` | Puntos ●●● (nombre accesible: Puntos de espera) |
+| `edi.espera.barra` | Barra hasta la próxima línea |
+| `edi.espera.cuenta` | Cuenta 3·2·1 (nombre accesible: Cuenta tres, dos, uno) |
+| `edi.espera.primera` | Antes de la primera línea |
+| `edi.espera.umbral` | Silencio mínimo |
+| `edi.espera.umbral.rango` | Entre 1 y 60 segundos. |
+| `edi.espera.resumen` | Salen en silencios de {s} s o más y antes de la primera línea. · (sin primera entrada) Salen en silencios de {s} s o más. |
+| `edi.espera.resumen.ninguno` | Sin indicadores: los silencios se verán solo con la línea siguiente en espera. |
+| `edi.espera.resumen.corto` | {indicadores} · silencios de {s} s o más · (ninguno) Sin indicadores |
+| `edi.espera.origen.tema` | Del tema «{tema}» · (estilo incluido) Del estilo incluido de Shinobi Karaoke · (respaldo) Del aspecto guardado en esta canción |
+| `edi.espera.cambiar` | Cambiar solo en esta canción |
+| `edi.espera.propios` | Propios de esta canción. El resto del aspecto sigue el tema «{tema}». |
+| `edi.espera.usarTema` | Usar los del tema |
+| `edi.espera.d3.propios` | Esta canción tiene indicadores propios: fuera de esta edición seguirá usándolos. |
+| `edi.espera.ejemplo` | Ver un ejemplo · Detener el ejemplo |
+| `edi.espera.ejemplo.etiqueta` | Ejemplo |
+| `edi.espera.anuncio.propios` | Indicadores propios de esta canción. · (al retirarlos) Esta canción vuelve a usar los indicadores del tema. |
+| `edi.espera.anuncio.ejemplo` | Mostrando un ejemplo de espera de 6 segundos en la vista previa. · (al terminar) Fin del ejemplo. |
+| `edi.espera.indicadores` | Puntos ●●● · barra · cuenta 3·2·1 (unidos con «, » e «y»; el primero con mayúscula) |
+| `edi.boton.letraLista` | Marcar como letra lista |
+| `edi.falta.titulo.letra` | Para marcarla como letra lista falta: |
+| `edi.letraLista.dialogo` | Título: ¿Marcar como letra lista? · Cuerpo: La letra aparecerá sincronizada por línea. Durante la reproducción y en el video, el texto se mostrará sin barrido ni cambio de color de progreso. Puedes seguir revisando el barrido en el editor. · Casilla: No volver a mostrar este aviso — [Cancelar] [Marcar como letra lista] |
+| `edi.letraLista.dialogo.cambio` | (desde el menú ⋯) mismo título, cuerpo y casilla — [Cancelar] [Cambiar a «Letra lista»] |
+| `edi.estado.letraLista` | Letra lista |
+| `edi.letraLista.incompleta` | Letra lista · ⚠ Faltan {n} líneas · (n = 1) Letra lista · ⚠ Falta 1 línea |
+| `edi.menu.aLetraLista` | Cambiar a «Letra lista»… |
+| `edi.menu.aLista` | Cambiar a «Lista» |
+| `edi.letraLista.toast.cambio` | Esta canción se reproducirá sin barrido (letra lista). |
+| `edi.letraLista.toast.karaoke` | Esta canción se reproducirá con barrido (lista). |
+| `edi.contraste.soloEditor` | Solo afecta al editor: esta canción se reproduce sin barrido. |
+| `edi.silencios.boton` | Ajustar los silencios (en el menú ⋯: Ajustar los silencios…) |
+| `edi.silencios.buscando` | Buscando silencios… |
+| `edi.silencios.falta.titulo` | Para ajustar los silencios falta: |
+| `edi.silencios.falta.separacion` | La forma de onda de la voz (disponible cuando termine la separación) |
+| `edi.silencios.falta.preparando` | La forma de onda de la voz (se está preparando…) |
+| `edi.silencios.falta.error` | La forma de onda de la voz (no se pudo preparar) — [Reintentar] |
+| `edi.silencios.falta.noDisponible` | La forma de onda de la voz (no está disponible) |
+| `edi.silencios.falta.ritmo` | No disponible mientras sincronizas al ritmo. |
+| `edi.silencios.falta.tema` | Terminar de editar el tema (guarda o descarta sus cambios) |
+| `edi.silencios.dialogo.titulo` | ¿Ajustar los silencios? |
+| `edi.silencios.explicacion` | Shinobi Karaoke buscará en la voz el primer silencio después de cada línea y llevará su fin al último momento con voz. Las líneas sin silencio, las que tienen tiempos por palabra y las pausas no cambian. |
+| `edi.silencios.lineas` | Cambiará el fin de {n} de {total} líneas. · (n = 1) Cambiará el fin de 1 de {total} líneas. · (n = 0) Ningún fin cambia. |
+| `edi.silencios.manuales` | {m} de ellas tenían un fin fijado (a mano o con la letra). También se ajustarán. · (m = 1) 1 de ellas tenía un fin fijado (a mano o con la letra). También se ajustará. |
+| `edi.silencios.cuenta.activar` | Quedarán {k} silencios de {umbral} s o más. Se activará la cuenta 3·2·1 en esta canción: saldrá en ellos y en cualquier otro silencio de {umbral} s o más. · (k = 1) Quedará 1 silencio de {umbral} s o más. Se activará la cuenta 3·2·1 en esta canción: saldrá en él y en cualquier otro silencio de {umbral} s o más. |
+| `edi.silencios.cuenta.yaActiva` | Quedarán {k} silencios de {umbral} s o más, con la cuenta 3·2·1 que ya tiene esta canción. · (k = 1) Quedará 1 silencio de {umbral} s o más, con la cuenta 3·2·1 que ya tiene esta canción. |
+| `edi.silencios.verLineas` | Ver las líneas · Ocultar las líneas |
+| `edi.silencios.fila` | Línea {n} · «{texto}» {fin anterior} → {fin nuevo}[ · fijado][ · silencio largo] |
+| `edi.silencios.aria.fila` | Línea {n}, {texto}: el fin pasa de {fin anterior} a {fin nuevo}[, tenía fin fijado][, deja un silencio largo] |
+| `edi.silencios.deshacer` | Puedes deshacerlo de una vez con Ctrl+Z. · (macOS) Puedes deshacerlo de una vez con ⌘Z. |
+| `edi.silencios.aplicar` | Ajustar los silencios |
+| `edi.silencios.nada` | No hay silencios que ajustar: los fines ya coinciden con la voz. |
+| `edi.silencios.toast` | Se ajustó el fin de {n} líneas.[ Se activó la cuenta 3·2·1 en esta canción.] — [Deshacer] · (n = 1) Se ajustó el fin de 1 línea.[ …] |
+| `edi.silencios.obsoleto` | Los tiempos cambiaron mientras decidías. Revisa los nuevos recuentos y confirma otra vez. |
+| `bib.toast.letraLista` | «{título}» tiene la letra lista para cantar. — [▶ Reproducir] (definido en spec 02) |
+
+### Criterios de aceptación de la fase 5 (editor)
+
+**Degradados y movimiento**
+- G1. Con «Degradado», «Forma» ofrece Lineal, Radial y Cónico; Lineal muestra Ángulo; Radial, la cuadrícula Centro; Cónico, Ángulo de inicio y Centro. Cambiar de forma conserva colores, ángulo y centro, se ve en la vista previa en < 100 ms y se deshace en un paso.
+- G2. Una canción y un tema de 0.1.0 o de la fase 3 con degradado se abren como Lineal sin movimiento y su vista previa es idéntica píxel a píxel a la anterior (comparación de captura).
+- G3. La cuadrícula Centro se maneja con flechas en dos dimensiones sin dar la vuelta, cada celda anuncia su posición y la elegida se ve en la vista previa (radial: primer color en esa posición).
+- G4. En el cónico las paradas se reparten en i/n (2 colores: 0 y 0,5; 4: 0, 0,25, 0,5 y 0,75; test unitario) y volver a lineal las reparte de 0 a 1; un cónico creado en el editor no tiene corte visible entre el último color y el primero (verificación manual con dos colores muy distintos).
+- G5. «Movimiento» empieza desmarcada; al marcarla aparece «Velocidad» en Media (`periodo_s: 30`, `sentido: "horario"`); Lenta y Rápida guardan 60 y 15. Con Lineal 135°, Media, en 0:00 la vista previa coincide con el estático y en 0:07,5 el ángulo efectivo es 225° (test unitario de `geometriaFondoEn`). Radial: el centro orbita con la amplitud del ADR. Cónico: gira el ángulo de inicio. Un estilo con `periodo_s: 45` muestra la opción «45 s» seleccionada y uno antihorario se conserva al guardar otro cambio.
+- G6. En pausa el fondo no se mueve; al buscar a un instante, la vista previa del editor y el reproductor muestran la misma fase (test unitario con la misma función y comparación E2E de la geometría calculada en ambos para t = 12,3 s).
+- G7. «Detener el movimiento del fondo» aparece solo con movimiento; al pulsarlo la vista previa queda en fase 0 con `aria-pressed="true"`, no cambia el archivo ni el historial, y «Probar a pantalla completa» sigue con movimiento.
+- G8. Con `prefers-reduced-motion: reduce` (emulado en E2E), la vista previa queda en fase 0, se ve `edi.fondo.mov.reducido`, no aparece «Detener» y la casilla sigue guardando el valor.
+- G9. Forma, centro, ángulo, movimiento y velocidad se guardan en un tema («Guardar como tema nuevo…»), se reaplican al asignarlo a otra canción y sobreviven a eliminar el tema (copia «Tema personalizado» con los mismos valores).
+- G10. El aviso de contraste evalúa el peor caso de todos los tramos y, en el cónico, también el de cierre (test unitario de `muestrasFondo`); con o sin movimiento el resultado es el mismo y no aparece ningún texto «durante el movimiento».
+- G11. D1 y D4 muestran el resumen `edi.fondo.resumen` con forma y movimiento; los controles nuevos no aparecen editables.
+- G12. (Verificación manual) En un equipo modesto, el fondo en movimiento a 1920 × 1080 se ve fluido en la vista previa mientras suena la canción y no retrasa el barrido.
+
+**Indicadores de espera**
+- IE1. Una canción y un tema anteriores (sin `espera`) muestran «Indicadores de espera» con solo Puntos, «Antes de la primera línea» y 4,0 s, y la vista previa y el reproductor siguen mostrando `●●●` antes de la primera línea y en huecos ≥ 4 s, como antes (test del modelo de render con datos de esquema 1); abrirlos no escribe nada.
+- IE2. Las siete combinaciones de casillas (y ninguna) se guardan y se ven en la vista previa; sin casillas no sale nada; con «Antes de la primera línea» desmarcada, la primera entrada no muestra indicadores y los huecos largos sí.
+- IE3. «Silencio mínimo» acepta 1,0–60,0 s en pasos de 0,5 con [−]/[+], ↑/↓ y escritura con coma o punto; fuera de rango se limita con `edi.espera.umbral.rango`; con 6,0 s, un hueco de 5,9 s no muestra indicadores y uno de 6,0 s sí; la primera entrada no depende del umbral.
+- IE4. En D1, «Cambiar solo en esta canción» hace editable la sección sin desvincular el tema (procedencia del tema intacta, `tema.usos` igual) y la procedencia de la sección pasa a `edi.espera.propios`; editar un indicador no cambia el tema ni otra canción; «Usar los del tema» los retira; ambos se deshacen en un paso. Elegir otro tema o «Volver a heredar» conserva los indicadores propios.
+- IE5. Editar los indicadores en D3 y guardar en el tema cambia las canciones que lo usan salvo las que tienen indicadores propios (comprobar una de cada).
+- IE6. «Ver un ejemplo» muestra en la vista previa un hueco de 6 s con los indicadores efectivos y la píldora «Ejemplo», sin audio ni cambio de cabezal ni historial; Esc lo detiene; se anuncia al empezar y al terminar.
+- IE7. A 300, 360 y 480 px de ancho del panel, la sección no produce scroll de página, no corta texto y la fila «Silencio mínimo» no se parte.
+
+**Letra lista**
+- LL1. En un borrador que cumple las condiciones, el dock muestra «Marcar como letra lista» (secundario) junto a «Marcar como lista» (primario) y la fila no se parte a 1024 × 576 ni a 1280 × 720.
+- LL2. Con una letra importada de la API con todos los inicios y fines automáticos, «Marcar como letra lista» está disponible; con una línea sin inicio es `aria-disabled` y su popover muestra `edi.falta.titulo.letra` con «Sincronizar 1 línea — [Ir a ella]»; con la separación en curso, el motivo de separación.
+- LL3. La primera vez aparece el diálogo con el texto exacto de `edi.letraLista.dialogo`, foco en «Marcar como letra lista». Cancelar (con o sin la casilla) no cambia ni la canción ni la preferencia. Confirmar sin la casilla marca la canción y el aviso vuelve a salir en otra; confirmar con la casilla lo silencia también tras reiniciar la app.
+- LL4. Tras marcar, la Biblioteca enfoca y resalta la tarjeta con la insignia «Letra lista» y muestra `bib.toast.letraLista`; al reabrir la canción, la cabecera muestra «✓ Letra lista» y la vista previa sigue con barrido.
+- LL5. Desde el ⋯ de una Lista, «Cambiar a «Letra lista»…» (con aviso si no está silenciado) cambia la modalidad sin salir del editor; desde una Letra lista, «Cambiar a «Lista»» la devuelve sin diálogo; ninguno entra en el historial y ambos persisten al reabrir.
+- LL6. Borrar los tiempos de una línea en una Letra lista deja la insignia `edi.letraLista.incompleta` y «Hecho» muestra `edi.hecho.incompleta`; «Volver a borrador…» funciona igual que en una Lista.
+- LL7. En una Letra lista con resaltado `#F2F3F7` y letra `#FFFFFF`, el aviso de diferencia sale como `ⓘ` con `edi.contraste.soloEditor` y la pestaña no lleva punto `aviso`; con letra `#5A1E6E` sobre el fondo predeterminado, el `⚠` de la letra sigue saliendo.
+- LL8. «Probar a pantalla completa» en una Letra lista reproduce sin barrido; en un borrador o una Lista, con barrido.
+
+**Ajustar los silencios**
+- AS1. El botón está en la fila de controles de la línea de tiempo (solo icono por debajo de 1280 px, sin partir la fila en los seis viewports de la subfase 2.1) y en el menú ⋯ de la cabecera.
+- AS2. Con una línea sin inicio, el botón es `aria-disabled` y su popover dice `edi.falta.lineas` con [Ir a la primera]; sin separación, con picos preparándose, no disponibles o con error, el renglón correspondiente (con [Reintentar] en el error); con un borrador de tema abierto, `edi.silencios.falta.tema`; durante el modo sincronizar, inactivo con su tooltip.
+- AS3. Con audio generado de voz con silencios conocidos (tests sin red, datos inventados), el diálogo indica cuántas líneas cambian, cuántos fines fijados cambiarán y cuántos silencios largos quedan (con `edi.silencios.cuenta.activar` o `.yaActiva` según la canción), y la lista revelada muestra exactamente las líneas de `cambios` con fin anterior y nuevo.
+- AS4. Al aplicar, el fin de cada línea con silencio queda al final de la voz (± 1 bloque de picos más el margen del ADR 0018) como fin fijado; las líneas sin silencio, las que tienen palabras y las pausas no cambian; ningún fin incumple `inicio < fin ≤ inicio del siguiente`; los fines fijados también se ajustan.
+- AS5. Si queda un silencio igual o mayor que el silencio mínimo y la canción no tenía la cuenta, «Cuenta 3·2·1» queda marcada para la canción (indicadores propios si sigue un tema, sin tocar el tema; estilo propio si es personalizado), con las demás casillas y el umbral intactos, y la vista previa muestra la cuenta en los últimos 3 s de ese hueco.
+- AS6. Un solo Ctrl/Cmd + Z (o [Deshacer] del toast) devuelve todos los fines, sus estados fijado/automático y los indicadores anteriores; Ctrl/Cmd + Mayús + Z lo rehace.
+- AS7. Sin líneas que cambien, no hay diálogo ni paso de deshacer y sale `edi.silencios.nada`. Cancelar el diálogo no cambia nada y devuelve el foco al botón.
+- AS8. Si los tiempos cambian con el diálogo abierto y los recuentos recalculados al confirmar difieren, no se aplica: el diálogo muestra los nuevos con `edi.silencios.obsoleto` y hay que confirmar otra vez.
+- AS9. (Verificación manual) Con las 6 canciones de referencia sincronizadas a mano por el usuario (solo en su equipo), comparar los fines propuestos con los suyos y anotar en la guía manual cuántos difieren en más de 200 ms; el umbral se afina con esos datos (ver [propuesta 003](../propuestas/003-calibrar-el-ajuste-de-silencios-por-cancion.md)).
+
+**Capturas de revisión**
+- F5-1. En `docs/ux/revision-0.2.0-fase-5/` (la carpeta `revision-fase-5/` es de la fase 5 del MVP), nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 720 al 100 % y al 125 %: `fondo-radial`, `fondo-conico-movimiento`, `fondo-reducido`, `espera-d2`, `espera-d1-propios`, `espera-ejemplo`, `dock-letra-lista`, `dialogo-letra-lista`, `silencios-no-disponible`, `dialogo-silencios` (con la lista revelada) y `silencios-aplicado`.
+
+**Verificación manual** (para la guía de `docs/Test-manuales/0.2.0/` de la fase 5): G4, G12, AS9; además, la sensación de las velocidades del movimiento en una TV a 5 m, la legibilidad de la cuenta y la barra sobre degradados en movimiento, y que el aviso de Letra lista se entiende a la primera.
+
+## Fase 6 de 0.2.0 — exportación
+
+Origen: [plan, fase 6, feature 7](../versiones/0.2.0/plan-2.md#fase-6--exportación). Diálogo, progreso, errores, marca de agua y criterios completos: [10 · Exportar a video](10-exportacion.md). Esta sección define **cómo se llega desde el editor**; el editor no cambia en nada más. Durante una sesión en otra pantalla el editor está bloqueado (fase 4), así que desde aquí nunca se exporta con un evento en marcha.
+
+### Punto de entrada
+| Elemento | Comportamiento |
+|---|---|
+| ⋯ de la cabecera › **«Exportar video…»** | Nuevo ítem (`exp.menu`, icono `film`) entre «Atajos de teclado (F1)» y «Volver a borrador…». Con una exportación de esta canción en curso o en cola: **«Ver exportación»** (abre el diálogo de spec 10 en su estado). |
+| **Ctrl/Cmd + E** | Equivale al ítem. Se añade al diálogo «Atajos de teclado» (fila `edi.atajo.exportar`). No actúa con el foco en un campo de texto, durante el modo «Sincronizar al ritmo» ni con un diálogo o popover abierto. |
+| Disponible | Separación completada (existe `pistas/instrumental.flac`), ≥ 1 línea con inicio, fuera del modo sincronizar y sin «Error de audio». En **Lista y en Borrador** (en borrador, el diálogo muestra `exp.nota.borrador`; opción provisional, [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §1). |
+| No disponible | `aria-disabled` (sigue enfocable en el menú) con tooltip: separación en curso, en cola, pendiente, con error o interrumpida → `exp.motivo.sinPistas`; ninguna línea con inicio → `exp.motivo.sinLineas`. En el modo sincronizar y en «Error de audio» queda inactivo como el resto del ⋯. Ctrl/Cmd + E no hace nada en esos casos. |
+
+### Al abrir
+1. Si suena el audio del editor, se **pausa** (el cabezal no se mueve).
+2. Se **vacía el guardado pendiente** sin esperar el *debounce* (como «Probar a pantalla completa»). Si falla, diálogo `edi.exp.guardado` con [Quedarme en el editor] (foco inicial; Esc) y [Exportar igualmente] (abre el diálogo de exportación; el video usará lo último que sí se guardó).
+3. Si hay un **borrador de tema** sin guardar (D3, fase 3), el diálogo de exportación añade la nota `info` `edi.exp.temaBorrador` en el bloque de notas (después de las de spec 10): el video usará el aspecto **guardado**. No se pide resolver el borrador.
+4. Se abre el diálogo de spec 10 encima del editor, que sigue montado: no se pierden historial de deshacer, selección, pista ni velocidad. La instantánea se toma de lo **guardado** al pulsar «Exportar».
+5. Al cerrar el diálogo (en cualquier estado), el foco vuelve al botón ⋯ de la cabecera (o a la lista de líneas si se abrió con Ctrl/Cmd + E desde ella: al elemento que tenía el foco).
+
+### Mientras se exporta
+- Se puede seguir editando con normalidad: los cambios se autoguardan y **no** entran en el video en marcha (la ayuda del diálogo B lo dice).
+- «Marcar como lista», «Volver a borrador» y «Corregir la letra» no se ven afectados ni afectan a la exportación.
+- Salir del editor no cancela la exportación; sigue en el panel de actividad y en la tarjeta.
+- El editor no muestra ningún indicador propio de la exportación: el indicador de actividad de la barra superior ya la cuenta.
+
+### Microcopy (fase 6, editor)
+| Clave | Texto |
+|---|---|
+| `edi.menu.exportar` | Exportar video… (Ctrl/Cmd + E) · Ver exportación |
+| `edi.atajo.exportar` | Ctrl/Cmd + E — Exportar video |
+| `edi.exp.guardado` | Título: No se pudieron guardar los últimos cambios · Cuerpo: Si exportas ahora, el video no los incluirá. Shinobi Karaoke seguirá intentando guardarlos. — [Quedarme en el editor] [Exportar igualmente] |
+| `edi.exp.temaBorrador` | Estás editando un tema sin guardar. El video usará el aspecto guardado; guarda el tema antes si quieres que salga en el video. |
+
+### Criterios de aceptación de la fase 6 (editor)
+- EX1. En una canción con la separación completada y al menos una línea con inicio (Lista o Borrador), «Exportar video…» del ⋯ y Ctrl/Cmd + E pausan el audio, vacían el guardado (el archivo contiene el último cambio) y abren el diálogo de spec 10 sobre el editor; al cerrarlo, historial, selección, pista y velocidad siguen igual y el foco vuelve al elemento de origen.
+- EX2. Con la separación sin completar o sin líneas con inicio, el ítem está `aria-disabled` con el motivo correspondiente y Ctrl/Cmd + E no hace nada; en el modo sincronizar, en «Error de audio», con el foco en un campo de texto o con un diálogo abierto, Ctrl/Cmd + E no hace nada.
+- EX3. Con un fallo de guardado simulado aparece `edi.exp.guardado`; «Quedarme en el editor» no abre nada y «Exportar igualmente» abre el diálogo.
+- EX4. Con un borrador de tema abierto, el diálogo muestra `edi.exp.temaBorrador` y el video usa el aspecto guardado.
+- EX5. Un cambio de tiempos o de estilo hecho mientras se exporta se autoguarda y no aparece en el video resultante.
+- EX6. Con una exportación de esta canción en curso, el ítem es «Ver exportación» y abre el diálogo en su estado.
+- EX7. El diálogo «Atajos de teclado» incluye la fila `edi.atajo.exportar`.

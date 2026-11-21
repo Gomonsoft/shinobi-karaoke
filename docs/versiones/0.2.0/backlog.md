@@ -142,13 +142,89 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 - `navegacion/{DialogoCierre,textosCierre}`: 0189.
 - `e2e/`: cada tarea puede añadir su propio `*.spec.ts`. 0190 añade solo `sesion-flujo.spec.ts` (ver [estrategia de pruebas](../../pruebas.md)).
 
+## Fase 5 · Estilo, espera, Letra lista y ajuste de silencios
+
+Decisión en el [ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md), con revisiones de fase 5 en 0005, 0006, 0010, 0011, 0015 y 0016. Rama de trabajo: `alpha-2`. La **primera ola** (0200–0210) no depende de las specs UX y puede empezar ya. Las tareas con interfaz (0211–0219) están reservadas: se completarán cuando las specs incorporen la [pregunta 0101](../../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md).
+
+| Tarea | Estado | Depende de | Entrega |
+|---|---|---|---|
+| [0200 · Esquema del estilo ampliado](../../tareas/0200-esquema-del-estilo-ampliado-y-normalizacion.md) | Pendiente | Fase 4 | `forma`, `centro`, `movimiento` y `espera` opcionales; `shared/espera.ts`; `normalizarEstilo`; `estilosIguales` normalizado; copia congelada del esquema de 0.1.0 |
+| [0201 · Contratos de la fase 5](../../tareas/0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md) | Pendiente | 0200 | `cancion.modalidad`, `apariencia.reemplazos`, motivos de Letra lista, `config.editor.omitir_aviso_letra_lista`, IPC (`marcarLista`, `reemplazos`, `modalidad` y `procedenciaEspera`), entrada de la sesión, preload y dobles |
+| [0202 · Resolución con reemplazos](../../tareas/0202-resolucion-de-apariencia-con-reemplazos-de-espera.md) | Pendiente | 0201 | Fusión de la espera en `resolverApariencia`, `procedenciaEspera`, congelación y lotes |
+| [0203 · Main: Letra lista y reemplazos](../../tareas/0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md) | Pendiente | 0201, 0202 | `marcarLista` con modalidad, volver a borrador, `guardarApariencia` con reemplazos y `modalidad` en la entrada activa |
+| [0204 · Geometría y CSS del fondo](../../tareas/0204-geometria-del-fondo-y-css-de-los-tres-degradados.md) | Pendiente | 0200 | `karaoke/fondo.ts` y `fondoCss` con lineal, radial y cónico (cierre) |
+| [0205 · Peor contraste por tramos](../../tareas/0205-peor-contraste-por-tramos-y-cierre-conico.md) | Pendiente | 0200 | 9 muestras por tramo y cierre del cónico |
+| [0206 · Comodines en el fotograma](../../tareas/0206-derivacion-de-los-comodines-de-espera-en-el-fotograma.md) | Pendiente | 0200 | `espera` en `FotogramaLetra`; puntos legados idénticos; adaptación mínima de `PantallaLetra` |
+| [0207 · Detección de voz y propuesta](../../tareas/0207-deteccion-de-voz-y-propuesta-de-ajuste-de-silencios.md) | Pendiente | 0200 | `shared/silencios.ts` con picos sintéticos |
+| [0208 · Nivel base de picos](../../tareas/0208-lectura-del-nivel-base-de-picos-en-el-editor.md) | Pendiente | — | `vistas/editor/picosBase.ts` sobre `picos.leer` |
+| [0209 · Historial: reemplazos y ajuste](../../tareas/0209-historial-del-editor-reemplazos-y-ajustar-silencios.md) | Pendiente | 0201, 0207 | `reemplazos` en `AparienciaEditor`; acciones `espera` y `ajustar_silencios` (un paso) |
+| [0210 · Calibración de silencios](../../tareas/0210-herramienta-de-calibracion-del-ajuste-de-silencios.md) | Pendiente | 0207 | `app/scripts/calibrar-silencios.ts`, de solo lectura, para las 6 canciones del usuario |
+| 0211 · Editor: degradados | Reservada (spec) | 0200, 0204, 0205 | Controles de forma, ángulo, centro y movimiento; detener la vista previa; aviso de contraste |
+| 0212 · Editor: indicadores de espera | Reservada (spec) | 0202, 0203, 0209 | Sección de espera, umbral, herencia y personalización, y ejemplo |
+| 0213 · Pantalla de letra: fondo en movimiento, indicadores y sin barrido | Reservada (spec) | 0204, 0206 | Fondo por fotograma con movimiento reducido, barra y cuenta en huecos reservados, anuncios y `barrido={false}` |
+| 0214 · Editor: Letra lista | Reservada (spec) | 0203, 0213 | «Marcar como letra lista», motivos, aviso de la primera activación y cambio de modalidad |
+| 0215 · Editor: «Ajustar los silencios» | Reservada (spec) | 0208, 0209 | Botón, motivos, aviso con recuentos, aplicar y deshacer; E2E en `editor.spec.ts` |
+| 0216 · Reproductor, sesión y «Probar»: modalidad y movimiento | Reservada (spec) | 0203, 0213 | `barrido` según la modalidad y el estilo con espera en reproductor local, secundaria y prueba |
+| 0217 · Biblioteca: Letra lista | Reservada (spec) | 0203 | Insignia, filtro y acciones de Letra lista |
+| 0218 · Temas y Ajustes | Reservada (spec) | 0202 | Lo que pida la spec: impacto con espera personalizada y procedencia en temas |
+| 0219 · Integración, guía manual e informe | Reservada | 0200–0218 | E2E mínimos, CI en verde, guía manual (degradados, movimiento reducido, comodines a distancia y calibración) e informe |
+
+Quedan libres 0220–0229 para ajustes que surjan de las specs o de las preguntas [0100](../../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) y 0101.
+
+**Paralelismo (primera ola).**
+
+1. 0200 va primero, salvo 0208, que puede empezar ya.
+2. Con 0200 integrada pueden avanzar a la vez cuatro líneas:
+   - **contratos y main**: 0201 → 0202 → 0203, en secuencia porque comparten `shared/temas.ts` y la cola de apariencia;
+   - **render**: 0204, 0205 y 0206, en paralelo entre sí porque tocan archivos distintos de `karaoke/`;
+   - **silencios**: 0207 → 0210;
+   - **editor**: 0208 en paralelo con todo.
+3. 0209 espera a 0201 y a 0207.
+
+**Propiedad de archivos.**
+
+- `shared/estilo.ts`, `shared/espera.ts`, `shared/__fixtures__/estilo-0.1.0.ts` y `estilosIguales`: solo 0200.
+- `shared/{cancion,config,ipc,sesion,derivados}.ts`, `aparienciaSchema` de `shared/temas.ts`, `shared/__fixtures__/` (resumen y sesión) y `preload/`: solo 0201.
+- `resolverApariencia` de `shared/temas.ts`, `main/temas/**` y `main/biblioteca/resumen.ts`: 0202.
+- `main/biblioteca/{servicio,operaciones}.ts`, los manejadores de `marcarLista` y `guardarApariencia` y la entrada activa de `main/sesion/servicio.ts`: 0203.
+- `karaoke/{fondo,estiloCss}.ts`: 0204.
+- `karaoke/contraste.ts`: 0205.
+- `karaoke/render.ts` y el cambio mínimo de `PantallaLetra.tsx`: 0206. El resto de `PantallaLetra.tsx` es de 0213.
+- `shared/silencios.ts` y `shared/__fixtures__/picos.ts`: 0207.
+- `vistas/editor/picosBase.ts`: 0208.
+- `vistas/editor/{estado,guardado}.ts`: 0209.
+- `app/scripts/calibrar-silencios.ts` y la entrada en `package.json`: 0210.
+- `e2e/`: ninguna tarea de la primera ola añade E2E.
+
+**Verificación.** Pruebas de feedback según [pruebas.md](../../pruebas.md): Vitest con picos sintéticos y la copia congelada del esquema de 0.1.0. Los críticos se ejecutan en las tareas que tocan `shared/` o `main/`. Lo visual, el movimiento reducido del sistema y la calibración con canciones reales van a la guía manual de la fase (0219).
+
 ## Fases siguientes
 
 | Fase | Alcance | Desglose |
 |---|---|---|
 | 3 | Temas y agrupación de biblioteca | Desglosada arriba (0163–0176), con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) y [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) |
 | 4 | Ventana secundaria y cola | Desglosada arriba (0177–0190), con [0048](../../preguntas/0048-escucha-editor-durante-evento.md), [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) y [0058](../../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)–[0061](../../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) |
-| 5 | Degradados, comodines, Letra lista y ajuste de silencios | Al iniciar la fase |
+| 5 | Degradados, comodines, Letra lista y ajuste de silencios | Desglosada arriba: primera ola 0200–0210 e interfaz reservada en 0211–0219 ([ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)) |
 | 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
 
 La [publicación pendiente del MVP](../../tareas/0142-primera-version-publica.md) sigue en la hoja de ruta.
+
+## Publicación en Releases
+
+Petición del usuario (2026-11-20): desde 0.2.0, cada versión tiene su *Release* en GitHub, generada por el workflow. Decisión en el [ADR 0020](../../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md); procedimiento en el [flujo de Git](../../workflow.md#versiones-y-publicación). Independiente de las fases: puede avanzar en paralelo y no toca `src/`.
+
+| Tarea | Qué entrega | Depende de |
+|---|---|---|
+| [0191](../../tareas/0191-script-de-version-subir-y-comprobar.md) | `app/scripts/version.mjs`: `version:subir` y `version:comprobar` sobre los 5 archivos de versión | — |
+| [0192](../../tareas/0192-workflow-disparador-por-etiqueta-y-comprobar-version.md) | `empaquetado.yml`: disparador `v*`, `concurrency` y trabajo `comprobar-version` | 0191 |
+| [0193](../../tareas/0193-workflow-preparar-la-publicacion-y-notas.md) | Trabajo `preparar-publicacion`: `SHA256SUMS.txt`, notas y artefacto `publicacion-<versión>` (el ensayo) | 0192 |
+| [0194](../../tareas/0194-workflow-publicar-en-github-releases.md) | Trabajo `publicar`: único con `contents: write`; borrador → recursos → publicar; *pre-release* si hay sufijo | 0193 |
+| [0195](../../tareas/0195-ensayo-de-publicacion-y-version-0-2-0-alpha-1.md) | Versión `0.2.0-alpha.1`, borrador de notas y ensayo con `workflow_dispatch` en `alpha-2` sin publicar | 0191–0194 |
+
+**Orden.** 0191 → 0192 → 0193 → 0194 → 0195, en secuencia: 0192–0194 editan el mismo `empaquetado.yml` y `workflow-empaquetado.test.ts`.
+
+**Propiedad de archivos.** `app/scripts/version.mjs` y su test: 0191. `.github/workflows/empaquetado.yml` y `app/scripts/workflow-empaquetado.test.ts`: 0192 → 0193 → 0194. `app/scripts/preparar-publicacion.mjs` y `.github/publicacion/`: 0193. Los 5 archivos de versión y `docs/versiones/0.2.0/notas/`: 0195.
+
+**Preguntas.** [0140](../../preguntas/0140-publicar-las-alfas-como-pre-release-publica.md) (usuario: publicar alfas como *pre-release* antes de cerrar la puerta de 0142, *immutable releases* y protección de etiquetas) condiciona solo la primera etiqueta real. [0141](../../preguntas/0141-readme-y-notas-con-solo-versiones-preliminares.md) (diseñador: README y notas con solo versiones preliminares) no bloquea; 0193 usa textos provisionales. [0036](../../preguntas/0036-numero-de-version-y-politica-de-versiones.md) queda con opción provisional.
+
+**Verificación.** Las pruebas de feedback validan la estructura del YAML con Vitest (y `actionlint` si está disponible). El ensayo de 0195 demuestra en GitHub todo menos la creación de la *Release*. La publicación real se verifica con la primera etiqueta `v0.2.0-alpha.N`, en la guía manual de la versión.

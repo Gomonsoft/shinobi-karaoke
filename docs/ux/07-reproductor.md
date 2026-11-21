@@ -7,6 +7,7 @@
 - Preguntas: [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) §6, §8, §11, §12 y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) §4 (respondidas); [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) §1 y §8 (respondida: el reproductor llega en la Fase 6, un solo volumen); [0030](../preguntas/0030-voz-original-en-el-reproductor.md) (usuario, respondida 2026-11-06: **voz guía** = `voz.flac` mezclada sobre el instrumental con volumen propio, tecla para silenciarla y nivel recordado; no se usa la mezcla original); [0031](../preguntas/0031-detalles-tecnicos-del-reproductor-fase-6.md) (arquitecto: pantalla completa, motor con dos pistas a la vez, silencio previo, pistas que faltan, pantalla encendida, configuración de la voz guía; abierta, opción provisional tomada)
 - Revisión: 2026-11-06, puesta al día para la Fase 6 (ver "Cambios de esta revisión" al final).
 - 0.2.0, fase 4 (2026-11-11): reproductor en otra pantalla (ventana secundaria), transición con cuenta entre canciones de la cola, en espera, fin de la cola, fallo de una entrada, reanudación y recuperación. Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola). Preguntas: [0048](../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../preguntas/0049-politica-cola-de-reproduccion.md) (respondidas), [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md) (arquitecto → UX, respondida), [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) (usuario, respondida: 1B, 2A, 3B, 4A), [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) (usuario, respondida: 1A, 2A) y [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) (arquitecto → UX, respondida).
+- 0.2.0, fase 5 (2026-11-20): degradados radial y cónico con movimiento ligado a la canción, indicadores de espera (puntos, barra y cuenta 3·2·1) y modo Letra lista sin barrido. Ver [Fase 5 de 0.2.0 — estilo, espera y Letra lista](#fase-5-de-020--estilo-espera-y-letra-lista).
 
 ## Objetivo
 Cantar: instrumental + letra sincronizada con el estilo de la canción, **a pantalla completa, sin distracciones y legible a unos 5 m** (salón, televisor de 55", proyector). Empieza al instante y se sale con una tecla.
@@ -577,3 +578,84 @@ Tras «Cerrar y conservar cola» (o una caída), la principal guarda la última 
 - P14. La pantalla del equipo no se apaga en ningún estado de la sesión (incluidos S2 y S3) y vuelve a apagarse según el sistema al terminar la sesión.
 - P15. La secundaria no muestra `rep.incompleta` ni toasts; la principal sí recibe sus toasts durante la sesión.
 - P16. Capturas en `docs/ux/revision-fase-4/` con nombre `reproductor-{ancho}x{alto}-{estado}.png` a 1920 × 1080 y 1280 × 720: `cuenta`, `cuenta-reducido`, `espera`, `espera-vacia`, `fin-cola`, `fallo`, `reanudada`.
+
+## Fase 5 de 0.2.0 — estilo, espera y Letra lista
+
+Origen: [plan, fase 5, features 8, 9 y 12](../versiones/0.2.0/plan-2.md#fase-5--estilo-espera-y-letra-lista) y [0048](../preguntas/0048-escucha-editor-durante-evento.md) (Letra lista). Configuración en el editor: [06 · Fase 5](06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista). Valores de render: [sistema visual · fase 5](sistema-visual.md#020--estilo-espera-y-letra-lista-fase-5). Contratos: **ADR 0018** (en redacción). Decisiones provisionales: [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) y [0111](../preguntas/0111-viabilidad-tecnica-de-la-ux-de-la-fase-5.md).
+
+Esta sección **amplía** la spec y vale igual para el reproductor local, la prueba desde el editor, la ventana secundaria y la vista previa del editor (mismo render; la vista previa siempre con barrido). **Sustituye** la fila «Huecos» de la tabla «Letra» (el `●●●` pasa a ser uno de tres indicadores configurables) y amplía la fila «Resaltado» con el modo Letra lista. Controles, atajos, pantalla de título, silencio previo, pantalla final, cola y voz guía no cambian.
+
+### Fondo con degradado y movimiento
+- **Formas**: lineal (como hoy), radial y cónico, con el centro y el ángulo del estilo (detalle en 06 · G).
+- **Fase del movimiento**: la da **la posición de la canción** (tiempo de audio, sin el desplazamiento de la letra), igual que en la vista previa del editor y en el video: en el mismo instante, la misma fase. Durante el **silencio previo** se usa la fase de 0:00. En **pausa** el fondo se queda quieto; al **buscar** (barra, ←/→, J/L, ⏮) salta a la fase del destino. La **pantalla final** se queda en la fase del último instante.
+- **Fuera de una canción en curso** (secundaria: cuenta entre canciones S1, en espera S2, fallo S4) el fondo de la candidata se ve **quieto en fase 0**. En «Fin de la cola» (S3) se queda en la fase del final, como la pantalla final.
+- **Movimiento reducido** (`prefers-reduced-motion: reduce` del sistema donde se ve la ventana): fase 0 siempre.
+- El movimiento se pinta al ritmo de la pantalla, sin afectar al reloj del audio ni al barrido. Si la ventana está oculta puede dejar de pintarse; al volver, la fase es la del tiempo actual.
+- Sin elementos de interfaz nuevos.
+
+### Indicadores de espera
+
+**Hueco con barra, cuenta y puntos** (los tres a la vez; cada uno puede faltar sin que nada se mueva)
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                                                                          │
+│                                                                          │
+│                  ▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬                    │ ← barra (se encoge hacia el centro)
+│                                  2                                       │ ← cuenta, centro al 45 % (donde entrará la línea)
+│                                 ●●                                       │ ← puntos, posición de siempre
+│                         Caught in a landslide                            │ ← siguiente línea, en su posición de espera
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+| Aspecto | Comportamiento |
+|---|---|
+| **En qué huecos** | Por orden de prioridad: 1) si el hueco tiene **elección propia** (editor › «Espera antes de esta línea»), esa, sea cual sea su duración; 2) si no, los indicadores **propios de la canción** o, si no tiene, los del **estilo efectivo**, en huecos entre líneas **≥ silencio mínimo** y **siempre antes de la primera línea**. Sin línea siguiente (tras la última) no hay indicadores. El hueco va del fin efectivo de la línea anterior al inicio de la siguiente (pausas y líneas omitidas cuentan como hueco, como hoy); el de la primera entrada, del final de la pantalla de título al inicio de la primera línea. |
+| **Puntos ●●●** | Sin cambios: tres puntos sobre la línea siguiente que se apagan uno por segundo en los 3 s previos. |
+| **Barra** | Aparece al empezar el hueco con el **40 % del ancho** del área, centrada, y se **encoge hacia el centro de forma continua** hasta desaparecer justo en el inicio de la línea siguiente («termina al entrar el siguiente verso»). Grosor `máx(4 px, 0,8 % del alto)`, extremos redondeados, sombra de §10. Su centro está a 0,9 × el tamaño de la línea actual **por encima** del 45 % del alto. |
+| **Cuenta 3·2·1** | Ocupa los **últimos 3 s disponibles**: muestra el tiempo que queda redondeado hacia arriba («3» de 3,0 a 2,0 s, «2», «1»). En un hueco de menos de 3 s empieza por el número que corresponda (2,5 s → «3» durante 0,5 s, «2», «1»). Centro al **45 % del alto** (el sitio donde entrará la línea), en la fuente de la canción y al **tamaño de la línea actual**, con la sombra de §10. Cada número entra con fundido y escala 0,9 → 1 en 150 ms; desaparece al instante cuando empieza la línea, que ocupa ese sitio. |
+| **Color** | Barra, cuenta y puntos en el **color de lo ya cantado**; en **Letra lista**, en el **color de la letra**. |
+| **El texto no se mueve** | Durante el hueco la posición de la línea actual está vacía y la siguiente sigue en su posición de espera. Los indicadores ocupan **posiciones reservadas fijas**: mostrarlos, ocultarlos o combinarlos nunca cambia la posición ni el tamaño de ninguna línea. |
+| **Buscar y pausar** | Todo se deriva del tiempo de la canción: al buscar dentro de un hueco aparecen al instante la barra con el ancho de ese momento y el número que toca; en pausa se congelan; al buscar fuera, desaparecen. |
+| **Prioridad sobre la interfaz** | Son contenido de la letra (como el barrido), no interfaz: pueden estar en la franja central mientras no se canta. El indicador breve, la etiqueta `rep.original` y las franjas no los tapan (franjas en 0–12 % y 82–100 %). |
+| **Movimiento reducido** | Sin fundido ni escala en los números ni en los puntos. La barra sigue encogiéndose de forma continua (es contenido, como el barrido; sistema-visual §4). |
+| **Lectores de pantalla** | La letra y los indicadores son `aria-hidden`. Un único anuncio por hueco: al **empezar un hueco entre líneas** que muestra indicadores y dura ≥ 2 s, `rep.espera.aria` con los segundos que faltan (redondeados); también una vez si una búsqueda cae dentro de ese hueco. Nunca cada segundo, ni en la primera entrada (ya está `rep.aria.inicio`), ni al pausar. |
+
+### Modo Letra lista
+- **Resaltado**: la línea actual se muestra **entera en el color de la letra** desde su inicio hasta su fin efectivo, **sin barrido ni resaltado por palabra** (también en líneas con tiempos de palabra). La línea siguiente, el tamaño, la posición, la sombra y la transición entre líneas (200 ms; inmediata con movimiento reducido) no cambian, así que la actual se distingue por tamaño y posición.
+- Los indicadores de espera usan el color de la letra. El color de lo ya cantado no aparece en ningún momento.
+- **Dónde**: reproductor local, ventana secundaria, «Probar a pantalla completa» de una canción Letra lista (06 · LL) y exportación (fase 6). La modalidad se toma **al empezar** la canción o la entrada de la cola (instantánea): cambiarla en el editor mientras suena se ve en la siguiente reproducción.
+- No hay ninguna etiqueta para el público. Controles, voz guía, atajos, pantalla final y cola: igual que una Lista.
+- Contraste: solo cuenta el de la letra frente al fondo (el editor lo avisa como siempre).
+
+### Estados (fase 5, reproductor)
+| Estado | Presentación |
+|---|---|
+| Hueco con indicadores | Wireframe anterior con los indicadores activos para ese hueco. |
+| Hueco sin indicadores (corto o sin elegir) | Como hoy: solo la línea siguiente en espera. |
+| Letra lista, cantando | Línea actual uniforme en el color de la letra. |
+| Fondo en movimiento, en pausa | Quieto en la fase de ese instante. |
+| Movimiento reducido | Fondo en fase 0; números sin animación. |
+
+### Microcopy (fase 5, reproductor)
+| Clave | Texto |
+|---|---|
+| `rep.espera.aria` | La letra sigue en {n} segundos. · (n = 1) La letra sigue en 1 segundo. |
+
+### Criterios de aceptación de la fase 5 (reproductor)
+- R1. Un estilo radial y uno cónico se ven en el reproductor igual que en la vista previa del editor en el mismo instante (comparación de la geometría calculada y captura).
+- R2. Con movimiento, en el mismo tiempo de canción el reproductor y la vista previa tienen la misma fase (test unitario compartido); en pausa el fondo no cambia en 5 s; al buscar salta a la fase del destino; durante el silencio previo se ve la fase de 0:00.
+- R3. Con movimiento reducido emulado, el reproductor local y la secundaria muestran la fase 0 en todo momento.
+- R4. En la secundaria, la cuenta entre canciones y la espera muestran el fondo de la candidata quieto en fase 0.
+- R5. Las cajas de la línea siguiente y de la línea actual tienen las mismas coordenadas con 0, 1, 2 y 3 indicadores activos (test geométrico del render en un hueco y en el instante de entrada).
+- R6. En un hueco de 8 s entre líneas (umbral 4 s, barra activa), la barra mide el 40 % del ancho al empezar, el 20 % a los 4 s y 0 en el inicio de la siguiente (test del modelo de render ± 1 px); en la primera entrada empieza al terminar la pantalla de título.
+- R7. Con la cuenta activa, en un hueco de 8 s no hay número hasta 3 s antes; luego «3», «2», «1» cambian en los segundos enteros y desaparecen en el inicio de la línea; en un hueco propio de 2,5 s se ve «3» durante 0,5 s.
+- R8. Tras la última línea no hay indicadores; un hueco < umbral sin elección propia no muestra ninguno; uno con elección propia sí. Buscar dentro de un hueco muestra al instante el estado correcto y en pausa se congela.
+- R9. Una canción de 0.1.0 se ve exactamente igual que antes: `●●●` antes de la primera línea y en huecos ≥ 4 s, sin barra ni cuenta (test de regresión del modelo de render).
+- R10. Con movimiento reducido, los números y los puntos cambian sin fundido ni escala y la barra sigue encogiéndose.
+- R11. Al empezar un hueco de 8 s con indicadores se anuncia una vez `rep.espera.aria` («La letra sigue en 8 segundos.»); no hay anuncios por segundo, en la primera entrada ni al pausar.
+- R12. En una canción Letra lista, durante una línea (también con tiempos de palabra) ningún píxel de la letra tiene el color de lo ya cantado (captura a mitad de línea) y los indicadores usan el color de la letra; en la misma canción, la vista previa del editor sí muestra el barrido.
+- R13. Una Letra lista se reproduce desde la Biblioteca, entra en la cola y se reproduce sin barrido en la secundaria; cambiarla a Lista durante su reproducción no cambia esa reproducción.
+- R14. Capturas en `docs/ux/revision-0.2.0-fase-5/` con nombre `reproductor-{ancho}x{alto}-{estado}.png` a 1920 × 1080 y 1280 × 720: `hueco-tres-indicadores`, `hueco-cuenta`, `hueco-barra`, `letra-lista`, `fondo-radial`, `fondo-conico`.
+
+**Verificación manual** (guía de la fase 5): legibilidad de la cuenta y la barra a 5 m en una TV de 55" y en un proyector, con fondos degradados claros y oscuros; sensación de las velocidades del movimiento y que no maree; el movimiento fluido en la secundaria de un equipo modesto con dos pantallas; que la Letra lista se lea bien sin barrido en una canción rápida.

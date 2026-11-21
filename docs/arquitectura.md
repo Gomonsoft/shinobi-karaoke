@@ -17,9 +17,11 @@
 > [0014 Excluir diffq](adr/0014-excluir-diffq-del-runtime-de-separacion.md) ·
 > [0015 Línea de tiempo y picos de voz](adr/0015-linea-de-tiempo-y-picos-de-voz.md) ·
 > [0016 Catálogo de temas e identidad de artista y álbum](adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) ·
-> [0017 Ventana secundaria, sesión en vivo y cola](adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md)
+> [0017 Ventana secundaria, sesión en vivo y cola](adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) ·
+> [0018 Estilo ampliado, espera, Letra lista y ajuste de silencios](adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) ·
+> [0020 Publicación en GitHub Releases y versiones](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md)
 >
-> Última revisión: 2026-11-11 bis: ADR 0017, revisión 1, conciliado con las specs de la fase 4 y las respuestas 0058–0061. Con la cola agotada, añadir arranca la cuenta; la sesión solo se inicia desde la Biblioteca y no hay editor en solo lectura; Letra queda bloqueada. Desglose en las tareas 0177–0190. Antes, 2026-11-11: 0.2.0, fase 4 (ADR 0017). Se añaden la ventana secundaria de rol fijo, la sesión en vivo y la cola de reproducción en main (`main/sesion/`), los roles de ventana en la IPC, el bloqueo del editor durante la sesión y las preferencias `reproductor.transicion_s` y `reproductor.secundaria` (§2, §5, §7 y §8). Antes, 2026-11-09 quater: ADR 0016, revisión 3, tras `preguntas/0056`. El resultado por canción de las operaciones de temas lleva `titulo` y `artista` para la lista común tras un fallo a mitad (componente `ListaFalloAMitad` de `renderer/src/temas/`, tarea 0169), y el destino `respaldo` de `alHeredar`/`despues` no nombra ningún tema. Antes, 2026-11-09 ter: ADR 0016, revisión 2, tras `preguntas/0055`. Añade `alHeredar`, calculado en main y entregado en el resumen y en `resuelta`, el estado `pendiente` en los resultados y la forma del progreso de `reanudarBorrado`. Antes, 2026-11-09 bis: desglose de la fase 3 de 0.2.0 (tareas 0163–0176) y revisión del ADR 0016 tras `preguntas/0052` (B1) y `0054`. Antes, 2026-11-09: 0.2.0, fase 3 (ADR 0016: catálogo `biblioteca/temas.json`, `ServicioTemas`, apariencia resuelta e identidad de artista y álbum; §2, §4, §5 y §7). Antes, 2026-11-06: desglose de la Fase 7 (ADR 0012 y 0013, tareas 0127–0142, §9 "Empaquetado"). Antes, 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
+> Última revisión: 2026-11-20: 0.2.0, fase 5 (ADR 0018): degradados radial y cónico con movimiento ligado al tiempo de canción, comodines de espera derivados con reemplazo por canción, modalidad «Letra lista» y «Ajustar los silencios» sobre los picos de voz, sin subir esquemas ni canales nuevos (§4 y §7). Antes, 2026-11-11 bis: ADR 0017, revisión 1, conciliado con las specs de la fase 4 y las respuestas 0058–0061. Con la cola agotada, añadir arranca la cuenta; la sesión solo se inicia desde la Biblioteca y no hay editor en solo lectura; Letra queda bloqueada. Desglose en las tareas 0177–0190. Antes, 2026-11-11: 0.2.0, fase 4 (ADR 0017). Se añaden la ventana secundaria de rol fijo, la sesión en vivo y la cola de reproducción en main (`main/sesion/`), los roles de ventana en la IPC, el bloqueo del editor durante la sesión y las preferencias `reproductor.transicion_s` y `reproductor.secundaria` (§2, §5, §7 y §8). Antes, 2026-11-09 quater: ADR 0016, revisión 3, tras `preguntas/0056`. El resultado por canción de las operaciones de temas lleva `titulo` y `artista` para la lista común tras un fallo a mitad (componente `ListaFalloAMitad` de `renderer/src/temas/`, tarea 0169), y el destino `respaldo` de `alHeredar`/`despues` no nombra ningún tema. Antes, 2026-11-09 ter: ADR 0016, revisión 2, tras `preguntas/0055`. Añade `alHeredar`, calculado en main y entregado en el resumen y en `resuelta`, el estado `pendiente` en los resultados y la forma del progreso de `reanudarBorrado`. Antes, 2026-11-09 bis: desglose de la fase 3 de 0.2.0 (tareas 0163–0176) y revisión del ADR 0016 tras `preguntas/0052` (B1) y `0054`. Antes, 2026-11-09: 0.2.0, fase 3 (ADR 0016: catálogo `biblioteca/temas.json`, `ServicioTemas`, apariencia resuelta e identidad de artista y álbum; §2, §4, §5 y §7). Antes, 2026-11-06: desglose de la Fase 7 (ADR 0012 y 0013, tareas 0127–0142, §9 "Empaquetado"). Antes, 2026-11-06: desglose de la Fase 6 (ADR 0011, tareas 0112–0126, §7 "Reproductor"). Antes, 2026-11-05 ter: desglose de la Fase 5 (ADR 0010, tareas 0090–0111, §7 "Editor"). Antes, 2026-11-05 bis: desglose de la Fase 3 (tareas 0059–0076, §6 "Separación"). Antes, 2026-11-05: modelo Calidad por defecto en todos los equipos, Rápido solo con consentimiento y 4 GB de espacio en CPU (`preguntas/0018`; revisiones de ADR 0004, 0006 y 0009; tareas 0055–0058). Antes: 2026-11-04, desglose de la Fase 2 (ADR 0009, tareas 0028–0053) y revisión de cierre de la Fase 1.
 
 ## 1. Visión general
 Aplicación de **escritorio Electron** (GPL-3.0-or-later) con interfaz web (React + TypeScript) y un **worker Python** que se ejecuta como proceso hijo para el trabajo pesado de audio (YouTube, decodificación, separación). Todo es local; los únicos accesos a red son: instalación del entorno en el primer arranque, descarga de modelos, YouTube (si el usuario lo usa), LRCLIB (búsqueda de letras) y actualización de yt-dlp.
@@ -132,6 +134,7 @@ erDiagram
     CANCION {
         uuid id
         string estado "borrador | lista"
+        string modalidad "opcional (0.2.0): karaoke | letra_lista"
         int esquema
     }
     PASOS {
@@ -165,7 +168,8 @@ erDiagram
         uuid tema_id
     }
     ESTILO {
-        object fondo "solido | degradado lineal"
+        object fondo "solido | degradado lineal, radial o conico (0.2.0) con movimiento opcional"
+        object espera "opcional (0.2.0): puntos, barra, cuenta, primera_entrada, umbral_ms"
         object fuente "incluida (MVP)"
         string color "#RRGGBB"
         string color_resaltado "#RRGGBB"
@@ -175,6 +179,8 @@ erDiagram
 Almacenamiento: una carpeta por canción con `cancion.json` + audio (`fuente/mezcla.flac`, `pistas/*.flac`); carpeta oculta `biblioteca/.importando/` para importaciones sin confirmar; `config.json` global (instalación, modo de separación, volumen del reproductor, estilo predeterminado heredado y, desde 0.2.0, distribución de paneles del editor); desde 0.2.0, `biblioteca/temas.json` con el catálogo de temas (ADR 0016); `runtime/` y `modelos/` compartidos. Ubicación por SO en el ADR 0006.
 
 **Apariencia (0.2.0, fase 3)**: `cancion.json` sigue en esquema 1 con un campo opcional `apariencia`. Si falta, equivale a estilo propio, así que las bibliotecas de 0.1.0 no cambian. Con `tema` o `heredar`, `estilo` es la instantánea de respaldo que se pinta si falta la referencia. Main resuelve y el renderer recibe el estilo resuelto y su procedencia: `propio`, `cancion`, `album`, `artista`, `aleatorio`, `predeterminado_anterior`, `predeterminado`, `incluido` o `respaldo`, más `neutra` (decide la portada con miniatura). Quitar el predeterminado fija en las canciones que lo seguían `base: predeterminado_anterior`, de modo que conservan ese tema con vínculo vivo (decisión B1 de `preguntas/0052`). El catálogo que recibe el renderer incluye usos por tema y su desglose, las referencias que faltan y el aviso de catálogo apartado. La preferencia «Agrupar por» de la Biblioteca vive en `config.biblioteca.agrupar`. Las sesiones de reproducción conservan la instantánea tomada al empezar. **Identidad**: `shared/identidad.ts` (NFC, espacios colapsados, `toLowerCase`, diacríticos conservados; el álbum se identifica con el par artista + álbum). La búsqueda flexible del renderer (sin marcas diacríticas) es independiente y cubre título, artista y álbum.
+
+**Estilo ampliado, espera y Letra lista (0.2.0, fase 5, [ADR 0018](adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md))**: sin subir `esquema` ni `estilo.version`. El degradado admite `forma` (lineal, radial o cónico), `centro` y `movimiento` (`periodo_s`, `sentido`), y conserva `angulo_grados` y `paradas`, así que 0.1.0 lo pinta como lineal estático. `estilo.espera` (puntos, barra, cuenta 3·2·1, primera entrada y umbral) vale `ESPERA_LEGADA` si falta, el comportamiento del MVP. La canción puede personalizarla con `apariencia.reemplazos.espera`, que main fusiona después del tema (`procedenciaEspera`). `cancion.modalidad` (`karaoke` o `letra_lista`) distingue «Letra lista» sin cambiar el estado `lista`. `config.editor.omitir_aviso_letra_lista` guarda el «No volver a mostrar». Las igualdades de estilos comparan la forma normalizada (`normalizarEstilo`).
 
 Reglas derivadas (funciones puras en `app/src/shared/`, no se guardan): **paso actual**, **puede marcarse como lista**, **incompleta** (lista con líneas sin inicio), **fin efectivo** de cada línea (ADR 0005). Operaciones puras de edición de tiempos: `moverInicioLinea` y `borrarTiemposLinea` (arrastran las palabras de la línea; ADR 0006).
 
@@ -252,7 +258,7 @@ shinobi-karaoke/
 │   │   └── diagnostico.py        # detección de CUDA/MPS/CPU y memoria
 │   └── tests/
 ├── spikes/                       # pruebas de concepto desechables (no se empaquetan ni se importan desde app/ o worker/)
-└── .github/workflows/            # ci.yml (lint + tests en los 3 SO), runtime-real.yml (manual) y empaquetado.yml (Fase 7, manual)
+└── .github/workflows/            # ci.yml (lint + tests en los 3 SO), runtime-real.yml (manual) y empaquetado.yml (manual y por etiqueta `v*`, ADR 0020)
 ```
 
 ## 6. Procesos largos (trabajos en segundo plano)
@@ -329,6 +335,12 @@ Con la ventana sin foco: `Notification` de Electron en Windows (requiere el acce
   - **Guardado**: *debounce* en el renderer (1 s, como mucho 2 s). El main escribe al momento: `ServicioLetras.guardarTiempos` (único escritor de `letra`) y `ServicioBiblioteca.guardarEstilo`/`marcarLista`. Antes de salir del editor se vacía lo pendiente; al cerrar la ventana con cambios pendientes, el control de cierre pide al renderer que vacíe (tope de 2 s).
   - **Distribución (0.2.0, subfase 2.1, [ADR 0010](adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--layout-adaptable-y-paneles))**: modelo puro `vistas/editor/distribucion.ts` (tamaños efectivos a partir de preferencias y medidas), constantes en `shared/paneles.ts`, componente `componentes/Divisor.tsx` y preferencia global `config.editor.paneles` ([ADR 0006](adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--preferencias-de-paneles-del-editor)). La ventana tiene un mínimo de contenido de 1024 × 576 (`useContentSize`). No entra en el historial ni en el guardado de la canción.
   - **Temas (0.2.0, fase 3, [ADR 0016](adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md))**: el panel Estilo escribe con `biblioteca.guardarApariencia` (propio, tema o heredar). El historial guarda la selección. «Editar tema» es un borrador en memoria, fuera del autoguardado, que se persiste con `temas.ejecutar` (editar, tras confirmar el impacto) o `temas.crear`. La vista previa y el reproductor pintan el estilo resuelto.
+  - **Fase 5 (0.2.0, [ADR 0018](adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md))**:
+    - **Fondo en movimiento**: geometría como función pura del tiempo de audio (`karaoke/fondo.ts`), escrita en variables CSS en el mismo `requestAnimationFrame`. Fase 0 con movimiento reducido o detenido.
+    - **Comodines de espera**: el fotograma de `render.ts` incluye `espera` (puntos, cuenta, barra), derivado de `[finEfectivo(anterior), inicio(siguiente))` y del umbral. No hay temporizadores ni marcas guardadas, y se pintan fuera del flujo del texto.
+    - **Contraste**: peor caso sobre todos los tramos de la paleta, incluido el cierre del cónico. Vale para cualquier fase.
+    - **Letra lista**: `PantallaLetra` con `barrido={false}` en el reproductor, la sesión y la exportación. El panel del editor mantiene el barrido. Se marca con `biblioteca.marcarLista(id, { modalidad })`.
+    - **«Ajustar los silencios»**: el editor lee el nivel base de picos con `picos.leer` (ventanas de 4096 bloques) y ejecuta las funciones puras de `shared/silencios.ts` (`detectarVoz`, `proponerAjusteSilencios`, con parámetros provisionales en `PARAMETROS_SILENCIOS`). Aplica un solo paso del historial con los fines y, si hay huecos ≥ umbral, la cuenta 3·2·1 de la canción. Sin canales IPC nuevos.
 
 ## 8. Seguridad
 Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protocolos-propios.md).
@@ -345,7 +357,7 @@ Detalle y alternativas en el [ADR 0008](adr/0008-seguridad-de-electron-y-protoco
 - Sandbox de Chromium: activo en Windows, macOS y `.deb` (perfil de AppArmor en Ubuntu 24+). En el AppImage, `AppRun` añade `--no-sandbox` si el sistema restringe los espacios de nombres (limitación aceptada, ADR 0012; `preguntas/0042`).
 
 ## 9. Empaquetado y distribución (Fase 7)
-Detalle en los ADR [0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md) y [0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md).
+Detalle en los ADR [0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md), [0013](adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md) y [0020](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md).
 
 | Dentro del paquete | Ubicación | Lo usa |
 |---|---|---|
@@ -360,7 +372,8 @@ Detalle en los ADR [0012](adr/0012-empaquetado-con-electron-builder-fuses-uv-y-l
 
 - **Instaladores**: `Shinobi-Karaoke-Windows-x64.exe`, `Shinobi-Karaoke-Mac-chip-Apple.dmg`, `Shinobi-Karaoke-Linux-x64.AppImage` y `shinobi-karaoke-linux-x64.deb` (`preguntas/0040`).
 - **Build**: `npm run build` → `npm run uv:descargar` → `npm run empaquetar` → `npm run paquete:verificar`.
-- **CI**: `empaquetado.yml`, solo `workflow_dispatch`; construye en `windows-2025`, `macos-26` y `ubuntu-24.04`, prueba el paquete y el instalador y guarda artefactos 14 días. **No publica.**
+- **CI**: `empaquetado.yml` («Empaquetado y publicación»); construye en `windows-2025`, `macos-26` y `ubuntu-24.04`, prueba el paquete y el instalador y guarda artefactos 14 días. Con `workflow_dispatch` ensaya la publicación sin publicar; con una etiqueta `v*` que coincide con la versión crea la *Release* (*pre-release* si lleva sufijo) con los 4 instaladores, `SHA256SUMS.txt` y notas. Solo el trabajo `publicar` tiene `contents: write` ([ADR 0020](adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), tareas 0191–0195).
+- **Versión**: un solo número SemVer para app y worker (PEP 440 en el worker), en 5 archivos; `npm run version:subir` y `version:comprobar` (`app/scripts/version.mjs`).
 - **Datos**: los desinstaladores no tocan el directorio de datos (`preguntas/0043`).
 
 ---

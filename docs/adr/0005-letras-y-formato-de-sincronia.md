@@ -134,3 +134,11 @@ Las letras están protegidas por derechos de autor y LRCLIB no declara licencia 
 ## Revisión 0.2.0 · Fin de línea independiente
 
 El fin explícito de una línea es independiente del inicio de la siguiente. El intervalo activo es `[inicio, fin)`. Al alcanzar el fin, la siguiente línea con tiempo queda en espera sin resaltado hasta su inicio. Se conservan `fin_ms: null`, la regla de `finEfectivo` y los intervalos de letras existentes al abrirlas.
+
+## Revisión para 0.2.0 — fase 5
+
+Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, §5 y §6.
+
+- **`finEfectivo` no cambia.** Los comodines de espera se derivan del intervalo `[finEfectivo(anterior), inicio(siguiente))` sobre las líneas con inicio, sin guardar marcas. La primera entrada usa `[inicio₁ − 4000, inicio₁)`, como el MVP.
+- **«Ajustar los silencios»** (`shared/silencios.ts`, función pura) escribe fines **fijados** (`fin_ms` numérico) al final de la voz detectada en los picos (ADR 0015), con `inicio < fin ≤ inicio del siguiente elemento con inicio`. También sustituye fines fijados a mano, con aviso. No toca inicios, textos, pausas ni las líneas con palabras, cuyo fin efectivo ya es el de la última palabra. Es un solo paso del historial del editor.
+- **Letra lista** exige lo mismo que Lista y además que cada línea tenga un `finEfectivo` válido, incluidos los fines automáticos y los procedentes de la API. Con los invariantes de ADR 0006 se cumple siempre que hay inicio. Ese modo de reproducción y exportación pinta la línea activa sin barrido ni resaltado por palabra. El editor conserva el barrido.

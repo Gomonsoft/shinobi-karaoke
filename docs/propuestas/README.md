@@ -22,3 +22,6 @@ Ideas de mejora **todavía sin definir ni autorizar**. No forman parte del alcan
 | [003](003-calibrar-el-ajuste-de-silencios-por-cancion.md) | Sensibilidad ajustable en «Ajustar los silencios» | Sesión del 2026-11-20 | Idea |
 | [004](004-voz-guia-durante-la-cuenta-y-la-espera.md) | Control de voz guía durante la cuenta y la espera | Tarea 0182 | Idea |
 | [005](005-cola-persistente-entre-sesiones.md) | Conservar la cola al cerrar la app | Fase 4 (la cola vive en memoria) | Idea |
+| [006](006-exportar-varias-canciones-a-video.md) | Exportar varias canciones a video de una vez | Diseño de la fase 6 de 0.2.0 | Idea |
+| [015](015-comodin-de-espera-hueco-a-hueco.md) | Comodín de espera hueco a hueco | ADR 0018, pregunta 0100 | Idea |
+| [016](016-ajustar-el-fin-de-una-linea-con-la-voz.md) | Ajustar el fin de una sola línea con la voz | ADR 0018 | Idea |

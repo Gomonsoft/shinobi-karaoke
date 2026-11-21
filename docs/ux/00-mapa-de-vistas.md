@@ -73,6 +73,57 @@ flowchart LR
 - **Una sola sesión** y un solo transporte audible: durante la sesión no se abre el reproductor local ni suena nada en la principal.
 - La cola vive **en memoria** mientras la app está abierta: se puede preparar antes de abrir la sesión, conservar al cerrarla y se pierde al salir de la app (con confirmación).
 
+### 0.2.0, fase 5 · Estilo, espera y Letra lista
+No hay vistas nuevas. Cambios dentro de las existentes ([06](06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista), [07](07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista), [02](02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista)):
+- **Editor › Estilo**: forma del degradado (lineal, radial, cónico), centro, movimiento con velocidad; sección «Indicadores de espera» (puntos, barra, cuenta 3·2·1, silencio mínimo, «Cambiar solo en esta canción», «Ver un ejemplo»). Bajo la vista previa, «Detener el movimiento del fondo».
+- **Editor › Sincronía**: «Espera antes de esta línea» en el panel C; «Ajustar los silencios» en la fila de la línea de tiempo (y en el menú ⋯).
+- **Editor › dock**: «Marcar como letra lista» junto a «Marcar como lista»; menú ⋯ con «Cambiar a «Letra lista»…» / «Cambiar a «Lista»».
+- **Reproductor** (local y secundaria): fondo en movimiento ligado a la canción, indicadores de espera en los huecos y modo Letra lista sin barrido.
+- **Biblioteca**: insignia «Letra lista» (cuenta como Lista: mismo filtro, acciones y cola).
+- Diálogos nuevos (en 06): «¿Marcar como letra lista?» (primera activación, con «No volver a mostrar este aviso») y «¿Ajustar los silencios?» (recuentos y lista de líneas).
+
+```mermaid
+flowchart LR
+    EDI[6 · Editor<br/>borrador] -- "Marcar como lista" --> BIB[2 · Biblioteca<br/>✓ Lista]
+    EDI -- "Marcar como letra lista" --> AV{{¿Marcar como letra lista?<br/>solo la primera vez}}
+    AV -- "Confirmar" --> BIBL[2 · Biblioteca<br/>Letra lista]
+    AV -- "Cancelar" --> EDI
+    BIBL -- "Reproducir / A la cola" --> REP[7 · Reproductor<br/>sin barrido]
+    BIB -- "Reproducir / A la cola" --> REPK[7 · Reproductor<br/>con barrido]
+    EDI -- "Ajustar los silencios" --> AJ{{¿Ajustar los silencios?}}
+    AJ -- "Ajustar (un paso de deshacer)" --> EDI
+```
+- «Lista» y «Letra lista» se cambian entre sí desde el menú ⋯ del editor sin pasar por borrador.
+
+### 0.2.0, fase 6 · Exportación de video
+- **Exportar a video** ([10](10-exportacion.md)): **diálogo** (no una vista) con cinco estados: formulario (audio, proporción, resolución, FPS, formato, destino, estimación, muestra con la marca de agua), exportando (subpasos, cancelar, seguir en segundo plano), en cola, éxito («Mostrar en la carpeta») y fallo (causa, «Copiar detalles», «Cambiar opciones», «Reintentar»). Se abre encima de la Biblioteca o del Editor, que siguen montados.
+- **Biblioteca** ([02 · Fase 6](02-biblioteca.md#fase-6-de-020--exportación)): «Exportar video…» en el ⋯ de las Listas (incluidas «Letra lista» e incompletas); «Ver exportación» y «Cancelar exportación…» mientras se exporta; línea «⟳ Exportando video {n} %» en la tarjeta.
+- **Editor** ([06 · Fase 6](06-editor.md#fase-6-de-020--exportación)): «Exportar video…» en el ⋯ de la cabecera y **Ctrl/Cmd + E**, también en borradores con pistas y alguna línea sincronizada.
+- **Panel de actividad** (04): las exportaciones son un trabajo más, con [Ir] (reabre el diálogo) y [✕]. El diálogo de cierre de la app las incluye.
+- **Sesión en otra pantalla**: según el ADR 0019, exportar convive con el evento (nota informativa) o se bloquea con candado y el diálogo «No se puede exportar mientras el reproductor está abierto en otra ventana». Un perfil que el equipo no puede producir se marca **dentro** del diálogo como «no disponible en este equipo», sin candado.
+
+```mermaid
+flowchart LR
+    BIB[2 · Biblioteca<br/>⋯ de una Lista] -- "Exportar video…" --> FORM{{10 · Exportar video<br/>formulario}}
+    EDI[6 · Editor<br/>⋯ / Ctrl+Cmd+E] -- "vacía el guardado" --> FORM
+    BIB -. "durante una sesión<br/>(si no pueden convivir)" .-> BLQX{{No se puede exportar…}}
+    FORM -- "Cancelar / Esc" --> ORIGEN([vuelve al origen])
+    FORM -- "Exportar" --> PROG{{10 · Exportando}}
+    FORM -- "Exportar (otra en curso)" --> COLA{{10 · En cola}}
+    COLA -- "termina la anterior" --> PROG
+    PROG -- "Seguir en segundo plano / Esc" --> ACT[Panel de actividad<br/>+ línea en la tarjeta]
+    ACT -- "Ir / Ver exportación" --> PROG
+    PROG -- "Cancelar exportación (confirmar)" --> CANC([temporal borrado<br/>archivo previo intacto])
+    PROG -- "termina" --> OK{{10 · Video exportado<br/>Mostrar en la carpeta}}
+    PROG -- "falla" --> ERR{{10 · No se pudo exportar<br/>Reintentar / Cambiar opciones}}
+    ERR -- "Cambiar opciones" --> FORM
+    ERR -- "Reintentar" --> PROG
+    ACT -. "diálogo cerrado" .-> TOAST[Toast: exportado / error]
+    TOAST -- "Ver" --> ERR
+```
+- Atajo nuevo: **Ctrl/Cmd + E** (solo Editor).
+- Errores nuevos (detalle en spec 10 §"Errores"; códigos provisionales hasta el ADR 0019): `SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `EXPORTACION_BLOQUEADA`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA`; desconocido = «Algo salió mal al crear el video».
+
 ## 2. Estructura de la ventana
 
 ```
