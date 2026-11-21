@@ -174,7 +174,7 @@ Ajustes no cambia en esta fase. Preguntas al usuario: [0100](../../preguntas/010
 | [0215 · Editor: «Ajustar los silencios»](../../tareas/0215-editor-ajustar-los-silencios.md) | Hecha | 0207, 0208, 0209 | Botón en la línea de tiempo y en ⋯, motivos, diálogo con recuentos y lista, recálculo, toast y resalte; un E2E en `editor.spec.ts` (AS1–AS8) |
 | [0216 · Reproductor, sesión y «Probar»](../../tareas/0216-reproductor-sesion-y-probar-modalidad-y-movimiento.md) | Hecha | 0203, 0213 | `barrido` según la modalidad en el reproductor local, la secundaria y «Probar»; fondo quieto en S1, S2 y S4 (R1–R4, R12, R13, LL8) |
 | [0217 · Biblioteca: Letra lista](../../tareas/0217-biblioteca-insignia-letra-lista.md) | Hecha | 0201 (dobles), 0203 | Insignia, aria, filtro *Listas*, toast de vuelta y portadas en fase 0 (LB1–LB6) |
-| [0218 · Capturas de revisión](../../tareas/0218-capturas-de-revision-de-la-fase-5.md) | Pendiente | 0211–0217 | `e2e/fase5-capturas.spec.ts` *opt-in* (F5-1, R14 y LB7). Sustituye a la reserva «Temas y Ajustes», que no hace falta |
+| [0218 · Capturas de revisión](../../tareas/0218-capturas-de-revision-de-la-fase-5.md) | Hecha | 0211–0217 | `e2e/fase5-capturas.spec.ts` *opt-in* (F5-1, R14 y LB7). Sustituye a la reserva «Temas y Ajustes», que no hace falta |
 | [0219 · Integración, guía e informe](../../tareas/0219-integracion-guia-manual-e-informe-de-la-fase-5.md) | Pendiente | 0200–0218 | `e2e/fase5.spec.ts` (≤ 4 pruebas), CI, casos de la guía manual para `qa`, calibración e informe |
 
 Quedan libres 0220–0229 para ajustes que salgan de las respuestas a 0100 y 0110 o de la calibración.
