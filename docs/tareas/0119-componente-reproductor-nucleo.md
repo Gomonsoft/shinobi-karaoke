@@ -1,4 +1,5 @@
 # 0119 — Componente `Reproductor`: capa, audio, letra, controles que se ocultan, teclado, indicador breve, voz guía, pantalla completa y pantalla encendida
+
 - Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112, 0116, 0117, 0118
@@ -9,6 +10,7 @@
 - Paralelizable con: 0113, 0114, 0115, 0124. Antes de 0120–0122.
 
 ## Contexto para quien implementa
+
 - Piezas ya hechas:
   - `MotorReproductor` (0117);
   - `PantallaLetra` con `avisoTitulo`, `cargando` y tiempos negativos (0116);
@@ -21,25 +23,33 @@
 - `PantallaLetra` necesita `obtenerTiempoAudio()` = **tiempo de canción** (resta `offset_ms` ella misma) y `reproduciendo`. En pausa se pasa `reproduciendo = true` con el tiempo congelado del motor (letra congelada, criterio 11), nunca el modo estático del editor.
 
 ## Objetivo
+
 El reproductor completo salvo la pantalla final, los errores, la lista incompleta, el diálogo de atajos y el desplazamiento (0120), listo para que lo monten la Biblioteca (0121) y el editor (0122).
 
 ## Criterios de aceptación
+
 - [ ] **Props**:
   ```ts
   export interface CancionReproductor {
-    id: string; titulo: string; artista: string; duracionMs: number; gananciaDb: number
-    letra: Letra; estilo: Estilo; lineasSinSincronizar: number
+    id: string;
+    titulo: string;
+    artista: string;
+    duracionMs: number;
+    gananciaDb: number;
+    letra: Letra;
+    estilo: Estilo;
+    lineasSinSincronizar: number;
   }
   export interface PropsReproductor {
-    cancion: CancionReproductor
-    origen: 'biblioteca' | 'editor'
-    modo: 'karaoke' | 'original'          // original: vista previa del editor sin instrumental
-    desdeMs: number                        // 0 desde la Biblioteca
-    volumen: ReturnType<typeof useVolumenCompartido>
-    alSalir(r: { posicionMs: number }): void
-    alDesplazar?(deltaMs: 100 | -100): void   // solo desde el editor (0120 lo usa)
-    alFallarPista?(e: { pista: 'principal' | 'voz'; tipo: ErrorPista }): void // 0120
-    crearMotor?: (o: OpcionesMotorReproductor) => MotorReproductor          // tests
+    cancion: CancionReproductor;
+    origen: "biblioteca" | "editor";
+    modo: "karaoke" | "original"; // original: vista previa del editor sin instrumental
+    desdeMs: number; // 0 desde la Biblioteca
+    volumen: ReturnType<typeof useVolumenCompartido>;
+    alSalir(r: { posicionMs: number }): void;
+    alDesplazar?(deltaMs: 100 | -100): void; // solo desde el editor (0120 lo usa)
+    alFallarPista?(e: { pista: "principal" | "voz"; tipo: ErrorPista }): void; // 0120
+    crearMotor?: (o: OpcionesMotorReproductor) => MotorReproductor; // tests
   }
   ```
 - [ ] **Capa**:
@@ -71,7 +81,7 @@ El reproductor completo salvo la pantalla final, los errores, la lista incomplet
   - volumen ±10 %; silenciar; voz;
   - principio (busca 0 y, sonando, vuelve a reproducir con el silencio previo; conserva el estado de pausa);
   - pantalla completa (`fijarPantallaCompleta(!actual)`); salir.
-  Las acciones `desplazar` y `atajos` se entregan a 0120: aquí basta con un *callback* interno vacío.
+    Las acciones `desplazar` y `atajos` se entregan a 0120: aquí basta con un _callback_ interno vacío.
 - [ ] **Indicador breve**: cada atajo y cada clic en ⏮, ↺5, 5↻, voz o silenciar muestra `textoIndicador` 600 ms en una píldora centrada en horizontal con su centro al 12 % del alto. Uno nuevo sustituye al anterior. Los atajos **no** muestran las franjas (salvo la pausa, que las retiene).
 - [ ] **Voz guía** (spec 07 §"Voz guía", criterios 19–19d):
   - botón 🎤 (`aria-pressed` cuando suena; icono `mic-off` y atenuado cuando está silenciada) + etiqueta "Voz" + deslizador de 96 px (`rep.aria.vozguia`) + porcentaje;
@@ -95,12 +105,14 @@ El reproductor completo salvo la pantalla final, los errores, la lista incomplet
   - toasts retenidos mientras está montado.
 
 ## Verificación
+
 ```bash
 cd app && npm run lint && npm run typecheck && npm run format:check && npm test
 npm run dev    # Muestrario → Reproductor (API falsa), revisión visual
 ```
 
 ## Notas de implementación
+
 - `Reproductor` mantiene la vista de origen montada y dibuja la capa modal con letra, audio, controles, voz guía, teclado, indicador y pantalla completa. Libera audio, pantalla encendida y toasts al desmontarse.
 - `Controles` separa las franjas superior e inferior y mantiene la letra fuera de la zona central. La pausa mantiene la letra congelada con el reloj del motor.
 - Los anuncios, estados finales, errores y desplazamiento se conectaron en la tarea 0120. La integración del editor se completa en 0122.

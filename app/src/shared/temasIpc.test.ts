@@ -339,6 +339,7 @@ describe('resumen y canción con apariencia', () => {
     artista: 'A',
     duracionMs: null,
     estado: 'borrador',
+    modalidad: 'karaoke',
     modificada: '2026-11-09T10:00:00.000Z',
     estilo,
     album: 'Jazz',
@@ -349,7 +350,8 @@ describe('resumen y canción con apariencia', () => {
       temaId: id,
       temaNombre: 'Noche ninja',
       neutra: true,
-      alHeredar: { procedencia: 'album', temaId: id, temaNombre: 'Noche ninja' }
+      alHeredar: { procedencia: 'album', temaId: id, temaNombre: 'Noche ninja' },
+      procedenciaEspera: 'predeterminado'
     },
     miniatura: null,
     pasos: null,
@@ -379,7 +381,8 @@ describe('resumen y canción con apariencia', () => {
       procedencia: 'propio',
       temaId: null,
       temaNombre: null,
-      alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null }
+      alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
+      procedenciaEspera: 'propio'
     }
     expect(ok(cancionIpcSchema, { ...lista(), resuelta })).toBe(true)
     expect(ok(cancionIpcSchema, lista())).toBe(false)

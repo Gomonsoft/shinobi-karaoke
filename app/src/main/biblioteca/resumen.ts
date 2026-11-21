@@ -3,6 +3,7 @@ import type {
   Cancion,
   Estilo,
   EstadoCancion,
+  Modalidad,
   EstadoPaso,
   NombrePaso,
   ResueltaIpc
@@ -16,6 +17,7 @@ import {
   claveArtista,
   esAparienciaNeutra,
   estaIncompleta,
+  modalidadEfectiva,
   numerosLineasSinInicio
 } from '../../shared'
 import type { ResolucionCancion } from '../temas/servicio'
@@ -37,6 +39,8 @@ export interface ResumenCancion {
   artista: string
   duracionMs: number | null
   estado: EstadoCancion
+  /** Modalidad efectiva (ADR 0018 §5). */
+  modalidad: Modalidad
   modificada: string
   /** Estilo resuelto; `null` solo en la canción dañada por JSON. */
   estilo: Estilo | null
@@ -93,7 +97,8 @@ export function aparienciaDeResolucion(
     temaId: r.temaId,
     temaNombre: r.temaNombre,
     neutra: r.neutra,
-    alHeredar: { ...r.alHeredar }
+    alHeredar: { ...r.alHeredar },
+    procedenciaEspera: r.procedenciaEspera
   }
 }
 
@@ -104,7 +109,8 @@ export function resueltaDeResolucion(r: ResolucionCancion): ResueltaIpc {
     procedencia: r.procedencia,
     temaId: r.temaId,
     temaNombre: r.temaNombre,
-    alHeredar: { ...r.alHeredar }
+    alHeredar: { ...r.alHeredar },
+    procedenciaEspera: r.procedenciaEspera
   }
 }
 
@@ -132,6 +138,7 @@ export function resumirCancion(
     artista: cancion.metadatos.artista,
     duracionMs: cancion.metadatos.duracion_ms,
     estado: cancion.estado,
+    modalidad: modalidadEfectiva(cancion),
     modificada: cancion.modificada,
     estilo: resolucion.estilo,
     album: cancion.metadatos.album ?? null,
@@ -159,6 +166,7 @@ export function resumenDanadaPorJson(id: string): ResumenCancion {
     artista: '',
     duracionMs: null,
     estado: 'borrador',
+    modalidad: 'karaoke',
     modificada: new Date(0).toISOString(),
     estilo: null,
     album: null,
@@ -169,7 +177,8 @@ export function resumenDanadaPorJson(id: string): ResumenCancion {
       temaId: null,
       temaNombre: null,
       neutra: false,
-      alHeredar: { ...DESTINO_HEREDAR_PROVISIONAL }
+      alHeredar: { ...DESTINO_HEREDAR_PROVISIONAL },
+      procedenciaEspera: 'propio'
     },
     miniatura: null,
     pasos: null,

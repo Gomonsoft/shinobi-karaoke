@@ -196,3 +196,11 @@ Consultadas el 2026-11-06.
 - `license-checker-rseidelsohn`: https://www.npmjs.com/package/license-checker-rseidelsohn
 - Restricción de AppArmor en Ubuntu 24.04 (informes de usuarios, no documentación oficial): https://discourse.ubuntu.com/t/problem-runing-appimage-files-without-no-sandbox/78361 , https://forum.obsidian.md/t/obsidian-appimage-not-work-in-kubuntu-24-04/80969
 - Firma inválida frente a *ad hoc* en Apple Silicon (informes de terceros, poca autoridad): https://github.com/electron-userland/electron-builder/issues/5850 , https://flaviocopes.com/macos-open-anyway.md
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Sin cambios en el instalador**: ni dependencias ni recursos nuevos; una entrada más de renderer y de preload en el asar (`exportacion.html`, `preload/exportacion`).
+- **Licencias**: `THIRD_PARTY_NOTICES.md` acredita SVT-AV1 (BSD-3-Clause-Clear y AOM Patent License 1.0), libvpx (BSD-3-Clause y concesión de patentes de WebM) y libopus (BSD-3-Clause) dentro del FFmpeg de PyAV, que no se redistribuye (se instala desde PyPI).
+- `worker/scripts/inspeccionar_av.py` falla si una rueda de `av` no trae esos tres codificadores.

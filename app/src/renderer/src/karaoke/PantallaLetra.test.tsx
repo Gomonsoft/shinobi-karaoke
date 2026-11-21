@@ -1,7 +1,8 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { letra, linea } from '@shared/__fixtures__'
-import { estiloPredeterminado } from '@shared/estilo'
+import { estiloPredeterminado, normalizarEstilo } from '@shared/estilo'
+import { fondoCssEn } from './estiloCss'
 import { PantallaLetra } from './PantallaLetra'
 import estilos from './pantallaLetra.module.css'
 
@@ -185,4 +186,234 @@ it('reparte el avance de una palabra partida dentro de su propia ventana', () =>
   expect(recorte(segunda!)).toContain('90px 0px')
   expect(recorte(segunda!)).not.toContain('24px')
   expect(recorte(tercera!)).toBe('inset(100%)')
+})
+
+// --- Fase 5: fondo en movimiento, indicadores de espera y modo sin barrido ---
+
+const conHueco = letra([
+  linea('a', 'Nubes de sal', 2000, { fin_ms: 4000 }),
+  linea('b', 'Cantan al viento', 12_000)
+])
+
+function estiloFase5(movimiento = false) {
+  const estilo = estiloPredeterminado()
+  if (movimiento && estilo.fondo.tipo === 'degradado') {
+    estilo.fondo.movimiento = { periodo_s: 30, sentido: 'horario' }
+  }
+  estilo.espera = {
+    puntos: true,
+    barra: true,
+    cuenta: true,
+    primera_entrada: true,
+    umbral_ms: 4000
+  }
+  return estilo
+}
+
+function montar(ui: (reloj: () => number) => React.ReactElement) {
+  const pendientes: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => pendientes.push(fn))
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+  const t = { ms: 0 }
+  const vista = render(ui(() => t.ms))
+  return {
+    ...vista,
+    en(ms: number) {
+      t.ms = ms
+      act(() => pendientes.shift()!(ms))
+    }
+  }
+}
+
+it('R6, R7, R10 y R11: barra, cuenta y un único anuncio por hueco', () => {
+  const anuncios: number[] = []
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={conHueco}
+      estilo={estiloFase5()}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+      alAnunciarEspera={(n) => anuncios.push(n)}
+    />
+  ))
+  const raiz = pantalla.container.firstElementChild as HTMLElement
+  pantalla.en(3000)
+  expect(anuncios).toEqual([])
+  pantalla.en(4000)
+  expect(anuncios).toEqual([8])
+  expect(raiz.style.getPropertyValue('--k-fraccion')).toBe('0')
+  expect(pantalla.container.querySelector('[data-indicador=barra]')).toHaveAttribute(
+    'aria-hidden',
+    'true'
+  )
+  expect(pantalla.container.querySelector('[data-indicador=cuenta]')).toBeNull()
+  pantalla.en(8000)
+  expect(raiz.style.getPropertyValue('--k-fraccion')).toBe('0.5')
+  pantalla.en(9500)
+  expect(pantalla.container.querySelector('[data-indicador=cuenta]')).toHaveTextContent('3')
+  pantalla.en(10_500)
+  expect(pantalla.container.querySelector('[data-indicador=cuenta]')).toHaveTextContent('2')
+  expect(anuncios).toEqual([8])
+  pantalla.en(12_000)
+  expect(pantalla.container.querySelector('[data-indicador]')).toBeNull()
+})
+
+it('R10: con movimiento reducido el número no lleva animación', () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={conHueco}
+      estilo={estiloFase5()}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+    />
+  ))
+  pantalla.en(10_500)
+  const cuenta = pantalla.container.querySelector('[data-indicador=cuenta]')!
+  expect(cuenta).toHaveTextContent('2')
+  expect(cuenta.classList.contains(estilos.entraNumero!)).toBe(false)
+})
+
+it('R5: los indicadores no son hijos de ninguna línea', () => {
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={conHueco}
+      estilo={estiloFase5()}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+    />
+  ))
+  pantalla.en(10_500)
+  const barra = pantalla.container.querySelector('[data-indicador=barra]')!
+  const cuenta = pantalla.container.querySelector('[data-indicador=cuenta]')!
+  expect(barra.parentElement).toBe(pantalla.container.firstElementChild)
+  expect(cuenta.parentElement).toBe(pantalla.container.firstElementChild)
+})
+
+it('R12: sin barrido no hay capa de resaltado y los indicadores usan el color de la letra', () => {
+  const lineaPorPalabras = {
+    ...linea('a', 'Una dos', 2000, { fin_ms: 4000 }),
+    palabras: [
+      { texto: 'Una', inicio_ms: 2000, fin_ms: 3000 },
+      { texto: 'dos', inicio_ms: 3000, fin_ms: 4000 }
+    ]
+  }
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={letra([lineaPorPalabras, linea('b', 'Cantan', 12_000)])}
+      estilo={estiloFase5()}
+      barrido={false}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+    />
+  ))
+  pantalla.en(3000)
+  expect(pantalla.container.querySelector(`.${estilos.resaltado}`)).toBeNull()
+  expect(pantalla.container.querySelector('[data-barrido]')).toBeNull()
+  expect(pantalla.container.querySelector('[data-linea=a]')).toHaveTextContent('Una dos')
+  expect(pantalla.container.firstElementChild!.classList.contains(estilos.sinBarrido!)).toBe(true)
+  const fija = render(<PantallaLetra {...props} barrido={false} reproduciendo={false} />)
+  expect(fija.container.querySelector(`.${estilos.resaltado}`)).toBeNull()
+})
+
+it('R2, R3 y G2: el fondo se mueve con el reloj de audio, y no con movimiento reducido', () => {
+  const montarFondo = (extra = {}) =>
+    montar((reloj) => (
+      <PantallaLetra
+        {...props}
+        letra={conHueco}
+        estilo={estiloFase5(true)}
+        reproduciendo
+        obtenerTiempoAudio={reloj}
+        {...extra}
+      />
+    ))
+  const fondo = (c: HTMLElement) =>
+    (c.firstElementChild as HTMLElement).style.getPropertyValue('--k-fondo')
+  const cero = fondo(render(<PantallaLetra {...props} reproduciendo={false} />).container)
+  const base = montarFondo()
+  base.en(0)
+  const a = fondo(base.container)
+  base.en(7500)
+  const b = fondo(base.container)
+  expect(b).not.toBe(a)
+  expect(b).toContain('225deg')
+  base.unmount()
+
+  const fijo = montarFondo({ fondoEstatico: true })
+  fijo.en(7500)
+  expect(fondo(fijo.container)).toContain('135deg')
+  fijo.unmount()
+
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const reducido = montarFondo()
+  reducido.en(7500)
+  expect(fondo(reducido.container)).toContain('135deg')
+  // Sin movimiento (estilo de 0.1.0) el CSS es el de siempre.
+  expect(cero).toContain('135deg')
+})
+
+// --- Fase 6: tiempo fijo para la exportación ---
+
+const fijoEn = (t: number, extra = {}) => (
+  <PantallaLetra
+    {...props}
+    letra={conHueco}
+    estilo={estiloFase5(true)}
+    reproduciendo
+    tiempoFijoMs={t}
+    movimiento="completo"
+    {...extra}
+  />
+)
+const fondoDe = (c: HTMLElement) =>
+  (c.firstElementChild as HTMLElement).style.getPropertyValue('--k-fondo')
+
+it('E1: con tiempo fijo no usa requestAnimationFrame y pinta fondo, barrido y entrada del instante', () => {
+  const raf = vi.fn()
+  vi.stubGlobal('requestAnimationFrame', raf)
+  const { container } = render(fijoEn(3000))
+  expect(raf).not.toHaveBeenCalled()
+  const actual = container.querySelector<HTMLElement>('[data-linea=a]')!
+  expect(actual).toHaveTextContent('Nubes de sal')
+  expect(recorte(actual)).toContain('90px')
+  expect(actual.dataset.naceMs).toBe('2000')
+  expect(actual.classList.contains(estilos.transicion!)).toBe(true)
+  expect(fondoDe(container)).toBe(
+    fondoCssEn(normalizarEstilo(estiloFase5(true)).fondo, 3000, { estatico: false })
+  )
+})
+
+it('E2: el mismo instante da el mismo DOM, vengas de donde vengas', () => {
+  const directo = render(fijoEn(10_500))
+  const html = directo.container.innerHTML
+  directo.unmount()
+  const viaje = render(fijoEn(2100))
+  viaje.rerender(fijoEn(3000))
+  viaje.rerender(fijoEn(10_500))
+  expect(viaje.container.innerHTML).toBe(html)
+  viaje.rerender(fijoEn(10_500))
+  expect(viaje.container.innerHTML).toBe(html)
+})
+
+it('E3: el movimiento es el pedido aunque el sistema pida reducido', () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const completo = render(fijoEn(10_500))
+  const pantalla = completo.container.firstElementChild as HTMLElement
+  expect(pantalla.dataset.movimiento).toBe('completo')
+  expect(pantalla.querySelector(`.${estilos.entraNumero}`)).not.toBeNull()
+  expect(fondoDe(completo.container)).toContain('261deg')
+  completo.unmount()
+  const reducido = render(fijoEn(10_500, { movimiento: 'reducido' }))
+  expect((reducido.container.firstElementChild as HTMLElement).dataset.movimiento).toBe('reducido')
+  expect(reducido.container.querySelector(`.${estilos.entraNumero}`)).toBeNull()
+})
+
+it('E4: con barrido=false no hay capa de resaltado', () => {
+  const { container } = render(fijoEn(3000, { barrido: false }))
+  expect(container.querySelector(`.${estilos.resaltado}`)).toBeNull()
 })

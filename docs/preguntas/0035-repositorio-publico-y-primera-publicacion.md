@@ -25,3 +25,5 @@ Repositorio público, sin primera versión publicada. README y guía siguen en e
 
 ## Respuesta
 El usuario hizo público el repositorio; los permisos para crear ramas se limitan a colaboradores. La decisión y autorización para publicar una versión siguen pendientes.
+
+Actualización 2026-11-20: el usuario pidió que, desde 0.2.0, cada versión tenga su *Release* generada por un GitHub Action. Eso responde al punto 3: el flujo es el del [ADR 0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md) (etiqueta `v*` → construir, probar y crear la *Release*; *pre-release* si lleva sufijo; en borrador si la variable `PUBLICACION_BORRADOR` vale `true`). Si las alfas se publican antes de cerrar la puerta de 0142 queda en [0140](0140-publicar-las-alfas-como-pre-release-publica.md).

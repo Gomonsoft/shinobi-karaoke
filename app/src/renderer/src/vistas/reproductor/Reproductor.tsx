@@ -8,11 +8,13 @@ import {
   type RefObject
 } from 'react'
 import { createPortal } from 'react-dom'
+import type { Modalidad } from '@shared/cancion'
 import type { Letra } from '@shared/letra'
 import type { Estilo } from '@shared/estilo'
 import type { ApiReproductor } from '@shared/ipc'
 import { OFFSET_MAXIMO_MS } from '@shared/letrasBusqueda'
-import { variablesEstilo } from '../../karaoke/estiloCss'
+import { fondoCssEn, variablesEstilo } from '../../karaoke/estiloCss'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
 import {
   MotorReproductor,
@@ -53,6 +55,8 @@ export interface CancionReproductor {
   gananciaDb: number
   letra: Letra
   estilo: Estilo
+  /** Modalidad al empezar (R13: no cambia durante la reproducción). Por defecto `karaoke`. */
+  modalidad?: Modalidad
   lineasSinSincronizar: number
 }
 
@@ -139,6 +143,9 @@ export function Reproductor({
   const [posicionBarra, setPosicionBarra] = useState(0)
   const [indicador, setIndicador] = useState<string | { fueraDeRango: boolean } | null>(null)
   const [anuncio, setAnuncio] = useState('')
+  // La modalidad se toma al empezar: un cambio en el editor se ve en la siguiente reproducción.
+  const [barrido] = useState(cancion.modalidad !== 'letra_lista')
+  const movimientoReducido = useMovimientoReducido()
   const [atajosAbiertos, setAtajosAbiertos] = useState(false)
   const [restante, setRestante] = useState<number | null>(null)
   const [controlesFinal, setControlesFinal] = useState(false)
@@ -609,7 +616,19 @@ export function Reproductor({
       tabIndex={-1}
       data-pantalla-completa={String(pantallaCompleta)}
       className={`${estilos.raiz} ${mostrarControles || (finalizado && !esSesion) || errorPrincipal ? '' : estilos.sinCursor}`}
-      style={variablesEstilo(cancion.estilo) as CSSProperties}
+      style={
+        {
+          ...variablesEstilo(cancion.estilo),
+          // La pantalla final se queda en la fase del último instante (movimiento reducido: fase 0).
+          ...(finalizado && !esSesion
+            ? {
+                '--k-fondo': fondoCssEn(cancion.estilo.fondo, Math.max(0, tiempoAudio()), {
+                  estatico: movimientoReducido
+                })
+              }
+            : {})
+        } as CSSProperties
+      }
       onPointerMove={() => actividad(true)}
       onPointerDown={() => actividad(true)}
     >
@@ -636,6 +655,8 @@ export function Reproductor({
           letra={listo ? cancion.letra : { ...cancion.letra, lineas: [] }}
           duracionMs={duracionMs}
           obtenerTiempoAudio={listo ? tiempoAudio : undefined}
+          barrido={barrido}
+          alAnunciarEspera={(segundos) => setAnuncio(R.espera.aria(segundos))}
           reproduciendo
           avisoTitulo={esSesion ? undefined : (avisoSinIcono ?? undefined)}
           cargando={!listo && cargaLarga}

@@ -84,7 +84,6 @@ describe('códigos de error nuevos', () => {
       'SESION_NO_ACTIVA',
       'GUARDADO_PENDIENTE',
       'PANTALLA_NO_DISPONIBLE',
-      'CANCION_NO_DISPONIBLE',
       'CANCION_EN_REPRODUCCION',
       'ENTRADA_NO_ENCONTRADA',
       'COLA_LLENA'
@@ -92,6 +91,8 @@ describe('códigos de error nuevos', () => {
       expect(CODIGOS_ERROR).toContain(c)
       expect(CODIGOS_SOLO_MAIN).toContain(c)
     }
+    // Desde la fase 6 también lo emite el worker (`exportar`, ADR 0019 §10).
+    expect(CODIGOS_ERROR).toContain('CANCION_NO_DISPONIBLE')
   })
 })
 
@@ -205,6 +206,7 @@ describe('comandos a la secundaria', () => {
     gananciaDb: 0,
     letra,
     estilo: estiloPredeterminado(),
+    modalidad: 'karaoke',
     lineasSinSincronizar: 0,
     silencioPrevio: true
   }

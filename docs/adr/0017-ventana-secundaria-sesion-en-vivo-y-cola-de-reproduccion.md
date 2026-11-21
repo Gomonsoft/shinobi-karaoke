@@ -137,7 +137,7 @@ Opciones elegidas: 1A, 2A, 3A, 4A, 5A, 6A y 7A. La cola se guarda solo en memori
 
 | Incidencia | Qué hace main |
 |---|---|
-| **Se desconecta la pantalla de la secundaria** (`display-removed` con su `id`, o `getDisplayMatching` deja de devolverla) | Sale de pantalla completa y mueve la secundaria a la pantalla de la principal, en ventana al 80 % de su `workArea`, centrada y sin robar el foco (spec 07). Si la de la principal ya no existe, usa la primaria. **El audio y la cola siguen sin cortes** (spec 07 §«Recuperación»). Registra la incidencia `pantalla_perdida` con la etiqueta perdida, y la principal ofrece «Cambiar de pantalla…». Main recuerda la pantalla perdida y si estaba en pantalla completa. |
+| **Se desconecta la pantalla de la secundaria** (`display-removed` con su `id`, o `getDisplayMatching` deja de devolverla) | Sale de pantalla completa y mueve la secundaria a la pantalla **primaria** del sistema (`screen.getPrimaryDisplay()`), en ventana al 80 % de su `workArea`, centrada y sin robar el foco (spec 07 y tarea 0180; corregido el 2026-11-20, antes decía «la de la principal»). **El audio y la cola siguen sin cortes** (spec 07 §«Recuperación»). Registra la incidencia `pantalla_perdida` con la etiqueta perdida, y la principal ofrece «Cambiar de pantalla…». Main recuerda la pantalla perdida y si estaba en pantalla completa. |
 | **Vuelve a conectarse esa pantalla** (`display-added` con el mismo `id`, o con la misma etiqueta y tamaño) | No mueve la secundaria sola. Registra la incidencia `pantalla_reconectada`, y la principal ofrece «Llevar el reproductor allí» (`sesion.moverAPantalla`, que restaura la pantalla completa si la tenía). |
 | **La pantalla es desconocida** (`colocacion: 'sistema'`, Wayland) | No hay incidencias `pantalla_perdida` ni `pantalla_reconectada`, y `moverAPantalla` responde `PANTALLA_NO_DISPONIBLE`. La interfaz muestra `ses.wayland` (0061). |
 | **Cambia la resolución** de la pantalla de la secundaria | Si está en ventana, la recoloca dentro del nuevo `workArea`. En pantalla completa no hace nada, porque el sistema lo resuelve. |
@@ -560,3 +560,12 @@ Escenarios:
 - Electron, seguridad (validar el remitente de IPC, limitar la navegación): https://www.electronjs.org/docs/latest/tutorial/security
 - Node.js `performance.now()` (reloj monotónico): https://nodejs.org/api/perf_hooks.html#performancenow
 - Decisiones de producto: [0048](../preguntas/0048-escucha-editor-durante-evento.md), [0049](../preguntas/0049-politica-cola-de-reproduccion.md). Discusión: [R1](../versiones/0.2.0/discusion/r1-arquitecto.md), [R2](../versiones/0.2.0/discusion/r2-arquitecto.md), [R4](../versiones/0.2.0/discusion/r4-arquitecto.md).
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Convivencia**: se puede exportar durante una sesión y abrir una sesión durante una exportación (§9). La ventana de exportación está silenciada y fuera de pantalla, así que la secundaria sigue siendo el único audio; el worker y el renderer offscreen corren con prioridad baja.
+- **Sin bloqueo**: no se crea `EXPORTACION_BLOQUEADA`. Si la guía manual mostrara cortes, se añadiría un bloqueo por perfil con una revisión del ADR 0019.
+- `hayAlgoEnCurso` cuenta también las exportaciones en curso o en cola. En macOS, cerrar la ventana principal no detiene la exportación.
+- `RegistroVentanas` gana el rol `exportacion` (ADR 0008, revisión de fase 6).

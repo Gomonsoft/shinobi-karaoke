@@ -333,5 +333,47 @@ export const E = {
     },
     region: (nombre: string, femenino: boolean) =>
       `${nombre}, ${femenino ? 'minimizada' : 'minimizado'}`
+  },
+  /** Fase 5 · 0211 (spec 06-editor, G). Claves `edi.fondo.*`. */
+  fondoG: {
+    forma: 'Forma',
+    formas: { lineal: 'Lineal', radial: 'Radial', conico: 'Cónico' },
+    centro: 'Centro del degradado',
+    centroVisible: 'Centro',
+    centroOtro: 'Centro en otra posición, guardada en esta canción.',
+    // Orden de la cuadrícula: filas de arriba abajo, columnas de izquierda a derecha.
+    posiciones: [
+      'Arriba a la izquierda',
+      'Arriba',
+      'Arriba a la derecha',
+      'Izquierda',
+      'Centro',
+      'Derecha',
+      'Abajo a la izquierda',
+      'Abajo',
+      'Abajo a la derecha'
+    ],
+    anguloInicio: 'Ángulo de inicio',
+    movimiento: 'Movimiento',
+    velocidad: 'Velocidad',
+    velocidades: { lenta: 'Lenta', media: 'Media', rapida: 'Rápida' },
+    periodo: (n: number): string => `${n} s`,
+    ayuda: {
+      lineal: 'El degradado gira despacio. Se mueve con la canción: en pausa se queda quieto.',
+      radial:
+        'El centro del degradado describe una órbita lenta. Se mueve con la canción: en pausa se queda quieto.',
+      conico:
+        'El degradado gira alrededor de su centro. Se mueve con la canción: en pausa se queda quieto.'
+    },
+    reducido: 'Tu sistema pide reducir el movimiento: en este equipo el fondo se verá quieto.',
+    detener: 'Detener el movimiento del fondo',
+    reanudar: 'Mover el fondo',
+    resumen: (
+      forma: 'lineal' | 'radial' | 'conico',
+      detalle: string,
+      velocidad: string | null
+    ): string =>
+      `Degradado ${forma === 'conico' ? 'cónico' : forma} · ${detalle}` +
+      (velocidad ? ` · en movimiento (${velocidad})` : '')
   }
 } as const

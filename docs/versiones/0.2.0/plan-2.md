@@ -10,9 +10,9 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 2 | Regiones editables, bucle, zoom y picos de voz | Implementada · [informe](informe-fase-2.md) |
 | 2.1 | Estabilización del editor y paneles adaptables | Cerrada · [informe](informe-fase-2.1.md) |
 | 3 | Temas y agrupación de biblioteca | Implementada · [informe](informe-fase-3.md) |
-| 4 | Ventana secundaria y cola | En curso · [backlog](backlog.md#fase-4--ventana-secundaria-y-cola) |
-| 5 | Degradados, ayudas de espera, Letra lista y ajuste de silencios | Pendiente |
-| 6 | Exportación de video | Pendiente · prueba técnica |
+| 4 | Ventana secundaria y cola | Implementada · [informe](informe-fase-4.md) |
+| 5 | Degradados, ayudas de espera, Letra lista y ajuste de silencios | Implementada · [informe](informe-fase-5.md) |
+| 6 | Exportación de video | Implementada · [informe](informe-fase-6.md) |
 
 ```mermaid
 flowchart LR
@@ -34,7 +34,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 - Las fases y sus criterios quedan verificados, con informe y PR a `develop` por fase. Las decisiones de producto quedan respondidas o se actualiza el alcance con la decisión del usuario.
 - Se abre una biblioteca de esquema 1 y se comprueba que conserva tiempos y estilos persistidos hasta que el usuario solicita cambios. La prueba incluye cambios de tema, guardado, reapertura y recuperación de referencias.
 - CI en los tres sistemas, E2E sin red con audio generado y letras inventadas, y verificación con artefacto empaquetado de los flujos nuevos. Probar dos pantallas, una canción larga en un equipo modesto y exportaciones de los perfiles aprobados.
-- Cierre mediante PR de `develop` a `main` y tag `v0.2.0-alpha` según el [flujo de Git](../../workflow.md). Si implica primera publicación pública, resolver también la [tarea 0142](../../tareas/0142-primera-version-publica.md), visible en la [hoja de ruta](../../roadmap.md).
+- Cierre mediante PR de `develop` a `main` y tag `v0.2.0-alpha` según el [flujo de Git](../../workflow.md). Cada versión publicada (`v0.2.0-alpha.N`, *pre-release*) crea su *Release* de GitHub con el workflow de publicación ([ADR 0020](../../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), [backlog](backlog.md#publicación-en-releases), tareas 0191–0195). Si implica primera publicación pública, resolver también la [tarea 0142](../../tareas/0142-primera-version-publica.md), visible en la [hoja de ruta](../../roadmap.md).
 
 ## Fase 1 · Fin y barrido
 
@@ -248,4 +248,4 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 ## Decisiones y verificaciones pendientes
 
-Las preguntas de producto de [temas](../../preguntas/0047-temas-asignados-edicion-y-borrado.md), [evento y Letra lista](../../preguntas/0048-escucha-editor-durante-evento.md) y [cola](../../preguntas/0049-politica-cola-de-reproduccion.md) tienen respuesta. El [estudio de exportación](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) debe confirmar la combinación de contenedor y códecs, la matriz de perfiles y la coexistencia con un evento.
+Las preguntas de producto de [temas](../../preguntas/0047-temas-asignados-edicion-y-borrado.md), [evento y Letra lista](../../preguntas/0048-escucha-editor-durante-evento.md) y [cola](../../preguntas/0049-politica-cola-de-reproduccion.md) tienen respuesta. El [estudio de exportación](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) está hecho ([ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)): MKV con AV1 y Opus por defecto y WebM con VP9 y Opus como alternativa, 8 resoluciones con 24, 30 y 60 FPS, y exportación permitida durante un evento. Falta la verificación en Windows, Linux y dos pantallas reales (guía manual de la fase 6).

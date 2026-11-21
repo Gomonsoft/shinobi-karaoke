@@ -34,8 +34,9 @@ Sustituir el documento provisional de la secundaria por el reproductor de la ses
   - Ctrl/Cmd + W: `sesion.solicitarCierre()`;
   - Esc: en pantalla completa pasa a ventana y en ventana no hace nada. **Nunca cierra**;
   - F: alterna la pantalla completa.
-  
+
   Los atajos nuevos se añaden al diálogo de atajos, solo en la secundaria.
+
 - **Diálogo de cierre en la secundaria**: cuando `cierrePendiente.origen === 'secundaria'`, se muestra `ses.cierre` (textos de la spec 02) con `confirmarCierre` o `cancelarCierre`, y `CONFIRMACION_OBSOLETA` → `ses.cierre.obsoleto`. Si el origen es la principal, no se muestra nada al público.
 - **Volumen y voz guía**: `sesion.preferencias()` y `guardarPreferencias`, como mucho cada 500 ms. Se reutiliza la lógica de `useVolumenCompartido` sin `config.*`.
 - **Anuncios** `aria-live` solo en los hitos de la spec: inicio, inicio de la cuenta, cambio de candidata, espera, fin y reanudación. Los fallos van con `role="alert"`.

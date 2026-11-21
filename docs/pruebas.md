@@ -4,12 +4,12 @@
 
 ## Niveles
 
-| Nivel | Qué cubre | Quién lo ejecuta | Cuándo | Comando (en `app/`) |
-|---|---|---|---|---|
-| **1 · Críticos** | El flujo principal de punta a punta: Inicio → Biblioteca → Añadir canción → Letra → Editor → Reproductor. Pocas pruebas, estables y rápidas, etiquetadas `@critico`. | Agentes | Al terminar una tarea que toque `main/`, `preload/`, `shared/` o una vista del flujo principal | `npm run test:e2e:criticos` |
-| **2 · De la feature** | Tests unitarios relacionados con los archivos cambiados y specs E2E creadas o modificadas en la tarea. | Agentes | Durante y al terminar cada tarea | `npm run test:cambios` · `npm run test:e2e:cambios` |
-| **3 · Regresión completa** | Toda la suite Vitest y todos los E2E (secundarios incluidos) en Windows, macOS y Linux. | CI de GitHub (`.github/workflows/ci.yml`) | En cada push y PR a `develop`/`main`, y en el PR borrador de la fase | — (CI) |
-| **4 · Manual** | Lo que no conviene automatizar o necesita hardware real: dos pantallas, audio por HDMI, Wayland, sensaciones de uso, capturas. | Usuario | Al cerrar la fase o la feature | Guías en [`Test-manuales/`](Test-manuales/README.md) |
+| Nivel                      | Qué cubre                                                                                                                                                            | Quién lo ejecuta                          | Cuándo                                                                                         | Comando (en `app/`)                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **1 · Críticos**           | El flujo principal de punta a punta: Inicio → Biblioteca → Añadir canción → Letra → Editor → Reproductor. Pocas pruebas, estables y rápidas, etiquetadas `@critico`. | Agentes                                   | Al terminar una tarea que toque `main/`, `preload/`, `shared/` o una vista del flujo principal | `npm run test:e2e:criticos`                          |
+| **2 · De la feature**      | Tests unitarios relacionados con los archivos cambiados y specs E2E creadas o modificadas en la tarea.                                                               | Agentes                                   | Durante y al terminar cada tarea                                                               | `npm run test:cambios` · `npm run test:e2e:cambios`  |
+| **3 · Regresión completa** | Toda la suite Vitest y todos los E2E (secundarios incluidos) en Windows, macOS y Linux.                                                                              | CI de GitHub (`.github/workflows/ci.yml`) | En cada push y PR a `develop`/`main`, y en el PR borrador de la fase                           | — (CI)                                               |
+| **4 · Manual**             | Lo que no conviene automatizar o necesita hardware real: dos pantallas, audio por HDMI, Wayland, sensaciones de uso, capturas.                                       | Usuario                                   | Al cerrar la fase o la feature                                                                 | Guías en [`Test-manuales/`](Test-manuales/README.md) |
 
 Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lint` y `npm run format:check` (baratos y sin ejecutar la app).
 
@@ -20,12 +20,12 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 
 ### Comandos de feedback
 
-| Comando | Qué hace |
-|---|---|
-| `npm run test:cambios` | `vitest run --changed`: tests unitarios afectados por los cambios sin commit (incluye los que importan archivos cambiados). Con otra base: `npx vitest run --changed <ref>`. |
-| `npm run test:e2e:criticos` | Compila y ejecuta solo los E2E con la etiqueta `@critico`. |
-| `npm run test:e2e:cambios` | Compila y ejecuta solo las specs E2E cambiadas sin commit (`playwright test --only-changed`). Con otra base: `npx playwright test --only-changed=<ref>`. |
-| `npx playwright test e2e/<archivo>.spec.ts` | Una spec concreta, tras `npm run build`. |
+| Comando                                     | Qué hace                                                                                                                                                                     |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run test:cambios`                      | `vitest run --changed`: tests unitarios afectados por los cambios sin commit (incluye los que importan archivos cambiados). Con otra base: `npx vitest run --changed <ref>`. |
+| `npm run test:e2e:criticos`                 | Compila y ejecuta solo los E2E con la etiqueta `@critico`.                                                                                                                   |
+| `npm run test:e2e:cambios`                  | Compila y ejecuta solo las specs E2E cambiadas sin commit (`playwright test --only-changed`). Con otra base: `npx playwright test --only-changed=<ref>`.                     |
+| `npx playwright test e2e/<archivo>.spec.ts` | Una spec concreta, tras `npm run build`.                                                                                                                                     |
 
 ## Reglas para los agentes
 
@@ -35,6 +35,12 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 4. Si un test ajeno falla en `test:cambios`, comprueba si lo rompe tu cambio. Si no es tuyo (entorno, inestabilidad), anótalo en las notas de la tarea y sigue.
 5. Lo que solo se puede comprobar a mano (hardware, varios monitores, sensación visual) **no es una tarea de agente**: se añade a la guía manual de la fase en `Test-manuales/`.
 6. Las capturas de revisión visual solo se toman cuando la spec UX las pide para una revisión del diseñador.
+7. **Reintentos de foco con `requestAnimationFrame`**: los que viven a nivel de módulo (p. ej. `enfocarCuando`) sobreviven al test que los lanzó y pueden robar el foco al siguiente. Mantén un solo enfoque pendiente a la vez y no dependas en una prueba de reintentos de otra.
+8. **Specs con sesión de reproducción abierta**: no cierres la app con `app.close()` (main pide confirmación de salida, 0189, y la prueba agota el tiempo en el `finally`, también en macOS). Usa `salirSinConfirmar(app)` de `e2e/salir.ts`.
+9. **Texto solo para lectores de pantalla**: usa siempre la clase compartida `soloLector` de `componentes/componentes.module.css` (en otro módulo, `composes: soloLector from '…/componentes.module.css'`). No copies `position:absolute; width:1px; height:1px` sin `top:0; left:0`: su posición estática cae al final del flujo y añade 1 px de scroll de página (regresión de las fases 4 y 6, vista en el CI de `alpha-2`). La suite crítica comprueba `scrollHeight ≤ innerHeight` en la Biblioteca y en el Editor; si falla, busca el último elemento oculto del documento.
+10. **Captura 4K en Linux sin GPU**: `exportacion-captura.spec.ts` omite 3840×2160 solo en Linux y solo si la captura sale a lo sumo 2 px menor (Xvfb con GPU por software da 3839×2159). Se comprueba a mano en Linux real con GPU (guía manual de la fase 6).
+11. **Efectos pasivos de React en pruebas de componente**: el foco inicial y los efectos de montaje (p. ej. `Escucha` pausa lo que no es la pista activa) se vuelcan en diferido y, bajo carga, caen después de que aparezca el texto o incluso después de un clic. Antes de interactuar con algo cuyo montaje tenga efectos, vacíalos con `await act(async () => {})`; y comprueba el foco con `await waitFor(() => expect(…).toHaveFocus())`, no en síncrono (fallos intermitentes de `Progreso.test.tsx` en alpha-2).
+12. **Medir diálogos que cargan datos**: un diálogo como el de impacto del tema se abre en «calculando» y crece cuando llega el impacto; espera a un texto del cuerpo ya cargado antes de medir cajas (`botonesDentroDelDialogo`), o compararás la caja pequeña con botones ya recolocados (fallo de `temas-editor` «tres acciones», alpha-2). Los atajos del editor también se registran en un efecto pasivo: tras `findBy…`, `await act(async () => {})` antes de `fireEvent.keyDown` (regla 11). `conTemas` cierra con `salirSinConfirmar`: un `app.close()` con un diálogo/borrador abierto se cuelga y enmascara el error real como «1 error was not a part of any test».
 
 ## Regresión en el CI
 
@@ -50,36 +56,42 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 
 ## Inventario
 
-Clasificación de las specs de `app/e2e/` (actualizada el 2026-11-20). Las secundarias solo las ejecuta un agente si su tarea las crea o modifica; el CI las ejecuta todas. Las marcadas *opt-in* se saltan salvo con la variable indicada.
+Clasificación de las specs de `app/e2e/` (actualizada el 2026-11-20, con las fases 4 a 6). Las secundarias solo las ejecuta un agente si su tarea las crea o modifica; el CI las ejecuta todas. Las marcadas _opt-in_ se saltan salvo con la variable indicada.
 
-| Spec | Nivel | Feature que cubre |
-|---|---|---|
-| `criticos/flujo-principal.spec.ts` | **Crítica** (`@critico`) | Flujo principal completo sin red: Biblioteca vacía → importar WAV → separación falsa → pegar letra → sincronizar y marcar como lista → reproductor hasta la pantalla final → salir |
-| `humo.spec.ts` | Secundaria | Arranque de la app y título de la ventana |
-| `ventana.spec.ts` | Secundaria | Tamaño mínimo de la ventana y viewport (DPR 1) |
-| `ipc.spec.ts` | Secundaria | Puente `window.shinobi` y aislamiento del renderer respecto a Node |
-| `seguridad.spec.ts` | Secundaria | Navegación bloqueada, lista blanca de enlaces, instancia única y aislamiento de la ventana secundaria (`window.shinobiReproductor`) |
-| `medios.spec.ts` | Secundaria | Protocolos `shinobi-media://` y `shinobi-app://`, lista blanca y miniaturas |
-| `navegacion.spec.ts` | Secundaria | Atajos globales (Ctrl/Cmd + ,), Esc y zoom del menú |
-| `primer-arranque.spec.ts` | Secundaria | Primer arranque (B1–B5): espacio, errores de red, pausa, CUDA → CPU, reparación y modelo Rápido |
-| `biblioteca.spec.ts` | Secundaria | Biblioteca con la semilla (insignias y líneas de estado) y estado vacío |
-| `biblioteca-acciones.spec.ts` | Secundaria | Filtros, búsqueda, volver a borrador, eliminar, papelera con fallo y editar datos |
-| `menu-contextual.spec.ts` | Secundaria | El menú ⋯ de la tarjeta cabe entero a 1024 × 640 |
-| `importar-archivo.spec.ts` | Secundaria | Importar archivo local: formulario, cancelar, archivo no válido, arrastrar y cerrar a medias |
-| `importar-youtube.spec.ts` | Secundaria | Importar desde YouTube con el doble de yt-dlp: aviso legal, errores, bloqueos, interrupción y cancelación |
-| `youtube-red.spec.ts` | Secundaria, *opt-in* (`SHINOBI_TESTS_RED=1`) | Descarga real de un vídeo CC BY |
-| `separacion.spec.ts` | Secundaria | Separación con el separador falso: fases, cola de trabajos, cancelar, panel de actividad, cierre con trabajos y avisos |
-| `separacion-errores.spec.ts` | Secundaria | Errores de separación: memoria, SIGKILL, oferta y descarga del modelo Rápido, modelo que falta y Re-separar |
-| `separacion-motor-incompleto.spec.ts` | Secundaria | Motor incompleto a mitad de sesión y reparación desde B5 |
-| `letras.spec.ts` | Secundaria | Letras con el doble de LRCLIB: búsqueda, banners de error, pegar, importar .lrc/.txt, sustituir y edición |
-| `letras-red.spec.ts` | Secundaria, *opt-in* (`SHINOBI_TESTS_RED=1`) | Búsqueda real en LRCLIB |
-| `editor.spec.ts` | Secundaria | Editor: sincronizar al ritmo, ajuste fino, deshacer, estilo, marcar como lista, autoguardado, marcadores, bucle, línea de tiempo y perfil opt-in |
-| `editor-layout.spec.ts` | Secundaria | Layout del editor: alto completo, divisores accesibles, modos minimizados, zoom y anchos |
-| `reproductor.spec.ts` | Secundaria | Reproductor local: barrido por renglón, controles y atajos, pantalla final, pistas ausentes, toast y prueba desde el editor |
-| `temas-editor.spec.ts` | Secundaria | Sección Tema del editor (T1–T23): asignar, editar, guardar como, eliminar con fallo y tema no disponible |
-| `temas-biblioteca.spec.ts` | Secundaria | Biblioteca de la fase 3: agrupación, búsqueda por álbum, temas de artista y álbum, plegado y foco |
-| `temas-ajustes.spec.ts` | Secundaria | Ajustes › Temas: predeterminado, borrado pendiente, `temas.json` ilegible y solo lectura |
-| `temas-migracion.spec.ts` | Secundaria | Migración de una biblioteca de esquema 1 al catálogo de temas |
-| `temas-capturas.spec.ts` | Secundaria, *opt-in* (`SHINOBI_CAPTURAS_3=1`) | Capturas de revisión de la fase 3 (solo para el diseñador) |
-
-Las specs `e2e/sesion-*.spec.ts` de la fase 4 ([0190](tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md)) serán secundarias.
+| Spec                                  | Nivel                                         | Feature que cubre                                                                                                                                                                                                 |
+| ------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `criticos/flujo-principal.spec.ts`    | **Crítica** (`@critico`)                      | Flujo principal completo sin red: Biblioteca vacía → importar WAV → separación falsa → pegar letra → sincronizar y marcar como lista → reproductor hasta la pantalla final → salir; comprueba también que la Biblioteca y el Editor no tienen scroll de página (regla 9) |
+| `humo.spec.ts`                        | Secundaria                                    | Arranque de la app y título de la ventana                                                                                                                                                                         |
+| `ventana.spec.ts`                     | Secundaria                                    | Tamaño mínimo de la ventana y viewport (DPR 1)                                                                                                                                                                    |
+| `ipc.spec.ts`                         | Secundaria                                    | Puente `window.shinobi` y aislamiento del renderer respecto a Node                                                                                                                                                |
+| `seguridad.spec.ts`                   | Secundaria                                    | Navegación bloqueada, lista blanca de enlaces, instancia única y aislamiento de la ventana secundaria (`window.shinobiReproductor`)                                                                               |
+| `medios.spec.ts`                      | Secundaria                                    | Protocolos `shinobi-media://` y `shinobi-app://`, lista blanca y miniaturas                                                                                                                                       |
+| `navegacion.spec.ts`                  | Secundaria                                    | Atajos globales (Ctrl/Cmd + ,), Esc y zoom del menú                                                                                                                                                               |
+| `primer-arranque.spec.ts`             | Secundaria                                    | Primer arranque (B1–B5): espacio, errores de red, pausa, CUDA → CPU, reparación y modelo Rápido                                                                                                                   |
+| `biblioteca.spec.ts`                  | Secundaria                                    | Biblioteca con la semilla (insignias y líneas de estado) y estado vacío                                                                                                                                           |
+| `biblioteca-acciones.spec.ts`         | Secundaria                                    | Filtros, búsqueda, volver a borrador, eliminar, papelera con fallo y editar datos                                                                                                                                 |
+| `menu-contextual.spec.ts`             | Secundaria                                    | El menú ⋯ de la tarjeta cabe entero a 1024 × 640                                                                                                                                                                  |
+| `importar-archivo.spec.ts`            | Secundaria                                    | Importar archivo local: formulario, cancelar, archivo no válido, arrastrar y cerrar a medias                                                                                                                      |
+| `importar-youtube.spec.ts`            | Secundaria                                    | Importar desde YouTube con el doble de yt-dlp: aviso legal, errores, bloqueos, interrupción y cancelación                                                                                                         |
+| `youtube-red.spec.ts`                 | Secundaria, _opt-in_ (`SHINOBI_TESTS_RED=1`)  | Descarga real de un vídeo CC BY                                                                                                                                                                                   |
+| `separacion.spec.ts`                  | Secundaria                                    | Separación con el separador falso: fases, cola de trabajos, cancelar, panel de actividad, cierre con trabajos y avisos                                                                                            |
+| `separacion-errores.spec.ts`          | Secundaria                                    | Errores de separación: memoria, SIGKILL, oferta y descarga del modelo Rápido, modelo que falta y Re-separar                                                                                                       |
+| `separacion-motor-incompleto.spec.ts` | Secundaria                                    | Motor incompleto a mitad de sesión y reparación desde B5                                                                                                                                                          |
+| `letras.spec.ts`                      | Secundaria                                    | Letras con el doble de LRCLIB: búsqueda, banners de error, pegar, importar .lrc/.txt, sustituir y edición                                                                                                         |
+| `letras-red.spec.ts`                  | Secundaria, _opt-in_ (`SHINOBI_TESTS_RED=1`)  | Búsqueda real en LRCLIB                                                                                                                                                                                           |
+| `editor.spec.ts`                      | Secundaria                                    | Editor: sincronizar al ritmo, ajuste fino, deshacer, estilo, marcar como lista, autoguardado, marcadores, bucle, línea de tiempo, perfil opt-in y «ajustar los silencios» (fase 5, [0215](tareas/0215-editor-ajustar-los-silencios.md)) |
+| `editor-layout.spec.ts`               | Secundaria                                    | Layout del editor: alto completo, divisores accesibles, modos minimizados, zoom y anchos                                                                                                                          |
+| `reproductor.spec.ts`                 | Secundaria                                    | Reproductor local: barrido por renglón, controles y atajos, pantalla final, pistas ausentes, toast y prueba desde el editor                                                                                       |
+| `temas-editor.spec.ts`                | Secundaria                                    | Sección Tema del editor (T1–T23): asignar, editar, guardar como, eliminar con fallo y tema no disponible                                                                                                          |
+| `temas-biblioteca.spec.ts`            | Secundaria                                    | Biblioteca de la fase 3: agrupación, búsqueda por álbum, temas de artista y álbum, plegado y foco                                                                                                                 |
+| `temas-ajustes.spec.ts`               | Secundaria                                    | Ajustes › Temas: predeterminado, borrado pendiente, `temas.json` ilegible y solo lectura                                                                                                                          |
+| `temas-migracion.spec.ts`             | Secundaria                                    | Migración de una biblioteca de esquema 1 al catálogo de temas                                                                                                                                                     |
+| `temas-capturas.spec.ts`              | Secundaria, _opt-in_ (`SHINOBI_CAPTURAS_3=1`) | Capturas de revisión de la fase 3 (solo para el diseñador)                                                                                                                                                        |
+| `fase5.spec.ts`                       | Secundaria                                    | Fase 5 de 0.2.0 ([0219](tareas/0219-integracion-guia-manual-e-informe-de-la-fase-5.md)): Letra lista de punta a punta y en la sesión, misma fase del fondo en editor y reproductor a 12,3 s y movimiento reducido |
+| `fase5-capturas.spec.ts`              | Secundaria, _opt-in_ (`SHINOBI_CAPTURAS_5=1`) | Capturas de revisión de la fase 5 de 0.2.0 ([0218](tareas/0218-capturas-de-revision-de-la-fase-5.md), solo para el diseñador)                                                                                     |
+| `sesion-main.spec.ts`                 | Secundaria                                    | Fase 4 ([0181](tareas/0181-servicio-de-sesion-e-ipc-en-main.md)): abrir la ventana secundaria y cargarla, un `fin` repetido cuenta una sola vez, y salir con sesión pide confirmación (`ses.salir`), cierra las dos ventanas y la cola no sobrevive |
+| `sesion-flujo.spec.ts`                | Secundaria                                    | Fase 4 ([0190](tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md), 4 pruebas, ~20 s): roles y ventanas, fin y cuenta, cierre conservando la cola y reanudación, caída de la secundaria. Con dos pantallas simuladas y `transicion_s` = 2 |
+| `sesion-capturas.spec.ts`             | Secundaria, _opt-in_ (`SHINOBI_CAPTURAS_4=1`) | Capturas de revisión de la fase 4 (40, solo para el diseñador) |
+| `exportacion.spec.ts`                 | Secundaria                                    | Fase 6 ([0241](tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md), 3 pruebas, ~8 s): exportar a MKV con el worker PyAV real y leer el archivo (72 fotogramas, barrido), cancelar a mitad conservando el archivo previo, y «Letra lista» a WebM sin barrido. A 640 × 480 y 24 FPS |
+| `exportacion-captura.spec.ts`         | Secundaria                                    | Fase 6 ([0234](tareas/0234-ventana-offscreen-de-exportacion-y-rol.md)): la captura de la ventana offscreen es exacta y en BGRA a 640 × 480 y a 3840 × 2160 (esta se omite solo en Linux sin GPU: regla 10) |
+| `exportacion-capturas.spec.ts`        | Secundaria, _opt-in_ (`SHINOBI_CAPTURAS_6=1`) | Capturas de revisión de la fase 6 (20, con exportaciones reales; solo para el diseñador) |

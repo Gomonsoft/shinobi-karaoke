@@ -1,6 +1,7 @@
-import { basename, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { idPorEntrada } from './scripts/preloads-autocontenidos'
 
 const alias = { '@shared': resolve('src/shared') }
 
@@ -27,9 +28,8 @@ function preloadsAutocontenidos(): {
       if (!importer || opciones.isEntry) return null
       const resuelto = await this.resolve(source, importer, { ...opciones, skipSelf: true })
       if (!resuelto || resuelto.external || resuelto.id.includes('node_modules')) return null
-      if (resuelto.id.startsWith('\0') || !resuelto.id.startsWith(resolve('src'))) return null
-      const etiqueta = /\?e=([^&]+)/.exec(importer)?.[1] ?? basename(importer).replace(/\..*$/, '')
-      return { ...resuelto, id: `${resuelto.id.replace(/\?e=[^&]+/, '')}?e=${etiqueta}` }
+      const id = idPorEntrada(resuelto.id, importer, resolve('src'))
+      return id ? { ...resuelto, id } : null
     }
   } as never
 }
@@ -40,7 +40,7 @@ export default defineConfig({
     // Módulo de YouTube desactivable al compilar (ADR 0003, mitigación 5): SHINOBI_SIN_YOUTUBE=1.
     define: { __SHINOBI_YOUTUBE__: JSON.stringify(process.env.SHINOBI_SIN_YOUTUBE !== '1') }
   },
-  // Un preload por rol de ventana (ADR 0017 §2): `index` (principal) y `secundaria`.
+  // Un preload por rol de ventana (ADR 0017 §2): `index` (principal), `secundaria` y `exportacion`.
   preload: {
     resolve: { alias },
     plugins: [preloadsAutocontenidos()],
@@ -48,12 +48,13 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
-          secundaria: resolve('src/preload/secundaria.ts')
+          secundaria: resolve('src/preload/secundaria.ts'),
+          exportacion: resolve('src/preload/exportacion.ts')
         }
       }
     }
   },
-  // Un documento por rol de ventana: `index.html` y `reproductor.html`.
+  // Un documento por rol de ventana: `index.html`, `reproductor.html` y `exportacion.html`.
   renderer: {
     resolve: { alias },
     plugins: [react()],
@@ -61,7 +62,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          reproductor: resolve('src/renderer/reproductor.html')
+          reproductor: resolve('src/renderer/reproductor.html'),
+          exportacion: resolve('src/renderer/exportacion.html')
         }
       }
     }

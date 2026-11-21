@@ -45,6 +45,7 @@ Conectar `ServicioTemas` con `ServicioBiblioteca`, el arranque y el IPC: resumen
 ## Notas de implementación
 
 **Qué se hizo.**
+
 - `ServicioBiblioteca` (`main/biblioteca/servicio.ts`): deja de recibir `estiloPredeterminado`; `conectarTemas(servicio)` (antes de `arrancar`), `puerto()` (el `PuertoCanciones` de 0165: `indice()` síncrono, `leer`, `actualizar(id, mutador)` sin tocar `modificada`), `resolver(cancion)`, `guardarApariencia(id, seleccion)` por la cola (`propio`, `tema`, `heredar`; conserva `base` también al pasar a `tema`; `TEMA_NO_ENCONTRADO`, `BORRADO_PENDIENTE`, `TEMAS_SOLO_LECTURA`). `guardarEstilo` ahora delega en `guardarApariencia`.
 - Resolución en vivo: `listar()` y `obtenerResumen()` recalculan `estilo` y `apariencia` con el catálogo vigente en cada llamada (el índice guarda el resumen, pero el catálogo puede cambiar sin tocar la canción). Toda escritura (`guardar`) refresca `estilo` y `tema_nombre` con `refrescarInstantanea` (de `main/temas/operaciones.ts`) si el modo es `tema`/`heredar`.
 - Creación (`crear`, `materializar`): dentro de `temas.enCola`, con `aparienciaInicial`. `actualizar` pasa por la cola solo si cambia el artista o el álbum (un cambio de título con debounce sigue síncrono en el índice). `notificarIndiceCambiado()` tras crear, cambiar metadatos/apariencia y eliminar.
@@ -59,6 +60,7 @@ Conectar `ServicioTemas` con `ServicioBiblioteca`, el arranque y el IPC: resumen
 **Cómo probarlo.** `npx vitest run src/main`; `npm run semilla -- --limpiar --temas` y `npm run dev`.
 
 **Notas y deuda.**
+
 - Esquema 1: al abrir/listar no se reescribe nada. Excepción heredada de 0.1.0 (ADR 0006): una canción con un paso `en_curso` pasa a `interrumpido` y se escribe al arrancar; la prueba lo admite solo en ese caso.
 - Los E2E existentes no usan `temas: true`: la semilla de temas la usarán 0176 y las capturas.
 - `main/temas/index.ts` no exporta `refrescarInstantanea`; `servicio.ts` lo importa de `../temas/operaciones`.

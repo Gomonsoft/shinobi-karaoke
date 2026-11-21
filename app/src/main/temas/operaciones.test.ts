@@ -176,6 +176,51 @@ describe('fichas', () => {
   })
 })
 
+describe('reemplazos de espera (0202)', () => {
+  const espera = {
+    puntos: false,
+    barra: true,
+    cuenta: true,
+    primera_entrada: false,
+    umbral_ms: 6000
+  }
+  const conReemplazo = (): PuertoDePrueba => {
+    const p = new PuertoDePrueba()
+    p.añadir('a', { titulo: 'A', apariencia: { modo: 'heredar', reemplazos: { espera } } })
+    return p
+  }
+
+  it('aplicar un tema en lote conserva el reemplazo y la instantánea lo lleva fusionado', async () => {
+    const p = conReemplazo()
+    const { servicio } = await montar(catalogo(), p)
+    const op: OperacionTema = {
+      tipo: 'aplicar',
+      cancionIds: ['a'],
+      seleccion: { modo: 'tema', temaId: Y }
+    }
+    const impacto = await servicio.previsualizar(op)
+    await servicio.ejecutar(op, impacto.ficha)
+    const c = p.canciones.get('a')!
+    expect(c.apariencia).toMatchObject({ modo: 'tema', tema_id: Y, reemplazos: { espera } })
+    expect(c.estilo).toEqual({ ...estiloCon('#222222'), espera })
+    expect(servicio.resolver(c).procedenciaEspera).toBe('cancion')
+  })
+
+  it('alHeredar no pierde el reemplazo y sin reemplazo la procedencia es la del estilo', async () => {
+    const p = conReemplazo()
+    p.añadir('b', { titulo: 'B', apariencia: heredar })
+    const { servicio } = await montar(catalogo(), p)
+    expect(servicio.resolver(p.canciones.get('a')!)).toMatchObject({
+      procedenciaEspera: 'cancion',
+      alHeredar: { procedencia: 'predeterminado', temaId: X }
+    })
+    expect(servicio.resolver(p.canciones.get('b')!)).toMatchObject({
+      procedencia: 'predeterminado',
+      procedenciaEspera: 'predeterminado'
+    })
+  })
+})
+
 describe('aplicar (B10)', () => {
   const lote = (): PuertoDePrueba => {
     const p = new PuertoDePrueba()

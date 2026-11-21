@@ -4,7 +4,6 @@ import type { Estilo, Fondo } from '@shared/estilo'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
-import { DialAngulo } from '../../componentes/DialAngulo'
 import { Icono } from '../../componentes/Icono'
 import { SelectorColor } from '../../componentes/SelectorColor'
 import { SelectorFuente } from '../../componentes/SelectorFuente'
@@ -12,7 +11,6 @@ import base from '../../componentes/componentes.module.css'
 import {
   aDegradado,
   aSolido,
-  repartirParadas,
   SUGERIDOS_FONDO,
   SUGERIDOS_LETRA,
   variarLuminosidad30
@@ -21,16 +19,24 @@ import { sugerirResaltado, type EvaluacionContraste } from '../../karaoke/contra
 import { fondoCss } from '../../karaoke/estiloCss'
 import { buscarFuente } from '@shared/fuentes'
 import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from './SeccionTema'
+import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
+import { paradasRepartidas } from './estilo/paradas'
+import { SeccionEspera, type ControlEspera } from './estilo/SeccionEspera'
 import { E } from './textos'
+import { LL } from './textosLetraLista'
 import estilos from './panelEstilo.module.css'
 
 export interface PanelEstiloProps {
   /** Estilo visible: el propio (D2), el borrador (D3) o el del tema (D1, D4, solo lectura). */
   estilo: Estilo
   contraste: EvaluacionContraste
+  /** Letra lista: «resaltado» y «diferencia» se presentan como informativos (salvo en D3). */
+  soloEditor?: boolean
   inactivo: boolean
   alCambiar(estilo: Estilo, clave: string, agruparGesto?: boolean): void
   tema: ControlTema
+  /** Sección «Indicadores de espera» (0212); sin él no se muestra. */
+  espera?: ControlEspera
 }
 
 type OrigenColor = 'hex' | 'nativo' | 'sugerido'
@@ -84,9 +90,7 @@ function ResumenSoloLectura({ estilo }: { estilo: Estilo }) {
             style={{ background: fondoCss(fondo) }}
             aria-hidden="true"
           />
-          {fondo.tipo === 'solido'
-            ? E.tema.resumen.solido
-            : E.tema.resumen.degradado(fondo.angulo_grados)}
+          {resumenFondo(fondo)}
         </dd>
         <dt>{E.tema.resumen.letra}</dt>
         <dd>
@@ -132,11 +136,18 @@ export function PanelEstilo(props: PanelEstiloProps | { estilo?: undefined }) {
   return props.estilo ? <PanelEstiloActivo {...props} /> : null
 }
 
-function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: PanelEstiloProps) {
+function PanelEstiloActivo({
+  estilo,
+  contraste,
+  soloEditor = false,
+  inactivo,
+  alCambiar,
+  tema,
+  espera
+}: PanelEstiloProps) {
   const id = useId()
   const secuencia = useRef(0)
   const selectorNativo = useRef<{ campo: string; clave: string } | null>(null)
-  const gestoAngulo = useRef<string | null>(null)
   const raiz = useRef<HTMLDivElement>(null)
   const { vista } = tema
   const editable = vista.estado === 'd2' || vista.estado === 'd3'
@@ -144,6 +155,7 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
   const puedeEditar = puedeEditarTema(vista)
   const ofreceEditar = ofreceEditarTema(vista)
   const { fondo, letra } = estilo
+  const forma = fondo.tipo === 'degradado' ? (fondo.forma ?? 'lineal') : 'lineal'
 
   function claveNueva(campo: string): string {
     return [campo, id, ++secuencia.current].join(':')
@@ -216,22 +228,11 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
               </div>
             ) : (
               <>
-                <div data-foco-editor="dial">
-                  <DialAngulo
-                    etiqueta={E.angulo}
-                    valor={fondo.angulo_grados}
-                    alCambiar={(angulo_grados, { arrastrando }) => {
-                      if (arrastrando) gestoAngulo.current ??= claveNueva('fondo.angulo')
-                      const clave = gestoAngulo.current
-                      if (!arrastrando) gestoAngulo.current = null
-                      cambiarFondo(
-                        { ...fondo, angulo_grados },
-                        clave ?? 'fondo.angulo',
-                        clave !== null
-                      )
-                    }}
-                  />
-                </div>
+                <ControlesFondo
+                  fondo={fondo}
+                  claveNueva={claveNueva}
+                  alCambiar={(nuevo, clave, agrupar) => cambiarFondo(nuevo, clave, agrupar)}
+                />
                 <h4>{E.colores}</h4>
                 <ol className={estilos.paradas}>
                   {fondo.paradas.map((parada, i) => {
@@ -251,7 +252,7 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
                               cambiarColor(
                                 {
                                   ...estilo,
-                                  fondo: { ...fondo, paradas: repartirParadas(colores) }
+                                  fondo: { ...fondo, paradas: paradasRepartidas(colores, forma) }
                                 },
                                 campo,
                                 origen
@@ -269,7 +270,7 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
                                 i === j ? [] : [p.color]
                               )
                               cambiarFondo(
-                                { ...fondo, paradas: repartirParadas(colores) },
+                                { ...fondo, paradas: paradasRepartidas(colores, forma) },
                                 claveNueva('fondo.quitar')
                               )
                             }}
@@ -285,7 +286,7 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
                       const colores = fondo.paradas.map((p) => p.color)
                       colores.push(variarLuminosidad30(colores.at(-1)!))
                       cambiarFondo(
-                        { ...fondo, paradas: repartirParadas(colores) },
+                        { ...fondo, paradas: paradasRepartidas(colores, forma) },
                         claveNueva('fondo.anadir')
                       )
                     }}
@@ -294,6 +295,11 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
                     {E.anadirColor}
                   </Boton>
                 )}
+                <ControlesMovimiento
+                  fondo={fondo}
+                  claveNueva={claveNueva}
+                  alCambiar={(nuevo, clave, agrupar) => cambiarFondo(nuevo, clave, agrupar)}
+                />
               </>
             )}
           </section>
@@ -334,6 +340,7 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
           </section>
         </>
       )}
+      {espera && <SeccionEspera control={espera} inactivo={inactivo} />}
       <div className={estilos.bloque}>
         <div role="status">
           {contraste.nivel === 'aviso' ? (
@@ -345,8 +352,14 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
           )}
         </div>
         {(editable ? contraste.avisos : contraste.avisos.slice(0, 1)).map((aviso) => (
-          <MensajeContraste key={aviso} tipo="aviso">
+          <MensajeContraste
+            key={aviso}
+            tipo={soloEditor && aviso !== 'letra' && vista.estado !== 'd3' ? 'info' : 'aviso'}
+          >
             <p>{AVISOS[aviso]}</p>
+            {soloEditor && aviso !== 'letra' && vista.estado !== 'd3' && (
+              <p>{LL.contrasteSoloEditor}</p>
+            )}
             {!editable ? (
               <>
                 <p>{E.tema.contrasteAyuda(ofreceEditar)}</p>

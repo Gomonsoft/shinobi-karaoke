@@ -32,7 +32,7 @@ const api: ApiShinobi = {
       invocar(CANALES.biblioteca.actualizarMetadatos, id, metadatos),
     guardarApariencia: (id, seleccion) =>
       invocar(CANALES.biblioteca.guardarApariencia, id, seleccion),
-    marcarLista: (id) => invocar(CANALES.biblioteca.marcarLista, id),
+    marcarLista: (id, opciones) => invocar(CANALES.biblioteca.marcarLista, id, opciones),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
@@ -83,6 +83,20 @@ const api: ApiShinobi = {
     mover: (entradaId, antesDe) => invocar(CANALES.cola.mover, { entradaId, antesDe }),
     quitar: (entradaId) => invocar(CANALES.cola.quitar, { entradaId }),
     vaciar: (contexto) => invocar(CANALES.cola.vaciar, { contexto })
+  },
+  exportacion: {
+    perfiles: () => invocar(CANALES.exportacion.perfiles),
+    estimar: (peticion) => invocar(CANALES.exportacion.estimar, peticion),
+    destinoPropuesto: (peticion) => invocar(CANALES.exportacion.destinoPropuesto, peticion),
+    elegirDestino: (destinoId) => invocar(CANALES.exportacion.elegirDestino, { destinoId }),
+    iniciar: (peticion) => invocar(CANALES.exportacion.iniciar, peticion),
+    cancelar: (trabajoId) => invocar(CANALES.exportacion.cancelar, { trabajoId }),
+    estado: () => invocar(CANALES.exportacion.estado),
+    mostrarEnCarpeta: (referencia) => invocar(CANALES.exportacion.mostrarEnCarpeta, referencia),
+    avisosPendientes: () => invocar(CANALES.exportacion.avisosPendientes),
+    alAviso: (cb) => suscribir(CANALES.eventos.exportacionAviso, cb),
+    alCambiar: (cb) => suscribir(CANALES.eventos.exportacionCambio, cb),
+    alProgreso: (cb) => suscribir(CANALES.eventos.exportacionProgreso, cb)
   },
   trabajos: {
     listar: () => invocar(CANALES.trabajos.listar),

@@ -40,7 +40,13 @@ export const CODIGOS_ERROR = [
   'CANCION_NO_DISPONIBLE',
   'CANCION_EN_REPRODUCCION',
   'ENTRADA_NO_ENCONTRADA',
-  'COLA_LLENA'
+  'COLA_LLENA',
+  'DESTINO_NO_DISPONIBLE',
+  'SIN_CODIFICADOR',
+  'ENTRADA_INCOMPLETA',
+  'DESTINO_OCUPADO',
+  'PERFIL_NO_SOPORTADO',
+  'LIMPIEZA_FALLIDA'
 ] as const
 
 /**
@@ -57,7 +63,13 @@ export const CODIGOS_ERROR = [
  * más nuevo) y `BORRADO_PENDIENTE` (tema en borrado: no admite otra operación).
  * Fase 4 (ADR 0017 §11): sesión y cola. `EDICION_BLOQUEADA` (hay una sesión en la ventana secundaria),
  * `SESION_EN_CURSO`, `SESION_NO_ACTIVA`, `GUARDADO_PENDIENTE`, `PANTALLA_NO_DISPONIBLE`,
- * `CANCION_NO_DISPONIBLE`, `CANCION_EN_REPRODUCCION`, `ENTRADA_NO_ENCONTRADA` y `COLA_LLENA`.
+ * `CANCION_EN_REPRODUCCION`, `ENTRADA_NO_ENCONTRADA` y `COLA_LLENA`.
+ * Fase 6 (ADR 0019 §10): el worker emite `DESTINO_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `ENTRADA_INCOMPLETA` y
+ * también `CANCION_NO_DISPONIBLE` (comando `exportar`), que por eso deja de ser solo de main. Solo de main:
+ * `DESTINO_OCUPADO` (otra exportación usa ese destino), `PERFIL_NO_SOPORTADO` (el equipo no puede crear ese
+ * perfil, p. ej. `capturePage` devuelve otro tamaño) y `LIMPIEZA_FALLIDA` (no se pudo borrar el temporal;
+ * lleva la ruta para «Mostrar en la carpeta»). Desde 0237 `LIMPIEZA_FALLIDA` ya no es el código de un trabajo:
+ * tras cancelar o fallar se indica con `ExportacionIpc.limpiezaFallida` (ADR 0019 §10).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',
@@ -73,10 +85,12 @@ export const CODIGOS_SOLO_MAIN = [
   'SESION_NO_ACTIVA',
   'GUARDADO_PENDIENTE',
   'PANTALLA_NO_DISPONIBLE',
-  'CANCION_NO_DISPONIBLE',
   'CANCION_EN_REPRODUCCION',
   'ENTRADA_NO_ENCONTRADA',
-  'COLA_LLENA'
+  'COLA_LLENA',
+  'DESTINO_OCUPADO',
+  'PERFIL_NO_SOPORTADO',
+  'LIMPIEZA_FALLIDA'
 ] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]

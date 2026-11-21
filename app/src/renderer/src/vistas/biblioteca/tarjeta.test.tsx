@@ -7,6 +7,7 @@ import {
   datosDeTarjeta,
   esReintentable,
   formatearDuracion,
+  mensajeListaMarcada,
   textoAriaTarjeta,
   textoEta,
   textoSincronia,
@@ -500,5 +501,36 @@ describe('línea de paso de la separación y reintentos (0070, ux/02 criterio 18
       accion: 'ver',
       linea: { tipo: 'error', texto: 'Hay que reparar el motor de audio' }
     })
+  })
+})
+
+describe('Letra lista (fase 5)', () => {
+  it('LB1/LB5: insignia, aria y línea de incompleta', () => {
+    const r = resumenPrueba({
+      estado: 'lista',
+      modalidad: 'letra_lista',
+      incompleta: true,
+      lineasSinSincronizar: 2
+    })
+    const d = datosDeTarjeta(r)
+    expect(d.insignia).toBe('letra-lista')
+    expect(d.accion).toBe('reproducir')
+    expect(d.ayudaEstado).toBe('Se reproduce con la letra sincronizada por líneas, sin barrido.')
+    expect(d.linea?.texto).toBe('Faltan 2 líneas por sincronizar')
+    expect(textoAriaTarjeta(r, d)).toContain('Letra lista, sin barrido.')
+  })
+
+  it('un borrador no es Letra lista aunque conserve la modalidad', () => {
+    const d = datosDeTarjeta(resumenPrueba({ estado: 'borrador', modalidad: 'letra_lista' }))
+    expect(d.insignia).toBe('borrador')
+  })
+
+  it('el toast de vuelta distingue la modalidad', () => {
+    expect(mensajeListaMarcada(resumenPrueba({ estado: 'lista', titulo: 'X' }))).toBe(
+      '«X» está lista para cantar.'
+    )
+    expect(
+      mensajeListaMarcada(resumenPrueba({ estado: 'lista', modalidad: 'letra_lista', titulo: 'X' }))
+    ).toBe('«X» tiene la letra lista para cantar.')
   })
 })

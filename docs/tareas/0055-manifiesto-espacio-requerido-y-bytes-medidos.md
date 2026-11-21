@@ -1,4 +1,5 @@
 # 0055 — Manifiesto: `espacio_requerido` de 4 GB en CPU, `bytes_disco` medidos y `bytes_cache` para el progreso
+
 - Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0030, 0034, 0040 (Hechas)
@@ -7,9 +8,11 @@
 - Cuándo: **antes de la Fase 3** (pequeña e independiente; se puede hacer en paralelo con 0056)
 
 ## Objetivo
+
 Llevar al manifiesto lo decidido en `preguntas/0018` (puntos 1 y 3) y corregir el progreso de "Instalando componentes", que compara la caché de uv descomprimida con `bytes_descarga` y por eso se queda en el 99 % durante casi toda la fase.
 
 ## Criterios de aceptación
+
 - [ ] `app/resources/runtime-manifest.json`:
   - `espacio_requerido` = `4000000000` en `win32-x64.cpu` y `linux-x64.cpu`; `darwin-arm64.mps` sigue en 4 GB y los perfiles `cuda` en 10 GB.
   - `bytes_disco` (solo el venv): `win32-x64.cpu` = `1165000000`, `linux-x64.cpu` = `1619000000`, `darwin-arm64.mps` = `1205000000`.
@@ -26,6 +29,7 @@ Llevar al manifiesto lo decidido en `preguntas/0018` (puntos 1 y 3) y corregir e
 - [ ] README "Requisitos del equipo" ya dice 4 GB: solo se comprueba que no contradice al manifiesto.
 
 ## Notas de implementación
+
 - Manifiesto (`app/resources/runtime-manifest.json`): `espacio_requerido` 4 GB en `win32-x64.cpu` y `linux-x64.cpu`; `bytes_disco` y `bytes_cache` con los valores de la tarea (`cuda`: `bytes_cache: null`); `medido` y `version` sin cambios. Los `bytes_disco` de darwin pasan de 1280000000 a 1205000000.
 - `app/src/shared/manifiesto.ts`: campo opcional `bytes_cache` documentado en `requisitosPerfilSchema`.
 - `app/src/main/runtime/gestor.ts`: `conMedicion` acepta un `denominador` opcional; en `componentes` es `bytes_cache ?? bytes_descarga` y los bytes medidos se convierten proporcionalmente a `bytes_descarga` (tope 99 % como antes).

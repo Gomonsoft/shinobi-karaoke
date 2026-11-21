@@ -37,11 +37,13 @@ Implementar `borrar` dentro de `previsualizar`/`ejecutar`, y `reanudarBorrado()`
 ## Notas de implementación
 
 **Qué se hizo.** `main/temas/borrado.ts`: `planBorrado` (recalculado siempre, ordenado por título, incluye las que solo pierden la base), `iniciarBorrado` (diario), `continuarBorrado` (congelación + retirada, compartido por `ejecutar` y `reanudarBorrado`), `cancelarDiario`, `retirarTema`. `usos.ts`: `pasoBorrado` (puro) y `borradoPendiente.restantes` real. `servicio.ts`: rama `borrar` en `ejecutar`, `reanudarBorrado()` y `cancelarBorrado()` (ya no lanzan `NO_IMPLEMENTADO`; `ErrorNoImplementado` eliminado).
+
 - Cada entrada del resultado lleva `titulo` y `artista` (ADR 0016 rev. 3), también las que solo pierden la base, tomados del índice recalculado.
 - `restantes` = canciones que aún habría que escribir (recalculado en cada `catalogo()`); `total` = `max(diario, restantes)` para no quedar por debajo.
 - Congelación: `{ modo: "propio" }` con el estilo resuelto completo. Quitar base: se elimina `base` y se refresca la instantánea (`estilo`, `tema_nombre`).
 
 **Decisiones.**
+
 - Impacto de `borrar`: `efecto: "fija_base"` y `despues` = `propio` sin tema (conserva el aspecto; el contrato no fijaba el valor).
 - `reanudarBorrado()` sin diario: `TEMA_NO_ENCONTRADO`. `cancelarBorrado()` sin diario: no hace nada.
 - Si falla la escritura final del catálogo (retirada) tras congelar todo: `catalogoEscrito: false` con todas `aplicada`; reanudar solo retira.

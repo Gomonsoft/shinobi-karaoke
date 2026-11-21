@@ -1,4 +1,5 @@
 # 0051 — Vista Añadir canción: YouTube (aviso legal único, enlace, vista previa y errores)
+
 - Estado: Hecha
 - Paso del pipeline: 1
 - Depende de: 0044, 0049
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/03-anadir-cancion.md (wireframes B, C, C1, C2, D y E; criterios 4–8, 10, 11, 13–17); respuestas a `preguntas/0013` §1, §4.2 y §5 y `preguntas/0014` §1c y §3
 
 ## Objetivo
+
 Añadir a la vista 03 la pestaña "Enlace de YouTube" completa.
 
 ## Criterios de aceptación
+
 - [x] Selector de origen visible solo si `sistema.info().youtube`; recuerda la última elección durante la sesión.
 - [x] **Aviso legal en línea** (wireframe B, texto literal `add.legal.*`) la primera vez que se elige YouTube con `aviso_youtube_aceptado` nulo: "Entendido" guarda la fecha con `config.actualizar` y muestra el campo de enlace con el foco; "Usar un archivo en su lugar" vuelve a Archivo sin guardar nada. Mientras no se acepte no se muestra el campo (criterios 4–5).
 - [x] Campo "Enlace del vídeo" con ayuda `add.url.ayuda`; validación local con `analizarUrlYoutube` (0029) sin red: `URL_NO_VALIDA` / `URL_NO_SOPORTADA` bajo el campo (`role="alert"`). Pegar una URL válida lanza la búsqueda; también Intro y "Buscar vídeo". Mientras busca: "Buscando…" y el botón pasa a "Cancelar" (también Esc) → `fuente.cancelarInfo`.
@@ -23,6 +26,7 @@ Añadir a la vista 03 la pestaña "Enlace de YouTube" completa.
 - [x] Tests de componente (API falsa): aviso la primera vez y no la segunda; rechazo sin guardar; validación local de ≥ 6 URLs; pegar lanza la búsqueda; cancelar con Esc; vista previa con miniatura, sin miniatura y con imagen que no carga (C2); C1 con evento `actualizando`, cancelar y segundo bloqueo; wireframe E ("Descargar ahora", "Usar otro enlace" que sustituye con el mismo `cancionId`); cada error; "Descargar y continuar" navega; selector oculto con YouTube desactivado.
 
 ## Notas de implementación
+
 - **Qué se hizo**: `vistas/anadir/PanelYoutube.tsx` (aviso legal en línea, campo de enlace con validación local y pegado, "Buscando…"/Cancelar/Esc, C1, errores, vista previa, formulario D y "Descargar y continuar"), `Miniatura.tsx` (marcador C2 compartido con `ResumenFuente`), `AnadirCancion.tsx` (selector solo si `sistema.info().youtube`, recuerda el origen en la sesión), `ResumenFuente.tsx` (enlace de YouTube, wireframe E, error reintentable/no reintentable, interrumpido), textos `TEXTO_YT` y estilos. `DatosInicialesAnadir` gana `origen?: 'archivo'|'youtube'` (pestaña con la que abre la vista 03 al sustituir la fuente); `Progreso` pasa `origen: 'youtube'` en "Usar otro enlace" y llama directamente a `window.shinobi.fuente.reintentar` (ya existía por 0049; "Reintentar"/"Descargar ahora" de 0045 quedan conectados). Tests: `PanelYoutube.test.tsx` (30) y casos nuevos en `ResumenFuente.test.tsx`.
 - **Decisiones**: (1) **Evento `fuente.estadoInfo` (0050) aún no existe en la API**: el panel se suscribe de forma opcional a `window.shinobi.alCambiarEstadoInfo(cb({consultaId, fase}))`; 0050 debe exponerlo con ese nombre (o cambiar la función `suscribirEstadoInfo` de `PanelYoutube.tsx`). Hasta entonces C1 solo se prueba con la API falsa. (2) El aviso de canción larga omite la cifra de minutos (como en 0044, depende de 0036). (3) "Usar un archivo de tu equipo" se ofrece también en `YOUTUBE_BLOQUEADO` y `VIDEO_NO_DISPONIBLE`. (4) La validación local ocurre al buscar o pegar (no en cada tecla) y entonces el foco va al mensaje. (5) Mientras no se sabe si hay YouTube se muestra solo el panel de Archivo (o nada si se recordaba YouTube). (6) Al salir de la vista se cancela la consulta y se descarta la guardada (`cancelarInfo`).
 - **Cómo probarlo** (desde `app/`): `npx vitest run src/renderer`; `npm run lint && npm run typecheck && npm run format:check && npx vitest run && npm run build && npx playwright test`.

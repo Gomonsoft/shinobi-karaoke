@@ -8,7 +8,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { Maximize, PanelRightClose, X } from 'lucide-react'
+import { Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
@@ -32,6 +32,7 @@ import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { evaluarContraste } from '../../karaoke/contraste'
 import type { Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
@@ -43,13 +44,27 @@ import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { Reproductor, type PropsReproductor } from '../reproductor/Reproductor'
 import { BannerSincronizar } from './BannerSincronizar'
 import { BotonLayout, type NombreBotonLayout } from './BotonLayout'
-import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
+import {
+  avisarBorradorAlSalir,
+  avisarError,
+  BotonLista,
+  DialogoVolverABorradorEditor
+} from './BotonLista'
+import { BotonLetraLista } from './BotonLetraLista'
+import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
+import { LL } from './textosLetraLista'
+import { useExportarDesdeEditor } from './useExportarDesdeEditor'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
+import { useControlEspera, useEjemploEspera, esperaVisible } from './estilo/useEspera'
+import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
+import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
+import { S as SILENCIOS } from './silencios/textos'
+import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
 import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { RielLista } from './RielLista'
@@ -247,7 +262,8 @@ function EditorActivo({
         letra: letraInicial,
         apariencia: {
           seleccion: seleccionDeDisco(cancion.apariencia),
-          estilo: cancion.estilo
+          estilo: cancion.estilo,
+          reemplazos: cancion.apariencia?.reemplazos ?? null
         }
       },
       seleccionarInicial(letraInicial)
@@ -267,9 +283,21 @@ function EditorActivo({
   }
   const tema = useTemaEditor({ resumen, edicion, despachar, anunciar, refrescarResumen })
   const estilo = tema.estiloVisible
+  // Estado de esta visita al editor: no se guarda ni entra en el historial (G7).
+  const [fondoDetenido, setFondoDetenido] = useState(false)
+  const movimientoReducido = useMovimientoReducido()
+  const hayMovimiento = estilo.fondo.tipo === 'degradado' && Boolean(estilo.fondo.movimiento)
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
+  // Fase 5 · 0214: aviso de «Letra lista» y cambio de modalidad desde el menú ⋯.
+  const [omitirAvisoLL, setOmitirAvisoLL] = useState(config.editor.omitir_aviso_letra_lista)
+  const [dialogoCambioLL, setDialogoCambioLL] = useState(false)
+  const esLetraLista = resumen.estado === 'lista' && resumen.modalidad === 'letra_lista'
+  // En Letra lista, «resaltado» y «diferencia» solo afectan al editor: no encienden el punto (LL7).
+  const avisosPestana = contraste.avisos.filter(
+    (a) => !(esLetraLista && !tema.editando && a !== 'letra')
+  )
   const [prueba, setPrueba] = useState<Prueba | null>(null)
   const abrirPendiente = useRef<AbortController | null>(null)
   const vuelta = useRef<(EscuchaEditor & { posicionMs: number }) | null>(null)
@@ -409,6 +437,54 @@ function EditorActivo({
       setFocoLinea((n) => n + 1)
     }
   })
+  // Espera que ve el público (reemplazo de la canción, tema o estilo propio).
+  const esperaDelPublico = esperaVisible(tema.control.vista, apariencia, estilo)
+  // «Ajustar los silencios» (0215): el botón de la línea de tiempo y el ítem del menú ⋯ comparten estado.
+  const silencios = useAjustarSilencios({
+    cancionId: id,
+    letra,
+    duracionMs,
+    espera: esperaDelPublico,
+    version: edicion.version,
+    despachar,
+    anunciar
+  })
+  const motivosAjuste = motivosSilencios({
+    letra,
+    separacionDisponible: separacion.disponible,
+    picos:
+      pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+        ? picos.estado.estado
+        : null,
+    borradorTema: tema.editando
+  })
+  // Indicadores de espera (0212): la vista previa y la prueba ven la espera efectiva de la canción.
+  const estiloPrevia = useMemo(
+    () => ({ ...estilo, espera: esperaDelPublico }),
+    [estilo, esperaDelPublico]
+  )
+  const ejemploEspera = useEjemploEspera({
+    letra,
+    seleccion: edicion.seleccion,
+    espera: esperaDelPublico,
+    sonando,
+    pausar: () => alternar(),
+    anunciar
+  })
+  const controlEspera = useControlEspera({
+    vista: tema.control.vista,
+    resumen,
+    apariencia,
+    estilo,
+    despachar,
+    anunciar,
+    ejemploActivo: ejemploEspera.ejemplo !== null,
+    alternarEjemplo: ejemploEspera.alternar
+  })
+  function irAPrimeraSinInicio() {
+    const primera = primeraSinInicio(letra)
+    if (primera) seleccionar(primera, true)
+  }
   function intervaloDeSeleccion(letraVisible: Letra): IntervaloTiempo | null {
     const inicio = letraVisible.lineas.find((l) => l.id === edicion.seleccion)?.inicio_ms
     const fin = edicion.seleccion ? finEfectivo(letraVisible, edicion.seleccion, duracionMs) : null
@@ -555,6 +631,15 @@ function EditorActivo({
   }, [edicion.actual, edicion.version, letra, apariencia, cambiarLetra, cambiarApariencia])
 
   const probarInactivo = edicion.sync.activo || Boolean(audio?.error)
+  const exportarVideo = useExportarDesdeEditor({
+    cancionId: id,
+    hayPistas: separacion.disponible,
+    lineasConInicio: cuentas.sincronizadas,
+    inactivo: probarInactivo,
+    temaBorrador: tema.borradorModificado,
+    pausar: () => motor?.pausar(),
+    vaciar
+  })
   const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
   useLayoutEffect(() => {
     // El vaciado puede esperar una escritura o el diálogo. Usa el editor del último render.
@@ -581,6 +666,25 @@ function EditorActivo({
       }
     }
   })
+
+  async function cambiarModalidad(modalidad: 'karaoke' | 'letra_lista', omitir = false) {
+    try {
+      if (omitir) {
+        await guardarOmitirAviso()
+        setOmitirAvisoLL(true)
+      }
+      if (!(await vaciar())) return
+      await window.shinobi.biblioteca.marcarLista(id, { modalidad })
+      await refrescarResumen()
+      const mensaje = modalidad === 'letra_lista' ? LL.toastCambio : LL.toastKaraoke
+      mostrarToast({ tipo: 'exito', mensaje })
+      anunciar(mensaje)
+    } catch (error) {
+      avisarError(LL.errorCambiar, error)
+    } finally {
+      setDialogoCambioLL(false)
+    }
+  }
 
   async function abrirPrueba(): Promise<void> {
     if (probarInactivo || !cuentas.sincronizadas || prueba || abrirPendiente.current) return
@@ -882,6 +986,9 @@ function EditorActivo({
         case 'probar':
           void abrirPrueba()
           break
+        case 'exportar':
+          exportarVideo.exportar()
+          break
         case 'entrar_sync':
           entrarSync()
           break
@@ -987,13 +1094,36 @@ function EditorActivo({
             }}
             menu={[
               { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) },
+              exportarVideo.item,
               {
                 id: 'restablecer-distribucion',
                 etiqueta: E.layout.restablecer,
                 alSeleccionar: restablecerDistribucion
               },
+              {
+                id: 'ajustar-silencios',
+                etiqueta: SILENCIOS.menu,
+                noDisponible: edicion.sync.activo
+                  ? SILENCIOS.falta.ritmo
+                  : motivosAjuste.map(textoMotivo).join(' · ') || undefined,
+                alSeleccionar: () => void silencios.pedir()
+              },
               ...(resumen.estado === 'lista'
                 ? [
+                    esLetraLista
+                      ? {
+                          id: 'a-lista',
+                          etiqueta: LL.menuALista,
+                          alSeleccionar: () => void cambiarModalidad('karaoke')
+                        }
+                      : {
+                          id: 'a-letra-lista',
+                          etiqueta: LL.menuALetraLista,
+                          alSeleccionar: () =>
+                            omitirAvisoLL
+                              ? void cambiarModalidad('letra_lista')
+                              : setDialogoCambioLL(true)
+                        },
                     {
                       id: 'borrador',
                       etiqueta: E.menuBorrador,
@@ -1058,14 +1188,19 @@ function EditorActivo({
                 <div className={estilos.pantalla} data-lienzo="previa">
                   <PantallaLetra
                     letra={gestoVisible?.resultado?.letra ?? letra}
-                    estilo={estilo}
-                    duracionMs={duracionMs}
+                    key={ejemploEspera.ejemplo ? 'ejemplo' : 'previa'}
+                    estilo={estiloPrevia}
+                    duracionMs={ejemploEspera.ejemplo?.duracionMs ?? duracionMs}
                     titulo={metadatos.titulo}
                     artista={metadatos.artista}
                     idEstatico={edicion.seleccion}
-                    reproduciendo={sonando}
-                    cuentaAtras={sync.cuentaAtras}
-                    obtenerTiempoAudio={obtenerTiempoAudio}
+                    reproduciendo={ejemploEspera.ejemplo !== null || sonando}
+                    cuentaAtras={ejemploEspera.ejemplo ? null : sync.cuentaAtras}
+                    obtenerTiempoAudio={
+                      ejemploEspera.ejemplo ? ejemploEspera.obtenerTiempo : obtenerTiempoAudio
+                    }
+                    etiqueta={ejemploEspera.ejemplo ? ejemploEspera.etiqueta : undefined}
+                    fondoEstatico={fondoDetenido}
                   />
                 </div>
                 <div className={estilos.accionPrueba}>
@@ -1073,6 +1208,15 @@ function EditorActivo({
                     <Tooltip contenido={E.probarTooltip}>{botonProbar}</Tooltip>
                   ) : (
                     botonProbar
+                  )}
+                  {hayMovimiento && !movimientoReducido && (
+                    <BotonIcono
+                      icono={fondoDetenido ? Play : Pause}
+                      etiqueta={fondoDetenido ? E.fondoG.reanudar : E.fondoG.detener}
+                      activo={fondoDetenido}
+                      className={estilos.detenerFondo}
+                      onClick={() => setFondoDetenido((d) => !d)}
+                    />
                   )}
                 </div>
               </div>
@@ -1092,7 +1236,7 @@ function EditorActivo({
                 alternarBucle={audio?.duracionMs != null ? alternarBucle : undefined}
                 fijarFin={() => fijar('fin')}
                 limiteFin={limiteDeCampo(edicion, 'fin')}
-                avisos={contraste.avisos.length > 0}
+                avisos={avisosPestana.length > 0}
                 editandoTema={tema.editando}
                 expandir={() => alternarZona('panel', 'boton')}
               />
@@ -1108,8 +1252,7 @@ function EditorActivo({
                         {
                           valor: 'estilo',
                           etiqueta: 'Estilo',
-                          aviso:
-                            contraste.avisos.length > 0 ? 'Hay avisos de contraste' : undefined,
+                          aviso: avisosPestana.length > 0 ? 'Hay avisos de contraste' : undefined,
                           info: tema.editando,
                           nombre: tema.editando ? E.tema.pestanaEditando : undefined,
                           noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
@@ -1164,8 +1307,10 @@ function EditorActivo({
                       <PanelEstilo
                         estilo={estilo}
                         contraste={contraste}
+                        soloEditor={esLetraLista}
                         inactivo={edicion.sync.activo}
                         tema={tema.control}
+                        espera={controlEspera}
                         alCambiar={(nuevo, clave, agruparGesto) =>
                           despachar({
                             tipo: tema.editando ? 'estilo_borrador' : 'estilo',
@@ -1220,16 +1365,33 @@ function EditorActivo({
                 entrarSync={entrarSync}
                 refSync={refSync}
                 acciones={
-                  <BotonLista
-                    resumen={resumen}
-                    letra={letra}
-                    separacion={separacion}
-                    vaciar={vaciar}
-                    alEnfocarPrimera={() => {
-                      const primera = primeraSinInicio(letra)
-                      if (primera) seleccionar(primera, true)
-                    }}
-                  />
+                  <>
+                    {resumen.estado === 'borrador' && (
+                      <BotonLetraLista
+                        resumen={resumen}
+                        cancion={cancion}
+                        letra={letra}
+                        separacion={separacion}
+                        omitirAviso={omitirAvisoLL}
+                        alOmitirAviso={() => setOmitirAvisoLL(true)}
+                        vaciar={vaciar}
+                        alEnfocarPrimera={() => {
+                          const primera = primeraSinInicio(letra)
+                          if (primera) seleccionar(primera, true)
+                        }}
+                      />
+                    )}
+                    <BotonLista
+                      resumen={resumen}
+                      letra={letra}
+                      separacion={separacion}
+                      vaciar={vaciar}
+                      alEnfocarPrimera={() => {
+                        const primera = primeraSinInicio(letra)
+                        if (primera) seleccionar(primera, true)
+                      }}
+                    />
+                  </>
                 }
                 sincronizando={edicion.sync.activo}
               />
@@ -1259,6 +1421,17 @@ function EditorActivo({
                   />
                 )}
                 <PistaSincronia
+                  botonSilencios={
+                    <BotonAjustarSilencios
+                      motivos={motivosAjuste}
+                      ritmo={edicion.sync.activo}
+                      buscando={silencios.buscando}
+                      alPulsar={() => void silencios.pedir()}
+                      alReintentar={picos.reintentar}
+                      alIrAPrimera={irAPrimeraSinInicio}
+                    />
+                  }
+                  resaltadas={silencios.resaltadas}
                   onda={(vista) => (
                     <PistaOndaVoz
                       cancionId={id}
@@ -1346,10 +1519,27 @@ function EditorActivo({
         </div>
       </div>
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {silencios.abierta && (
+        <DialogoAjustarSilencios
+          abierta={silencios.abierta}
+          duracionMs={duracionMs}
+          mac={silencios.mac}
+          alConfirmar={() => void silencios.confirmar()}
+          alCancelar={silencios.cancelar}
+        />
+      )}
+      {exportarVideo.dialogo}
       {dialogoBorrador && (
         <DialogoVolverABorradorEditor
           resumen={resumen}
           alCerrar={() => setDialogoBorrador(false)}
+        />
+      )}
+      {dialogoCambioLL && (
+        <DialogoLetraLista
+          variante="cambio"
+          alCancelar={() => setDialogoCambioLL(false)}
+          alConfirmar={(omitir) => cambiarModalidad('letra_lista', omitir)}
         />
       )}
       {dialogoSalida}
@@ -1366,7 +1556,9 @@ function EditorActivo({
             duracionMs: metadatos.duracion_ms,
             gananciaDb: cancion.fuente.ganancia_db ?? 0,
             letra,
-            estilo,
+            estilo: estiloPrevia,
+            // LL8: «Probar» muestra lo que verá el público (una Letra lista, sin barrido).
+            modalidad: resumen.modalidad,
             lineasSinSincronizar: 0
           }}
           volumen={volumen}

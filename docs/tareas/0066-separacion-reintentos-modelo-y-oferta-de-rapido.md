@@ -1,4 +1,5 @@
 # 0066 — Separación: reintentos por memoria, modelo que falta y oferta del modelo Rápido
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0057, 0065
@@ -7,9 +8,11 @@
 - Cuándo: tras 0065; en paralelo con 0068–0072
 
 ## Objetivo
+
 Política de reintentos de `separar` sobre el mecanismo de 0063 y conexión con la puerta de consentimiento de 0057. **Nunca se pasa a Rápido de forma automática.**
 
 ## Criterios de aceptación
+
 - [ ] **Política de `separar`** (`politicaReintento` de 0063):
   1. `MEMORIA_INSUFICIENTE` o `PROCESO_TERMINADO` en el intento 1 → intento 2 con `bloques: 'pequenos'`, mismo dispositivo y mismo modelo (`motivo: 'memoria'`, sin espera).
   2. Lo mismo en el intento 2 con `dispositivo: 'cuda'` → intento 3 con `dispositivo: 'cpu'` y `bloques: 'pequenos'` (`motivo: 'memoria_cpu'`).
@@ -51,7 +54,9 @@ Política de reintentos de `separar` sobre el mecanismo de 0063 y conexión con 
   - nunca se lanza Rápido sin `rapido_aceptado`.
 
 ## Notas de implementación
+
 **Qué se hizo**
+
 - `main/separacion/servicio.ts`: `politicaReintento` de `separar` (`planMemoria`, decide por los args del intento que falló: `bloques: 'normal'` → `pequenos` con `motivo: 'memoria'`; `pequenos` + `cuda` → CPU con `motivo: 'memoria_cpu'`; si no, `null`). `MEMORIA_INSUFICIENTE` y `PROCESO_TERMINADO` se tratan igual; `traducirError` convierte el `PROCESO_TERMINADO` definitivo en `MEMORIA_INSUFICIENTE`. Sin espera. El factor medido no se guarda si cambió el dispositivo (ya estaba en 0065).
 - **Modelo que falta**: puerto `PuertoModelos` (`verificado`, `descargar`, `borrar`; implementado en `separacion/modelos.ts` sobre `runtime/modelos.ts`: `modeloVerificado` compara `verificados.json` con tamaño y `mtime`, sin SHA-256, y `borrarModelo`; la descarga es `runtime.gestor.descargarModelo`, reanudable, y exige consentimiento si es Rápido). `alEmpezar` lo comprueba y descarga dentro del mismo trabajo (fase `descargando_modelo` con bytes; cancelar aborta la descarga y conserva el `.descarga`). Fallo → `MODELO_NO_DISPONIBLE` con el código de la descarga en `mensaje`. Si el worker devuelve `MODELO_NO_DISPONIBLE`: plan con `motivo: null` y `antes` que borra el modelo, lo descarga y recrea `pistas.tmp`, una sola vez, sin contar como intento ni mostrar `reintentando`. Con modo `rapido` y modelo no verificado se usa Calidad (`TrabajoIpc.modo` lo refleja).
 - **Oferta de Rápido**: `ServicioSeparacion.ofertaRapidoVigente(cancionId?)`. **Dónde se guarda el modelo**: campo opcional `modelo` (`calidad | rapido`) en el error del paso (`errorPasoSchema`, resumen e IPC del resumen), escrito por el gestor (`error.modelo ?? trabajo.modo`) solo en `separacion`; las canciones antiguas no lo tienen y no ofrecen Rápido (migración tolerante). Condiciones: modo vigente Calidad, sin Rápido pendiente, error `MEMORIA_INSUFICIENTE` o `MODELO_NO_DISPONIBLE` con `mensaje !== 'SIN_CONEXION'`, con `modelo === 'calidad'`. Se deriva de `cancion.json`. Se conecta a `runtime.aceptarYUsarRapido('separacion')` con `ofertaSeparacionVigente` (composicion.ts/index.ts, enlace tardío) y a `runtime.estado().ofrecerRapido` (la vista de 0068 lo lee de ahí; `calcularOfertaInstalacion` queda para el origen `primer_arranque`). Sin canal IPC nuevo. `ServicioRuntime.refrescar()` (no IPC) difunde el estado cuando termina una separación (`alCambiarOferta`).
@@ -61,6 +66,7 @@ Política de reintentos de `separar` sobre el mecanismo de 0063 y conexión con 
 - **Cómo probarlo**: `SHINOBI_UV=<uv> npx vitest run src/main/separacion src/main/runtime`.
 
 **Deuda / notas**
+
 - Los E2E que separan sin modelo en disco ahora descargan el modelo con el runtime falso (en vez de fallar con `MODELO_NO_DISPONIBLE`); 0076 debe sembrar `verificados.json` o usar el escenario de fallo. `importar-youtube › cerrar la app durante la descarga` falla en E2E también con la comprobación de modelo desactivada (probable causa ajena: renderer en curso de 0069–0072).
 - Mientras se descarga `descargando_modelo` el progreso del paso se persiste como el de `separando` (el umbral evita retrocesos, pero la barra del paso puede parecer adelantada); la vista de 0068 ya usa el evento, no el persistido.
 - Sin tests unitarios propios en `trabajos/gestor.test.ts` para los ganchos nuevos (`antes`, `motivo: null`, `traducirError`, `entornoIntento`): los cubre `servicio.reintentos.test.ts`.

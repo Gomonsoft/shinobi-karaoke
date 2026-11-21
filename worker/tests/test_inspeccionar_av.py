@@ -17,10 +17,15 @@ sys.modules["inspeccionar_av"] = ia
 _spec.loader.exec_module(ia)
 
 
+CODECS = b" --enable-libsvtav1 --enable-libvpx --enable-libopus"
+
+
 def _rueda(tmp_path, config: bytes, extra: tuple[str, ...] = ()) -> Path:
     ruta = tmp_path / "av-1-cp312-abi3-x.whl"
     with zipfile.ZipFile(ruta, "w") as z:
-        z.writestr("av.libs/avutil-61-abc.dll", b"\0" + config + b"\0LGPL version 3 or later\0")
+        z.writestr(
+            "av.libs/avutil-61-abc.dll", b"\0" + config + CODECS + b"\0LGPL version 3 or later\0"
+        )
         z.writestr("av/codec.abi3.so", b"x")  # extensión de PyAV: no es una biblioteca de FFmpeg
         for nombre in extra:
             z.writestr(nombre, b"x")
@@ -50,9 +55,33 @@ def test_falla_con_componentes_no_libres(tmp_path, config, extra, esperado):
     assert not r["ok"] and esperado in r["no_libres"]
 
 
+def _rueda_sin(tmp_path, quitar: str) -> Path:
+    ruta = tmp_path / "av-1-cp312-abi3-x.whl"
+    config = b"--enable-shared " + CODECS.replace(quitar.encode(), b"--enable-libfalso")
+    with zipfile.ZipFile(ruta, "w") as z:
+        z.writestr("av.libs/avutil-61-abc.dll", b"\0" + config + b"\0LGPL version 3 or later\0")
+    return ruta
+
+
+@pytest.mark.parametrize("codec", ["libsvtav1", "libvpx", "libopus"])
+def test_falla_si_falta_un_codec_de_la_exportacion(tmp_path, codec):
+    r = ia.inspeccionar_rueda(_rueda_sin(tmp_path, f"--enable-{codec}"))
+    assert not r["ok"] and r["codecs_faltantes"] == [codec] and r["no_libres"] == []
+
+
+def test_un_codec_cuenta_si_esta_como_biblioteca(tmp_path):
+    ruta = _rueda_sin(tmp_path, "--enable-libopus")
+    with zipfile.ZipFile(ruta, "a") as z:
+        z.writestr("av.libs/libopus-0-1a2b.dll", b"x")
+    assert ia.inspeccionar_rueda(ruta)["ok"]
+
+
 def test_sin_configuracion_es_error(tmp_path):
+    ruta = tmp_path / "av-1-cp312-abi3-x.whl"
+    with zipfile.ZipFile(ruta, "w") as z:
+        z.writestr("av.libs/avutil-61-abc.dll", b"\0nada\0")
     with pytest.raises(ia.ErrorInspeccion):
-        ia.inspeccionar_rueda(_rueda(tmp_path, b"nada"))
+        ia.inspeccionar_rueda(ruta)
 
 
 def test_version_y_hashes_de_los_requisitos_reales():

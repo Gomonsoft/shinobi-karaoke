@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { letra, linea, pausa } from '@shared/__fixtures__'
+import { ESPERA_LEGADA } from '@shared/espera'
 import { fotogramaEn, fotogramaEstatico } from './render'
 
 const contexto = { titulo: 'Inventada', artista: 'Shinobi', duracionMs: 30_000 }
@@ -18,13 +19,13 @@ describe('modelo de render', () => {
     expect(fotogramaEn(l, 3000, contexto)).toMatchObject({
       actual: null,
       siguiente: { id: 'c' },
-      puntos: 0
+      espera: null
     })
     expect(fotogramaEstatico(l, 'b')).toMatchObject({
       titulo: null,
       actual: { id: 'b', progreso: 0.5 },
       siguiente: { id: 'c', progreso: 0 },
-      puntos: 0
+      espera: null
     })
     expect(fotogramaEstatico(l, null).actual?.id).toBe('a')
   })
@@ -40,7 +41,11 @@ describe('modelo de render', () => {
     }
     const enAudio = (ms: number) => fotogramaEn(l, ms - l.offset_ms, contexto)
     expect(enAudio(16_049).actual?.id).toBe('a')
-    const espera = { actual: null, siguiente: { id: 'b', progreso: 0 }, puntos: 0 }
+    const espera = {
+      actual: null,
+      siguiente: { id: 'b', progreso: 0 },
+      espera: null
+    }
     expect(enAudio(16_050)).toMatchObject(espera)
     expect(enAudio(17_349)).toMatchObject(espera)
     expect(enAudio(17_350).actual).toMatchObject({ id: 'b', progreso: 0 })
@@ -78,25 +83,24 @@ describe('modelo de render', () => {
         titulo: { titulo: contexto.titulo, artista: contexto.artista },
         actual: null,
         siguiente: null,
-        puntos: 0
+        espera: null
       })
     }
     for (const tiempo of [inicio - 4000, inicio - 3001]) {
       expect(fotogramaEn(l, tiempo, contexto)).toMatchObject({
         titulo: null,
         actual: null,
-        siguiente: { id: 'a' },
-        puntos: 0
+        siguiente: { id: 'a' }
       })
     }
     expect(
       [-3000, -2001, -2000, -1001, -1000, -1].map(
-        (delta) => fotogramaEn(l, inicio + delta, contexto).puntos
+        (delta) => fotogramaEn(l, inicio + delta, contexto).espera?.puntos ?? 0
       )
     ).toEqual([3, 3, 2, 2, 1, 1])
     expect(fotogramaEn(l, inicio, contexto)).toMatchObject({
       actual: { id: 'a', progreso: 0 },
-      puntos: 0
+      espera: null
     })
   })
 
@@ -110,12 +114,11 @@ describe('modelo de render', () => {
     expect(fotogramaEn(l, 9000, contexto).actual?.progreso).toBe(0.5)
     expect(fotogramaEn(l, 10_000, contexto)).toMatchObject({
       actual: null,
-      siguiente: { id: 'b' },
-      puntos: 0
+      siguiente: { id: 'b' }
     })
-    expect([11_000, 12_000, 13_000, 14_000].map((t) => fotogramaEn(l, t, contexto).puntos)).toEqual(
-      [3, 2, 1, 0]
-    )
+    expect(
+      [11_000, 12_000, 13_000, 14_000].map((t) => fotogramaEn(l, t, contexto).espera?.puntos ?? 0)
+    ).toEqual([3, 2, 1, 0])
   })
 
   it('acota el fin de la última línea y conserva el título si no hay tiempos', () => {
@@ -128,7 +131,7 @@ describe('modelo de render', () => {
         titulo: { titulo: 'Inventada' },
         actual: null,
         siguiente: null,
-        puntos: 0
+        espera: null
       })
     }
   })
@@ -149,5 +152,60 @@ describe('modelo de render', () => {
     expect(grande.ms).toBeLessThan(2000)
     // Un algoritmo lineal por fotograma sería ~10 veces más lento con 10 veces más líneas.
     expect(grande.ms).toBeLessThan(Math.max(pequeno.ms, 25) * 8)
+  })
+
+  describe('espera ampliada', () => {
+    const cfg = { ...ESPERA_LEGADA, barra: true, cuenta: true }
+    const ctx = { ...contexto, espera: cfg }
+    const dos = letra([linea('a', 'A', 1000, { fin_ms: 2000 }), linea('b', 'B', 12_000)])
+
+    it('tabla legada: puntos por instante', () => {
+      const l = letra([
+        linea('a', 'A', 10_000, { fin_ms: 11_000 }),
+        linea('b', 'B', 14_900, { fin_ms: 15_000 }),
+        linea('c', 'C', 19_000, { fin_ms: 20_000 }),
+        linea('d', 'D', 30_000, { fin_ms: 31_000 })
+      ])
+      const p = (t: number) => fotogramaEn(l, t, contexto).espera?.puntos ?? 0
+      expect([5000, 6500, 7000, 9999].map(p)).toEqual([0, 0, 3, 1])
+      expect([11_500, 12_000, 14_000, 14_500].map(p)).toEqual([0, 0, 0, 0])
+      expect([16_000, 16_100, 17_500, 18_999].map(p)).toEqual([3, 3, 2, 1])
+      expect([27_000, 28_000, 29_999, 31_500].map(p)).toEqual([3, 2, 1, 0])
+    })
+
+    it('barra y cuenta en un hueco de 10 s', () => {
+      const l = letra([linea('a', 'A', 0, { fin_ms: 2000 }), linea('b', 'B', 12_000)])
+      const e = (t: number) => fotogramaEn(l, t, ctx).espera!
+      expect(e(7000).fraccion).toBe(0.5)
+      expect(e(11_999).fraccion).toBeCloseTo(1, 3)
+      expect([9000, 10_000, 11_000].map((t) => e(t).cuenta)).toEqual([3, 2, 1])
+      expect(e(5000)).toMatchObject({ cuenta: null, puntos: 0, barra: true, primera: false })
+      expect(fotogramaEn(l, 12_000, ctx).espera).toBeNull()
+    })
+
+    it('hueco de 2 s con umbral 1000 empieza la cuenta en 2', () => {
+      const l = letra([linea('a', 'A', 0, { fin_ms: 1000 }), linea('b', 'B', 3000)])
+      const c = { ...contexto, espera: { ...cfg, umbral_ms: 1000 } }
+      expect(fotogramaEn(l, 1000, c).espera?.cuenta).toBe(2)
+    })
+
+    it('sin siguiente, sin primera entrada o sin casillas no hay espera', () => {
+      expect(fotogramaEn(dos, 14_000, ctx).espera).toBeNull()
+      const sinPrimera = { ...ctx, espera: { ...cfg, primera_entrada: false } }
+      expect(fotogramaEn(letra([linea('a', 'A', 10_000)]), 7000, sinPrimera).espera).toBeNull()
+      const ninguna = { ...ctx, espera: { ...cfg, puntos: false, barra: false, cuenta: false } }
+      expect(fotogramaEn(dos, 5000, ninguna).espera).toBeNull()
+    })
+
+    it('primera entrada con barra y clave estable por hueco', () => {
+      const l = letra([linea('a', 'A', 10_000, { fin_ms: 11_000 }), linea('b', 'B', 30_000)])
+      expect(fotogramaEn(l, 6000, ctx).espera).toMatchObject({ primera: true, fraccion: 0 })
+      const claves = [11_500, 20_000, 27_500, 29_000].map(
+        (t) => fotogramaEn(l, t, ctx).espera!.clave
+      )
+      expect(new Set(claves).size).toBe(1)
+      expect(fotogramaEn(l, 8000, ctx).espera!.clave).not.toBe(claves[0])
+      expect(fotogramaEn(l, 20_000, ctx)).toEqual(fotogramaEn(l, 20_000, ctx))
+    })
   })
 })

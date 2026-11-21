@@ -1,4 +1,5 @@
 # 0035 — Runtime: comprobación al arrancar, reutilización tras recrear `config.json` y `resolverLanzador` en producción
+
 - Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0034
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/01-primer-arranque.md ("Instalación dañada en un arranque posterior", criterio 12)
 
 ## Objetivo
+
 Que la app arranque bien en todos los estados del runtime: completo, incompleto, dañado o presente pero "olvidado" porque `config.json` se recreó; y que el worker se lance con el intérprete del venv cuando la app está empaquetada (deuda de 0013/0014: hoy `index.ts` usa siempre el modo desarrollo).
 
 ## Criterios de aceptación
+
 - [x] `comprobarAlArrancar()` en el gestor de runtime, antes de crear la ventana (o mientras la ventana muestra su primera pantalla), aplica ADR 0009 §6:
   - `completa` + comprobación barata OK → nada (Biblioteca).
   - `completa` + falta el venv, el marcador no coincide con la `version` del manifiesto o falta el modelo del perfil → `estado = "dañada"` y fases afectadas a `pendiente` (B5 "Hay que reparar el motor de audio").
@@ -22,6 +25,7 @@ Que la app arranque bien en todos los estados del runtime: completo, incompleto,
 - [x] Test de integración (CI, sin red): con un venv real creado con `uv venv` en un temporal + `PYTHONPATH` al worker del repo, `resolverLanzador` en modo producción ejecuta `demo` correctamente en los 3 SO (cubre la deuda "sin probar en Windows" de 0013).
 
 ## Notas de implementación
+
 - **Qué se hizo**:
   - `main/runtime/gestor.ts`: `comprobarAlArrancar()` (ADR 0009 §6) con resultado `completa` | `dañada` (motivo `venv`/`marcador`/`modelo`) | `reutilizada` | `pendiente`. Siempre empieza con `limpiarModelos()`. `completa`: comprobación barata (intérprete del venv, marcador = versión del manifiesto + plataforma + perfil + SHA de requisitos, tamaño del modelo vía el nuevo `modeloPresente`) sin SHA-256; si falla → `dañada` y solo las fases afectadas a `pendiente` (marcador de otra versión: solo `componentes`). No completa + marcador válido: diagnóstico + SHA-256 completo de los modelos presentes; si el del perfil pasa → `completa` con `instalacion` y `modelos_descargados` reconstruidos, sin uv ni descargas; si no, solo el modelo queda pendiente. Diagnóstico fallido → `componentes` pendiente. Duraciones registradas en `registro` (módulo `runtime`).
   - `ProgresoRuntime` gana `verificando: boolean` (evento `true`/`false` alrededor de la verificación completa; presentación provisional en 0037).

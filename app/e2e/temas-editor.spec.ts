@@ -455,6 +455,9 @@ test.describe('editor: los botones de los diálogos de tres acciones caben en el
           await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
           const impacto = v.getByRole('dialog', { name: TEMA.guardar.titulo('Neón') })
           await expect(impacto).toBeVisible()
+          // El diálogo se abre con «calculando» y crece al llegar el impacto: medir antes de eso
+          // compara su caja pequeña con botones ya recolocados (fallo intermitente de alpha-2).
+          await expect(impacto.getByText(TEMA.guardar.nota)).toBeVisible()
           expect(await botonesDentroDelDialogo(impacto)).toBeGreaterThanOrEqual(3)
           await impacto.getByRole('button', { name: TEMA.cancelar }).click()
           await v.getByRole('button', { name: E.tema.descartar }).click()

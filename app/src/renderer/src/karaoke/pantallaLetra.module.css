@@ -12,6 +12,13 @@
   text-shadow: 0 0.04em 0.12em rgb(0 0 0 / 55%);
   /* Sistema visual §10. Con 2160 px de alto, 7.5cqh equivalen a 162 px. */
   --k-tamano: max(32px, 7.5cqh);
+
+  /* Color de los indicadores de espera: el de lo ya cantado, o el de la letra sin barrido. */
+  --k-indicador: var(--k-resaltado);
+}
+
+.sinBarrido {
+  --k-indicador: var(--k-color);
 }
 
 .actual,
@@ -88,9 +95,51 @@
   position: absolute;
   bottom: 100%;
   inset-inline: 0;
-  color: var(--k-resaltado);
+  color: var(--k-indicador);
   font-size: 50%;
   letter-spacing: 0.22em;
+}
+
+/* Posiciones reservadas (sistema visual, fase 5): no pertenecen a ninguna caja de línea. */
+.barra {
+  position: absolute;
+  top: calc(45% - var(--k-tamano) * 0.9);
+  left: 50%;
+  width: calc(40% * (1 - var(--k-fraccion, 0)));
+  height: max(4px, 0.8cqh);
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--k-indicador);
+  filter: drop-shadow(0 0.04em 0.12em rgb(0 0 0 / 55%));
+  pointer-events: none;
+}
+
+.cuentaEspera {
+  position: absolute;
+  top: 45%;
+  left: 6%;
+  width: 88%;
+  transform: translateY(-50%);
+  color: var(--k-indicador);
+  font-size: var(--k-tamano);
+  text-align: center;
+  pointer-events: none;
+}
+
+.entraNumero {
+  animation: entraNumero 150ms ease-out both;
+}
+
+@keyframes entraNumero {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
 }
 
 .etiqueta {
@@ -119,8 +168,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .transicion {
-    animation: none;
-  }
+/* El movimiento lo decide el componente (`data-movimiento`): el del sistema o el que fija la exportación. */
+.raiz[data-movimiento='reducido'] :is(.transicion, .entraNumero) {
+  animation: none;
 }

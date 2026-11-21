@@ -53,6 +53,10 @@ interface Props {
   /** Motivo por el que «Expandir» no está disponible (`aria-disabled`); no se guarda como preferencia. */
   expandirNoDisponible?: string
   alternarMinimizada?(): void
+  /** «Ajustar los silencios» (fila de controles, a la derecha antes de «Minimizar»). */
+  botonSilencios?: ReactNode
+  /** Líneas recién ajustadas: se resaltan 2 s (spec AS, «Cómo se ve después»). */
+  resaltadas?: ReadonlySet<string>
 }
 
 interface PropsTirador {
@@ -164,7 +168,9 @@ export function PistaSincronia({
   ondaGeneral,
   minimizada = false,
   expandirNoDisponible,
-  alternarMinimizada
+  alternarMinimizada,
+  botonSilencios,
+  resaltadas
 }: Props) {
   const [vistaGuardada, setVista] = useState<VistaLineaTiempo | null>(null)
   const vista = vistaGuardada
@@ -314,6 +320,7 @@ export function PistaSincronia({
           {E.timeline.cabezal}
         </Boton>
         {!activa && <span>{E.timeline.zoomSinInicio}</span>}
+        {botonSilencios}
         <BotonLayout
           icono={ChevronDown}
           etiqueta={E.layout.timeline.minimizar}
@@ -372,6 +379,7 @@ export function PistaSincronia({
                 aria-pressed={esActiva}
                 data-inicio-recortado={visible.inicioRecortado || undefined}
                 data-fin-recortado={visible.finRecortado || undefined}
+                data-resaltada={resaltadas?.has(r.id) || undefined}
                 disabled={inactiva}
                 title={r.texto}
                 style={{

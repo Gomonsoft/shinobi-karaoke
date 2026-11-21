@@ -10,8 +10,9 @@ sha256 contra los hashes del archivo de requisitos y abre el zip para extraer, d
 - las bibliotecas incluidas (``av/.dylibs``, ``av.libs``, DLL/``.so`` junto a ``av/``).
 
 Falla (código 1) si aparece ``--enable-nonfree``, ``libfdk``, ``libnpp``, ``cuda-nvcc``,
-``decklink`` u otra biblioteca no libre. Informa, sin fallar, de los componentes GPL
-(``--enable-gpl``, libx264, libx265).
+``decklink`` u otra biblioteca no libre, o si la rueda no trae ``libsvtav1``, ``libvpx`` o
+``libopus`` (los códecs de la exportación, ADR 0019 §12). Informa, sin fallar, de los
+componentes GPL (``--enable-gpl``, libx264, libx265).
 
     uv run python scripts/inspeccionar_av.py                       # las 5 plataformas + darwin-x64
     uv run python scripts/inspeccionar_av.py --json salida.json    # además guarda el resultado
@@ -75,6 +76,14 @@ NO_LIBRES = (
 )
 # Informativas (GPL): no hacen fallar.
 GPL = ("--enable-gpl", "libx264", "libx265", "libxvid")
+
+# Códecs que necesita la exportación (ADR 0019): opción ``--enable-<clave>`` o biblioteca que
+# contenga alguno de los fragmentos (``libSvtAv1Enc``, ``libvpx``, ``libopus``).
+REQUERIDOS = {
+    "libsvtav1": ("svtav1",),
+    "libvpx": ("libvpx",),
+    "libopus": ("libopus",),
+}
 
 RE_LIBRERIA = re.compile(r"\.(dylib|so(\.\d+)*|dll)$", re.IGNORECASE)
 RE_AVUTIL = re.compile(r"(^|/)(lib)?avutil[-.]", re.IGNORECASE)
@@ -169,6 +178,11 @@ def inspeccionar_rueda(rueda: Path) -> dict:
     ).lower()
     no_libres = sorted({c for c in NO_LIBRES if c in texto_busqueda})
     gpl = sorted({c for c in GPL if c in texto_busqueda})
+    faltan = sorted(
+        codec
+        for codec, fragmentos in REQUERIDOS.items()
+        if codec not in opciones and not any(f in "\n".join(nombres).lower() for f in fragmentos)
+    )
     return {
         "rueda": rueda.name,
         "licencia_declarada_ffmpeg": sorted(licencias),
@@ -178,7 +192,8 @@ def inspeccionar_rueda(rueda: Path) -> dict:
         "bibliotecas": nombres,
         "componentes_gpl": gpl,
         "no_libres": no_libres,
-        "ok": not no_libres,
+        "codecs_faltantes": faltan,
+        "ok": not no_libres and not faltan,
     }
 
 
@@ -227,6 +242,8 @@ def main() -> int:
             f"        componentes GPL (informativo): {', '.join(r['componentes_gpl']) or 'ninguno'}"
         )
         print(f"        no libres: {', '.join(r['no_libres']) or 'ninguno'}")
+        faltan = ", ".join(r["codecs_faltantes"]) or "ninguno"
+        print(f"        códecs de exportación que faltan: {faltan}")
         print(f"        bibliotecas: {len(r['bibliotecas'])}")
     salida = {"ok": all(r["ok"] for r in resultados), "plataformas": resultados}
     if args.json:

@@ -1,16 +1,19 @@
 # 0075 — E2E: separación con el separador falso (flujo completo, cola, cancelar, cierre, panel y avisos)
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0065, 0068, 0069, 0071, 0072, 0073
 - ADRs: 0009 §8 (dobles de prueba; la CI normal sin red ni descargas grandes)
 - Spec UX: docs/ux/04-progreso-pipeline.md (criterios 1–7, 9–12, 14), docs/ux/02-biblioteca.md (línea de paso)
-- Cuándo: cierra el bloque principal de la Fase 3. 0076 la sigue o va en paralelo si comparten los *fixtures*
+- Cuándo: cierra el bloque principal de la Fase 3. 0076 la sigue o va en paralelo si comparten los _fixtures_
 
 ## Objetivo
+
 Probar en la app empaquetada para pruebas (`npm run build` + Playwright `_electron`) todo el camino de la separación **sin PyTorch, sin modelos reales y sin red**: runtime falso (`SHINOBI_RUNTIME_FALSO`, instalación `completa` con Calidad "verificado"), worker real en modo desarrollo y separador falso (`SHINOBI_SEPARADOR_FALSO`, 0060). Salda también la deuda de la Fase 1: "E2E de eventos IPC y del indicador de actividad con trabajos reales".
 
 ## Criterios de aceptación
-- [x] *Fixture* `e2e/fixtures/separacion.ts`: escribe el escenario del separador (segundos y pasos cortos, p. ej. 4 s y 8 pasos), prepara el runtime falso y genera un audio de prueba (WAV con un tono, como en 0046). Los avisos del sistema van a un registro (`SHINOBI_AVISOS_PRUEBAS`, 0072).
+
+- [x] _Fixture_ `e2e/fixtures/separacion.ts`: escribe el escenario del separador (segundos y pasos cortos, p. ej. 4 s y 8 pasos), prepara el runtime falso y genera un audio de prueba (WAV con un tono, como en 0046). Los avisos del sistema van a un registro (`SHINOBI_AVISOS_PRUEBAS`, 0072).
 - [x] **Flujo feliz**: importar un archivo local → la vista de progreso muestra "Preparar el audio" ✓ y "Separar voz e instrumental" con `prog.fase.cargando`, luego %, y luego ✓ con la duración real.
   - Se pueden reproducir "Voz" e "Instrumental": el `<audio>` carga desde `shinobi-media://` sin errores de consola.
   - `cancion.json` tiene `pistas` con `voz.flac` e `instrumental.flac`, y el paso `completado`.
@@ -28,6 +31,7 @@ Probar en la app empaquetada para pruebas (`npm run build` + Playwright `_electr
 - [x] Corren en la CI normal de Linux (xvfb), como los E2E existentes, en < 60 s en total. Ninguno descarga nada ni importa `torch`. Comprobación: el escenario del separador es obligatorio y la prueba falla si el worker emite un `log` del adaptador real.
 
 ## Notas de implementación
+
 - **Archivos**: `app/e2e/fixtures/separacion.ts` (WAV estéreo con tono, escenario del separador, runtime falso con modelos diminutos, modelo Calidad sembrado con su yaml y `verificados.json`, registro de avisos, helpers `importar`, `cerrar`, `procesosWorker`) y `app/e2e/separacion.spec.ts` (8 pruebas: flujo feliz, navegar sin interrumpir + toast, cola, cancelar en curso y "Separar ahora", cancelar en cola, panel, cierre con trabajos y reintento, aviso sin foco).
 - **Decisiones**: el modelo se siembra en disco (no se descarga) para no depender de 0066. Para dos canciones se importa el mismo WAV con títulos distintos desde el formulario ("Primera", "Segunda"). El separador real no se usa: se comprueba `pistas.modelo.version === 'falso'` y el escenario es obligatorio. "Ningún proceso del worker queda vivo" se comprueba con `ps` filtrando por la carpeta de datos (se omite en Windows). La ventana de pruebas cuenta siempre como sin foco (`SHINOBI_AVISOS_PRUEBAS`); además se llama a `blur()`; el registro esperado es notificación (Linux/Windows) o rebote + insignia (macOS).
 - **Probar**: `cd app && SHINOBI_UV=<uv> npm run build && SHINOBI_UV=<uv> npx playwright test e2e/separacion.spec.ts`.

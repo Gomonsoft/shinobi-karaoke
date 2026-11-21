@@ -1,4 +1,5 @@
 # 0098 — Karaoke: componente `PantallaLetra` (render DOM/CSS compartido por vista previa y reproductor)
+
 - Estado: Hecha
 - Paso del pipeline: 4 y 6
 - Depende de: 0096
@@ -8,26 +9,33 @@
 - Paralelizable con: 0090–0097, 0099–0102.
 
 ## Contexto para quien implementa
+
 - `fotogramaEn` y `fotogramaEstatico` (0096) dicen qué dibujar.
 - Las 8 fuentes de karaoke están cargadas por `@font-face` desde `estilos/fuentesIncluidas.ts`. La familia es `estilo.letra.fuente.familia` y su peso, el del registro `FUENTES_REGISTRO` de `shared/fuentes.ts` (un solo peso por familia).
 - El mismo componente dibuja la vista previa 16:9 del editor y, en la Fase 6, la pantalla completa: los tamaños de §10 son relativos **al alto del área**, así que se usan unidades de contenedor (`container-type: size`, `cqh` y `cqw`).
 
 ## Objetivo
+
 Dibujar la letra con el estilo de la canción y los valores fijos de §10, a 60 fps, sin re-renderizar React por fotograma.
 
 ## Criterios de aceptación
+
 - [x] Props:
   ```ts
   interface PantallaLetraProps {
-    letra: Letra; estilo: Estilo; duracionMs: number; titulo: string; artista: string
+    letra: Letra;
+    estilo: Estilo;
+    duracionMs: number;
+    titulo: string;
+    artista: string;
     /** Reproduciendo: devuelve el tiempo de AUDIO actual (ms); el componente resta letra.offset_ms. */
-    obtenerTiempoAudio?: () => number
+    obtenerTiempoAudio?: () => number;
     /** En pausa: muestra fotogramaEstatico(letra, idEstatico). Se ignora si `reproduciendo`. */
-    idEstatico?: string | null
-    reproduciendo: boolean
-    cuentaAtras?: 3 | 2 | 1 | null   // números grandes (ux/06 wireframe E): t-display × 2 en letra.color con la sombra de §10
-    etiqueta?: string                 // p. ej. edi.probar.original (Fase 6), píldora de §10 "Aviso sobre el fondo"
-    className?: string
+    idEstatico?: string | null;
+    reproduciendo: boolean;
+    cuentaAtras?: 3 | 2 | 1 | null; // números grandes (ux/06 wireframe E): t-display × 2 en letra.color con la sombra de §10
+    etiqueta?: string; // p. ej. edi.probar.original (Fase 6), píldora de §10 "Aviso sobre el fondo"
+    className?: string;
   }
   ```
 - [x] Render:
@@ -52,6 +60,7 @@ Dibujar la letra con el estilo de la canción y los valores fijos de §10, a 60 
 - [x] Revisión visual en el Muestrario (`npm run dev` → `#/muestrario`): las 8 fuentes y una línea larga que se parte en 2 renglones. Se adjunta una captura en las notas.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

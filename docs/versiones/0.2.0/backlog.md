@@ -98,7 +98,7 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 | [0187 · Tarjetas y menús](../../tareas/0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) | Hecha | 0183, 0184 | «A la cola», ⋯ de Lista, toasts, línea de cola, bloqueos de la tarjeta |
 | [0188 · Ajustes › Reproductor](../../tareas/0188-ajustes-cuenta-entre-canciones.md) | Hecha | 0177 | Selector «Cuenta entre canciones» |
 | [0189 · Salir con sesión o cola](../../tareas/0189-salir-de-la-app-con-sesion-o-cola.md) | Hecha | 0181, 0183 | `ses.salir`, variante con trabajos y variante de macOS |
-| [0190 · Pruebas de integración, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Pendiente | 0177–0189 | Una spec `sesion-flujo` (≤ 4 pruebas), capturas, CI en verde, guía manual ejecutada por el usuario e informe |
+| [0190 · Pruebas de integración, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Hecha (el cierre formal espera a la guía manual) | 0177–0189 | `sesion-flujo` (4 pruebas), 40 capturas, CI en verde e [informe](informe-fase-4.md); la guía manual la ejecuta el usuario |
 
 **Decisiones.**
 
@@ -142,13 +142,165 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 - `navegacion/{DialogoCierre,textosCierre}`: 0189.
 - `e2e/`: cada tarea puede añadir su propio `*.spec.ts`. 0190 añade solo `sesion-flujo.spec.ts` (ver [estrategia de pruebas](../../pruebas.md)).
 
+## Fase 5 · Estilo, espera, Letra lista y ajuste de silencios
+
+Decisión en el [ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md), con revisiones de fase 5 en 0005, 0006, 0010, 0011, 0015 y 0016 y la revisión del 2026-11-20, que adapta el ADR a las specs. Rama de trabajo: `alpha-2`. La **primera ola** (0200–0210) no depende de la interfaz. Las tareas con interfaz (0211–0219) siguen las specs de la fase 5:
+
+- [06 · Editor](../../ux/06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista): G1–G12, IE1–IE7, LL1–LL8 y AS1–AS9;
+- [07 · Reproductor](../../ux/07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista): R1–R14;
+- [02 · Biblioteca](../../ux/02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista): LB1–LB7;
+- [sistema visual](../../ux/sistema-visual.md#020--estilo-espera-y-letra-lista-fase-5);
+- respuesta de UX a [0101](../../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md).
+
+Ajustes no cambia en esta fase. Preguntas al usuario: [0100](../../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) y [0110](../../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md), ninguna de las dos bloquea.
+
+| Tarea | Estado | Depende de | Entrega |
+|---|---|---|---|
+| [0200 · Esquema del estilo ampliado](../../tareas/0200-esquema-del-estilo-ampliado-y-normalizacion.md) | Hecha | Fase 4 | `forma`, `centro`, `movimiento` y `espera` opcionales; `shared/espera.ts`; `normalizarEstilo`; `estilosIguales` normalizado; copia congelada del esquema de 0.1.0 |
+| [0201 · Contratos de la fase 5](../../tareas/0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md) | Hecha | 0200 | `cancion.modalidad`, `apariencia.reemplazos`, motivos de Letra lista, `config.editor.omitir_aviso_letra_lista`, IPC (`marcarLista`, `reemplazos`, `modalidad` y `procedenciaEspera`), entrada de la sesión, preload y dobles |
+| [0202 · Resolución con reemplazos](../../tareas/0202-resolucion-de-apariencia-con-reemplazos-de-espera.md) | Hecha | 0201 | Fusión de la espera en `resolverApariencia`, `procedenciaEspera`, congelación y lotes |
+| [0203 · Main: Letra lista y reemplazos](../../tareas/0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md) | Hecha | 0201, 0202 | `marcarLista` con modalidad, volver a borrador, `guardarApariencia` con reemplazos y `modalidad` en la entrada activa |
+| [0204 · Geometría y CSS del fondo](../../tareas/0204-geometria-del-fondo-y-css-de-los-tres-degradados.md) | Hecha | 0200 | `karaoke/fondo.ts` y `fondoCss` con lineal, radial y cónico (cierre) |
+| [0205 · Peor contraste por tramos](../../tareas/0205-peor-contraste-por-tramos-y-cierre-conico.md) | Hecha | 0200 | 9 muestras por tramo y cierre del cónico |
+| [0206 · Comodines en el fotograma](../../tareas/0206-derivacion-de-los-comodines-de-espera-en-el-fotograma.md) | Hecha | 0200 | `espera` en `FotogramaLetra`; puntos legados idénticos; adaptación mínima de `PantallaLetra` |
+| [0207 · Detección de voz y propuesta](../../tareas/0207-deteccion-de-voz-y-propuesta-de-ajuste-de-silencios.md) | Hecha | 0200 | `shared/silencios.ts` con picos sintéticos |
+| [0208 · Nivel base de picos](../../tareas/0208-lectura-del-nivel-base-de-picos-en-el-editor.md) | Hecha | — | `vistas/editor/picosBase.ts` sobre `picos.leer` |
+| [0209 · Historial: reemplazos y ajuste](../../tareas/0209-historial-del-editor-reemplazos-y-ajustar-silencios.md) | Hecha | 0201, 0207 | `reemplazos` en `AparienciaEditor`; acciones `espera` y `ajustar_silencios` (un paso) |
+| [0210 · Calibración de silencios](../../tareas/0210-herramienta-de-calibracion-del-ajuste-de-silencios.md) | Hecha | 0207 | `app/scripts/calibrar-silencios.ts`, de solo lectura, para las 6 canciones del usuario |
+| [0211 · Editor: degradados](../../tareas/0211-editor-controles-de-degradado-y-movimiento.md) | Hecha | 0200, 0204, 0205 (0213 para G7/G8) | Forma, cuadrícula de centro, ángulo de inicio, reparto i/n del cónico, movimiento con velocidad, «Detener el movimiento» y resumen D1/D4 (G1–G11) |
+| [0212 · Editor: indicadores de espera](../../tareas/0212-editor-indicadores-de-espera.md) | Hecha | 0202, 0203, 0209, 0213 | Sección «Indicadores de espera», umbral, «Cambiar solo en esta canción» o «Usar los del tema», D3 y «Ver un ejemplo» (IE1–IE7) |
+| [0213 · Pantalla de letra](../../tareas/0213-pantalla-de-letra-fondo-en-movimiento-indicadores-y-sin-barrido.md) | Hecha | 0204, 0206 | Fondo por fotograma con movimiento reducido o detenido, barra y cuenta en posiciones reservadas, anuncio por hueco y `barrido={false}` (R2, R3, R5–R12) |
+| [0214 · Editor: Letra lista](../../tareas/0214-editor-letra-lista.md) | Hecha | 0201, 0203 | Botón en el dock, popover, diálogo de la primera activación, insignias, cambio de modalidad en ⋯ y contraste informativo (LL1–LL7) |
+| [0215 · Editor: «Ajustar los silencios»](../../tareas/0215-editor-ajustar-los-silencios.md) | Hecha | 0207, 0208, 0209 | Botón en la línea de tiempo y en ⋯, motivos, diálogo con recuentos y lista, recálculo, toast y resalte; un E2E en `editor.spec.ts` (AS1–AS8) |
+| [0216 · Reproductor, sesión y «Probar»](../../tareas/0216-reproductor-sesion-y-probar-modalidad-y-movimiento.md) | Hecha | 0203, 0213 | `barrido` según la modalidad en el reproductor local, la secundaria y «Probar»; fondo quieto en S1, S2 y S4 (R1–R4, R12, R13, LL8) |
+| [0217 · Biblioteca: Letra lista](../../tareas/0217-biblioteca-insignia-letra-lista.md) | Hecha | 0201 (dobles), 0203 | Insignia, aria, filtro *Listas*, toast de vuelta y portadas en fase 0 (LB1–LB6) |
+| [0218 · Capturas de revisión](../../tareas/0218-capturas-de-revision-de-la-fase-5.md) | Hecha | 0211–0217 | `e2e/fase5-capturas.spec.ts` *opt-in* (F5-1, R14 y LB7). Sustituye a la reserva «Temas y Ajustes», que no hace falta |
+| [0219 · Integración, guía e informe](../../tareas/0219-integracion-guia-manual-e-informe-de-la-fase-5.md) | Hecha (el cierre formal espera a la guía manual y a la calibración) | 0200–0218 | `e2e/fase5.spec.ts` (4 pruebas), guías manuales de `qa`, calibración sin ejecutar e [informe](informe-fase-5.md) |
+
+Quedan libres 0220–0229 para ajustes que salgan de las respuestas a 0100 y 0110 o de la calibración.
+
+**Paralelismo.**
+
+1. **Primera ola**:
+   - 0200 primero; 0208 ya está hecha;
+   - después, cuatro líneas a la vez:
+     - **contratos y main**: 0201 → 0202 → 0203;
+     - **render**: 0204, 0205 y 0206 en paralelo;
+     - **silencios**: 0207 → 0210;
+     - **historial**: 0209, que espera a 0201 y 0207.
+2. **Interfaz**, a medida que se integran sus dependencias:
+   - **render compartido**: 0213, en cuanto estén 0204 y 0206. Es el cuello de botella de 0211 (G7/G8), 0212 y 0216;
+   - **editor**: 0211, 0214 y 0215 pueden avanzar en paralelo como componentes nuevos. 0212 espera a 0209 y 0213, y se integra en `PanelEstilo.tsx` después de 0211;
+   - **reproductor y biblioteca**: 0216 tras 0213 y 0203. 0217 en paralelo con cualquier otra tarea, contra dobles de 0201.
+3. **Cierre**: 0218 (capturas) tras 0211–0217, y después 0219.
+
+**Propiedad de archivos.**
+
+- **Primera ola**:
+  - `shared/estilo.ts`, `shared/espera.ts`, `shared/__fixtures__/estilo-0.1.0.ts` y `estilosIguales`: solo 0200;
+  - `shared/{cancion,config,ipc,sesion,derivados}.ts`, `aparienciaSchema` de `shared/temas.ts`, los dobles de resumen y sesión en `shared/__fixtures__/` y `preload/`: solo 0201;
+  - `resolverApariencia` de `shared/temas.ts`, `main/temas/**` y `main/biblioteca/resumen.ts`: 0202;
+  - `main/biblioteca/{servicio,operaciones}.ts`, los manejadores de `marcarLista` y `guardarApariencia` y la entrada activa de `main/sesion/servicio.ts`: 0203;
+  - `karaoke/{fondo,estiloCss}.ts`: 0204;
+  - `karaoke/contraste.ts`: 0205;
+  - `karaoke/render.ts` y el cambio mínimo de `PantallaLetra.tsx`: 0206;
+  - `shared/silencios.ts` y `shared/__fixtures__/picos.ts`: 0207;
+  - `vistas/editor/picosBase.ts`: 0208;
+  - `vistas/editor/{estado,guardado}.ts`: 0209;
+  - `app/scripts/calibrar-silencios.ts`: 0210.
+- **Interfaz**:
+  - `karaoke/PantallaLetra.tsx`, `pantallaLetra.module.css` y `karaoke/useMovimientoReducido.ts`: 0213;
+  - `vistas/editor/estilo/{ControlesFondo,paradas}`: 0211;
+  - `vistas/editor/estilo/{SeccionEspera,ejemploEspera}`: 0212;
+  - `vistas/editor/{BotonLista,BotonLetraLista,DialogoLetraLista}`: 0214;
+  - `vistas/editor/silencios/**` y `PistaSincronia.tsx` (botón y resalte): 0215;
+  - `vistas/reproductor/**`: 0216;
+  - `vistas/biblioteca/{TarjetaCancion,tarjeta}` y los textos de la Biblioteca: 0217.
+- **Archivos compartidos**, en pocas líneas por tarea y por orden de integración:
+  - `vistas/editor/PanelEstilo.tsx`: 0211 → 0212 → 0214 (solo la presentación del aviso de contraste);
+  - `vistas/editor/Editor.tsx`: 0211 (botón «Detener») → 0214 (dock, cabecera y ⋯) → 0215 (ítem de ⋯) → 0216 (modalidad en «Probar»);
+  - `vistas/editor/textos.ts`: cada tarea añade su bloque (`edi.fondo.*`, `edi.espera.*`, `edi.letraLista.*` y `edi.silencios.*`), en el mismo orden;
+  - `Biblioteca.tsx`: solo 0217 (toast de vuelta).
+- **`e2e/`**:
+  - 0215 añade una prueba en `editor.spec.ts`;
+  - 0218, `fase5-capturas.spec.ts` (*opt-in*);
+  - 0219, `fase5.spec.ts`.
+
+**Verificación.** Pruebas de feedback según [pruebas.md](../../pruebas.md): Vitest con picos sintéticos, la copia del esquema de 0.1.0 y el render con reloj simulado. Los críticos se ejecutan en las tareas que tocan `shared/`, `main/`, el dock de «Marcar como lista» o el reproductor. Lo visual, la distancia, el hardware modesto, las dos pantallas, el movimiento reducido del sistema y la calibración con canciones reales van a la guía manual que escribe `qa` (lista de casos en 0219).
+
+## Fase 6 · Exportación
+
+Decisión en el [ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md), con la prueba técnica en [`docs/poc/0019-exportacion/`](../../poc/0019-exportacion/) y revisiones de fase 6 en 0005, 0006, 0008, 0009, 0011, 0012, 0013 y 0017. Spec: [10 · Exportar a video](../../ux/10-exportacion.md) (V1–V30 sin V24, M1–M9) y las secciones «Fase 6» de [02](../../ux/02-biblioteca.md#fase-6-de-020--exportación), [06](../../ux/06-editor.md#fase-6-de-020--exportación) y el [sistema visual](../../ux/sistema-visual.md#020--exportación-de-video-fase-6). Preguntas: [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) y [0131](../../preguntas/0131-contratos-tecnicos-de-la-exportacion.md) respondidas; [0130](../../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) (usuario) y [0120](../../preguntas/0120-formatos-y-resoluciones-de-la-exportacion.md) (usuario) no bloquean.
+
+Resumen: render por índice de fotograma en una ventana offscreen con el mismo `PantallaLetra`, captura en main y fotogramas BGRA por la tubería al worker PyAV, que codifica MKV (AV1 + Opus, por defecto) o WebM (VP9 + Opus). 8 resoluciones × 24/30/60 FPS. Una exportación a la vez, en cola propia; convive con la separación y con la sesión en vivo.
+
+| Tarea | Estado | Depende de | Entrega |
+|---|---|---|---|
+| [0230 · Contratos compartidos](../../tareas/0230-contratos-compartidos-de-la-exportacion.md) | Hecha | Fase 4, 0200, 0201 | `shared/exportacion.ts` (catálogo, estimaciones, nombre), IPC, rol `exportacion`, errores, `config.exportacion`, preloads y dobles |
+| [0231 · Worker `exportar`](../../tareas/0231-worker-comando-exportar.md) | Hecha | — | Fotogramas por stdin, mezcla, AV1/VP9 + Opus, progreso, errores, verificación; pytest en los 3 SO |
+| [0232 · Capacidades y licencias](../../tareas/0232-capacidades-de-exportacion-y-licencias-de-codecs.md) | Hecha | — | `capacidades-exportacion`, `inspeccionar_av.py` exige los códecs, `THIRD_PARTY_NOTICES.md` |
+| [0233 · Tubería y bucle](../../tareas/0233-cliente-del-worker-con-tuberia-y-bucle-de-fotogramas.md) | Hecha | 0230 | Cliente del worker con stdin y prioridad baja; bucle con ≤ 2 fotogramas pendientes |
+| [0234 · Ventana offscreen](../../tareas/0234-ventana-offscreen-de-exportacion-y-rol.md) | Hecha | 0230 | `exportacion.html`, rol, remitente, captura BGRA a escala 1, verificación del paquete |
+| [0235 · Render por fotograma](../../tareas/0235-render-por-fotograma-y-marca-de-agua.md) | Hecha | 0230, 0234, 0204, 0206, 0213 | `PantallaLetra` con `tiempoFijoMs`, animaciones por fotograma, anfitrión y marca de agua |
+| [0236 · Destinos y diario](../../tareas/0236-destinos-temporal-y-diario-de-exportacion.md) | Hecha | 0230 | Destino en main, temporal junto al destino, `rename`, limpieza y diario tras caída |
+| [0237 · Servicio e IPC](../../tareas/0237-servicio-de-exportacion-e-ipc.md) | Hecha | 0231–0234, 0236, 0202, 0203 | `ServicioExportacion`: cola, perfiles, instantánea, orquestación, cancelación, suspensión, cierre e IPC |
+| [0238 · Diálogo: formulario](../../tareas/0238-dialogo-de-exportacion-formulario.md) | Hecha | 0230 | A, E y F con formato, perfiles no soportados, destino, estimación, notas y muestra |
+| [0239 · Progreso y resultado](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) | Hecha | 0238 | Estado de exportaciones, B–D, toasts y anuncios |
+| [0240 · Puntos de entrada](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) | Hecha | 0239 | Biblioteca, editor (Ctrl/Cmd + E), panel de actividad, eliminar y cierre |
+| [0241 · Integración, capturas e informe](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) | Hecha (el cierre formal espera a la guía manual) | 0230–0240 | `exportacion.spec.ts` (3 pruebas), capturas opt-in, guía manual e [informe](informe-fase-6.md) |
+| [0242 · Captura 4K en Linux](../../tareas/0242-captura-4k-en-linux-con-tamano-incorrecto.md) | Pendiente (solo si falla el paso 8.10 de la guía) | 0234, 0237 | Tamaño exacto de captura a 2160 líneas en Linux o perfiles marcados como no soportados |
+| [0243 · Registro de capturas sin asentar](../../tareas/0243-registro-de-capturas-sin-asentar.md) | Hecha | 0235, 0237 | Recuento en `app.log` de fotogramas sin dos capturas iguales ([0127](../../preguntas/0127-captura-offscreen-con-cuadro-obsoleto.md)) |
+
+**Paralelismo.**
+
+1. 0231 y 0232 (worker, Python) pueden empezar ya, sin esperar a nada.
+2. 0230 va primero en TypeScript (necesita 0200 y 0201 de la fase 5).
+3. Con 0230 integrada, cuatro líneas a la vez: main (0233 y 0236 en paralelo), ventana (0234), interfaz (0238 → 0239 → 0240, contra la API falsa) y render (0235, cuando también estén 0204, 0206 y 0213).
+4. 0237 es el punto de integración de main (necesita 0231–0234 y 0236, y 0202/0203 de la fase 5).
+5. La integración en Electron de 0235 y 0238–0240 necesita 0237. Hasta entonces, cada una se prueba con dobles.
+6. 0241 cierra la fase.
+
+**Propiedad de archivos.**
+- `shared/{exportacion,canales,ipc,errores,config}.ts`, `shared/__fixtures__/exportacion.ts` y `preload/`: solo 0230.
+- `worker/shinobi_worker/exportar.py` y `worker/tests/test_exportar.py`: 0231. `worker/shinobi_worker/capacidades_exportacion.py`, `worker/scripts/inspeccionar_av.py` y `THIRD_PARTY_NOTICES.md`: 0232. `worker/shinobi_worker/comandos.py`: 0231 y luego 0232 (una línea cada una).
+- `main/trabajos/worker.ts` y `main/exportacion/bucle.ts`: 0233.
+- `main/exportacion/ventana.ts`, `main/ventana/registro.ts`, `main/seguridad.ts`, `electron.vite.config.ts`, `renderer/exportacion.html` y el script de verificación del paquete: 0234.
+- `karaoke/PantallaLetra.tsx`, su CSS y `karaoke/animacionesPorFotograma.ts`, y `renderer/src/exportacion/{main.tsx,AppExportacion.tsx,MarcaDeAgua.tsx}`: 0235 (después de 0213, que toca el mismo `PantallaLetra`).
+- `main/exportacion/{destinos,diario}.ts`: 0236.
+- `main/exportacion/servicio.ts`, `main/ipc/handlers.ts`, `main/index.ts` y `main/cierre.ts`: 0237. Por las respuestas a [0132](../../preguntas/0132-avisos-de-limpieza-e-interrupcion-de-la-exportacion.md) y [0133](../../preguntas/0133-reintentar-una-exportacion-con-el-mismo-destino.md), 0237 amplía también `shared/exportacion.ts`, `shared/ipc.ts`, `shared/canales.ts`, `preload/index.ts` y los fixtures, y ajusta `renderer/src/exportacion/{estado.ts,dialogo/DialogoSeguimiento.tsx,dialogo/MuestraExportacion.tsx}` (excepción explícita).
+- `renderer/src/exportacion/dialogo/**` y `textos.ts`: 0238; `renderer/src/exportacion/estado.ts` y los estados B–D: 0239.
+- `vistas/biblioteca/` (menú y línea de la tarjeta, eliminar), `vistas/editor/` (⋯ y atajo), panel de actividad y `navegacion/{DialogoCierre,textosCierre}`: 0240.
+- `e2e/`: 0234 añade `exportacion-captura.spec.ts` y amplía `seguridad.spec.ts`; 0241 añade `exportacion.spec.ts` y `exportacion-capturas.spec.ts` (opt-in).
+
+**Guía manual de la fase** (`docs/Test-manuales/0.2.0/fase-6-exportacion.md`, la escribe `qa`): M1–M9 de la spec 10; tiempos y tamaños de 1080p30 y 4K/60 en Windows y Linux frente a la tabla del ADR; exportar durante una sesión en dos pantallas reales con un perfil modesto y con 4K/60; suspensión del equipo durante una exportación larga; reproducción del archivo en VLC, OBS, navegadores y los reproductores de serie de los 3 SO (alimenta `exp.formato.ayuda`).
+
 ## Fases siguientes
 
 | Fase | Alcance | Desglose |
 |---|---|---|
 | 3 | Temas y agrupación de biblioteca | Desglosada arriba (0163–0176), con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) y [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) |
 | 4 | Ventana secundaria y cola | Desglosada arriba (0177–0190), con [0048](../../preguntas/0048-escucha-editor-durante-evento.md), [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) y [0058](../../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)–[0061](../../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) |
-| 5 | Degradados, comodines, Letra lista y ajuste de silencios | Al iniciar la fase |
-| 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
+| 5 | Degradados, comodines, Letra lista y ajuste de silencios | Desglosada arriba: 0200–0219 (primera ola 0200–0210, interfaz 0211–0219) ([ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)) |
+| 6 | Exportación | Desglosada arriba (0230–0241), con la prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) ([ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)) |
 
 La [publicación pendiente del MVP](../../tareas/0142-primera-version-publica.md) sigue en la hoja de ruta.
+
+## Publicación en Releases
+
+Petición del usuario (2026-11-20): desde 0.2.0, cada versión tiene su *Release* en GitHub, generada por el workflow. Decisión en el [ADR 0020](../../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md); procedimiento en el [flujo de Git](../../workflow.md#versiones-y-publicación). Independiente de las fases: puede avanzar en paralelo y no toca `src/`.
+
+| Tarea | Qué entrega | Depende de |
+|---|---|---|
+| [0191](../../tareas/0191-script-de-version-subir-y-comprobar.md) | `app/scripts/version.mjs`: `version:subir` y `version:comprobar` sobre los 5 archivos de versión | — |
+| [0192](../../tareas/0192-workflow-disparador-por-etiqueta-y-comprobar-version.md) | `empaquetado.yml`: disparador `v*`, `concurrency` y trabajo `comprobar-version` | 0191 |
+| [0193](../../tareas/0193-workflow-preparar-la-publicacion-y-notas.md) | Trabajo `preparar-publicacion`: `SHA256SUMS.txt`, notas y artefacto `publicacion-<versión>` (el ensayo) | 0192 |
+| [0194](../../tareas/0194-workflow-publicar-en-github-releases.md) | Trabajo `publicar`: único con `contents: write`; borrador → recursos → publicar; *pre-release* si hay sufijo | 0193 |
+| [0195](../../tareas/0195-ensayo-de-publicacion-y-version-0-2-0-alpha-1.md) | Versión `0.2.0-alpha.1`, borrador de notas y ensayo con `workflow_dispatch` en `alpha-2` sin publicar | 0191–0194 |
+
+**Orden.** 0191 → 0192 → 0193 → 0194 → 0195, en secuencia: 0192–0194 editan el mismo `empaquetado.yml` y `workflow-empaquetado.test.ts`.
+
+**Propiedad de archivos.** `app/scripts/version.mjs` y su test: 0191. `.github/workflows/empaquetado.yml` y `app/scripts/workflow-empaquetado.test.ts`: 0192 → 0193 → 0194. `app/scripts/preparar-publicacion.mjs` y `.github/publicacion/`: 0193. Los 5 archivos de versión y `docs/versiones/0.2.0/notas/`: 0195.
+
+**Preguntas.** [0140](../../preguntas/0140-publicar-las-alfas-como-pre-release-publica.md) (usuario: publicar alfas como *pre-release* antes de cerrar la puerta de 0142, *immutable releases* y protección de etiquetas) condiciona solo la primera etiqueta real. [0141](../../preguntas/0141-readme-y-notas-con-solo-versiones-preliminares.md) (diseñador: README y notas con solo versiones preliminares) no bloquea; 0193 usa textos provisionales. [0036](../../preguntas/0036-numero-de-version-y-politica-de-versiones.md) queda con opción provisional.
+
+**Verificación.** Las pruebas de feedback validan la estructura del YAML con Vitest (y `actionlint` si está disponible). El ensayo de 0195 demuestra en GitHub todo menos la creación de la *Release*. La publicación real se verifica con la primera etiqueta `v0.2.0-alpha.N`, en la guía manual de la versión.

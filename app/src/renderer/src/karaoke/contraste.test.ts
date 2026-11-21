@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estiloPredeterminado } from '@shared/estilo'
+import { estiloPredeterminado, type Fondo } from '@shared/estilo'
 import { aDegradado, aSolido, canalesRgb, repartirParadas, variarLuminosidad30 } from './colores'
 import { deltaE76, evaluarContraste, muestrasFondo, ratio, sugerirResaltado } from './contraste'
 
@@ -43,8 +43,8 @@ describe('contraste de karaoke', () => {
       paradas: repartirParadas(['#000000', '#FFFFFF'])
     }
     estilo.letra.color = '#808080'
-    expect(muestrasFondo(estilo.fondo)).toHaveLength(11)
-    expect(muestrasFondo(estilo.fondo)[5]).toBe('#808080')
+    expect(muestrasFondo(estilo.fondo)).toHaveLength(9)
+    expect(muestrasFondo(estilo.fondo)[4]).toBe('#808080')
     expect(evaluarContraste(estilo)).toMatchObject({
       nivel: 'aviso',
       ratioLetra: 1,
@@ -66,7 +66,7 @@ describe('contraste de karaoke', () => {
       { posicion: 0.5, color: '#FFFFFF' },
       { posicion: 1, color: '#FFFFFF' }
     ]
-    expect(muestrasFondo(fondo).slice(4, 6)).toEqual(['#000000', '#FFFFFF'])
+    expect(muestrasFondo(fondo)).toEqual(['#000000', '#FFFFFF'])
   })
 })
 
@@ -95,5 +95,42 @@ describe('variantes de color', () => {
       2 / 3,
       1
     ])
+  })
+})
+
+describe('muestras por tramos', () => {
+  const estiloCon = (fondo: Fondo) => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.color = '#808080'
+    estilo.fondo = fondo
+    return estilo
+  }
+
+  it('un tramo estrecho entre paradas próximas aporta sus grises', () => {
+    const fondo: Fondo = {
+      tipo: 'degradado',
+      angulo_grados: 0,
+      paradas: [
+        { posicion: 0, color: '#000000' },
+        { posicion: 0.5, color: '#000000' },
+        { posicion: 0.52, color: '#FFFFFF' },
+        { posicion: 1, color: '#FFFFFF' }
+      ]
+    }
+    // Con 11 muestras globales el tramo 0,50-0,52 no tenía gris (ratio 3,9); ahora sí.
+    expect(evaluarContraste(estiloCon(fondo)).ratioLetra).toBe(1)
+  })
+
+  it('el cierre del cónico avisa y el lineal no', () => {
+    const fondo: Fondo = {
+      tipo: 'degradado',
+      angulo_grados: 0,
+      paradas: [
+        { posicion: 0.5, color: '#000000' },
+        { posicion: 0.5, color: '#FFFFFF' }
+      ]
+    }
+    expect(evaluarContraste(estiloCon(fondo)).avisos).not.toContain('letra')
+    expect(evaluarContraste(estiloCon({ ...fondo, forma: 'conico' })).avisos).toContain('letra')
   })
 })

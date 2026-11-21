@@ -1,4 +1,5 @@
 # 0060 — Worker: comando `separar`, interfaz `Separador` y separador falso
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0059
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0063, 0064 y 0067
 
 ## Objetivo
+
 Comando `python -m shinobi_worker separar --args '<json>'` que valida la entrada, emite las fases de 0059 y escribe `voz.flac` e `instrumental.flac` en `salida_dir`, delegando la separación en una interfaz `Separador`. En esta tarea solo existe el **separador falso** (sin PyTorch ni modelos); el adaptador real es 0061.
 
 ## Criterios de aceptación
+
 - [x] `worker/shinobi_worker/separacion.py`:
   - `Separador` (Protocol): `separar(entrada: Path, salida_dir: Path, modelo, dispositivo, bloques, al_progreso) -> None`, que deja en `salida_dir` exactamente `voz.flac` e `instrumental.flac`.
   - `al_progreso(fase, valor, detalle)` reenvía a `protocolo.progreso`.
@@ -29,6 +32,7 @@ Comando `python -m shinobi_worker separar --args '<json>'` que valida la entrada
 - [x] README del worker: comando `separar`, argumentos y variable del doble.
 
 ## Notas de implementación
+
 - **Archivos**: `worker/shinobi_worker/separacion.py` (Protocol `Separador`, `crear_separador`, comando `separar`), `separacion_falso.py` (doble), registro perezoso en `comandos.py`, `worker/tests/test_separar.py` (16 tests, sin PyTorch), README del worker.
 - **Reparto de fases**: el comando emite `preparando`; el `Separador` emite `cargando_modelo`, `separando` y `guardando` por `al_progreso`. `segundos_separando` se mide entre el primer `separando` y `guardando`. `version_audio_separator` es un atributo del `Separador` (`"falso"` en el doble).
 - **Decisiones**: el doble falla justo tras `cargando_modelo`, antes de `separando`; con SIGKILL muere a mitad de `separando` (`os._exit(137)` en Windows). Entrada inexistente -> `ARGUMENTOS_NO_VALIDOS`. El yaml de Calidad se busca como `<archivo sin extensión>.yaml`. Sin doble, `crear_separador` importa `separacion_real.SeparadorReal` (0061); mientras no exista responde `ERROR_INTERNO`.

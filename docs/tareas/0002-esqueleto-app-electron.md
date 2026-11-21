@@ -1,4 +1,5 @@
 # 0002 — Esqueleto de la app Electron con tooling (lint, tipos, tests, E2E)
+
 - Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0001
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/sistema-visual.md §4 (tamaño mínimo de ventana)
 
 ## Objetivo
+
 Una app Electron + React + TypeScript que arranca una ventana vacía segura, con todos los scripts de calidad funcionando, como base para el resto de tareas.
 
 ## Criterios de aceptación
+
 - [x] `app/` creado con electron-vite (main / preload / renderer) y la estructura de carpetas de `arquitectura.md` §5 (`src/shared`, `src/main/{ipc,biblioteca,trabajos,runtime,letras}`, `src/preload`, `src/renderer/src/{vistas,componentes,karaoke,estilos}`), TypeScript `strict`.
 - [x] Node fijado en `.nvmrc` y `engines`; `package-lock.json` versionado.
 - [x] Scripts: `npm run dev`, `build`, `lint`, `format`, `typecheck`, `test`, `test:e2e` funcionan sin errores en el estado inicial.
@@ -19,6 +22,7 @@ Una app Electron + React + TypeScript que arranca una ventana vacía segura, con
 - [x] El `README.md` raíz documenta los comandos.
 
 ## Notas de implementación
+
 - **Qué se hizo**: `app/` con electron-vite 6 (Vite 8), Electron 45 (Node 24 embebido, igual que `.nvmrc`/`engines`), React 19, TypeScript 6 `strict` (+ `noUncheckedIndexedAccess`), estructura de carpetas de `arquitectura.md` §5. Ventana 1280×800 (mín. 1024×640) con `sandbox`, `contextIsolation`, sin `nodeIntegration`, `setWindowOpenHandler` y `will-navigate` bloqueados (http/https van a `shell.openExternal`). CSP en `index.html` según la tarea (más `script-src 'self'`, `object-src 'none'`, etc.; `style-src` admite `'unsafe-inline'` porque Vite/React inyectan estilos en línea, sin `unsafe-eval`).
 - **Archivos clave**: `app/package.json`, `app/electron.vite.config.ts`, `app/tsconfig.{node,web}.json`, `app/eslint.config.mjs`, `app/vitest.config.mts` (proyectos node + jsdom), `app/src/main/index.ts`, `app/src/main/rutas.ts` (`resolverRutaDatos` pura + `rutaDatos()`; también fija `userData`), `app/e2e/humo.spec.ts`.
 - **Cómo probarlo** (desde `app/`): `npm install`, `npm run lint`, `typecheck`, `test`, `build`, `test:e2e` (todos pasan; 7 tests unitarios y 1 E2E). `npm run dev` usa `SHINOBI_DATOS=.datos-dev` (relativo a `app/`) mediante cross-env.

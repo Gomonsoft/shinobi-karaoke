@@ -3,6 +3,7 @@ import {
   configPredeterminada,
   letraSchema,
   numerosLineasSinInicio,
+  puedeMarcarseLetraLista,
   puedeMarcarseLista,
   type Cancion,
   type CodigoError
@@ -14,6 +15,7 @@ import type {
   ResueltaIpc,
   ResumenCancionIpc
 } from '@shared/ipc'
+import { modalidadEfectiva } from '@shared/cancion'
 import { claveAlbumTexto, claveAlbum, claveArtista } from '@shared/index'
 import { aparienciaResumenPrueba } from '../biblioteca/resumenPrueba'
 import { temasFalsos, type TemasFalsos } from '../biblioteca/temasFalsos'
@@ -145,6 +147,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       artista: cancion.metadatos.artista,
       duracionMs: cancion.metadatos.duracion_ms,
       estado: cancion.estado,
+      modalidad: modalidadEfectiva(cancion),
       modificada: cancion.modificada,
       estilo: structuredClone(cancion.estilo),
       album: cancion.metadatos.album,
@@ -200,7 +203,8 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           procedencia: apariencia.procedencia,
           temaId: apariencia.temaId,
           temaNombre: apariencia.temaNombre,
-          alHeredar: structuredClone(apariencia.alHeredar)
+          alHeredar: structuredClone(apariencia.alHeredar),
+          procedenciaEspera: apariencia.procedenciaEspera
         }
         return { ...structuredClone(cancion), resuelta }
       },
@@ -231,11 +235,16 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         }
         return publicar()
       },
-      async marcarLista(id) {
-        registrar('biblioteca.marcarLista', id)
+      async marcarLista(id, opciones) {
+        registrar('biblioteca.marcarLista', id, opciones)
         exigirId(id)
-        if (!puedeMarcarseLista(cancion)) throw error('ARGUMENTOS_NO_VALIDOS')
+        const letraLista = opciones?.modalidad === 'letra_lista'
+        if (!(letraLista ? puedeMarcarseLetraLista(cancion) : puedeMarcarseLista(cancion))) {
+          throw error('ARGUMENTOS_NO_VALIDOS')
+        }
         cancion.estado = 'lista'
+        if (letraLista) cancion.modalidad = 'letra_lista'
+        else delete cancion.modalidad
         cancion.pasos.edicion = {
           estado: 'completado',
           actualizado: cancion.modificada,
@@ -291,6 +300,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async actualizar(cambio) {
         registrar('config.actualizar', cambio)
         if (cambio.reproductor) Object.assign(config.reproductor, cambio.reproductor)
+        if (cambio.editor?.omitir_aviso_letra_lista !== undefined) {
+          config.editor.omitir_aviso_letra_lista = cambio.editor.omitir_aviso_letra_lista
+        }
         const paneles = cambio.editor?.paneles
         if (paneles) {
           Object.assign(config.editor.paneles.lista, paneles.lista)

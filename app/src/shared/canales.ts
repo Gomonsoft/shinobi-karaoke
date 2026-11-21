@@ -60,6 +60,21 @@ export const CANALES = {
     quitar: 'cola:quitar',
     vaciar: 'cola:vaciar'
   },
+  /** Exportación de video (ADR 0019 §10). `inicial` y `listo` son solo de la ventana de exportación. */
+  exportacion: {
+    perfiles: 'exportacion:perfiles',
+    estimar: 'exportacion:estimar',
+    destinoPropuesto: 'exportacion:destinoPropuesto',
+    elegirDestino: 'exportacion:elegirDestino',
+    iniciar: 'exportacion:iniciar',
+    cancelar: 'exportacion:cancelar',
+    estado: 'exportacion:estado',
+    mostrarEnCarpeta: 'exportacion:mostrarEnCarpeta',
+    avisosPendientes: 'exportacion:avisosPendientes',
+    /** Solo ventana de exportación. */
+    inicial: 'exportacion:inicial',
+    listo: 'exportacion:listo'
+  },
   ventana: {
     modoReproductor: 'ventana:modoReproductor',
     fijarPantallaCompleta: 'ventana:fijarPantallaCompleta',
@@ -173,12 +188,20 @@ export const CANALES = {
     /** Estado reducido, solo a la secundaria. */
     sesionEstadoSecundaria: 'sesion:estadoSecundaria',
     /** Cambió `config.reproductor`, solo a la secundaria. */
-    sesionPreferencias: 'sesion:preferencias'
+    sesionPreferencias: 'sesion:preferencias',
+    /** Alta, posición, estado y resultado de una exportación, solo a la principal (ADR 0019 §10). */
+    exportacionCambio: 'exportacion:cambio',
+    /** Progreso de la exportación, ≤ 4 por segundo, solo a la principal. */
+    exportacionProgreso: 'exportacion:progreso',
+    /** Aviso de arranque (interrumpida, limpieza fallida), solo a la principal (0132). */
+    exportacionAviso: 'exportacion:aviso',
+    /** Pide pintar el fotograma `n`, solo a la ventana de exportación. */
+    exportacionFotograma: 'exportacion:fotograma'
   }
 } as const
 
 /** Rol de una ventana de la app (ADR 0017 §1); lo asigna main, nunca el renderer. */
-export type RolVentana = 'principal' | 'secundaria'
+export type RolVentana = 'principal' | 'secundaria' | 'exportacion'
 
 type Valores<T> = T[keyof T]
 /** Nombres de todos los canales invocables (todos los grupos de `CANALES` salvo `eventos`). */
@@ -188,6 +211,7 @@ export type NombreCanalInvocable = Valores<{
 
 const PRINCIPAL: readonly RolVentana[] = ['principal']
 const SECUNDARIA: readonly RolVentana[] = ['secundaria']
+const EXPORTACION: readonly RolVentana[] = ['exportacion']
 const AMBAS: readonly RolVentana[] = ['principal', 'secundaria']
 
 /**
@@ -213,6 +237,17 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.temas.reanudarBorrado]: PRINCIPAL,
   [CANALES.temas.cancelarBorrado]: PRINCIPAL,
   [CANALES.temas.descartarAvisoApartado]: PRINCIPAL,
+  [CANALES.exportacion.perfiles]: PRINCIPAL,
+  [CANALES.exportacion.estimar]: PRINCIPAL,
+  [CANALES.exportacion.destinoPropuesto]: PRINCIPAL,
+  [CANALES.exportacion.elegirDestino]: PRINCIPAL,
+  [CANALES.exportacion.iniciar]: PRINCIPAL,
+  [CANALES.exportacion.cancelar]: PRINCIPAL,
+  [CANALES.exportacion.estado]: PRINCIPAL,
+  [CANALES.exportacion.mostrarEnCarpeta]: PRINCIPAL,
+  [CANALES.exportacion.avisosPendientes]: PRINCIPAL,
+  [CANALES.exportacion.inicial]: EXPORTACION,
+  [CANALES.exportacion.listo]: EXPORTACION,
   [CANALES.ventana.modoReproductor]: PRINCIPAL,
   [CANALES.ventana.fijarPantallaCompleta]: AMBAS,
   [CANALES.ventana.estaEnPantallaCompleta]: AMBAS,

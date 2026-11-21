@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { ESTILO_PREDETERMINADO, estiloPredeterminado, estiloSchema } from './estilo'
+import { estiloSchema010 } from './__fixtures__/estilo-0.1.0'
+import { ESPERA_LEGADA } from './espera'
+import {
+  ESTILO_PREDETERMINADO,
+  estiloPredeterminado,
+  estiloSchema,
+  normalizarEstilo
+} from './estilo'
 import { FUENTE_PREDETERMINADA, FUENTES_INCLUIDAS } from './fuentes'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,6 +85,62 @@ describe('estiloSchema', () => {
   })
   it('hay 8 familias incluidas', () => {
     expect(FUENTES_INCLUIDAS).toHaveLength(8)
+  })
+})
+
+describe('estilo ampliado (ADR 0018 §1)', () => {
+  const conico = () => {
+    const e = estilo()
+    e.fondo = {
+      ...e.fondo,
+      forma: 'conico',
+      centro: { x: 0.2, y: 0.8 },
+      movimiento: { periodo_s: 30, sentido: 'antihorario' }
+    }
+    e.espera = { ...ESPERA_LEGADA, cuenta: true, umbral_ms: 8000 }
+    return e
+  }
+  it('un estilo de 0.1.0 valida igual y se normaliza como lineal estático con espera legada', () => {
+    const base = estiloPredeterminado()
+    const parsed = estiloSchema.parse(base)
+    expect(parsed).toEqual(base)
+    const n = normalizarEstilo(parsed)
+    expect(n.fondo).toMatchObject({ forma: 'lineal', centro: { x: 0.5, y: 0.5 }, movimiento: null })
+    expect(n.espera).toEqual(ESPERA_LEGADA)
+    expect(parsed).toEqual(base) // no modifica la entrada
+  })
+  it('normalizar un fondo sólido no le añade campos de degradado', () => {
+    const e = estilo()
+    e.fondo = { tipo: 'solido', color: '#0E0F14' }
+    expect(normalizarEstilo(estiloSchema.parse(e)).fondo).toEqual(e.fondo)
+  })
+  it('valida un cónico completo; la copia de 0.1.0 lo lee sin los campos nuevos', () => {
+    const e = conico()
+    expect(estiloSchema.parse(e)).toEqual(e)
+    const viejo = estiloSchema010.parse(e)
+    expect(viejo.fondo).toEqual({
+      tipo: 'degradado',
+      angulo_grados: e.fondo.angulo_grados,
+      paradas: e.fondo.paradas
+    })
+    expect(viejo).not.toHaveProperty('espera')
+  })
+  it('rechaza valores fuera de rango y movimiento en un fondo sólido', () => {
+    const con = (cambio: (e: ReturnType<typeof conico>) => void) => {
+      const e = conico()
+      cambio(e)
+      return estiloSchema.safeParse(e).success
+    }
+    expect([
+      con((e) => (e.fondo.movimiento.periodo_s = 9)),
+      con((e) => (e.fondo.movimiento.periodo_s = 121)),
+      con((e) => (e.fondo.movimiento.periodo_s = 10)),
+      con((e) => (e.fondo.centro.x = 1.1)),
+      con((e) => (e.fondo.centro.y = -0.1)),
+      con((e) => (e.espera.umbral_ms = 999)),
+      con((e) => (e.espera.umbral_ms = 60001)),
+      con((e) => (e.fondo = { tipo: 'solido', color: '#000000', movimiento: null }))
+    ]).toEqual([false, false, true, false, false, false, false, false])
   })
 })
 

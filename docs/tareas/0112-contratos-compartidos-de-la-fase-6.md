@@ -1,4 +1,5 @@
 # 0112 — Contratos compartidos de la Fase 6: canales `ventana.*`, `biblioteca.comprobarPistas`, voz guía en `config.reproductor` y API falsas
+
 - Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: — (Fase 5 cerrada). **Primera de la fase.**
@@ -11,13 +12,16 @@
 - Paralelizable con: 0115, 0116, 0117, 0118, 0124. **Antes de** 0113, 0114, 0119–0122.
 
 ## Contexto para quien implementa
-- Contrato IPC: nombres en `shared/canales.ts` (sin dependencias; lo importa el preload con sandbox) y esquemas Zod + tipos en `shared/ipc.ts` (`CONTRATO[canal] = { args, res }`, interfaz `ApiShinobi`). Los *handlers* (`main/ipc/handlers.ts`) envuelven cada canal con `envolver` (valida argumentos, comprueba el remitente y traduce errores a `{ codigo, mensaje }`). Las dependencias de los handlers son interfaces (`BibliotecaIpc`, `RuntimeIpc`, …) dentro de `DependenciasIpc`; los eventos se difunden con `difundir(canal, carga)` y el preload se suscribe con `suscribir(canal, cb)`.
+
+- Contrato IPC: nombres en `shared/canales.ts` (sin dependencias; lo importa el preload con sandbox) y esquemas Zod + tipos en `shared/ipc.ts` (`CONTRATO[canal] = { args, res }`, interfaz `ApiShinobi`). Los _handlers_ (`main/ipc/handlers.ts`) envuelven cada canal con `envolver` (valida argumentos, comprueba el remitente y traduce errores a `{ codigo, mensaje }`). Las dependencias de los handlers son interfaces (`BibliotecaIpc`, `RuntimeIpc`, …) dentro de `DependenciasIpc`; los eventos se difunden con `difundir(canal, carga)` y el preload se suscribe con `suscribir(canal, cb)`.
 - Sigue el patrón de la tarea 0090 (contratos de la Fase 5) para todo lo que no se diga aquí.
 
 ## Objetivo
+
 Dejar fijados todos los contratos que comparten las tareas de la fase, para que main e interfaz avancen en paralelo con la API falsa.
 
 ## Criterios de aceptación
+
 - [ ] **Canales** (`CANALES`):
   ```ts
   ventana: {
@@ -62,15 +66,17 @@ Dejar fijados todos los contratos que comparten las tareas de la fase, para que 
   y `BibliotecaIpc` gana `comprobarPistas(id: string): Promise<ResumenCancion | null>`. Sin `ventana`, los canales `ventana.*` responden sin hacer nada (`estaEnPantallaCompleta` → `false`), para que los tests de handlers existentes no cambien. El evento `ventana:pantallaCompleta` se difunde suscribiéndose a `ventana.suscribir` al registrar los handlers. `comprobarPistas` aún no existe en `ServicioBiblioteca` (llega en 0114): para que compile, añade en `ServicioBiblioteca` un método provisional que devuelva `this.obtenerResumen(id)` con un `// TODO 0114`.
 - [ ] **Config** (`shared/config.ts`, lectura tolerante, **sin** cambiar `VERSION_ESQUEMA_CONFIG`):
   ```ts
-  const reproductorSchema = z.object({
-    volumen: z.number().min(0).max(1).default(0.8),
-    silenciado: z.boolean().default(false),
-    /** Voz guía (pregunta 0030): volumen propio, aplicado antes del volumen general. */
-    voz_guia: z.number().min(0).max(1).default(VOLUMEN_VOZ_PREDETERMINADO),
-    voz_guia_silenciada: z.boolean().default(VOZ_SILENCIADA_PREDETERMINADA)
-  }).prefault({})
-  export const VOLUMEN_VOZ_PREDETERMINADO = 0.3
-  export const VOZ_SILENCIADA_PREDETERMINADA = true
+  const reproductorSchema = z
+    .object({
+      volumen: z.number().min(0).max(1).default(0.8),
+      silenciado: z.boolean().default(false),
+      /** Voz guía (pregunta 0030): volumen propio, aplicado antes del volumen general. */
+      voz_guia: z.number().min(0).max(1).default(VOLUMEN_VOZ_PREDETERMINADO),
+      voz_guia_silenciada: z.boolean().default(VOZ_SILENCIADA_PREDETERMINADA),
+    })
+    .prefault({});
+  export const VOLUMEN_VOZ_PREDETERMINADO = 0.3;
+  export const VOZ_SILENCIADA_PREDETERMINADA = true;
   ```
   `configParcialRendererSchema.reproductor` acepta también `voz_guia` y `voz_guia_silenciada` opcionales. Test: un `config.json` sin esos campos se lee con los valores por defecto, y uno con `voz_guia: 2` cae en la recuperación tolerante que ya exista para valores fuera de rango (comprueba qué hace hoy con `volumen: 2` y haz lo mismo).
   Nombres y valores por defecto de `ux/07` §"Datos que usa" (30 % y silenciada).
@@ -79,6 +85,7 @@ Dejar fijados todos los contratos que comparten las tareas de la fase, para que 
 - [ ] Test de handlers: validación de argumentos (`modoReproductor('si')` → `ARGUMENTOS_NO_VALIDOS`), remitente no válido rechazado, y difusión del evento `ventana:pantallaCompleta`.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check && npm test
@@ -86,6 +93,7 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test
 ```
 
 ## Notas de implementación
+
 - Main valida las cuatro operaciones de ventana con Zod y el control de remitente. El preload expone solo operaciones tipadas y una suscripción que elimina el evento de Electron.
 - `comprobarPistas` devuelve un resumen seguro o `null`. La revisión de archivos en disco corresponde a 0114.
 - Una configuración anterior obtiene 30 % para la voz guía y comienza silenciada. Un valor inválido sigue la misma recuperación que el volumen general: se usa la copia de seguridad válida o se aparta el archivo y se escriben los valores de fábrica.

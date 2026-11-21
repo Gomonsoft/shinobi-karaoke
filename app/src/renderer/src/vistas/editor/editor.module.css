@@ -40,12 +40,7 @@
   margin-bottom: 8px;
 }
 .soloLector {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  composes: soloLector from '../../componentes/componentes.module.css';
 }
 .zonaVacia {
   min-height: 0;
@@ -213,8 +208,17 @@
   min-width: max-content;
   transform: translateX(-50%);
 }
-.accionPrueba button {
+.accionPrueba {
+  gap: var(--e-2);
+}
+.accionPrueba > :first-child {
   flex: 1;
+}
+.accionPrueba > :first-child button {
+  width: 100%;
+}
+.detenerFondo {
+  flex: none;
 }
 .pestanas {
   grid-area: pestanas;

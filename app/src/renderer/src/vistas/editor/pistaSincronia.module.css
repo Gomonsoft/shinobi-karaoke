@@ -31,8 +31,9 @@
   flex: none;
   white-space: nowrap;
 }
-.controles > :last-child {
-  margin-inline-start: auto;
+/* El grupo de la derecha (silencios y minimizar) se alinea con el botón de silencios. */
+.controles > :last-child:not(:first-child) {
+  margin-inline-start: var(--e-2);
 }
 .controles h2 {
   margin: 0;
@@ -178,6 +179,27 @@
 @media (max-width: 580px) {
   .marcas span:nth-child(even) {
     display: none;
+  }
+}
+/* Resalte de 2 s tras ajustar los silencios; con movimiento reducido no hay fundido. */
+.region[data-resaltada] {
+  border-color: var(--info);
+  box-shadow: inset 0 0 0 1px var(--info);
+  animation: resalteSilencios 2s ease-out forwards;
+}
+@keyframes resalteSilencios {
+  70% {
+    border-color: var(--info);
+    box-shadow: inset 0 0 0 1px var(--info);
+  }
+  to {
+    border-color: var(--borde-control);
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .region[data-resaltada] {
+    animation: none;
   }
 }
 .region[data-inicio-recortado] {

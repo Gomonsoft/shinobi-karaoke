@@ -91,8 +91,10 @@ export function useTemaEditor({
     alGuardarNuevo: () => setNombre({ modo: 'nuevo' })
   })
 
-  function aplicar(nueva: AparienciaEditor, clave: string): void {
-    despachar({ tipo: 'apariencia', apariencia: nueva, clave, ahora: ahora() })
+  /** Los reemplazos de la canción se conservan con `tema` y `heredar`; con estilo propio no existen. */
+  function aplicar(nueva: Omit<AparienciaEditor, 'reemplazos'>, clave: string): void {
+    const reemplazos = nueva.seleccion.modo === 'propio' ? null : apariencia.reemplazos
+    despachar({ tipo: 'apariencia', apariencia: { ...nueva, reemplazos }, clave, ahora: ahora() })
   }
 
   const acciones: ControlTema['acciones'] = {

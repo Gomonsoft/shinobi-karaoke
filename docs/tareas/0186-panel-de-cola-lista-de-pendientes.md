@@ -13,7 +13,7 @@ Crear la lista «A continuación ({n})» con reordenación por arrastre, teclado
 ## Contrato
 
 - **`vistas/biblioteca/cola/ListaPendientes.tsx`**:
-  - `role="list"` con *roving tabindex*. Las filas de 48 px muestran posición, asa, «título — artista», duración y ⋯;
+  - `role="list"` con _roving tabindex_. Las filas de 48 px muestran posición, asa, «título — artista», duración y ⋯;
   - la etiqueta «Siguiente» va en la candidata durante la cuenta y en la espera;
   - `cola.noDisponible` con la causa, y `bib.lista.incompleta`;
   - nombre accesible `cola.aria.fila`.
@@ -21,8 +21,9 @@ Crear la lista «A continuación ({n})» con reordenación por arrastre, teclado
   - arrastre desde el asa con la línea de destino; Esc cancela; desplazamiento automático en los bordes; nunca por encima de la activa;
   - Alt + ↑ / ↓ y Alt + Inicio / Fin;
   - el ⋯ con «Reproducir a continuación», «Subir», «Bajar», «Mover al final», «Agregar otra vez al final» y «Quitar de la cola».
-  
+
   Todo se traduce a `cola.mover({ entradaId, antesDe })` o a `cola.agregar`. El foco sigue a la fila movida y se anuncia `cola.anuncio.movida`.
+
 - **Quitar** (⋯ o Supr):
   - `cola.quitar`, sin confirmación;
   - toast `cola.toast.quitada` con [Deshacer] → `cola.agregar({ cancionId, donde: { antesDe, siRevision } })` con lo que devolvió `quitar`;
@@ -44,7 +45,7 @@ Crear la lista «A continuación ({n})» con reordenación por arrastre, teclado
 
 ## Notas de implementación
 
-- **Qué se hizo.** Lista «A continuación ({n})» como componente aislado en `vistas/biblioteca/cola/`: encabezado `h3` con `tabindex="-1"`, [Vaciar…] (≥ 2 pendientes, diálogo con foco en «Cancelar», `cola.vaciar(false)`), lista `role="list"` con *roving tabindex*, filas de 48 px (posición, asa decorativa, «título — artista», duración y ⋯), «Siguiente», `cola.noDisponible`, `bib.lista.incompleta` y nombre `cola.aria.fila`. Ratón (arrastre por el asa con eventos de puntero), teclado (Alt+↑/↓, Alt+Inicio/Fin, flechas, Supr, Menú/Mayús+F10) y ⋯ pasan por `ordenCola.ts` y producen la misma llamada `cola.mover(entradaId, antesDe)`. Quitar → toast con [Deshacer] → `cola.agregar(cancionId, { antesDe, siRevision })` con lo que devolvió `quitar`. El foco sigue a la fila movida (y se anuncia `cola.anuncio.movida`) o, al desaparecer la enfocada (propia o ajena), pasa a la siguiente, la anterior o el encabezado; no se roba el foco si estaba fuera de la lista.
+- **Qué se hizo.** Lista «A continuación ({n})» como componente aislado en `vistas/biblioteca/cola/`: encabezado `h3` con `tabindex="-1"`, [Vaciar…] (≥ 2 pendientes, diálogo con foco en «Cancelar», `cola.vaciar(false)`), lista `role="list"` con _roving tabindex_, filas de 48 px (posición, asa decorativa, «título — artista», duración y ⋯), «Siguiente», `cola.noDisponible`, `bib.lista.incompleta` y nombre `cola.aria.fila`. Ratón (arrastre por el asa con eventos de puntero), teclado (Alt+↑/↓, Alt+Inicio/Fin, flechas, Supr, Menú/Mayús+F10) y ⋯ pasan por `ordenCola.ts` y producen la misma llamada `cola.mover(entradaId, antesDe)`. Quitar → toast con [Deshacer] → `cola.agregar(cancionId, { antesDe, siRevision })` con lo que devolvió `quitar`. El foco sigue a la fila movida (y se anuncia `cola.anuncio.movida`) o, al desaparecer la enfocada (propia o ajena), pasa a la siguiente, la anterior o el encabezado; no se roba el foco si estaba fuera de la lista.
 - **Archivos.** `app/src/renderer/src/vistas/biblioteca/cola/`: `ListaPendientes.tsx`, `FilaPendiente.tsx`, `useArrastreCola.ts`, `ordenCola.ts`, `listaPendientes.module.css` y las pruebas `ListaPendientes.test.tsx` y `ordenCola.test.ts`. Lee el estado de `useSesion()` (0183); no toca `Biblioteca.tsx` ni el panel de 0185.
 - **Cómo montarla (0185).** `<ListaPendientes etiquetarSiguiente={fase === 'transicion' || fase === 'espera'} duracionDe={…} lineasSinSincronizarDe={…} />` dentro del hueco del panel. Ver la pregunta [0080](../preguntas/0080-duracion-y-lineas-sin-sincronizar-en-las-filas-de-la-cola.md).
 - **Cómo probarlo.** `cd app && npx vitest run src/renderer/src/vistas/biblioteca/cola`; luego `npm run typecheck`, `npm run lint` y `npm run format:check`. Las pruebas usan el doble `sesion/pruebas.ts`.
@@ -53,4 +54,4 @@ Crear la lista «A continuación ({n})» con reordenación por arrastre, teclado
   - «Agregar otra vez al final» muestra `cola.toast.final` con [Deshacer] (quita esa entrada); la spec no lo pide expresamente para el ⋯ de una pendiente.
   - Los errores de las operaciones se descartan en silencio: el estado que llega por eventos es la fuente de verdad.
   - El arrastre y su desplazamiento automático se prueban con `getBoundingClientRect` simulado; solo el E2E o la verificación manual (0190) lo ejercitan con layout real.
-  - La regla de movimiento reducido se cumple porque no hay animación de reordenación (solo un fundido de fondo del *hover* bajo `no-preference`), con una prueba que lo vigila.
+  - La regla de movimiento reducido se cumple porque no hay animación de reordenación (solo un fundido de fondo del _hover_ bajo `no-preference`), con una prueba que lo vigila.

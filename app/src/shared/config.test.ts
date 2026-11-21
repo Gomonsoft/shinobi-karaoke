@@ -39,9 +39,20 @@ describe('configSchema (lectura tolerante)', () => {
           lista: { ancho: 300, minimizado: false },
           panel: { ancho: 360, minimizado: false },
           linea_tiempo: { alto: null, minimizado: false }
-        }
+        },
+        omitir_aviso_letra_lista: false
       },
       biblioteca: { agrupar: 'ninguno' },
+      exportacion: {
+        formato: 'mkv_av1',
+        audio: 'instrumental',
+        proporcion: '16:9',
+        ancho: 1920,
+        alto: 1080,
+        fps: 30,
+        carpeta: null,
+        factor_corrector: 1
+      },
       aviso_youtube_aceptado: null,
       ultima_comprobacion_ytdlp: null,
       estilo_predeterminado: ESTILO_PREDETERMINADO

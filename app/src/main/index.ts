@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import { release, type as tipoSO } from 'node:os'
+import { cpus, release, setPriority, totalmem, type as tipoSO } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
   app,
@@ -80,6 +80,14 @@ import { ServicioPicos } from './picos/servicio'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
 import { RegistroVentanas } from './ventana/registro'
+import {
+  crearVentanaExportacion,
+  type OpcionesExportacion,
+  type VentanaExportacion
+} from './exportacion/ventana'
+import { Destinos } from './exportacion/destinos'
+import { DiarioExportacion } from './exportacion/diario'
+import { ServicioExportacion } from './exportacion/servicio'
 import { GestorReposo } from './ventana/reposo'
 import { ServicioSesion } from './sesion/servicio'
 import { listarPantallas, observarPantallas, type ScreenLike } from './sesion/pantallas'
@@ -131,6 +139,9 @@ let servicioAvisos: ServicioAvisos | null = null
 export let actualizadorYtDlp: ActualizadorYtDlp | null = null
 /** Venv donde vive yt-dlp (para la información de soporte, 0054). */
 let dirVenvYtdlp: string | null = null
+
+/** Exportación de video (0237, ADR 0019); `null` si falta algún servicio del que depende. */
+export let servicioExportacion: ServicioExportacion<BrowserWindow | null> | null = null
 
 /** Gestor de trabajos en segundo plano (0014). */
 export let gestorTrabajos: GestorTrabajos | null = null
@@ -196,7 +207,9 @@ const fuentesDeCierre = (intencion: IntencionCierre): FuentesEnCurso => ({
   hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
   guardadoPendiente: () => guardadoEditorPendiente,
   sesionActiva: () => servicioSesion?.sesionActiva() ?? false,
-  colaNoVacia: () => !cierraSoloLaVentana(intencion) && (servicioSesion?.colaNoVacia() ?? false)
+  colaNoVacia: () => !cierraSoloLaVentana(intencion) && (servicioSesion?.colaNoVacia() ?? false),
+  // En macOS cerrar la principal no detiene las exportaciones (ADR 0019 §8).
+  exportando: () => !cierraSoloLaVentana(intencion) && (servicioExportacion?.hayEnCurso() ?? false)
 })
 
 const controlCierre = crearControlCierre({
@@ -208,10 +221,11 @@ const controlCierre = crearControlCierre({
     }),
   // Tras confirmar, los trabajos se cancelan como `interrumpido` y no queda ningún proceso hijo.
   // Sin `cancelarTodos()`: en macOS cerrar la ventana no sale de la app y el gestor debe seguir vivo.
-  pausar: async () => {
+  pausar: async (intencion) => {
     const g = gestorTrabajos
     await Promise.allSettled([
       runtime?.servicio.pausar(),
+      cierraSoloLaVentana(intencion) ? undefined : servicioExportacion?.cancelarTodas(),
       ...(g?.listar().map((t) => g.cancelar(t.id, 'cierre')) ?? [])
     ])
   },
@@ -306,6 +320,9 @@ function crearVentanaSecundaria(opciones: OpcionesVentanaSecundaria): VentanaSec
   return ventana as unknown as VentanaSecundariaLike
 }
 
+/** Ventana offscreen de exportación vigente (la crea 0237; hasta entonces, solo las pruebas). */
+let ventanaExportacionVigente: VentanaExportacion | null = null
+
 // El esquema de medios debe registrarse como privilegiado antes de `app.ready` (0012).
 protocol.registerSchemesAsPrivileged([
   { scheme: ESQUEMA_APP, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -353,6 +370,36 @@ if (instanciaUnica)
   void app.whenReady().then(async () => {
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
+
+    /**
+     * Crea la ventana offscreen de exportación (ADR 0019 §2): rol `exportacion`, `exportacion.html`
+     * y su propio preload. Hay una a la vez; la gobierna el servicio de exportación (0237).
+     */
+    async function crearExportacion(opciones: OpcionesExportacion): Promise<VentanaExportacion> {
+      const urlDev = process.env.ELECTRON_RENDERER_URL
+      return crearVentanaExportacion(opciones, {
+        publicar: (v) => {
+          ventanaExportacionVigente = v
+        },
+        crear: (o) => new BrowserWindow(o) as never,
+        url:
+          !app.isPackaged && urlDev
+            ? `${urlDev}/exportacion.html`
+            : `${ORIGEN_APP}/exportacion.html`,
+        preload: join(__dirname, '../preload/exportacion.js'),
+        registrarRol: (v) => ventanas.registrar(v as never, 'exportacion'),
+        // Prioridad baja: el equipo sigue usable mientras se exporta.
+        bajarPrioridad: (pid) => setPriority(pid, 10),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'exportacion', mensaje)
+      })
+    }
+
+    // Solo para las pruebas E2E de la captura (0234): nunca en la app empaquetada.
+    if (!app.isPackaged && process.env.SHINOBI_PRUEBA_EXPORTACION === '1') {
+      ;(globalThis as { __shinobiExportacion?: unknown }).__shinobiExportacion = {
+        crear: crearExportacion
+      }
+    }
     try {
       servicioConfig = await ServicioConfig.abrir(rutaDatos(), { registro })
     } catch (e) {
@@ -364,7 +411,13 @@ if (instanciaUnica)
         // `SHINOBI_PAPELERA_PRUEBAS` sustituye la papelera real en E2E; se ignora empaquetada (0023).
         shell: shellConPapeleraDePruebas(shell, { env: process.env, empaquetada: app.isPackaged }),
         // Eliminar una canción cancela antes sus trabajos (0014).
-        antesDeEliminar: (id) => gestorTrabajos?.cancelarDeCancion(id) ?? Promise.resolve()
+        // Y las exportaciones de la canción, con limpieza, antes de la papelera (0237).
+        antesDeEliminar: async (id) => {
+          await Promise.all([
+            gestorTrabajos?.cancelarDeCancion(id),
+            servicioExportacion?.cancelarDeCancion(id)
+          ])
+        }
       })
       // El catálogo de temas se abre antes de escanear: los resúmenes salen ya resueltos (0168).
       const dirBiblioteca = join(rutaDatos(), 'biblioteca')
@@ -693,10 +746,48 @@ if (instanciaUnica)
         liberarVisitaLetra: () => servicioLetras.liberarEdicion(),
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'sesion', mensaje)
       })
+      const exportacionBiblioteca = servicioBiblioteca
+      servicioExportacion = new ServicioExportacion<BrowserWindow | null>({
+        biblioteca: {
+          obtener: (id) => exportacionBiblioteca.obtener(id),
+          estiloDe: (cancion) => exportacionBiblioteca.resolver(cancion).estilo
+        },
+        dirDatos: rutaDatos(),
+        config,
+        destinos: new Destinos<BrowserWindow | null>({
+          dialogoGuardar: async (ventana, o) => {
+            const opciones = {
+              defaultPath: o.defaultPath,
+              filters: [{ name: o.nombreFiltro, extensions: [o.extension] }]
+            }
+            const r = ventana
+              ? await dialog.showSaveDialog(ventana, opciones)
+              : await dialog.showSaveDialog(opciones)
+            return r.canceled || !r.filePath ? null : r.filePath
+          },
+          directorioDatos: rutaDatos(),
+          carpetaVideos: () => app.getPath('videos'),
+          carpetaHogar: () => app.getPath('home')
+        }),
+        diario: new DiarioExportacion(rutaDatos()),
+        ejecutar,
+        crearVentana: crearExportacion,
+        ventanaPrincipal: () => ventanas.principal() ?? null,
+        mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta),
+        avisarSistema: (texto) => servicioAvisos?.avisarSistema(texto),
+        bloqueador: powerSaveBlocker,
+        memoriaTotal: () => totalmem(),
+        nucleos: () => cpus().length,
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'exportacion', mensaje)
+      })
+      // Restos de una caída: el aviso espera a que la principal lo pida (antes de crearla).
+      await servicioExportacion.recuperarAlArrancar()
       registrarIpc(
         ipcMain,
         {
           biblioteca: servicioBiblioteca,
+          exportacion: servicioExportacion,
+          ventanaExportacion: () => ventanaExportacionVigente,
           ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
           sesion: servicioSesion,
@@ -814,6 +905,8 @@ app.on('before-quit', (evento) => {
   // Primero se cancelan los trabajos (sin procesos hijos vivos, 0014) y luego se vuelca todo.
   const cierre = Promise.allSettled([
     gestorTrabajos?.cancelarTodos(),
+    // Cancela las exportaciones con limpieza y suelta el bloqueo de suspensión (0237).
+    servicioExportacion?.cerrar(),
     servicioPicos?.cerrar(),
     Promise.resolve(servicioTemas?.cerrar()),
     // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).

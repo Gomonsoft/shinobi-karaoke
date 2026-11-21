@@ -26,7 +26,9 @@ export const mensajeErrorSchema = z.object({
   /** Código estable (ver errores.ts); un código desconocido se tolera y la UX lo trata como genérico. */
   codigo: z.string().min(1),
   mensaje: z.string(),
-  reintentable: z.boolean().default(false)
+  reintentable: z.boolean().default(false),
+  /** Datos extra del error; `exportar` envía `detalle.fotograma` (último fotograma escrito, ADR 0019 §4). */
+  detalle: z.record(z.string(), z.unknown()).optional()
 })
 
 export const mensajeWorkerSchema = z.discriminatedUnion('tipo', [

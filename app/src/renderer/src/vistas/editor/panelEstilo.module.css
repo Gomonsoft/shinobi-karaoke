@@ -179,3 +179,59 @@
 :global([data-bajo-minimo]) .pie {
   position: static;
 }
+
+/* Fase 5 · 0211: centro del degradado y movimiento. */
+.centro,
+.movimiento {
+  display: grid;
+  min-width: 0;
+  gap: var(--e-2);
+}
+.cuadricula {
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  grid-auto-rows: 32px;
+  width: max-content;
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+}
+.celda {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.celda:hover {
+  background: var(--fondo-3-hover);
+}
+.punto {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--texto-2);
+  border-radius: 50%;
+}
+.celda[aria-checked='true'] .punto {
+  border-color: var(--texto-1);
+  background: var(--texto-1);
+}
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+  cursor: pointer;
+}
+.casilla input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--acento);
+}
+.notaReducido {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+}

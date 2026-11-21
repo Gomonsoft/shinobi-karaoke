@@ -241,3 +241,58 @@ Contraste (fase 3): todos los textos nuevos usan `texto-1/2/3` sobre `fondo-1/2`
 | **Candado de acción bloqueada** | Icono `lock` 14 px en `texto-3` junto al texto del elemento `aria-disabled` (menú, botón o tooltip del paso). |
 
 Contraste (fase 4): los textos del panel usan `texto-1/2/3` sobre `fondo-1/2` (≥ 5,4:1, §2.2); todo lo que la secundaria pinta sobre el fondo de una canción va en `#FFFFFF` sobre `rgba(0,0,0,0.6)` (≥ 5,7:1 con cualquier fondo, como los controles del reproductor), de modo que la cuenta y la tarjeta se leen aunque el tema de la candidata tenga avisos de contraste. Ninguno de estos elementos aparece en la franja central 25 %–75 % **mientras se canta**; la cuenta usa el centro porque entre canciones no hay letra. Ver [Biblioteca](02-biblioteca.md#fase-4-de-020--ventana-secundaria-y-cola), [Reproductor](07-reproductor.md#fase-4-de-020--ventana-secundaria-y-cola) y [Editor](06-editor.md#fase-4-de-020--ventana-secundaria-y-cola).
+
+## 0.2.0 — Estilo, espera y Letra lista (fase 5)
+
+Comportamiento en [Editor](06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista), [Reproductor](07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista) y [Biblioteca](02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista). **Sustituye** la fila «Indicador de entrada» de §10 (pasa a ser «Indicadores de espera», abajo) y precisa §9 para el cónico.
+
+**Fondo del estilo (amplía §8 y §9)**
+
+| Elemento | Valor |
+|---|---|
+| Formas | **Lineal** (ángulo, como hasta ahora), **radial** (círculo desde el centro elegido hasta la esquina más lejana; primer color en el centro) y **cónico** (desde el ángulo de inicio, en sentido horario, con el último color fundiéndose otra vez con el primero). Paradas repartidas por igual de 0 a 1 en lineal y radial, y en i/n en el cónico para que el tramo de cierre mida lo mismo y no haya costura. |
+| Centro | 9 posiciones: 0 %, 50 % o 100 % en cada eje (esquinas, bordes y centro). |
+| Movimiento | Solo la geometría; la paleta es fija. Lineal y cónico: una vuelta del ángulo por ciclo (sentido horario por defecto). Radial: el centro recorre una órbita que pasa por la posición elegida, de amplitud fija 10 % del área (ADR 0018 §2, provisional). Ciclo (`periodo_s`): Lenta 60 s · Media 30 s · Rápida 15 s. Fase = (tiempo de audio mod ciclo) / ciclo; fase 0 = geometría configurada. |
+| Movimiento reducido | Fase 0 fija. Es la única excepción a «el contenido no se elimina» de §4: el fondo es decoración. |
+| Muestras de tema y portadas | Siempre estáticas, en fase 0. |
+| Contraste (§9) | Sustituye las 11 muestras globales: peor caso con 9 muestras por tramo entre paradas y, en el cónico, también el tramo de cierre (último → primero) (ADR 0018 §4). Igual con o sin movimiento. |
+
+**Indicadores de espera** (render compartido; tamaños relativos a `S` = tamaño de la línea actual, `max(32px, 7.5vh)`, y al área de render)
+
+| Indicador | Valor |
+|---|---|
+| Color | `color_resaltado` del estilo; en **Letra lista**, `letra.color`. Sombra de §10 en los tres. |
+| **Puntos ●●●** | Sin cambios respecto a §10: tres puntos sobre la línea siguiente que se apagan uno por segundo en los 3 s previos. |
+| **Barra** | Ancho inicial 40 % del ancho del área, centrada; se encoge hacia el centro de forma lineal hasta 0 en el inicio de la línea siguiente. Grosor `max(4px, 0.8vh)`, extremos redondeados, sin pista de fondo. Centro vertical a `45 % − 0,9 × S`. |
+| **Cuenta 3·2·1** | Número en la fuente de la canción, tamaño `S`, centrado con su centro al 45 % del alto (el sitio de la línea actual, vacío durante el hueco). Entrada: fundido + escala 0,9 → 1 en 150 ms `ease-out`; salida inmediata. Movimiento reducido: sin fundido ni escala. **No** es el contador entre canciones de la fase 4 (disco oscuro y número blanco): este es parte de la letra y usa los colores del estilo. |
+| Posiciones | Reservadas y fijas: barra arriba, cuenta en el centro, puntos sobre la línea siguiente. Ninguna combinación mueve la letra. |
+| Por defecto | Solo puntos, también antes de la primera línea (que dura siempre 4 s), silencio mínimo 4,0 s (comportamiento de 0.1.0). Rango del umbral 1,0–60,0 s. |
+
+**Interfaz del editor y la Biblioteca**
+
+| Componente | Tratamiento visual |
+|---|---|
+| **Cuadrícula de centro** | 3 × 3 celdas de 40 × 32 px con 4 px de separación, borde 1 px `borde-control`, `r-s`; cada celda con un círculo de 10 px (contorno `texto-2`; elegida: relleno `acento-texto`). Foco: anillo de §7 en la celda. |
+| **Botón «Detener el movimiento del fondo»** | Botón icono de §6 (36 × 36) a la derecha de «Probar a pantalla completa»; `aria-pressed` con estado «activo» de §6. |
+| **Píldora «Ejemplo»** | Sobre la vista previa, arriba a la izquierda (8 px de margen): píldora de §10 («Aviso sobre el fondo del estilo») a `t-pequeno`. |
+| **Resalte tras «Ajustar los silencios»** | Borde 2 px `info` en las regiones cambiadas durante 2 s, con fundido de 200 ms (sin fundido con movimiento reducido). El fin fijado se distingue por su contorno continuo (el automático es discontinuo). |
+| **Insignia «Letra lista»** | Insignia de estado de §6 con icono `captions` 14 px, fondo `exito-tenue`, texto `exito` («Letra lista»; 8,96:1). Se distingue de «✓ Lista» por icono y texto. |
+
+Contraste (fase 5): textos nuevos en `texto-1/2/3` sobre `fondo-1/2` (≥ 4,7:1, §2.2). Los indicadores de espera son gráficos no textuales del estilo (umbral 3:1): los cubre la comprobación de resaltado de §9 (en Letra lista, la de la letra). En Letra lista los avisos de resaltado pasan a informativos en el editor, porque ese color no se ve al reproducir.
+
+## 0.2.0 — Exportación de video (fase 6)
+
+| Componente | Tratamiento visual |
+|---|---|
+| **Diálogo de exportación** | Variante del diálogo modal de §6 de **720 px** (máx. 90 vw) para el formulario; alto máx. 90 vh con cabecera (título + línea de la canción en `t-pequeno` `texto-2`) y fila de acciones fijas, y scroll solo en el cuerpo. Cuerpo en dos columnas: formulario (flexible, mín. 360 px) y muestra (256 px), separadas 24 px; con el diálogo < 760 px de ancho, la muestra pasa arriba (100 % de ancho, máx. 160 px de alto). Progreso, éxito y fallo usan el diálogo ancho de 560 px (fase 3). Etiquetas de campo `t-pequeno` `texto-2`, 16 px entre campos. |
+| **Muestra de exportación** | Lienzo en la proporción elegida (16:9: 256 × 144; 4:3: 192 × 144, centrado), borde 1 px `borde`, radio `r-s`. Pinta un fotograma fijo con el render compartido (§10 escalado al alto de la muestra) y la marca de agua con sus valores reales escalados. Debajo, «{ancho} × {alto} · {fps} FPS · {MKV / WebM}» en `t-tiempo` `texto-2` y la nota de la marca en `t-pequeno` `texto-3`. Cambio de proporción: sin animación. Decorativa (`aria-hidden`). |
+| **Marca de agua** (en el video) | Texto `Shinobi Karaoke`, Atkinson Hyperlegible Next 700, cuerpo `máx(14 px, 2,2 % del alto)`, `#FFFFFF`, sobre píldora `rgba(0,0,0,0.5)` de radio completo con relleno 0,35 em × 0,7 em; grupo al 85 % de opacidad. Esquina inferior derecha con margen derecho e inferior del 3 % del alto. Peor contraste (fondo blanco): 3,1:1. No se anima. Detalle en [spec 10](10-exportacion.md#marca-de-agua). |
+| **Opción de perfil no soportado** | En listas y controles segmentados: nombre en `texto-desactivado` y sufijo «— no disponible en este equipo» en `t-pequeno` `texto-3`, **sin** candado ni color de estado (es permanente, no un aviso). Enfocable, no seleccionable; tooltip con el motivo. En un control segmentado: opción con borde discontinuo 1 px `borde-control`. |
+| **Selector de formato** | Control segmentado de §6 con dos opciones de igual ancho, «MKV (AV1 + Opus)» y «WebM (VP9 + Opus)», en `t-cuerpo`. Botón ⓘ (icono `info` 16 px, área de 32 × 32 px) a la derecha de la etiqueta «Formato», que abre un popover de §6 de máx. 360 px con `exp.formato.ayuda` (nombres de formato en negrita). Debajo del control, la pista de la opción elegida en `t-pequeno` `texto-2`, hasta 3 líneas, sin animación al cambiar. |
+| **Sesión en otra pantalla** | Sin tratamiento propio: exportar y la sesión conviven (ADR 0019 §9), así que **no** hay candado de exportación; solo la nota `info` del bloque de avisos del diálogo. El candado de la fase 4 nunca se usa en los puntos de entrada de la exportación. |
+| **Ruta de destino** | Campo de texto de §6 en modo solo lectura (fondo `fondo-2`, borde `borde`, no `borde-control`, para no parecer editable), `t-cuerpo`, una línea con recorte por el centro («/Users/ana/Mov…(karaoke).mkv»); botón secundario [Cambiar…] a su derecha, separado 8 px. |
+| **Estimación** | `t-pequeno` `texto-2`, cifras en `t-tiempo`. Sin color de estado. |
+| **Subpasos de la exportación** | Los de la vista de progreso (spec 04): icono 20 px de estado + nombre `t-cuerpo` + dato `t-tiempo` `texto-2` a la derecha; barra de 12 px. |
+| **Línea de exportación en la tarjeta** | Como la línea de paso de un borrador (spec 02): icono `loader` (o `clock` en cola) 14 px `info`, texto `t-pequeno` `info`, barra de 6 px. Icono `film` 16 px en los ítems de menú «Exportar video…». |
+
+Contraste (fase 6): los textos del diálogo usan `texto-1/2/3` sobre `fondo-1/2` (≥ 5,4:1, §2.2); el sufijo de perfil no soportado en `texto-3` sobre `fondo-3` del menú desplegable mantiene 4,7:1; la marca de agua cumple ≥ 3:1 sobre cualquier fondo de estilo; la pista del formato en `texto-2` sobre `fondo-1` cumple ≥ 5,4:1. La letra del video usa el estilo de la canción y sus avisos de §9, que el diálogo no repite. Ver [Exportar a video](10-exportacion.md), [Biblioteca](02-biblioteca.md#fase-6-de-020--exportación) y [Editor](06-editor.md#fase-6-de-020--exportación).

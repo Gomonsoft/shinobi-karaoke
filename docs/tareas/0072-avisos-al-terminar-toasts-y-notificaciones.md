@@ -1,4 +1,5 @@
 # 0072 — Avisos al terminar o fallar un trabajo: toasts, notificaciones del sistema, Dock y barra de tareas
+
 - Estado: Hecha
 - Paso del pipeline: transversal (1 y 2)
 - Depende de: 0059; integración real con 0065 (se prueba antes con eventos falsos del gestor)
@@ -7,14 +8,16 @@
 - Cuándo: en paralelo con 0069, 0070 y 0071
 
 ## Objetivo
+
 Componente "Avisos del sistema" de `arquitectura.md` §2 y §6: que el usuario sepa que su separación (o descarga) ha terminado o ha fallado aunque esté en otra vista o en otra aplicación.
 
 ## Criterios de aceptación
+
 - [x] **Renderer, en otra vista de la app**, cuando un trabajo termina:
   - separación completada → `prog.toast.ok` [Abrir], o `prog.toast.lista` [Abrir editor] si la canción ya cumple las condiciones para marcarse como lista (`puedeMarcarseComoLista`);
   - fallo → `prog.toast.error` persistente [Ver];
   - cancelado o interrumpido → sin toast.
-  Si el usuario está en la vista de progreso de esa canción, no hay toast.
+    Si el usuario está en la vista de progreso de esa canción, no hay toast.
 - [x] **Main, con la ventana sin foco o minimizada** (`main/avisos/`):
   - Windows y Linux: `Notification` con el mismo texto; un clic trae la ventana y abre la canción (evento al renderer). Además, `win.flashFrame(true)` hasta recuperar el foco. Si `Notification.isSupported()` es `false` o la notificación emite `failed`, solo el parpadeo, sin errores visibles.
   - macOS: `app.dock.bounce('informational')` una vez e insignia `app.dock.setBadge(String(n))` con el número de avisos pendientes. No se intenta la notificación nativa (app sin firmar, `arquitectura.md` §6).
@@ -24,6 +27,7 @@ Componente "Avisos del sistema" de `arquitectura.md` §2 y §6: que el usuario s
 - [x] Tests: con foco y otra vista → toast; en la vista de progreso → sin toast; sin foco en cada SO simulado → notificación o rebote más insignia; `failed` → sin error; recuperar el foco → limpieza; toast de error persistente.
 
 ## Notas de implementación
+
 - **Reparto**: main decide y redacta (`app/src/main/avisos/`); el renderer solo muestra. `ServicioAvisos` se suscribe al gestor (`alCambiarTrabajo`), convierte cada trabajo terminado en un `AvisoTrabajoIpc` (`avisoDeTrabajo`: separación `completado` -> `ok` o `lista` según `puedeMarcarseLista` (nombre real en el código; la tarea decía `puedeMarcarseComoLista`); `error` de separación o de descarga -> `error` con el título del error y **sin la oferta de Rápido**; cancelado, interrumpido y descarga completada -> nada, porque la separación encadenada avisa al terminar) y lo envía siempre al renderer (`eventos.avisoTrabajo`). Con la ventana sin foco o minimizada: Windows/Linux `Notification` + `flashFrame` (sin soporte o `failed` -> solo parpadeo, se registra); macOS `dock.bounce('informational')` + `dock.setBadge(n)` (sin notificación nativa). Al recuperar el foco (`ventana.on('focus')`) se borran insignia y parpadeo. Clic en la notificación: trae la ventana y envía `eventos.abrirCancion`.
 - **Renderer**: `navegacion/useAvisosTrabajos.ts` (montado en `App`): toast `exito`/`error` con acción [Abrir] / [Abrir editor] / [Ver] (las acciones hacen que el toast no caduque, regla de 0016, así el de error es persistente); no hay toast en la vista de progreso de esa canción; sin foco (`document.hasFocus()`) los avisos esperan y se muestran al volver (`focus`). `window.shinobi.avisos.{alAviso, alAbrirCancion}` en preload e `ipc.ts`.
 - **Textos** en `shared/avisos.ts` (`AVISOS`, `tituloErrorAviso`): los mismos para toast y notificación; un test comprueba que los títulos de error coinciden con los de `vistas/progreso/textos.ts` (copia deliberada: main no importa del renderer).

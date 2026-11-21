@@ -1,14 +1,77 @@
-name: Empaquetado (manual)
+name: Empaquetado y publicación
 
 on:
   workflow_dispatch:
+  push:
+    tags: ['v*']
 
 permissions:
   contents: read
 
+concurrency:
+  group: empaquetado-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  comprobar-version:
+    name: Comprobar versión
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      etiqueta: ${{ steps.version.outputs.etiqueta }}
+      previa: ${{ steps.version.outputs.previa }}
+      version_pep440: ${{ steps.version.outputs.version_pep440 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Comprobar que app y worker dicen la misma versión
+        if: github.ref_type != 'tag'
+        id: version_manual
+        run: node app/scripts/version.mjs comprobar --salida-github
+      - name: Comprobar versión y etiqueta
+        if: github.ref_type == 'tag'
+        id: version_etiqueta
+        env:
+          ETIQUETA_EVENTO: ${{ github.ref_name }}
+        run: node app/scripts/version.mjs comprobar --etiqueta "$ETIQUETA_EVENTO" --salida-github
+      - name: Comprobar que la etiqueta apunta a un commit de main
+        if: github.ref_type == 'tag'
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::El commit de la etiqueta no está en main: fusiona antes de etiquetar."
+            exit 1
+          fi
+      - name: Avisar si la etiqueta de esta versión ya existe
+        if: github.ref_type != 'tag'
+        env:
+          ETIQUETA_PREVISTA: v${{ steps.version_manual.outputs.version }}
+        run: |
+          if [[ -n "$(git ls-remote --tags origin "refs/tags/$ETIQUETA_PREVISTA")" ]]; then
+            echo "**Aviso:** la etiqueta \`$ETIQUETA_PREVISTA\` ya existe en el remoto." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Exponer la versión
+        id: version
+        env:
+          VERSION: ${{ steps.version_manual.outputs.version || steps.version_etiqueta.outputs.version }}
+          ETIQUETA: ${{ steps.version_manual.outputs.etiqueta || steps.version_etiqueta.outputs.etiqueta }}
+          PREVIA: ${{ steps.version_manual.outputs.previa || steps.version_etiqueta.outputs.previa }}
+          PEP440: ${{ steps.version_manual.outputs.version_pep440 || steps.version_etiqueta.outputs.version_pep440 }}
+        run: |
+          {
+            echo "version=$VERSION"
+            echo "etiqueta=$ETIQUETA"
+            echo "previa=$PREVIA"
+            echo "version_pep440=$PEP440"
+          } >> "$GITHUB_OUTPUT"
+
   construir:
     name: Construir (${{ matrix.os }})
+    needs: comprobar-version
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -327,3 +390,111 @@ jobs:
             ''
           ].join('\n'))
           NODE
+
+  preparar-publicacion:
+    name: Preparar publicación
+    needs: [comprobar-version, construir, probar-instalador]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      ETIQUETA: ${{ needs.comprobar-version.outputs.etiqueta }}
+      PREVIA: ${{ needs.comprobar-version.outputs.previa }}
+      ENSAYO: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Identificar artefactos
+        id: artefactos
+        run: echo "patron=shinobi-karaoke-${VERSION}-${GITHUB_SHA:0:7}-*" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ${{ steps.artefactos.outputs.patron }}
+          merge-multiple: true
+          path: entrada
+      - name: Comprobar instaladores y sumas, y componer las notas
+        run: |
+          args=(--entrada entrada --salida publicacion --version "$VERSION" --etiqueta "$ETIQUETA" --previa "$PREVIA")
+          if [[ "$ENSAYO" == true ]]; then args+=(--ensayo); fi
+          node app/scripts/preparar-publicacion.mjs "${args[@]}"
+          (cd publicacion && sha256sum -c SHA256SUMS.txt)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publicacion-${{ needs.comprobar-version.outputs.version }}
+          path: publicacion/*
+          retention-days: 14
+          if-no-files-found: error
+
+  publicar:
+    name: Publicar en GitHub Releases
+    needs: [comprobar-version, preparar-publicacion]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ETIQUETA: ${{ needs.comprobar-version.outputs.etiqueta }}
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      PREVIA: ${{ needs.comprobar-version.outputs.previa }}
+      BORRADOR: ${{ vars.PUBLICACION_BORRADOR }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: publicacion-${{ needs.comprobar-version.outputs.version }}
+          path: publicacion
+      - name: Comprobar que no existe una Release de esta etiqueta
+        run: |
+          if gh release view "$ETIQUETA" > /dev/null 2>&1; then
+            echo "::error::Ya existe una Release para $ETIQUETA; no se sobrescribe."
+            exit 1
+          fi
+      - name: Crear la Release en borrador con sus recursos
+        working-directory: publicacion
+        run: |
+          args=("$ETIQUETA" --verify-tag --draft --title "Shinobi Karaoke $VERSION" --notes-file notas.md)
+          if [[ "$PREVIA" == true ]]; then args+=(--prerelease --latest=false); else args+=(--latest); fi
+          if [[ "$(jq -r .generar_notas datos.json)" == true ]]; then args+=(--generate-notes); fi
+          gh release create "${args[@]}" \
+            Shinobi-Karaoke-Windows-x64.exe \
+            Shinobi-Karaoke-Mac-chip-Apple.dmg \
+            Shinobi-Karaoke-Linux-x64.AppImage \
+            shinobi-karaoke-linux-x64.deb \
+            SHA256SUMS.txt
+      - name: Comprobar los recursos subidos
+        working-directory: publicacion
+        run: |
+          gh release view "$ETIQUETA" --json assets --jq '.assets[] | "\(.name) \(.size)"' | sort > subidos.txt
+          for archivo in Shinobi-Karaoke-Windows-x64.exe Shinobi-Karaoke-Mac-chip-Apple.dmg Shinobi-Karaoke-Linux-x64.AppImage shinobi-karaoke-linux-x64.deb SHA256SUMS.txt; do
+            echo "$archivo $(stat -c %s "$archivo")"
+          done | sort > locales.txt
+          diff locales.txt subidos.txt
+      - name: Publicar o dejar en borrador
+        id: estado
+        run: |
+          if [[ "$BORRADOR" == true ]]; then
+            echo "estado=borrador (pendiente de publicar a mano)" >> "$GITHUB_OUTPUT"
+          else
+            gh release edit "$ETIQUETA" --draft=false
+            echo "estado=publicada" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Resumir
+        env:
+          ESTADO: ${{ steps.estado.outputs.estado }}
+          SERVIDOR: ${{ github.server_url }}
+        run: |
+          tipo=estable
+          if [[ "$PREVIA" == true ]]; then tipo="previa (pre-release)"; fi
+          {
+            echo "## Release $ETIQUETA"
+            echo
+            echo "- Enlace: $SERVIDOR/$GH_REPO/releases/tag/$ETIQUETA"
+            echo "- Estado: $ESTADO"
+            echo "- Tipo: $tipo"
+          } >> "$GITHUB_STEP_SUMMARY"

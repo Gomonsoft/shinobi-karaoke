@@ -39,9 +39,11 @@ import {
   type OperacionTema,
   type RenombrarTema,
   type ResultadoOperacionIpc,
+  type OpcionesMarcarLista,
   type SeleccionApariencia,
   type TemaIpc
 } from '../../shared'
+import type { InicialExportacionIpc } from '../../shared/exportacion'
 import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
@@ -50,6 +52,7 @@ import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
 import type { ServicioSesion } from '../sesion/servicio'
+import type { ServicioExportacion } from '../exportacion/servicio'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -62,7 +65,7 @@ export interface BibliotecaIpc {
   guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion>
   /** Resolución de la canción con el catálogo vigente (`biblioteca.obtener`). */
   resolver(cancion: Cancion): ResolucionCancion
-  marcarLista(id: string): Promise<ResumenCancion>
+  marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion>
   comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
   eliminar(id: string): Promise<void>
@@ -193,7 +196,35 @@ export type SesionIpc = Pick<
   | 'vaciar'
 >
 
+/** Subconjunto de `ServicioExportacion` (0237) que usa la IPC; ausente, sus canales responden `ERROR_INTERNO`. */
+export type ExportacionServicioIpc = Pick<
+  ServicioExportacion,
+  | 'perfiles'
+  | 'estimar'
+  | 'destinoPropuesto'
+  | 'elegirDestino'
+  | 'iniciar'
+  | 'cancelar'
+  | 'cancelarTodas'
+  | 'estado'
+  | 'mostrarEnCarpeta'
+  | 'avisosPendientes'
+  | 'suscribir'
+  | 'suscribirProgreso'
+  | 'suscribirAviso'
+>
+
+/** Lo que la ventana offscreen de exportación (0234) ofrece a sus dos canales. */
+export interface VentanaExportacionIpc {
+  inicial(): InicialExportacionIpc
+  confirmarListo(carga: { trabajoId: string; n: number }): void
+}
+
 export interface DependenciasIpc {
+  /** Exportación de video (ADR 0019). */
+  exportacion?: ExportacionServicioIpc
+  /** Ventana offscreen vigente (0234). */
+  ventanaExportacion?: () => VentanaExportacionIpc | null
   /** Sesión en vivo y cola (ADR 0017). */
   sesion?: SesionIpc
   /** El editor tiene un guardado que termina tarde (`app.guardadoPendiente`). */
@@ -339,6 +370,22 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.sesion
   }
 
+  const exportacion = (): ExportacionServicioIpc => {
+    if (!deps.exportacion) throw new Error('El servicio de exportación no está disponible.')
+    return deps.exportacion
+  }
+
+  /** Remitente por rol (ADR 0019 §10): la principal usa los canales de exportación; la ventana offscreen, solo los suyos. */
+  const exigirRol = (ctx: ContextoIpc, rol: RolVentana): void => {
+    if (ctx.rol !== rol) throw errorConCodigo('ARGUMENTOS_NO_VALIDOS', 'Origen no permitido.')
+  }
+
+  const ventanaExportacion = (): VentanaExportacionIpc => {
+    const ventana = deps.ventanaExportacion?.()
+    if (!ventana) throw new Error('No hay ventana de exportación.')
+    return ventana
+  }
+
   /** Defensa de ADR 0017 §9: durante la sesión no se edita la lista. */
   const sinSesion = (): void => {
     if (deps.sesion?.edicionBloqueada()) {
@@ -360,7 +407,9 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       throw errorConCodigo('SESION_NO_ACTIVA', 'No hay una sesión activa.')
     }
   }
-  const rolDe = (ctx: ContextoIpc): RolVentana => ctx.rol ?? 'principal'
+  /** Rol de sesión de quien llama; la ventana de exportación no llama a canales de sesión. */
+  const rolDe = (ctx: ContextoIpc): 'principal' | 'secundaria' =>
+    ctx.rol === 'secundaria' ? 'secundaria' : 'principal'
 
   /** `obtener` con la apariencia resuelta con el catálogo vigente (ADR 0016 §9). */
   const cancionParaRenderer = (id: string): CancionIpc | null => {
@@ -468,10 +517,15 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         return resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
       }
     ),
-    [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) => {
-      sinSesion()
-      return resumenParaRenderer(await biblioteca.marcarLista(id))
-    }),
+    [CANALES.biblioteca.marcarLista]: envolver(
+      CANALES.biblioteca.marcarLista,
+      async (id, opciones) => {
+        sinSesion()
+        return resumenParaRenderer(
+          await (opciones ? biblioteca.marcarLista(id, opciones) : biblioteca.marcarLista(id))
+        )
+      }
+    ),
     [CANALES.biblioteca.volverABorrador]: envolver(
       CANALES.biblioteca.volverABorrador,
       async (id) => {
@@ -548,7 +602,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.runtime.requisitos]: envolver(CANALES.runtime.requisitos, (opciones) =>
       runtime.requisitos(opciones.recalcularEspacio)
     ),
-    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, () => runtime.instalar()),
+    // «Reparar el motor» cancela antes las exportaciones, como un trabajo más (ADR 0019 §8).
+    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, async () => {
+      await deps.exportacion?.cancelarTodas()
+      runtime.instalar()
+    }),
     [CANALES.runtime.pausar]: envolver(CANALES.runtime.pausar, () => runtime.pausar()),
     [CANALES.runtime.detalles]: envolver(CANALES.runtime.detalles, () => runtime.detalles()),
     [CANALES.runtime.estimarSeparacion]: envolver(CANALES.runtime.estimarSeparacion, (ms, modelo) =>
@@ -657,6 +715,62 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.cola.quitar]: envolver(CANALES.cola.quitar, (p) => sesion().quitar(p.entradaId)),
     [CANALES.cola.vaciar]: envolver(CANALES.cola.vaciar, (p) => sesion().vaciar(p.contexto)),
+    [CANALES.exportacion.perfiles]: envolverCtx(CANALES.exportacion.perfiles, (ctx) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().perfiles()
+    }),
+    [CANALES.exportacion.estimar]: envolverCtx(CANALES.exportacion.estimar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().estimar(p)
+    }),
+    [CANALES.exportacion.destinoPropuesto]: envolverCtx(
+      CANALES.exportacion.destinoPropuesto,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().destinoPropuesto(p)
+      }
+    ),
+    [CANALES.exportacion.elegirDestino]: envolverCtx(
+      CANALES.exportacion.elegirDestino,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().elegirDestino(p.destinoId)
+      }
+    ),
+    [CANALES.exportacion.iniciar]: envolverCtx(CANALES.exportacion.iniciar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().iniciar(p)
+    }),
+    [CANALES.exportacion.cancelar]: envolverCtx(CANALES.exportacion.cancelar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().cancelar(p.trabajoId)
+    }),
+    [CANALES.exportacion.estado]: envolverCtx(CANALES.exportacion.estado, (ctx) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().estado()
+    }),
+    [CANALES.exportacion.mostrarEnCarpeta]: envolverCtx(
+      CANALES.exportacion.mostrarEnCarpeta,
+      (ctx, ref) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().mostrarEnCarpeta(ref)
+      }
+    ),
+    [CANALES.exportacion.avisosPendientes]: envolverCtx(
+      CANALES.exportacion.avisosPendientes,
+      (ctx) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().avisosPendientes()
+      }
+    ),
+    [CANALES.exportacion.inicial]: envolverCtx(CANALES.exportacion.inicial, (ctx) => {
+      exigirRol(ctx, 'exportacion')
+      return ventanaExportacion().inicial()
+    }),
+    [CANALES.exportacion.listo]: envolverCtx(CANALES.exportacion.listo, (ctx, carga) => {
+      exigirRol(ctx, 'exportacion')
+      return ventanaExportacion().confirmarListo(carga)
+    }),
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),
@@ -731,7 +845,13 @@ export function registrarIpc(
     aPrincipal(CANALES.eventos.runtimeProgreso, p)
   )
   const bajaRtCambio = deps.runtime.alCambiar((e) => aPrincipal(CANALES.eventos.runtimeCambio, e))
+  const bajasExportacion = [
+    deps.exportacion?.suscribir((e) => aPrincipal(CANALES.eventos.exportacionCambio, e)),
+    deps.exportacion?.suscribirProgreso((p) => aPrincipal(CANALES.eventos.exportacionProgreso, p)),
+    deps.exportacion?.suscribirAviso((a) => aPrincipal(CANALES.eventos.exportacionAviso, a))
+  ]
   return () => {
+    for (const baja of bajasExportacion) baja?.()
     bajaPantallaCompleta?.()
     bajaRtProgreso()
     bajaRtCambio()

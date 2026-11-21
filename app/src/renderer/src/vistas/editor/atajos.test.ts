@@ -79,3 +79,12 @@ it('con el foco en un divisor las flechas y Inicio son suyas, pero Espacio y el 
   expect(accionDeTecla(tecla('i'), divisor)).toEqual({ tipo: 'fijar_inicio' })
   expect(accionDeTecla(tecla('Escape'), divisor)).toEqual({ tipo: 'escapar' })
 })
+
+it('Ctrl/Cmd + E exporta, salvo en un campo de texto', () => {
+  expect(accionDeTecla(tecla('e', { ctrlKey: true }), opciones)?.tipo).toBe('exportar')
+  expect(accionDeTecla(tecla('e', { metaKey: true }), opciones)?.tipo).toBe('exportar')
+  expect(
+    accionDeTecla(tecla('e', { ctrlKey: true }), { ...opciones, enCampoTexto: true })
+  ).toBeNull()
+  expect(accionDeTecla(tecla('e'), opciones)).toBeNull()
+})

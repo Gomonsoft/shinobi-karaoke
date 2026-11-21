@@ -301,3 +301,24 @@ Ventana secundaria y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](
   - `secundaria` lo escribe solo main al abrir una sesión, así que no entra en el esquema parcial del renderer;
   - la secundaria solo puede escribir `volumen`, `silenciado`, `voz_guia` y `voz_guia_silenciada`, con `sesion.guardarPreferencias`.
 - `pantalla.id` es el `Display.id` de Electron. Puede cambiar al reconectar el monitor, así que la etiqueta y el tamaño sirven de respaldo para reconocerla. Solo se usa para preseleccionar la pantalla y nunca abre la ventana sin una elección.
+
+## Revisión para 0.2.0 — fase 5
+
+Estilo ampliado, espera, Letra lista y ajuste de silencios. Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1, §3 y §5. **`cancion.esquema`, `estilo.version` y `temas.esquema` siguen en 1**; todos los campos nuevos son opcionales y su ausencia equivale al comportamiento de 0.1.0. No se reescribe nada al abrir.
+
+- **`estilo.fondo`** (degradado) admite `forma` (`lineal` por defecto, `radial`, `conico`), `centro` `{ x, y }` en [0, 1] y `movimiento` `{ periodo_s: 10–120, sentido: "horario" | "antihorario" } | null`. `angulo_grados` y `paradas` siguen obligatorios, así que 0.1.0 pinta un lineal estático con los mismos colores. `movimiento` en un sólido no es válido.
+- **`estilo.espera`** (opcional): `{ puntos, barra, cuenta, primera_entrada, umbral_ms: 1000–60000 }`. Si falta, vale `ESPERA_LEGADA` (puntos en la primera entrada y en huecos ≥ 4000 ms, como el MVP).
+- **`apariencia.reemplazos`** (opcional, solo con `tema` o `heredar`): lista blanca con un único campo, `espera` (bloque completo), fusionado por main después del tema. Con `propio` la espera vive en `estilo.espera`.
+- **`cancion.modalidad`** (opcional): `"karaoke"` (por defecto) o `"letra_lista"`. Solo tiene efecto con `estado: "lista"`. `marcarLista(id, { modalidad })` la fija o la cambia, y volver a borrador la retira.
+- **`config.editor.omitir_aviso_letra_lista`**: booleano, `false` por defecto, con lectura tolerante (`.catch`) como `editor.paneles`. Se escribe con `config.actualizar`.
+- **Comparaciones**: cualquier igualdad de estilos (`estilosIguales`, portada neutra, nombre del primer tema) compara la forma normalizada (`normalizarEstilo`), para que un estilo sin los campos nuevos sea igual a uno con sus valores por defecto explícitos.
+- **Pérdida aceptada**: si 0.1.0 reescribe una canción, descarta estos campos. Al volver a 0.2.0 se leen con su valor por defecto. Es la misma regla que `apariencia`.
+- «Ajustar los silencios» no añade datos: escribe `fin_ms` con `letras.guardarTiempos` y, si activa la cuenta, la espera con `guardarApariencia`.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **`config.exportacion`**: `{ formato, audio, proporcion, ancho, alto, fps, carpeta, factor_corrector }`, todos opcionales y con lectura tolerante por campo. Lo escribe solo main al aceptar una exportación (recordar opciones, provisional [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §5) y al terminarla (`factor_corrector`, entre 0,25 y 8). No entra en `configParcialRendererSchema`.
+- **Diario** `exportacion/en-curso.json` en el directorio de datos, con escritura atómica: `{ trabajoId, cancionId, titulo, temporal, destino, inicio }`. Existe solo mientras hay una exportación en curso; al arrancar, si existe, main borra el temporal y avisa una vez (§6).
+- La exportación **no escribe** en `cancion.json` ni en `biblioteca/`: la instantánea vive en memoria y los destinos dentro del directorio de datos se rechazan (único escritor).

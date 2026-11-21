@@ -51,3 +51,18 @@ Las regiones de letra se ajustan sobre el audio con precisión y se pueden escuc
 - [Premiere · navegación de secuencias](https://helpx.adobe.com/uk/premiere/desktop/edit-projects/change-clip-sequence/navigate-sequences-in-the-timeline.html).
 - [W3C · Web Audio API, bucles](https://www.w3.org/TR/webaudio-1.0/#looping).
 - [Discusión técnica de la alfa](../versiones/0.2.0/discusion/r1-arquitecto.md).
+
+## Revisión para 0.2.0 — fase 5
+
+Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §6.
+
+- **Nuevo consumidor de la caché: «Ajustar los silencios».** El editor lee el **nivel base** (bloques de 10 ms) completo con el canal existente `picos.leer`. Usa ventanas alineadas de 40 960 ms con presupuesto 4096, el máximo, con el que `leerVentana` elige el nivel 0. Comprueba que todas las respuestas traen la misma `generacion` y reintenta una vez si cambia. Una hora de voz son unas 88 llamadas de 16 KB. **No hay canal nuevo, ni cambios en el formato, el worker o main.** Si la medición lo exigiera, la alternativa es un canal de main que devuelva directamente los intervalos con voz.
+- **Detección**: función pura `detectarVoz` en `shared/silencios.ts`.
+  - La amplitud de cada bloque es `max(|min|, |max|)`.
+  - La referencia es el percentil 95 de los bloques por encima de −60 dBFS.
+  - El umbral es `max(referencia − 30 dB, −60 dBFS)`.
+  - Las rachas de voz de menos de 50 ms se ignoran.
+  - Un silencio cuenta si dura al menos 400 ms, y al fin de la voz se le suma un margen de 100 ms.
+
+  Los valores son provisionales y se calibran con las canciones del usuario. Usa aritmética entera, así que es determinista.
+- La precisión del fin propuesto es de ± 1 bloque (10 ms) más el margen. El botón exige el estado `lista` de los picos. Con `generando`, `no_disponible` o `error` explica el motivo y permite reintentar como la onda.

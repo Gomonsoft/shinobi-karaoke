@@ -23,13 +23,14 @@ Implementar las piezas nativas que gestionan las pantallas, la ventana secundari
   - preload `secundaria`, `backgroundThrottling: false`, `autoplayPolicy`, `setMenu(null)`, zoom fijo y título `rep.cola.ventana`;
   - límites al 80 % del `workArea`, `setBounds` en `ready-to-show`, `showInactive()`, o `show()` si cubre la pantalla de la principal en pantalla completa;
   - pantalla completa con `ControlPantallaCompleta`.
-  
+
   Devuelve un manejador con:
   - `moverA(pantalla)`, que restaura la pantalla completa si la tenía;
   - `fijarPantallaCompleta`, `mostrar` (restaura si estaba minimizada, sin foco), `cerrar`, `destruir` y `alCerrarSolicitado(cb)` (intercepta `close`);
   - los avisos `alCaer`, `alNoResponder` y `alResponder`, y `alPantallaPerdida` y `alPantallaReconectada`. La pantalla perdida recoloca en ventana al 80 % de la pantalla primaria, sin foco ni pausa.
-  
+
   Con `colocacion: 'sistema'` no se pasan coordenadas y no se emiten avisos de pantalla.
+
 - **Dobles**, solo sin empaquetar:
   - `SHINOBI_PANTALLAS_SIMULADAS` (JSON con las pantallas) sustituye a `screen`;
   - un puerto de pruebas en `globalThis.__shinobiPruebas.pantallas` con `quitar(id)` y `añadir(p)`, accesible con `electronApp.evaluate`;
@@ -69,6 +70,6 @@ Implementar las piezas nativas que gestionan las pantallas, la ventana secundari
 - Las dependencias (`crear`, `screen`, `rutaPreload`) se pasan a `abrirSecundaria` en un segundo argumento. El cableado real (registro del rol `secundaria`, `bloquearNavegacionTotal`, carga de `reproductor.html`, lectura de `SHINOBI_PANTALLAS_SIMULADAS` y `SHINOBI_PANTALLA_COMPLETA_SIMULADA`) lo hace 0181 en su función `crear`; `index.ts` no se ha tocado más allá del reposo.
 - Pantalla perdida: la tarea y la spec 07 dicen «pantalla primaria» y el ADR 0017 §3 dice «la de la principal»; se ha seguido la tarea (primaria).
 - Con `colocacion: 'sistema'` la ventana se abre en ventana (960 x 540) y no se pide pantalla completa (el operador pulsa F, spec 07).
-- Extra no pedido: `alCaer` también avisa con `'recarga'` ante un `did-start-navigation` del *frame* principal posterior a la primera carga (ADR 0017 §3).
+- Extra no pedido: `alCaer` también avisa con `'recarga'` ante un `did-start-navigation` del _frame_ principal posterior a la primera carga (ADR 0017 §3).
 - `moverA` con la pantalla en pantalla completa sale, mueve al 80 % de la nueva pantalla y vuelve a entrar; si se había perdido en pantalla completa, la restaura aunque estuviera en ventana.
 - No hay E2E de pantallas (no lo pide la tarea); lo cubrirá 0181/0186 con el puerto de pruebas.

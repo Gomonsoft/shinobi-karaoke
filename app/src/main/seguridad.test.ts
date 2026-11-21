@@ -177,6 +177,18 @@ describe('remitenteIpcValido', () => {
     )
     expect(conRol(null, ORIGEN + '/index.html', CANALES.biblioteca.listar)).toBe(false)
   })
+  it('la ventana de exportación solo llega a sus canales y desde su documento', () => {
+    const f = { url: ORIGEN + '/exportacion.html' }
+    const ev = { sender: { mainFrame: f }, senderFrame: f }
+    const reg = { rolDe: () => 'exportacion' as const }
+    const ok = (canal: string): boolean => remitenteIpcValido(ev, canal, reg, ORIGEN)
+    expect(ok(CANALES.exportacion.inicial)).toBe(true)
+    expect(ok(CANALES.exportacion.listo)).toBe(true)
+    expect(ok(CANALES.biblioteca.listar)).toBe(false)
+    expect(ok(CANALES.exportacion.iniciar)).toBe(false)
+    expect(valido(evP, CANALES.exportacion.listo)).toBe(false)
+    expect(conRol('principal', ORIGEN + '/exportacion.html', CANALES.biblioteca.listar)).toBe(false)
+  })
   it('rechaza un documento que no es el del rol', () => {
     expect(conRol('principal', ORIGEN + '/reproductor.html', CANALES.biblioteca.listar)).toBe(false)
     expect(conRol('secundaria', ORIGEN + '/index.html', CANALES.sesion.informar)).toBe(false)

@@ -36,7 +36,7 @@ Crear `ServicioTemas` (`main/temas/`), único escritor de `biblioteca/temas.json
 - [x] Primer arranque sin catálogo y `config.estilo_predeterminado` de fábrica → `temas.json` con un tema «Shinobi» predeterminado; con un estilo cambiado → «Mi estilo». Reiniciar no crea otro tema.
 - [x] `temas.json` con basura y `.bak` válido → se usa el `.bak`. Ambos ilegibles → existe `temas.json.danado`, el catálogo nuevo tiene `apartado` y `descartarAvisoApartado()` lo deja en `null` de forma persistente.
 - [x] Catálogo con `esquema: 2` → `catalogo().soloLectura === true`, el archivo no cambia byte a byte tras intentar `crear`, `renombrar` y `duplicar` (todas `TEMAS_SOLO_LECTURA`).
-- [x] `crear` con «noche  NINJA» cuando existe «Noche ninja» → `TEMA_NOMBRE_DUPLICADO`; con «Noché ninja» → se crea. Renombrar con revisión antigua → `CONFIRMACION_OBSOLETA`. Duplicar da id nuevo, mismo estilo y 0 usos.
+- [x] `crear` con «noche NINJA» cuando existe «Noche ninja» → `TEMA_NOMBRE_DUPLICADO`; con «Noché ninja» → se crea. Renombrar con revisión antigua → `CONFIRMACION_OBSOLETA`. Duplicar da id nuevo, mismo estilo y 0 usos.
 - [x] `aparienciaInicial` con `randomInt` inyectado reparte entre 3 temas (prueba con secuencia fija), nunca elige un tema en borrado y da `incluido` con catálogo vacío.
 - [x] Usos: con una canción asignada, una de álbum, una de artista, una de predeterminado, una `predeterminado_anterior`, una aleatoria, una personalizada y una con referencia rota, cada contador y `referenciasFaltantes = 1` son exactos; en solo lectura `referenciasFaltantes = 0`.
 - [x] `resolver(...).alHeredar`: una canción asignada a «Sol» en el álbum de Queen con tema de álbum → `album`; sin tema de grupo y con `base: predeterminado_anterior` «Noche ninja» → `predeterminado_anterior` «Noche ninja»; sin base y con predeterminado → `predeterminado`; sin tema de grupo y con `base: aleatorio` hacia un tema que no está en el catálogo → `respaldo`. Una canción `propio` también lo trae, y nunca vale `propio` ni `cancion`.
@@ -46,6 +46,7 @@ Crear `ServicioTemas` (`main/temas/`), único escritor de `biblioteca/temas.json
 ## Notas de implementación
 
 **Qué se hizo.** `main/temas/` nuevo, sin tocar `shared/`, IPC ni la biblioteca.
+
 - `catalogo.ts`: `cargarCatalogo`, `escribirCatalogo`, `rutaCatalogo`. Siembra «Shinobi»/«Mi estilo» desde `estiloInicial`; recuperación por `.bak` (vía `leerJson`); esquema más nuevo (principal, o `.bak` si el principal no se lee) a solo lectura **antes** de llamar a `leerJson`, para que un `.bak` antiguo no pise un principal nuevo; ilegible a `temas.json.danado` (sustituye al anterior) y catálogo nuevo con `apartado`.
 - `cola.ts`: `ColaApariencia` (FIFO; un fallo rechaza solo su tarea).
 - `usos.ts`: `construirCatalogoTemas(catalogo | null, canciones, { soloLectura })` pura, con tipos `CatalogoTemas` (forma de `CatalogoIpc`), `CancionIndice`, `UsosTema`.
@@ -53,6 +54,7 @@ Crear `ServicioTemas` (`main/temas/`), único escritor de `biblioteca/temas.json
 - Fachada: `catalogo()`, `soloLectura`, `datos()`, `crear`, `renombrar`, `duplicar`, `descartarAvisoApartado`, `resolver(cancion)` (devuelve `ResolucionCancion` con `neutra` y `alHeredar`; `neutra` usa `estiloInicial` como estilo heredado), `aparienciaInicial(metadatos, randomInt?) -> { apariencia, estilo }` (con `tema_nombre` dentro de `apariencia`), `enCola`, `notificarIndiceCambiado()` (250 ms), `cerrar()`, `confirmarCatalogo(nuevo)` (para 0166/0167, dentro de `enCola`: escribe y solo entonces adopta y emite). `previsualizar`, `ejecutar`, `reanudarBorrado` y `cancelarBorrado` rechazan con `ErrorNoImplementado` (mensaje `NO_IMPLEMENTADO`). Errores: `ErrorTemas { codigo, detalles? }`.
 
 **Decisiones.**
+
 - `PuertoCanciones.indice()` es síncrono (como `ServicioBiblioteca.listar`) y devuelve `CancionIndice { id, metadatos, modificada, estilo | null, apariencia?, danada: 'json' | 'pistas' | null }`; `actualizar(id, mutador: Cancion => Cancion)`. 0168 lo adapta.
 - En solo lectura el catálogo en memoria es `null` (no se interpreta el archivo): `catalogo()` devuelve sin temas, `resolver` usa `indice = null`.
 - `borradoPendiente.restantes` = `total` hasta que 0167 lo refine.

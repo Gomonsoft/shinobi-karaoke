@@ -229,7 +229,9 @@ describe('Progreso', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar descarga' }))
     const dialogo = screen.getByRole('dialog', { name: '¿Cancelar la descarga?' })
-    expect(within(dialogo).getByRole('button', { name: 'Seguir descargando' })).toHaveFocus()
+    await waitFor(() =>
+      expect(within(dialogo).getByRole('button', { name: 'Seguir descargando' })).toHaveFocus()
+    )
     expect(dialogo).toHaveTextContent('«Canción de prueba» se quedará en tu biblioteca')
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar descarga' }))
     expect(cancelar).toHaveBeenCalledWith('t1')
@@ -333,7 +335,8 @@ describe('Progreso: reparar el motor de audio', () => {
     })
     expect(await screen.findByText('El motor de audio ya está reparado.')).toBeInTheDocument()
     const boton = screen.getByRole('button', { name: 'Reintentar' })
-    expect(boton).toHaveFocus()
+    // El foco lo mueve un efecto pasivo: puede caer después de que aparezca el texto.
+    await waitFor(() => expect(boton).toHaveFocus())
     fireEvent.click(boton)
     expect(separar).toHaveBeenCalledWith('c1')
   })
@@ -353,7 +356,7 @@ describe('Progreso: reparar el motor de audio', () => {
     await reparar()
     act(() => emitir?.({ estado: 'completa' }))
     expect(await screen.findByText('El motor de audio ya está reparado.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus())
     expect(screen.queryByRole('button', { name: 'Reparar el motor de audio' })).toBeNull()
   })
 
@@ -748,6 +751,9 @@ describe('Progreso: separación', () => {
     it('las pistas apuntan a shinobi-media y solo suena una a la vez', async () => {
       const { container } = montar({ tipo: 'archivo', separacion: terminada(30) })
       const voz = await screen.findByRole('button', { name: 'Reproducir Voz' })
+      // Los efectos de montaje de Escucha (pausan lo que no es la pista activa) se vuelcan en
+      // diferido: sin vaciarlos, bajo carga caen después del clic y pausan la pista recién pulsada.
+      await act(async () => {})
       const audios = container.querySelectorAll('audio')
       expect(audios[0]).toHaveAttribute('src', 'shinobi-media://c1/pistas/voz.flac')
       expect(audios[1]).toHaveAttribute('src', 'shinobi-media://c1/pistas/instrumental.flac')

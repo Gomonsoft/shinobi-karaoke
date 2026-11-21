@@ -8,6 +8,8 @@
 - Revisión visual de la Fase 1: [revision-fase-1/](revision-fase-1/README.md) (2026-11-04)
 - 0.2.0, fase 3 (2026-11-09): agrupación por artista y álbum, búsqueda en álbum, selección múltiple con «Aplicar tema…», tema de artista y álbum y línea de tema en la tarjeta. Ver [Fase 3 · Temas y biblioteca](#fase-3-de-020--temas-y-biblioteca).
 - 0.2.0, fase 4 (2026-11-11): abrir el reproductor en otra pantalla, panel «Cola de reproducción», controles de la sesión, cierre con cola y recuperación. Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola).
+- 0.2.0, fase 5 (2026-11-20): insignia «Letra lista» y toast al marcarla; portadas con el fondo quieto. Ver [Fase 5 de 0.2.0 — estilo, espera y Letra lista](#fase-5-de-020--estilo-espera-y-letra-lista).
+- 0.2.0, fase 6 (2026-11-20): «Exportar video…» en el ⋯ de las Listas, línea de exportación en la tarjeta y exportaciones en el panel de actividad. Ver [Fase 6 de 0.2.0 — exportación](#fase-6-de-020--exportación) y [10 · Exportar a video](10-exportacion.md).
 
 ## Objetivo
 Ver de un vistazo todas las canciones y su estado, **reproducir una canción lista con un clic**, retomar un borrador justo donde se quedó y empezar una canción nueva.
@@ -821,3 +823,100 @@ Se usan banners en el panel y no toasts: el panel es el puesto del operador, los
 - S16. Todo el panel es operable solo con teclado y ninguna acción de sesión tiene atajo de una tecla en la principal; el foco nunca queda en `body`.
 - S17. A 1024 × 576 (1280 × 720 al 125 %) con el panel abierto, la rejilla muestra 2 columnas, el panel tiene scroll propio y no hay scroll horizontal.
 - S18. Capturas en `docs/ux/revision-fase-4/` con nombre `biblioteca-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 800 al 100 % y 1280 × 720 al 125 %: `dialogo-pantalla`, `dialogo-una-pantalla`, `sesion`, `cuenta`, `fallo`, `espera`, `fin-cola`, `cola-conservada`, `dialogo-cierre`, `monitor-desconectado`, `caida`, `tarjetas-sesion`.
+
+## Fase 5 de 0.2.0 — estilo, espera y Letra lista
+
+Origen: [plan, fase 5, feature 12](../versiones/0.2.0/plan-2.md#12-letra-lista--m) y [0048](../preguntas/0048-escucha-editor-durante-evento.md) («Biblioteca distingue «Letra lista» y permite abrirla y encolarla»). Cómo se marca: [06 · Fase 5 · LL](06-editor.md#ll--letra-lista-feature-12). Cómo se reproduce: [07 · Modo Letra lista](07-reproductor.md#modo-letra-lista). Esta sección **amplía** la vista; los degradados con movimiento y los indicadores de espera no cambian la Biblioteca (las portadas pintan el fondo **quieto, en fase 0**).
+
+**Concepto.** «Letra lista» es una canción **Lista** que se reproduce sin barrido. A efectos de la Biblioteca es una Lista más: mismo filtro, mismas acciones, misma cola y mismo panel de la sesión. Solo cambian la insignia, su nombre accesible y el toast al marcarla.
+
+### Tarjeta
+```
+┌──────────────────────────┐
+│ PORTADA 16:9      ( ▶ )  │  igual que una Lista
+├──────────────────────────┤
+│ Despacito                        │
+│ Luis Fonsi · 3:48                │
+│ ◐ Neón · del artista             │
+│ (▤ Letra lista)             [⋯]  │  ← insignia: icono `captions` + texto, colores de `exito`
+│ [▶ Reproducir]                   │
+└──────────────────────────┘
+```
+| Elemento | Comportamiento |
+|---|---|
+| **Insignia** | `bib.estado.letraLista` «Letra lista» con icono `captions` 14 px, fondo `exito-tenue` y texto `exito` (es un estado terminado, como Lista; el icono y el texto la distinguen, no el color). `title` con `bib.estado.letraLista.ayuda`. |
+| **Filtro** | Cuenta y aparece en **Listas** (y en Todas). El control segmentado no cambia. |
+| **Acción principal, portada, Intro** | Iguales que en una Lista: «▶ Reproducir» sin sesión; «A la cola» con sesión (fase 4). |
+| **Menú ⋯** | El mismo que el de una Lista (Reproducir, Reproducir en otra pantalla…, Reproducir a continuación, Agregar al final, Editar, Editar datos, Aplicar tema…, Volver a borrador, Mostrar en la carpeta, y lo que añada la fase 6, Eliminar…). El cambio entre Lista y Letra lista se hace en el editor (menú ⋯ de la cabecera), no aquí **(provisional, [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) §3)**. |
+| **Letra lista incompleta** | Como una Lista incompleta: insignia sin cambios y la línea `bib.lista.incompleta` debajo. |
+| **Volver a borrador** | Mismo diálogo `bib.dialogo.borrador`. Al volver a terminarla, el usuario elige otra vez entre «Marcar como lista» y «Marcar como letra lista». |
+| **Selección múltiple, Aplicar tema…, tema de grupo** | Sin cambios: la modalidad no es parte del tema y aplicar un tema no la toca. |
+| **Cola y sesión** | Sin cambios: se encola y se reproduce como cualquier Lista; la secundaria la muestra sin barrido. Las filas de la cola no llevan marca propia. |
+| **Lectores de pantalla** | `bib.aria.tarjeta` usa como estado `bib.aria.letraLista` («Letra lista, sin barrido»). |
+
+### Al volver del editor tras «Marcar como letra lista»
+Igual que tras «Marcar como lista» (spec 06 §«Volver a la Biblioteca»: filtro, foco, desplazamiento y resalte de 2 s con borde `exito`), con el toast `bib.toast.letraLista` y su [▶ Reproducir].
+
+### Microcopy (fase 5, biblioteca)
+| Clave | Texto |
+|---|---|
+| `bib.estado.letraLista` | Letra lista |
+| `bib.estado.letraLista.ayuda` | Se reproduce con la letra sincronizada por líneas, sin barrido. |
+| `bib.aria.letraLista` | Letra lista, sin barrido |
+| `bib.toast.letraLista` | «{título}» tiene la letra lista para cantar. — [▶ Reproducir] |
+
+### Criterios de aceptación de la fase 5 (biblioteca)
+- LB1. Una canción marcada como letra lista muestra la insignia «Letra lista» con icono y texto, distinta de «✓ Lista», cuenta en el filtro *Listas* y su nombre accesible dice «Letra lista, sin barrido».
+- LB2. Su acción principal, la portada, Intro y el menú ⋯ son los de una Lista; «▶ Reproducir» abre el reproductor sin barrido y, con sesión, «A la cola», «Reproducir a continuación» y «Agregar al final» la encolan.
+- LB3. Tras «Marcar como letra lista» en el editor, la Biblioteca enfoca y resalta la tarjeta (filtro a *Todas* si estaba en *Borradores*) y muestra `bib.toast.letraLista`, cuyo [▶ Reproducir] abre el reproductor.
+- LB4. La modalidad persiste al reiniciar la app; «Volver a borrador» y «Aplicar tema…» no la cambian por sí solos (tras volver a borrador, la insignia es «✎ Borrador»).
+- LB5. Una Letra lista con líneas sin inicio muestra `bib.lista.incompleta` y sigue en *Listas*.
+- LB6. Las portadas de canciones con fondo en movimiento se ven quietas (fase 0).
+- LB7. Captura `docs/ux/revision-0.2.0-fase-5/biblioteca-1280x800-100-letra-lista.png` con una Lista, una Letra lista, una Letra lista incompleta y un borrador.
+
+## Fase 6 de 0.2.0 — exportación
+
+Origen: [plan, fase 6, feature 7](../versiones/0.2.0/plan-2.md#fase-6--exportación) y [0050](../preguntas/0050-perfiles-y-concurrencia-exportacion.md). Diálogo, progreso, errores, marca de agua y criterios completos: [10 · Exportar a video](10-exportacion.md). Esta sección solo define **cómo se llega desde la Biblioteca** y qué muestra la tarjeta; lo no mencionado sigue igual.
+
+### Menú ⋯ de la tarjeta
+| Tarjeta | Cambio |
+|---|---|
+| Lista (también «Letra lista» e incompleta) | Nuevo ítem **«Exportar video…»** (`exp.menu`, icono `film`) después de «Editar datos» y antes de «Aplicar tema…». Abre el diálogo de spec 10 (A). Con una exportación de esa canción en curso o en cola, el ítem es **«Ver exportación»** y además aparece **«Cancelar exportación…»** (antes del separador de los destructivos), que abre `exp.dialogo.cancelar` (en cola: retira sin confirmación). |
+| Borrador | Sin «Exportar video…» (la exportación de un borrador solo se ofrece desde el editor, spec 06 · Fase 6). Si el borrador se está exportando (lanzado desde el editor): «Ver exportación» y «Cancelar exportación…». |
+| Dañada | Sin cambios. |
+| Durante una sesión en otra pantalla | Igual que sin sesión, **sin candado**: exportar y la sesión conviven ([ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9). El diálogo de spec 10 muestra la nota `exp.nota.sesion`. |
+
+No hay botón de exportar en la tarjeta ni atajo propio: la acción principal sigue siendo «▶ Reproducir» (o «A la cola» durante la sesión).
+
+### Línea de la tarjeta
+- Con una exportación en curso, bajo la insignia: `bib.exp.linea` («⟳ Exportando video 42 % · quedan unos 5 min», color `info`) con barra de 6 px, como la línea de paso de un borrador. En cola: `bib.exp.cola` («🕒 En cola para exportar»). Durante «Preparar» y «Terminar el archivo», «⟳ Exportando video…» con barra indeterminada.
+- En una Lista, es la única línea de paso; en una Lista incompleta, va **debajo** de `bib.lista.incompleta`. En un borrador, la separación o la descarga activas tienen prioridad; si no hay otra, se muestra la de exportación en lugar de «Falta…».
+- No hay acción en la línea: se ve el detalle con «Ver exportación» del ⋯ o con [Ir] del panel de actividad.
+- Al terminar (bien, mal o cancelada) la línea desaparece; el resultado se comunica con el toast de spec 10. La tarjeta **no** se reordena ni cambia de estado: exportar no modifica la canción.
+- `bib.aria.tarjeta` incluye la línea de exportación como línea de paso.
+
+### Panel de actividad e indicador
+- Las exportaciones aparecen en el panel de actividad (spec 04 §2) como un trabajo más: «{título} — Exportando video 42 %» con barra y tiempo, [Ir] (abre el diálogo de spec 10 en su estado) y [✕] (cancelar con `exp.dialogo.cancelar`; en cola, sin confirmación). Textos `act.exp`.
+- Cuentan en «{n} en curso · {m} en cola» del indicador de actividad.
+
+### Eliminar y volver a borrador
+- **Eliminar…** de una canción que se está exportando o espera en cola: el diálogo añade `exp.eliminar.extra`; al confirmar se cancela la exportación con limpieza y después se mueve a la papelera.
+- **Volver a borrador**: permitido; la exportación sigue (usa una instantánea).
+
+### Abrir el reproductor en otra pantalla con una exportación en curso
+El diálogo «Abrir el reproductor en otra pantalla» **no cambia**: la sesión se abre normalmente y las exportaciones en curso y en cola siguen sin pausarse ([ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9). No hay banner ni botón «Cancelar la exportación y abrir»; el punto 4 de [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) queda sin efecto.
+
+### Microcopy (fase 6, biblioteca)
+Las claves `exp.*`, `bib.exp.*` y `act.exp` están en [spec 10 · Microcopy](10-exportacion.md#microcopy). Únicas nuevas de esta vista:
+| Clave | Texto |
+|---|---|
+| `bib.menu.exportar` | Exportar video… · Ver exportación · Cancelar exportación… |
+
+### Criterios de aceptación de la fase 6 (biblioteca)
+- X1. El ⋯ de una Lista (también «Letra lista» e incompleta) muestra «Exportar video…» entre «Editar datos» y «Aplicar tema…»; el de un borrador o una Dañada no lo muestra.
+- X2. Con una exportación de esa canción en curso o en cola, el ⋯ muestra «Ver exportación» (abre el diálogo en su estado) y «Cancelar exportación…» (confirma en curso; en cola retira sin confirmar).
+- X3. La tarjeta muestra `bib.exp.linea` con porcentaje y tiempo actualizados ≥ 1 vez cada 2 s sin mover el foco ni reordenarse, o `bib.exp.cola` en cola; al terminar la línea desaparece y el estado de la canción no cambia.
+- X4. El panel de actividad lista la exportación con [Ir] y [✕] y la cuenta en el indicador.
+- X5. Eliminar una canción que se exporta muestra `exp.eliminar.extra` y, al confirmar, no queda temporal en el disco.
+- X6. Durante una sesión, «Exportar video…» está disponible sin candado y el diálogo muestra `exp.nota.sesion`; con una exportación en curso, el diálogo de pantallas no cambia y, al abrir la sesión, la exportación sigue.
+- X7. Captura `docs/ux/revision-fase-6/exportacion-1280x800-100-tarjeta-exportando.png` (tarjeta con la línea y el ⋯ abierto).

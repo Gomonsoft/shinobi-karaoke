@@ -1,5 +1,18 @@
 import { z } from 'zod'
 import { estiloPredeterminado, estiloSchema } from './estilo'
+import {
+  AUDIOS_EXPORTACION,
+  AUDIO_PREDETERMINADO,
+  FORMATOS_ID,
+  FORMATO_PREDETERMINADO,
+  FPS,
+  FPS_PREDETERMINADO,
+  PROPORCION_PREDETERMINADA,
+  RESOLUCION_PREDETERMINADA,
+  acotarFactorCorrector,
+  FACTOR_CORRECTOR,
+  proporcionDe
+} from './exportacion'
 import { LIMITES_PANELES } from './paneles'
 
 export const VERSION_ESQUEMA_CONFIG = 1
@@ -154,7 +167,11 @@ const panelesSchema = objetoTolerante({
   })
 })
 
-const editorSchema = objetoTolerante({ paneles: panelesSchema })
+const editorSchema = objetoTolerante({
+  paneles: panelesSchema,
+  /** No volver a avisar al activar «Letra lista» (ADR 0018 §5). */
+  omitir_aviso_letra_lista: z.boolean().catch(false)
+})
 
 export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album'] as const
 export type AgruparBiblioteca = (typeof AGRUPACIONES_BIBLIOTECA)[number]
@@ -164,6 +181,44 @@ const bibliotecaSchema = objetoTolerante({
   agrupar: z.enum(AGRUPACIONES_BIBLIOTECA).catch('ninguno')
 })
 
+/**
+ * Preferencias de exportación (ADR 0019 §6 y §11; ADR 0006, rev. fase 6). Solo las escribe main.
+ * Lectura tolerante por campo; si `ancho × alto` no es una resolución del catálogo, se vuelve a la
+ * resolución y la proporción por defecto (la proporción siempre se deduce de la resolución).
+ */
+const exportacionSchema = z.preprocess(
+  (v) => {
+    const o = typeof v === 'object' && v !== null && !Array.isArray(v) ? { ...v } : {}
+    const { ancho, alto } = o as { ancho?: unknown; alto?: unknown }
+    const valida =
+      typeof ancho === 'number' && typeof alto === 'number' && proporcionDe(ancho, alto) !== null
+    return valida ? o : { ...o, ancho: undefined, alto: undefined }
+  },
+  z
+    .object({
+      formato: z.enum(FORMATOS_ID).catch(FORMATO_PREDETERMINADO),
+      audio: z.enum(AUDIOS_EXPORTACION).catch(AUDIO_PREDETERMINADO),
+      ancho: z.number().int().catch(RESOLUCION_PREDETERMINADA.ancho),
+      alto: z.number().int().catch(RESOLUCION_PREDETERMINADA.alto),
+      fps: z
+        .number()
+        .refine((n): n is (typeof FPS)[number] => (FPS as readonly number[]).includes(n))
+        .catch(FPS_PREDETERMINADO),
+      /** Última carpeta usada; `null` = la de vídeos del sistema. */
+      carpeta: z.string().min(1).max(4096).nullable().catch(null),
+      factor_corrector: z
+        .number()
+        .finite()
+        .transform(acotarFactorCorrector)
+        .catch(FACTOR_CORRECTOR.defecto)
+    })
+    .transform((c) => ({
+      ...c,
+      proporcion: proporcionDe(c.ancho, c.alto) ?? PROPORCION_PREDETERMINADA
+    }))
+)
+export type ConfigExportacion = z.infer<typeof exportacionSchema>
+
 export const configSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CONFIG).default(VERSION_ESQUEMA_CONFIG),
   instalacion: instalacionSchema,
@@ -171,6 +226,7 @@ export const configSchema = z.object({
   reproductor: reproductorSchema,
   editor: editorSchema,
   biblioteca: bibliotecaSchema,
+  exportacion: exportacionSchema,
   aviso_youtube_aceptado: z.iso.datetime().nullable().default(null),
   ultima_comprobacion_ytdlp: z.iso.datetime().nullable().default(null),
   estilo_predeterminado: estiloSchema.default(() => estiloPredeterminado())

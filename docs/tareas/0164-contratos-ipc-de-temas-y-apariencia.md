@@ -15,6 +15,7 @@ Publicar de una vez todos los contratos que consumen las tareas de main y de ren
 **Canales** (`shared/canales.ts`): `temas.catalogo`, `temas.previsualizar`, `temas.ejecutar`, `temas.crear`, `temas.renombrar`, `temas.duplicar`, `temas.reanudarBorrado`, `temas.cancelarBorrado`, `temas.descartarAvisoApartado`, `biblioteca.guardarApariencia`; eventos `temas:cambiado` y `temas:progreso`. Se **retira** `biblioteca.guardarEstilo`.
 
 **Esquemas** (`shared/ipc.ts`), con los límites del ADR 0016 §11:
+
 - `seleccionAparienciaSchema`: `{ modo: "propio", estilo } | { modo: "tema", temaId } | { modo: "heredar" }`.
 - `operacionTemaSchema` (unión discriminada por `tipo`): `editar { temaId, revisionTema, estilo }`, `borrar { temaId }`, `aplicar { cancionIds[1..2000] únicos, seleccion: { modo: "tema", temaId } | { modo: "heredar" } }`, `asignarGrupo { nivel, artista, album?, temaId | null }` (album obligatorio solo con `nivel: "album"`), `predeterminado { temaId | null }`.
 - `impactoIpcSchema` con `ficha`, `afectadas` (`antes`/`despues` `{ procedencia, temaId, temaNombre }`, `efecto: "cambia" | "fija_base" | "sin_cambios"`), `desglose`, `excluidas`, `totalGrupo`, `esPredeterminado`, `asignacionesRetiradas`, `revisionTema`, `sesionEnCurso` (ADR 0016 §7).
@@ -56,6 +57,7 @@ Publicar de una vez todos los contratos que consumen las tareas de main y de ren
 ## Notas de implementación
 
 **Qué se hizo.**
+
 - `shared/canales.ts`: grupo `temas` (9 canales), eventos `temasCambiado` y `temasProgreso`; `guardarEstilo` retirado, `biblioteca.guardarApariencia` añadido.
 - `shared/ipc.ts`: `PROCEDENCIAS`/`procedenciaSchema` (definido aquí porque 0163 solo exporta el tipo `Procedencia`; `satisfies` garantiza que coinciden), `origenAparienciaSchema`, `destinoHeredarSchema`, `DESTINO_HEREDAR_PROVISIONAL`, `aparienciaResumenSchema`, `resueltaSchema`, `cancionIpcSchema`, `seleccionAparienciaSchema`, `operacionTemaSchema`, `impactoIpcSchema`, `resultadoOperacionIpcSchema` (rev. 3: `titulo`/`artista` obligatorios y `codigo` obligatorio en `error`), `temaIpcSchema`, `catalogoIpcSchema`, `progresoTemaSchema`, `crearTemaSchema`, `renombrarTemaSchema`, `duplicarTemaSchema` y sus tipos; `ApiShinobi.temas`, `guardarApariencia`, `alCambiarTemas`. `resumenCancionSchema` gana `album`, `claves`, `apariencia`; `configParcialRendererSchema` admite `biblioteca.agrupar`.
 - `shared/config.ts`: `biblioteca.agrupar` con lectura tolerante (`AGRUPACIONES_BIBLIOTECA`).
@@ -64,6 +66,7 @@ Publicar de una vez todos los contratos que consumen las tareas de main y de ren
 - Renderer: `guardado.ts`/`useGuardadoEditor.tsx` usan `guardarApariencia`; nuevo doble `vistas/biblioteca/temasFalsos.ts` (catálogo en memoria; programa impactos, resultados, fallos incluidos `CONFIRMACION_OBSOLETA` con impacto en `detalles`, progreso con `ficha: null`, `pendiente`, `respaldo`); `fixturesApi` de editor y biblioteca, `resumenPrueba.ts` (`cancionIpcPrueba`, `aparienciaResumenPrueba`) y el doble del editor (`fijarApariencia` para `alHeredar`).
 
 **Decisiones.**
+
 - `claves.album` es `claveAlbumTexto({artista, album})` (única por artista+álbum); `claves.artista` es `claveArtista`.
 - `estilo` del resumen sigue `nullable` solo por la canción dañada por JSON.
 - `asignarGrupo` con `nivel: "artista"` rechaza `album`.

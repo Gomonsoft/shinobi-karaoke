@@ -229,3 +229,21 @@ Bloqueo del editor durante una sesión en la ventana secundaria ([0048](../pregu
 - **Resolución del autoguardado al iniciar.** La sesión solo se inicia desde la Biblioteca (spec 06, [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)). La salida normal del editor (borrador de tema, `vaciar()`, `edi.dialogo.salir` si falla, `cerrarEdicion` y `liberarAudio`) ya resuelve el guardado antes. Main conserva la defensa: `sesion.abrir` responde `GUARDADO_PENDIENTE` si `app.guardadoPendiente` sigue activo.
 - **Sin editor en solo lectura.** Durante la sesión no hay editor montado. Al terminar, las acciones de entrada vuelven a funcionar sin recargar.
 - **Aviso.** Al intentar entrar en el editor o en Letra se muestra el diálogo `edi.bloqueo`: «No se puede editar mientras el reproductor está abierto en otra ventana». La vista Letra también se bloquea (spec 06).
+
+## Revisión para 0.2.0 — fase 5
+
+Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md).
+
+- **Render** (`renderer/src/karaoke/`):
+  - `fondo.ts` calcula la geometría del degradado como función pura del tiempo de audio. Fase 0 = estático, con movimiento reducido o detenido en la vista previa.
+  - `estiloCss.ts` genera lineal, radial y cónico, este con cierre hacia el primer color.
+  - `PantallaLetra` escribe la geometría en variables CSS dentro del mismo `requestAnimationFrame`, sin animaciones CSS ni temporizadores. También pinta los indicadores de espera fuera del flujo del texto y admite `barrido={false}` para Letra lista.
+  - `render.ts` sustituye `puntos` por `espera`, con puntos, cuenta, barra, `fraccion` y `clave`.
+- **Contraste**: 9 muestras por tramo entre paradas, más el cierre del cónico. Es un aviso único, válido para cualquier fase del movimiento.
+- **Historial**:
+  - `AparienciaEditor` añade `reemplazos` (espera de la canción).
+  - La acción `ajustar_silencios` es **un** paso con letra y apariencia. Deshacer restaura las dos.
+  - El guardado envía el lote con `guardarTiempos` y, si cambió, `guardarApariencia`, sin canales nuevos.
+  - El ajuste se deshabilita durante la sincronización al ritmo y con un borrador de tema abierto.
+- **Picos en el editor**: para el ajuste se lee el nivel base con `picos.leer` en ventanas de 4096 bloques (40 960 ms), comprobando la `generacion`. Se conserva en memoria durante la visita.
+- **Marcar**: «Marcar como letra lista» usa `biblioteca.marcarLista(id, { modalidad: "letra_lista" })`. El aviso de la primera activación lee y escribe `config.editor.omitir_aviso_letra_lista`.

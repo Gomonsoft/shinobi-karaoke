@@ -6,6 +6,8 @@ Software libre y gratuito para crear karaokes: fuente (archivo/YouTube) → sepa
 - Alcance por versión: `docs/00-vision-y-alcance.md` (no añadir funcionalidades fuera del alcance autorizado sin preguntar al usuario).
 - Pipeline: `docs/01-pipeline.md`.
 - Toda la documentación generada va en `docs/`. Idioma: español.
+- Ideas fuera del alcance: no se implementan; se registran en `docs/propuestas/` (una por archivo) para que el usuario decida.
+- Rama de trabajo de la versión en curso: `alpha-2` (sale de `develop`); ahí se completan todas las fases.
 
 ## Agentes (`.claude/agents/`)
 - `arquitecto` — decisiones tecnológicas (ADRs en `docs/adr/`), arquitectura y tareas.

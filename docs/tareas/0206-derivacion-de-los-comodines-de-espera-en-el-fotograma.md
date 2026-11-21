@@ -1,0 +1,68 @@
+# 0206 — Derivación de los comodines de espera en el fotograma
+
+- Estado: Hecha
+- Paso del pipeline: 4–6
+- Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)
+- ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, [0005](../adr/0005-letras-y-formato-de-sincronia.md#revisión-para-020--fase-5), [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md) §4
+- Spec UX: [07 · Indicadores de espera](../ux/07-reproductor.md#indicadores-de-espera) (R6–R9 en el modelo). Los indicadores nuevos (barra y cuenta) se pintan en 0213.
+
+## Objetivo
+
+Calcular en el modelo puro del render qué ayudas de espera tocan en cada instante, a partir del intervalo real y de la configuración de espera del estilo resuelto, conservando exactamente los puntos del MVP con `ESPERA_LEGADA`.
+
+## Contrato
+
+- **`ContextoRender`** añade `espera: Espera`, la del estilo resuelto normalizado. Si falta, vale `ESPERA_LEGADA`.
+- **`FotogramaLetra`** sustituye `puntos` por:
+
+  ```ts
+  espera: {
+    origenMs, destinoMs, restanteMs, fraccion, primera: boolean,
+    puntos: 0 | 1 | 2 | 3,       // 0 si la casilla está desactivada o restante > 3000
+    cuenta: 1 | 2 | 3 | null,    // null si la casilla está desactivada o restante > 3000
+    barra: boolean,              // casilla activada
+    clave: string                // identifica el hueco (`origen:destino`); solo cambia al empezar una espera
+  } | null
+  ```
+
+- **Reglas**, todas en tiempo de letra y con el mismo `t` que el resto del fotograma:
+  - **primera entrada**: si `primera_entrada`, desde `inicio₁ − UMBRAL_PRIMERA_ENTRADA_MS` (cuando acaba el título) hasta `inicio₁`, sin umbral;
+  - **entre versos**: `[finEfectivo(anterior), inicio(siguiente))` sobre las líneas con inicio, solo si `hueco ≥ umbral_ms` y no hay línea activa;
+  - **sin siguiente**: `null`;
+  - **puntos y cuenta**: `ceil(restante / 1000)` cuando `restante ≤ CUENTA_MS`;
+  - **barra**: `fraccion = clamp((t − origen) / (destino − origen), 0, 1)`.
+
+  Con `ninguna casilla activa`, el resultado es `null`.
+
+- **`fotogramaEstatico`**: `espera: null`.
+- **Adaptación mínima de `PantallaLetra.tsx`**: pinta los puntos a partir de `fotograma.espera?.puntos` con el mismo marcado de hoy. **No** añade barra ni cuenta, que corresponden a 0213. La comparación que hoy hace con `f.puntos` para volver a pintar pasa a comparar `espera?.puntos` y `espera?.cuenta`. `clave` no cambia por dígito.
+
+## Archivos
+
+`app/src/renderer/src/karaoke/render.ts`, el cambio mínimo de `PantallaLetra.tsx` y sus pruebas. Si otro sitio construye el contexto del render (editor, reproductor o secundaria), se le pasa `espera` del estilo que ya tiene.
+
+## Criterios de aceptación
+
+- [ ] Con `ESPERA_LEGADA`, una batería de instantes (antes del título, primera entrada, hueco de 3,9 s, hueco de 4 s, hueco de 10 s y última línea) da los **mismos** puntos que el `render.ts` actual. Esto se compara con una tabla tomada del comportamiento previo.
+- [ ] Con la cuenta y la barra en un hueco de 10 s: barra 0,5 a mitad y 1 en el inicio siguiente, y cuenta 3, 2 y 1 en los últimos 3 s.
+- [ ] Con un hueco de 2 s (umbral 1000) la cuenta empieza en 2.
+- [ ] Sin siguiente no hay espera. Con `primera_entrada: false` no hay espera inicial.
+- [ ] Mismo `t` tras buscar, igual fotograma.
+- [ ] `clave` es la misma durante todo un hueco, aunque cambien los dígitos, y distinta en el hueco siguiente. Necesario para el anuncio único de la spec 07, R11.
+- [ ] Las pruebas existentes de `render.test.ts` y `PantallaLetra.test.tsx` pasan, adaptadas solo en el nombre del campo.
+
+## Pruebas de feedback
+
+- Unitarias: `render.test.ts` y `PantallaLetra.test.tsx`.
+- E2E: ninguna. El E2E `reproductor.spec.ts` existente lo ejecuta el CI.
+- Críticos: sí (el render forma parte del flujo principal del reproductor).
+- Manual: nada.
+
+## Notas de implementación
+
+- `render.ts`: `ContextoRender.espera?` (si falta, `ESPERA_LEGADA`) y `FotogramaLetra.espera` (`EsperaFotograma | null`) en lugar de `puntos`. Función `esperaEn`: primera entrada desde `inicio₁ − UMBRAL_PRIMERA_ENTRADA_MS` sin umbral; entre versos solo si hueco ≥ `umbral_ms` y sin línea activa; sin siguiente o sin casillas, `null`. `clave = origen:destino`. `fotogramaEstatico` devuelve `espera: null`.
+- `PantallaLetra.tsx`: pasa `estilo.espera` al contexto (también en las dependencias del efecto), pinta los puntos con `espera?.puntos` y vuelve a pintar si cambian `puntos` o `cuenta`. No pinta barra ni cuenta (0213).
+- Pruebas: `render.test.ts` adaptado al nombre del campo y bloque «espera ampliada» (tabla legada, barra/cuenta en hueco de 10 s, hueco de 2 s con umbral 1000, sin siguiente/sin primera entrada/sin casillas, clave estable).
+- Comprobado: typecheck, lint, format:check y test:cambios en verde. `test:e2e:criticos` falla en este worktree en la importación del audio («Leyendo el audio…» no termina), antes de llegar a la pantalla de letra; no relacionado con el cambio, queda para el CI.
+- Deuda: ninguna.
+

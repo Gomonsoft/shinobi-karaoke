@@ -1,6 +1,6 @@
 import type { Cancion, NombrePaso } from './cancion'
 import { NOMBRES_PASO } from './cancion'
-import { contarLineas, numerosLineasSinInicio, type Letra } from './letra'
+import { contarLineas, finEfectivo, numerosLineasSinInicio, type Letra } from './letra'
 
 /** Paso actual derivado (no se guarda): el primero no completado; `lista` si la canción está lista. */
 export type PasoActual = NombrePaso | 'lista'
@@ -35,7 +35,8 @@ export function etiquetaPasoActual(cancion: Cancion): string {
   return `borrador:${paso}`
 }
 
-export type CodigoMotivo = 'FUENTE_INCOMPLETA' | 'SIN_PISTAS' | 'SIN_LETRA' | 'LINEAS_SIN_INICIO'
+export type CodigoMotivo =
+  'FUENTE_INCOMPLETA' | 'SIN_PISTAS' | 'SIN_LETRA' | 'LINEAS_SIN_INICIO' | 'FIN_NO_VALIDO'
 
 export interface MotivoNoLista {
   codigo: CodigoMotivo
@@ -74,6 +75,40 @@ export function motivosParaNoEstarLista(cancion: Cancion): MotivoNoLista[] {
 
 export function puedeMarcarseLista(cancion: Cancion): boolean {
   return motivosParaNoEstarLista(cancion).length === 0
+}
+
+/** Números (base 1, solo líneas) de las líneas con inicio cuyo fin efectivo no es válido. */
+function lineasConFinNoValido(cancion: Cancion): number[] {
+  const elementos = cancion.letra?.lineas ?? []
+  const numeros: number[] = []
+  let numero = 0
+  elementos.forEach((el, i) => {
+    if (el.tipo === 'linea') numero++
+    if (el.tipo !== 'linea' || el.inicio_ms === null) return
+    const fin = finEfectivo(cancion.letra!, el.id, cancion.metadatos.duracion_ms)
+    const siguiente = elementos.slice(i + 1).find((e) => e.inicio_ms !== null)
+    const tope = siguiente?.inicio_ms ?? Infinity
+    if (fin === null || fin <= el.inicio_ms || fin > tope) numeros.push(numero)
+  })
+  return numeros
+}
+
+/** Motivos de Lista más `FIN_NO_VALIDO` (ADR 0018 §5): requisitos de la modalidad «Letra lista». */
+export function motivosParaNoEstarLetraLista(cancion: Cancion): MotivoNoLista[] {
+  const motivos = motivosParaNoEstarLista(cancion)
+  const invalidas = lineasConFinNoValido(cancion)
+  if (invalidas.length > 0) {
+    motivos.push({
+      codigo: 'FIN_NO_VALIDO',
+      mensaje: `El final de ${listaNumeros(invalidas)} no es válido.`,
+      lineas: invalidas
+    })
+  }
+  return motivos
+}
+
+export function puedeMarcarseLetraLista(cancion: Cancion): boolean {
+  return motivosParaNoEstarLetraLista(cancion).length === 0
 }
 
 /** Lista con líneas sin inicio (el reproductor las omite y la UX avisa). Derivado, no se guarda. */

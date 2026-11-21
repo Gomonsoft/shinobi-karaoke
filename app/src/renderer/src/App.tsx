@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useCallback, useMemo, useState } from 'react'
 import { ContenedorToasts } from './componentes/Toasts'
+import { ProveedorExportacion } from './exportacion/ProveedorExportacion'
 import { DialogoCierre } from './navegacion/DialogoCierre'
 import { Marco } from './navegacion/Marco'
 import {
@@ -84,13 +85,15 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
     <NavegacionContexto.Provider value={navegacion}>
       <TrabajosContexto.Provider value={trabajos}>
         <BibliotecaContexto.Provider value={biblioteca}>
-          <ProveedorReproductor>
-            <Marco bibliotecaVacia={vacia}>
-              <Contenido vista={vista} />
-            </Marco>
-            <CapaReproductor />
-          </ProveedorReproductor>
-          <DialogoCierre vista={vista} />
+          <ProveedorExportacion>
+            <ProveedorReproductor>
+              <Marco bibliotecaVacia={vacia}>
+                <Contenido vista={vista} />
+              </Marco>
+              <CapaReproductor />
+            </ProveedorReproductor>
+            <DialogoCierre vista={vista} />
+          </ProveedorExportacion>
         </BibliotecaContexto.Provider>
       </TrabajosContexto.Provider>
     </NavegacionContexto.Provider>

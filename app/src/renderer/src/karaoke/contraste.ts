@@ -1,4 +1,4 @@
-import type { Estilo, Fondo } from '@shared/estilo'
+import { normalizarEstilo, type Estilo, type Fondo } from '@shared/estilo'
 import { aHex, canalesRgb, SUGERIDOS_LETRA } from './colores'
 
 function lineal(canal: number): number {
@@ -17,21 +17,32 @@ export function ratio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
 
+const MUESTRAS_POR_TRAMO = 9
+
+function tramo(desde: string, hasta: string, ancho: number): string[] {
+  if (ancho <= 0) return [desde, hasta]
+  const a = canalesRgb(desde)
+  const b = canalesRgb(hasta)
+  return Array.from({ length: MUESTRAS_POR_TRAMO }, (_, i) => {
+    const t = i / (MUESTRAS_POR_TRAMO - 1)
+    return aHex(a.map((canal, k) => canal + (b[k]! - canal) * t))
+  })
+}
+
+/** Colores que puede mostrar el fondo: 9 muestras por tramo entre paradas, más el cierre del cónico. */
 export function muestrasFondo(fondo: Fondo): string[] {
   if (fondo.tipo === 'solido') return [fondo.color]
   const { paradas } = fondo
-  return Array.from({ length: 11 }, (_, i) => {
-    const posicion = i / 10
-    const siguiente = paradas.findIndex((parada) => parada.posicion > posicion)
-    if (siguiente === 0) return paradas[0]!.color
-    if (siguiente === -1) return paradas.at(-1)!.color
-    const izquierda = paradas[siguiente - 1]!
-    const derecha = paradas[siguiente]!
-    const t = (posicion - izquierda.posicion) / (derecha.posicion - izquierda.posicion)
-    const a = canalesRgb(izquierda.color)
-    const b = canalesRgb(derecha.color)
-    return aHex(a.map((canal, k) => canal + (b[k]! - canal) * t))
-  })
+  const primera = paradas[0]!
+  const ultima = paradas.at(-1)!
+  const muestras: string[] = []
+  for (let i = 1; i < paradas.length; i++) {
+    const izquierda = paradas[i - 1]!
+    const derecha = paradas[i]!
+    muestras.push(...tramo(izquierda.color, derecha.color, derecha.posicion - izquierda.posicion))
+  }
+  if (fondo.forma === 'conico') muestras.push(...tramo(ultima.color, primera.color, 1))
+  return [...new Set(muestras.map((color) => color.toUpperCase()))]
 }
 
 function peorEnMuestras(color: string, muestras: readonly string[]): number {
@@ -73,7 +84,7 @@ export interface EvaluacionContraste {
 }
 
 export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
-  const muestras = muestrasFondo(estilo.fondo)
+  const muestras = muestrasFondo(normalizarEstilo(estilo).fondo)
   const { color, color_resaltado } = estilo.letra
   const ratioLetra = peorEnMuestras(color, muestras)
   const ratioResaltado = peorEnMuestras(color_resaltado, muestras)
@@ -99,7 +110,7 @@ export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
 }
 
 export function sugerirResaltado(estilo: Estilo): string {
-  const muestras = muestrasFondo(estilo.fondo)
+  const muestras = muestrasFondo(normalizarEstilo(estilo).fondo)
   const candidatos = SUGERIDOS_LETRA.map((color) => ({
     color,
     distinguible: deltaE76(color, estilo.letra.color) >= 25,

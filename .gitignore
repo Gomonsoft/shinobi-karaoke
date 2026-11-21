@@ -8,3 +8,6 @@ __pycache__/
 .ruff_cache/
 spikes/**/salida/
 .DS_Store
+
+# Worktrees de agentes de Claude Code
+.claude/worktrees/
