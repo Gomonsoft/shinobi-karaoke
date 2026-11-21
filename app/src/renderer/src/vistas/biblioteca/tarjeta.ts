@@ -30,6 +30,10 @@ export type AccionTarjeta = 'reproducir' | 'continuar' | 'reintentar' | 'ver'
 
 /** `bib.paso.modelo` / `bib.paso.reintento.memoria`. */
 export const textoPasoModelo = (n: number): string => `Descargando el modelo ${n} %`
+export const TEXTO_LETRA_LISTA = {
+  ayuda: 'Se reproduce con la letra sincronizada por líneas, sin barrido.',
+  aria: 'Letra lista, sin barrido'
+}
 export const TEXTO_REINTENTO_MEMORIA = 'Reintentando la separación…'
 
 /**
@@ -57,6 +61,8 @@ export interface DatosTarjeta {
   insignia: EstadoInsignia
   /** Texto de la insignia (para lectores: "Lista", "Borrador", "Dañada", "Error"). */
   textoEstado: string
+  /** `title` de la insignia (solo Letra lista: `bib.estado.letraLista.ayuda`). */
+  ayudaEstado?: string
   linea: LineaPasoDatos | null
   /** Acción principal visible (botón de la tarjeta); `null` en dañadas. */
   accion: AccionTarjeta | null
@@ -251,9 +257,11 @@ export function datosDeTarjeta(r: ResumenCancionIpc, vivo?: TrabajoVivo | null):
     }
   }
   if (r.estado === 'lista') {
+    const letraLista = r.modalidad === 'letra_lista'
     return {
-      insignia: 'lista',
-      textoEstado: 'Lista',
+      insignia: letraLista ? 'letra-lista' : 'lista',
+      textoEstado: letraLista ? TEXTO_LETRA_LISTA.aria : 'Lista',
+      ...(letraLista ? { ayudaEstado: TEXTO_LETRA_LISTA.ayuda } : null),
       linea:
         r.incompleta && r.lineasSinSincronizar > 0
           ? { tipo: 'aviso', texto: textoSincronia(r.lineasSinSincronizar) }
@@ -310,4 +318,12 @@ export function lineaDeCola(estado: EstadoSesionIpc | null, cancionId: string): 
   if (!estado) return null
   if (estado.sesion && estado.activa?.cancionId === cancionId) return BIB_COLA.sonando
   return estado.pendientes.some((e) => e.cancionId === cancionId) ? BIB_COLA.enCola : null
+}
+
+/** `bib.toast.lista` / `bib.toast.letraLista`: aviso al volver del editor tras marcar la canción. */
+export function mensajeListaMarcada(r: ResumenCancionIpc): string {
+  const titulo = tituloDeTarjeta(r)
+  return r.modalidad === 'letra_lista'
+    ? `«${titulo}» tiene la letra lista para cantar.`
+    : `«${titulo}» está lista para cantar.`
 }

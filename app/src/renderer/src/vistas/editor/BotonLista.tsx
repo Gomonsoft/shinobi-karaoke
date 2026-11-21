@@ -12,7 +12,7 @@ import { useReproductor } from '../../navegacion/reproductor'
 import { useSesion } from '../../sesion/ProveedorSesion'
 import { DialogoConfirmar } from '../biblioteca/DialogosCancion'
 import { detallesDeError } from '../biblioteca/errores'
-import { tituloDeTarjeta } from '../biblioteca/tarjeta'
+import { mensajeListaMarcada, tituloDeTarjeta } from '../biblioteca/tarjeta'
 import { E } from './textos'
 import type { SeparacionEditor } from './Transporte'
 
@@ -146,7 +146,7 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
       ir({ tipo: 'biblioteca', enfocar: { id, resaltar: true } })
       mostrarToast({
         tipo: 'exito',
-        mensaje: `«${tituloDeTarjeta(guardada)}» está lista para cantar.`,
+        mensaje: mensajeListaMarcada(guardada),
         // Con sesión no hay reproductor local: el toast no ofrece [▶ Reproducir] (spec 02).
         accion: haySesion
           ? undefined
