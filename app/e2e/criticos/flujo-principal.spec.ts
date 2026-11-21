@@ -1,4 +1,4 @@
-import { expect, test, type ConsoleMessage } from '@playwright/test'
+import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
 import { E } from '../../src/renderer/src/vistas/editor/textos'
 import { R } from '../../src/renderer/src/vistas/reproductor/textos'
 import { TEXTO } from '../../src/renderer/src/vistas/letra/textos'
@@ -26,6 +26,26 @@ import {
 const TITULO = 'Tema del flujo crítico'
 const LETRA = ['Primera línea inventada', 'Segunda línea inventada', 'Tercera línea inventada']
 
+/**
+ * Sin scroll de página: un elemento «solo lector» sin `top/left`, un margen o un desbordamiento
+ * añaden píxeles al documento (regresión de las fases 4 y 6). Cuesta una evaluación.
+ */
+async function sinScrollDePagina(v: Page, donde: string): Promise<void> {
+  const m = await v.evaluate(() => ({
+    alto: document.documentElement.scrollHeight,
+    ventana: window.innerHeight,
+    ancho: document.documentElement.scrollWidth,
+    anchoVentana: window.innerWidth
+  }))
+  expect(m.alto, `${donde}: scrollHeight ${m.alto} > innerHeight ${m.ventana}`).toBeLessThanOrEqual(
+    m.ventana
+  )
+  expect(
+    m.ancho,
+    `${donde}: scrollWidth ${m.ancho} > innerWidth ${m.anchoVentana}`
+  ).toBeLessThanOrEqual(m.anchoVentana)
+}
+
 test.describe('flujo principal', { tag: '@critico' }, () => {
   test.describe.configure({ timeout: 60_000 })
 
@@ -46,6 +66,7 @@ test.describe('flujo principal', { tag: '@critico' }, () => {
       await expect(
         v.getByRole('heading', { level: 1, name: 'Tu biblioteca está vacía' })
       ).toBeVisible()
+      await sinScrollDePagina(v, 'Biblioteca')
 
       // Añadir canción desde un archivo: preparar el audio y separar (separador falso).
       await importar(v, TITULO)
@@ -73,6 +94,7 @@ test.describe('flujo principal', { tag: '@critico' }, () => {
       await expect(v.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()
       const sincronizar = v.getByRole('button', { name: /^Sincronizar al ritmo/ })
       await expect(sincronizar).toBeEnabled({ timeout: 20_000 })
+      await sinScrollDePagina(v, 'Editor')
       await sincronizar.click()
       await expect(v.getByRole('heading', { name: E.syncTitulo })).toBeVisible()
       await expect(v.getByRole('button', { name: E.syncMarcar })).toBeEnabled({ timeout: 10_000 })

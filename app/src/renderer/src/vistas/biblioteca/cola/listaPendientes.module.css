@@ -153,14 +153,7 @@
   pointer-events: none;
 }
 .soloLectores {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  composes: soloLector from '../../../componentes/componentes.module.css';
 }
 /* Sin animación al reordenar con movimiento reducido (y, de momento, sin ella en general). */
 @media (prefers-reduced-motion: no-preference) {

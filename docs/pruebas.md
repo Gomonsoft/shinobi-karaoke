@@ -37,6 +37,8 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 6. Las capturas de revisión visual solo se toman cuando la spec UX las pide para una revisión del diseñador.
 7. **Reintentos de foco con `requestAnimationFrame`**: los que viven a nivel de módulo (p. ej. `enfocarCuando`) sobreviven al test que los lanzó y pueden robar el foco al siguiente. Mantén un solo enfoque pendiente a la vez y no dependas en una prueba de reintentos de otra.
 8. **Specs con sesión de reproducción abierta**: no cierres la app con `app.close()` (main pide confirmación de salida, 0189, y la prueba agota el tiempo en el `finally`, también en macOS). Usa `salirSinConfirmar(app)` de `e2e/salir.ts`.
+9. **Texto solo para lectores de pantalla**: usa siempre la clase compartida `soloLector` de `componentes/componentes.module.css` (en otro módulo, `composes: soloLector from '…/componentes.module.css'`). No copies `position:absolute; width:1px; height:1px` sin `top:0; left:0`: su posición estática cae al final del flujo y añade 1 px de scroll de página (regresión de las fases 4 y 6, vista en el CI de `alpha-2`). La suite crítica comprueba `scrollHeight ≤ innerHeight` en la Biblioteca y en el Editor; si falla, busca el último elemento oculto del documento.
+10. **Captura 4K en Linux sin GPU**: `exportacion-captura.spec.ts` omite 3840×2160 solo en Linux y solo si la captura sale a lo sumo 2 px menor (Xvfb con GPU por software da 3839×2159). Se comprueba a mano en Linux real con GPU (guía manual de la fase 6).
 
 ## Regresión en el CI
 

@@ -1,9 +1,16 @@
 /* Estilos de los componentes base (docs/ux/sistema-visual.md §6). Solo tokens de estilos/tokens.css. */
 
+/* Visualmente oculto, accesible a lectores de pantalla. ÚNICA definición: el resto de módulos la
+   reutilizan con `composes`. Anclado con top/left: sin ellos la posición estática caería al final
+   del flujo y añadiría 1 px de scroll de página (regresión de las fases 4 y 6). */
 .soloLector {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
