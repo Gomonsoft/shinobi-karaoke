@@ -26,6 +26,7 @@ Ampliar el esquema del estilo con campos **opcionales**, sin subir `estilo.versi
   - el fondo `solido` no admite `movimiento`. Como la unión es estricta en `tipo`, basta con no declararlo en el sólido y que la prueba lo confirme.
 
   En el estilo se añade `espera?: Espera`. Se exportan las constantes `PERIODO_MIN_S`, `PERIODO_MAX_S` y `AMPLITUD_ORBITA = 0.1`.
+
 - **`normalizarEstilo(estilo): EstiloNormalizado`** es una función pura que rellena `forma: 'lineal'`, `centro: { x: 0.5, y: 0.5 }`, `movimiento: null` (solo en el degradado) y `espera: ESPERA_LEGADA`. No modifica la entrada y **no se usa para escribir**.
 - **`estilosIguales`** (`shared/temas.ts`) compara `canonico(normalizarEstilo(a))` con el de `b`. Es el único cambio de esta tarea en `temas.ts`.
 - **`ESTILO_PREDETERMINADO` no cambia.**

@@ -51,10 +51,12 @@ Implementar `previsualizar(op)` y `ejecutar(op, ficha)` para `editar`, `aplicar`
 ## Notas de implementación
 
 **Qué se hizo.** `main/temas/`: `impacto.ts` (puro: `calcularImpacto`, `mismoImpacto`, `catalogoConAsignacion`), `fichas.ts` (`Fichas`: 16 máx., 10 min, un solo uso, reloj inyectable), `operaciones.ts` (ejecutores `editar`, `asignarGrupo`, `predeterminado` a tema/null, `aplicar`; `Avance` para `temas:progreso`), `errores.ts` (`ErrorTemas` movido aquí; `servicio.ts` lo reexporta), `puertoDePrueba.ts` (solo tests: biblioteca en memoria con fallos inyectables y `montarServicio`).
+
 - API nueva de `ServicioTemas`: `previsualizar(op) -> ImpactoIpc`, `ejecutar(op, ficha) -> ResultadoTemas`, opciones `alProgreso` y `reloj`. Los tipos `OperacionTema`/`ImpactoIpc`/`ProgresoTemaIpc` son los de `shared/ipc.ts` (0164). `ResultadoTemas`/`EstadoCancion` son locales: igual que `ResultadoOperacionIpc` más `titulo` y `artista` en cada entrada (ADR 0016 rev. 3); 0168 los sustituye por el tipo IPC cuando 0164 lo amplíe.
 - Contrato rev. 3: B1 y `aplicar` rellenan `titulo`/`artista` (en `omitida: no_existe` salen del impacto confirmado). `asignarGrupo` al quitar puede dar `despues: respaldo` con `efecto: cambia` (resolución normal).
 
 **Decisiones.**
+
 - Ficha siempre de un solo uso, incluso si `ejecutar` falla por operación distinta. `CONFIRMACION_OBSOLETA` lleva en `detalles` `{ ficha, ...impacto }` con una ficha nueva atada a la operación tal como llegó (para `editar` con revisión vieja, el renderer debe volver a previsualizar con `revisionTema` del impacto).
 - `previsualizar editar` con revisión distinta ya da `CONFIRMACION_OBSOLETA` (como `renombrar`).
 - `aplicar` decide por canción justo antes de escribirla (tras el `await` de las anteriores), así una modificación a mitad de lote la omite (`cambio`). El resultado va en el orden de `cancionIds`; `afectadas` del impacto va por título. `total` del progreso = canciones que se van a escribir (las omitidas al escribir también cuentan un paso).

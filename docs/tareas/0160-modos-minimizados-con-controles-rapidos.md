@@ -50,7 +50,7 @@ Minimizar no oculta nada: la lista pasa a un riel de 72 px, el panel a uno de 12
 ## Criterios de aceptación
 
 - [ ] Criterios 14–18 de la spec y la parte de minimizados del 8.
-- [ ] Vitest: el riel de la lista y los atajos ↑/↓/I producen el mismo estado del *reducer*. El riel del panel queda inactivo sin inicio y en el modo sincronizar, con su motivo. El punto de aviso tiene su nombre accesible. La vista general informativa busca con un clic y no arrastra.
+- [ ] Vitest: el riel de la lista y los atajos ↑/↓/I producen el mismo estado del _reducer_. El riel del panel queda inactivo sin inicio y en el modo sincronizar, con su motivo. El punto de aviso tiene su nombre accesible. La vista general informativa busca con un clic y no arrastra.
 - [ ] E2E: minimizar y expandir cada zona con su botón y con Intro en el divisor. El foco nunca queda en `body` (`document.activeElement !== document.body` tras cada paso). Cada cambio se anuncia una vez.
 - [ ] E2E: la fila minimizada muestra el cabezal avanzando al reproducir y un clic busca. Al expandir se conservan el intervalo visible y el zoom.
 - [ ] E2E: a 1024 × 500 CSS (ventana 1280 × 625 con `setZoomFactor(1.25)`), la línea de tiempo se minimiza sola con «Expandir» en `aria-disabled` y vuelve expandida al agrandar.

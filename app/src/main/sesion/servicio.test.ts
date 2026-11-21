@@ -323,7 +323,12 @@ describe('apertura y cierre', () => {
       sesionId: b.sesionId(),
       desdeMs: 0,
       anuncio: 'inicio',
-      entrada: { cancionId: 'cancion-1', titulo: 'Título 1', silencioPrevio: true }
+      entrada: {
+        cancionId: 'cancion-1',
+        titulo: 'Título 1',
+        silencioPrevio: true,
+        modalidad: 'karaoke'
+      }
     })
     // El DTO cumple el esquema estricto: sin rutas ni campos internos.
     expect(comandoSecundariaIpcSchema.parse(cargar)).toEqual(cargar)
@@ -333,6 +338,14 @@ describe('apertura y cierre', () => {
     for (const e of b.estadosPrincipal()) expect(estadoSesionIpcSchema.parse(e)).toEqual(e)
     for (const e of b.estadosSecundaria()) expect(estadoSecundariaIpcSchema.parse(e)).toEqual(e)
     for (const c of b.comandos()) expect(comandoSecundariaIpcSchema.parse(c)).toEqual(c)
+  })
+
+  it('la entrada activa lleva la modalidad efectiva de la canción', async () => {
+    const b = new Banco()
+    b.cancion(1, { modalidad: 'letra_lista' })
+    await b.servicio.agregar('cancion-1', 'final')
+    await b.abrirYSonar()
+    expect(b.ultimoComando('cargar')).toMatchObject({ entrada: { modalidad: 'letra_lista' } })
   })
 
   it('una segunda apertura responde SESION_EN_CURSO sin crear otra ventana', async () => {

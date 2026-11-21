@@ -39,7 +39,7 @@ Integrar la máquina de [0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md) 
   - ampliar los comandos `transicion` (`candidata.entradaId`) y `error` (`entradaId`, `titulo`), y ajustar los fixtures de `shared/__fixtures__/sesion.ts`;
   - calcular los campos nuevos en `aIpcSecundaria` y en los comandos de `main/sesion/proyeccion.ts` y `maquina.ts`;
   - ajustar `renderer/src/secundaria/AppSecundaria.tsx` y `secundaria/textos.ts`. `empezar` usa `candidata.entradaId`; `siguiente` y `repetir` usan `activa.entradaId`; S4 muestra `activa.titulo`, y `ses.cierre` muestra el número. Se retira la opción provisional de 0182.
-  
+
   Es una excepción explícita a la propiedad de archivos de la fase (`shared/` era de 0177, y `secundaria/` de 0182).
 
 ## Archivos
@@ -53,7 +53,7 @@ Integrar la máquina de [0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md) 
   - un fallo al consumir una entrada que la secundaria nunca cargó muestra su título en S4, y «Pasar a la siguiente canción» desde la secundaria avanza una sola vez;
   - «Otra vez» en S3 repite la última;
   - el diálogo de cierre de la secundaria dice «Quedan {n} canciones».
-  
+
   Se prueba con Vitest en `proyeccion.test.ts` y en las pruebas de `AppSecundaria`.
 
 - [ ] Integración con dobles (ventanas, pantallas, biblioteca y reloj):

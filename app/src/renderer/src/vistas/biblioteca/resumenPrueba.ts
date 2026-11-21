@@ -22,13 +22,14 @@ export function aparienciaResumenPrueba(
     temaNombre: null,
     neutra: true,
     alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
+    procedenciaEspera: 'propio',
     ...cambios
   }
 }
 
 /** Canción tal y como la devuelve `biblioteca.obtener`: la de disco más su apariencia resuelta. */
 export function cancionIpcPrueba(cancion: Cancion): CancionIpc {
-  const { alHeredar } = aparienciaResumenPrueba()
+  const { alHeredar, procedenciaEspera } = aparienciaResumenPrueba()
   return {
     ...cancion,
     resuelta: {
@@ -36,7 +37,8 @@ export function cancionIpcPrueba(cancion: Cancion): CancionIpc {
       procedencia: 'propio',
       temaId: null,
       temaNombre: null,
-      alHeredar
+      alHeredar,
+      procedenciaEspera
     }
   }
 }
@@ -61,6 +63,7 @@ export function resumenPrueba(cambios: Partial<ResumenCancionIpc> = {}): Resumen
     artista: 'Artista',
     duracionMs: 235_000,
     estado: 'borrador',
+    modalidad: 'karaoke',
     modificada: '2026-11-03T10:00:00Z',
     estilo: null,
     ...identidadResumenPrueba(),

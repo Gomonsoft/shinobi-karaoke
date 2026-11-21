@@ -34,8 +34,9 @@ Crear el panel «Cola de reproducción» de la Biblioteca. Esta tarea cubre la e
   - pantalla de vuelta, con [Llevar el reproductor allí];
   - caída, con [Volver a abrir];
   - sin respuesta, con [Esperar] (vuelve a mostrarse si sigue sin responder 10 s más) y [Cerrar y volver a abrir] (`sesion.forzarCierre` y después el diálogo de pantallas).
-  
+
   Si el panel está oculto, se abre sin mover el foco y se anuncia.
+
 - **Cierre**:
   - `DialogoCierreSesion.tsx` (`ses.cierre`) cuando `cierrePendiente.origen === 'principal'`, con `CONFIRMACION_OBSOLETA` → `ses.cierre.obsoleto` y confirmar de nuevo;
   - con origen `secundaria`, `ses.cierre.esperando` y los controles de sesión inactivos;
@@ -60,6 +61,7 @@ Crear el panel «Cola de reproducción» de la Biblioteca. Esta tarea cubre la e
 ## Notas de implementación
 
 **Qué se hizo** (`app/src/renderer/src/vistas/biblioteca/cola/`).
+
 - `PanelCola.tsx`: `complementary` con `data-panel-cola`, [Ocultar] (foco al botón «Cola»), estado de la pantalla (`cola.pantalla` + `cola.modo`, o `cola.pantalla.desconocida` en Wayland), [⛶], ⋯ (Mostrar · Cambiar de pantalla…), [✕ Cerrar reproductor], `ses.cierre.esperando` con los controles `aria-disabled` si el cierre se pidió en la secundaria, P5/P6 (con «Última reproducida» y diálogo «Eliminar cola…») y `ListaPendientes` (0186) con `duracionDe` y `lineasSinSincronizarDe` resueltas con los resúmenes de la biblioteca (0080; la Biblioteca pasa `canciones`, que es la compartida o la propia).
 - `BloqueActiva.tsx`: P1 (progreso de solo lectura con `sesion:posicion`, Pausa/Reanudar, Siguiente con `desdeEntradaId` de la activa, Reiniciar, ⋯ «Agregar otra vez al final», aviso de incompleta), P2 (reloj local sobre `recibidoEn`), P3 (causa, [Pasar…]/[Descartar], [Copiar detalles]) y P4 (espera y fin de la cola, [Otra vez]).
 - `BannersRecuperacion.tsx`: pantalla perdida ([Mover a…]), de vuelta ([Llevar el reproductor allí], ✕), caída ([Volver a abrir], ✕) y sin respuesta ([Esperar] 10 s, [Cerrar y volver a abrir]). Sin banners de pantalla en Wayland.
@@ -68,6 +70,7 @@ Crear el panel «Cola de reproducción» de la Biblioteca. Esta tarea cubre la e
 - Cabecera de `Biblioteca.tsx`: botón «Cola {n}» (`data-boton-cola`, `aria-expanded`, `aria-controls`) y colocación del panel (`.conPanel`, sticky, 360 o 320 px).
 
 **Decisiones y desviaciones.**
+
 - `DialogoCierreSesion` se monta dentro de `ProveedorSesion` (una línea en `sesion/`), no en la Biblioteca: así el diálogo también aparece cuando «Cerrar el reproductor…» se pulsa desde `edi.bloqueo` en Letra o el Editor.
 - «Mover a…» y «Cambiar de pantalla…» abren el diálogo de pantallas en modo `mover` (0184), no un menú aparte.
 - Textos nuevos provisionales: «Cerrar aviso» (✕ de los banners).

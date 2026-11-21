@@ -41,6 +41,7 @@ Construir el diálogo de apertura y el botón de la cabecera de la Biblioteca, y
 ## Notas de implementación
 
 **Qué se hizo.**
+
 - `useSesion` expone `abrirDialogoPantallas({ inicio })`, `cerrarDialogoPantallas` y `dialogoPantallas`. `inicio` es `'cola'`, `'reanudar'`, `'mover'` (variante «Cambiar de pantalla…» / «Mover a…» sin «Empezará con», con `sesion.moverAPantalla`) o `{ cancionId }` («Reproducir en otra pantalla…»). El estado vive en `ProveedorSesion` (único cambio en `sesion/`) y el diálogo lo pinta la Biblioteca con `DialogoPantallasPedido`.
 - `DialogoPantallas.tsx`: grupo de radio con la lista en vivo (`pantallas` del contexto), aviso `ses.pantalla.desaparecida` (también si desaparece la preseleccionada), nota de una pantalla, casilla «Pantalla completa» con su regla por defecto y `ses.completa.misma`, notas `ses.audio` y `ses.bloqueo.nota`, `ses.empieza.*` (`empieza.ts`, función pura probada), Wayland (sin lista ni casilla, `pantallaCompleta: false`), «Abriendo…», errores en línea (`abrir`, `guardando`, `noDisponible`, con [Reintentar] sobre la misma selección; `PANTALLA_NO_DISPONIBLE` recarga la lista; `SESION_EN_CURSO` cierra y abre el panel). Al abrir con éxito se abre el panel y se pide el foco con `enfocarPanelColaCuandoEste`.
 - `preseleccion.ts`: preselección (guardada por `id` o por etiqueta y tamaño; si no, la primera que no es la de la ventana principal) y valor por defecto de la casilla.
@@ -50,6 +51,7 @@ Construir el diálogo de apertura y el botón de la cabecera de la Biblioteca, y
 **Cómo probarlo.** `npm test -- src/renderer/src/vistas/biblioteca`. No hay E2E propio (se delega al CI).
 
 **Decisiones provisionales.**
+
 - La función de preselección vive en `vistas/biblioteca/sesion/preseleccion.ts` y no en `shared/` (propiedad de 0177). `ListaPantallasIpc` no lleva la preselección: se calcula aquí con `config.reproductor.secundaria` leído con `config.obtener()`.
 - Variante «mover»: título `ses.cambiar` y botón `ses.mover`; no hay texto específico para el botón en la spec y no se muestra la casilla (`sesion.moverAPantalla` solo recibe la pantalla).
 - Wayland: `sesion.abrir` recibe la primera pantalla de la lista (o 0) como `pantallaId`; main la ignora con `colocacion: 'sistema'`.

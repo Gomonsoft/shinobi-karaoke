@@ -15,11 +15,11 @@ Dejar listo el contrato compartido de la subfase: constantes de paneles, campo `
 
 **`app/src/shared/paneles.ts`** (nuevo, sin dependencias salvo tipos). Es la fuente única de los límites, en px CSS a zoom 100 %:
 
-| Constante | Defecto | Mínimo | Máximo absoluto |
-|---|---|---|---|
-| `lista.ancho` | 300 | 256 | 480 |
-| `panel.ancho` | 360 | 300 | 480 |
-| `linea_tiempo.alto` | `null` (216 normal / 204 compacto) | 176 (188 en normal, lo aplica el modelo) | 960 |
+| Constante           | Defecto                            | Mínimo                                   | Máximo absoluto |
+| ------------------- | ---------------------------------- | ---------------------------------------- | --------------- |
+| `lista.ancho`       | 300                                | 256                                      | 480             |
+| `panel.ancho`       | 360                                | 300                                      | 480             |
+| `linea_tiempo.alto` | `null` (216 normal / 204 compacto) | 176 (188 en normal, lo aplica el modelo) | 960             |
 
 Además exporta el resto de medidas que usa el modelo de 0156: `ALTO_MIN_ZONA_SUPERIOR = 136`, `ANCHO_MIN_PREVIA = 320`, `ANCHO_DIVISOR = 12`, `ANCHO_RIEL_LISTA = 72`, `ANCHO_RIEL_PANEL = 120`, `ALTO_TIMELINE_MINIMIZADA = { normal: 44, compacto: 40 }`, `ALTO_COMPACTO_DESDE = 800`, `ANCHO_MINIMO_DISENO = 1024`, `PASO_TECLADO = 16`, `PASO_TECLADO_GRANDE = 64` y `preferenciasPanelesPredeterminadas()`.
 

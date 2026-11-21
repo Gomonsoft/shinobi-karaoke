@@ -9,19 +9,19 @@
 
 ## Objetivo
 
-Tres divisores (lista ↔ vista previa, vista previa ↔ panel y zona superior ↔ dock, este último solo en Sincronía) que redimensionan con ratón y teclado según el patrón *Window Splitter* de WAI-ARIA. Doble clic restablece. La acción «Restablecer distribución de paneles» va en el menú ⋯. En esta tarea las preferencias viven **en memoria** (estado del editor) y se pierden al salir: la persistencia es de 0161. Intro para minimizar llega en 0160. Aquí Intro no hace nada.
+Tres divisores (lista ↔ vista previa, vista previa ↔ panel y zona superior ↔ dock, este último solo en Sincronía) que redimensionan con ratón y teclado según el patrón _Window Splitter_ de WAI-ARIA. Doble clic restablece. La acción «Restablecer distribución de paneles» va en el menú ⋯. En esta tarea las preferencias viven **en memoria** (estado del editor) y se pierden al salir: la persistencia es de 0161. Intro para minimizar llega en 0160. Aquí Intro no hace nada.
 
 ## Enfoque
 
 - Componente genérico `componentes/Divisor.tsx` con su CSS propio (`componentes/divisor.module.css`):
   - Props: `orientacion` (`vertical` controla un ancho y `horizontal` un alto), `controla` (id), `etiqueta`, `valor`, `min`, `max`, `minimizado`, `textoValor`, `alCambiar(valor, origen: 'teclado' | 'arrastre')`, `alConfirmar(valor)`, `alRestablecer()` y `alAlternar?()`.
   - No conoce el editor. Usa `aplicarTecla`/`aplicarArrastre` de 0156, o recibe esas funciones como props para no depender del editor.
-  - Estilos: franja de 12 px, línea de 1 px y agarre de 16 px (objetivo de 24 × 24). *Hover*, arrastre y `:focus-visible` según sistema-visual. Cursor `col-resize`/`row-resize`.
+  - Estilos: franja de 12 px, línea de 1 px y agarre de 16 px (objetivo de 24 × 24). _Hover_, arrastre y `:focus-visible` según sistema-visual. Cursor `col-resize`/`row-resize`.
 - **Ratón**:
   - `setPointerCapture`. Durante el arrastre, clase global en `body` con el cursor y `user-select: none`.
   - Tamaño en vivo acotado a `[min, max]` efectivos y nunca minimiza.
   - Esc cancela y devuelve el tamaño previo. `lostpointercapture` confirma el último tamaño.
-  - El tamaño se aplica por propiedad CSS en cada `pointermove` (con `requestAnimationFrame`), sin pasar por el *reducer* de edición.
+  - El tamaño se aplica por propiedad CSS en cada `pointermove` (con `requestAnimationFrame`), sin pasar por el _reducer_ de edición.
   - Doble clic llama a `alRestablecer` (defecto de lo que controla y expande).
   - Tooltip `edi.layout.divisor.tooltip` a los 500 ms.
 - **Teclado**:
@@ -47,7 +47,7 @@ Tres divisores (lista ↔ vista previa, vista previa ↔ panel y zona superior �
 - [ ] E2E a 1280 × 720 y 1920 × 1080 (100 %): cada divisor arrastrado con `page.mouse` se detiene en los mínimos (256/300/188, o 176 en compacto) y en los máximos efectivos (previa ≥ 320, zona superior ≥ 136, lista y panel ≤ 480). La página no hace scroll en ningún momento.
 - [ ] E2E: con el foco en el divisor de la lista, ↓ no cambia la línea seleccionada y Espacio reproduce y pausa.
 - [ ] «Restablecer distribución de paneles» devuelve 300/360/216 (204 en compacto), lo anuncia una sola vez y deja el foco en ⋯.
-- [ ] Redimensionar no añade pasos al historial ni cambia «Guardado» (Vitest del *reducer* sin acciones nuevas y E2E que comprueba que `cancion.json` no cambia).
+- [ ] Redimensionar no añade pasos al historial ni cambia «Guardado» (Vitest del _reducer_ sin acciones nuevas y E2E que comprueba que `cancion.json` no cambia).
 - [ ] La onda y las regiones siguen alineadas tras arrastrar el divisor del panel o del dock mientras suena (0154 y 0153 en verde).
 
 ## Verificación
@@ -56,8 +56,8 @@ Desde `app/`: `npm test -- src/renderer/src/componentes/Divisor src/renderer/src
 
 ## Notas de implementación
 
-- Hecho: `componentes/Divisor.tsx` + `divisor.module.css` (genérico, sin conocer el editor): `role="separator"`, `tabindex="0"`, `aria-orientation`/`controls`/`label`/`valuenow`/`min`/`max`/`valuetext`, franja de 12 px con línea de 1 px, agarre de 16 px (12 × 24 px; 24 × 12 px en el horizontal), *hover*, arrastre y `:focus-visible` según sistema-visual, tooltip propio a los 500 ms. Recibe `alTecla` y `alArrastre`, que el editor enlaza con `aplicarTecla` y `aplicarArrastre` de 0156 (la lógica de teclas y límites no se duplica). Ratón: `setPointerCapture`, `requestAnimationFrame`, atributo `data-arrastre-divisor` en `body` (cursor y `user-select: none` en `base.css`), Esc cancela y restaura, `lostpointercapture` y `pointerup` confirman una sola vez y solo si hubo movimiento. Doble clic restablece.
-- Editor: los tres divisores sustituyen a las franjas vacías (`data-divisor` se conserva). El tamaño en vivo se escribe directamente en la variable CSS (`aplicarTamanoVivo` en `useDistribucion.ts`), sin estado ni *reducer*; al confirmar o con teclado se llama a `preferenciaTrasAccion` (valor visible, entero, expande). Ítem «Restablecer distribución de paneles» en el menú ⋯ (restablece las tres preferencias, expande todo y anuncia una vez; `MenuContextual` ya devuelve el foco a ⋯).
+- Hecho: `componentes/Divisor.tsx` + `divisor.module.css` (genérico, sin conocer el editor): `role="separator"`, `tabindex="0"`, `aria-orientation`/`controls`/`label`/`valuenow`/`min`/`max`/`valuetext`, franja de 12 px con línea de 1 px, agarre de 16 px (12 × 24 px; 24 × 12 px en el horizontal), _hover_, arrastre y `:focus-visible` según sistema-visual, tooltip propio a los 500 ms. Recibe `alTecla` y `alArrastre`, que el editor enlaza con `aplicarTecla` y `aplicarArrastre` de 0156 (la lógica de teclas y límites no se duplica). Ratón: `setPointerCapture`, `requestAnimationFrame`, atributo `data-arrastre-divisor` en `body` (cursor y `user-select: none` en `base.css`), Esc cancela y restaura, `lostpointercapture` y `pointerup` confirman una sola vez y solo si hubo movimiento. Doble clic restablece.
+- Editor: los tres divisores sustituyen a las franjas vacías (`data-divisor` se conserva). El tamaño en vivo se escribe directamente en la variable CSS (`aplicarTamanoVivo` en `useDistribucion.ts`), sin estado ni _reducer_; al confirmar o con teclado se llama a `preferenciaTrasAccion` (valor visible, entero, expande). Ítem «Restablecer distribución de paneles» en el menú ⋯ (restablece las tres preferencias, expande todo y anuncia una vez; `MenuContextual` ya devuelve el foco a ⋯).
 - Atajos: `FocoEditor` incluye `divisor` (`data-foco-editor`). En un divisor las cuatro flechas y Inicio son suyas (↑/↓ ya no cambian de línea) y Espacio y el resto siguen. `useAtajosEditor` se aparta mientras hay un arrastre (`ATRIBUTO_ARRASTRE_DIVISOR`) para que Esc sea del arrastre y no salga del editor.
 - Pruebas: `Divisor.test.tsx` (13), `atajos.test.ts` (+1), `Editor.paneles.test.tsx` (9, compartido con 0160 y 0161) y, en `e2e/editor-layout.spec.ts`: arrastre a mínimos y máximos a 1280 × 720 y 1920 × 1080 (sin scroll y sin escribir `cancion.json`), Esc, teclado (↓ no cambia de línea, Espacio reproduce, ±16, Mayús, Inicio, Fin), restablecer (valores, anuncio una vez, foco en ⋯) y el criterio pendiente de 0158 con el panel a 300, 360 y 480 px.
 - Cómo probarlo, desde `app/`: `npm test -- src/renderer/src/componentes/Divisor src/renderer/src/vistas/editor` y `npm run test:e2e -- e2e/editor-layout.spec.ts`.

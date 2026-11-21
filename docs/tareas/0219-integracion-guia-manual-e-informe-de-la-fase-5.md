@@ -19,6 +19,7 @@ Cerrar la fase: integración real entre procesos con un E2E mínimo, CI en verde
   4. **Movimiento reducido** (`emulateMedia({ reducedMotion: 'reduce' })`): fase 0 en la vista previa y el reproductor, `edi.fondo.mov.reducido` visible y sin el botón «Detener». Cubre G8 y R3.
 
   G2 (píxel a píxel con 0.1.0) se compara aquí si es estable. Si no, pasa a la guía manual.
+
 - **CI**: PR borrador de la fase con `ci.yml` en verde. El agente `qa` clasifica los fallos.
 - **Guía manual** (la escribe `qa` en `docs/Test-manuales/0.2.0/`). Casos que debe incluir:
   - G4: cónico de dos colores muy distintos, sin costura visible;

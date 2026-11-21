@@ -8,7 +8,7 @@
 
 ## Objetivo
 
-Generar las capturas que el diseñador pide para revisar la fase 5, siguiendo el patrón *opt-in* de `temas-capturas.spec.ts`. Ajustes no cambia en esta fase, así que no hay tarea de Ajustes ni de temas: las muestras de tema son estáticas por construcción (fase 0).
+Generar las capturas que el diseñador pide para revisar la fase 5, siguiendo el patrón _opt-in_ de `temas-capturas.spec.ts`. Ajustes no cambia en esta fase, así que no hay tarea de Ajustes ni de temas: las muestras de tema son estáticas por construcción (fase 0).
 
 ## Contrato
 
@@ -25,12 +25,12 @@ Generar las capturas que el diseñador pide para revisar la fase 5, siguiendo el
 ## Criterios de aceptación
 
 - [ ] Con `SHINOBI_CAPTURAS_5=1` se generan todas las capturas listadas. Sin la variable, la spec se salta.
-- [ ] Se anota en el inventario de `docs/pruebas.md` como secundaria *opt-in*.
+- [ ] Se anota en el inventario de `docs/pruebas.md` como secundaria _opt-in_.
 
 ## Pruebas de feedback
 
 - Unitarias: ninguna.
-- E2E: esta spec, *opt-in*. El agente la ejecuta una vez para producir las capturas.
+- E2E: esta spec, _opt-in_. El agente la ejecuta una vez para producir las capturas.
 - Críticos: no.
 - Manual: el diseñador revisa las capturas.
 

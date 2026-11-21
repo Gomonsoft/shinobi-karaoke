@@ -1,4 +1,5 @@
 # 0127 — Dependencias de empaquetado, metadatos y ajustes del repositorio
+
 - Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
@@ -6,12 +7,15 @@
 - ¿Red?: sí, solo `npm install` al actualizar `package-lock.json`. Los tests no la usan.
 
 ## Objetivo
+
 Dejar `app/` lista para las demás tareas de la Fase 7, sin empaquetar todavía.
 
 ## Archivos
+
 `app/package.json`, `app/package-lock.json`, `app/.gitignore`, `app/.prettierignore`, `app/eslint.config.mjs`, `app/vitest.config.mts`, `app/tsconfig.node.json`.
 
 ## Contratos
+
 - `devDependencies` con versión **exacta**: `electron-builder` 26.18.0, `@electron/fuses` 2.1.3, `@electron/asar` 4.3.1, `license-checker-rseidelsohn` 5.0.1.
 - `lucide-react` pasa de `dependencies` a `devDependencies`. En `dependencies` quedan `zod` y `yaml`.
 - Campos nuevos en `package.json`:
@@ -25,12 +29,14 @@ Dejar `app/` lista para las demás tareas de la Fase 7, sin empaquetar todavía.
 - `tsconfig.node.json` incluye `e2e-paquete/**/*`, `scripts/**/*.ts` y `playwright.paquete.config.ts`.
 
 ## Criterios de aceptación
+
 - [x] `npm ls --omit=dev --depth=0` muestra solo `zod` y `yaml`.
 - [x] El renderer sigue compilando con `lucide-react` como dependencia de desarrollo.
 - [x] `npx playwright test` y `npm test` no cambian de resultado.
 - [x] `ci.yml` no se toca.
 
 ## Verificación
+
 ```bash
 cd app
 npm install
@@ -41,7 +47,8 @@ npm run build
 ```
 
 ## Notas de implementación
-Se añadieron las cuatro devDependencies exactas (electron-builder 26.18.0, @electron/fuses 2.1.3, @electron/asar 4.3.1, license-checker-rseidelsohn 5.0.1) y se movió lucide-react a devDependencies (el renderer lo empaqueta Vite, por lo que no se necesita en runtime). En dependencies quedan zod y yaml. Se añadieron author, homepage, repository y desktopName tras license; version no cambia. release/ queda ignorado en git, Prettier y ESLint; resources/bin/uv y uv.exe en git. Vitest (proyecto node) incluye scripts/**/*.test.ts y tsconfig.node.json incluye e2e-paquete, scripts/**/*.ts y playwright.paquete.config.ts. ci.yml no se tocó.
+
+Se añadieron las cuatro devDependencies exactas (electron-builder 26.18.0, @electron/fuses 2.1.3, @electron/asar 4.3.1, license-checker-rseidelsohn 5.0.1) y se movió lucide-react a devDependencies (el renderer lo empaqueta Vite, por lo que no se necesita en runtime). En dependencies quedan zod y yaml. Se añadieron author, homepage, repository y desktopName tras license; version no cambia. release/ queda ignorado en git, Prettier y ESLint; resources/bin/uv y uv.exe en git. Vitest (proyecto node) incluye scripts/**/\*.test.ts y tsconfig.node.json incluye e2e-paquete, scripts/**/*.ts y playwright.paquete.config.ts. ci.yml no se tocó.
 
 Archivos: app/package.json, app/package-lock.json, app/.gitignore, app/.prettierignore, app/eslint.config.mjs (Prettier reformateó el array de ignores), app/vitest.config.mts, app/tsconfig.node.json.
 

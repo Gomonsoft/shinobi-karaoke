@@ -19,6 +19,7 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
   artista: 'A',
   duracionMs: 1000,
   estado: 'borrador',
+  modalidad: 'karaoke',
   modificada: '2026-01-01T00:00:00.000Z',
   estilo: null,
   album: null,
@@ -29,7 +30,8 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
     temaId: null,
     temaNombre: null,
     neutra: false,
-    alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null }
+    alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
+    procedenciaEspera: 'propio'
   },
   miniatura,
   pasos: null,

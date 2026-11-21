@@ -1,4 +1,5 @@
 # 0107 — Editor: modo "Sincronizar al ritmo" (Intro, mantener para el fin, Retroceso, cuenta atrás)
+
 - Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0105, 0106
@@ -8,11 +9,13 @@
 - Paralelizable con: 0108 (con cuidado en `Editor.tsx`) y 0109.
 
 ## Contexto para quien implementa
-- *Reducer* (0093): `entrar_sync`, `sync_siguiente`, `marcar` (ms guardado), `fin_al_soltar`, `deshacer_marca`, `salir_sync` y `ultimaMarcaDeSesion`. La regla de una marca (demasiado pronto, borrar posteriores) ya está en `marcarInicioLinea` (0092).
+
+- _Reducer_ (0093): `entrar_sync`, `sync_siguiente`, `marcar` (ms guardado), `fin_al_soltar`, `deshacer_marca`, `salir_sync` y `ultimaMarcaDeSesion`. La regla de una marca (demasiado pronto, borrar posteriores) ya está en `marcarInicioLinea` (0092).
 - Reloj (0094): `motor.tiempoDeEvento(evento.timeStamp)` da el **tiempo de audio** que sonaba al pulsar (compensa la latencia y la velocidad). Para guardar: `tiempoGuardado(tAudio, letra.offset_ms)`.
 - `useAtajosEditor` (0105) escucha en captura; Intro y Retroceso en el modo llegan como acciones.
 
 ## Criterios de aceptación
+
 - [x] **Entrar** (S o botón):
   - `entrar_sync` con la selección;
   - cuenta atrás "3 · 2 · 1" de 3 s **en silencio** en la vista previa (`cuentaAtras` de `PantallaLetra`); Esc durante la cuenta atrás la cancela y sale del modo sin marcar;
@@ -39,7 +42,7 @@
   - la lista resalta "Siguiente" y la sigue;
   - la pestaña y el panel Estilo, el panel C, Supr, I/O/L, ↑/↓ y Alt/Ctrl+flechas no responden (criterio 18);
   - la vista previa reproduce en vivo.
-- [x] Marcar actualiza fila, contador, ticks y vista previa en < 100 ms con 1000 líneas (criterio 45). Hay un test de rendimiento del *reducer* + `marcarInicioLinea` con 1000 líneas (< 10 ms por marca en CI).
+- [x] Marcar actualiza fila, contador, ticks y vista previa en < 100 ms con 1000 líneas (criterio 45). Hay un test de rendimiento del _reducer_ + `marcarInicioLinea` con 1000 líneas (< 10 ms por marca en CI).
 - [x] Tests con un motor falso que devuelve tiempos deterministas:
   - entrar, cuenta atrás, cancelar con Esc;
   - marcar 3 líneas a 0,5× y a 1× con el mismo punto de audio → mismos ms (criterio 9, apoyado en el test de precisión de 0094);
@@ -51,6 +54,7 @@
   - fin de la letra muestra `edi.sync.fin`.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check
@@ -58,7 +62,9 @@ npx vitest run src/renderer/src/vistas/editor
 ```
 
 ## Notas de implementación
+
 Se completó el trabajo parcial de Codex (no se rehízo).
+
 - `useSincronizarAlRitmo.ts`: cuenta atrás de 3 s en silencio, arranque desde `máx(0, anterior − 2 s)`, marcar con `motor.tiempoDeEvento` + `tiempoGuardado`, "demasiado pronto" (2 s), fin al soltar (≥ 300 ms), Retroceso (marca − 3 s), clic en fila, `blur` pausa, fin de canción termina el modo, Esc/Terminar pausa y llama a `alSalir` (ayuda Bluetooth).
 - `BannerSincronizar.tsx`: banner E con MARCAR en `pointerdown`, Deshacer, Pausa/Seguir y Terminar. `Editor.tsx` conecta banner, S, Esc, bloqueo de la pestaña Estilo y del panel C. `useAtajosEditor.ts` ignora repeticiones de Intro; `estado.ts` fija el fin automático al marcar.
 - Tests: `useSincronizarAlRitmo.test.ts` (cuenta atrás/cancelar, 0,5× y 1× iguales, <300 ms, Retroceso sin marcas, motor parado, blur, fin, rendimiento 1000 líneas) y un test en `Editor.test.tsx` (S, banner, Estilo bloqueada, Esc).

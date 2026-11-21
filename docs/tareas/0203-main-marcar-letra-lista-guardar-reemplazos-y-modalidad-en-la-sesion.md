@@ -1,6 +1,6 @@
 # 0203 — Main: marcar Letra lista, guardar reemplazos y modalidad en la sesión
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md), [0202](0202-resolucion-de-apariencia-con-reemplazos-de-espera.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, §5 y §7, [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-5), [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §7 y §9–§10
@@ -52,3 +52,13 @@ Implementar en main la escritura de la modalidad «Letra lista» y de los reempl
 - Manual: nada.
 
 ## Notas de implementación
+
+- **Qué se hizo**:
+  - `ServicioBiblioteca.marcarLista(id, opciones?)` (`main/biblioteca/servicio.ts`): con `letra_lista` exige `puedeMarcarseLetraLista` y, si no, `ARGUMENTOS_NO_VALIDOS` con los mensajes de los motivos; escribe `modalidad` solo con `letra_lista` y la retira con `karaoke` (también sobre una canción ya lista).
+  - `volverABorrador` retira `modalidad`.
+  - `guardarApariencia`: `reemplazos` ausente conserva, `null` quita, objeto sustituye; `propio` deja `{ modo: 'propio' }`. La instantánea sale fusionada por el refresco existente.
+  - Manejador de `marcarLista`: reenvía `opciones` solo si vienen (la llamada sin modalidad es idéntica a la de antes). `sinSesion()` ya devolvía `EDICION_BLOQUEADA`.
+  - Resumen: `modalidad` efectiva y `procedenciaEspera` (hechos con 0201/0202). Sesión: la instantánea de la entrada activa lleva `modalidad` (`modalidadEfectiva`, hecho junto con 0201 para que compilara; aquí solo se prueba).
+  - Una canción `borrador` con `modalidad` en disco se lee sin error (el esquema la admite) y no se reescribe al abrir.
+- **Pruebas**: `main/biblioteca/escritura.test.ts` (donde ya están las de marcar lista y volver a borrador) y `main/sesion/servicio.test.ts`. No hay prueba nueva de `EDICION_BLOQUEADA` porque no cambia el manejador de bloqueo.
+- **Deuda**: ninguna.

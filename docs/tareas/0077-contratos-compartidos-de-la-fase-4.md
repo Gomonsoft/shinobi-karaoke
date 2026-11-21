@@ -1,4 +1,5 @@
 # 0077 — Contratos compartidos de la Fase 4: API `letras.*`, candidatos, `ARCHIVO_SIN_LETRA` y regla de `pasos.letra`
+
 - Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: 0006, 0011 (Hechas)
@@ -7,9 +8,11 @@
 - Cuándo: primera tarea de la Fase 4, en paralelo con 0078. Desbloquea a la vez el main (0081–0083) y la interfaz (0084, con la API falsa), igual que 0029 y 0059 en las fases anteriores.
 
 ## Objetivo
+
 Fijar en `app/src/shared/` los contratos que usa toda la Fase 4, para que el main y la interfaz avancen en paralelo.
 
 ## Criterios de aceptación
+
 - [ ] **Canales** en `shared/canales.ts` y **contrato Zod** en `shared/ipc.ts`; preload y tipos de `window.shinobi`. Los handlers responden `ERROR_INTERNO` hasta que existan 0082 y 0083.
   - **`letras.buscar({ cancionId, titulo, artista, usarCache?: boolean })`** → `{ candidatos: CandidatoLetra[], instrumental: boolean }`:
     - Errores: `LETRA_NO_ENCONTRADA`, `INSTRUMENTAL`, `SIN_CONEXION`, `SERVICIO_NO_DISPONIBLE`, `CANCELADO` y `ARGUMENTOS_NO_VALIDOS`.
@@ -50,10 +53,11 @@ Fijar en `app/src/shared/` los contratos que usa toda la Fase 4, para que el mai
   - un Lyricsfile con palabras y otro sin ellas;
   - un texto plano con estrofas;
   - registros JSON de LRCLIB (`get` y `search`, también instrumental).
-  Las comparten 0078–0083 y los E2E (0088).
+    Las comparten 0078–0083 y los E2E (0088).
 - [ ] Tests Zod de cada canal, con argumentos válidos y no válidos, y tests de `sincroniaDe`, `compararDuracion` (bordes 2,4 s / 2,5 s / 10,4 s / 10,5 s) y `estadoPasoLetra`.
 
 ## Notas de implementación
+
 - **Contratos**: `app/src/shared/letrasBusqueda.ts` (esquemas Zod de `buscar`, `guardar`, `editarTexto`, `leerArchivo`; `Sincronia`, `CandidatoLetra`, `sincroniaDe`, `compararDuracion`, `ENTORNO_LRCLIB_URL`, `URL_BASE_LRCLIB`, `urlBaseLrclib(valor, empaquetada)`). Canales `letras.*` en `canales.ts`, `CONTRATO`/`ApiShinobi.letras` en `ipc.ts`, preload y handlers (`LetrasIpc` opcional en `DependenciasIpc`; sin servicio responden `ERROR_INTERNO`).
 - `leerArchivo` devuelve además `ignoradas: number` (renglones de LRC ignorados; respuesta del arquitecto a `preguntas/0023`).
 - `ARCHIVO_SIN_LETRA` en `CODIGOS_ERROR` y `CODIGOS_SOLO_MAIN`; se actualizó el test `separacion.test.ts > PROCESO_TERMINADO...` para que espere ambos códigos.

@@ -76,12 +76,18 @@ export const pasosSchema = z.object({
   edicion: pasoSchema
 })
 
+/** Modalidad de una canción lista (ADR 0018 §5): con barrido (`karaoke`) o solo letra. */
+export const MODALIDADES = ['karaoke', 'letra_lista'] as const
+export type Modalidad = (typeof MODALIDADES)[number]
+
 export const cancionSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CANCION),
   id: z.string().min(1),
   creada: fechaIso,
   modificada: fechaIso,
   estado: z.enum(['borrador', 'lista']),
+  /** Solo con `lista`; ausente vale `karaoke`. Con `borrador` se ignora al leer. */
+  modalidad: z.enum(MODALIDADES).optional(),
   metadatos: metadatosSchema,
   fuente: fuenteSchema,
   pistas: pistasSchema.nullable(),
@@ -97,6 +103,13 @@ export type Cancion = z.infer<typeof cancionSchema>
 export type PasoCancion = z.infer<typeof pasoSchema>
 export type Pasos = z.infer<typeof pasosSchema>
 export type EstadoCancion = Cancion['estado']
+
+/** `letra_lista` solo si la canción está lista y lo declara; en cualquier otro caso, `karaoke`. */
+export function modalidadEfectiva(cancion: Pick<Cancion, 'estado' | 'modalidad'>): Modalidad {
+  return cancion.estado === 'lista' && cancion.modalidad === 'letra_lista'
+    ? 'letra_lista'
+    : 'karaoke'
+}
 
 /** Resumen legible de los problemas de validación de un ZodError. */
 export function resumirErroresZod(error: z.ZodError): string {

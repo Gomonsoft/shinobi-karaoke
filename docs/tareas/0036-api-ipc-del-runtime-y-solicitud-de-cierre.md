@@ -1,4 +1,5 @@
 # 0036 — API IPC del runtime, solicitud de cierre y bloqueo de navegación durante la instalación
+
 - Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0011, 0021, 0034
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/01-primer-arranque.md (criterios 1, 6, 8); docs/ux/03-anadir-cancion.md (aviso de duración: estimación)
 
 ## Objetivo
+
 Exponer al renderer el gestor de runtime con el contrato tipado de 0011 y resolver dos piezas de main que la vista necesita: confirmar el cierre de la ventana durante la instalación y no permitir salir del primer arranque por menú o atajos.
 
 ## Criterios de aceptación
+
 - [ ] Contrato en `shared/ipc.ts` + `canales.ts` + handlers + preload (validado con Zod y con la comprobación de remitente de 0021):
   - `runtime.estado()` → `{ estado: 'verificando' | 'pendiente' | 'en_curso' | 'completa' | 'dañada', fases, error, perfilPrevisto, perfil, motivoRebaja, modo, bytesRestantes }`.
   - `runtime.requisitos({ recalcularEspacio })` → resultado de `requisitosPrevios()` (0031), **ampliado** con el motivo de no tener plataforma (decisión del arquitecto, 2026-11-04, `preguntas/0017` "Cambios que necesita la tarea 0037" §2; lo consume 0037 para elegir B6 o B6b):
@@ -28,6 +31,7 @@ Exponer al renderer el gestor de runtime con el contrato tipado de 0011 y resolv
 - [ ] Tests: handlers (validación de argumentos, remitente), solicitud de cierre (con instalación en curso se pide confirmación; sin ella no), menú ignorado durante el primer arranque; `e2e/ipc.spec.ts` actualizado con las claves nuevas.
 
 ## Notas de implementación
+
 - **Qué se hizo**: contrato `runtime.*` y `app.confirmarCierre` en `shared/ipc.ts` (esquemas Zod `estadoRuntimeSchema`, `requisitosRuntimeSchema`, `progresoRuntimeSchema`, `estimacionSeparacionSchema`), `canales.ts`, handlers y preload (`window.shinobi.runtime` y `window.shinobi.app.{confirmarCierre, alSolicitudCierre}`). Eventos `runtime:progreso` (≤ 4/s, lo limita el gestor), `runtime:cambio` y `app:solicitudCierre`. `ENLACES_PERMITIDOS` incluye solo `support.apple.com/es-es/108382`.
 - **Archivos clave**: `main/runtime/servicio.ts` (fachada: estado persistido + vivo, bytes restantes, detalles, estimación, `ocultarRutas`), `main/runtime/composicion.ts` (`crearRuntimeReal`: manifiesto, detección, uv real, gestor y servicio; **0035 debe reutilizar `runtime.gestor` y `runtime.servicio.fijarVerificando()`** en `index.ts`, no crear otro gestor), `main/runtime/deteccion.ts` (`evaluarPlataforma` → `{ plataforma, motivo, versionMinimaSo }`, `NOMBRE_MACOS_MINIMO = 'Sonoma'`; `RequisitosPrevios` lleva `motivo` y `versionMinimaSo`), `main/cierre.ts` (`crearControlCierre`, reutilizable en la Fase 3), `main/menu.ts` (parámetro `permitida`), `main/index.ts` (cableado).
 - **Decisiones**: `runtime.instalar()` responde al momento y el resultado llega por `alCambiar`/`estado()`. `en_curso` guardado sin proceso vivo se muestra como `pendiente`. `verificando` lo fija 0035 con `fijarVerificando(true/false)`; el estado `dañada` ya existe en la config. `recalcularEspacio` no cambia nada porque `requisitosPrevios()` ya relee el espacio libre en cada llamada. `estimarSeparacion` devuelve `null` sin perfil o sin datos. En detalles, el directorio de datos, la carpeta personal y cualquier `/Users/x`, `/home/x`, `C:\Users\x` se sustituyen por `<datos>`; el registro del runtime son las últimas 50 líneas `[runtime]` de `app.log`. Con instalación en curso, Salir (Cmd+Q/menú) pasa por `before-quit` y la solicitud de cierre; sin solicitud previa, `confirmarCierre` no hace nada. El menú ignora "Añadir canción"/"Ajustes" mientras `completa()` sea falso (también durante `verificando`).

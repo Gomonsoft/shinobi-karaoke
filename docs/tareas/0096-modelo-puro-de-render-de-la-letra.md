@@ -1,4 +1,5 @@
 # 0096 — Karaoke (puro): modelo de render de la letra (línea actual, siguiente, barrido, título, indicador de entrada)
+
 - Estado: Hecha
 - Paso del pipeline: 4 y 6 (lo reutiliza el reproductor)
 - Depende de: — (usa `finEfectivo` de `shared/letra.ts`). **Puede empezar ya.**
@@ -8,6 +9,7 @@
 - Paralelizable con: todas las de la fase hasta 0098, que lo usa.
 
 ## Contexto para quien implementa
+
 - Letra: `app/src/shared/letra.ts`.
   - Un elemento `tipo: 'pausa'` no se dibuja nunca.
   - Las líneas sin `inicio_ms` se omiten al reproducir.
@@ -21,24 +23,36 @@
   - transición de 200 ms (la hace el componente, 0098).
 
 ## Objetivo
+
 Una función pura que, para un instante, diga qué dibujar. Así la vista previa del editor y el reproductor dibujan lo mismo.
 
 ## Criterios de aceptación
+
 - [x] API:
   ```ts
-  export interface LineaRender { id: string; texto: string
-    progreso: number                                  // 0..1 de barrido (sin palabras)
-    palabras: { texto: string; progreso: number }[] | null } // progreso 0..1 por palabra (con palabras)
+  export interface LineaRender {
+    id: string;
+    texto: string;
+    progreso: number; // 0..1 de barrido (sin palabras)
+    palabras: { texto: string; progreso: number }[] | null;
+  } // progreso 0..1 por palabra (con palabras)
   export interface FotogramaLetra {
-    titulo: { titulo: string; artista: string } | null // pantalla de título
-    actual: LineaRender | null
-    siguiente: LineaRender | null                      // progreso 0
-    puntos: 0 | 1 | 2 | 3                              // indicador de entrada (0 = oculto)
-    claveTransicion: string                            // cambia al cambiar de línea actual (para animar)
+    titulo: { titulo: string; artista: string } | null; // pantalla de título
+    actual: LineaRender | null;
+    siguiente: LineaRender | null; // progreso 0
+    puntos: 0 | 1 | 2 | 3; // indicador de entrada (0 = oculto)
+    claveTransicion: string; // cambia al cambiar de línea actual (para animar)
   }
-  export function fotogramaEn(letra: Letra, tLetraMs: number, ctx: { duracionMs: number; titulo: string; artista: string }): FotogramaLetra
+  export function fotogramaEn(
+    letra: Letra,
+    tLetraMs: number,
+    ctx: { duracionMs: number; titulo: string; artista: string },
+  ): FotogramaLetra;
   /** Vista previa en pausa (ux/06): la línea `id` con progreso 0,5 (o la mitad de sus palabras) y la siguiente línea con texto. */
-  export function fotogramaEstatico(letra: Letra, id: string | null): FotogramaLetra
+  export function fotogramaEstatico(
+    letra: Letra,
+    id: string | null,
+  ): FotogramaLetra;
   ```
 - [x] Reglas de `fotogramaEn`:
   - solo cuentan las líneas con inicio;
@@ -53,6 +67,7 @@ Una función pura que, para un instante, diga qué dibujar. Así la vista previa
 - [x] Tests: barrido a mitad, por palabra, entre líneas, pausa con tiempo (que corta el fin automático), título, puntos 3·2·1·0, última línea (+5 s acotado a la duración) y líneas sin inicio omitidas.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

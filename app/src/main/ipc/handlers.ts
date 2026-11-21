@@ -39,6 +39,7 @@ import {
   type OperacionTema,
   type RenombrarTema,
   type ResultadoOperacionIpc,
+  type OpcionesMarcarLista,
   type SeleccionApariencia,
   type TemaIpc
 } from '../../shared'
@@ -62,7 +63,7 @@ export interface BibliotecaIpc {
   guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion>
   /** Resolución de la canción con el catálogo vigente (`biblioteca.obtener`). */
   resolver(cancion: Cancion): ResolucionCancion
-  marcarLista(id: string): Promise<ResumenCancion>
+  marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion>
   comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
   eliminar(id: string): Promise<void>
@@ -468,10 +469,15 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         return resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
       }
     ),
-    [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) => {
-      sinSesion()
-      return resumenParaRenderer(await biblioteca.marcarLista(id))
-    }),
+    [CANALES.biblioteca.marcarLista]: envolver(
+      CANALES.biblioteca.marcarLista,
+      async (id, opciones) => {
+        sinSesion()
+        return resumenParaRenderer(
+          await (opciones ? biblioteca.marcarLista(id, opciones) : biblioteca.marcarLista(id))
+        )
+      }
+    ),
     [CANALES.biblioteca.volverABorrador]: envolver(
       CANALES.biblioteca.volverABorrador,
       async (id) => {

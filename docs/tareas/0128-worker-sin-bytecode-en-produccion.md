@@ -1,4 +1,5 @@
-# 0128 — Worker sin *bytecode* en producción
+# 0128 — Worker sin _bytecode_ en producción
+
 - Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
@@ -6,24 +7,29 @@
 - ¿Red?: no.
 
 ## Objetivo
-Que Python no escriba `__pycache__` dentro de `resources/worker`. En macOS rompería el sello de la firma *ad hoc*; en Windows ensuciaría la instalación.
+
+Que Python no escriba `__pycache__` dentro de `resources/worker`. En macOS rompería el sello de la firma _ad hoc_; en Windows ensuciaría la instalación.
 
 ## Archivos
+
 - `app/src/main/trabajos/worker.ts` (`resolverLanzador`, modo `produccion`) y su test;
 - `app/src/main/runtime/gestor.ts` (`diagnosticadorReal`) y su test.
 
 ## Contratos
+
 - Ambos lanzadores añaden `PYTHONDONTWRITEBYTECODE: '1'` a su entorno.
 - Modo `desarrollo` sin cambios: sigue con `uv run`.
 - No se añade ninguna variable `SHINOBI_*`.
 
 ## Criterios de aceptación
+
 - [ ] Test: `resolverLanzador({ modo: 'produccion', … }).env.PYTHONDONTWRITEBYTECODE === '1'`, en Windows y POSIX.
 - [ ] Test: el lanzador de `diagnosticadorReal` lleva la misma variable.
 - [ ] Revisar con `grep` cualquier otro proceso que ejecute el intérprete del venv con `PYTHONPATH` a `resources/worker` y anotar el resultado.
 - [ ] El modo desarrollo no cambia.
 
 ## Verificación
+
 ```bash
 cd app
 npx vitest run worker lanzador gestor
@@ -31,6 +37,7 @@ npm run lint && npm run typecheck
 ```
 
 ## Notas de implementación
+
 El lanzador del worker en producción incorpora `PYTHONDONTWRITEBYTECODE=1`; el lanzador de desarrollo sigue usando `uv run` y no define esa variable. El diagnosticador real añade la misma variable junto a `PYTHONPATH`. Las pruebas cubren Windows, POSIX, desarrollo y la configuración del diagnóstico. La búsqueda de procesos que usen el intérprete del venv con `PYTHONPATH` encontró solo esos dos puntos de ejecución (`resolverLanzador` y `diagnosticadorReal`).
 
 Archivos: `app/src/main/trabajos/worker.ts`, `worker.test.ts`, `app/src/main/lanzadorApp.test.ts`, `app/src/main/runtime/gestor.ts` y `gestor.diagnosticador.test.ts`.

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { RolVentana } from '../../shared/canales'
 import { CANALES } from '../../shared/canales'
-import type { Cancion } from '../../shared/cancion'
+import { modalidadEfectiva, type Cancion } from '../../shared/cancion'
 import type { Config } from '../../shared/config'
 import type { CodigoError } from '../../shared/errores'
 import { ESTILO_PREDETERMINADO, type Estilo } from '../../shared/estilo'
@@ -626,6 +626,7 @@ export class ServicioSesion {
       gananciaDb: Math.min(60, Math.max(-60, vigente.fuente.ganancia_db)),
       letra,
       estilo: biblioteca.estiloDe(vigente),
+      modalidad: modalidadEfectiva(vigente),
       lineasSinSincronizar: numerosLineasSinInicio(letra).length
     })
     const primera = letra.lineas.find((l) => l.tipo === 'linea' && l.inicio_ms !== null)

@@ -154,7 +154,11 @@ const panelesSchema = objetoTolerante({
   })
 })
 
-const editorSchema = objetoTolerante({ paneles: panelesSchema })
+const editorSchema = objetoTolerante({
+  paneles: panelesSchema,
+  /** No volver a avisar al activar «Letra lista» (ADR 0018 §5). */
+  omitir_aviso_letra_lista: z.boolean().catch(false)
+})
 
 export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album'] as const
 export type AgruparBiblioteca = (typeof AGRUPACIONES_BIBLIOTECA)[number]

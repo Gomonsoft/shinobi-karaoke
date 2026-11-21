@@ -16,7 +16,7 @@ Distinguir las canciones Letra lista en la Biblioteca sin cambiar sus acciones, 
   - con `resumen.modalidad === 'letra_lista'` y `estado === 'lista'`, insignia `bib.estado.letraLista` con icono `captions` y colores `exito`, y `title` `bib.estado.letraLista.ayuda`;
   - nombre accesible `bib.aria.letraLista`;
   - si está incompleta, la línea `bib.lista.incompleta`, como en una Lista.
-- **Filtro**: cuenta en *Listas*, sin cambios en `filtrado.ts` si ya filtra por `estado`.
+- **Filtro**: cuenta en _Listas_, sin cambios en `filtrado.ts` si ya filtra por `estado`.
 - **Menú ⋯, acción principal y cola**: sin cambios.
 - **Vuelta desde el editor**: si la navegación indica la modalidad Letra lista, el toast es `bib.toast.letraLista` con [▶ Reproducir] en lugar del de Lista. Filtro, foco y resalte, como hoy.
 - **Portadas** (LB6): siguen usando `fondoCss` **sin geometría**, es decir, la fase 0. Basta con una prueba.
@@ -34,7 +34,7 @@ Distinguir las canciones Letra lista en la Biblioteca sin cambiar sus acciones, 
 
 - Unitarias:
   - `TarjetaCancion` o `tarjeta.test.ts`: insignia, aria, incompleta y portada con un estilo con movimiento;
-  - `Biblioteca.test.tsx`: filtro *Listas* y toast de vuelta.
+  - `Biblioteca.test.tsx`: filtro _Listas_ y toast de vuelta.
 - E2E: ninguna propia (el flujo va en el E2E de 0219).
 - Críticos: no, salvo que se toque el camino de vuelta de «Marcar como lista». En ese caso, sí.
 - Manual: nada.

@@ -7,9 +7,11 @@
 - Spec UX: —
 
 ## Objetivo
+
 Poder lanzar el worker con stdin en tubería y mover fotogramas de una fuente (la ventana offscreen) a esa tubería sin superar 2 fotogramas pendientes.
 
 ## Contrato
+
 - `main/trabajos/worker.ts`: opción `entrada: 'tuberia'` que lanza con `stdio: ['pipe', 'pipe', 'pipe']` y expone el `Writable`. El resto del comportamiento (JSON Lines, cancelación del árbol, `PROCESO_TERMINADO`) no cambia. Opción `prioridad: 'baja'` que aplica `os.setPriority(pid, PRIORITY_BELOW_NORMAL)` tras lanzar (ignora el error si el SO lo rechaza).
 - `main/exportacion/bucle.ts` (puro, con puertos): `ejecutarBucle({ total, pintar(n), capturar(n) → Buffer, escribir, señal })`:
   - pide `n` en orden, captura y escribe;
@@ -18,12 +20,14 @@ Poder lanzar el worker con stdin en tubería y mover fotogramas de una fuente (l
   - se detiene con la señal de cancelación sin escribir más.
 
 ## Criterios de aceptación
+
 - [ ] Con un `Writable` falso lento, nunca hay más de 2 fotogramas pendientes y los `n` llegan en orden sin huecos.
 - [ ] Cancelar a mitad deja de pedir fotogramas en ≤ 1 fotograma.
 - [ ] Un `Buffer` de tamaño incorrecto termina con `PERFIL_NO_SOPORTADO`.
 - [ ] El worker lanzado con `entrada: 'tuberia'` recibe los bytes (prueba de integración con un script Python mínimo que cuenta bytes, como `lanzador.integracion.test.ts`).
 
 ## Pruebas de feedback
+
 - Unitarias: `bucle.test.ts` y la prueba de integración del cliente.
 - E2E: ninguna.
 - Críticos: sí (toca `main/`).

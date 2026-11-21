@@ -7,9 +7,11 @@
 - Spec UX: — (sin interfaz)
 
 ## Objetivo
+
 Comando `python -m shinobi_worker exportar --args '<json>'` que lee fotogramas BGRA por stdin, mezcla el audio y escribe un MKV (AV1 + Opus) o WebM (VP9 + Opus) en la ruta temporal, con progreso JSON Lines. Base: `docs/poc/0019-exportacion/codificar.py` (solo como referencia; no se importa).
 
 ## Contrato
+
 - `worker/shinobi_worker/exportar.py`, registrado en `comandos.py`.
 - Argumentos: `temporal`, `formato`, `ancho`, `alto`, `fps`, `total_fotogramas`, `duracion_ms`, `audio: { instrumental, voz | null, ganancia_db }`, `parametros: { preset | cpu_used, crf }` (los envía main desde `PARAMETROS_CODIFICACION`), `hilos`.
 - Fases: `preparando` (decodificar ambas pistas a 48 kHz estéreo float, mezclar con `ganancia_db`, voz al 100 %, normalizar por pico si > 0,999), `codificando` (`detalle: { fotograma, total }`, ≤ 4/s), `finalizando`.
@@ -19,12 +21,14 @@ Comando `python -m shinobi_worker exportar --args '<json>'` que lee fotogramas B
 - Sin estado propio ni escritura fuera de `temporal`.
 
 ## Criterios de aceptación
+
 - [ ] 2 s a 320 × 240 y 24 FPS en los dos formatos: el archivo tiene 48 fotogramas, el FPS, el códec y el contenedor pedidos, audio Opus estéreo a 48 kHz y duración 2 s ± 1 fotograma.
 - [ ] Con «Instrumental y voz» la mezcla suma las dos pistas; si el pico supera 0,999 se escala sin recortar (prueba sobre la función de mezcla).
 - [ ] Cortar stdin a la mitad da `ENTRADA_INCOMPLETA` y no deja el temporal.
 - [ ] Un formato cuyo codificador falta (doble) da `SIN_CODIFICADOR`.
 
 ## Pruebas de feedback
+
 - Unitarias (pytest, `worker/tests/test_exportar.py`): las cuatro de arriba con fotogramas y audio sintéticos (sin archivos de terceros). Se ejecutan en la CI en los 3 SO: **es la verificación de codificadores en Windows y Linux**.
 - E2E: ninguna.
 - Críticos: no.

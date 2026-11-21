@@ -7,10 +7,13 @@ import {
   estiloPredeterminado,
   migrarCancion,
   puedeMarcarseLista,
+  puedeMarcarseLetraLista,
   motivosParaNoEstarLista,
+  motivosParaNoEstarLetraLista,
   type Apariencia,
   type Cancion,
   type Estilo,
+  type OpcionesMarcarLista,
   type PasoCancion,
   type SeleccionApariencia
 } from '../../shared'
@@ -423,6 +426,11 @@ export class ServicioBiblioteca {
       } else {
         // La `base` se conserva: «Volver a heredar» sigue yendo a donde iba (ADR 0016 §2).
         const base = previa.apariencia?.base
+        // Reemplazos (ADR 0018 §3): ausente conserva, `null` quita y un objeto sustituye.
+        const reemplazos =
+          seleccion.reemplazos === undefined
+            ? previa.apariencia?.reemplazos
+            : (seleccion.reemplazos ?? undefined)
         const catalogo = this.temas?.datos() ?? null
         if (!catalogo) {
           throw new ErrorBiblioteca('TEMAS_SOLO_LECTURA', 'Los temas están en solo lectura.')
@@ -434,11 +442,18 @@ export class ServicioBiblioteca {
           if (catalogo.borrado_pendiente?.tema_id === seleccion.temaId) {
             throw new ErrorBiblioteca('BORRADO_PENDIENTE', 'El tema está pendiente de borrarse.')
           }
-          c.apariencia = base
-            ? { modo: 'tema', tema_id: seleccion.temaId, base }
-            : { modo: 'tema', tema_id: seleccion.temaId }
+          c.apariencia = {
+            modo: 'tema',
+            tema_id: seleccion.temaId,
+            ...(base ? { base } : {}),
+            ...(reemplazos ? { reemplazos } : {})
+          }
         } else {
-          c.apariencia = base ? { modo: 'heredar', base } : { modo: 'heredar' }
+          c.apariencia = {
+            modo: 'heredar',
+            ...(base ? { base } : {}),
+            ...(reemplazos ? { reemplazos } : {})
+          }
         }
       }
       c.modificada = this.ahora().toISOString()
@@ -446,11 +461,18 @@ export class ServicioBiblioteca {
     }).then((r) => this.tras(r))
   }
 
-  /** Solo si `puedeMarcarseLista`; deja `pasos.edicion` completado. */
-  async marcarLista(id: string): Promise<ResumenCancion> {
+  /**
+   * Solo si `puedeMarcarseLista` (o `puedeMarcarseLetraLista` con esa modalidad); deja
+   * `pasos.edicion` completado. `modalidad` solo se escribe con `letra_lista`; sobre una canción ya
+   * lista cambia la modalidad sin pasar por borrador (ADR 0018 §5).
+   */
+  async marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion> {
     const previa = this.exigirCancion(id)
-    if (!puedeMarcarseLista(previa)) {
-      const motivos = motivosParaNoEstarLista(previa)
+    const letraLista = opciones?.modalidad === 'letra_lista'
+    if (!(letraLista ? puedeMarcarseLetraLista(previa) : puedeMarcarseLista(previa))) {
+      const motivos = (
+        letraLista ? motivosParaNoEstarLetraLista(previa) : motivosParaNoEstarLista(previa)
+      )
         .map((m) => m.mensaje)
         .join(' ')
       throw new ErrorBiblioteca(
@@ -461,6 +483,8 @@ export class ServicioBiblioteca {
     const marca = this.ahora().toISOString()
     const candidata = structuredClone(previa)
     candidata.estado = 'lista'
+    if (letraLista) candidata.modalidad = 'letra_lista'
+    else delete candidata.modalidad
     candidata.pasos.edicion = {
       ...candidata.pasos.edicion,
       estado: 'completado',
@@ -470,10 +494,11 @@ export class ServicioBiblioteca {
     return this.guardar(id, candidata, 0)
   }
 
-  /** Cambia solo `estado` a borrador. */
+  /** Cambia `estado` a borrador y retira `modalidad`. */
   async volverABorrador(id: string): Promise<ResumenCancion> {
     const candidata = structuredClone(this.exigirCancion(id))
     candidata.estado = 'borrador'
+    delete candidata.modalidad
     return this.guardar(id, candidata, 0)
   }
 

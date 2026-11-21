@@ -101,6 +101,7 @@ export function apiLetrasFalsa(opciones: OpcionesApiLetrasFalsa = {}): {
     artista: 'Artista inventado',
     duracionMs: 215000,
     estado: 'borrador',
+    modalidad: 'karaoke',
     modificada: '2026-11-05T10:00:00Z',
     estilo: null,
     ...identidadResumenPrueba(),

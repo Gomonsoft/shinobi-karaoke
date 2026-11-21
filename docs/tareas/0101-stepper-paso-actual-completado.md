@@ -1,4 +1,5 @@
 # 0101 — Stepper: ✓ en el paso actual completado y subrayado del paso actual (respuesta a 0024)
+
 - Estado: Hecha
 - Paso del pipeline: 3 y 4
 - Depende de: — (**puede empezar ya; tarea pequeña**)
@@ -9,9 +10,11 @@
 - Paralelizable con: todas salvo 0103 (que va después).
 
 ## Contexto para quien implementa
+
 Hoy `pasos.ts` muestra ● ("paso actual") en Letra cuando se está en la vista Letra aunque ya tenga líneas, y lo mismo en Editor con la canción Lista. Hay dos `if (esActual && …) datos = { indicador: 'actual', detalle: null }`. La UX decide ahora (0024) que el círculo refleja **siempre el estado** del paso y que el paso actual se distingue con la etiqueta.
 
 ## Criterios de aceptación
+
 - [x] `pasos.ts`:
   - se quitan los dos `if` de Letra y Editor;
   - ● (`indicador: 'actual'`) solo si el paso actual está pendiente (la regla `indicador === 'pendiente' && actual` que ya existe en `datosDePaso`);
@@ -22,6 +25,7 @@ Hoy `pasos.ts` muestra ● ("paso actual") en Letra cuando se está en la vista 
 - [x] E2E de 0088 (`e2e/letras.spec.ts`): donde se comprobaba ● en la vista C, ahora se comprueba ✓ con `aria-current="step"` (busca por `aria-label` que contenga "completado, paso actual").
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

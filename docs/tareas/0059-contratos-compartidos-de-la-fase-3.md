@@ -1,4 +1,5 @@
 # 0059 — Contratos compartidos de la Fase 3: protocolo de `separar`, IPC de separación y eventos de reintento
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0055, 0056 (antes de la Fase 3); 0029 (Hecha)
@@ -7,11 +8,13 @@
 - Cuándo: primera tarea de la Fase 3. En paralelo con 0057. Desbloquea a la vez el worker (0060), el gestor (0063, 0064) y la interfaz (0067, 0068), como hizo 0029 en la Fase 2
 
 ## Objetivo
+
 Fijar en `app/src/shared/` y en el worker los contratos que usan todas las tareas de la Fase 3, para que worker, main e interfaz avancen en paralelo con dobles.
 
 ## Criterios de aceptación
+
 - [x] **Argumentos de `separar`** (Zod en `shared/protocolo.ts`, validados también en el worker):
-  `{ entrada, salida_dir, modelo: { id: 'calidad' | 'rapido', archivo, dir }, dispositivo: 'cpu' | 'cuda', bloques: 'normal' | 'pequenos' }`.
+      `{ entrada, salida_dir, modelo: { id: 'calidad' | 'rapido', archivo, dir }, dispositivo: 'cpu' | 'cuda', bloques: 'normal' | 'pequenos' }`.
   - `entrada`: ruta absoluta a `fuente/mezcla.flac`; `salida_dir`: ruta absoluta a `biblioteca/<id>/pistas.tmp/` (el main la crea y la vacía).
   - `dir`: carpeta `modelos/` del directorio de datos (siempre explícita: `model_file_dir`, `preguntas/0009`).
 - [x] **Fases de progreso** de la separación (constantes compartidas, con la del worker en un test de paridad):
@@ -25,12 +28,13 @@ Fijar en `app/src/shared/` y en el worker los contratos que usan todas las tarea
   - `trabajos.alProgreso`: el evento admite las fases nuevas, `detalle` de cada una y `intento` (1, 2, 3).
   - `TrabajoIpc` añade `modo: 'calidad' | 'rapido' | null` y `dispositivo: 'cpu' | 'cuda' | null` (solo en separación; el modelo y el dispositivo **realmente usados**, para "Modelo Calidad · ⓘ" con `{dispositivo}`, `ux/04` criterio 13) e `intento`.
 - [x] **Variable de entorno del doble**: `SHINOBI_SEPARADOR_FALSO=<ruta a escenario.json>` documentada en `shared/` y en el README del worker (misma regla que `SHINOBI_YTDLP_FALSO`: el main solo la pasa sin empaquetar). Esquema Zod del escenario (lo usa 0060):
-  `{ segundos: number, pasos: number, fallos?: [{ cuando: { bloques?, dispositivo?, intento? }, codigo, reintentable }], morir_con_sigkill?: boolean }`.
-  Junto a ella, el main pasa `SHINOBI_INTENTO=<n>` (solo con el doble) para que el escenario pueda fallar en un intento concreto.
+      `{ segundos: number, pasos: number, fallos?: [{ cuando: { bloques?, dispositivo?, intento? }, codigo, reintentable }], morir_con_sigkill?: boolean }`.
+      Junto a ella, el main pasa `SHINOBI_INTENTO=<n>` (solo con el doble) para que el escenario pueda fallar en un intento concreto.
 - [x] Fixtures de ejemplo en `shared/__fixtures__/` (args válidos, resultado, eventos de cada fase) usados por los tests de ambos lados.
 - [x] Tests de Zod (válidos e inválidos) y de paridad de fases entre TypeScript y Python.
 
 ## Notas de implementación
+
 - **Contratos TS** (`app/src/shared/`):
   - `protocolo.ts`: `argsSepararSchema` (strict; rutas absolutas POSIX/Windows/UNC; `archivo` sin carpetas), `resultadoSepararSchema`, `FASES_SEPARACION_WORKER`/`FASES_SEPARACION_MAIN` (también añadidas a `FASES_PROGRESO`), esquemas de `detalle` (`separando`, `descargando_modelo`, `reintentando`), `ERRORES_SEPARAR`. Reutiliza `MODELOS_SEPARACION` de `manifiesto.ts`.
   - `separacion.ts` (nuevo): `ENV_SEPARADOR_FALSO`, `ENV_INTENTO` y `escenarioSeparadorSchema` (documentados; lo usa 0060).

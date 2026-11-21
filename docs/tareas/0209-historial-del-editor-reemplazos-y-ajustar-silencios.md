@@ -4,7 +4,7 @@
 - Paso del pipeline: 4
 - Depende de: [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md), [0207](0207-deteccion-de-voz-y-propuesta-de-ajuste-de-silencios.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3 y §6.3, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-5)
-- Spec UX: no aplica (lógica del *reducer*). Los botones, avisos y textos son de 0212 y 0215.
+- Spec UX: no aplica (lógica del _reducer_). Los botones, avisos y textos son de 0212 y 0215.
 
 ## Objetivo
 

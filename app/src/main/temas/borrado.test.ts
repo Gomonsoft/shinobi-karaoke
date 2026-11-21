@@ -158,6 +158,26 @@ describe('borrar (T18, A4)', () => {
   })
 })
 
+describe('borrar con reemplazo de espera (0202)', () => {
+  it('congela el estilo fusionado como propio y retira los reemplazos', async () => {
+    const espera = {
+      puntos: false,
+      barra: true,
+      cuenta: true,
+      primera_entrada: false,
+      umbral_ms: 6000
+    }
+    const p = new PuertoDePrueba()
+    p.añadir('r', { titulo: 'a', apariencia: { modo: 'heredar', reemplazos: { espera } } })
+    const { servicio } = await montar(catalogo(), p)
+    const i = await servicio.previsualizar(borrar(X))
+    await servicio.ejecutar(borrar(X), i.ficha)
+    const c = p.canciones.get('r')!
+    expect(c.apariencia).toEqual({ modo: 'propio' })
+    expect(c.estilo).toEqual({ ...estiloCon('#111111'), espera })
+  })
+})
+
 describe('borrado interrumpido (T19)', () => {
   const sinRespaldo = (servicio: Montaje['servicio'], p: PuertoDePrueba): void => {
     for (const c of p.canciones.values()) {

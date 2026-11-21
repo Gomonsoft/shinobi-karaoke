@@ -1,18 +1,21 @@
 # 0106 — Editor: panel Sincronía (ajuste fino, campos de tiempo, fin automático, escucha de comprobación) y desplazamiento global
+
 - Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0105 (y 0100 para el tooltip de 2 s)
 - ADRs: 0010 (§1 "Tiempo de letra"), 0006 (`moverInicioLinea`), 0005 (`finEfectivo`)
 - Spec UX: docs/ux/06-editor.md (wireframe C; "Fin automático", "Ajuste fino (panel C)", "Desplazamiento de toda la letra", nota Bluetooth; criterios 20–26)
-- Archivos: `app/src/renderer/src/vistas/editor/PanelSincronia.tsx` (+ test), `CampoTiempo.tsx` (+ test), `escuchaComprobacion.ts` (+ test) y `editor.module.css`; en `Editor.tsx`, solo para pasar los *callbacks* de los atajos de ajuste. **No toca archivos compartidos.**
+- Archivos: `app/src/renderer/src/vistas/editor/PanelSincronia.tsx` (+ test), `CampoTiempo.tsx` (+ test), `escuchaComprobacion.ts` (+ test) y `editor.module.css`; en `Editor.tsx`, solo para pasar los _callbacks_ de los atajos de ajuste. **No toca archivos compartidos.**
 - Paralelizable con: 0108 (Estilo). **Antes de 0107** (ambas tocan `Editor.tsx` y el modo usa el panel inactivo).
 
 ## Contexto para quien implementa
-- Acciones del *reducer* (0093): `ajustar_inicio`, `ajustar_fin`, `fijar_inicio`, `fijar_fin`, `fin_automatico`, `borrar_tiempos`, `desplazar` y `fijar_desplazamiento`.
-- El *reducer* emite `aviso` de tipo `limite` (con `vecino` línea/pausa) o `consecuencias` (palabras descartadas y fines que pasan a automáticos).
+
+- Acciones del _reducer_ (0093): `ajustar_inicio`, `ajustar_fin`, `fijar_inicio`, `fijar_fin`, `fin_automatico`, `borrar_tiempos`, `desplazar` y `fijar_desplazamiento`.
+- El _reducer_ emite `aviso` de tipo `limite` (con `vecino` línea/pausa) o `consecuencias` (palabras descartadas y fines que pasan a automáticos).
 - Tiempos: lo que se muestra es `tiempoMostrado(inicio, offset)`, y lo que se fija en la posición `t` del audio es `tiempoGuardado(t, offset)` (`shared/letras/tiempos.ts`). Posición actual: `motor.posicionMs()`.
 
 ## Criterios de aceptación
+
 - [x] **Panel C** con la línea seleccionada:
   - "Línea n de total" y el texto entre comillas (◆ "por palabra" si tiene palabras);
   - **Inicio**: campo `CampoTiempo` (`mm:ss.cc`, con el tiempo mostrado), [−0,1][−0,01][+0,01][+0,1] y "Fijar inicio aquí (I)";
@@ -23,7 +26,7 @@
 - [x] **`CampoTiempo`**:
   - Intro o perder el foco aplica con `interpretarTiempo`, convirtiendo el tiempo mostrado a guardado (`ms − offset`);
   - un formato inválido muestra `edi.tiempo.formato` y no aplica; Esc restaura el valor.
-- [x] **Atajos** (por *callbacks* de `useAtajosEditor`):
+- [x] **Atajos** (por _callbacks_ de `useAtajosEditor`):
   - Alt(+Mayús)+←/→ y Ctrl/Cmd(+Mayús)+←/→;
   - I, O, L;
   - Supr y Retroceso fuera del modo;
@@ -52,6 +55,7 @@
   - `I` con desplazamiento +250 guarda `t − 250`.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

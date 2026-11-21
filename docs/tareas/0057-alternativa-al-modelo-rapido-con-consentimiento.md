@@ -1,4 +1,5 @@
 # 0057 — Alternativa al modelo Rápido con consentimiento explícito (primer arranque, API reutilizable y "Volver a Calidad")
+
 - Estado: Hecha
 - Paso del pipeline: 0 (y base para 2)
 - Depende de: 0056. Interfaz definitiva: `preguntas/0019` (respondida el 2026-11-05) y detalles técnicos en `preguntas/0021` (respondida)
@@ -8,9 +9,11 @@
 - Cuándo: **al inicio de la Fase 3**, antes de las tareas de separación (oferta tras `MEMORIA_INSUFICIENTE`/`MODELO_NO_DISPONIBLE`) y de Ajustes ("Volver a Calidad"), que reutilizan su API
 
 ## Objetivo
+
 Cuando Calidad no se puede preparar, ofrecer al usuario el modelo Rápido **bajo su responsabilidad**, con un aviso de que su licencia no está declarada (`preguntas/0012`). Sin consentimiento nunca se descarga ni se usa.
 
 ## Criterios de aceptación
+
 - [ ] **Puerta única en main** (`main/runtime/servicio.ts`): `aceptarYUsarRapido({ origen: 'primer_arranque' | 'separacion' })`. No hay origen `ajustes`: **Rápido no es elegible desde Ajustes** (decisión del usuario, 2026-11-05). En este orden:
   1. escribe `separacion.rapido_aceptado` (ISO; se conserva la primera fecha si ya existía);
   2. descarga y verifica Rápido si no está en `modelos_descargados`, con progreso y cancelación (reutiliza 0033);
@@ -34,7 +37,7 @@ Cuando Calidad no se puede preparar, ofrecer al usuario el modelo Rápido **bajo
   - `VERIFICACION_FALLIDA` (tras el reintento automático);
   - `SERVICIO_NO_DISPONIBLE` en todas las URLs;
   - `SIN_ESPACIO` con espacio libre ≥ bytes de Rápido + 100 MB.
-  Vale `false` con `SIN_CONEXION` y con cualquier error de otra fase. Tests unitarios por código.
+    Vale `false` con `SIN_CONEXION` y con cualquier error de otra fase. Tests unitarios por código.
 - [ ] **Primer arranque, B2–B4** (`ux/01`, criterios 18–22):
   - con `ofrecerRapido`, el banner de B4 añade `rapido.oferta` (o `rapido.oferta.espacio` con `SIN_ESPACIO`) y el botón secundario "Usar el modelo Rápido…" junto a "Reintentar", que es primario y tiene el foco inicial. `pa.error.verificacion` y `pa.error.servidor.todos` según `ux/01`;
   - **diálogo `aviso-rapido`**: módulo único y reutilizable desde la vista de progreso (0068), con los textos definitivos `rapido.*`:
@@ -49,12 +52,14 @@ Cuando Calidad no se puede preparar, ofrecer al usuario el modelo Rápido **bajo
 - [ ] **Runtime falso**: escenario `fallo_modelo_calidad` (por `VERIFICACION_FALLIDA`) y otro con `SIN_CONEXION`.
 - [ ] **E2E**:
   1. Con el escenario de fallo: B4 → "Usar el modelo Rápido…" → Cancelar → sigue B4; otra vez → aceptar → B3 → Biblioteca. `config.json` con `rapido_aceptado` y `modo: 'rapido'`.
-  1b. Con fallo también de la descarga de Rápido: B4 sin oferta → "Reintentar" → B3 sin volver a mostrar el diálogo.
+     1b. Con fallo también de la descarga de Rápido: B4 sin oferta → "Reintentar" → B3 sin volver a mostrar el diálogo.
   2. Con `SIN_CONEXION`: B4 no muestra la oferta.
 - [ ] `THIRD_PARTY_NOTICES.md` y el diálogo de créditos siguen indicando la licencia no declarada de Rápido (sin cambios; solo comprobarlo).
 
 ## Notas de implementación
+
 **Qué se hizo**
+
 - `main/runtime/servicio.ts`: puerta única `aceptarYUsarRapido(origen)`, `volverACalidad()` y `cancelarVolverACalidad()`; `estado()` gana `rapidoPendiente`, `ofrecerRapido` y `volverACalidad`; `requisitos()` gana `bytesRapido` y `rapidoDescargado` (opcionales, para el tamaño del aviso).
   - `aceptarYUsarRapido`: precondición = Rápido pendiente, o `ofrecerRapido` (origen `primer_arranque`), o `deps.ofertaSeparacionVigente?.()` (origen `separacion`; **lo conecta la tarea 0066**, por defecto `false`). Si no, `ARGUMENTOS_NO_VALIDOS`. Escribe `rapido_aceptado` (conserva la primera fecha), lo registra en `app.log` (origen y fecha), descarga y solo entonces fija `modo = 'rapido'`. Dos llamadas comparten promesa. `pausar()` y `cerrar()` abortan la descarga suelta.
   - Con la instalación sin completar (primer arranque) usa `gestor.instalar({ modelo: 'rapido' })`: así B2 muestra la fase de modelo con su progreso, el estado pasa por `en_curso` y la instalación queda `completa` con `modo: 'rapido'`. Con la instalación completa (separación) usa `gestor.descargarModelo('rapido', señal, alProgreso)` y emite eventos por `alProgreso` (que ahora reenvía también los del gestor).
@@ -68,6 +73,7 @@ Cuando Calidad no se puede preparar, ofrecer al usuario el modelo Rápido **bajo
 **Cómo probarlo**: `npm run lint && npm run typecheck && npx prettier --check . && npx vitest run && npm run test:e2e` (con `SHINOBI_UV`). E2E nuevos 9, 10 y 11 en `e2e/primer-arranque.spec.ts` (criterios 18–22 y 1/1b/2 de esta tarea).
 
 **Notas / deuda**
+
 - El enlace "Ver créditos y licencias de terceros" es un `<button>` con aspecto de enlace (patrón de la app para "Ver detalles"); abre `DialogoTextoLegal('terceros')` encima y el foco vuelve a él.
 - La oferta de la separación (origen `separacion`, motivos `memoria` y `descarga`) y la lectura de `ofertaSeparacionVigente` quedan para 0066/0068; el diálogo y la API ya están listos.
 - Tras reiniciar con la separación en `error` y `rapidoPendiente` (preguntas/0021 §1), el botón "Usar el modelo Rápido" sin diálogo es de 0066/0068; aquí solo se resuelve el primer arranque.

@@ -1,8 +1,9 @@
-# 0104 — Guardado del editor: autoguardado con *debounce*, vaciado al salir, diálogo si falla y cierre de la ventana
+# 0104 — Guardado del editor: autoguardado con _debounce_, vaciado al salir, diálogo si falla y cierre de la ventana
+
 - Estado: Hecha
 - Paso del pipeline: 5
 - Depende de: 0090 (canales), 0092 (`aPeticionTiempos`)
-- ADRs: 0010 (§2 "Guardado y *debounce*" y "Cerrar la ventana"), 0006, 0008
+- ADRs: 0010 (§2 "Guardado y _debounce_" y "Cerrar la ventana"), 0006, 0008
 - Spec UX: docs/ux/06-editor.md ("Guardado, borrador y lista": Autoguardado, Fallo al guardar, Salir del editor; `edi.dialogo.salir`, `edi.toast.errorguardar`; criterios 34, 35)
 - Pregunta: `preguntas/0025` §4 (respondida)
 - Archivos:
@@ -11,20 +12,23 @@
 - Paralelizable con: 0103 y las de dominio. **Antes de 0105** (la vista la usa).
 
 ## Contexto para quien implementa
+
 - Canales (0090):
   - `letras.guardarTiempos({ cancionId, offset_ms, tiempos })`;
   - `biblioteca.guardarEstilo(id, estilo)`;
   - `app.guardadoPendiente(boolean)`.
-  Los dos primeros escriben **al momento** en el main; el *debounce* lo hace el renderer (ADR 0010 §2). `letras.guardarTiempos` puede responder `LETRA_DESACTUALIZADA`.
+    Los dos primeros escriben **al momento** en el main; el _debounce_ lo hace el renderer (ADR 0010 §2). `letras.guardarTiempos` puede responder `LETRA_DESACTUALIZADA`.
 - La navegación (`App.tsx`) es un `useState<Vista>` con `ir` en un contexto (`navegacion/estado.ts`). Todas las salidas pasan por ese `ir`: ‹ Biblioteca, logotipo, Esc global (`useAtajosGlobales`), stepper, Ctrl/Cmd+N y +, del menú, y los toasts de avisos (`useAvisosTrabajos`).
 - Cierre de la ventana (`main/cierre.ts`, 0036/0073):
   - si `hayAlgoEnCurso()`, el main cancela el `close` y envía `app:solicitudCierre`;
   - `DialogoCierre.tsx` responde con `app.confirmarCierre()` (al momento si no hay trabajos, o tras preguntar si los hay).
 
 ## Objetivo
+
 Que ningún cambio del editor se pierda al salir por cualquier vía ni al cerrar la ventana, con un indicador fiable y reintentos.
 
 ## Criterios de aceptación
+
 - [x] **`guardado.ts`**: clase `GuardadoEditor`:
   ```ts
   new GuardadoEditor({ cancionId, api: { guardarTiempos, guardarEstilo }, debounceMs = 1000, maxEsperaMs = 2000, reintentoMs = 5000,
@@ -57,10 +61,10 @@ Que ningún cambio del editor se pierda al salir por cualquier vía ni al cerrar
   - `salida.ts` exporta `registrarVaciadoAlCerrar(fn: () => Promise<boolean>)` y `vaciarAlCerrar(topeMs = 2000): Promise<void>` (espera al vaciado o al tope, lo que llegue antes);
   - `DialogoCierre.tsx` llama a `await vaciarAlCerrar()` justo antes de cada `app.confirmarCierre()`;
   - en el main, `DependenciasIpc.fijarGuardadoPendiente` (0090) guarda un booleano, y `hayAlgoEnCurso` del control de cierre lo incluye (`main/index.ts`).
-  Así una ventana con cambios pendientes y sin trabajos pide `solicitudCierre`, el renderer vacía (≤ 2 s) y confirma. Con trabajos se ve antes el diálogo de 0073.
+    Así una ventana con cambios pendientes y sin trabajos pide `solicitudCierre`, el renderer vacía (≤ 2 s) y confirma. Con trabajos se ve antes el diálogo de 0073.
   - Test en `cierre.test.ts`: con guardado pendiente, `alCerrarVentana` cancela el evento y pide confirmación.
 - [x] Tests de `guardado.ts` con temporizadores falsos:
-  - *debounce* de 1 s;
+  - _debounce_ de 1 s;
   - espera máxima de 2 s con cambios continuos;
   - última instantánea gana;
   - fallo, reintento a los 5 s y recuperación;
@@ -70,6 +74,7 @@ Que ningún cambio del editor se pierda al salir por cualquier vía ni al cerrar
 - [x] Test de `App`/navegación: con una guarda que devuelve `false`, `ir` no cambia la vista; con `true`, sí.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

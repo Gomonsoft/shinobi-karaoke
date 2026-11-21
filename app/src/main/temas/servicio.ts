@@ -187,7 +187,11 @@ export class ServicioTemas {
       {
         metadatos: cancion.metadatos,
         estilo: cancion.estilo,
-        apariencia: base ? { modo: 'heredar', base } : { modo: 'heredar' }
+        apariencia: {
+          modo: 'heredar',
+          ...(base ? { base } : {}),
+          ...(cancion.apariencia?.reemplazos ? { reemplazos: cancion.apariencia.reemplazos } : {})
+        }
       },
       indice
     )

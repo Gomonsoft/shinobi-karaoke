@@ -1,4 +1,5 @@
 # 0050 — Actualización de yt-dlp: comprobación semanal, reintento automático tras bloqueo y exclusión mutua
+
 - Estado: Hecha
 - Paso del pipeline: 1
 - Depende de: 0035, 0049
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/01-primer-arranque.md (estado "Actualización de yt-dlp", criterio 16); docs/ux/03-anadir-cancion.md (wireframe C1, `add.reintento.ytdlp`, criterio 15, `add.error.YOUTUBE_BLOQUEADO`); docs/ux/04-progreso-pipeline.md (`prog.reintento.ytdlp`, `prog.cola.descarga.mantenimiento`, criterio 16); docs/ux/02-biblioteca.md (`bib.paso.actualizando`); respuestas a `preguntas/0013` §1 y `preguntas/0014` §1
 
 ## Objetivo
+
 Mantener yt-dlp al día sin publicar versiones de la app. En segundo plano se comprueba como mucho una vez por semana; cuando YouTube bloquea una consulta o una descarga, se actualiza y se reintenta una vez antes de mostrar el error. Todo es **automático y silencioso**: nunca se pregunta al usuario. La actualización tampoco coincide nunca con un proceso de yt-dlp en marcha y sobrevive a cancelaciones y cierres sin dejar el venv roto.
 
 ## Criterios de aceptación
+
 - [x] **`app/src/main/runtime/ytdlp.ts`: `actualizarYtDlp({ reparar? })`**
   - Ejecuta `uv pip install --python <venv> -U "yt-dlp[default]" deno` (con `reparar`, añade `--reinstall-package yt-dlp --reinstall-package yt-dlp-ejs --reinstall-package deno`) con el entorno aislado de 0034.
   - Sin `--require-hashes`: es la única excepción a los requisitos bloqueados, y queda anotada en el registro.
@@ -50,6 +53,7 @@ Mantener yt-dlp al día sin publicar versiones de la app. En segundo plano se co
   - no-op en desarrollo.
 
 ## Notas de implementación
+
 - **Qué se hizo**:
   - `app/src/main/runtime/ytdlp.ts`: `CerrojoLecturaEscritura` (prioridad al escritor; `conLectura(fn, { alEsperar, señal })`, `conEscritura`, `enMantenimiento`, `alTerminarMantenimiento`), `ActualizadorYtDlp` (`actualizar({ reparar?, motivo? })` de un solo vuelo, límite de 5 min, `cerrar()` con espera ≤ 10 s y muerte del árbol vía la señal del `EjecutorUv`, marcador `runtime/ytdlp-actualizando.json` con escritura atómica, no-op en desarrollo con `SHINOBI_YTDLP_ACTUALIZAR_MS`), `versionYtDlp(dirVenv, plataforma)` (lee `yt_dlp-<v>.dist-info` sin lanzar Python, en vez de `importlib.metadata`; la reutilizará 0054), `iniciarMantenimientoYtdlp` (reparación inmediata si hay marcador; comprobación semanal a los 60 s).
   - `fuente/youtube.ts`: `CerrojoYtdlp.conLectura` admite `{ alEsperar, señal }`; `ejecutarConCerrojo` los reenvía (una lectura en espera se puede cancelar). `ServicioYoutube.info` genera el `consultaId` al empezar, emite `alEstadoInfo({ consultaId, fase: 'actualizando' })` si espera o provoca una actualización y reintenta una vez tras `YOUTUBE_BLOQUEADO` (`actualizarYtDlp`); cancelar durante la espera no aborta la actualización (`trabajos/cancelable.ts`, `esperarCancelable`).

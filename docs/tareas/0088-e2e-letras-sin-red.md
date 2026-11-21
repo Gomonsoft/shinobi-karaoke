@@ -1,4 +1,5 @@
 # 0088 — E2E: letras sin red con un doble HTTP local de LRCLIB
+
 - Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: 0082, 0083, 0085, 0086, 0087
@@ -7,9 +8,11 @@
 - Cuándo: cierra la fase.
 
 ## Objetivo
+
 Probar el paso Letra de punta a punta con la app compilada, **sin acceso a Internet**. LRCLIB se sustituye por un servidor HTTP local que levanta la propia prueba (`SHINOBI_LRCLIB_URL`, solo sin empaquetar).
 
 ## Criterios de aceptación
+
 - [ ] **Doble** `app/e2e/fixtures/lrclib/servidor.ts`: `http.createServer` en `127.0.0.1:0`, que sirve `/api/get`, `/api/search` y `/api/get/:id` desde las fixtures de 0077, siempre con letras **inventadas**.
   - **Escenarios** por título:
     - con palabra, línea y texto;
@@ -43,7 +46,7 @@ Probar el paso Letra de punta a punta con la app compilada, **sin acceso a Inter
      - 429 largo → servicio no disponible sin una segunda petición;
      - 429 corto → resultados tras la espera;
      - tiempo agotado → banner antes de 11 s.
-     En todos, "Pegar" e "Importar" están disponibles.
+       En todos, "Pegar" e "Importar" están disponibles.
   4. **Pegar**:
      - texto con estrofas → contador correcto y pausas en `cancion.json`;
      - texto LRC → aviso y tiempos conservados, con la marca final como `fin_ms`.
@@ -56,6 +59,7 @@ Probar el paso Letra de punta a punta con la app compilada, **sin acceso a Inter
 - [ ] Se ejecutan en el job E2E de la CI (Linux) en menos de ~90 s en total. Ninguna petición sale a `lrclib.net`: el cliente (0081) registra en `app.log` la URL base que usa al arrancar, y el E2E comprueba que es la del doble.
 
 ## Notas de implementación
+
 - **Qué se hizo**: doble HTTP en `app/e2e/fixtures/lrclib/servidor.ts` (`iniciarServidorLrclib()` → `{ url, peticiones, maxSimultaneas, reiniciar, cerrar }`; el escenario sale de una palabra clave del título en `TITULOS`: completa, solo search, inexistente, instrumental, límite corto/largo, servicio roto, lenta). Sirve las fixtures de 0077 con duraciones relativas a la del `get` (igual, +5 s, muy distinta). Reutilizable por 0089 u otros. Recorridos en `app/e2e/letras.spec.ts` (8 tests, ~40 s): feliz (importar con el separador falso, "Buscar la letra mientras tanto", tres resultados ordenados con insignias y duración, ↑/↓, cabeceras sin cookies, turnos en serie, `duration` correcta, `app.log` con la URL base y sin `lrclib.net`, la separación termina sin perder la letra); editar título/artista con Intro (`album_name`, `q` sin artista, tarjeta) y enlace "Letra: LRCLIB" a `shell.openExternal`; banners (no encontrada con foco en Título, instrumental, 500, 429 corto con espera, tiempo agotado antes de 11 s, 429 largo con una sola petición) y `lrclib.invalid` (sin conexión, sin peticiones); pegar (estrofas y LRC con `fin_ms`); importar (`.lrc` mejorado, `.txt` Windows-1252, vacío → `let.error.archivo`); sustituir (Cancelar/Sustituir); edición en C con ids y tiempos, tarjeta "Falta 1 línea por sincronizar" y relanzar → "Continuar" abre el Editor.
 - **Empaquetada**: no hay E2E; `main/letras/lrclib.test.ts` (0081, "se ignora si está empaquetada…") y `main/index.ts` (borra la variable) lo cubren.
 - **Decisiones**: las canciones salen de la semilla («Borrador sin letra», 215 s) retitulada en `cancion.json`, porque con letra ya elegida «Continuar» abre el Editor (marcador sin stepper) y no hay acceso de vuelta a Letra: los tests de C llegan a ella pegando o eligiendo. En la vista Letra el stepper muestra "paso actual" (●) y el ✓ se comprueba en Progreso (diferencia con `ux/05`: `preguntas/0024`).

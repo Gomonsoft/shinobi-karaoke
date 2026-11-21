@@ -1,4 +1,5 @@
 # 0091 — Main: `ServicioLetras.guardarTiempos` (tiempos y desplazamiento sin tocar el texto)
+
 - Estado: Hecha
 - Paso del pipeline: 4 y 5
 - Depende de: 0090
@@ -8,7 +9,8 @@
 - Paralelizable con: todas las tareas de interfaz y dominio de la fase (0092–0101).
 
 ## Contexto para quien implementa
-- `ServicioLetras` es el **único escritor** de `cancion.json#letra` y de `pasos.letra` (tarea 0083). Escribe siempre con su método privado `escribir(id, letra, debounceMs)`, que llama a `ServicioBiblioteca.actualizar(id, { letra, pasos: { letra: {...} } }, { debounceMs })`. `actualizar` actualiza el índice en memoria **en el acto** y encola la escritura atómica; aquí se escribe **sin *debounce*** (ADR 0010 §2): el editor ya agrupa los cambios (1 s) y necesita que la promesa se resuelva cuando el archivo está escrito, para poder vaciar el guardado antes de salir.
+
+- `ServicioLetras` es el **único escritor** de `cancion.json#letra` y de `pasos.letra` (tarea 0083). Escribe siempre con su método privado `escribir(id, letra, debounceMs)`, que llama a `ServicioBiblioteca.actualizar(id, { letra, pasos: { letra: {...} } }, { debounceMs })`. `actualizar` actualiza el índice en memoria **en el acto** y encola la escritura atómica; aquí se escribe **sin _debounce_** (ADR 0010 §2): el editor ya agrupa los cambios (1 s) y necesita que la promesa se resuelva cuando el archivo está escrito, para poder vaciar el guardado antes de salir.
 - `editarTexto` ya documenta la regla de orden: "Todo el cálculo es síncrono hasta `actualizar`". `guardarTiempos` debe seguirla (**ningún `await` antes de llamar a `escribir`**), para que un `guardarTiempos` seguido de `biblioteca.marcarLista` vea los tiempos nuevos.
 - Invariantes de la letra (ADR 0006), que valida `letraSchema` (`shared/letra.ts`):
   - `inicio_ms` **estrictamente** crecientes entre los elementos que lo tienen, pausas incluidas;
@@ -18,10 +20,12 @@
 - Contrato `GuardarTiempos` (0090): `{ cancionId, offset_ms (±30000), tiempos: [{ id, inicio_ms, fin_ms, palabras }] }`.
 
 ## Objetivo
+
 Persistir los tiempos y el desplazamiento global que produce el editor, sin poder cambiar textos, ids, tipos ni orden, conservando un único escritor de `letra`.
 
 ## Criterios de aceptación
-- [x] `guardarTiempos(p)` sustituye el *stub* de 0090. Reglas, en este orden y todas síncronas:
+
+- [x] `guardarTiempos(p)` sustituye el _stub_ de 0090. Reglas, en este orden y todas síncronas:
   1. `biblioteca.obtener(p.cancionId)` es `null` (no existe o está dañada) → `ARGUMENTOS_NO_VALIDOS` "La canción no existe o está dañada."
   2. La canción no tiene letra, o `p.tiempos.length !== letra.lineas.length`, o algún `p.tiempos[i].id !== letra.lineas[i].id` → `ErrorBiblioteca('LETRA_DESACTUALIZADA', 'La letra ha cambiado desde que se abrió el editor.')`.
   3. Por elemento `i`, sobre una copia de `letra.lineas[i]`:
@@ -31,7 +35,7 @@ Persistir los tiempos y el desplazamiento global que produce el editor, sin pode
      - **pausa**: `inicio_ms` y `fin_ms` deben ser los de la referencia de visita o `null`, y `palabras` `null`. Si no, `ARGUMENTOS_NO_VALIDOS`.
   4. Nueva letra `{ origen, lrclib_id }` (los guardados), `offset_ms: p.offset_ms` y las líneas resultantes, validada con `letraSchema.safeParse`. Si falla → `ARGUMENTOS_NO_VALIDOS` "Los tiempos no son válidos." con el primer problema en el registro (`registro` si el servicio lo tiene; si no, sin registro).
   5. Si `JSON.stringify` de la nueva letra es igual al de la guardada → se devuelve el resumen actual sin escribir (`biblioteca.obtenerResumen`).
-  6. Si no → `escribir(id, nueva, 0)`, sin *debounce*.
+  6. Si no → `escribir(id, nueva, 0)`, sin _debounce_.
 - [x] No cambia `estado`: una `lista` sigue `lista` aunque queden líneas sin inicio (`incompleta` se deriva, ADR 0006). `pasos.letra` sigue `completado` y se actualiza `actualizado`, porque se reutiliza `escribir`.
 - [x] Se acepta con la separación en curso y no pisa `pasos.separacion` (lo garantiza `actualizar` con cambio parcial). Hay un test con una canción `en_curso` y un `actualizar` de progreso intercalado.
 - [x] **Orden**: un test llama `guardarTiempos` (todas las líneas con inicio) y, sin esperar, `biblioteca.marcarLista`. La canción queda `lista` y `cancion.json` en disco tiene los tiempos nuevos tras `flushTodo()`.
@@ -48,6 +52,7 @@ Persistir los tiempos y el desplazamiento global que produce el editor, sin pode
 - [x] El JSDoc de la clase actualiza la lista de métodos: "Único escritor de `letra`: guardar, editarTexto, guardarTiempos".
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

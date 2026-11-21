@@ -1,4 +1,5 @@
 # 0135 — Prueba de humo de la app empaquetada (`e2e-paquete`)
+
 - Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0130 (para ejecutarla); 0127
@@ -6,16 +7,20 @@
 - ¿Red?: no, una vez hecho el paquete. Sin modelos.
 
 ## Objetivo
-Probar el artefacto real, con los *fuses*, **sin añadir ninguna línea a producción**.
+
+Probar el artefacto real, con los _fuses_, **sin añadir ninguna línea a producción**.
 
 ## Archivos
+
 - `app/playwright.paquete.config.ts` (`testDir: './e2e-paquete'`, sin reintentos);
 - `app/e2e-paquete/lanzar.ts`, `app/e2e-paquete/runtimeEnDisco.ts`, `app/e2e-paquete/paquete.spec.ts`;
 - `app/scripts/humo-worker.mjs`;
 - script `test:paquete` en `app/package.json`.
 
 ## Contratos
+
 **`lanzarPaquete({ bin, datos, env, args })`**:
+
 1. `spawn(bin, ['--remote-debugging-port=0', ...args])`;
 2. lee `DevTools listening on (ws://…)` de stderr, con límite de 45 s y la salida en el mensaje de error;
 3. `chromium.connectOverCDP('http://127.0.0.1:<puerto>')`. Sin `playwright install`: no descarga navegadores;
@@ -27,6 +32,7 @@ Probar el artefacto real, con los *fuses*, **sin añadir ninguna línea a produc
 **Entrada**: `SHINOBI_PAQUETE_BIN` (ruta del ejecutable), leída **solo por las pruebas**. Sin ella, las pruebas fallan con un mensaje claro: nunca se omiten en silencio.
 
 **`prepararRuntimeEnDisco(datos, plataforma, perfil)`**. Prueba de concepto validada en Linux:
+
 - semilla: `sembrar()` de `src/main/biblioteca/semilla.ts`;
 - `config.instalacion.perfil_hardware = perfil`, `ultima_comprobacion_ytdlp = ahora`;
 - intérprete vacío: `runtime/venv/bin/python` o `runtime\venv\Scripts\python.exe`;
@@ -36,6 +42,7 @@ Probar el artefacto real, con los *fuses*, **sin añadir ninguna línea a produc
 Perfil: `win32-x64`/`cpu`, `linux-x64`/`cpu`, `darwin-arm64`/`mps`. Si el equipo tiene NVIDIA, `SHINOBI_PAQUETE_PERFIL=cuda` (solo prueba).
 
 **Casos de `paquete.spec.ts`**:
+
 1. **B1 con el entorno envenenado**. Todos a la vez, con valores válidos: `SHINOBI_RUNTIME_FALSO` (escenario que cambiaría las cifras de B1), `SHINOBI_UV`, `SHINOBI_LANZADOR=desarrollo`, `SHINOBI_DIALOGO_PRUEBAS`, `SHINOBI_PAPELERA_PRUEBAS`, `SHINOBI_AVISOS_PRUEBAS`, `SHINOBI_YTDLP_FALSO`, `SHINOBI_SEPARADOR_FALSO`, `SHINOBI_LRCLIB_URL`, `SHINOBI_PANTALLA_COMPLETA_SIMULADA`, `SHINOBI_SILENCIAR_AUDIO`, `ELECTRON_RENDERER_URL`. Esperado:
    - encabezado "Hola. Vamos a preparar tu estudio de karaoke.";
    - `page.url()` = `shinobi-app://app/index.html`;
@@ -55,6 +62,7 @@ Perfil: `win32-x64`/`cpu`, `linux-x64`/`cpu`, `darwin-arm64`/`mps`. Si el equipo
 **`humo-worker.mjs`** (**con red**: `uv` descarga Python): con `resources/bin/uv`, ejecuta `uv run --no-project --isolated --python 3.12 python -m shinobi_worker demo --args '{"segundos":1}'`, con `PYTHONPATH=resources/worker` y `PYTHONDONTWRITEBYTECODE=1`. Debe emitir `resultado` y no crear `__pycache__`. Validado en la prueba de concepto en Linux.
 
 ## Criterios de aceptación
+
 - [x] Ninguna línea nueva en `src/`.
 - [x] `npx playwright test` no ejecuta estas pruebas; `npm run test:e2e` no cambia.
 - [x] Los 6 casos pasan en local contra `release/linux-unpacked` (o el equivalente del SO del programador; en WSL, con `SHINOBI_PAQUETE_PERFIL=cuda` si detecta NVIDIA).
@@ -62,6 +70,7 @@ Perfil: `win32-x64`/`cpu`, `linux-x64`/`cpu`, `darwin-arm64`/`mps`. Si el equipo
 - [x] Directorios temporales con limpieza tolerante a archivos bloqueados en Windows.
 
 ## Verificación
+
 ```bash
 cd app
 npm run build && npm run uv:descargar && npm run empaquetar:dir   # CON RED, la primera vez
@@ -70,6 +79,7 @@ SHINOBI_PAQUETE_BIN="$PWD/release/linux-unpacked/shinobi-karaoke" \
 ```
 
 ## Notas de implementación
+
 La configuración aislada `app/playwright.paquete.config.ts` ejecuta seis casos con `npm run test:paquete`. `app/e2e-paquete/lanzar.ts` abre el binario real, lee el puerto de DevTools de stderr y se conecta por CDP. Al terminar cierra la conexión y el árbol de procesos. `runtimeEnDisco.ts` lee el manifiesto del artefacto y prepara la semilla, el marcador y los modelos dispersos. Los casos negativos arrancan sin CDP y comprueban en disco que el proceso principal llegó a ejecutar la comprobación del runtime.
 
 `app/scripts/humo-worker.mjs` ejecuta `demo` con el `uv` incluido y comprueba el resultado JSON Lines y la ausencia de bytecode. Acepta la carpeta de recursos como argumento opcional. También la localiza a partir de `SHINOBI_PAQUETE_BIN` o del directorio desempaquetado habitual de cada plataforma.

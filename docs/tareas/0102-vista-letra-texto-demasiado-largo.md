@@ -1,4 +1,5 @@
 # 0102 — Vista Letra: texto demasiado largo (`let.pegar.demasiado` y `let.error.demasiadoLarga`)
+
 - Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: — (**puede empezar ya; tarea pequeña**)
@@ -8,11 +9,13 @@
 - Paralelizable con: todas.
 
 ## Contexto para quien implementa
+
 - La tarea 0085 añadió, sin spec, el texto "El texto es demasiado largo (máximo 512 KB)." en B (pegar). Lo detecta `PegarLetra.tsx` cuando el conversor lanza `ErrorLetraDemasiadoGrande` (`shared/letras`), que cubre tanto más de 512 KB como más de 5000 renglones (`'elementos'`).
 - En C (`LetraElegida.tsx`, edición con autoguardado), un texto demasiado largo hace fallar `letras.editarTexto` (`ARGUMENTOS_NO_VALIDOS`; el contrato limita a 512 KB) y hoy sale el toast genérico `errorGuardar` "No se pudo guardar la letra.".
 - La UX lo corrige (`ux/05` §10): "KB" no se muestra y los textos dicen qué hacer.
 
 ## Criterios de aceptación
+
 - [x] **B** (`textosPegar.ts`): `demasiado` pasa a ser `let.pegar.demasiado`: "Este texto es demasiado largo para ser una letra. Comprueba que has pegado solo la letra de la canción.".
   - Se muestra como aviso `error` en línea bajo el área, tanto si se superan los 512 KB (UTF-8) como los 5000 renglones;
   - con el aviso visible **no** se muestran el contador de líneas ni los avisos de LRC, y "Usar esta letra" queda inactivo;
@@ -27,6 +30,7 @@
 - [x] Tests de B y C para los dos límites (bytes y renglones) y para la desaparición del aviso.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

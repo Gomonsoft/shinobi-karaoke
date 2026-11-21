@@ -35,7 +35,7 @@ Que el render compartido (vista previa del editor, reproductor local, secundaria
 
 ## Archivos
 
-`karaoke/PantallaLetra.tsx`, `karaoke/pantallaLetra.module.css` y sus pruebas. Si hace falta, un *hook* `karaoke/useMovimientoReducido.ts` compartido (mover el de `vistas/reproductor/sesion/` y reexportarlo).
+`karaoke/PantallaLetra.tsx`, `karaoke/pantallaLetra.module.css` y sus pruebas. Si hace falta, un _hook_ `karaoke/useMovimientoReducido.ts` compartido (mover el de `vistas/reproductor/sesion/` y reexportarlo).
 
 ## Criterios de aceptación
 

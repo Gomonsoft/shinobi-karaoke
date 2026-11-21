@@ -309,6 +309,75 @@ describe('estado lista / borrador', () => {
   })
 })
 
+describe('modalidad Letra lista y reemplazos de espera (0203)', () => {
+  const espera = {
+    puntos: false,
+    barra: true,
+    cuenta: true,
+    primera_entrada: false,
+    umbral_ms: 6000
+  }
+
+  it('marca letra_lista, cambia a karaoke sin el campo y volverABorrador la retira', async () => {
+    const s = await servicio()
+    const id = await cancionLista(s)
+    expect((await leerDisco(id)).modalidad).toBeUndefined()
+
+    const r = await s.marcarLista(id, { modalidad: 'letra_lista' })
+    expect(r).toMatchObject({ estado: 'lista', modalidad: 'letra_lista' })
+    expect(await leerDisco(id)).toMatchObject({ estado: 'lista', modalidad: 'letra_lista' })
+
+    expect((await s.marcarLista(id)).modalidad).toBe('karaoke')
+    expect('modalidad' in (await leerDisco(id))).toBe(false)
+
+    await s.marcarLista(id, { modalidad: 'letra_lista' })
+    await s.volverABorrador(id)
+    const borrador = await leerDisco(id)
+    expect(borrador.estado).toBe('borrador')
+    expect('modalidad' in borrador).toBe(false)
+  })
+
+  it('con una línea sin inicio rechaza letra_lista sin escribir; sin modalidad también falla igual', async () => {
+    const s = await servicio()
+    const id = await cancionLista(s)
+    await s.volverABorrador(id)
+    const sinInicio = structuredClone(s.obtener(id)!.letra!)
+    sinInicio.lineas[0]!.inicio_ms = null
+    await s.actualizar(id, { letra: sinInicio })
+    const antes = await readFile(join(biblio, id, 'cancion.json'), 'utf8')
+    await expect(s.marcarLista(id, { modalidad: 'letra_lista' })).rejects.toMatchObject({
+      codigo: 'ARGUMENTOS_NO_VALIDOS'
+    })
+    expect(await readFile(join(biblio, id, 'cancion.json'), 'utf8')).toBe(antes)
+  })
+
+  it('guardarApariencia: ausente conserva, null quita, objeto sustituye y propio los retira', async () => {
+    const s = await servicio()
+    const id = await cancionLista(s)
+    const reemplazosEnDisco = async (): Promise<unknown> =>
+      (await leerDisco(id)).apariencia?.reemplazos
+
+    await s.guardarApariencia(id, { modo: 'heredar', reemplazos: { espera } })
+    expect(await reemplazosEnDisco()).toEqual({ espera })
+    const r = await s.guardarApariencia(id, { modo: 'heredar' })
+    expect(await reemplazosEnDisco()).toEqual({ espera })
+    expect(r.apariencia.procedenciaEspera).toBe('cancion')
+    expect((await leerDisco(id)).estilo.espera).toEqual(espera)
+
+    const otra = { ...espera, umbral_ms: 9000 }
+    await s.guardarApariencia(id, { modo: 'heredar', reemplazos: { espera: otra } })
+    expect(await reemplazosEnDisco()).toEqual({ espera: otra })
+
+    const sin = await s.guardarApariencia(id, { modo: 'heredar', reemplazos: null })
+    expect(await reemplazosEnDisco()).toBeUndefined()
+    expect(sin.apariencia.procedenciaEspera).not.toBe('cancion')
+
+    await s.guardarApariencia(id, { modo: 'heredar', reemplazos: { espera } })
+    await s.guardarApariencia(id, { modo: 'propio', estilo: ESTILO_PREDETERMINADO })
+    expect((await leerDisco(id)).apariencia).toEqual({ modo: 'propio' })
+  })
+})
+
 describe('eliminar y mostrar en carpeta', () => {
   it('envía a la papelera, quita del índice y emite eliminada', async () => {
     const s = await servicio()

@@ -22,6 +22,7 @@ Implementar el algoritmo de «Ajustar los silencios» como funciones puras y det
     - devuelve `{ intervalos: [inicioMs, finMs][], referenciaDbfs, umbralDbfs }`, con los intervalos semiabiertos en tiempo de audio.
 
     Sin bloques por encima del piso, los intervalos salen vacíos.
+
   - **`proponerAjusteSilencios(letra, voz, { duracionMs, espera, comodin = 'cuenta', p? })`**:
     - sigue los pasos 1–6 de ADR 0018 §6.1;
     - devuelve `{ letra, cambios, lineasCambiadas, finesFijadosCambiados, huecosLargos, sinVoz, espera }`;

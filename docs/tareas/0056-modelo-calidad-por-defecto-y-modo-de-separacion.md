@@ -1,4 +1,5 @@
 # 0056 — Modelo Calidad por defecto en todos los perfiles y modo de separación interno (sin elección en Ajustes)
+
 - Estado: Hecha
 - Paso del pipeline: 0 y 2
 - Depende de: 0029, 0034, 0035 (Hechas); en paralelo con 0055
@@ -7,9 +8,11 @@
 - Cuándo: **antes de la Fase 3**: el comando `separar` y la estimación previa dependen del modelo vigente
 
 ## Objetivo
+
 Que el primer arranque descargue **siempre** el modelo Calidad, también en equipos solo CPU, y que el modo de separación deje de depender del perfil. Rápido no se descarga ni se usa sin consentimiento; el flujo para aceptarlo es la tarea 0057.
 
 ## Criterios de aceptación
+
 - [ ] `app/src/shared/manifiesto.ts`:
   - `modeloDelPerfil` desaparece y se sustituye por `MODELO_POR_DEFECTO = 'calidad'`.
   - `bytesTotalesInstalacion` suma siempre Calidad (913 MB + yaml).
@@ -44,7 +47,9 @@ Que el primer arranque descargue **siempre** el modelo Calidad, también en equi
 - [ ] `docs/ux` no se toca (es del diseñador). Si un texto de la spec contradice el comportamiento, se anota en las notas de esta tarea.
 
 ## Notas de implementación
+
 **Qué se hizo**
+
 - `shared/manifiesto.ts`: `modeloDelPerfil` -> `MODELO_POR_DEFECTO = 'calidad'`; `bytesTotalesInstalacion` suma siempre Calidad; nuevo `rangoDescargaPlataforma` (menor/mayor descarga para `pa.req.descarga.generica`).
 - `shared/config.ts`: `separacion.modo` = `calidad | rapido` (por defecto `calidad`; `automatico` guardado se lee como `calidad` con `z.preprocess`, sin subir `esquema`) y `separacion.rapido_aceptado` (datetime | null). `ipc.ts`: el renderer ya no puede actualizar `separacion` (test en `handlers.test.ts` y `config.test.ts`); `estimacionSeparacionSchema` gana `aproximada?` y `RequisitosRuntimeIpc` gana `rangoDescarga?`.
 - `configuracion/servicio.ts`: `modoSeparacionVigente` (Rápido solo con `modo` y `rapido_aceptado`) y `modoSeparacionEfectivo` (además exige el modelo descargado); se elimina la regla "sin perfil -> rapido".
@@ -56,6 +61,7 @@ Que el primer arranque descargue **siempre** el modelo Calidad, también en equi
 **Cómo probarlo**: `npm run lint && npm run typecheck && npx prettier --check . && npx vitest run && npm run test:e2e` (con `SHINOBI_UV`). Resultado: lint, typecheck y format limpios; 1030 tests pasan (6 omitidos); E2E 36 pasan (1 omitido, YouTube con red).
 
 **Notas / deuda**
+
 - `ux/01` dice 6-15 min para CPU x86; el manifiesto da `[1.5, 4] x 4 = 6-16`, así que la UI muestra "entre 6 y 16" (sale del manifiesto).
 - La spec de `ux/08` (Ajustes sin elección de modo) y la oferta de Rápido (diálogo, banner B4, variante B2/B3) quedan para 0057 y la tarea de Ajustes; `nombreModoFinal` ya admite `rapido`.
 - Los textos `rapido.*`, `aceptarYUsarRapido` y `volverACalidad` no se implementan aquí (0057).
