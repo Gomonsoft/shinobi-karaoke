@@ -1,6 +1,6 @@
 # 0207 — Detección de voz y propuesta de ajuste de silencios (funciones puras)
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md) (tipo `Espera`)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §6.1 y §6.4, [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md#revisión-para-020--fase-5), [0005](../adr/0005-letras-y-formato-de-sincronia.md#revisión-para-020--fase-5)
@@ -58,3 +58,22 @@ Implementar el algoritmo de «Ajustar los silencios» como funciones puras y det
 - Manual: la calibración real queda en [0210](0210-herramienta-de-calibracion-del-ajuste-de-silencios.md).
 
 ## Notas de implementación
+
+### Qué se hizo
+- `shared/silencios.ts`: `PARAMETROS_SILENCIOS` (valores provisionales del ADR 0018), `detectarVoz` (histograma de 32 768 cubetas, aritmética entera sobre bloques) y `proponerAjusteSilencios` (pasos 1–6 del ADR §6.1). Es pura y no muta la entrada.
+- `shared/__fixtures__/picos.ts`: `generarPicos` con ruido, tramos de voz, colas con decaimiento y ráfagas.
+- `shared/silencios.test.ts`: un caso por criterio de aceptación (14 pruebas).
+
+### Decisiones y matices
+- **`huecosLargos`** cuenta cada línea donde se detectó un silencio (aunque su fin ya coincida con el efectivo y no sea un «cambio») cuyo hueco hasta el siguiente elemento con inicio es ≥ `espera.umbral_ms`. La última línea no cuenta (`huecoMs = null`).
+- **Voz que llega hasta el final de la ventana** (por ejemplo, hasta una pausa con tiempo): no hay silencio dentro de la ventana, la línea no cambia y no entra en `sinVoz`. `sinVoz` solo recoge las ventanas sin ningún bloque con voz.
+- **Fin al borde**: `fin = max(inicio + 1, min(round(finVoz + margen − offset), inicioSiguiente))`. En la última línea el límite es `duracionMs − offset`.
+- Si hay `duracionMs` pequeña y `inicio + 1` no cabe, la línea no cambia.
+- `comodin` acepta `'puntos' | 'barra' | 'cuenta'`; `p` es un `ParametrosSilencios` completo (tipo con campos `number`, para la rejilla de 0210).
+- Sin bloques sobre el piso: `referenciaDbfs` devuelve el piso (−60) y `umbralDbfs` el umbral mínimo, con intervalos vacíos.
+
+### Cómo probarlo
+`cd app && npx vitest run src/shared/silencios.test.ts`
+
+### Deuda técnica
+- Valores definitivos de `PARAMETROS_SILENCIOS`: pendientes de la calibración con canciones reales (0210).
