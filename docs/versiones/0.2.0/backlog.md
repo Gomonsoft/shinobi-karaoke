@@ -156,7 +156,7 @@ Ajustes no cambia en esta fase. Preguntas al usuario: [0100](../../preguntas/010
 
 | Tarea | Estado | Depende de | Entrega |
 |---|---|---|---|
-| [0200 · Esquema del estilo ampliado](../../tareas/0200-esquema-del-estilo-ampliado-y-normalizacion.md) | Pendiente | Fase 4 | `forma`, `centro`, `movimiento` y `espera` opcionales; `shared/espera.ts`; `normalizarEstilo`; `estilosIguales` normalizado; copia congelada del esquema de 0.1.0 |
+| [0200 · Esquema del estilo ampliado](../../tareas/0200-esquema-del-estilo-ampliado-y-normalizacion.md) | Hecha | Fase 4 | `forma`, `centro`, `movimiento` y `espera` opcionales; `shared/espera.ts`; `normalizarEstilo`; `estilosIguales` normalizado; copia congelada del esquema de 0.1.0 |
 | [0201 · Contratos de la fase 5](../../tareas/0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md) | Pendiente | 0200 | `cancion.modalidad`, `apariencia.reemplazos`, motivos de Letra lista, `config.editor.omitir_aviso_letra_lista`, IPC (`marcarLista`, `reemplazos`, `modalidad` y `procedenciaEspera`), entrada de la sesión, preload y dobles |
 | [0202 · Resolución con reemplazos](../../tareas/0202-resolucion-de-apariencia-con-reemplazos-de-espera.md) | Pendiente | 0201 | Fusión de la espera en `resolverApariencia`, `procedenciaEspera`, congelación y lotes |
 | [0203 · Main: Letra lista y reemplazos](../../tareas/0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md) | Pendiente | 0201, 0202 | `marcarLista` con modalidad, volver a borrador, `guardarApariencia` con reemplazos y `modalidad` en la entrada activa |
