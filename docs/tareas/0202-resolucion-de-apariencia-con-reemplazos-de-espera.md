@@ -1,6 +1,6 @@
 # 0202 — Resolución de la apariencia con reemplazos de espera
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §3, §8 y [revisión de la fase 5](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md#revisión-para-020--fase-5)
@@ -43,3 +43,11 @@ Hacer que la resolución única de main aplique la espera de la canción sobre e
 - Manual: nada.
 
 ## Notas de implementación
+
+- **Qué se hizo**:
+  - `resolverApariencia` se divide en `resolverEstilo` (pasos de ADR 0016 §3, sin cambios) y la fusión de `reemplazos.espera` (solo `tema`/`heredar`). Devuelve `procedenciaEspera` (`cancion` o la del estilo). Con `respaldo` el reemplazo se reaplica, idempotente.
+  - `esAparienciaNeutra` recibe solo `Pick<ResolucionApariencia, 'procedencia'>`.
+  - `aparienciaAplicada` (`main/temas/impacto.ts`) conserva `reemplazos` además de `base`: así aplicar en lote conserva el reemplazo. La instantánea de respaldo (`refrescarInstantanea`) y el congelado al borrar (`borrado.ts`) ya usan `resolverApariencia`, de modo que guardan el estilo fusionado sin tocar su código; al congelar, `apariencia` queda `{ modo: 'propio' }` (sin `reemplazos`).
+  - `ServicioTemas.resolver` calcula `alHeredar` conservando `reemplazos`; `resumen.ts` y `resuelta` exponen `procedenciaEspera` (sustituye el provisional de 0201).
+- **Pruebas**: `shared/temas.test.ts` (fusión, procedencia, respaldo idempotente), `main/temas/borrado.test.ts`, `main/temas/operaciones.test.ts`. Se actualizaron los `toEqual` existentes con `procedenciaEspera`; también los dobles de `config.test.ts`, `sesion.test.ts` y `temasIpc.test.ts` que 0201 dejó desactualizados (ya no compilaban/validaban con los campos nuevos).
+- **Deuda**: ninguna. `guardarApariencia` con `reemplazos` es de 0203.

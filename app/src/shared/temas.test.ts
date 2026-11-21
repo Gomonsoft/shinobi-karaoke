@@ -18,6 +18,7 @@ import {
   estilosIguales,
   migrarCatalogo,
   resolverApariencia,
+  type Apariencia,
   type CancionResoluble,
   type Catalogo
 } from './temas'
@@ -247,6 +248,7 @@ describe('resolverApariencia', () => {
     expect(r).toEqual({
       estilo: instantanea,
       procedencia: 'propio',
+      procedenciaEspera: 'propio',
       temaId: null,
       temaNombre: null
     })
@@ -256,6 +258,7 @@ describe('resolverApariencia', () => {
     expect(r).toEqual({
       estilo: temas[0]!.estilo,
       procedencia: 'cancion',
+      procedenciaEspera: 'cancion',
       temaId: T1,
       temaNombre: 'Uno'
     })
@@ -265,6 +268,7 @@ describe('resolverApariencia', () => {
     expect(resolverApariencia(cancion('X', null, ap), indice())).toEqual({
       estilo: instantanea,
       procedencia: 'respaldo',
+      procedenciaEspera: 'respaldo',
       temaId: FALTA,
       temaNombre: 'Viejo'
     })
@@ -320,6 +324,7 @@ describe('resolverApariencia', () => {
     expect(resolverApariencia(c, indice({ predeterminado: T1 }))).toEqual({
       estilo: ESTILO_PREDETERMINADO,
       procedencia: 'incluido',
+      procedenciaEspera: 'incluido',
       temaId: null,
       temaNombre: null
     })
@@ -399,5 +404,45 @@ describe('estilosIguales', () => {
     const b = { ...estiloPredeterminado(), espera: { ...ESPERA_LEGADA } }
     expect(estilosIguales(a, b)).toBe(true)
     expect(estilosIguales(a, { ...b, espera: { ...ESPERA_LEGADA, cuenta: true } })).toBe(false)
+  })
+})
+
+describe('resolverApariencia con reemplazos de espera (0202)', () => {
+  const espera = {
+    puntos: false,
+    barra: true,
+    cuenta: true,
+    primera_entrada: false,
+    umbral_ms: 6000
+  }
+  const A = idDePrueba(1)
+  const indice = crearIndiceCatalogo(
+    catalogoDePrueba({ predeterminado: A, temas: [temaDePrueba({ id: A, nombre: 'A' })] })
+  )
+  const meta = { artista: 'X', album: null }
+  const cancion = (apariencia: Apariencia): Parameters<typeof resolverApariencia>[0] => ({
+    metadatos: meta,
+    estilo: estiloPredeterminado(),
+    apariencia
+  })
+
+  it('heredar con reemplazo: espera de la canción y fondo del tema', () => {
+    const r = resolverApariencia(cancion({ modo: 'heredar', reemplazos: { espera } }), indice)
+    expect(r.estilo).toEqual({ ...temaDePrueba().estilo, espera })
+    expect(r.procedencia).toBe('predeterminado')
+    expect(r.procedenciaEspera).toBe('cancion')
+  })
+  it('sin reemplazo la procedencia de la espera es la del estilo', () => {
+    const r = resolverApariencia(cancion({ modo: 'heredar' }), indice)
+    expect(r.procedenciaEspera).toBe('predeterminado')
+    expect(resolverApariencia(cancion({ modo: 'propio' }), null).procedenciaEspera).toBe('propio')
+  })
+  it('respaldo: se vuelve a aplicar y es idempotente', () => {
+    const ap: Apariencia = { modo: 'tema', tema_id: A, reemplazos: { espera } }
+    const fusionado = resolverApariencia(cancion(ap), indice).estilo
+    const r = resolverApariencia({ metadatos: meta, estilo: fusionado, apariencia: ap }, null)
+    expect(r.procedencia).toBe('respaldo')
+    expect(r.estilo).toEqual(fusionado)
+    expect(r.procedenciaEspera).toBe('cancion')
   })
 })

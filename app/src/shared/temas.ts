@@ -317,35 +317,37 @@ export interface ResolucionApariencia {
   /** Estilo completo a pintar (referencia al del tema o de la canción: no mutar). */
   estilo: Estilo
   procedencia: Procedencia
+  /** De dónde sale la espera: `cancion` con reemplazo; si no, la `procedencia` del estilo (ADR 0018 §3). */
+  procedenciaEspera: Procedencia
   temaId: string | null
   temaNombre: string | null
 }
 
-/**
- * Resolución única (ADR 0016 §3). `indice` `null` = catálogo ausente o en solo lectura: `tema` y
- * `heredar` dan `respaldo` (sin base fija no se puede conocer el predeterminado), salvo `base: incluido`.
- */
-export function resolverApariencia(
+/** Resolución sin la espera de la canción (pasos 2 y 3 de ADR 0016 §3). */
+function resolverEstilo(
   cancion: CancionResoluble,
   indice: IndiceCatalogo | null
-): ResolucionApariencia {
+): Omit<ResolucionApariencia, 'procedenciaEspera'> {
   const ap: Apariencia = cancion.apariencia ?? { modo: 'propio' }
   if (ap.modo === 'propio') {
     return { estilo: cancion.estilo, procedencia: 'propio', temaId: null, temaNombre: null }
   }
-  const respaldo = (temaId: string | null): ResolucionApariencia => ({
+  const respaldo = (temaId: string | null): Omit<ResolucionApariencia, 'procedenciaEspera'> => ({
     estilo: cancion.estilo,
     procedencia: 'respaldo',
     temaId,
     temaNombre: ap.tema_nombre ?? null
   })
-  const deTema = (id: string, procedencia: Procedencia): ResolucionApariencia | null => {
+  const deTema = (
+    id: string,
+    procedencia: Procedencia
+  ): Omit<ResolucionApariencia, 'procedenciaEspera'> | null => {
     const tema = indice?.porId.get(id)
     return tema
       ? { estilo: tema.estilo, procedencia, temaId: tema.id, temaNombre: tema.nombre }
       : null
   }
-  const incluido = (): ResolucionApariencia => ({
+  const incluido = (): Omit<ResolucionApariencia, 'procedenciaEspera'> => ({
     estilo: ESTILO_PREDETERMINADO,
     procedencia: 'incluido',
     temaId: null,
@@ -385,11 +387,28 @@ export function resolverApariencia(
 }
 
 /**
+ * Resolución única (ADR 0016 §3 y ADR 0018 §3). `indice` `null` = catálogo ausente o en solo lectura:
+ * `tema` y `heredar` dan `respaldo` (sin base fija no se puede conocer el predeterminado), salvo
+ * `base: incluido`. Con `reemplazos.espera` (solo `tema` y `heredar`), el estilo lleva esa espera.
+ * Con `respaldo` el reemplazo se vuelve a aplicar: es idempotente porque la instantánea ya lo trae.
+ */
+export function resolverApariencia(
+  cancion: CancionResoluble,
+  indice: IndiceCatalogo | null
+): ResolucionApariencia {
+  const r = resolverEstilo(cancion, indice)
+  const ap = cancion.apariencia
+  const espera = ap && ap.modo !== 'propio' ? ap.reemplazos?.espera : undefined
+  if (!espera) return { ...r, procedenciaEspera: r.procedencia }
+  return { ...r, estilo: { ...r.estilo, espera }, procedenciaEspera: 'cancion' }
+}
+
+/**
  * `neutra` (ADR 0016 §3): nadie eligió un aspecto para la canción, su álbum ni su artista.
  * `estiloHeredado` = `config.estilo_predeterminado` de 0.1.0 (o `null`).
  */
 export function esAparienciaNeutra(
-  resolucion: ResolucionApariencia,
+  resolucion: Pick<ResolucionApariencia, 'procedencia'>,
   cancion: Pick<CancionResoluble, 'estilo'>,
   estiloHeredado: Estilo | null
 ): boolean {

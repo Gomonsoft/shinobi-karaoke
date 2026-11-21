@@ -98,7 +98,7 @@ export function aparienciaDeResolucion(
     temaNombre: r.temaNombre,
     neutra: r.neutra,
     alHeredar: { ...r.alHeredar },
-    procedenciaEspera: r.procedencia // provisional hasta 0202
+    procedenciaEspera: r.procedenciaEspera
   }
 }
 
@@ -110,7 +110,7 @@ export function resueltaDeResolucion(r: ResolucionCancion): ResueltaIpc {
     temaId: r.temaId,
     temaNombre: r.temaNombre,
     alHeredar: { ...r.alHeredar },
-    procedenciaEspera: r.procedencia // provisional hasta 0202
+    procedenciaEspera: r.procedenciaEspera
   }
 }
 

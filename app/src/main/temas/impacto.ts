@@ -174,9 +174,12 @@ export function aparienciaAplicada(
   seleccion: OperacionDe<'aplicar'>['seleccion']
 ): Apariencia {
   const base = actual?.base
+  // Los reemplazos de la canción (ADR 0018 §3) sobreviven a la aplicación en lote.
+  const reemplazos = actual?.reemplazos
+  const resto = { ...(base ? { base } : {}), ...(reemplazos ? { reemplazos } : {}) }
   return seleccion.modo === 'tema'
-    ? { modo: 'tema', tema_id: seleccion.temaId, ...(base ? { base } : {}) }
-    : { modo: 'heredar', ...(base ? { base } : {}) }
+    ? { modo: 'tema', tema_id: seleccion.temaId, ...resto }
+    : { modo: 'heredar', ...resto }
 }
 
 /** ¿La canción ya tiene exactamente esa selección? */

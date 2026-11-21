@@ -205,6 +205,7 @@ describe('comandos a la secundaria', () => {
     gananciaDb: 0,
     letra,
     estilo: estiloPredeterminado(),
+    modalidad: 'karaoke',
     lineasSinSincronizar: 0,
     silencioPrevio: true
   }

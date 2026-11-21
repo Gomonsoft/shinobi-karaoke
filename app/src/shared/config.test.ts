@@ -39,7 +39,8 @@ describe('configSchema (lectura tolerante)', () => {
           lista: { ancho: 300, minimizado: false },
           panel: { ancho: 360, minimizado: false },
           linea_tiempo: { alto: null, minimizado: false }
-        }
+        },
+        omitir_aviso_letra_lista: false
       },
       biblioteca: { agrupar: 'ninguno' },
       aviso_youtube_aceptado: null,
