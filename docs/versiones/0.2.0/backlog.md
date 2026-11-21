@@ -248,6 +248,8 @@ Resumen: render por índice de fotograma en una ventana offscreen con el mismo `
 | [0239 · Progreso y resultado](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) | Hecha | 0238 | Estado de exportaciones, B–D, toasts y anuncios |
 | [0240 · Puntos de entrada](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) | Hecha | 0239 | Biblioteca, editor (Ctrl/Cmd + E), panel de actividad, eliminar y cierre |
 | [0241 · Integración, capturas e informe](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) | Pendiente | 0230–0240 | `exportacion.spec.ts` (≤ 3 pruebas), capturas opt-in, informe |
+| [0242 · Captura 4K en Linux](../../tareas/0242-captura-4k-en-linux-con-tamano-incorrecto.md) | Pendiente (solo si falla el paso 8.10 de la guía) | 0234, 0237 | Tamaño exacto de captura a 2160 líneas en Linux o perfiles marcados como no soportados |
+| [0243 · Registro de capturas sin asentar](../../tareas/0243-registro-de-capturas-sin-asentar.md) | Pendiente | 0235, 0237 | Recuento en `app.log` de fotogramas sin dos capturas iguales ([0127](../../preguntas/0127-captura-offscreen-con-cuadro-obsoleto.md)) |
 
 **Paralelismo.**
 
