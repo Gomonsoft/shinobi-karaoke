@@ -17,6 +17,7 @@ export type AccionAtajo =
         | 'rehacer'
         | 'probar'
         | 'atajos'
+        | 'exportar'
     }
   | { tipo: 'ajustar_inicio' | 'ajustar_fin' | 'desplazar' | 'buscar'; deltaMs: number }
   | { tipo: 'mover_seleccion'; sentido: -1 | 1 }
@@ -46,6 +47,7 @@ export function accionDeTecla(
 
   if (!e.altKey && control) {
     if (tecla === 'z') return { tipo: e.shiftKey ? 'rehacer' : 'deshacer' }
+    if (tecla === 'e' && !e.shiftKey) return { tipo: 'exportar' }
     if (tecla === 'y' && e.ctrlKey && !e.metaKey && !mac) return { tipo: 'rehacer' }
   }
 

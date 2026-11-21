@@ -1,7 +1,10 @@
 import { useRef } from 'react'
-import { ListPlus, Palette, Play, TriangleAlert } from 'lucide-react'
+import { Film, ListPlus, Palette, Play, TriangleAlert } from 'lucide-react'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
+import { useExportaciones } from '../../exportacion/contexto'
+import { EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
+import { lineaDeExportacion } from '../../exportacion/lineas'
 import { fondoCss } from '../../karaoke/estiloCss'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
@@ -139,9 +142,14 @@ export function TarjetaCancion({
   const raiz = useRef<HTMLElement>(null)
   const { estado, haySesion } = useSesion()
   const bloqueo = useAccionBloqueable()
+  const exportacion = useExportaciones()
+  const exportando = exportacion.activaDe(resumen.id)
+  const lineaExportacion = lineaDeExportacion(exportando)
   const esperaS = useCuentaAtras(vivo?.progreso ?? vivo?.trabajo.progreso, vivo?.trabajo.id)
   const d = datosDeTarjeta(resumen, vivo ? { ...vivo, esperaS } : vivo)
   const lista = resumen.estado === 'lista' && !resumen.danada
+  // En un borrador sin otro trabajo activo, la línea de exportación sustituye a «Falta…».
+  const lineaPaso = lineaExportacion && resumen.estado !== 'lista' && !vivo ? null : d.linea
   const duracion = formatearDuracion(resumen.duracionMs)
   const id = resumen.id
   const tema = temaDeTarjeta(resumen)
@@ -224,6 +232,19 @@ export function TarjetaCancion({
       alSeleccionar: () => acciones.editarDatos(id)
     })
   }
+  // Fase 6: «Exportar video…» en las Listas; «Ver exportación» si esa canción se está exportando.
+  if (!resumen.danada && (lista || exportando)) {
+    items.push({
+      id: 'exportar',
+      etiqueta: exportando ? EXP_MENU.ver : EXP_MENU.exportar,
+      icono: Film,
+      alSeleccionar: () =>
+        exportacion.abrir({
+          cancionId: id,
+          ...(exportando ? { trabajoId: exportando.trabajoId } : null)
+        })
+    })
+  }
   if (!resumen.danada && acciones.aplicarTema) {
     items.push({
       id: 'aplicarTema',
@@ -257,6 +278,13 @@ export function TarjetaCancion({
     etiqueta: 'Mostrar en la carpeta',
     alSeleccionar: () => acciones.mostrarEnCarpeta(id)
   })
+  if (exportando) {
+    items.push({
+      id: 'cancelar-exportacion',
+      etiqueta: EXP_MENU.cancelar,
+      alSeleccionar: () => exportacion.pedirCancelar(exportando.trabajoId)
+    })
+  }
   items.push({
     id: 'eliminar',
     etiqueta: 'Eliminar…',
@@ -275,7 +303,7 @@ export function TarjetaCancion({
       data-tarjeta={id}
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={activa ? 0 : -1}
-      aria-label={`${textoAriaTarjeta(resumen, d)}${lineaCola ? ` ${lineaCola.replace(/^▶ /, '')}.` : ''}${seleccion?.marcada ? ' Seleccionada.' : ''}`}
+      aria-label={`${textoAriaTarjeta(resumen, d)}${lineaExportacion ? ` ${lineaExportacion.texto}.` : ''}${lineaCola ? ` ${lineaCola.replace(/^▶ /, '')}.` : ''}${seleccion?.marcada ? ' Seleccionada.' : ''}`}
       data-seleccionada={seleccion?.marcada || undefined}
       onFocus={(e) => {
         if (e.target === e.currentTarget) alEnfocar(id)
@@ -367,7 +395,8 @@ export function TarjetaCancion({
             />
           )}
         </div>
-        {d.linea && <LineaPaso linea={d.linea} />}
+        {lineaPaso && <LineaPaso linea={lineaPaso} />}
+        {lineaExportacion && <LineaPaso linea={lineaExportacion} />}
         {d.accion && !seleccion && (
           <div className={estilos.accion}>
             <Boton

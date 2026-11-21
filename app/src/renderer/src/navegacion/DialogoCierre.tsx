@@ -9,6 +9,8 @@ import { cuerpoCierre, TEXTO_CIERRE, textosSalirConSesion } from './textosCierre
 interface Datos {
   n: number
   titulos: string[]
+  /** Canciones que se están exportando o esperan en cola (`exp.cierre.item`). */
+  exportando: string[]
   motivo: Pick<SolicitudCierreIpc, 'sesion' | 'cola' | 'variante'>
 }
 
@@ -46,13 +48,21 @@ export function DialogoCierre({ vista }: Props) {
         } catch {
           // Sin lista no se puede nombrar nada, pero main ya sabe que hay algo en curso.
         }
-        if (trabajos.length === 0 && !motivo.sesion && !motivo.cola) {
+        let exportando: string[] = []
+        try {
+          exportando = ((await api.exportacion?.estado()) ?? [])
+            .filter((e) => e.estado !== 'terminada')
+            .map((e) => e.titulo)
+        } catch {
+          // Sin la lista de exportaciones se pregunta igualmente si main sabe que hay algo.
+        }
+        if (trabajos.length === 0 && exportando.length === 0 && !motivo.sesion && !motivo.cola) {
           await vaciarAlCerrar()
           await api.app.confirmarCierre()
           return
         }
-        if (trabajos.length === 0) {
-          setDatos({ n: 0, titulos: [], motivo })
+        if (trabajos.length === 0 && exportando.length === 0) {
+          setDatos({ n: 0, titulos: [], exportando, motivo })
           return
         }
         const ids = [...new Set(trabajos.map((t) => t.cancionId))]
@@ -63,7 +73,7 @@ export function DialogoCierre({ vista }: Props) {
           // Se muestra el diálogo sin lista.
         }
         const titulos = ids.flatMap((id) => nombres.get(id) ?? [])
-        setDatos({ n: trabajos.length, titulos, motivo })
+        setDatos({ n: trabajos.length + exportando.length, titulos, exportando, motivo })
       })()
     })
   }, [])
@@ -91,7 +101,11 @@ export function DialogoCierre({ vista }: Props) {
       }
     >
       {datos && (
-        <p>{sesion ? sesion.cuerpo : cuerpoCierre(datos.n, datos.titulos, datos.motivo)}</p>
+        <p>
+          {sesion
+            ? sesion.cuerpo
+            : cuerpoCierre(datos.n, datos.titulos, datos.motivo, datos.exportando)}
+        </p>
       )}
     </Dialogo>
   )

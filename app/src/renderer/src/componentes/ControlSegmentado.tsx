@@ -24,6 +24,8 @@ interface ControlSegmentadoProps<T extends string> {
   opciones: OpcionSegmentada<T>[]
   valor: T
   onCambio: (valor: T) => void
+  /** `id` del texto que describe el grupo (`aria-describedby`). */
+  describedBy?: string
 }
 
 /**
@@ -35,7 +37,8 @@ export function ControlSegmentado<T extends string>({
   etiqueta,
   opciones,
   valor,
-  onCambio
+  onCambio,
+  describedBy
 }: ControlSegmentadoProps<T>) {
   const grupo = useRef<HTMLDivElement>(null)
   const idBase = useId()
@@ -71,6 +74,7 @@ export function ControlSegmentado<T extends string>({
       ref={grupo}
       role="radiogroup"
       aria-label={etiqueta}
+      aria-describedby={describedBy}
       className={estilos.segmentado}
       onKeyDown={alTeclear}
     >

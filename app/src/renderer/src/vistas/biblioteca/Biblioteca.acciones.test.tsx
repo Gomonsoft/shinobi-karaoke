@@ -204,6 +204,7 @@ describe('menú ⋯', () => {
       'Agregar al final',
       'Editar',
       'Editar datos',
+      'Exportar video…',
       'Aplicar tema…',
       'Volver a borrador',
       'Mostrar en la carpeta',

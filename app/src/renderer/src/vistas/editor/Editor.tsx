@@ -53,6 +53,7 @@ import {
 import { BotonLetraLista } from './BotonLetraLista'
 import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
 import { LL } from './textosLetraLista'
+import { useExportarDesdeEditor } from './useExportarDesdeEditor'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { seleccionDeDisco } from './aparienciaVista'
@@ -630,6 +631,15 @@ function EditorActivo({
   }, [edicion.actual, edicion.version, letra, apariencia, cambiarLetra, cambiarApariencia])
 
   const probarInactivo = edicion.sync.activo || Boolean(audio?.error)
+  const exportarVideo = useExportarDesdeEditor({
+    cancionId: id,
+    hayPistas: separacion.disponible,
+    lineasConInicio: cuentas.sincronizadas,
+    inactivo: probarInactivo,
+    temaBorrador: tema.borradorModificado,
+    pausar: () => motor?.pausar(),
+    vaciar
+  })
   const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
   useLayoutEffect(() => {
     // El vaciado puede esperar una escritura o el diálogo. Usa el editor del último render.
@@ -976,6 +986,9 @@ function EditorActivo({
         case 'probar':
           void abrirPrueba()
           break
+        case 'exportar':
+          exportarVideo.exportar()
+          break
         case 'entrar_sync':
           entrarSync()
           break
@@ -1081,6 +1094,7 @@ function EditorActivo({
             }}
             menu={[
               { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) },
+              exportarVideo.item,
               {
                 id: 'restablecer-distribucion',
                 etiqueta: E.layout.restablecer,
@@ -1514,6 +1528,7 @@ function EditorActivo({
           alCancelar={silencios.cancelar}
         />
       )}
+      {exportarVideo.dialogo}
       {dialogoBorrador && (
         <DialogoVolverABorradorEditor
           resumen={resumen}

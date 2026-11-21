@@ -7,6 +7,8 @@ import { Boton } from '../../componentes/Boton'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
+import { useExportaciones } from '../../exportacion/contexto'
+import { EXP_ELIMINAR_EXTRA } from '../../exportacion/dialogo/textosProgreso'
 import { useReproductor } from '../../navegacion/reproductor'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
@@ -144,6 +146,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
+  const exportacion = useExportaciones()
   const sesion = useSesion()
   const { edicionBloqueada, abrirBloqueo } = sesion
   const agregarACola = useAgregarACola()
@@ -811,6 +814,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       : pasoActivo === 'fuente'
         ? ' Se cancelará la descarga en curso.'
         : ''
+  const avisoExportacion =
+    dialogo && exportacion.activaDe(dialogo.id) ? ` ${EXP_ELIMINAR_EXTRA}` : ''
 
   return (
     <div className={estilos.conPanel}>
@@ -1027,7 +1032,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         {dialogo?.tipo === 'eliminar' && dialogoResumen && (
           <DialogoConfirmar
             titulo={`¿Eliminar «${tituloDeTarjeta(dialogoResumen)}»?`}
-            cuerpo={`Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí.${avisoTrabajo}${estaEnCola ? ` ${BIB_COLA.dialogoEliminar}` : ''}`}
+            cuerpo={`Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí.${avisoTrabajo}${avisoExportacion}${estaEnCola ? ` ${BIB_COLA.dialogoEliminar}` : ''}`}
             etiquetaConfirmar="Eliminar"
             destructivo
             alCancelar={() => setDialogo(null)}

@@ -1,3 +1,4 @@
+import { EXP_CIERRE } from '../exportacion/dialogo/textosProgreso'
 import { SES } from '../sesion/textos'
 
 /** Textos del diálogo de cierre con trabajos pendientes (docs/ux/04 §3: `cierre.*`). */
@@ -12,9 +13,14 @@ export const TEXTO_CIERRE = {
 export const MAX_TITULOS_CIERRE = 3
 
 /** «A», «B» y «C» · «A», «B», «C» y 2 más. */
-export function listaBreve(titulos: readonly string[]): string {
-  const citados = titulos.slice(0, MAX_TITULOS_CIERRE).map((t) => `«${t}»`)
-  const resto = titulos.length - citados.length
+export function listaBreve(
+  titulos: readonly string[],
+  /** Títulos de canciones que se están exportando (`exp.cierre.item`: «exportar «{título}»»). */
+  exportando: readonly string[] = []
+): string {
+  const items = [...titulos.map((t) => `«${t}»`), ...exportando.map(EXP_CIERRE.item)]
+  const citados = items.slice(0, MAX_TITULOS_CIERRE)
+  const resto = items.length - citados.length
   if (resto > 0) return `${citados.join(', ')} y ${resto} más`
   if (citados.length <= 1) return citados.join('')
   return `${citados.slice(0, -1).join(', ')} y ${citados[citados.length - 1]}`
@@ -24,11 +30,14 @@ export function listaBreve(titulos: readonly string[]): string {
 export function cuerpoCierre(
   n: number,
   titulos: readonly string[],
-  motivo?: { sesion: boolean; cola: boolean; variante: 'salir' | 'cerrarVentanaMac' }
+  motivo?: { sesion: boolean; cola: boolean; variante: 'salir' | 'cerrarVentanaMac' },
+  exportando: readonly string[] = []
 ): string {
   const hay = n === 1 ? 'Hay 1 trabajo' : `Hay ${n} trabajos`
-  const lista = titulos.length > 0 ? ` (${listaBreve(titulos)})` : ''
-  const base = `${hay} sin terminar${lista}. Si cierras ahora, se cancelarán y tendrás que repetirlos. Tu letra y tu estilo están guardados.`
+  const lista =
+    titulos.length + exportando.length > 0 ? ` (${listaBreve(titulos, exportando)})` : ''
+  const extraExp = exportando.length > 0 ? ` ${EXP_CIERRE.extra}` : ''
+  const base = `${hay} sin terminar${lista}. Si cierras ahora, se cancelarán y tendrás que repetirlos. Tu letra y tu estilo están guardados.${extraExp}`
   if (!motivo || !(motivo.sesion || motivo.cola)) return base
   // `ses.salir.extra`; en macOS la cola se conserva, así que solo se avisa del reproductor.
   return `${base} ${motivo.variante === 'salir' ? SES.salir.extra : SES.salir.extraMac}`
