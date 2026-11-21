@@ -5,6 +5,7 @@
 - Fase 7: [0138](../tareas/0138-readme-e-instalar-sin-version-publicada.md) prepara E0, [0137](../tareas/0137-workflow-probar-los-instaladores.md) cubre las comprobaciones automatizadas y [0139](../tareas/0139-prueba-manual-de-instalacion-y-capturas.md) cubre la prueba manual. La primera publicación (0142) queda pendiente. Esta spec sustituye al detalle de la Parte A de [01-primer-arranque.md](01-primer-arranque.md) y desarrolla sus criterios 13 y 17.
 - Decisiones que respeta: sin firma ([0001](../preguntas/0001-firma-de-codigo-instaladores.md)); macOS 14 o posterior solo con chip Apple ([0015](../preguntas/0015-macos-intel-sin-pytorch-y-macos-minimo.md), [0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md)); Mac Intel no compatible ([0016](../preguntas/0016-mac-intel-fuera-del-mvp.md)); sin web propia, README e `INSTALAR.md` ([0017](../preguntas/0017-textos-de-requisitos-macos-14-y-mac-intel.md), Seguimiento); modelo Rápido solo con consentimiento ([0019](../preguntas/0019-calidad-por-defecto-y-rapido-con-consentimiento.md)).
 - Preguntas respondidas por el arquitecto e incorporadas: [0040](../preguntas/0040-nombres-de-instaladores-y-enlaces-de-descarga.md), [0041](../preguntas/0041-gatekeeper-con-firma-ad-hoc.md), [0042](../preguntas/0042-appimage-fuse-y-sandbox-en-linux.md), [0043](../preguntas/0043-instalador-de-windows-y-datos-al-desinstalar.md) (ADR 0012). Lo que no se ha podido ejecutar sigue en la prueba manual (§5).
+- Publicación por *Release* ([ADR 0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md)): respondida [0141](../preguntas/0141-readme-y-notas-con-solo-versiones-preliminares.md). Añade el estado **E½ — Solo versiones preliminares** (§1.1b, aviso de §2), el aviso de versión preliminar de las notas (§3) y el límite del AppImage para la opción provisional A de 0045 (§2, Linux). Que las alfas sean públicas lo decide el usuario en [0140](../preguntas/0140-publicar-las-alfas-como-pre-release-publica.md).
 - Preguntas abiertas para el usuario: [0035](../preguntas/0035-repositorio-publico-y-primera-publicacion.md) (repositorio y primera versión), [0044](../preguntas/0044-control-inteligente-de-aplicaciones-en-windows.md) (Control inteligente de aplicaciones) y [0045](../preguntas/0045-appimage-sin-sandbox-en-ubuntu.md) (AppImage sin sandbox). [0036](../preguntas/0036-numero-de-version-y-politica-de-versiones.md) y [0037](../preguntas/0037-autoactualizacion-de-la-app.md) no cambian ningún texto de hoy.
 
 ## Objetivo
@@ -24,7 +25,8 @@ No hay web propia. Hay tres textos, todos en Markdown de GitHub. **Markdown no e
 | Estado | Cuándo | Qué se muestra |
 |--------|--------|----------------|
 | **E0 — Sin versión** | No hay ninguna *Release* publicada (**es el estado de la Fase 7**) | §1.1 en el README; aviso E0 al principio de `INSTALAR.md`. **Ningún enlace de descarga** |
-| **E1 — Con versión** | Existe al menos una *Release* pública con los instaladores aprobados para publicar | §1.2 en el README, sin aviso E0 y con los enlaces de los instaladores publicados |
+| **E½ — Solo versiones preliminares** | Hay al menos una *Release* **pública** marcada como *pre-release* (`vX.Y.Z-alpha.N`, `-beta.N`, `-rc.N`) y **ninguna estable**. Una *Release* en borrador no cuenta: mientras solo exista en borrador (0140, opción B) se sigue en E0 | §1.1b en el README: un solo enlace a la página de versiones, **ningún enlace a un archivo ni a una versión concreta**; aviso E½ al principio de `INSTALAR.md`. Notas con el aviso de §3. **No se toca en cada alfa** |
+| **E1 — Con versión** | Existe al menos una *Release* **estable** (sin sufijo) pública con los instaladores aprobados para publicar | §1.2 en el README, sin avisos E0 ni E½ y con los enlaces de los instaladores publicados. Las preliminares posteriores (p. ej. `v0.3.0-alpha.1`) no cambian el README: `/releases/latest` sigue llevando a la última estable, y las preliminares se ven en "Ver todas las versiones" |
 | **Guía provisional** | Queda algún ⟦P⟧ o ⟦R⟧ de este documento sin resolver | Aviso "guía provisional" al principio de `INSTALAR.md` |
 | Vacío / cargando | No aplican: son textos estáticos | — |
 | Error | No aplica a la página; los fallos del usuario se cubren en "¿Sigue sin abrirse?" | — |
@@ -53,6 +55,40 @@ Los Mac con procesador Intel no son compatibles por ahora. Tampoco los equipos c
 
 Si quieres saber cómo será la instalación, lee la [guía de instalación](INSTALAR.md).
 ```
+
+### §1.1b Estado E½ (solo versiones preliminares)
+
+Por qué así (0141): GitHub no considera "latest" a una *pre-release*, así que los enlaces `/releases/latest/download/…` de §1.2 darían 404. Los enlaces a una alfa concreta (`/releases/tag/…`, `/releases/download/v…/…`) habría que cambiarlos en cada publicación, y un enlace olvidado lleva a una alfa vieja sin que nadie lo note. La página `/releases` siempre funciona y muestra primero la más reciente. Como los nombres de los archivos no llevan versión (0040), el README puede decir qué archivo elegir sin tocarse nunca.
+
+```markdown
+## Descargar
+
+**Por ahora solo hay versiones preliminares.** Son versiones de prueba: ya se pueden instalar, pero pueden tener errores y cambiar antes de la primera versión estable.
+
+**Requisitos:** Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 4 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez
+
+Los Mac con procesador Intel no son compatibles por ahora. Tampoco los equipos con procesador ARM que usan Windows o Linux.
+
+**[Ir a la página de versiones](https://github.com/Gomonsoft/shinobi-karaoke/releases)**
+
+En la primera versión de la lista (la más reciente), abre **Assets** y descarga el archivo de tu sistema: ⟦P17⟧
+
+- **Windows 10 u 11 de 64 bits:** `Shinobi-Karaoke-Windows-x64.exe`
+- **Mac con chip Apple y macOS 14 o posterior:** `Shinobi-Karaoke-Mac-chip-Apple.dmg`
+- **Linux, si usas Ubuntu, Debian o Linux Mint:** `shinobi-karaoke-linux-x64.deb`
+- **Linux, otras distribuciones:** `Shinobi-Karaoke-Linux-x64.AppImage`
+
+**¿Qué Mac tengo?** Abre el menú Apple (la manzana de la esquina de la pantalla) → **Acerca de este Mac** (o **Acerca de esta Mac**). Si pone **Chip** (Apple M1, M2…), es compatible. Si pone **Procesador** (Intel…), todavía no.
+
+Los archivos **Source code** son el código fuente, no la app: no los necesitas para instalarla.
+
+Tu sistema puede avisarte la primera vez, porque la app no está firmada. Es normal: la [guía de instalación](INSTALAR.md) te explica paso a paso cómo continuar y qué se descarga al abrirla por primera vez.
+
+Descarga Shinobi Karaoke solo desde la página de versiones del proyecto.
+```
+
+- La lista de archivos sigue el orden fijo Windows, Mac, Linux, y la línea de Linux respeta 0045 (si el AppImage deja de publicarse, se quita su línea).
+- Paso de E0 a E½: en un commit posterior a la primera *Release* preliminar, una vez comprobado sin sesión que se ve en `/releases` (con 0140 = B, cuando el usuario la publique a mano). Paso de E½ a E1: con la primera versión estable (tarea 0142).
 
 ### §1.2 Estado E1 (con una versión publicada)
 
@@ -104,6 +140,9 @@ Hoy dice "Solo en el primer arranque (descarga ~1–2 GB)", lo que contradice a 
 ```markdown
 <!-- E0: se quita al publicar la primera versión -->
 > **Todavía no hay ninguna versión publicada**, así que aún no hay nada que descargar. Esta guía explica cómo será la instalación.
+
+<!-- E½: sustituye al aviso E0 con la primera versión preliminar pública; se quita con la primera versión estable -->
+> **Por ahora solo hay versiones preliminares.** Las encontrarás en la [página de versiones](https://github.com/Gomonsoft/shinobi-karaoke/releases), con la etiqueta **Pre-release**. Son versiones de prueba y pueden tener errores. Si ya tienes canciones, haz una copia antes de instalar otra versión: en la app, entra en **Ajustes → Abrir carpeta de datos** y copia la carpeta **biblioteca** a otro sitio. ⟦P17⟧
 
 <!-- PROVISIONAL: se quita cuando no quede ningún marcador por resolver -->
 > **Guía provisional.** Todavía no la hemos comprobado con los instaladores definitivos: algún paso o el nombre de algún botón puede ser distinto en tu equipo.
@@ -167,6 +206,8 @@ Solo hace falta la primera vez.
 ## Linux
 
 No hace falta saltar ningún aviso. Si usas Ubuntu, Debian o Linux Mint, elige el archivo `.deb`; en otras distribuciones, el AppImage. ⟦R0045⟧
+
+En Ubuntu 24.04 o posterior, el AppImage puede abrirse con una capa de protección menos que el `.deb` (el aislamiento de seguridad del sistema). Por eso, en Ubuntu, Debian y Linux Mint te recomendamos el `.deb`. ⟦R0045⟧ ⟦P16⟧
 
 ### Archivo .deb
 
@@ -261,12 +302,27 @@ Para encontrarla, antes de desinstalar, abre la app y entra en **Ajustes → Abr
 
 ## §3. Notas de cada *Release*
 
-Al principio de las notas, antes de la lista de cambios:
+Orden de `notas.md` (0141): **aviso de versión preliminar** (solo si la versión lleva sufijo) → **cabecera** → notas de la versión (con "Sin probar en esta versión", tarea 0195) o las generadas por GitHub. El aviso va primero porque es lo que más cambia la decisión de instalar; GitHub muestra la etiqueta *Pre-release* en inglés y no todo el mundo la entiende.
+
+### Aviso de versión preliminar (`.github/publicacion/aviso-previa.md`)
 
 ```markdown
-**¿Qué archivo descargo?** Windows: `Shinobi-Karaoke-Windows-x64.exe` · Mac con chip Apple y macOS 14 o posterior: `Shinobi-Karaoke-Mac-chip-Apple.dmg` · Linux: `shinobi-karaoke-linux-x64.deb` (Ubuntu, Debian, Linux Mint) o `Shinobi-Karaoke-Linux-x64.AppImage` (otras distribuciones). ⟦R0045⟧
+> **Versión preliminar.** Es una versión de prueba: puede tener errores y algunas cosas cambiarán antes de la versión estable.
+>
+> Si ya tienes canciones en Shinobi Karaoke, haz una copia antes de instalarla: en la app, entra en **Ajustes → Abrir carpeta de datos** y copia la carpeta **biblioteca** a otro sitio.
+```
 
-Los Mac con procesador Intel no son compatibles por ahora.
+- No se nombra la alfa concreta ("alpha.2"): el título de la *Release* ya lleva la versión y el texto sirve igual para `alpha`, `beta` y `rc`.
+- Se pide copiar solo `biblioteca` (canciones autocontenidas, ADR 0006), no toda la carpeta de datos, que incluye varios GB del motor de audio.
+
+### Cabecera (`.github/publicacion/cabecera.md`)
+
+Texto final, sin marcadores. La línea de Linux corresponde a la opción provisional A de 0045 (se publican los dos archivos y se recomienda el `.deb` en Ubuntu, Debian y Linux Mint). Si 0045 se resuelve con B y el AppImage no se publica, la línea queda: "Linux: `shinobi-karaoke-linux-x64.deb` (Ubuntu, Debian, Linux Mint y derivadas)."
+
+```markdown
+**¿Qué archivo descargo?** Windows: `Shinobi-Karaoke-Windows-x64.exe` · Mac con chip Apple y macOS 14 o posterior: `Shinobi-Karaoke-Mac-chip-Apple.dmg` · Linux: `shinobi-karaoke-linux-x64.deb` (Ubuntu, Debian, Linux Mint) o `Shinobi-Karaoke-Linux-x64.AppImage` (otras distribuciones).
+
+Los Mac con procesador Intel no son compatibles por ahora. Los archivos **Source code** son el código fuente, no la app.
 
 La app no está firmada: tu sistema te avisará la primera vez. **[Lee la guía de instalación](https://github.com/Gomonsoft/shinobi-karaoke/blob/main/INSTALAR.md)** antes de abrirla.
 
@@ -281,7 +337,7 @@ Si quieres comprobar la descarga, las sumas de verificación están en `SHA256SU
 | Archivo de Mac | `Shinobi-Karaoke-Mac-chip-Apple.dmg` | Definitivo (0040) |
 | AppImage | `Shinobi-Karaoke-Linux-x64.AppImage` | Definitivo (0040); su publicación depende de ⟦R0045⟧ |
 | `.deb` | `shinobi-karaoke-linux-x64.deb`; paquete `shinobi-karaoke` | Definitivo (0040) |
-| `{ENLACE_WINDOWS}`, `{ENLACE_MAC}`, `{ENLACE_DEB}`, `{ENLACE_APPIMAGE}` | `https://github.com/Gomonsoft/shinobi-karaoke/releases/latest/download/` + el nombre del archivo, sin versión (0040) | ⟦R0035⟧ Solo existen en E1 |
+| `{ENLACE_WINDOWS}`, `{ENLACE_MAC}`, `{ENLACE_DEB}`, `{ENLACE_APPIMAGE}` | `https://github.com/Gomonsoft/shinobi-karaoke/releases/latest/download/` + el nombre del archivo, sin versión (0040) | ⟦R0035⟧ Solo existen en E1. `latest` excluye las *pre-releases* (ADR 0020 §2): en E½ darían 404 y no se usan |
 | Página de versiones e incidencias | `https://github.com/Gomonsoft/shinobi-karaoke/releases` y `/issues` | ⟦R0035⟧ El repositorio es privado y responde 404 sin sesión (arquitecto, 2026-11-06). **Hay que comprobar los enlaces sin sesión antes de publicar** |
 | Actualizar macOS | `https://support.apple.com/es-es/108382` | Comprobada el 2026-11-06 |
 | Control inteligente de aplicaciones | `https://support.microsoft.com/es-es/windows/control-de-aplicaciones-inteligente-preguntas-frecuentes-285ea03d-fa88-4d56-882e-6698afdb7003` | Comprobada el 2026-11-06 |
@@ -313,7 +369,8 @@ Las páginas de Apple confirman que **los nombres cambian según el idioma** (Es
 | P13 | Instalador de un clic (sin preguntas ni administrador, accesos directos, abre la app al terminar), desinstalar y reinstalar en Windows | Sale de la configuración de electron-builder (0043); el instalador no se ha ejecutado. Rutas de desinstalación de Microsoft. Tareas 0137 y 0139 | Windows 10 y 11 |
 | P14 | "Ir" → "Ir a la carpeta…" | Sin comprobar en una fuente oficial | macOS |
 | P15 | Alerta "está dañada" con la firma *ad hoc* | Si aparece, comprobar el sello en el Mac de destino. **Si el sello es válido y la alerta no ofrece salida, se detiene la publicación en macOS y se eleva al usuario** (0041) | macOS 14, 15 y actual (0139) |
-| P16 | AppImage y `.deb` en Ubuntu 24.04 con la restricción de AppArmor; "Probado en Ubuntu 24.04"; errores de FUSE | Sale del código de las plantillas y de WSL2 sin AppArmor (0042). Sin ejecutar con la restricción. Si no se llega a probar, se quita "Probado en Ubuntu 24.04" | Ubuntu 24.04 (0137 y 0139) |
+| P16 | AppImage y `.deb` en Ubuntu 24.04 con la restricción de AppArmor; "Probado en Ubuntu 24.04"; errores de FUSE; si el AppImage arranca sin sandbox (frase del límite en la guía) | Sale del código de las plantillas y de WSL2 sin AppArmor (0042). Sin ejecutar con la restricción. Si no se llega a probar, se quita "Probado en Ubuntu 24.04". Si la 0137 demuestra que el AppImage conserva el sandbox, se quita la frase del límite | Ubuntu 24.04 (0137 y 0139) |
+| P17 | Rótulos de GitHub en la página de versiones: **Assets**, **Source code**, **Pre-release**; la versión más reciente aparece la primera y con sus archivos visibles | GitHub muestra su interfaz en inglés aunque el navegador esté en español. Solo se puede comprobar con la primera *Release* preliminar publicada, sin sesión | Navegador sin sesión, en escritorio y móvil (al pasar a E½) |
 
 La prueba manual de 0139 abarca P1–P16 según esta spec. Cada resultado se anota en las notas de la tarea 0139 (SO, versión, idioma y texto literal), y después se quitan las variantes que no aparezcan.
 
@@ -341,7 +398,7 @@ Se han consultado con una herramienta que resume las páginas, no con el texto �
 |----------|----------------|---------------------------------------|
 | ⟦R0035⟧ | Enlaces de descarga, de versiones y de incidencias; paso de E0 a E1 | Mientras el repositorio sea privado y no haya versión, se mantiene E0. Las incidencias de la guía tampoco funcionan para el público hasta entonces |
 | ⟦R0044⟧ | Entrada del Control inteligente de aplicaciones | Según la decisión del usuario |
-| ⟦R0045⟧ | Publicación y recomendación del AppImage. **No hay ningún texto sobre el sandbox del AppImage**: se redacta, si procede, con la respuesta del usuario y el resultado de la tarea 0137 | Con la opción B podría retirarse el AppImage en algunas distribuciones; con A o C, el diseñador añade el límite o el aviso |
+| ⟦R0045⟧ | Publicación y recomendación del AppImage, y la frase del límite en la sección Linux de la guía (redactada para la opción provisional A, 0141) | Con A se queda como está. Con B, si el AppImage no se publica, se quitan su línea en §1.1b, §1.2 y §3 (texto alternativo en §3) y la frase del límite; si se publica porque conserva el sandbox, solo se quita la frase. Con C, el diseñador añade el texto del aviso en la app |
 
 [0036](../preguntas/0036-numero-de-version-y-politica-de-versiones.md) (número de versión) no afecta a ningún texto, porque los archivos no llevan versión en el nombre. Si [0037](../preguntas/0037-autoactualizacion-de-la-app.md) (autoactualización) se decide distinto de lo provisional, habrá que añadir cómo se actualiza; hoy la guía no lo trata.
 
@@ -377,14 +434,14 @@ Las capturas se hacen **con el instalador real**, en la prueba manual. No se usa
 ## Criterios de aceptación
 
 1. Sin ninguna *Release* publicada, el README muestra §1.1: dice que aún no hay versión, incluye los requisitos y **no contiene ningún enlace de descarga**, ni `releases/latest`. `INSTALAR.md` lleva el aviso E0.
-2. Con una *Release* pública, el README muestra §1.2 sin el aviso E0. Cada enlace descarga su archivo en una sesión sin autenticar y usa el nombre exacto de §4. Antes de pasar a E1, se ajustan §1.2 y §3 si la decisión de publicación cambia los cuatro archivos previstos.
+2. Con una *Release* **estable** pública, el README muestra §1.2 sin los avisos E0 ni E½. Cada enlace descarga su archivo en una sesión sin autenticar y usa el nombre exacto de §4. Antes de pasar a E1, se ajustan §1.2 y §3 si la decisión de publicación cambia los cuatro archivos previstos.
 3. El enlace de macOS dice exactamente "Descargar para Mac con chip Apple". Justo debajo, y fuera de elementos plegables, están el requisito completo y "¿Qué Mac tengo?".
 4. La línea de requisitos y "Los Mac con procesador Intel no son compatibles por ahora." aparecen en el README y en `INSTALAR.md`, con el mismo texto en ambos.
 5. Linux ofrece el `.deb` para Ubuntu, Debian y Linux Mint, y el AppImage para el resto (salvo que 0045 decida otra cosa); la guía no incluye comandos de `libfuse2` ni `--no-sandbox`. Ni el README ni la guía usan scripts o insignias que intenten detectar el SO o el procesador.
 6. `INSTALAR.md` contiene, con estos encabezados: "¿Por qué mi equipo me avisa?", Windows, Mac con chip Apple, Linux, "Después de instalar", "¿Sigue sin abrirse?" y "Desinstalar". Todos los enlaces internos funcionan en la vista de GitHub.
 7. Los pasos de Mac distinguen macOS 14 de macOS 15 o posterior: la alternativa de clic derecho se indica "solo en macOS 14 Sonoma", y "¿Sigue sin abrirse?" incluye las dos entradas del criterio 17 de la spec 01. La entrada "no es compatible con este Mac" separa los dos casos: **Chip** (actualizar macOS, enlace de Apple) y **Procesador** Intel (no compatible). No atribuye a Intel el rechazo de un Mac con chip Apple.
 8. Ningún archivo público contiene marcadores ⟦…⟧, comentarios de estado ni `{…}` sin sustituir.
-9. El aviso "guía provisional" solo se quita cuando P1–P16 están comprobados y anotados (P9 puede quedar "sin probar" si no hay equipo), y 0044 y 0045 respondidas e incorporadas. E1 exige además la respuesta a 0035.
+9. El aviso "guía provisional" solo se quita cuando P1–P17 están comprobados y anotados (P9 puede quedar "sin probar" si no hay equipo), y 0044 y 0045 respondidas e incorporadas. E1 exige además la respuesta a 0035.
 10. Antes de la primera versión pública existen C-WIN, C-MAC y C-LIN, sin datos personales y con su texto alternativo; ya no queda ninguna línea "Captura pendiente" en los SO con captura.
 11. Ningún texto presenta el modelo Rápido como opción previa, ni recomienda desactivar SmartScreen, Gatekeeper o el sandbox, salvo que lo decida el usuario en 0044 o 0045.
 12. "Después de instalar" coincide con la Parte B de la spec 01 (nombres de botones, tiempo) y con el manifiesto vigente (rango de descarga, espacio).
@@ -392,3 +449,7 @@ Las capturas se hacen **con el instalador real**, en la prueba manual. No se usa
 14. La tabla "Requisitos del equipo" del README ya no dice "~1–2 GB" (§1.3).
 15. P13 comprueba en Windows que el instalador arranca sin pedir permisos de administrador, crea accesos en Inicio y en el escritorio y abre la app al terminar. En Windows y con el `.deb`, se comprueba que tras desinstalar y reinstalar siguen las canciones, se reutiliza el motor con el mismo manifiesto y B5 descarga solo lo necesario si cambia el motor.
 16. La guía remite al `.deb` o a incidencias si el AppImage no abre. «Probado en Ubuntu 24.04» solo aparece en §1.2 si P16 registra la prueba. La guía indica arrastrar la app a Aplicaciones y P15 registra la comprobación del sello si aparece «está dañada».
+17. **E½.** Con al menos una *pre-release* pública y ninguna estable, el README muestra §1.1b: no contiene `releases/latest`, ni `/releases/tag/`, ni `/releases/download/`, ni ningún número de versión; su único enlace de descarga lleva a `https://github.com/Gomonsoft/shinobi-karaoke/releases`, que responde sin sesión y muestra la *pre-release*. Los nombres de archivo coinciden con §4. Publicar otra alfa no requiere editar el README.
+18. **E½ en la guía.** `INSTALAR.md` lleva el aviso E½ en lugar del aviso E0; se quita con la primera versión estable. Una *Release* que siga en borrador no hace pasar a E½.
+19. **Notas.** Las notas de una versión con sufijo empiezan por el aviso de §3, exactamente con ese texto, seguido de la cabecera. Las de una versión estable empiezan por la cabecera y no contienen "Versión preliminar". La línea de Linux de la cabecera coincide con §3 y no lleva marcadores.
+20. **Límite del AppImage.** Con la opción A de 0045, la sección Linux de `INSTALAR.md` contiene la frase del límite y recomienda el `.deb` en Ubuntu, Debian y Linux Mint, sin dar ningún paso para desactivar el sandbox ni mencionar `--no-sandbox`.

@@ -128,8 +128,8 @@ npm run version:comprobar -- --etiqueta v0.2.0-alpha.1   # además, la etiqueta 
 2. Comprueba que están **exactamente** los 4 instaladores de `preguntas/0040` y verifica cada `SHA256SUMS-<so>.txt` con `sha256sum -c`.
 3. Une las sumas en **`SHA256SUMS.txt`** (formato de `sha256sum`, ordenado por nombre), el archivo que cita `ux/09` §3.
 4. Compone `notas.md`:
-   1. Cabecera: `.github/publicacion/cabecera.md`, con el texto de `ux/09` §3 **sin marcadores** ⟦…⟧ (texto definitivo: `preguntas/0141`).
-   2. Si es previa: `.github/publicacion/aviso-previa.md` (texto: `preguntas/0141`).
+   1. Si es previa: `.github/publicacion/aviso-previa.md` (texto: `preguntas/0141`). Va primero porque GitHub rotula «Pre-release» en inglés (respuesta a 0141).
+   2. Cabecera: `.github/publicacion/cabecera.md`, con el texto de `ux/09` §3 **sin marcadores** ⟦…⟧ (texto definitivo: `preguntas/0141`).
    3. Notas de la versión: `docs/versiones/<X.Y.Z>/notas/<versión>.md` si existe. Si no, se marca para que `publicar` añada las notas generadas por GitHub (`--generate-notes`, que parten de la *Release* anterior). En el ensayo se avisa en el resumen.
    4. La composición falla si queda algún marcador `⟦` o `{ENLACE_` en el resultado.
 5. Sube un artefacto `publicacion-<versión>` (instaladores, `SHA256SUMS.txt`, `notas.md`, `datos.json` con versión, etiqueta, previa y si faltan notas), con `retention-days: 14`, y escribe en `GITHUB_STEP_SUMMARY` la lista de recursos, sus tamaños y SHA-256, el tipo (previa o estable) y la cabecera de las notas. **En `workflow_dispatch` termina aquí**: es el ensayo.
