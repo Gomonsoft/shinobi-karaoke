@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
+import { constants as constantesOs, setPriority } from 'node:os'
 import { join, posix, win32 } from 'node:path'
+import type { Writable } from 'node:stream'
 import { parsearLineaWorker, type MensajeWorker } from '../../shared/protocolo'
 import { LectorLineas } from './lineas'
 import { ColaLineas, RegistroWorker } from './registro'
@@ -83,6 +85,12 @@ export interface OpcionesEjecucion {
   señal?: AbortSignal
   /** Variables de entorno extra solo para este proceso (0066: `SHINOBI_INTENTO`). */
   env?: Record<string, string>
+  /** `'tuberia'`: stdin del worker es una tubería y `alEntrada` recibe el `Writable` (0233). Por defecto, sin stdin. */
+  entrada?: 'tuberia'
+  /** Recibe el stdin del worker nada más lanzarlo (solo con `entrada: 'tuberia'`). */
+  alEntrada?: (stdin: Writable) => void
+  /** `'baja'`: prioridad por debajo de lo normal (se ignora si el SO la rechaza). */
+  prioridad?: 'baja'
 }
 
 export interface ConfigCliente {
@@ -140,7 +148,15 @@ export function crearClienteWorker(config: ConfigCliente) {
   function ejecutar(
     comando: string,
     args: Record<string, unknown>,
-    { alProgreso, alLog, señal, env: envExtra }: OpcionesEjecucion = {}
+    {
+      alProgreso,
+      alLog,
+      señal,
+      env: envExtra,
+      entrada,
+      alEntrada,
+      prioridad
+    }: OpcionesEjecucion = {}
   ): Promise<Record<string, unknown>> {
     return new Promise((resolver, rechazar) => {
       if (señal?.aborted) {
@@ -162,7 +178,7 @@ export function crearClienteWorker(config: ConfigCliente) {
             shell: false,
             detached: plataforma !== 'win32',
             windowsHide: true,
-            stdio: ['ignore', 'pipe', 'pipe'],
+            stdio: [entrada === 'tuberia' ? 'pipe' : 'ignore', 'pipe', 'pipe'],
             ...(lanzador.cwd ? { cwd: lanzador.cwd } : {}),
             env: {
               ...process.env,
@@ -176,6 +192,19 @@ export function crearClienteWorker(config: ConfigCliente) {
       } catch (e) {
         rechazar(error('RUNTIME_NO_DISPONIBLE', `No se pudo lanzar el worker: ${String(e)}`))
         return
+      }
+
+      if (prioridad === 'baja' && hijo.pid !== undefined) {
+        try {
+          setPriority(hijo.pid, constantesOs.priority.PRIORITY_BELOW_NORMAL)
+        } catch {
+          // el SO lo rechaza: se sigue con la prioridad normal
+        }
+      }
+      if (entrada === 'tuberia' && hijo.stdin) {
+        // Si el worker muere con la tubería abierta, escribir daría EPIPE: se absorbe (lo cuenta `close`).
+        hijo.stdin.on('error', () => undefined)
+        alEntrada?.(hijo.stdin)
       }
 
       let resultado: Record<string, unknown> | undefined

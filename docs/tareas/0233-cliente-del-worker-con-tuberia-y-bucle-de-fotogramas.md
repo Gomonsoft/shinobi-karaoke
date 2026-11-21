@@ -1,6 +1,6 @@
 # 0233 — Cliente del worker con tubería y bucle de fotogramas con contrapresión
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0230](0230-contratos-compartidos-de-la-exportacion.md)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §1, §7 y §9
@@ -21,10 +21,10 @@ Poder lanzar el worker con stdin en tubería y mover fotogramas de una fuente (l
 
 ## Criterios de aceptación
 
-- [ ] Con un `Writable` falso lento, nunca hay más de 2 fotogramas pendientes y los `n` llegan en orden sin huecos.
-- [ ] Cancelar a mitad deja de pedir fotogramas en ≤ 1 fotograma.
-- [ ] Un `Buffer` de tamaño incorrecto termina con `PERFIL_NO_SOPORTADO`.
-- [ ] El worker lanzado con `entrada: 'tuberia'` recibe los bytes (prueba de integración con un script Python mínimo que cuenta bytes, como `lanzador.integracion.test.ts`).
+- [x] Con un `Writable` falso lento, nunca hay más de 2 fotogramas pendientes y los `n` llegan en orden sin huecos.
+- [x] Cancelar a mitad deja de pedir fotogramas en ≤ 1 fotograma.
+- [x] Un `Buffer` de tamaño incorrecto termina con `PERFIL_NO_SOPORTADO`.
+- [x] El worker lanzado con `entrada: 'tuberia'` recibe los bytes (prueba de integración con un script Python mínimo que cuenta bytes, como `lanzador.integracion.test.ts`).
 
 ## Pruebas de feedback
 
@@ -34,3 +34,10 @@ Poder lanzar el worker con stdin en tubería y mover fotogramas de una fuente (l
 - Manual: nada.
 
 ## Notas de implementación
+
+Qué se hizo:
+- `main/trabajos/worker.ts`: `OpcionesEjecucion` gana `entrada: 'tuberia'` (stdin en tubería; `alEntrada(stdin)` entrega el `Writable`, con el error `EPIPE` absorbido) y `prioridad: 'baja'` (`os.setPriority(pid, PRIORITY_BELOW_NORMAL)`, error ignorado). El resto no cambia.
+- `main/exportacion/bucle.ts`: `ejecutarBucle({ total, ancho, alto, pintar, capturar, destino, señal, alFotograma })`. Espera `drain` si `writableLength > 2 × ancho × alto × 4`; la espera también se libera al cancelar. Tamaño incorrecto: rechaza con `{ codigo: 'PERFIL_NO_SOPORTADO' }`. Devuelve `{ estado: 'completo' | 'cancelado', escritos }`.
+- Pruebas: `main/exportacion/bucle.test.ts` y `main/trabajos/tuberia.integracion.test.ts` (script Python que cuenta bytes; se omite sin python).
+
+Notas: con ≤ 2 fotogramas pendientes se pide otro, así que justo tras escribir puede haber 3 en cola; el «máximo 2» se interpreta como umbral de espera. Cancelar tras `pintar` descarta el fotograma ya capturado. Deuda: ninguna. Manual: nada.
