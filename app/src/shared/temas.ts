@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ESTILO_PREDETERMINADO, estiloSchema, type Estilo } from './estilo'
+import { ESTILO_PREDETERMINADO, estiloSchema, normalizarEstilo, type Estilo } from './estilo'
 import {
   claveAlbum,
   claveAlbumTexto,
@@ -195,7 +195,9 @@ function canonico(valor: unknown): unknown {
 
 /** Igualdad campo a campo; el orden de las claves de los objetos es irrelevante. */
 export function estilosIguales(a: Estilo, b: Estilo): boolean {
-  return JSON.stringify(canonico(a)) === JSON.stringify(canonico(b))
+  return (
+    JSON.stringify(canonico(normalizarEstilo(a))) === JSON.stringify(canonico(normalizarEstilo(b)))
+  )
 }
 
 /**

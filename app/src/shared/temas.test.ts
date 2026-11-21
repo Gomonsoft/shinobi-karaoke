@@ -7,6 +7,7 @@ import {
   temaDePrueba
 } from './__fixtures__'
 import { ESTILO_PREDETERMINADO, estiloPredeterminado, type Estilo } from './estilo'
+import { ESPERA_LEGADA } from './espera'
 import { migrarCancion } from './migraciones'
 import {
   aparienciaSchema,
@@ -392,5 +393,11 @@ describe('estilosIguales', () => {
     const b = { letra: a.letra, version: a.version, fondo: a.fondo } as Estilo
     expect(estilosIguales(a, b)).toBe(true)
     expect(estilosIguales(a, color('#000000'))).toBe(false)
+  })
+  it('un estilo sin espera es igual al que lleva la espera legada explícita', () => {
+    const a = estiloPredeterminado()
+    const b = { ...estiloPredeterminado(), espera: { ...ESPERA_LEGADA } }
+    expect(estilosIguales(a, b)).toBe(true)
+    expect(estilosIguales(a, { ...b, espera: { ...ESPERA_LEGADA, cuenta: true } })).toBe(false)
   })
 })

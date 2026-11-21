@@ -1,6 +1,6 @@
 # 0200 — Esquema del estilo ampliado, espera y normalización
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: fase 4 integrada en `alpha-2`
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1 y §3, [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-5), [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md#revisión-para-020--fase-5)
@@ -50,3 +50,14 @@ Ampliar el esquema del estilo con campos **opcionales**, sin subir `estilo.versi
 - Manual: nada.
 
 ## Notas de implementación
+
+**Qué se hizo.** `shared/espera.ts` (esquema, `ESPERA_LEGADA`, `CUENTA_MS`, `UMBRAL_PRIMERA_ENTRADA_MS`); en `shared/estilo.ts`, los campos opcionales `forma`, `centro` y `movimiento` del degradado, `espera?` en el estilo, `PERIODO_MIN_S`/`PERIODO_MAX_S`/`AMPLITUD_ORBITA` y `normalizarEstilo` (pura, con `structuredClone`); `estilosIguales` compara estilos normalizados. `ESTILO_PREDETERMINADO` y las versiones no cambian.
+
+**Archivos.** `app/src/shared/{espera.ts,estilo.ts,temas.ts}`, `app/src/shared/__fixtures__/estilo-0.1.0.ts` y las pruebas `espera.test.ts`, `estilo.test.ts`, `temas.test.ts`.
+
+**Cómo probarlo.** `npm run test:cambios`; sin interfaz, nada manual.
+
+**Desviaciones y deuda.**
+
+- La etiqueta `v0.1.0` no existe en este clon. La copia congelada se tomó de `estilo.ts` tal como estaba, sin cambios desde la tarea 0006, y así consta en su comentario de procedencia.
+- `fondoSolido` pasa a `z.strictObject`: con un objeto normal Zod descartaría `movimiento` en silencio y el sólido no lo «rechazaría». Efecto: un sólido con claves desconocidas deja de validar (antes se descartaban). Si molestase, avisar al arquitecto.
