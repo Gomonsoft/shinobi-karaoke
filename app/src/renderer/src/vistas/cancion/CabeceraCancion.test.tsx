@@ -4,6 +4,7 @@ import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
 import { paso, resumenPrueba } from '../biblioteca/resumenPrueba'
 import { CabeceraCancion } from './CabeceraCancion'
+import { PASO_MOTIVO_SESION } from '../../sesion/textos'
 import { MOTIVOS, pasosDeCancion, pasosDeNueva } from './pasos'
 
 const trabajo = (extra: Partial<TrabajoIpc> = {}): TrabajoIpc => ({
@@ -357,5 +358,47 @@ describe('controles del editor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Más acciones del editor' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Atajos de teclado (F1)' }))
     expect(atajos).toHaveBeenCalledOnce()
+  })
+})
+
+describe('con sesión en otra ventana (fase 4)', () => {
+  const completo = resumenPrueba({
+    pasos: {
+      fuente: paso('completado'),
+      separacion: paso('completado'),
+      letra: paso('completado'),
+      edicion: paso('pendiente')
+    }
+  })
+
+  it('los pasos 3 y 4 navegables quedan bloqueados con `paso.motivo.sesion`', () => {
+    const [p1, p2, p3, p4] = pasosDeCancion(completo, 'progreso', {}, true)
+    expect(p1!.bloqueadoPorSesion).toBeUndefined()
+    expect(p2!.bloqueadoPorSesion).toBeUndefined()
+    for (const p of [p3!, p4!]) {
+      expect(p.bloqueadoPorSesion).toBe(true)
+      expect(p.motivo).toBe(PASO_MOTIVO_SESION)
+    }
+  })
+
+  it('un paso que ya no era navegable conserva su propio motivo', () => {
+    const sinLetra = resumenPrueba({
+      pasos: {
+        fuente: paso('completado'),
+        separacion: paso('completado'),
+        letra: paso('pendiente'),
+        edicion: paso('pendiente')
+      }
+    })
+    const [, , p3, p4] = pasosDeCancion(sinLetra, 'progreso', {}, true)
+    expect(p3!.bloqueadoPorSesion).toBe(true)
+    expect(p4!.bloqueadoPorSesion).toBeUndefined()
+    expect(p4!.motivo).toBe(MOTIVOS['paso.motivo.sinLetra'])
+  })
+
+  it('sin sesión no se bloquea nada', () => {
+    for (const p of pasosDeCancion(completo, 'progreso')) {
+      expect(p.bloqueadoPorSesion).toBeUndefined()
+    }
   })
 })

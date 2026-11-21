@@ -58,3 +58,7 @@ La Fase 1 crea el esqueleto del repositorio (`app/` Electron + `worker/` Python,
 - typescript-eslint: https://typescript-eslint.io/ · eslint-plugin-jsx-a11y: https://github.com/jsx-eslint/eslint-plugin-jsx-a11y
 - Lucide (ISC): https://lucide.dev/license
 - uv: https://docs.astral.sh/uv/ · ruff: https://docs.astral.sh/ruff/ · pytest: https://docs.pytest.org/
+
+## Revisión para 0.2.0 — niveles de pruebas (2026-11-20)
+
+Decisión del usuario: las pruebas que ejecutan los agentes son feedback, no regresión. Sin herramientas nuevas: Vitest (`--changed`) y Playwright (`--grep @critico`, `--only-changed`). Niveles, comandos y responsables en [`docs/pruebas.md`](../pruebas.md): críticos del flujo principal (`app/e2e/criticos/`), pruebas de la feature, regresión completa en el CI y guías manuales en [`docs/Test-manuales/`](../Test-manuales/README.md). Nuevos scripts: `test:cambios`, `test:e2e:criticos` y `test:e2e:cambios`.

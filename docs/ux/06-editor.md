@@ -5,7 +5,7 @@
 - Restricciones: [arquitectura.md §7 y "Restricciones e implicaciones para UX" §5–§6](../arquitectura.md)
 - Sistema visual: [sistema-visual.md §6–§10](sistema-visual.md) (componentes, foco, estilo predeterminado, reglas de contraste, valores fijos de render)
 - Preguntas: [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md) (usuario: **sincronía solo por línea** en el MVP), [0004](../preguntas/0004-fuentes-tipograficas-incluidas-y-del-sistema.md) (solo fuentes incluidas), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (pausas, fin automático, precisión del toque, lista incompleta), [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (stepper y volver a Letra), [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) (detalles técnicos de la Fase 5; respondida: pantalla completa en la Fase 6, desplazamiento ±30 s, el tono baja con la velocidad, un solo volumen, API de guardado), [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md) (letra recargada y regla de "color más claro"; respondida)
-- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca).
+- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca); 2026-11-11, bloqueo de edición durante la sesión en otra pantalla de la [fase 4 de 0.2.0](#fase-4-de-020--ventana-secundaria-y-cola).
 
 ## Objetivo
 Dejar la letra **a tiempo** con la música y darle un **estilo** propio con las opciones mínimas del MVP (fondo, color de letra, color de lo ya cantado, fuente), viendo el resultado en todo momento, y marcar la canción como **lista**.
@@ -1336,3 +1336,74 @@ Todos con el componente «Diálogo modal» de sistema-visual §6: atrapan el foc
 **Capturas de revisión**
 - T29. Se guardan en `docs/ux/revision-fase-3/` (ver su [README](revision-fase-3/README.md)) con el nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 720 al 100 % y al 125 %: `tema-definidos`, `tema-asignado`, `tema-personalizado`, `tema-editando`, `tema-no-disponible`, `tema-catalogo-vacio`, `dialogo-guardar-impacto` (con la lista revelada), `dialogo-guardar-obsoleto`, `dialogo-nuevo-nombre`, `dialogo-eliminar` y `dialogo-salir-borrador`.
 - T30. Sin regresiones de la subfase 2.1: los criterios 1–7, 13 y 20 de la subfase se mantienen con la pestaña Estilo en cada estado D1–D4.
+
+## Fase 4 de 0.2.0 — ventana secundaria y cola
+
+Origen: [plan, fase 4, feature 10](../versiones/0.2.0/plan-2.md#10-ventana-secundaria--l) y decisión del usuario en [0048](../preguntas/0048-escucha-editor-durante-evento.md): mientras el reproductor está abierto en otra ventana **no se edita**; se avisa en lugar de permitir edición silenciosa. Sesión, cola y ventana secundaria: [02 · Fase 4](02-biblioteca.md#fase-4-de-020--ventana-secundaria-y-cola) y [07 · Fase 4](07-reproductor.md#fase-4-de-020--ventana-secundaria-y-cola). Límites de la sesión en main: [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §9 (main rechaza con `EDICION_BLOQUEADA` y silencia la principal; la interfaz avisa antes de llamar). Respuesta de UX a los puntos de interfaz del arquitecto: [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md). Esta sección **amplía** la spec; sin sesión, el editor no cambia.
+
+### Alcance del bloqueo
+- **Cuándo**: durante toda la sesión, desde que se pulsa «Abrir reproductor» hasta que la secundaria se cierra por cualquier causa. Incluye **pausa**, **cuenta entre canciones**, **en espera**, **fin de la cola**, **fallo de una entrada** y el diálogo de cierre abierto. Se libera en el momento en que termina la sesión (cerrar con o sin conservar la cola, caída de la secundaria); una cola conservada **sin** sesión no bloquea nada.
+- **Qué se bloquea**: entrar en el **Editor** y en la vista **Letra** (las dos cambian el contenido de la canción; decisión del usuario en [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) §1 A; main también rechaza su guardado, ADR 0017 §9), y cualquier escucha de la ventana principal que competiría con la secundaria: «Escuchar Voz / Instrumental» de la vista de progreso (spec 04) queda `aria-disabled` con el tooltip `edi.bloqueo.escucha`. El reproductor local no se puede abrir (spec 02).
+- **Qué no se bloquea**: Biblioteca y cola, Añadir canción y la vista de progreso (sin la escucha), Editar datos, Aplicar tema y tema de grupo, Ajustes (incluida la gestión de temas). La entrada que suena conserva su aspecto; las pendientes usan el vigente al empezar (instantánea al consumir, ADR 0017 §5). Las reglas para eliminar o volver a borrador una canción en cola están en spec 02.
+
+### Puntos de entrada bloqueados
+Todos muestran el **mismo** diálogo `edi.bloqueo` y no navegan:
+
+| Desde | Elemento |
+|---|---|
+| Biblioteca | «Editar» del ⋯ de una Lista; «Continuar» de un borrador cuyo paso actual es Letra o Editor; clic en la portada o Intro de ese borrador |
+| Vista de progreso (spec 04) | «Buscar la letra mientras tanto», paso 3 y paso 4 del stepper |
+| Añadir canción (spec 03) | Pasos 3 y 4 del stepper (si fueran navegables) |
+| Toasts | «Abrir editor» del toast de separación terminada (spec 04) |
+| Panel de actividad | Cualquier acción que abriría Letra o Editor |
+
+Los elementos se pintan con `aria-disabled="true"` y un icono `lock` de 14 px junto al texto (o en el tooltip del paso), siguen enfocables y su nombre accesible añade `edi.bloqueo.aria`. En el stepper, el tooltip del paso es el motivo `paso.motivo.sesion` (spec 00 §2).
+
+### Diálogo de bloqueo
+```
+┌ No se puede editar mientras el reproductor está abierto en otra ventana ┐
+│ Puedes seguir usando la biblioteca y la cola. Cuando cierres el         │
+│ reproductor podrás editar de nuevo.                                     │
+│                                                                         │
+│                          [Cerrar el reproductor…]  [Entendido]          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+- Diálogo modal estándar (480 px). Título exactamente `edi.bloqueo.titulo`. Foco inicial y primario: «Entendido»; Esc = Entendido. Al cerrarse, el foco **vuelve al elemento que lo abrió**.
+- «Cerrar el reproductor…» (secundario) cierra este diálogo y sigue la vía normal de cierre de la sesión: con pendientes, el diálogo `ses.cierre` de spec 02 (si el usuario cancela, no se abre nada); sin pendientes, cierra al momento. **No** abre el editor después: el usuario repite la acción (así nunca se edita por accidente al terminar una sesión).
+- Si la sesión termina con el diálogo abierto, el diálogo sigue igual; «Entendido» lo cierra y la acción ya funciona.
+
+### Si el editor está abierto al iniciar la sesión
+La sesión **solo** se puede iniciar desde la Biblioteca (diálogo «Abrir el reproductor en otra pantalla», spec 02). Para llegar a ella desde el editor (‹ Biblioteca, logotipo, Esc o el indicador de sesión de la barra superior) se usa la **salida normal del editor** (§"Guardado, borrador y lista", fila «Salir del editor»), que resuelve todo antes de que la sesión pueda empezar:
+1. Si hay un borrador de tema sin guardar (D3), primero `tema.dialogo.salir` (fase 3).
+2. Si el modo «Sincronizar al ritmo» está activo, sale de él (lo marcado ya está guardado).
+3. Se pausa el audio del editor y se **vacía el guardado pendiente** sin esperar el *debounce*. Si falla, `edi.dialogo.salir` con [Quedarme en el editor] y [Salir sin guardarlos], como siempre.
+4. Se cierra el editor y su motor de audio se libera; el historial de deshacer se pierde como en cualquier salida.
+
+Por eso al abrir la secundaria nunca hay un editor montado: el orden del [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §9 (bloquear, vaciar, abrir; editor en solo lectura con su historial) no se usa en la interfaz, que no ofrece ningún inicio desde el editor. Si main aun así responde `GUARDADO_PENDIENTE` (un guardado que termina tarde), el diálogo de apertura muestra en línea `ses.error.guardando` (spec 02) y «Abrir reproductor» vuelve a estar disponible para reintentar. El reproductor local abierto encima del editor («Probar a pantalla completa») tampoco convive con una sesión: mientras está abierto no hay barra superior desde la que empezarla.
+
+### Estados
+| Estado | Presentación |
+|---|---|
+| Sesión activa, intento de entrar | Diálogo `edi.bloqueo`; no se navega. |
+| Sesión activa, vista de progreso | Sin cambios salvo la escucha (`aria-disabled`, `edi.bloqueo.escucha`) y los pasos 3–4 del stepper con candado. |
+| Sesión terminada | Todo vuelve a estar disponible al instante, sin aviso (el anuncio de cierre de la sesión ya lo dice). |
+
+### Microcopy (fase 4, editor)
+| Clave | Texto |
+|---|---|
+| `edi.bloqueo.titulo` | No se puede editar mientras el reproductor está abierto en otra ventana |
+| `edi.bloqueo.cuerpo` | Puedes seguir usando la biblioteca y la cola. Cuando cierres el reproductor podrás editar de nuevo. |
+| `edi.bloqueo.botones` | Cerrar el reproductor… · Entendido |
+| `edi.bloqueo.aria` | (se añade al nombre) , no disponible mientras el reproductor está abierto en otra ventana |
+| `edi.bloqueo.escucha` | No se puede escuchar mientras el reproductor está abierto en otra ventana. |
+| `paso.motivo.sesion` | No se puede editar mientras el reproductor está abierto en otra ventana |
+
+### Criterios de aceptación de la fase 4 (editor)
+- E1. Con una sesión abierta, «Editar», «Continuar» hacia Letra o Editor, la portada de ese borrador, «Buscar la letra mientras tanto», los pasos 3–4 del stepper y «Abrir editor» del toast muestran `edi.bloqueo` con el título exacto, no navegan y, al pulsar «Entendido» o Esc, devuelven el foco al elemento de origen.
+- E2. El bloqueo se mantiene con la secundaria en pausa, en la cuenta entre canciones, en espera, en el fin de la cola, en un fallo y con el diálogo de cierre abierto (una prueba por estado).
+- E3. Al cerrar la sesión (conservando la cola, eliminándola o por caída de la secundaria) la misma acción abre el editor sin reiniciar la app; con una cola conservada y sin sesión, el editor se abre normalmente.
+- E4. «Cerrar el reproductor…» del diálogo lleva a la confirmación de cierre si hay pendientes; al confirmar, la sesión termina y el editor **no** se abre solo.
+- E5. Con el editor abierto, un cambio sin guardar y un borrador de tema, pulsar el indicador de sesión o ‹ Biblioteca muestra primero `tema.dialogo.salir`, después vacía el guardado (el archivo contiene el cambio) y solo entonces se puede abrir el reproductor; con un fallo de guardado simulado aparece `edi.dialogo.salir`.
+- E6. Durante la sesión, la escucha de Voz / Instrumental de la vista de progreso está `aria-disabled` con `edi.bloqueo.escucha` y no suena nada en la principal.
+- E7. Los elementos bloqueados conservan el foco con teclado, llevan el icono de candado y su nombre accesible incluye `edi.bloqueo.aria`.
+- E8. Captura `docs/ux/revision-fase-4/editor-1280x800-100-dialogo-bloqueo.png`.

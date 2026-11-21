@@ -2,7 +2,7 @@
 
 - De: disenador-ux
 - Para: usuario
-- Estado: Abierta
+- Estado: Respondida
 - Bloquea: no
 
 ## Contexto
@@ -32,3 +32,7 @@ Si se elige C, D o E, cambia la regla «el cabezal sigue el audio sin seguimient
 A (manual), tal como dicen la spec vigente y el plan. La subfase 2.1 conserva este criterio: minimizar, expandir o redimensionar la línea de tiempo no mueve la vista.
 
 ## Respuesta
+
+C (respuesta del usuario en la sesión principal, 2026-11-09): seguimiento por páginas, como en los DAW. Al reproducir, cuando el cabezal llega cerca del borde derecho, la vista salta una página. Se suspende mientras se arrastra un tirador, se hace zoom o se panea, y durante 5 s después de mover la vista a mano. En el bucle de «Bloquear enunciado» no salta si la línea cabe en la vista. Sin conmutador.
+
+Pendiente: actualizar la spec del editor y crear la tarea de implementación.

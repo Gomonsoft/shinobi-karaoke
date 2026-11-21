@@ -31,7 +31,10 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "test:cambios": "vitest run --changed --passWithNoTests",
     "test:e2e": "npm run build && playwright test",
+    "test:e2e:criticos": "npm run build && playwright test --grep @critico",
+    "test:e2e:cambios": "npm run build && playwright test --only-changed --pass-with-no-tests",
     "test:paquete": "playwright test --config playwright.paquete.config.ts",
     "test:cobertura": "vitest run --coverage --coverage.include=src/shared/** --coverage.exclude=src/shared/**/*.test.ts --coverage.exclude=src/shared/__fixtures__/**"
   },

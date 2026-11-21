@@ -42,12 +42,14 @@ import {
   type SeleccionApariencia,
   type TemaIpc
 } from '../../shared'
+import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
 import { resueltaDeResolucion } from '../biblioteca/resumen'
 import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
+import type { ServicioSesion } from '../sesion/servicio'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -160,7 +162,42 @@ export interface VentanaIpc {
   suscribir(cb: (activa: boolean) => void): () => void
 }
 
+/** Subconjunto de `ServicioSesion` (0181) que usa la IPC; ausente, sus canales responden `ERROR_INTERNO`. */
+export type SesionIpc = Pick<
+  ServicioSesion,
+  | 'edicionBloqueada'
+  | 'cancionActiva'
+  | 'esSecundariaVigente'
+  | 'pantallas'
+  | 'estadoPrincipal'
+  | 'estadoDelRol'
+  | 'abrir'
+  | 'mostrar'
+  | 'moverAPantalla'
+  | 'fijarPantallaCompleta'
+  | 'estaEnPantallaCompleta'
+  | 'transporte'
+  | 'siguiente'
+  | 'empezar'
+  | 'detenerTransicion'
+  | 'repetir'
+  | 'forzarCierre'
+  | 'solicitarCierre'
+  | 'confirmarCierre'
+  | 'cancelarCierre'
+  | 'inicial'
+  | 'informar'
+  | 'agregar'
+  | 'mover'
+  | 'quitar'
+  | 'vaciar'
+>
+
 export interface DependenciasIpc {
+  /** Sesión en vivo y cola (ADR 0017). */
+  sesion?: SesionIpc
+  /** El editor tiene un guardado que termina tarde (`app.guardadoPendiente`). */
+  guardadoPendiente?(): boolean
   ventana?: VentanaIpc
   letras?: LetrasIpc
   /** Catálogo de temas (ADR 0016); ausente, los canales `temas.*` responden `ERROR_INTERNO`. */
@@ -225,7 +262,20 @@ export function aErrorIpc(e: unknown): ErrorIpc {
   return { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
 }
 
-export type ManejadorIpc = (args: unknown[]) => Promise<RespuestaIpc<unknown>>
+/** Quién llama: lo fija main a partir del registro de ventanas, nunca el renderer. */
+export interface ContextoIpc {
+  rol: RolVentana | null
+  /** `webContents` remitente (para comprobar que es el de la sesión vigente). */
+  sender: unknown
+}
+
+export type ManejadorIpc = (args: unknown[], ctx?: ContextoIpc) => Promise<RespuestaIpc<unknown>>
+
+const CONTEXTO_PRINCIPAL: ContextoIpc = { rol: 'principal', sender: null }
+
+/** Error con código estable para la IPC (`aErrorIpc` lo traduce). */
+const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
+  Object.assign(new Error(mensaje), { codigo })
 
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
 export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
@@ -240,12 +290,12 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.youtube
   }
 
-  const envolver =
+  const envolverCtx =
     <C extends CanalInvocable>(
       canal: C,
-      fn: (...args: z.output<(typeof CONTRATO)[C]['args']>) => unknown
+      fn: (ctx: ContextoIpc, ...args: z.output<(typeof CONTRATO)[C]['args']>) => unknown
     ): ManejadorIpc =>
-    async (crudos) => {
+    async (crudos, ctx = CONTEXTO_PRINCIPAL) => {
       const parseo = CONTRATO[canal].args.safeParse(crudos)
       if (!parseo.success) {
         return {
@@ -254,7 +304,7 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         }
       }
       try {
-        const valor = await fn(...(parseo.data as never))
+        const valor = await fn(ctx, ...(parseo.data as never))
         return { ok: true, valor }
       } catch (e) {
         const error = aErrorIpc(e)
@@ -262,6 +312,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         return { ok: false, error }
       }
     }
+
+  const envolver = <C extends CanalInvocable>(
+    canal: C,
+    fn: (...args: z.output<(typeof CONTRATO)[C]['args']>) => unknown
+  ): ManejadorIpc => envolverCtx(canal, (_ctx, ...args) => fn(...(args as never)))
 
   /** Sin servicio (hasta 0065) el canal falla con `ERROR_INTERNO`. */
   const separacion = (): SeparacionIpc => {
@@ -278,6 +333,34 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     if (!deps.temas) throw new Error('El servicio de temas no está disponible.')
     return deps.temas
   }
+
+  const sesion = (): SesionIpc => {
+    if (!deps.sesion) throw new Error('El servicio de sesión no está disponible.')
+    return deps.sesion
+  }
+
+  /** Defensa de ADR 0017 §9: durante la sesión no se edita la lista. */
+  const sinSesion = (): void => {
+    if (deps.sesion?.edicionBloqueada()) {
+      throw errorConCodigo(
+        'EDICION_BLOQUEADA',
+        'No se puede editar mientras el reproductor está abierto en otra ventana.'
+      )
+    }
+  }
+  /** La canción activa de la sesión no se elimina ni vuelve a borrador. */
+  const noActiva = (id: string): void => {
+    if (deps.sesion?.cancionActiva(id)) {
+      throw errorConCodigo('CANCION_EN_REPRODUCCION', 'La canción está en reproducción.')
+    }
+  }
+  /** Un `webContents` de otra sesión (ya cerrada) no puede actuar. */
+  const vigente = (ctx: ContextoIpc): void => {
+    if (ctx.rol === 'secundaria' && !sesion().esSecundariaVigente(ctx.sender)) {
+      throw errorConCodigo('SESION_NO_ACTIVA', 'No hay una sesión activa.')
+    }
+  }
+  const rolDe = (ctx: ContextoIpc): RolVentana => ctx.rol ?? 'principal'
 
   /** `obtener` con la apariencia resuelta con el catálogo vigente (ADR 0016 §9). */
   const cancionParaRenderer = (id: string): CancionIpc | null => {
@@ -309,34 +392,54 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       temas().descartarAvisoApartado()
     ),
     [CANALES.letras.buscar]: envolver(CANALES.letras.buscar, (p) => letras().buscar(p)),
-    [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) =>
-      resumenParaRenderer(await letras().guardar(p))
+    [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) => {
+      sinSesion()
+      return resumenParaRenderer(await letras().guardar(p))
+    }),
+    [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) => {
+      sinSesion()
+      return resumenParaRenderer(await letras().editarTexto(p))
+    }),
+    [CANALES.letras.guardarTiempos]: envolver(
+      CANALES.letras.guardarTiempos,
+      async (p, sesionId) => {
+        sinSesion()
+        return resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
+      }
     ),
-    [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) =>
-      resumenParaRenderer(await letras().editarTexto(p))
-    ),
-    [CANALES.letras.guardarTiempos]: envolver(CANALES.letras.guardarTiempos, async (p, sesionId) =>
-      resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
-    ),
-    [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) =>
-      letras().abrirEdicion(id)
-    ),
+    [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) => {
+      sinSesion()
+      return letras().abrirEdicion(id)
+    }),
     [CANALES.letras.cerrarEdicion]: envolver(CANALES.letras.cerrarEdicion, (id) =>
       letras().cerrarEdicion(id)
     ),
-    [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () =>
-      letras().leerArchivo()
-    ),
-    [CANALES.ventana.modoReproductor]: envolver(CANALES.ventana.modoReproductor, (activo) =>
-      deps.ventana?.modoReproductor(activo)
-    ),
-    [CANALES.ventana.fijarPantallaCompleta]: envolver(
+    [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () => {
+      sinSesion()
+      return letras().leerArchivo()
+    }),
+    [CANALES.ventana.modoReproductor]: envolver(CANALES.ventana.modoReproductor, (activo) => {
+      if (activo && deps.sesion?.edicionBloqueada()) {
+        throw errorConCodigo('SESION_EN_CURSO', 'Hay un reproductor abierto en otra ventana.')
+      }
+      return deps.ventana?.modoReproductor(activo)
+    }),
+    // Cada ventana actúa sobre la suya: la secundaria, sobre la de la sesión.
+    [CANALES.ventana.fijarPantallaCompleta]: envolverCtx(
       CANALES.ventana.fijarPantallaCompleta,
-      (activa) => deps.ventana?.fijarPantallaCompleta(activa)
+      (ctx, activa) => {
+        if (ctx.rol !== 'secundaria') return deps.ventana?.fijarPantallaCompleta(activa)
+        vigente(ctx)
+        return sesion().fijarPantallaCompleta(activa)
+      }
     ),
-    [CANALES.ventana.estaEnPantallaCompleta]: envolver(
+    [CANALES.ventana.estaEnPantallaCompleta]: envolverCtx(
       CANALES.ventana.estaEnPantallaCompleta,
-      () => deps.ventana?.estaEnPantallaCompleta() ?? false
+      (ctx) => {
+        if (ctx.rol !== 'secundaria') return deps.ventana?.estaEnPantallaCompleta() ?? false
+        vigente(ctx)
+        return sesion().estaEnPantallaCompleta()
+      }
     ),
     [CANALES.ventana.evitarReposo]: envolver(CANALES.ventana.evitarReposo, (activo) =>
       deps.ventana?.evitarReposo(activo)
@@ -360,20 +463,26 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.biblioteca.guardarApariencia]: envolver(
       CANALES.biblioteca.guardarApariencia,
-      async (id, seleccion) =>
-        resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
+      async (id, seleccion) => {
+        sinSesion()
+        return resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
+      }
     ),
-    [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) =>
-      resumenParaRenderer(await biblioteca.marcarLista(id))
+    [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) => {
+      sinSesion()
+      return resumenParaRenderer(await biblioteca.marcarLista(id))
+    }),
+    [CANALES.biblioteca.volverABorrador]: envolver(
+      CANALES.biblioteca.volverABorrador,
+      async (id) => {
+        noActiva(id)
+        return resumenParaRenderer(await biblioteca.volverABorrador(id))
+      }
     ),
-    [CANALES.biblioteca.volverABorrador]: envolver(CANALES.biblioteca.volverABorrador, async (id) =>
-      resumenParaRenderer(await biblioteca.volverABorrador(id))
-    ),
-    [CANALES.biblioteca.eliminar]: envolver(
-      CANALES.biblioteca.eliminar,
-      (id) =>
-        deps.picos?.duranteCambio(id, () => biblioteca.eliminar(id)) ?? biblioteca.eliminar(id)
-    ),
+    [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) => {
+      noActiva(id)
+      return deps.picos?.duranteCambio(id, () => biblioteca.eliminar(id)) ?? biblioteca.eliminar(id)
+    }),
     [CANALES.picos.solicitar]: envolver(
       CANALES.picos.solicitar,
       (id, reintentar) => deps.picos?.solicitar(id, reintentar) ?? { estado: 'no_disponible' }
@@ -460,6 +569,94 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.runtime.cancelarVolverACalidad]: envolver(CANALES.runtime.cancelarVolverACalidad, () =>
       runtime.cancelarVolverACalidad()
     ),
+    // --- Fase 4: pantallas, sesión y cola (ADR 0017 §11) ---
+    [CANALES.pantallas.listar]: envolver(CANALES.pantallas.listar, () => sesion().pantallas()),
+    [CANALES.sesion.estado]: envolver(CANALES.sesion.estado, () => sesion().estadoPrincipal()),
+    [CANALES.sesion.abrir]: envolver(CANALES.sesion.abrir, (peticion) => {
+      if (deps.guardadoPendiente?.()) {
+        throw errorConCodigo('GUARDADO_PENDIENTE', 'El editor todavía está guardando.')
+      }
+      return sesion().abrir(peticion)
+    }),
+    [CANALES.sesion.mostrar]: envolver(CANALES.sesion.mostrar, () => sesion().mostrar()),
+    [CANALES.sesion.moverAPantalla]: envolver(CANALES.sesion.moverAPantalla, (p) =>
+      sesion().moverAPantalla(p.pantallaId)
+    ),
+    [CANALES.sesion.fijarPantallaCompleta]: envolver(
+      CANALES.sesion.fijarPantallaCompleta,
+      (activa) => sesion().fijarPantallaCompleta(activa)
+    ),
+    [CANALES.sesion.transporte]: envolver(CANALES.sesion.transporte, (p) =>
+      sesion().transporte(p.accion, p.entradaId)
+    ),
+    [CANALES.sesion.siguiente]: envolverCtx(CANALES.sesion.siguiente, async (ctx, p) => {
+      vigente(ctx)
+      await sesion().siguiente(p.desdeEntradaId)
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.empezar]: envolverCtx(CANALES.sesion.empezar, async (ctx, p) => {
+      vigente(ctx)
+      await sesion().empezar(p.candidataId)
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.detenerTransicion]: envolverCtx(
+      CANALES.sesion.detenerTransicion,
+      async (ctx, p) => {
+        vigente(ctx)
+        await sesion().detenerTransicion(p.transicionId)
+        return sesion().estadoDelRol(rolDe(ctx))
+      }
+    ),
+    [CANALES.sesion.repetir]: envolverCtx(CANALES.sesion.repetir, async (ctx, p) => {
+      vigente(ctx)
+      await sesion().repetir(p.entradaId)
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.forzarCierre]: envolver(CANALES.sesion.forzarCierre, () =>
+      sesion().forzarCierre()
+    ),
+    [CANALES.sesion.solicitarCierre]: envolverCtx(CANALES.sesion.solicitarCierre, async (ctx) => {
+      vigente(ctx)
+      await sesion().solicitarCierre(rolDe(ctx))
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.confirmarCierre]: envolverCtx(
+      CANALES.sesion.confirmarCierre,
+      async (ctx, p) => {
+        vigente(ctx)
+        await sesion().confirmarCierre(p.cola, p.revision)
+      }
+    ),
+    [CANALES.sesion.cancelarCierre]: envolverCtx(CANALES.sesion.cancelarCierre, async (ctx) => {
+      vigente(ctx)
+      await sesion().cancelarCierre()
+    }),
+    [CANALES.sesion.inicial]: envolverCtx(CANALES.sesion.inicial, (ctx) =>
+      sesion().inicial(ctx.sender)
+    ),
+    // Un `webContents` ajeno (de otra sesión) recibe `{ aplicado: false }`, sin error.
+    [CANALES.sesion.informar]: envolverCtx(CANALES.sesion.informar, (ctx, informe) =>
+      sesion().informar(informe, ctx.sender)
+    ),
+    [CANALES.sesion.preferencias]: envolverCtx(CANALES.sesion.preferencias, (ctx) => {
+      vigente(ctx)
+      return config.obtener().reproductor
+    }),
+    [CANALES.sesion.guardarPreferencias]: envolverCtx(
+      CANALES.sesion.guardarPreferencias,
+      async (ctx, parcial) => {
+        vigente(ctx)
+        return (await config.actualizar({ reproductor: parcial })).reproductor
+      }
+    ),
+    [CANALES.cola.agregar]: envolver(CANALES.cola.agregar, (p) =>
+      sesion().agregar(p.cancionId, p.donde)
+    ),
+    [CANALES.cola.mover]: envolver(CANALES.cola.mover, (p) =>
+      sesion().mover(p.entradaId, p.antesDe)
+    ),
+    [CANALES.cola.quitar]: envolver(CANALES.cola.quitar, (p) => sesion().quitar(p.entradaId)),
+    [CANALES.cola.vaciar]: envolver(CANALES.cola.vaciar, (p) => sesion().vaciar(p.contexto)),
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),
@@ -477,10 +674,12 @@ export interface IpcMainLike {
 }
 
 export interface OpcionesRegistro {
-  /** Debe devolver true solo para los eventos que vienen de nuestra ventana. */
-  remitenteValido?: (evento: unknown) => boolean
-  /** Envía un evento a todos los renderers. */
-  difundir: (canal: string, carga: unknown) => void
+  /** Debe devolver true solo si el evento viene de una ventana con permiso en ese canal. */
+  remitenteValido?: (evento: unknown, canal: string) => boolean
+  /** Rol registrado del remitente (`RegistroVentanas.rolDe(evento.sender)`); sin él, `principal`. */
+  rolDe?: (evento: unknown) => RolVentana | null
+  /** Envía un evento a la ventana con ese rol (ADR 0017 §11); no hace nada si no existe. */
+  enviarA: (rol: RolVentana, canal: string, carga: unknown) => void
 }
 
 /** Registra los canales y reenvía los eventos de los servicios. Devuelve la función para deshacerlo. */
@@ -493,32 +692,45 @@ export function registrarIpc(
   const canales = Object.keys(manejadores) as CanalInvocable[]
   for (const canal of canales) {
     ipc.handle(canal, (evento, ...args) => {
-      if (opciones.remitenteValido && !opciones.remitenteValido(evento)) {
+      if (opciones.remitenteValido && !opciones.remitenteValido(evento, canal)) {
         return {
           ok: false,
           error: { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Origen no permitido.' }
         } satisfies RespuestaIpc<never>
       }
-      return manejadores[canal](args)
+      const contexto: ContextoIpc = {
+        rol: opciones.rolDe ? opciones.rolDe(evento) : 'principal',
+        sender: (evento as { sender?: unknown } | null)?.sender ?? null
+      }
+      return manejadores[canal](args, contexto)
     })
   }
+  // Los eventos de datos son de la principal; el servicio de sesión envía los suyos a cada rol.
+  const aPrincipal = (canal: string, carga: unknown): void =>
+    opciones.enviarA('principal', canal, carga)
   const bajaPantallaCompleta = deps.ventana?.suscribir((activa) =>
-    opciones.difundir(CANALES.eventos.pantallaCompleta, activa)
+    aPrincipal(CANALES.eventos.pantallaCompleta, activa)
   )
   const bajaCancion = deps.biblioteca.suscribir((e) =>
-    opciones.difundir(CANALES.eventos.cancion, eventoParaRenderer(e))
+    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e))
   )
-  const bajaConfig = deps.config.suscribir((c) => opciones.difundir(CANALES.eventos.config, c))
-  const bajaTrabajo = deps.trabajos.suscribir((t) => opciones.difundir(CANALES.eventos.trabajo, t))
+  // La secundaria solo recibe `config.reproductor`, y solo cuando cambia (ADR 0017 §11).
+  let reproductorPrevio = JSON.stringify(deps.config.obtener().reproductor)
+  const bajaConfig = deps.config.suscribir((c) => {
+    aPrincipal(CANALES.eventos.config, c)
+    const reproductor = JSON.stringify(c.reproductor)
+    if (reproductor === reproductorPrevio) return
+    reproductorPrevio = reproductor
+    opciones.enviarA('secundaria', CANALES.eventos.sesionPreferencias, c.reproductor)
+  })
+  const bajaTrabajo = deps.trabajos.suscribir((t) => aPrincipal(CANALES.eventos.trabajo, t))
   const bajaProgreso = deps.trabajos.suscribirProgreso((p) =>
-    opciones.difundir(CANALES.eventos.trabajoProgreso, p)
+    aPrincipal(CANALES.eventos.trabajoProgreso, p)
   )
   const bajaRtProgreso = deps.runtime.alProgreso((p) =>
-    opciones.difundir(CANALES.eventos.runtimeProgreso, p)
+    aPrincipal(CANALES.eventos.runtimeProgreso, p)
   )
-  const bajaRtCambio = deps.runtime.alCambiar((e) =>
-    opciones.difundir(CANALES.eventos.runtimeCambio, e)
-  )
+  const bajaRtCambio = deps.runtime.alCambiar((e) => aPrincipal(CANALES.eventos.runtimeCambio, e))
   return () => {
     bajaPantallaCompleta?.()
     bajaRtProgreso()

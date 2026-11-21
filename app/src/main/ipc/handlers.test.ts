@@ -192,7 +192,7 @@ describe('manejadores IPC', () => {
   it('valida argumentos y remitente del modo reproductor y difunde la pantalla completa', async () => {
     const { deps } = crearDeps()
     const manejadores = new Map<string, (e: unknown, ...a: unknown[]) => unknown>()
-    const difundir = vi.fn()
+    const enviarA = vi.fn()
     const modoReproductor = vi.fn()
     const baja = vi.fn()
     let emitir: ((activa: boolean) => void) | undefined
@@ -211,7 +211,7 @@ describe('manejadores IPC', () => {
           }
         }
       },
-      { remitenteValido: (e) => e === 'mio', difundir }
+      { remitenteValido: (e) => e === 'mio', enviarA }
     )
     const modo = manejadores.get(CANALES.ventana.modoReproductor)!
     for (const [origen, valor] of [
@@ -227,7 +227,7 @@ describe('manejadores IPC', () => {
     expect(await modo('mio', true)).toMatchObject({ ok: true })
     expect(modoReproductor).toHaveBeenCalledWith(true)
     emitir?.(true)
-    expect(difundir).toHaveBeenCalledWith(CANALES.eventos.pantallaCompleta, true)
+    expect(enviarA).toHaveBeenCalledWith('principal', CANALES.eventos.pantallaCompleta, true)
     desregistrar()
     expect(baja).toHaveBeenCalledOnce()
   })
@@ -595,7 +595,7 @@ describe('runtime y cierre (0036)', () => {
     registrarIpc(
       { handle: (c, f) => void manejadores.set(c, f), removeHandler: () => undefined },
       deps,
-      { remitenteValido: (e) => e === 'mio', difundir: vi.fn() }
+      { remitenteValido: (e) => e === 'mio', enviarA: vi.fn() }
     )
     for (const canal of [
       CANALES.runtime.instalar,
@@ -667,7 +667,7 @@ describe('registrarIpc', () => {
     registrarIpc(
       ipc,
       { ...deps, picos: { leer, solicitar, duranteCambio: (_id, cambiar) => cambiar() } },
-      { remitenteValido: (e) => e === 'mio', difundir: vi.fn() }
+      { remitenteValido: (e) => e === 'mio', enviarA: vi.fn() }
     )
     const pedir = manejadores.get(CANALES.picos.solicitar)!
     const ventana = manejadores.get(CANALES.picos.leer)!
@@ -704,11 +704,12 @@ describe('registrarIpc', () => {
       oyentesRtCambio
     } = crearDeps()
     const { ipc, manejadores } = ipcFalso()
-    const difundir = vi.fn()
+    const enviarA = vi.fn()
     const deshacer = registrarIpc(ipc, deps, {
       remitenteValido: (e) => e === 'mio',
-      difundir
+      enviarA
     })
+    // Cada canal del contrato tiene su manejador, también los de la fase 4.
     expect(manejadores.size).toBe(Object.keys(CONTRATO).length)
     expect(await manejadores.get(CANALES.sistema.info)?.('ajeno')).toMatchObject({ ok: false })
     expect(await manejadores.get(CANALES.sistema.info)?.('mio')).toMatchObject({ ok: true })
@@ -716,29 +717,34 @@ describe('registrarIpc', () => {
     oyentesCancion[0]?.({ id: 'abc', resumen: resumen('abc', '/abs/m.jpg') })
     oyentesCancion[0]?.({ id: 'abc', eliminada: true })
     oyentesConfig[0]?.(configPredeterminada())
-    expect(difundir).toHaveBeenNthCalledWith(1, CANALES.eventos.cancion, {
+    expect(enviarA).toHaveBeenNthCalledWith(1, 'principal', CANALES.eventos.cancion, {
       id: 'abc',
       resumen: expect.objectContaining({ miniatura: 'shinobi-media://abc/fuente/miniatura.jpg' })
     })
-    expect(difundir).toHaveBeenNthCalledWith(2, CANALES.eventos.cancion, {
+    expect(enviarA).toHaveBeenNthCalledWith(2, 'principal', CANALES.eventos.cancion, {
       id: 'abc',
       eliminada: true
     })
-    expect(difundir).toHaveBeenNthCalledWith(3, CANALES.eventos.config, expect.any(Object))
+    expect(enviarA).toHaveBeenNthCalledWith(
+      3,
+      'principal',
+      CANALES.eventos.config,
+      expect.any(Object)
+    )
     oyentesTrabajo[0]?.({ id: 't' })
     oyentesProgreso[0]?.({ id: 't', valor: 0.5 })
-    expect(difundir).toHaveBeenNthCalledWith(4, CANALES.eventos.trabajo, { id: 't' })
-    expect(difundir).toHaveBeenNthCalledWith(5, CANALES.eventos.trabajoProgreso, {
+    expect(enviarA).toHaveBeenNthCalledWith(4, 'principal', CANALES.eventos.trabajo, { id: 't' })
+    expect(enviarA).toHaveBeenNthCalledWith(5, 'principal', CANALES.eventos.trabajoProgreso, {
       id: 't',
       valor: 0.5
     })
 
     oyentesRtProgreso[0]?.({ porcentajeGlobal: 5 })
     oyentesRtCambio[0]?.(estadoRt)
-    expect(difundir).toHaveBeenNthCalledWith(6, CANALES.eventos.runtimeProgreso, {
+    expect(enviarA).toHaveBeenNthCalledWith(6, 'principal', CANALES.eventos.runtimeProgreso, {
       porcentajeGlobal: 5
     })
-    expect(difundir).toHaveBeenNthCalledWith(7, CANALES.eventos.runtimeCambio, estadoRt)
+    expect(enviarA).toHaveBeenNthCalledWith(7, 'principal', CANALES.eventos.runtimeCambio, estadoRt)
 
     deshacer()
     expect(manejadores.size).toBe(0)

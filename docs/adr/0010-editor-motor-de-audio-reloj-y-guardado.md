@@ -213,3 +213,19 @@ Temas en el panel Estilo ([ADR 0016](0016-catalogo-de-temas-e-identidad-de-artis
 - **Vista previa y «Probar a pantalla completa»**: pintan el estilo resuelto del resumen vivo de la canción, o el estilo de la edición en curso. Al abrir, ese estilo es `resuelta.estilo` de `biblioteca.obtener`. Después se actualiza con la respuesta de `guardarApariencia`, con `cancion:cambiada` y con `biblioteca.listar()` tras `temas:cambiado`. La procedencia y `alHeredar` («Volver a heredar») siguen el mismo camino (ADR 0016 §9). El reproductor conserva la instantánea tomada al abrir aunque el tema cambie durante la sesión.
 - «Usar este estilo en canciones nuevas» y «Restablecer estilo predeterminado» dejan de leer y escribir `config.estilo_predeterminado`. Su sustituto lo define la spec del editor.
 - La visita de letra (`sesionId`) no cambia: los cambios de apariencia no la invalidan, igual que los de estilo.
+
+## Revisión para 0.2.0 — fase 4
+
+Bloqueo del editor durante una sesión en la ventana secundaria ([0048](../preguntas/0048-escucha-editor-durante-evento.md)). Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §9.
+
+- **Autoridad en main.** Mientras dure la sesión, incluidas la pausa, la transición, la espera, el error y el fin de cola, main responde `EDICION_BLOQUEADA` a estos canales:
+  - `letras.abrirEdicion`;
+  - `letras.guardarTiempos`;
+  - `biblioteca.guardarApariencia`;
+  - `biblioteca.marcarLista`;
+  - `letras.guardar`, `letras.editarTexto` y `letras.leerArchivo` (vista Letra, [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) 1A).
+  
+  Una visita que siguiera abierta por un error se libera al aceptar la sesión. Las escrituras que ya estaban en cola antes del bloqueo conservan su turno (§2).
+- **Resolución del autoguardado al iniciar.** La sesión solo se inicia desde la Biblioteca (spec 06, [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)). La salida normal del editor (borrador de tema, `vaciar()`, `edi.dialogo.salir` si falla, `cerrarEdicion` y `liberarAudio`) ya resuelve el guardado antes. Main conserva la defensa: `sesion.abrir` responde `GUARDADO_PENDIENTE` si `app.guardadoPendiente` sigue activo.
+- **Sin editor en solo lectura.** Durante la sesión no hay editor montado. Al terminar, las acciones de entrada vuelven a funcionar sin recargar.
+- **Aviso.** Al intentar entrar en el editor o en Letra se muestra el diálogo `edi.bloqueo`: «No se puede editar mientras el reproductor está abierto en otra ventana». La vista Letra también se bloquea (spec 06).

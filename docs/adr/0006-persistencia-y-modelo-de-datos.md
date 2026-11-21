@@ -276,3 +276,28 @@ Temas y agrupación de la biblioteca. Fecha: 2026-11-09. Detalle, alternativas y
 - **Catálogo**: las asignaciones guardan también la grafía visible (`nombre_artista`, `nombre_album`) y el catálogo un campo `apartado` (fecha o `null`) para avisar una sola vez de un catálogo ilegible apartado.
 - **`config.biblioteca.agrupar`** (`"ninguno" | "artista" | "album"`, por defecto `"ninguno"`): preferencia global de la Biblioteca, con lectura tolerante (`.catch`) como `editor.paneles` y escrita con `config.actualizar`.
 - La regla general de esta revisión: un campo opcional con equivalencia por defecto no sube `esquema` de la canción. Un cambio que 0.1.0 no pueda leer, sí.
+
+## Revisión para 0.2.0 — fase 4
+
+Ventana secundaria y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §2, §8 y §12.
+
+- **La cola y la sesión no se persisten.** Viven en memoria de main mientras la app está abierta ([0049](../preguntas/0049-politica-cola-de-reproduccion.md)). No hay archivo nuevo ni migración. `cancion.json` no cambia.
+- **Campos nuevos en `config.reproductor`**. Tienen valores por defecto, así que `esquema` sigue en 1:
+
+```jsonc
+"reproductor": {
+  // … volumen, silenciado, voz_guia, voz_guia_silenciada (sin cambios)
+  "transicion_s": 4,                  // entero 1–30 (la spec 08 ofrece 2, 3, 4, 5, 8, 10, 15): cuenta entre canciones de la cola
+  "secundaria": {                     // última pantalla elegida para la ventana secundaria; null si no hay
+    "pantalla": { "id": 2779098405, "etiqueta": "DELL U2419H", "ancho": 1920, "alto": 1080 },
+    "pantalla_completa": true
+  }
+}
+```
+
+- **Lectura tolerante por campo**, como `editor.paneles`. Un valor ausente, de otro tipo o fuera de rango se sustituye por su valor por defecto (`4` o `null`) sin apartar `config.json`.
+- **Escritura**:
+  - `transicion_s` se escribe desde Ajustes con `config.actualizar`. `configParcialRendererSchema` admite enteros de 1 a 30 y rechaza los demás en el IPC;
+  - `secundaria` lo escribe solo main al abrir una sesión, así que no entra en el esquema parcial del renderer;
+  - la secundaria solo puede escribir `volumen`, `silenciado`, `voz_guia` y `voz_guia_silenciada`, con `sesion.guardarPreferencias`.
+- `pantalla.id` es el `Display.id` de Electron. Puede cambiar al reconectar el monitor, así que la etiqueta y el tamaño sirven de respaldo para reconocerla. Solo se usa para preseleccionar la pantalla y nunca abre la ventana sin una elección.

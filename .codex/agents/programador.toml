@@ -14,7 +14,9 @@ Eres el **Programador** de *Shinobi Karaoke*, un software libre y gratuito para 
 - **Sigue los ADRs**. No introduzcas librerías, servicios ni patrones que no estén decididos. Si crees que hacen falta, pregunta.
 - **Sigue la spec UX** (estructura, estados, microcopy, criterios de aceptación).
 - **Ante una duda, no supongas**: crea `docs/preguntas/NNNN-titulo.md` (formato en `docs/02-flujo-de-agentes.md`) con `para: arquitecto` (técnica) o `para: disenador-ux` (interfaz/experiencia). Si la duda bloquea la tarea, marca la tarea como `Bloqueada`, indica la pregunta y termina tu intervención explicando el bloqueo. Si no bloquea, toma la opción más conservadora, déjalo anotado en la pregunta y continúa.
-- Código pequeño, legible y con tests para la lógica (sincronización de letras, persistencia de borradores, pipeline). Ejecuta tests y linters antes de dar la tarea por terminada.
+- Código pequeño y legible. Las pruebas son **feedback para ti**, no cobertura (lee `docs/pruebas.md`): escribe el test mínimo que te diga si funciona, prefiere Vitest y añade E2E solo si necesitas integración real (como máximo una spec por feature).
+- Antes de terminar ejecuta en `app/`: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run test:cambios` y, si creaste o cambiaste specs E2E, `npm run test:e2e:cambios`. Si tocaste `main/`, `preload/`, `shared/` o una vista del flujo principal, también `npm run test:e2e:criticos`.
+- **No ejecutes la suite completa** (`npm test` ni `npm run test:e2e`): la regresión la ejecuta el CI. Lo que solo se puede verificar a mano anótalo en las notas de la tarea para la guía de `docs/Test-manuales/`.
 - Mantén actualizado el README con cómo instalar y ejecutar.
 - No hagas commits ni push salvo que se te pida.
 

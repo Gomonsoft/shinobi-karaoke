@@ -11,6 +11,21 @@
   display: contents;
 }
 
+/* ---------- Cabecera de la vista (fase 4) ---------- */
+.cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+}
+
+.cabeceraAcciones {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+
 /* ---------- Tarjeta ---------- */
 .tarjeta {
   display: flex;
@@ -504,4 +519,22 @@
 
 .simboloExito {
   color: var(--exito);
+}
+
+/* Línea de cola de la tarjeta (`bib.cola.sonando` / `bib.cola.enCola`). */
+.lineaCola {
+  margin: 0;
+  color: var(--texto-2);
+}
+
+/* Biblioteca con el panel de cola a la derecha (fase 4). */
+.conPanel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-5);
+}
+
+.principal {
+  flex: 1;
+  min-width: 0;
 }

@@ -7,6 +7,7 @@
 - Preguntas: [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) §8 y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) §4 (lista incompleta; respondidas); [0007](../preguntas/0007-textos-y-comportamientos-de-ui-no-definidos-fase-1.md) (textos de la Fase 1; respondida) y [0008](../preguntas/0008-ajustes-ui-tras-revision-fase-1.md) (cambios tras la revisión visual); [0020](../preguntas/0020-huecos-ux-de-la-separacion-fase-3.md) (estados de separación de la Fase 3; respondida)
 - Revisión visual de la Fase 1: [revision-fase-1/](revision-fase-1/README.md) (2026-11-04)
 - 0.2.0, fase 3 (2026-11-09): agrupación por artista y álbum, búsqueda en álbum, selección múltiple con «Aplicar tema…», tema de artista y álbum y línea de tema en la tarjeta. Ver [Fase 3 · Temas y biblioteca](#fase-3-de-020--temas-y-biblioteca).
+- 0.2.0, fase 4 (2026-11-11): abrir el reproductor en otra pantalla, panel «Cola de reproducción», controles de la sesión, cierre con cola y recuperación. Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola).
 
 ## Objetivo
 Ver de un vistazo todas las canciones y su estado, **reproducir una canción lista con un clic**, retomar un borrador justo donde se quedó y empezar una canción nueva.
@@ -477,3 +478,346 @@ Anatomía con la línea nueva:
 - B14. La portada de una canción de YouTube muestra la miniatura solo con `apariencia.neutra` (procedencia predeterminado, al azar, predeterminado anterior o estilo incluido, o personalizada de 0.1.0 con estilo igual al predeterminado), y deja de mostrarla al asignar un tema a la canción, a su álbum o a su artista. Quitar el predeterminado en Ajustes no cambia la portada de ninguna canción; la línea de tema de las que lo seguían pasa a «… · predeterminado anterior».
 - B15. Volver del reproductor conserva agrupación, grupos plegados, filtro, búsqueda, modo selección y desplazamiento, con el foco en la tarjeta.
 - B16. Capturas en `docs/ux/revision-fase-3/` (ver [README](revision-fase-3/README.md)), nombre `biblioteca-{ancho}x{alto}-{escala}-{estado}.png`, a 1280 × 800 al 100 % y 1280 × 720 al 125 %: `artista`, `album` (con homónimos), `sin-metadatos`, `busqueda-album`, `seleccion` (con «fuera de la vista»), `dialogo-aplicar-tema`, `resultado-lote` (con fallos), `dialogo-tema-grupo`, `foco-tras-mover`.
+
+## Fase 4 de 0.2.0 — ventana secundaria y cola
+
+Origen: [plan, fase 4, features 10 y 11](../versiones/0.2.0/plan-2.md#fase-4--reproducción-en-eventos), [0048](../preguntas/0048-escucha-editor-durante-evento.md), [0049](../preguntas/0049-politica-cola-de-reproduccion.md) y [ronda 4](../versiones/0.2.0/discusion/r4-disenador-ux.md). Conceptos (sesión, cola, entrada activa, pendientes, candidata, última reproducida) y todo lo que ve el público: [07 · Fase 4](07-reproductor.md#fase-4-de-020--ventana-secundaria-y-cola). Bloqueo de edición: [06 · Fase 4](06-editor.md#fase-4-de-020--ventana-secundaria-y-cola). Contratos: [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md). Respuesta a los puntos de interfaz del arquitecto: [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md). Conductas ante incidencias, decididas por el usuario en [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) (1B, 2A, 3B, 4A). Letra bloqueada y sin volumen ni voz guía en el panel: [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) (1A, 2A). Esta sección **amplía** la vista; lo no mencionado sigue igual.
+
+La ventana principal es el **puesto del operador**: desde aquí se abre el reproductor en otra pantalla, se prepara y ordena la cola y se opera la sesión (pausa, siguiente, reiniciar, detener la cuenta, cerrar). La secundaria solo muestra.
+
+**Sustituye**, solo mientras hay sesión: la acción principal «▶ Reproducir» de las tarjetas Lista, el botón redondo de la portada y la acción de la portada / Intro (ver «Tarjetas durante la sesión»). Sin sesión, «Reproducir» abre el reproductor local como siempre, aunque haya una cola preparada o conservada.
+
+### Vista con el panel de cola
+```
+≥ 1280 px
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│ ◆ Shinobi Karaoke        [▶ En otra pantalla] [⟳ 1 en curso]  [⚙]  [+ Añadir canción]       │ ← indicador de sesión
+├────────────────────────────────────────────────────────┬─────────────────────────────────┤
+│ Biblioteca              [▣ Abrir en otra pantalla…] [☰ Cola 3] │ Cola de reproducción   [Ocultar] │
+│ [Todas|Listas|Borradores] Agrupar por […]  [☑ Seleccionar] [🔍…]│ ● Pantalla 2 · DELL U2720Q       │
+│ ┌──────┐ ┌──────┐ ┌──────┐                              │   Pantalla completa              │
+│ │ card │ │ card │ │ card │                              │ ─────────────────────────────── │
+│ └──────┘ └──────┘ └──────┘                              │ (contenido del panel, P1–P6)    │
+│ …                                                      │                                 │
+└────────────────────────────────────────────────────────┴─────────────────────────────────┘
+```
+- **Panel** a la derecha de la rejilla, de alto completo bajo la barra superior, con scroll propio: 360 px (≥ 1280 px de ancho) o 320 px (< 1280). La rejilla se adapta (`auto-fill`): a 1024 px quedan 2 columnas. No hay divisor redimensionable.
+- **Cuándo se ve**: se abre solo al empezar una sesión, al añadir la primera entrada a una cola vacía y al volver con una cola conservada. [Ocultar] lo cierra (foco al botón «Cola»); [☰ Cola {n}] de la cabecera lo abre o cierra (`aria-expanded`, `aria-controls`). Se recuerda abierto/cerrado durante la sesión de la app, no entre reinicios.
+- **Cabecera de la vista**: «Abrir en otra pantalla…» (`ses.abrir`, secundario, icono `monitor-up`) y «Cola {n}» (`cola.boton`, fantasma, icono `list-music`; {n} = pendientes, sin cifra si 0) a la derecha del título «Biblioteca». Durante la sesión, «Abrir en otra pantalla…» desaparece (solo hay una secundaria). No aparecen en el estado vacío de la biblioteca.
+
+### Abrir el reproductor en otra pantalla
+Desde «Abrir en otra pantalla…» de la cabecera de la vista o del panel (P5, P6), desde [Volver a abrir] tras una caída y desde **«Reproducir en otra pantalla…»** del ⋯ de una canción Lista (solo sin sesión: esa canción empieza al momento y las pendientes siguen detrás). Son las **únicas** formas de empezar una sesión, y solo existen en la Biblioteca. Diálogo ancho (560 px):
+```
+┌ Abrir el reproductor en otra pantalla ──────────────────────────┐
+│ Pantalla                                                         │
+│ ◉ Pantalla 2 · DELL U2720Q · 3840 × 2160                         │
+│ ○ Pantalla 1 · Pantalla integrada · 1512 × 982                   │
+│     Principal · Aquí está esta ventana                           │
+│ [☑] Pantalla completa                                            │
+│                                                                  │
+│ ⓘ El sonido sale por la salida de audio de tu equipo, no por la  │
+│   pantalla elegida.                                              │
+│ Empezará con «La flaca» — Jarabe de Palo.                        │  ← `ses.empieza.*`
+│ Mientras el reproductor esté abierto no se podrán editar         │
+│ canciones.                                                       │
+│                                   [Cancelar] [Abrir reproductor] │
+└──────────────────────────────────────────────────────────────────┘
+```
+| Elemento | Comportamiento |
+|---|---|
+| Pantallas | Grupo de radio con todas las pantallas que da main, en el orden del sistema. Cada opción: «Pantalla {n} · {nombre} · {ancho} × {alto}» (resolución física; sin nombre del sistema, se omite) y, en la principal, la línea `ses.pantalla.principal`. Selección inicial: la última usada si está conectada; si no, la primera que **no** es la principal; con una sola pantalla, esa. La lista se actualiza en vivo si se conecta o desconecta una pantalla; si desaparece la elegida, se selecciona la inicial y se muestra `ses.pantalla.desaparecida` (`role="alert"`). |
+| Una sola pantalla | Se añade la nota `ses.unaPantalla` (`info`). «Pantalla completa» empieza desmarcada. |
+| Pantalla completa | Casilla, marcada por defecto salvo si la elegida es la principal. Se recuerda junto con la pantalla (`config.reproductor.secundaria`, ADR 0017 §2). Elegir la pantalla de la ventana principal muestra la nota `ses.completa.misma` (`info`), marcada o no la casilla; no se impide (sirve con un solo monitor y para probar). |
+| Linux con Wayland (`colocacion: 'sistema'`, [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md)) | El sistema decide dónde aparece la ventana: en lugar del grupo de radio se muestra `ses.wayland` (`info`) y la casilla «Pantalla completa» no aparece. «Abrir reproductor» abre la ventana en modo ventana. En el panel, el estado de la pantalla es `cola.pantalla.desconocida` y «Cambiar de pantalla…», «Mover a…» y «Llevar el reproductor allí» se sustituyen por `ses.wayland` como texto informativo. |
+| Audio | Nota fija `ses.audio`. No hay selector de dispositivo (mejora futura de prioridad baja, 0048). |
+| Empezará con | `ses.empieza.*` según la cola: vacía, con pendientes, con una última reproducida interrumpida o terminada (07 §"Reabrir con la cola conservada"). |
+| Abrir reproductor | Primario. Pasa a «Abriendo…» (cargando). Éxito: el diálogo se cierra, el foco va al panel de la cola (encabezado «En reproducción» o la acción principal del estado), el panel se abre y el indicador de sesión aparece. Fallo: el diálogo sigue abierto con la selección intacta y un banner `error` en línea: `ses.error.abrir` con [Reintentar] (también con `PANTALLA_NO_DISPONIBLE`, que además actualiza la lista), `ses.error.guardando` con `GUARDADO_PENDIENTE` y `ses.error.noDisponible` si la canción elegida ya no se puede reproducir (`CANCION_NO_DISPONIBLE`). Con `SESION_EN_CURSO` (otra apertura ganó la carrera) el diálogo se cierra y el panel muestra la sesión. |
+| Teclado | Foco inicial en la opción seleccionada; ↑/↓ cambian de pantalla; Esc = Cancelar. |
+
+### Contenido del panel
+
+**P1 — Sesión, reproduciendo**
+```
+│ Cola de reproducción                  [Ocultar] │
+│ ● Pantalla 2 · DELL U2720Q                      │  estado de la pantalla (t-pequeno)
+│   Pantalla completa                             │
+│ [⛶ Ver en una ventana] [⋯] [✕ Cerrar reproductor] │  ⋯ = Mostrar · Cambiar de pantalla…
+│ ─────────────────────────────────────────────── │
+│ EN REPRODUCCIÓN                                  │  h3
+│ ┌─────────────────────────────────────────────┐ │
+│ │ Bohemian Rhapsody                       [⋯] │ │  fondo-2
+│ │ Queen                                       │ │
+│ │ ⚠ Faltan 3 líneas por sincronizar           │ │  solo si incompleta
+│ │ 01:12 ━━━━━━●━━━━━━━━━━━━━━━━━━━━━━━ 05:55   │ │  progreso de solo lectura
+│ │ [❚❚ Pausa]  [⏭ Siguiente]  [↺ Reiniciar]     │ │
+│ └─────────────────────────────────────────────┘ │
+│ A CONTINUACIÓN (3)                    [Vaciar…] │  h3
+│ 1  ⠿  La flaca — Jarabe de Palo   4:31   [⋯]    │
+│ 2  ⠿  Despacito — Luis Fonsi      3:48   [⋯]    │
+│ 3  ⠿  Bohemian Rhapsody — Queen   5:55   [⋯]    │  repetida: entrada distinta
+```
+
+**P2 — Cuenta entre canciones**
+```
+│ EN REPRODUCCIÓN                                  │
+│ ┌─────────────────────────────────────────────┐ │
+│ │ Terminó «Bohemian Rhapsody»                 │ │
+│ │ Empieza en 3 s: «La flaca»                  │ │  t-cuerpo-fuerte; se actualiza cada segundo (no se anuncia cada segundo)
+│ │ [▶ Empezar ya]  [❚❚ Detener cuenta]          │ │
+│ └─────────────────────────────────────────────┘ │
+│ A CONTINUACIÓN (3)                               │
+│ 1  ⠿  La flaca — Jarabe de Palo  · Siguiente     │  la candidata lleva «Siguiente»
+```
+
+**P3 — Fallo de una entrada**
+```
+│ ┌─────────────────────────────────────────────┐ │
+│ │ ✕ No se puede reproducir «La flaca»          │ │  banner error, role="alert"
+│ │   Faltan sus pistas separadas.              │ │
+│ │   [Pasar a la siguiente canción] [Copiar detalles] │  sin pendientes: [Descartar]
+│ └─────────────────────────────────────────────┘ │
+```
+
+**P4 — En espera / fin de la cola**
+```
+│ ┌─────────────────────────────────────────────┐ │  │ ┌─────────────────────────────────────────────┐ │
+│ │ En espera                                   │ │  │ │ La cola terminó.                            │ │
+│ │ [▶ Iniciar «La flaca»]                       │ │  │ │ Si añades una canción, empezará tras la     │ │
+│ └─────────────────────────────────────────────┘ │  │ │ cuenta. O cierra el reproductor.            │ │
+│                                                 │  │ │ Última: Bohemian Rhapsody — Queen [↻ Otra vez] │
+│                                                 │  │ └─────────────────────────────────────────────┘ │
+```
+Sin candidata, en espera: `cola.espera.vacia` en lugar del botón. En **fin de la cola**, añadir una canción (tarjeta, ⋯ o toast) **empieza la cuenta** hacia ella ([0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) §3 B): el bloque pasa a P2 con [▶ Empezar ya] y [❚❚ Detener cuenta]. En **espera**, añadir no arranca nada: aparece [▶ Iniciar «{título}»].
+
+**P5 — Sin sesión, cola conservada**
+```
+│ Cola de reproducción                  [Ocultar] │
+│ Reproductor cerrado                             │
+│ [▣ Abrir en otra pantalla…]   [Eliminar cola…]  │
+│ ─────────────────────────────────────────────── │
+│ ÚLTIMA REPRODUCIDA                               │  (fila de contexto, seleccionada)
+│ Bohemian Rhapsody — Queen                       │
+│ Se detuvo en 02:13. Al abrir el reproductor,    │
+│ seguirá desde ahí.                              │
+│ A CONTINUACIÓN (2)                    [Vaciar…] │
+│ 1  ⠿  La flaca — Jarabe de Palo   4:31   [⋯]    │
+│ 2  ⠿  Despacito — Luis Fonsi      3:48   [⋯]    │
+```
+
+**P6 — Sin sesión, preparando la cola** (sin última reproducida): como P5 sin el bloque «Última reproducida»; con 0 pendientes, `cola.vacia.sinSesion`. «Eliminar cola…» solo aparece si hay algo que eliminar.
+
+### Componentes e interacciones del panel
+| Elemento | Comportamiento |
+|---|---|
+| Estado de la pantalla | `cola.pantalla` + `cola.modo` (pantalla completa / en una ventana). Punto `exito` + texto (el color no es la única señal). |
+| [⛶ Pantalla completa] / [⛶ Ver en una ventana] | Alterna la secundaria; el texto refleja el estado real (también si se cambia con F en la secundaria). |
+| ⋯ › Mostrar | `ses.mostrar`: trae la secundaria al frente (y la restaura si estaba minimizada). No le pasa el foco del teclado. |
+| ⋯ › Cambiar de pantalla… | En el ⋯ de la cabecera del panel (nombre `ses.menu`, «Más opciones del reproductor»). Abre el mismo diálogo de pantallas sin la parte de «Empezará con»; al aceptar, main mueve la ventana sin cortar el audio. |
+| [✕ Cerrar reproductor] | Termina la sesión: con pendientes, diálogo `ses.cierre`; sin pendientes, cierra al momento. |
+| Sin volumen ni voz guía | El panel no tiene volumen general ni nivel de voz guía (decisión del usuario en [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) §2 A): se ajustan en el propio reproductor (spec 07) o con el volumen del sistema. |
+| Progreso de la activa | Barra de 6 px **de solo lectura** (`role="progressbar"`, `aria-valuetext` «1 minuto 12 segundos de 5 minutos 55») y tiempos `t-tiempo`, actualizados al menos una vez por segundo. Para buscar se usa la secundaria. |
+| [❚❚ Pausa] / [▶ Reanudar] | Pausa o reanuda la secundaria. |
+| [⏭ Siguiente] | Interrumpe la activa y empieza la cuenta de la candidata (07 S1), como un fin natural; [▶ Empezar ya] la salta. Sin pendientes: `aria-disabled` con tooltip `cola.siguiente.no`. Sin confirmación; un doble clic produce un único avance (ADR 0017 §7). |
+| [↺ Reiniciar] | `cola.reiniciar`: vuelve al principio de la activa con título y silencio previo. |
+| ⋯ de la activa | «Agregar otra vez al final». |
+| [▶ Empezar ya] / [❚❚ Detener cuenta] | Durante la cuenta (P2). Detener → en espera (P4) con la misma candidata. |
+| [▶ Iniciar «{título}»] | En espera con candidata (P4; en fin de la cola no hace falta, porque añadir ya empieza la cuenta): empieza la candidata al momento, con su pantalla de título. Es la acción principal del panel en ese estado. |
+| [↻ Otra vez] | En fin de la cola sin candidata: vuelve a poner la última al frente («Reproducir a continuación») y la empieza. |
+| Fallo (P3) | Banner `error` con `cola.fallo.titulo` y la causa (`cola.causa.*`). [Pasar a la siguiente canción] descarta la entrada fallida y empieza la cuenta de la siguiente. Sin pendientes no aparece: se añade `cola.fallo.sinSiguiente` y el botón es [Descartar] (`cola.descartar`), que deja la sesión en espera sin candidata. [Copiar detalles] copia el código. Foco al botón primero al aparecer el fallo **solo si el foco estaba en el panel**; si no, se anuncia y el indicador de sesión pasa a «Requiere atención». |
+| Lista «A continuación» | `role="list"` con nombre `cola.pendientes`. Fila de 48 px: posición, asa ⠿, «título — artista», duración, ⋯. La candidata lleva la etiqueta `cola.etiqueta.siguiente` durante la cuenta y en espera. Una pendiente que ya se sabe que no se puede reproducir muestra debajo `cola.noDisponible` (icono ⚠ `aviso`) y sigue en su sitio hasta que se quite o llegue su turno (entonces, P3). Una canción Lista **incompleta** muestra `bib.lista.incompleta` debajo, como aviso informativo. |
+| ⋯ de una pendiente | «Reproducir a continuación» (no en la primera) · «Subir» (no en la primera) · «Bajar» (no en la última) · «Mover al final» (no en la última) · «Agregar otra vez al final» · separador · «Quitar de la cola». |
+| Reordenar con ratón | Arrastrar desde el asa ⠿ (cursor `grab`). Una línea de 2 px `acento-texto` marca el hueco de destino; la fila arrastrada queda semitransparente en su sitio. Al soltar, se mueve; Esc durante el arrastre cancela. Arrastrar cerca de los bordes del panel lo desplaza. Nunca se puede arrastrar la activa ni soltar por encima de ella. |
+| Reordenar con teclado | Con una fila enfocada: **Alt + ↑ / ↓** sube / baja una posición; **Alt + Inicio / Fin** la llevan al principio / al final. El foco sigue a la fila movida y se anuncia `cola.anuncio.movida`. Equivalentes en el ⋯. |
+| Navegación | La lista es una sola parada de tabulación (*roving tabindex*): ↑/↓ entre filas, Inicio/Fin; Tab siguiente va al ⋯ de la fila activa. Tecla Menú o Mayús + F10 abre el ⋯. **Supr** quita la fila. |
+| Quitar | Sin confirmación. Toast `cola.toast.quitada` con [Deshacer] (la vuelve a su posición si la cola no cambió entretanto; si cambió, al final). El foco pasa a la fila siguiente, si no a la anterior, si no al encabezado «A continuación» (`tabindex="-1"`). |
+| [Vaciar…] | Visible con ≥ 2 pendientes. Diálogo `cola.dialogo.vaciar` (foco en «Cancelar»). No interrumpe la activa. |
+| [Eliminar cola…] | Solo sin sesión (P5, P6). Diálogo `cola.dialogo.eliminar`: quita pendientes y última reproducida. |
+| Cambios hechos por otros | Si la secundaria avanza, una entrada se descarta o main recalcula la candidata, la lista se actualiza sin mover el foco; si desaparece la fila enfocada, rige la regla de «Quitar». |
+
+### Tarjetas y menú durante la sesión
+| Elemento | Sin sesión (con o sin cola) | Con sesión |
+|---|---|---|
+| Acción principal de una Lista | «▶ Reproducir» (reproductor local, como hoy) | **«A la cola»** (`bib.cola.boton`, icono `list-plus`) = «Agregar al final» |
+| Botón redondo de la portada, clic en la portada, Intro | Reproducir (local) | Agregar al final |
+| ⋯ de una Lista | Reproducir · **Reproducir en otra pantalla…** · **Reproducir a continuación** · **Agregar al final** · Editar · Editar datos · Aplicar tema… · Volver a borrador · Mostrar en la carpeta · Eliminar… | Reproducir a continuación · Agregar al final · Editar (bloqueado) · Editar datos · Aplicar tema… · Volver a borrador · Mostrar en la carpeta · Eliminar… (sin «Reproducir») |
+| ⋯ de un Borrador | Continuar · … (como hoy) | Igual; «Continuar» hacia Letra o Editor muestra el bloqueo (spec 06) |
+| Línea de cola en la tarjeta | Si está pendiente: `bib.cola.enCola` | Activa: `bib.cola.sonando`; pendiente: `bib.cola.enCola` |
+- Solo las canciones **Lista** (incluidas las incompletas) se pueden poner en cola. Borradores y Dañadas no ofrecen las opciones. Con la cola llena (500 pendientes, `COLA_LLENA`) se muestra el toast `cola.llena` y no se añade nada.
+- **Reproducir en otra pantalla…** abre el diálogo de pantallas con `ses.empieza` en su variante «con canción». Si había una última reproducida interrumpida, la variante lo dice (no se retomará).
+- **Reproducir a continuación** coloca la entrada **al frente de las pendientes** (nunca interrumpe la activa). **Agregar al final**, al final. Repetir una canción ya en cola crea otra entrada. Cada vez: toast `cola.toast.siguiente` / `cola.toast.final` con [Deshacer] (quita esa entrada); en espera sin candidata, el toast añade [▶ Iniciar ahora]; en fin de la cola, el toast usa la variante `cola.toast.cuenta` (la cuenta ya ha empezado). Se anuncia el toast como siempre (`aria-live`).
+- **Editar** (y «Continuar» hacia Letra o Editor, el toast «Abrir editor» de spec 04, el stepper hacia Letra o Editor) muestran el diálogo de bloqueo `edi.bloqueo` (spec 06). Se pintan con `aria-disabled="true"` y un icono `lock` 14 px; siguen enfocables.
+- Siguen disponibles durante la sesión: Añadir canción, Editar datos (la cola muestra el título nuevo), Aplicar tema y [Tema…] de grupo (la activa conserva su aspecto; las pendientes usan el nuevo al empezar), selección múltiple (ninguna canción queda excluida por la sesión; sustituye la nota de «Canciones no editables» de la fase 3), Mostrar en la carpeta y Ajustes.
+- **Eliminar…** y **Volver a borrador** de la canción de la **entrada activa**: `aria-disabled` con tooltip `bib.cola.activaBloqueada`. De una canción **pendiente**: permitidos, con una frase más en su diálogo (`bib.cola.dialogo.eliminar` / `bib.cola.dialogo.borrador`). Eliminar quita también sus entradas de la cola; Volver a borrador las deja marcadas `cola.noDisponible`.
+- El reproductor local (incluido el toast `bib.toast.lista` con [▶ Reproducir]) no se puede abrir durante la sesión: un solo transporte audible.
+
+### Indicador de sesión (barra superior)
+- Botón en la barra superior, a la izquierda del indicador de actividad, en todas las vistas que tienen barra superior. Visible con sesión o con una cola no vacía.
+- Textos (`ses.ind.*`) con icono: «▶ En otra pantalla» (`info`), «❚❚ En pausa», «Siguiente en {n} s», «En espera», «⚠ Requiere atención» (`aviso`: fallo, pantalla desconectada, cierre inesperado o sin respuesta), y sin sesión «Cola {n}». Nombre accesible `ses.ind.aria`.
+- Clic: lleva a la Biblioteca (desde otra vista, con la salida normal de esa vista), abre el panel y pone el foco en su primer control. Es el camino para operar la sesión desde Ajustes o desde una vista del espacio de canción.
+
+### Cerrar el reproductor
+**Con pendientes** — diálogo `ses.cierre` (480 px) en la ventana **donde se pidió el cierre** (07 §"Cerrar el reproductor con cola"); si fue en la secundaria, el panel de la principal muestra `ses.cierre.esperando` (`role="status"`) y sus controles de sesión quedan inactivos hasta que se responda:
+```
+┌ Hay canciones en cola ─────────────────────────────────────────┐
+│ Quedan 3 canciones pendientes. Si conservas la cola, podrás    │
+│ seguir donde lo dejaste al volver a abrir el reproductor. La   │
+│ cola se pierde al salir de Shinobi Karaoke.                     │
+│                                                                │
+│ [Cancelar] [Cerrar y eliminar cola] [Cerrar y conservar cola]  │
+└────────────────────────────────────────────────────────────────┘
+```
+- Foco inicial en «Cancelar»; Esc = Cancelar. «Cerrar y conservar cola» es el primario; «Cerrar y eliminar cola», destructivo.
+- Mientras está abierto, la canción sigue sonando y una cuenta en curso queda congelada en la secundaria. Si al confirmar main responde `CONFIRMACION_OBSOLETA` (la cola cambió entretanto, p. ej. terminó la canción), el diálogo actualiza el número de pendientes, muestra `ses.cierre.obsoleto` (`role="alert"`) y pide confirmar otra vez. Si al pedir el cierre ya no quedan pendientes, se cierra sin diálogo.
+- Tras conservar: panel en P5 con la última reproducida seleccionada como contexto y el foco en «Abrir en otra pantalla…»; anuncio `ses.anuncio.conservada`. Tras eliminar: panel cerrado, toast `ses.toast.eliminada`, foco en el botón «Cola». Sin pendientes: panel en P6 vacío o cerrado si no hay nada, foco en «Abrir en otra pantalla…».
+
+**Salir de la app con sesión o cola** — diálogo `ses.salir` desde la principal (cerrar la ventana, Ctrl/Cmd + Q, menú). Si además hay trabajos en curso, un solo diálogo: el de spec 04 (`cierre.*`) con la frase `ses.salir.extra` añadida. Foco en «Cancelar». Al confirmar, la secundaria se cierra sin el diálogo de cola. En macOS, cerrar la ventana principal **no** sale de la app: se usa la variante «macOS, cerrar ventana» (la secundaria se cierra y la cola se conserva, como en una caída); Cmd + Q usa la variante normal.
+
+### Recuperación (lado de la principal)
+Avisos en banner dentro del panel (bajo el estado de la pantalla), con el indicador en «⚠ Requiere atención»; si el panel está oculto, se abre sin mover el foco y se anuncia.
+
+| Situación | Banner | Acciones |
+|---|---|---|
+| Se desconecta la pantalla de la secundaria (sigue sonando, en ventana, en la pantalla primaria; decisión del usuario en 0059 §1) | `aviso` `ses.rec.monitor` | [Mover a…] (menú con las pantallas; mueve y restaura pantalla completa) |
+| Vuelve a estar conectada | `info` `ses.rec.vuelve` | [Llevar el reproductor allí] · ✕ |
+| La secundaria se cerró o se cayó | `error` `ses.rec.caida`; panel en P5 | [Volver a abrir] (abre el diálogo de pantallas con la última elegida) · ✕ |
+| La secundaria no responde | `aviso` `ses.rec.noResponde`; desaparece solo si vuelve a responder | [Esperar] (oculta el aviso; vuelve si sigue sin responder 10 s más) · [Cerrar y volver a abrir] (cierre forzado que conserva la cola como en una caída y abre el diálogo de pantallas) |
+| Linux con Wayland | Sin banner de pantalla: las acciones que moverían la ventana se sustituyen por `ses.wayland` como información | — |
+| La entrada conservada no se pudo reanudar | P3 dentro de la sesión recién abierta | [Pasar a la siguiente canción] / [Descartar] |
+| No se pudo abrir | En el diálogo, `ses.error.*` | [Reintentar] |
+
+Se usan banners en el panel y no toasts: el panel es el puesto del operador, los avisos no se apilan ni caducan y el indicador de la barra superior lleva hasta ellos desde cualquier vista.
+
+### Estados nuevos
+| Estado | Presentación |
+|---|---|
+| Sin sesión, sin cola | Como hoy, con «Abrir en otra pantalla…» y «Cola» (sin cifra). Panel cerrado. |
+| Sin sesión, cola preparada | P6; tarjetas con `bib.cola.enCola`; «Reproducir» local disponible. |
+| Abriendo | Diálogo con «Abriendo…». |
+| Sesión: reproduciendo / pausa / cuenta / espera / fin / fallo | P1–P4; indicador con su texto. |
+| Confirmando cierre en la secundaria | `ses.cierre.esperando` en el panel; controles de sesión inactivos. |
+| Sin sesión, cola conservada | P5. |
+| Biblioteca vacía | Sin «Abrir en otra pantalla…» ni «Cola» (nada que poner en cola). |
+
+### Accesibilidad
+- Panel `role="complementary"` con nombre `cola.titulo`; `h2` «Cola de reproducción», `h3` «En reproducción», «A continuación ({n})» y «Última reproducida».
+- Anuncios `aria-live="polite"` en hitos: sesión abierta y cerrada, entrada que empieza («Suena «{título}».»), inicio de la cuenta y cambio de candidata (los mismos textos de 07), en espera, fin de la cola, cola conservada, reanudación, movimientos y altas en la cola. Nunca cada segundo de la cuenta ni del progreso. Fallos y caídas, `role="alert"`.
+- Ninguna acción de la sesión tiene atajo de una sola tecla en la principal (evita pulsaciones accidentales durante un evento); todas son botones alcanzables con Tab.
+- Las filas tienen nombre `cola.aria.fila`; el asa es decorativa (`aria-hidden`) y el arrastre siempre tiene equivalente de teclado y de menú.
+- Foco: nunca queda en `body` cuando desaparece una fila, el bloque de la activa cambia de estado o se cierra el panel.
+
+### Microcopy (fase 4, biblioteca)
+| Clave | Texto |
+|---|---|
+| `ses.abrir` | Abrir en otra pantalla… (nombre accesible: Abrir el reproductor en otra pantalla…) |
+| `ses.dialogo.titulo` | Abrir el reproductor en otra pantalla |
+| `ses.dialogo.pantalla` | Pantalla |
+| `ses.pantalla.opcion` | Pantalla {n} · {nombre} · {ancho} × {alto} · (sin nombre) Pantalla {n} · {ancho} × {alto} |
+| `ses.pantalla.principal` | Principal · Aquí está esta ventana |
+| `ses.pantalla.desaparecida` | La pantalla que habías elegido se desconectó. Elige otra. |
+| `ses.unaPantalla` | Solo hay una pantalla conectada. El reproductor se abrirá en una ventana aparte; si conectas otra pantalla, aparecerá en esta lista. |
+| `ses.completa` | Pantalla completa |
+| `ses.completa.misma` | Cubrirá esta ventana. Para volver a ella usa Alt + Tab (Cmd + Tab en macOS), o pulsa F en el reproductor para verlo en una ventana. |
+| `ses.audio` | El sonido sale por la salida de audio de tu equipo, no por la pantalla elegida. |
+| `ses.empieza` | Empezará con «{título}» — {artista}. · (vacía) La cola está vacía. Añade canciones con «A la cola» y empieza cuando quieras. · (interrumpida) Seguirá «{título}» desde {mm:ss}. · (terminada) La última fue «{título}». Podrás empezar «{siguiente}» cuando quieras. · (terminada, sin pendientes) La última fue «{título}». La cola está vacía. · (con canción) Empezará con «{título}» — {artista}.[ Después seguirán las {n} canciones de la cola.][ «{interrumpida}» ya no seguirá desde {mm:ss}.] |
+| `ses.wayland` | En este escritorio el sistema decide dónde se abre el reproductor. Arrástralo a la pantalla del público y pulsa F para verlo a pantalla completa. |
+| `cola.pantalla.desconocida` | En otra ventana |
+| `ses.error.guardando` | Aún se están guardando cambios de una canción. Espera un momento y vuelve a intentarlo. — [Reintentar] |
+| `ses.error.noDisponible` | «{título}» ya no se puede reproducir. Elige otra canción. |
+| `bib.menu.otraPantalla` | Reproducir en otra pantalla… |
+| `ses.mover` | Mover a… (menú con las pantallas: Pantalla {n} · {nombre}) |
+| `ses.bloqueo.nota` | Mientras el reproductor esté abierto no se podrán editar canciones. |
+| `ses.boton.abrir` | Cancelar · Abrir reproductor · (cargando) Abriendo… |
+| `ses.error.abrir` | No se pudo abrir el reproductor en esa pantalla. Vuelve a intentarlo o elige otra. — [Reintentar] |
+| `ses.mostrar` | Mostrar |
+| `ses.menu` | Más opciones del reproductor |
+| `ses.cambiar` | Cambiar de pantalla… |
+| `ses.ventana` | Pantalla completa · Ver en una ventana |
+| `ses.cerrar` | Cerrar reproductor |
+| `ses.ind` | En otra pantalla · En pausa · Siguiente en {n} s · En espera · Requiere atención · (sin sesión) Cola {n} |
+| `ses.ind.aria` | Reproductor en otra pantalla: {estado}. Ir a la cola. · (sin sesión) Cola: {n} pendientes. Ir a la cola. |
+| `ses.cierre` | Título: Hay canciones en cola · Cuerpo: Quedan {n} canciones pendientes. Si conservas la cola, podrás seguir donde lo dejaste al volver a abrir el reproductor. La cola se pierde al salir de Shinobi Karaoke. · (n = 1) Queda 1 canción pendiente. … — [Cancelar] [Cerrar y eliminar cola] [Cerrar y conservar cola] |
+| `ses.cierre.esperando` | Esperando tu respuesta en la otra pantalla para cerrar el reproductor… |
+| `ses.cierre.obsoleto` | La cola cambió mientras confirmabas. Revisa cuántas canciones quedan y elige otra vez. |
+| `ses.anuncio.conservada` | Reproductor cerrado. La cola se ha conservado. |
+| `ses.toast.eliminada` | Reproductor cerrado. Cola eliminada. |
+| `ses.salir` | Título: ¿Salir de Shinobi Karaoke? · Cuerpo: El reproductor de la otra pantalla se cerrará y la cola se perderá. · (sin sesión, con cola) La cola se perderá. — [Cancelar] [Salir] · (macOS, cerrar ventana) Título: ¿Cerrar la ventana? · Cuerpo: El reproductor de la otra pantalla se cerrará. La cola se conservará mientras Shinobi Karaoke siga abierto. — [Cancelar] [Cerrar] |
+| `ses.salir.extra` | (se añade a `cierre.cuerpo`) El reproductor de la otra pantalla se cerrará y la cola se perderá. |
+| `ses.rec.monitor` | Se desconectó «{pantalla}». El reproductor sigue sonando en una ventana en «{pantalla nueva}». — [Mover a…] |
+| `ses.rec.vuelve` | «{pantalla}» vuelve a estar conectada. — [Llevar el reproductor allí] |
+| `ses.rec.caida` | El reproductor se cerró de forma inesperada. Se conservó la cola. · (con interrumpida) El reproductor se cerró de forma inesperada. Se conservó la cola y «{título}» seguirá desde {mm:ss}. — [Volver a abrir] |
+| `ses.rec.noResponde` | El reproductor no responde. Si lo cierras, la cola se conserva. — [Esperar] [Cerrar y volver a abrir] |
+| `cola.titulo` | Cola de reproducción |
+| `cola.boton` | Cola {n} · (0) Cola — nombre accesible: Mostrar la cola ({n} pendientes) · Ocultar la cola |
+| `cola.ocultar` | Ocultar |
+| `cola.pantalla` | {Pantalla n} · {nombre} |
+| `cola.modo` | Pantalla completa · En una ventana |
+| `cola.activa` | En reproducción |
+| `cola.pendientes` | A continuación ({n}) |
+| `cola.ultima` | Última reproducida |
+| `cola.ultima.interrumpida` | Se detuvo en {mm:ss}. Al abrir el reproductor, seguirá desde ahí. |
+| `cola.ultima.terminada` | Terminó. Al abrir el reproductor podrás empezar la siguiente. |
+| `cola.cerrado` | Reproductor cerrado |
+| `cola.pausa` | Pausa · Reanudar |
+| `cola.siguiente` | Siguiente |
+| `cola.siguiente.no` | No hay canciones a continuación. |
+| `cola.reiniciar` | Reiniciar canción |
+| `cola.otraVez` | Agregar otra vez al final |
+| `cola.termino` | Terminó «{título}» |
+| `cola.cuenta` | Empieza en {n} s: «{título}» |
+| `cola.empezarYa` | Empezar ya |
+| `cola.detener` | Detener cuenta |
+| `cola.espera` | En espera |
+| `cola.iniciar` | Iniciar «{título}» |
+| `cola.espera.vacia` | Añade una canción con «A la cola» para empezar. |
+| `cola.fin` | La cola terminó. Si añades una canción, empezará tras la cuenta. O cierra el reproductor. · Última: {título} — {artista} — [Otra vez] |
+| `cola.etiqueta.siguiente` | Siguiente |
+| `cola.fallo.titulo` | No se puede reproducir «{título}» |
+| `cola.causa` | (`no_encontrada`) Ya no está en la biblioteca. · (`no_lista`) Ya no está lista: volvió a borrador. · (`danada`, faltan pistas) Faltan sus pistas separadas. · (`danada`, no se puede leer `cancion.json`) No se puede abrir la canción. · (`lectura`, `decodificacion`) No se ha podido leer su audio. · (otro) Algo salió mal. |
+| `cola.fallo.sinSiguiente` | No hay más canciones en la cola. |
+| `cola.pasar` | Pasar a la siguiente canción |
+| `cola.descartar` | Descartar |
+| `cola.quitar` | Quitar de la cola |
+| `cola.llena` | La cola está llena. Quita alguna canción para añadir más. |
+| `cola.noDisponible` | ⚠ No disponible: {causa en minúscula} |
+| `cola.menu` | Reproducir a continuación · Subir · Bajar · Mover al final · Agregar otra vez al final · Quitar de la cola |
+| `cola.vaciar` | Vaciar… (nombre accesible: Vaciar las pendientes…) |
+| `cola.dialogo.vaciar` | Título: ¿Quitar las {n} canciones pendientes? · Cuerpo: La canción que suena no se interrumpe. — [Cancelar] [Quitar pendientes] |
+| `cola.eliminar` | Eliminar cola… |
+| `cola.dialogo.eliminar` | Título: ¿Eliminar la cola? · Cuerpo: Se quitarán las {n} canciones pendientes[ y ya no se podrá seguir «{título}» desde {mm:ss}]. — [Cancelar] [Eliminar cola] |
+| `cola.vacia` | No hay canciones pendientes. Usa «A la cola» en una canción lista para añadirla. |
+| `cola.vacia.sinSesion` | La cola está vacía. Puedes prepararla antes de abrir el reproductor: usa «Agregar al final» en el menú ⋯ de una canción lista. |
+| `cola.toast.final` | «{título}» se agregó al final de la cola (posición {p}). — [Deshacer] · (en espera sin candidata) — [▶ Iniciar ahora] [Deshacer] |
+| `cola.toast.siguiente` | «{título}» sonará a continuación. — [Deshacer] |
+| `cola.toast.cuenta` | (fin de la cola) «{título}» empieza en {n} s. — [Detener cuenta] |
+| `cola.toast.quitada` | «{título}» se quitó de la cola. — [Deshacer] |
+| `cola.anuncio.movida` | «{título}», posición {p} de {n}. |
+| `cola.anuncio.empieza` | Suena «{título}», de {artista}. |
+| `cola.aria.fila` | {p} de {n}: {título}, de {artista}, {duración}[, siguiente][, no disponible: {causa}] |
+| `bib.cola.boton` | A la cola — nombre accesible: Agregar «{título}» al final de la cola |
+| `bib.menu.cola` | Reproducir a continuación · Agregar al final |
+| `bib.cola.sonando` | ▶ Sonando en la otra pantalla |
+| `bib.cola.enCola` | En la cola |
+| `bib.cola.activaBloqueada` | Se está reproduciendo en la otra pantalla. |
+| `bib.cola.dialogo.eliminar` | (se añade al texto de eliminar) También se quitará de la cola. |
+| `bib.cola.dialogo.borrador` | (se añade al texto de volver a borrador) Está en la cola: no se podrá reproducir hasta que la marques como lista otra vez. |
+
+### Criterios de aceptación de la fase 4 (biblioteca)
+- S1. «Abrir en otra pantalla…» lista todas las pantallas con número, nombre (si lo hay), resolución y la marca «Principal · Aquí está esta ventana»; preselecciona la última usada o la primera no principal; con una sola pantalla muestra `ses.unaPantalla` y «Pantalla completa» desmarcada. Desconectar la pantalla elegida con el diálogo abierto cambia la selección y lo anuncia. La elección y la casilla se recuerdan al reiniciar.
+- S2. Si la secundaria no se puede abrir, el diálogo sigue abierto con la selección, muestra `ses.error.abrir` y [Reintentar] lo vuelve a intentar.
+- S3. Con la sesión abierta, el panel muestra P1 con la canción activa, progreso de solo lectura actualizado ≥ 1 vez por segundo y [Pausa] [Siguiente] [Reiniciar]; la secundaria responde a cada uno sin que la principal suene.
+- S4. «Reproducir a continuación» coloca la entrada en la posición 1 de pendientes y «Agregar al final» en la última, sin interrumpir la activa; la misma canción añadida dos veces aparece como dos filas; [Deshacer] del toast quita solo esa entrada.
+- S5. Reordenar por arrastre y por teclado (Alt + ↑/↓, Alt + Inicio/Fin) y desde el ⋯ produce el mismo orden, mantiene el foco en la fila movida, anuncia `cola.anuncio.movida` y no interrumpe la activa. Esc durante el arrastre lo cancela.
+- S6. Quitar una pendiente (⋯, Supr) la quita sin confirmación, deja el foco en la fila siguiente (o anterior, o el encabezado) y [Deshacer] la devuelve a su posición.
+- S7. Durante la cuenta, el panel muestra P2 con la candidata y el número sincronizado con la secundaria (± 1 s); «Detener cuenta» pasa a P4 y la secundaria a S2; «Empezar ya» la empieza al momento.
+- S8. En espera, añadir una canción no la empieza: aparece [▶ Iniciar «{título}»] en el panel y en el toast; pulsarlo la empieza con su pantalla de título. En fin de la cola, añadir una canción empieza la cuenta configurada: el panel pasa a P2 y el toast es `cola.toast.cuenta`; [Detener cuenta] (panel o toast) lleva a espera y [Empezar ya] la empieza al momento.
+- S9. Con una entrada fallida, P3 muestra el título y la causa correcta para cada caso (borrada, vuelta a borrador, sin pistas, audio ilegible); nada avanza hasta [Pasar a la siguiente canción] (que empieza la cuenta de la siguiente) o, sin pendientes, [Descartar]. Una pendiente vuelta a borrador muestra `cola.noDisponible` en su fila antes de llegar su turno.
+- S10. Durante la sesión, las tarjetas Lista muestran «A la cola» en lugar de «Reproducir» y su portada agrega al final; «Editar» y «Continuar» hacia Letra o Editor muestran el diálogo de bloqueo; Eliminar y Volver a borrador de la canción activa están `aria-disabled` con `bib.cola.activaBloqueada`; Editar datos, Aplicar tema y Añadir canción funcionan.
+- S11. Eliminar una canción pendiente avisa con `bib.cola.dialogo.eliminar` y quita todas sus entradas de la cola.
+- S12. Cerrar con pendientes desde la principal o la secundaria muestra una sola vez `ses.cierre` en la ventana donde se pidió, con el foco en «Cancelar» (pedido en la secundaria, la principal muestra `ses.cierre.esperando`); si la cola cambia antes de confirmar, aparece `ses.cierre.obsoleto` y hay que confirmar otra vez; «Cerrar y conservar cola» deja P5 con la última reproducida y su segundo, y el foco en «Abrir en otra pantalla…»; «Cerrar y eliminar cola» vacía la cola y cierra el panel; sin pendientes, cerrar no pide confirmación.
+- S13. Salir de la app con sesión o con cola pide `ses.salir` (o el diálogo de trabajos con `ses.salir.extra`); al volver a abrir la app la cola está vacía.
+- S14. El indicador de sesión aparece con sesión o cola, muestra el estado correcto en cada caso y lleva a la Biblioteca con el panel abierto y el foco dentro, desde Ajustes y desde una vista del espacio de canción.
+- S15. Recuperación: desconectar la pantalla de la secundaria muestra `ses.rec.monitor` sin cortar el audio, y [Mover a…] la lleva a otra pantalla; reconectarla, `ses.rec.vuelve` con [Llevar el reproductor allí]; terminar el proceso de la secundaria muestra `ses.rec.caida` con la cola conservada y [Volver a abrir], y libera el bloqueo de edición; con la secundaria sin responder (simulada), `ses.rec.noResponde`; [Cerrar y volver a abrir] la cierra conservando la cola y abre el diálogo de pantallas.
+- S15b. «Reproducir en otra pantalla…» del ⋯ de una Lista abre el diálogo con la variante «con canción» de `ses.empieza`; al abrir, esa canción suena primero y las pendientes siguen detrás. En Linux con Wayland el diálogo muestra `ses.wayland` sin lista de pantallas.
+- S16. Todo el panel es operable solo con teclado y ninguna acción de sesión tiene atajo de una tecla en la principal; el foco nunca queda en `body`.
+- S17. A 1024 × 576 (1280 × 720 al 125 %) con el panel abierto, la rejilla muestra 2 columnas, el panel tiene scroll propio y no hay scroll horizontal.
+- S18. Capturas en `docs/ux/revision-fase-4/` con nombre `biblioteca-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 800 al 100 % y 1280 × 720 al 125 %: `dialogo-pantalla`, `dialogo-una-pantalla`, `sesion`, `cuenta`, `fallo`, `espera`, `fin-cola`, `cola-conservada`, `dialogo-cierre`, `monitor-desconectado`, `caida`, `tarjetas-sesion`.

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from '@shared/avisos'
 import { mostrarToast } from '../componentes/gestorToasts'
+import { useSesion } from '../sesion/ProveedorSesion'
 import type { Vista } from './estado'
 
 /** El usuario ya está viendo el progreso de esa canción: no hace falta avisarle (0072). */
@@ -16,17 +17,25 @@ export function estaEnSuProgreso(vista: Vista, cancionId: string): boolean {
 export function useAvisosTrabajos(vista: Vista, ir: (v: Vista) => void): void {
   const vistaRef = useRef(vista)
   const irRef = useRef(ir)
+  const sesion = useSesion()
+  const sesionRef = useRef(sesion)
 
   // Las referencias se actualizan tras cada render: los oyentes siempre ven la vista actual.
   useEffect(() => {
     vistaRef.current = vista
     irRef.current = ir
+    sesionRef.current = sesion
   })
 
   useEffect(() => {
     let pendientes: AvisoTrabajoIpc[] = []
     const abrirCancion = (e: AbrirCancionIpc): void => {
       if (vistaRef.current.tipo === 'primer-arranque') return
+      // «Abrir editor» no se ofrece con sesión: se explica el bloqueo (spec 06).
+      if (e.destino === 'editor' && sesionRef.current.edicionBloqueada) {
+        sesionRef.current.abrirBloqueo()
+        return
+      }
       irRef.current({
         tipo: 'cancion',
         id: e.cancionId,

@@ -26,7 +26,14 @@ describe('configSchema (lectura tolerante)', () => {
         modelos_descargados: [],
         factores_medidos: {}
       },
-      reproductor: { volumen: 0.8, silenciado: false, voz_guia: 0.3, voz_guia_silenciada: true },
+      reproductor: {
+        volumen: 0.8,
+        silenciado: false,
+        voz_guia: 0.3,
+        voz_guia_silenciada: true,
+        transicion_s: 4,
+        secundaria: null
+      },
       editor: {
         paneles: {
           lista: { ancho: 300, minimizado: false },
@@ -61,7 +68,9 @@ describe('configSchema (lectura tolerante)', () => {
       volumen: 0.3,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
   })
   it('acepta el ejemplo del ADR 0006', () => {
@@ -83,7 +92,14 @@ describe('configSchema (lectura tolerante)', () => {
         modelos_descargados: ['rapido'],
         factores_medidos: { rapido: 1.2 }
       },
-      reproductor: { volumen: 0.8, silenciado: false, voz_guia: 0.3, voz_guia_silenciada: true },
+      reproductor: {
+        volumen: 0.8,
+        silenciado: false,
+        voz_guia: 0.3,
+        voz_guia_silenciada: true,
+        transicion_s: 4,
+        secundaria: null
+      },
       aviso_youtube_aceptado: '2026-11-03T10:00:00Z',
       ultima_comprobacion_ytdlp: '2026-11-01T09:00:00Z',
       estilo_predeterminado: ESTILO_PREDETERMINADO

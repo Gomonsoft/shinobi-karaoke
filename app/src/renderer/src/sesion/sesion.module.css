@@ -1,0 +1,38 @@
+/* Candado de acción bloqueada (sistema visual, fase 4): `lock` 14 px en `texto-3`. */
+.candado {
+  flex: none;
+  color: var(--texto-3);
+}
+
+/* Indicador de sesión de la barra superior: como el de actividad, en `info`. */
+.indicador {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--info);
+  font: inherit;
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  cursor: pointer;
+}
+
+.indicador:hover {
+  background: var(--fondo-3);
+}
+
+.indicador span {
+  color: var(--texto-1);
+}
+
+.atencion {
+  color: var(--aviso);
+}
+
+.sinSesion {
+  color: var(--texto-2);
+}

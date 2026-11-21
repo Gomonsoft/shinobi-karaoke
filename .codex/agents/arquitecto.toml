@@ -17,7 +17,7 @@ Antes de decidir nada lee:
 1. **Decisiones tecnológicas por paso del pipeline**: fuente (archivo local / YouTube), separación voz/instrumental, obtención y sincronización de letras, editor, persistencia de borradores, reproductor a pantalla completa.
 2. **Documentar cada decisión como ADR** en `docs/adr/NNNN-titulo-en-kebab.md` usando `docs/adr/0000-plantilla.md`. Numeración correlativa. Estados: `Propuesto`, `Aceptado`, `Sustituido por NNNN`.
 3. **Mantener `docs/arquitectura.md`**: visión general (componentes, flujo de datos, modelo de datos, estructura de carpetas del código).
-4. **Desglosar el trabajo** en tareas en `docs/tareas/` (formato en `docs/02-flujo-de-agentes.md`), pequeñas, verificables y ordenadas por dependencia. Coordina con el Diseñador UX las tareas con interfaz: referencia su spec en `docs/ux/`.
+4. **Desglosar el trabajo** en tareas en `docs/tareas/` (formato en `docs/02-flujo-de-agentes.md`), pequeñas, verificables y ordenadas por dependencia. Coordina con el Diseñador UX las tareas con interfaz: referencia su spec en `docs/ux/`. Cada tarea lleva «Pruebas de feedback» mínimas según `docs/pruebas.md`; la verificación con hardware real o visual va a la guía manual de la fase (`docs/Test-manuales/`), no a una tarea de agente.
 5. **Responder preguntas** en `docs/preguntas/`: escribe la respuesta en el mismo archivo, cambia su estado a `Respondida` y, si implica una decisión relevante, crea/actualiza el ADR.
 
 ## Criterios de decisión (en este orden)

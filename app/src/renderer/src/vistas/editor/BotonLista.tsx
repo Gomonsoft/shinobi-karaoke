@@ -9,6 +9,7 @@ import estilosBoton from '../../componentes/componentes.module.css'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { useReproductor } from '../../navegacion/reproductor'
+import { useSesion } from '../../sesion/ProveedorSesion'
 import { DialogoConfirmar } from '../biblioteca/DialogosCancion'
 import { detallesDeError } from '../biblioteca/errores'
 import { tituloDeTarjeta } from '../biblioteca/tarjeta'
@@ -38,6 +39,7 @@ function avisarError(mensaje: string, error: unknown) {
 export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimera }: Props) {
   const { ir } = useNavegacion()
   const { abrir } = useReproductor()
+  const { haySesion } = useSesion()
   const ancla = useRef<HTMLButtonElement>(null)
   const [popover, setPopover] = useState<'faltas' | 'incompleta' | null>(null)
   const [ocupado, setOcupado] = useState(false)
@@ -72,7 +74,10 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
       mostrarToast({
         tipo: 'exito',
         mensaje: `«${tituloDeTarjeta(guardada)}» está lista para cantar.`,
-        accion: { etiqueta: 'Reproducir', icono: Play, alAccionar: () => abrir(id) }
+        // Con sesión no hay reproductor local: el toast no ofrece [▶ Reproducir] (spec 02).
+        accion: haySesion
+          ? undefined
+          : { etiqueta: 'Reproducir', icono: Play, alAccionar: () => abrir(id) }
       })
     } catch (error) {
       avisarError('No se pudo marcar la canción como lista.', error)

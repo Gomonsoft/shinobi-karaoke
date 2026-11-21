@@ -1,5 +1,6 @@
 import type { ResumenCancionIpc } from '@shared/ipc'
 import type { PasoCancion } from '../../navegacion/estado'
+import { PASO_MOTIVO_SESION } from '../../sesion/textos'
 import type { TrabajoVivo } from '../biblioteca/tarjeta'
 
 /** Indicador de un paso del stepper (docs/ux/00 §2): ✓ ⟳ % "En cola" ✕ ⚠ ● ○. */
@@ -16,6 +17,11 @@ export interface DatosPaso {
   /** Texto para lectores de pantalla (estado del paso). */
   descripcion: string
   navegable: boolean
+  /**
+   * Hay sesión y el paso (Letra o Editor) sería navegable: sigue enfocable, con candado y
+   * `aria-disabled`, y al pulsarlo se explica el bloqueo (spec 06). `motivo` lleva `paso.motivo.sesion`.
+   */
+  bloqueadoPorSesion?: boolean
   /** Motivo por el que no es navegable (tooltip); `null` si lo es. */
   motivo: string | null
   actual: boolean
@@ -94,7 +100,9 @@ function datosDePaso(
 export function pasosDeCancion(
   resumen: ResumenCancionIpc,
   actual: PasoCancion,
-  vivos: { fuente?: TrabajoVivo | null; separacion?: TrabajoVivo | null } = {}
+  vivos: { fuente?: TrabajoVivo | null; separacion?: TrabajoVivo | null } = {},
+  /** Hay sesión en otra ventana: Letra y Editor quedan bloqueados. */
+  conSesion = false
 ): DatosPaso[] {
   const pasos = resumen.pasos
   const fuente = pasos?.fuente
@@ -143,7 +151,11 @@ export function pasosDeCancion(
         datos = datosDePaso(paso, lista ? 'completado' : 'pendiente', null, null, esActual)
     }
     const [esNavegable, motivo] = navegable[paso]
-    return construir(paso, i + 1, etiqueta, datos, esNavegable, motivo, esActual)
+    const construido = construir(paso, i + 1, etiqueta, datos, esNavegable, motivo, esActual)
+    if (conSesion && esNavegable && (paso === 'letra' || paso === 'editor')) {
+      return { ...construido, bloqueadoPorSesion: true, motivo: PASO_MOTIVO_SESION }
+    }
+    return construido
   })
 }
 

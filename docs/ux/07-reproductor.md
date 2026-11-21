@@ -6,6 +6,7 @@
 - Valores fijos de render: [sistema-visual.md §10](sistema-visual.md)
 - Preguntas: [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) §6, §8, §11, §12 y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) §4 (respondidas); [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) §1 y §8 (respondida: el reproductor llega en la Fase 6, un solo volumen); [0030](../preguntas/0030-voz-original-en-el-reproductor.md) (usuario, respondida 2026-11-06: **voz guía** = `voz.flac` mezclada sobre el instrumental con volumen propio, tecla para silenciarla y nivel recordado; no se usa la mezcla original); [0031](../preguntas/0031-detalles-tecnicos-del-reproductor-fase-6.md) (arquitecto: pantalla completa, motor con dos pistas a la vez, silencio previo, pistas que faltan, pantalla encendida, configuración de la voz guía; abierta, opción provisional tomada)
 - Revisión: 2026-11-06, puesta al día para la Fase 6 (ver "Cambios de esta revisión" al final).
+- 0.2.0, fase 4 (2026-11-11): reproductor en otra pantalla (ventana secundaria), transición con cuenta entre canciones de la cola, en espera, fin de la cola, fallo de una entrada, reanudación y recuperación. Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola). Preguntas: [0048](../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../preguntas/0049-politica-cola-de-reproduccion.md) (respondidas), [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md) (arquitecto → UX, respondida), [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) (usuario, respondida: 1B, 2A, 3B, 4A), [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) (usuario, respondida: 1A, 2A) y [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) (arquitecto → UX, respondida).
 
 ## Objetivo
 Cantar: instrumental + letra sincronizada con el estilo de la canción, **a pantalla completa, sin distracciones y legible a unos 5 m** (salón, televisor de 55", proyector). Empieza al instante y se sale con una tecla.
@@ -356,3 +357,223 @@ Respecto a la versión de la Fase 0, sin cambiar el alcance:
 - El barrido de una línea partida recorre los renglones visuales en orden de lectura. Para anchos de 120 y 60 px, al 50 % se pintan 90 px del primer renglón y 0 px del segundo. Al 75 % se pintan 120 y 15 px. Los tiempos de palabras importadas se mantienen aunque sus fragmentos se distribuyan entre varios renglones.
 - Redimensionar durante la reproducción recalcula los renglones en la nueva disposición y pinta el avance del reloj actual. La capa de resaltado es decorativa y el texto tiene una sola representación accesible.
 - Verificar el reparto de anchos y fronteras con Vitest, y con un E2E de ventana angosta verificar orden de pintado y redimensión durante reproducción. Probar también la vista previa del editor, que usa el mismo render.
+
+## Fase 4 de 0.2.0 — ventana secundaria y cola
+
+Origen: [plan, fase 4, features 10 y 11](../versiones/0.2.0/plan-2.md#fase-4--reproducción-en-eventos), decisiones del usuario en [0048](../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../preguntas/0049-politica-cola-de-reproduccion.md) y acuerdos de la [ronda 4](../versiones/0.2.0/discusion/r4-disenador-ux.md). Contratos (sesión, fases, revisión, ids de entrada, IPC por rol, pantallas, reposo): [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md). Correspondencia de estados de esta spec con las fases de main: S1 = `transicion`; S2 = `espera`; S3 = `fin_de_cola` (al añadir una canción pasa a `transicion`, S1, según [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) §3 B); S4 = `error`; reproduciendo / en pausa / cargando = `reproduciendo` / `pausada` / `cargando`. La cola y los controles de operación de la ventana principal están en [02 · Fase 4](02-biblioteca.md#fase-4-de-020--ventana-secundaria-y-cola); el bloqueo de edición en [06 · Fase 4](06-editor.md#fase-4-de-020--ventana-secundaria-y-cola); la duración de la cuenta en [08 · Fase 4](08-ajustes-y-acerca.md#fase-4-de-020--ventana-secundaria-y-cola). Esta sección **amplía** la spec: el reproductor local (desde la Biblioteca sin sesión y «Probar a pantalla completa» del editor) **no cambia**.
+
+### Conceptos
+
+| Término | Definición |
+|---|---|
+| **Reproductor en otra pantalla** (ventana secundaria) | Una segunda ventana, de rol fijo, que solo muestra el reproductor. Hay como máximo una. Es la **única** que suena durante la sesión (un solo motor de audio). La pantalla elegida decide dónde se ve; el sonido sale siempre por la salida de audio habitual del sistema. |
+| **Sesión** | Desde que se abre la ventana secundaria hasta que se cierra (por el usuario, por caída o al salir de la app). Mientras dura, el editor y la vista Letra están bloqueados (spec 06). |
+| **Cola** | Una **entrada activa** (la que suena, está en pausa, terminó o falló en la secundaria) y una lista ordenada de **pendientes**. Cada entrada tiene su propio id: la misma canción puede estar varias veces. Vive en memoria mientras la app esté abierta; puede existir sin sesión (preparada antes de abrir o conservada al cerrar). |
+| **Candidata** | La primera pendiente. Es la que anuncian la cuenta y la tarjeta «A continuación». La calcula main tras cada cambio de la cola. |
+| **Última reproducida** | Tras «Cerrar y conservar cola», la entrada que llegó a sonar en último lugar, con su segundo si se interrumpió o marcada como terminada. Es contexto para reabrir; no es una pendiente. |
+
+### Estados de la ventana secundaria
+
+| Estado | Qué ve el público | Se llega por |
+|---|---|---|
+| Reproduciendo / en pausa | Wireframes A–C de esta spec con las diferencias de «Diferencias con el reproductor local» | Inicio de una entrada, reanudación |
+| **Cuenta entre canciones** (transición) | Wireframe S1 | Fin natural de la activa con candidata; «Siguiente»; «Pasar a la siguiente canción»; **añadir una canción con S3 en pantalla**. («Iniciar» en espera y «Empezar ya» en la cuenta empiezan la candidata al momento, con su pantalla de título) |
+| **En espera** | Wireframe S2 | Sesión abierta con la cola vacía; «Detener cuenta»; reabrir tras una canción terminada; «Descartar» un fallo sin pendientes |
+| **Fin de la cola** | Wireframe S3 | Fin natural de la activa sin pendientes |
+| **Fallo de una entrada** | Wireframe S4 | La activa o la candidata no se puede reproducir al consumirla |
+| Cargando | Fondo del estilo + pantalla de título (como hoy, §"Estados") | Toda entrada que empieza |
+
+### Wireframes
+
+**S1 — Cuenta entre canciones** (4 s por defecto, configurable en Ajustes)
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ (fondo del estilo de la CANDIDATA)                                       │
+│                                                                          │
+│                              ╭─────────╮                                 │
+│                            ╭─┤         ├─╮   ← anillo que se vacía       │
+│                            │ │    3    │ │     (centro al 45 % del alto) │
+│                            ╰─┤         ├─╯                               │
+│                              ╰─────────╯                                 │
+│                          Siguiente canción                               │
+│                                                                          │
+│                                          ┌──────────────────────────────┐│
+│                                          │ A CONTINUACIÓN               ││ ← tarjeta inferior derecha
+│                                          │ La flaca                     ││
+│                                          │ Jarabe de Palo               ││
+│                                          └──────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+**S2 — En espera** (con candidata / sin candidata)
+```
+┌──────────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ (fondo del estilo de la candidata)   │   │ (fondo-0)                            │
+│                                      │   │                                      │
+│                                      │   │          ◆ Shinobi Karaoke           │
+│                                      │   │   Enseguida empieza la siguiente     │
+│                                      │   │              canción                 │
+│               ┌────────────────────┐ │   │                                      │
+│               │ A CONTINUACIÓN     │ │   │                                      │
+│               │ La flaca           │ │   │                                      │
+│               │ Jarabe de Palo     │ │   │                                      │
+│               └────────────────────┘ │   │                                      │
+└──────────────────────────────────────┘   └──────────────────────────────────────┘
+```
+
+**S3 — Fin de la cola**
+```
+│                         Bohemian Rhapsody                                │ ← como la pantalla final D
+│                              Queen                                       │
+│                  ┌──────────────────────────┐                            │
+│                  │      Fin de la cola       │                           │ ← píldora §10
+│                  └──────────────────────────┘                            │
+│            [ ↻ Otra vez ]   [ ✕ Cerrar reproductor ]                     │ ← solo con actividad (ratón, Tab)
+```
+Sin cuenta atrás de cierre: la ventana **no se cierra sola** (cerrarla dejaría el escritorio a la vista del público). Si se añade una canción a la cola, **empieza la cuenta** configurada hacia ella (S1), igual que al terminar una canción con cola, con «Detener cuenta» y «Empezar ya» (decisión del usuario en [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) §3, opción B).
+
+**S4 — Fallo de una entrada** (mensaje breve para el público; la causa está en la principal)
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          (fondo-0)                                       │
+│                                                                          │
+│              ⚠  Esta canción no se puede reproducir ahora.               │ ← máx(24 px, 3,2 % del alto), #FFFFFF
+│                           «La flaca»                                     │ ← máx(t-cuerpo, 2,2 % del alto), texto-2
+│                                                                          │
+│     [ ⏭ Pasar a la siguiente canción ]   [ ✕ Cerrar reproductor ]       │ ← solo con actividad
+└──────────────────────────────────────────────────────────────────────────┘
+```
+Sin pendientes, el primer botón no aparece y el texto añade `rep.cola.fallo.fin`.
+
+### Apertura y foco
+- La abre la principal (diálogo «Abrir el reproductor en otra pantalla», spec 02). La ventana aparece en la pantalla elegida, a pantalla completa si se marcó, **sin quitar el foco a la principal** (el operador sigue en la Biblioteca). Si la pantalla elegida es la principal y se marcó «Pantalla completa», sí la cubre y recibe el foco.
+- Sin barra superior, sin menú de la app propio y sin zoom de la interfaz. Título de la ventana: `rep.cola.ventana` (lo ve el sistema operativo y Alt + Tab).
+- Inicios posibles (ADR 0017 §11, `sesion.abrir`): **con una canción** («Reproducir en otra pantalla…» del menú de una Lista, spec 02): esa canción empieza al momento y las pendientes que hubiera siguen detrás; **con la cola**: con pendientes y sin última reproducida, empieza la primera al momento (pantalla de título y silencio previo); con la cola vacía, S2 sin candidata; **reanudar**: con una última reproducida, ver §"Reabrir con la cola conservada".
+- **Linux con Wayland** (`colocacion: 'sistema'`, [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md)): la ventana se abre donde decide el sistema, en ventana; el operador la lleva a la pantalla del público y pulsa F (texto `ses.wayland` en el diálogo de la principal).
+- Pantalla encendida **durante toda la sesión**, también en pausa, en cuenta, en espera, en el fin de la cola y en un fallo: una pantalla de evento no debe apagarse. Se libera al terminar la sesión por cualquier causa (ADR 0017 §4; decisión del usuario en [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) §2).
+
+### Diferencias con el reproductor local
+Todo lo de esta spec vale en la secundaria salvo:
+
+| Aspecto | En la ventana secundaria |
+|---|---|
+| Franja superior | Izquierda: [✕ Cerrar reproductor] (`rep.cola.cerrar`). Derecha: «título · artista». **No** se muestra `rep.incompleta` (ni en la franja ni en la pantalla de título): el público no lo necesita; el aviso está en la entrada de la cola de la principal. |
+| Franja inferior | Igual, con [⏭] tras 5↻ (`rep.cola.siguiente`; inactivo sin pendientes, tooltip `rep.cola.siguiente.no`). ⏮ es «Reiniciar canción» (mismo comportamiento: principio con título y silencio previo). En S1 y S2 la franja inferior solo tiene [▶ Empezar ya] / [▶ Iniciar «{título}»], [❚❚ Detener cuenta] (solo en S1), volumen, voz guía, ⌨ y ⛶. |
+| Pantalla final | No existe. Con candidata → S1. Sin pendientes → S3. |
+| Error de pista o de audio (wireframe E) | Lo sustituye S4. La canción se marca Dañada igual que hoy si faltan pistas (criterio 22). |
+| Salida | No hay «Volver a la biblioteca». Cerrar = terminar la sesión (§"Cerrar el reproductor con cola"). |
+| Esc | Cierra un diálogo o tooltip; si no hay, **en pantalla completa pasa a ventana**; en ventana no hace nada. Nunca pide el cierre de la sesión (un Esc accidental en un evento no debe dejar la pantalla vacía). |
+| Toasts | La secundaria nunca muestra toasts; los de la app salen en la principal como siempre (no se retienen). |
+| Desplazamiento `,` `.` | No aplica (solo desde el editor). |
+| Tema | La entrada usa el estilo resuelto **al empezar** (instantánea, [ADR 0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md)); un cambio de tema durante la canción se ve en la siguiente entrada. |
+
+Atajos añadidos o distintos (se añaden al diálogo de atajos solo en la secundaria):
+
+| Tecla | Acción |
+|---|---|
+| Espacio / K | Reproducir / pausa. En S1: «Empezar ya». En S2 con candidata: «Iniciar». |
+| Mayús + N | Siguiente: interrumpe la activa y empieza la cuenta de la candidata (sin pendientes no hace nada y muestra `rep.cola.siguiente.no` como indicador breve). Con Mayús para evitar pulsaciones accidentales. |
+| Esc | Ver tabla anterior. |
+| Ctrl/Cmd + W | Cerrar reproductor (con la confirmación de cola si hay pendientes). También el botón de cerrar de la ventana y Alt + F4. |
+| F | Pantalla completa / ventana (igual que hoy). |
+
+### Cuenta entre canciones (S1)
+- **Cuándo**: al terminar de forma natural la activa con una candidata disponible; con «Siguiente» (principal o secundaria) con «Pasar a la siguiente canción» (ADR 0017 §7: `sesion.siguiente` empieza la cuenta como un fin natural) y al **añadir una canción mientras se ve S3** («Fin de la cola»; [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) §3 B). Así el público siempre ve qué viene. Nunca tras un fallo sin acción explícita.
+- **Duración**: la de Ajustes (`aj.rep.cuenta`, `config.reproductor.transicion_s`, 4 s por defecto). El número empieza en esa cifra y baja uno por segundo; al pasar de 1 la candidata se convierte en la activa y empieza con su pantalla de título y su silencio previo. La fecha límite es de main (ADR 0017): la secundaria solo la dibuja.
+- **Fondo**: el del estilo de la **candidata** (anticipa la canción). Si aún no se ha resuelto, `fondo-0`.
+- **Número**: centrado con su centro al 45 % del alto (donde estará la letra), `máx(64 px, 18 % del alto)`, `#FFFFFF` 700 con la sombra de §10, sobre un disco `rgba(0,0,0,0.6)` de 1,6 × el alto del número. No usa el color de letra del estilo: así el contraste es ≥ 5,7:1 con cualquier fondo. Debajo, `rep.cola.cuenta` («Siguiente canción») en `máx(t-cuerpo, 2,2 % del alto)`.
+- **Animación**: anillo de 0,6 % del alto alrededor del disco (pista `rgba(255,255,255,0.35)`, relleno `#FFFFFF`) que se vacía de forma continua en sentido horario durante toda la cuenta; cada número entra con una escala de 0,9 → 1 y fundido en 200 ms. **Movimiento reducido**: sin anillo ni escala; el número cambia de golpe una vez por segundo.
+- **Tarjeta «A continuación»**: abajo a la derecha (margen 4 % del ancho y 6 % del alto), máx. 40 % del ancho, fondo `rgba(0,0,0,0.6)`, radio `r-l`, relleno 1 × 1,25 em. Etiqueta `rep.cola.aContinuacion` en mayúsculas `máx(t-pequeno, 1,8 % del alto)` 600; título `máx(20 px, 3,2 % del alto)` 600, una línea con «…»; artista `máx(t-cuerpo, 2,2 % del alto)`. Todo `#FFFFFF`.
+- **Cambia la candidata durante la cuenta** (reordenar, quitar, «Reproducir a continuación» en la principal): la tarjeta y el fondo pasan a la nueva (fundido 200 ms; inmediato con movimiento reducido) y la cuenta **vuelve a empezar** desde la duración completa. Si el id de la candidata no cambia (p. ej. se reordenan pendientes posteriores), nada cambia y la cuenta sigue.
+- **Se quedan sin pendientes durante la cuenta**: la cuenta se cancela y se pasa a S3 con la entrada que terminó.
+- **«Detener cuenta»** (principal o franja de S1): pasa a S2 con la candidata. **«Empezar ya»** (o Espacio): la candidata empieza al momento.
+- **Congelada** mientras se confirma el cierre (§"Cerrar el reproductor con cola"): el número y el anillo se quedan quietos; nada cambia en pantalla. Con «Cancelar», sigue **desde donde se detuvo**.
+- **Revalidación**: al terminar la activa, si la primera pendiente ya se sabe no disponible (borrada, vuelta a borrador o dañada), no hay cuenta: S4. Al consumirla, main comprueba de nuevo canción, estado Lista y pistas; si falla, S4 en lugar de su pantalla de título.
+
+### En espera (S2)
+- Con candidata: fondo de su estilo y solo la tarjeta «A continuación»; nada en el centro. Con actividad, la franja inferior ofrece [▶ Iniciar «{título}»] (`rep.cola.iniciar`).
+- Sin candidata: `fondo-0`, «◆ Shinobi Karaoke» en `texto-3` a `máx(32 px, 6 % del alto)` y `rep.cola.espera` debajo en `texto-2`.
+- **Añadir a la cola en espera (S2) no arranca solo**: la nueva candidata se ve en la tarjeta y la empieza el operador («Iniciar» en la principal, en el toast de la principal o en la secundaria). Es distinto de S3, donde añadir sí empieza la cuenta: a S2 se llega por una decisión explícita del operador (detener la cuenta, descartar un fallo, abrir con la cola vacía o tras una canción terminada). Excepción: abrir la sesión con pendientes y sin última reproducida empieza la primera (§"Apertura y foco").
+
+### Fin de la cola (S3)
+- Al terminar la activa sin pendientes. Mismo fondo, título y artista que la pantalla final D, con la píldora `rep.cola.fin`. «Otra vez» repite la misma entrada desde el principio; «Cerrar reproductor» termina la sesión (sin pendientes, sin confirmación).
+- Si llega una pendiente (añadida desde la principal), pasa a **S1** con ella como candidata y la cuenta completa configurada; «Detener cuenta» lleva a S2 y «Empezar ya» la empieza al momento. Si se añaden varias seguidas, la candidata es la primera y la cuenta no se reinicia mientras su id no cambie (regla general de S1).
+
+### Fallo de una entrada (S4)
+- **Cuándo**: al consumir una entrada (empezar, reanudar, avanzar) main o la secundaria detectan que no se puede reproducir, o al terminar la activa la primera pendiente ya está marcada no disponible. Causas que distingue la principal (`cola.causa.*`, spec 02, a partir de `MotivoNoDisponible` y del error del motor): ya no está en la biblioteca, ya no está lista, faltan las pistas, no se puede leer el audio.
+- **No avanza solo**: el avance requiere «Pasar a la siguiente canción» (principal, o la secundaria con actividad), que **descarta la entrada fallida** y empieza la cuenta de la siguiente. Sin pendientes, el botón es «Descartar» (`cola.descartar`) y lleva a S2 sin candidata.
+- `role="alert"` con `rep.cola.fallo` y el título. Los controles de reproducción no se muestran.
+
+### Reabrir con la cola conservada
+Tras «Cerrar y conservar cola» (o una caída), la principal guarda la última reproducida. Al volver a abrir el reproductor (spec 02):
+- **Interrumpida a mitad** (la canción no había terminado): empieza **en el mismo segundo**, sin pantalla de título ni silencio previo, y en el mismo estado en que se cerró (si estaba en pausa, abre en pausa en ese segundo; ADR 0017 §8). Indicador breve `rep.cola.reanudada` durante 2 s (al 12 % del alto) y anuncio `rep.cola.aria.reanudada`. «Reiniciar canción» (⏮ en la secundaria, ↺ en la principal) vuelve al principio con título y silencio previo **sin tocar el orden de pendientes**. Si se cerró durante el silencio previo o la pantalla de título, empieza desde el principio.
+- **Terminada** (se cerró en la cuenta o en S3): abre en S2 con la primera pendiente como candidata (o S2 sin candidata si no quedan) y el operador la inicia. La última reproducida se muestra como contexto en la principal.
+- **Ya no disponible** al reabrir: S4 con su causa y «Pasar a la siguiente canción».
+- La posición pertenece a la **entrada**: si la misma canción está dos veces, solo se reanuda la que se interrumpió.
+
+### Cerrar el reproductor con cola
+- **Vías**: [✕ Cerrar reproductor] de la secundaria o de la principal, Ctrl/Cmd + W en la secundaria, botón de cierre de su ventana, Alt + F4 (Esc no, ver «Diferencias»). Todas pasan por **la misma confirmación**, una sola vez.
+- **Sin pendientes**: cierra al momento, sin diálogo; la cola queda vacía y no hay última reproducida.
+- **Con pendientes**: diálogo `ses.cierre` (texto en spec 02) en la ventana **donde se pidió el cierre**: quien pulsó lo ve donde está mirando (en la secundaria, con el componente de diálogo y el anillo doble, sobre el fondo de la canción). La otra ventana lo indica: la principal muestra `ses.cierre.esperando` en el panel y desactiva sus controles de sesión; la secundaria no muestra nada al público. Mientras está abierto: la canción que suena **sigue sonando**; una cuenta en curso queda congelada; si la canción termina, **no** empieza la cuenta (queda como «terminada») y el diálogo no cambia.
+- **«Cerrar y conservar cola»**: main guarda la última reproducida (entrada, segundo y estado, o «terminada») y los pendientes en su orden, y cierra. **«Cerrar y eliminar cola»**: vacía la cola y cierra. **«Cancelar»**: vuelve la sesión tal como estaba (cuenta descongelada).
+- Una caída o la desconexión del último monitor **nunca** eliminan la cola (§"Recuperación").
+
+### Recuperación (lado de la secundaria)
+| Situación | Comportamiento |
+|---|---|
+| Se desconecta la pantalla de la secundaria | Main la lleva a la pantalla primaria **en ventana** (80 % del área útil, centrada, sin robar el foco) para no tapar al operador. **El audio sigue sonando** y la cola no cambia (decisión del usuario en [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) §1, ADR 0017 §3). La principal muestra `ses.rec.monitor` (spec 02) con [Mover a…]. |
+| Vuelve a conectarse esa pantalla | No se mueve sola. La principal ofrece `ses.rec.vuelve` con [Llevar el reproductor allí] (`sesion.moverAPantalla`), que la devuelve y restaura pantalla completa si la tenía. |
+| La secundaria se cierra o su contenido se cae | Termina la sesión **conservando la cola** (sin diálogo): la última reproducida queda «interrumpida» en el último segundo conocido por main. Se libera el bloqueo de edición y el de reposo. No se reabre sola. La principal muestra `ses.rec.caida` con [Volver a abrir]. |
+| La secundaria deja de responder | La principal muestra `ses.rec.noResponde` con [Esperar] y [Cerrar y volver a abrir] (cierre forzado que conserva la cola como en una caída, y abre el diálogo de pantallas). Si vuelve a responder, el aviso desaparece solo. |
+| Linux con Wayland (`colocacion: 'sistema'`) | Main no puede mover la ventana: «Mover a…», «Cambiar de pantalla…» y «Llevar el reproductor allí» se sustituyen por la instrucción `ses.wayland` como información ([0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md)). |
+| Se cierra la app | Confirmación de la principal (`ses.salir`, spec 02; decisión del usuario en 0059 §4). En Windows y Linux la app sale y la cola se pierde; en macOS, cerrar la ventana principal no sale de la app: la secundaria se cierra y la cola se conserva. |
+
+### Accesibilidad (secundaria)
+- La región conserva `rep.aria.region`. Anuncios `aria-live="polite"` solo en hitos: inicio de cada entrada (`rep.aria.inicio`), **inicio de la cuenta** (`rep.cola.aria.cuenta`, una vez, nunca cada segundo), **cambio de candidata** durante la cuenta (`rep.cola.aria.cambio`, una vez por cambio), en espera, fin de la cola, reanudación. Los fallos, `role="alert"`.
+- El número de la cuenta y la tarjeta son `aria-hidden` (lo dice el anuncio).
+- Orden de tabulación de la franja inferior: el de hoy con [⏭] tras 5↻; en S1/S2/S3/S4, los botones visibles en orden visual. Foco visible con el anillo doble.
+- Movimiento reducido: sin anillo ni escala en la cuenta, sin fundido de la tarjeta ni de las franjas.
+- Contraste: número, etiqueta y tarjeta en `#FFFFFF` sobre `rgba(0,0,0,0.6)` (≥ 5,7:1 con cualquier fondo, como los controles).
+
+### Microcopy (fase 4, reproductor)
+| Clave | Texto |
+|---|---|
+| `rep.cola.ventana` | Shinobi Karaoke · Reproductor |
+| `rep.cola.cerrar` | Cerrar reproductor (tooltip: Cerrar reproductor (Ctrl/Cmd + W)) |
+| `rep.cola.siguiente` | Siguiente (tooltip: Siguiente canción (Mayús + N)) |
+| `rep.cola.siguiente.no` | No hay canciones a continuación. |
+| `rep.cola.reiniciar` | Reiniciar canción (tooltip de ⏮: Reiniciar canción (Inicio)) |
+| `rep.cola.cuenta` | Siguiente canción |
+| `rep.cola.aContinuacion` | A continuación |
+| `rep.cola.empezarYa` | Empezar ya |
+| `rep.cola.detener` | Detener cuenta |
+| `rep.cola.iniciar` | Iniciar «{título}» |
+| `rep.cola.espera` | Enseguida empieza la siguiente canción |
+| `rep.cola.fin` | Fin de la cola |
+| `rep.cola.fallo` | Esta canción no se puede reproducir ahora. |
+| `rep.cola.fallo.fin` | No hay más canciones en la cola. |
+| `rep.cola.pasar` | Pasar a la siguiente canción |
+| `rep.cola.reanudada` | Reanudada en {mm:ss} |
+| `rep.cola.aria.cuenta` | A continuación: «{título}», de {artista}. Empieza en {n} segundos. |
+| `rep.cola.aria.cambio` | Cambió la siguiente canción: «{título}», de {artista}. Empieza en {n} segundos. |
+| `rep.cola.aria.espera` | En espera. · (con candidata) En espera. A continuación: «{título}». |
+| `rep.cola.aria.fin` | Fin de la cola. |
+| `rep.cola.aria.reanudada` | Reproducción reanudada en {mm:ss}. |
+
+### Criterios de aceptación de la fase 4 (reproductor)
+- P1. Con dos pantallas, abrir el reproductor en la segunda con «Pantalla completa» lo muestra a pantalla completa allí, sin barra superior ni menú propio, y el foco del teclado sigue en la ventana principal. Sin «Pantalla completa», se abre en una ventana en esa pantalla. F y ⛶ alternan sin cortar el audio.
+- P2. Durante la sesión suena **un solo** motor: la principal no reproduce audio (comprobación en E2E de que solo la secundaria crea `AudioContext` con fuentes activas). El sonido sale por la salida predeterminada del sistema aunque la imagen esté en otra pantalla.
+- P3. Al terminar una canción con pendientes aparece S1 con el fondo de la candidata, el número de la duración configurada (4 por defecto) bajando uno por segundo, el anillo vaciándose y la tarjeta «A continuación» abajo a la derecha con título y artista; al pasar de 1, la candidata empieza con su pantalla de título. Con 3 s y con 10 s configurados, la cuenta dura eso.
+- P4. Con movimiento reducido, S1 no tiene anillo ni escala y el número cambia de golpe cada segundo; la tarjeta cambia sin fundido.
+- P5. Reordenar durante la cuenta de modo que cambie la candidata actualiza tarjeta y fondo y reinicia la cuenta a la duración completa, con un único anuncio `rep.cola.aria.cambio`; reordenar pendientes posteriores no reinicia ni anuncia nada. Quitar la única pendiente durante la cuenta lleva a S3.
+- P6. Eventos duplicados o tardíos (dos «fin» de la misma entrada, un «fin» de una entrada ya sustituida) no producen doble avance ni saltan una pendiente (E2E con eventos inyectados).
+- P7. Sin pendientes, al terminar la canción se ve S3 con «Fin de la cola», sin cuenta atrás de cierre; la ventana sigue abierta; añadir una canción empieza S1 con ella como candidata y la duración configurada (4 s por defecto), con un único anuncio `rep.cola.aria.cuenta`; «Detener cuenta» pasa a S2 y «Empezar ya» la empieza al momento; añadir otra durante esa cuenta no la reinicia. En S2 (p. ej. tras «Detener cuenta»), añadir una canción no empieza la cuenta.
+- P8. Si la candidata se borra o pierde sus pistas antes de consumirse, no hay cuenta ni avance: S4 con `rep.cola.fallo` y el título; la principal muestra la causa; solo «Pasar a la siguiente canción» avanza, descartando la entrada fallida y empezando la cuenta de la siguiente.
+- P9. Con pendientes, cerrar la secundaria por cualquiera de sus vías muestra una sola vez el diálogo de cierre en la ventana donde se pidió (la principal muestra entonces `ses.cierre.esperando`); mientras está abierto la canción sigue sonando y una cuenta en curso queda congelada (el número no cambia en 5 s); «Cancelar» la reanuda desde el mismo número.
+- P10. Tras «Cerrar y conservar cola» a mitad de una canción en 02:13, reabrir empieza esa entrada en 02:13 (± 1 s) y en el mismo estado (sonando o en pausa), sin pantalla de título, con el indicador `rep.cola.reanudada`; «Reiniciar canción» la lleva al principio con título y silencio previo y el orden de pendientes no cambia. Con la misma canción dos veces en la cola, solo se reanuda la entrada interrumpida.
+- P11. Tras cerrar y conservar durante la cuenta, reabrir muestra S2 con la candidata que se anunciaba y no empieza hasta «Iniciar».
+- P12. Esc en la secundaria a pantalla completa la pasa a ventana y nunca cierra la sesión; Ctrl/Cmd + W cierra (con diálogo si hay pendientes).
+- P13. Desconectar la pantalla de la secundaria la recoloca en ventana en la pantalla primaria sin cortar el audio ni cambiar la cola; cerrar la secundaria a la fuerza (proceso del renderer terminado) termina la sesión conservando la cola y libera el bloqueo de reposo y el de edición.
+- P14. La pantalla del equipo no se apaga en ningún estado de la sesión (incluidos S2 y S3) y vuelve a apagarse según el sistema al terminar la sesión.
+- P15. La secundaria no muestra `rep.incompleta` ni toasts; la principal sí recibe sus toasts durante la sesión.
+- P16. Capturas en `docs/ux/revision-fase-4/` con nombre `reproductor-{ancho}x{alto}-{estado}.png` a 1920 × 1080 y 1280 × 720: `cuenta`, `cuenta-reducido`, `espera`, `espera-vacia`, `fin-cola`, `fallo`, `reanudada`.
