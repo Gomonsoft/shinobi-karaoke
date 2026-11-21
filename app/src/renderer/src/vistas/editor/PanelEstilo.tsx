@@ -22,12 +22,15 @@ import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from
 import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
 import { paradasRepartidas } from './estilo/paradas'
 import { E } from './textos'
+import { LL } from './textosLetraLista'
 import estilos from './panelEstilo.module.css'
 
 export interface PanelEstiloProps {
   /** Estilo visible: el propio (D2), el borrador (D3) o el del tema (D1, D4, solo lectura). */
   estilo: Estilo
   contraste: EvaluacionContraste
+  /** Letra lista: «resaltado» y «diferencia» se presentan como informativos (salvo en D3). */
+  soloEditor?: boolean
   inactivo: boolean
   alCambiar(estilo: Estilo, clave: string, agruparGesto?: boolean): void
   tema: ControlTema
@@ -130,7 +133,14 @@ export function PanelEstilo(props: PanelEstiloProps | { estilo?: undefined }) {
   return props.estilo ? <PanelEstiloActivo {...props} /> : null
 }
 
-function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: PanelEstiloProps) {
+function PanelEstiloActivo({
+  estilo,
+  contraste,
+  soloEditor = false,
+  inactivo,
+  alCambiar,
+  tema
+}: PanelEstiloProps) {
   const id = useId()
   const secuencia = useRef(0)
   const selectorNativo = useRef<{ campo: string; clave: string } | null>(null)
@@ -337,8 +347,14 @@ function PanelEstiloActivo({ estilo, contraste, inactivo, alCambiar, tema }: Pan
           )}
         </div>
         {(editable ? contraste.avisos : contraste.avisos.slice(0, 1)).map((aviso) => (
-          <MensajeContraste key={aviso} tipo="aviso">
+          <MensajeContraste
+            key={aviso}
+            tipo={soloEditor && aviso !== 'letra' && vista.estado !== 'd3' ? 'info' : 'aviso'}
+          >
             <p>{AVISOS[aviso]}</p>
+            {soloEditor && aviso !== 'letra' && vista.estado !== 'd3' && (
+              <p>{LL.contrasteSoloEditor}</p>
+            )}
             {!editable ? (
               <>
                 <p>{E.tema.contrasteAyuda(ofreceEditar)}</p>

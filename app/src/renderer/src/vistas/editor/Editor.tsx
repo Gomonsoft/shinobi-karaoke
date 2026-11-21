@@ -44,7 +44,15 @@ import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { Reproductor, type PropsReproductor } from '../reproductor/Reproductor'
 import { BannerSincronizar } from './BannerSincronizar'
 import { BotonLayout, type NombreBotonLayout } from './BotonLayout'
-import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
+import {
+  avisarBorradorAlSalir,
+  avisarError,
+  BotonLista,
+  DialogoVolverABorradorEditor
+} from './BotonLista'
+import { BotonLetraLista } from './BotonLetraLista'
+import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
+import { LL } from './textosLetraLista'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { seleccionDeDisco } from './aparienciaVista'
@@ -276,6 +284,14 @@ function EditorActivo({
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
+  // Fase 5 · 0214: aviso de «Letra lista» y cambio de modalidad desde el menú ⋯.
+  const [omitirAvisoLL, setOmitirAvisoLL] = useState(config.editor.omitir_aviso_letra_lista)
+  const [dialogoCambioLL, setDialogoCambioLL] = useState(false)
+  const esLetraLista = resumen.estado === 'lista' && resumen.modalidad === 'letra_lista'
+  // En Letra lista, «resaltado» y «diferencia» solo afectan al editor: no encienden el punto (LL7).
+  const avisosPestana = contraste.avisos.filter(
+    (a) => !(esLetraLista && !tema.editando && a !== 'letra')
+  )
   const [prueba, setPrueba] = useState<Prueba | null>(null)
   const abrirPendiente = useRef<AbortController | null>(null)
   const vuelta = useRef<(EscuchaEditor & { posicionMs: number }) | null>(null)
@@ -587,6 +603,25 @@ function EditorActivo({
       }
     }
   })
+
+  async function cambiarModalidad(modalidad: 'karaoke' | 'letra_lista', omitir = false) {
+    try {
+      if (omitir) {
+        await guardarOmitirAviso()
+        setOmitirAvisoLL(true)
+      }
+      if (!(await vaciar())) return
+      await window.shinobi.biblioteca.marcarLista(id, { modalidad })
+      await refrescarResumen()
+      const mensaje = modalidad === 'letra_lista' ? LL.toastCambio : LL.toastKaraoke
+      mostrarToast({ tipo: 'exito', mensaje })
+      anunciar(mensaje)
+    } catch (error) {
+      avisarError(LL.errorCambiar, error)
+    } finally {
+      setDialogoCambioLL(false)
+    }
+  }
 
   async function abrirPrueba(): Promise<void> {
     if (probarInactivo || !cuentas.sincronizadas || prueba || abrirPendiente.current) return
@@ -1000,6 +1035,20 @@ function EditorActivo({
               },
               ...(resumen.estado === 'lista'
                 ? [
+                    esLetraLista
+                      ? {
+                          id: 'a-lista',
+                          etiqueta: LL.menuALista,
+                          alSeleccionar: () => void cambiarModalidad('karaoke')
+                        }
+                      : {
+                          id: 'a-letra-lista',
+                          etiqueta: LL.menuALetraLista,
+                          alSeleccionar: () =>
+                            omitirAvisoLL
+                              ? void cambiarModalidad('letra_lista')
+                              : setDialogoCambioLL(true)
+                        },
                     {
                       id: 'borrador',
                       etiqueta: E.menuBorrador,
@@ -1108,7 +1157,7 @@ function EditorActivo({
                 alternarBucle={audio?.duracionMs != null ? alternarBucle : undefined}
                 fijarFin={() => fijar('fin')}
                 limiteFin={limiteDeCampo(edicion, 'fin')}
-                avisos={contraste.avisos.length > 0}
+                avisos={avisosPestana.length > 0}
                 editandoTema={tema.editando}
                 expandir={() => alternarZona('panel', 'boton')}
               />
@@ -1124,8 +1173,7 @@ function EditorActivo({
                         {
                           valor: 'estilo',
                           etiqueta: 'Estilo',
-                          aviso:
-                            contraste.avisos.length > 0 ? 'Hay avisos de contraste' : undefined,
+                          aviso: avisosPestana.length > 0 ? 'Hay avisos de contraste' : undefined,
                           info: tema.editando,
                           nombre: tema.editando ? E.tema.pestanaEditando : undefined,
                           noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
@@ -1180,6 +1228,7 @@ function EditorActivo({
                       <PanelEstilo
                         estilo={estilo}
                         contraste={contraste}
+                        soloEditor={esLetraLista}
                         inactivo={edicion.sync.activo}
                         tema={tema.control}
                         alCambiar={(nuevo, clave, agruparGesto) =>
@@ -1236,16 +1285,33 @@ function EditorActivo({
                 entrarSync={entrarSync}
                 refSync={refSync}
                 acciones={
-                  <BotonLista
-                    resumen={resumen}
-                    letra={letra}
-                    separacion={separacion}
-                    vaciar={vaciar}
-                    alEnfocarPrimera={() => {
-                      const primera = primeraSinInicio(letra)
-                      if (primera) seleccionar(primera, true)
-                    }}
-                  />
+                  <>
+                    {resumen.estado === 'borrador' && (
+                      <BotonLetraLista
+                        resumen={resumen}
+                        cancion={cancion}
+                        letra={letra}
+                        separacion={separacion}
+                        omitirAviso={omitirAvisoLL}
+                        alOmitirAviso={() => setOmitirAvisoLL(true)}
+                        vaciar={vaciar}
+                        alEnfocarPrimera={() => {
+                          const primera = primeraSinInicio(letra)
+                          if (primera) seleccionar(primera, true)
+                        }}
+                      />
+                    )}
+                    <BotonLista
+                      resumen={resumen}
+                      letra={letra}
+                      separacion={separacion}
+                      vaciar={vaciar}
+                      alEnfocarPrimera={() => {
+                        const primera = primeraSinInicio(letra)
+                        if (primera) seleccionar(primera, true)
+                      }}
+                    />
+                  </>
                 }
                 sincronizando={edicion.sync.activo}
               />
@@ -1368,6 +1434,13 @@ function EditorActivo({
           alCerrar={() => setDialogoBorrador(false)}
         />
       )}
+      {dialogoCambioLL && (
+        <DialogoLetraLista
+          variante="cambio"
+          alCancelar={() => setDialogoCambioLL(false)}
+          alConfirmar={(omitir) => cambiarModalidad('letra_lista', omitir)}
+        />
+      )}
       {dialogoSalida}
       {tema.dialogos}
       {prueba && (
@@ -1383,6 +1456,8 @@ function EditorActivo({
             gananciaDb: cancion.fuente.ganancia_db ?? 0,
             letra,
             estilo,
+            // LL8: «Probar» muestra lo que verá el público (una Letra lista, sin barrido).
+            modalidad: resumen.modalidad,
             lineasSinSincronizar: 0
           }}
           volumen={volumen}

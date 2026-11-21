@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { estiloPredeterminado } from '@shared/estilo'
+import { fondoCss, fondoCssEn } from '../karaoke/estiloCss'
 import { letra, linea } from '@shared/__fixtures__'
 import {
   crearApiReproductorFalsa,
@@ -524,5 +525,45 @@ describe('AppSecundaria · reproductor de la sesión', () => {
     )
     expect(screen.getByTestId('cuenta-transicion')).toBeInTheDocument()
     expect(motores[0]!.motor.destruir).toHaveBeenCalled()
+  })
+})
+
+describe('AppSecundaria · fondo en movimiento (0216)', () => {
+  const movil = (): ReturnType<typeof estiloPredeterminado> => {
+    const estilo = estiloPredeterminado()
+    estilo.fondo = {
+      tipo: 'degradado',
+      forma: 'lineal',
+      angulo_grados: 90,
+      movimiento: { periodo_s: 10, sentido: 'horario' },
+      paradas: [
+        { color: '#112233', posicion: 0 },
+        { color: '#445566', posicion: 1 }
+      ]
+    }
+    return estilo
+  }
+  const estiloRegion = () =>
+    screen.getByRole('region', { name: R.cola.ventana }).getAttribute('style')!
+
+  it('R4: la cuenta y la espera muestran el fondo de la candidata en fase 0', async () => {
+    const estilo = movil()
+    const candidata = { entradaId: ID_CANDIDATA, titulo: 'C', artista: 'A', estilo }
+    const { f } = await montar(estadoS1({ candidata }))
+    expect(estiloRegion()).toContain(fondoCss(estilo.fondo))
+    act(() => f.emitirEstado(estadoS2({ revision: 7, candidata })))
+    expect(estiloRegion()).toContain(fondoCss(estilo.fondo))
+  })
+
+  it('S3 conserva la fase del último instante de la última canción', async () => {
+    const estilo = movil()
+    const { f } = await montar(estadoS1(), 2_500)
+    act(() => f.emitirComando(cargar({ entrada: entradaCargar({ estilo }) })))
+    await act(async () => undefined)
+    await avanzar(600)
+    act(() => f.emitirComando({ tipo: 'fin_de_cola', sesionId: SESION_ID, revision: 8 }))
+    act(() => f.emitirEstado(estadoS3({ revision: 9 })))
+    expect(estiloRegion()).toContain(fondoCssEn(estilo.fondo, 2_500))
+    expect(estiloRegion()).not.toContain(fondoCss(estilo.fondo))
   })
 })
