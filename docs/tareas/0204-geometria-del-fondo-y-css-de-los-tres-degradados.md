@@ -1,6 +1,6 @@
 # 0204 — Geometría del fondo en el tiempo y CSS de los tres degradados
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §2, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-5)
@@ -32,12 +32,12 @@ Funciones puras que convierten el fondo y el tiempo de audio en geometría y CSS
 
 ## Criterios de aceptación
 
-- [ ] `geometriaFondoEn` da el mismo resultado en `t` y en `t + P`, y para `t` negativo (silencio previo) da la fase correcta.
-- [ ] El sentido antihorario invierte el ángulo.
-- [ ] Con `estatico: true` o sin movimiento devuelve la geometría configurada.
-- [ ] El radial en la fase 0 tiene exactamente el centro configurado y, a mitad de periodo, se desplaza `(0, 2A)`.
-- [ ] `fondoCss` genera las tres formas y el cierre del cónico.
-- [ ] Un estilo de 0.1.0 produce exactamente la misma cadena que hoy.
+- [x] `geometriaFondoEn` da el mismo resultado en `t` y en `t + P`, y para `t` negativo (silencio previo) da la fase correcta.
+- [x] El sentido antihorario invierte el ángulo.
+- [x] Con `estatico: true` o sin movimiento devuelve la geometría configurada.
+- [x] El radial en la fase 0 tiene exactamente el centro configurado y, a mitad de periodo, se desplaza `(0, 2A)`.
+- [x] `fondoCss` genera las tres formas y el cierre del cónico.
+- [x] Un estilo de 0.1.0 produce exactamente la misma cadena que hoy.
 
 ## Pruebas de feedback
 
@@ -47,3 +47,9 @@ Funciones puras que convierten el fondo y el tiempo de audio en geometría y CSS
 - Manual: nada (el aspecto se revisa en las tareas de interfaz).
 
 ## Notas de implementación
+
+Se añadieron `fondo.ts` (`geometriaFondoEn`, tipo `GeometriaFondo`) y, en `estiloCss.ts`, `fondoCss(fondo, geometria?)` (lineal, radial y cónico con cierre) y `fondoCssEn(fondo, tAudioMs, opciones)`. Las pruebas están en `fondo.test.ts` y `estiloCss.test.ts`. Para probarlo: `npx vitest run src/renderer/src/karaoke`.
+
+- Los defectos (forma lineal, centro 0,5/0,5, sin movimiento) se aplican dentro de `geometriaFondoEn` y no con `normalizarEstilo`. Así se evita clonar el estilo en cada fotograma.
+- Un estilo de 0.1.0 produce la misma cadena `linear-gradient` que antes.
+- Deuda: ninguna. No hay pasos manuales.
