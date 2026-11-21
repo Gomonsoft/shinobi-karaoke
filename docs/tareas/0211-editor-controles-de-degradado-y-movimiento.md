@@ -1,6 +1,6 @@
 # 0211 — Editor: controles de degradado, centro y movimiento
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md), [0204](0204-geometria-del-fondo-y-css-de-los-tres-degradados.md), [0205](0205-peor-contraste-por-tramos-y-cierre-conico.md). Para integrar G7/G8 en la vista previa: [0213](0213-pantalla-de-letra-fondo-en-movimiento-indicadores-y-sin-barrido.md) (prop `fondoEstatico`).
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1, §2 y §4, [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §10
@@ -59,3 +59,21 @@ En Estilo › Fondo, elegir la forma del degradado, el centro, el ángulo de ini
 - Manual (guía de la fase): G4, sin costura visible en el cónico con dos colores muy distintos; G12, fluidez en un equipo modesto.
 
 ## Notas de implementación
+
+### Qué se hizo
+- `vistas/editor/estilo/paradas.ts`: `repartirParadas(n, forma)` (cónico i/n; resto 0 a 1) y `paradasRepartidas(colores, forma)`.
+- `vistas/editor/estilo/ControlesFondo.tsx`: `ControlesFondo` (forma, cuadrícula de centro 3 × 3, ángulo / ángulo de inicio), `ControlesMovimiento` (casilla, velocidad con cuarta opción «{n} s», ayuda y nota de movimiento reducido) y `resumenFondo` (D1/D4). Se conserva el segmentado Sólido/Degradado de la spec.
+- `PanelEstilo.tsx` los monta; añadir/quitar/cambiar color reparte según la forma. `Editor.tsx`: botón «Detener el movimiento del fondo» (estado local, `fondoEstatico` a la vista previa; visible solo con movimiento y sin movimiento reducido). `textos.ts`: bloque `fondoG`. CSS en `panelEstilo.module.css` y `editor.module.css`.
+- Ajuste en `karaoke/PantallaLetra.tsx` (nota de 0213): en pausa, si el fondo se anima, un rAF barato repinta el fondo solo cuando cambia `obtenerTiempoAudio()`, para que buscar en pausa muestre la fase de ese instante.
+
+### Cómo probarlo
+Unitarias: `paradas.test.ts`, `ControlesFondo.test.tsx`. Crítico `npm run test:e2e:criticos` en verde.
+
+### Desviaciones y deuda
+- El resumen D1/D4 se prueba como función pura (`resumenFondo`), no montando el panel en D1.
+- El botón «Detener» usa solo el nombre `edi.fondo.mov.detener/reanudar` como etiqueta y tooltip; no añade el sufijo «· solo en esta vista previa» (BotonIcono usa la misma cadena para nombre y tooltip).
+- La ayuda `edi.fondo.mov.ayuda.*` y la nota de movimiento reducido se muestran siempre bajo la casilla (marcada o no).
+- Sin prueba automática del repintado en pausa de PantallaLetra.
+
+### Verificar a mano (guía de la fase)
+G4: sin costura visible en el cónico con dos colores muy distintos; G12: fluidez en un equipo modesto; buscar en pausa con movimiento muestra la fase del instante (igual que el reproductor); G9 (guardar como tema nuevo y aplicarlo a otra canción conserva forma, centro y movimiento); panel a 300, 360 y 480 px sin scroll de página; botón «Detener» junto a «Probar».

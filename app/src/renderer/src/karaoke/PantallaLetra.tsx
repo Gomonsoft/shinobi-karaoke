@@ -157,7 +157,25 @@ export function PantallaLetra({
       if (animarFondo) raiz.current?.style.setProperty('--k-fondo', fondoCss(fondo))
     }
     pintarFondo(obtenerTiempoAudio())
-    if (!reproduciendo) return restaurar
+    if (!reproduciendo) {
+      // En pausa el fondo sigue las búsquedas: se repinta solo cuando cambia el tiempo.
+      if (!animarFondo) return restaurar
+      let rafPausa = 0
+      let ultimo = obtenerTiempoAudio()
+      const vigilar = () => {
+        const t = obtenerTiempoAudio()
+        if (t !== ultimo) {
+          ultimo = t
+          pintarFondo(t)
+        }
+        rafPausa = requestAnimationFrame(vigilar)
+      }
+      rafPausa = requestAnimationFrame(vigilar)
+      return () => {
+        cancelAnimationFrame(rafPausa)
+        restaurar()
+      }
+    }
     let raf: number
     let anterior: FotogramaLetra | null = null
     const avanzar = () => {

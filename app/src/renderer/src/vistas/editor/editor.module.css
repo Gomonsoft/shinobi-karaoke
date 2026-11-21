@@ -213,8 +213,17 @@
   min-width: max-content;
   transform: translateX(-50%);
 }
-.accionPrueba button {
+.accionPrueba {
+  gap: var(--e-2);
+}
+.accionPrueba > :first-child {
   flex: 1;
+}
+.accionPrueba > :first-child button {
+  width: 100%;
+}
+.detenerFondo {
+  flex: none;
 }
 .pestanas {
   grid-area: pestanas;
