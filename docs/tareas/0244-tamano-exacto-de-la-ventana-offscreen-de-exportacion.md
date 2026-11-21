@@ -1,5 +1,5 @@
 # 0244 — Tamaño exacto de la ventana offscreen de exportación
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (exportación)
 - Depende de: —
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §2 «Tamaño» y «Revisión para 0.2.0 — alpha.2»
@@ -18,9 +18,9 @@ En Windows, toda exportación con un perfil más ancho o más alto que el área 
 - `ServicioExportacion` no cambia: un rechazo de `crearVentana` ya hace fallar el trabajo, mata el worker y limpia el temporal (comprobado en `servicio.ts`, `flujo` en torno a la línea 836).
 
 ## Criterios de aceptación
-- [ ] Con un doble que **recorta en el constructor** (devuelve un `getContentSize` menor hasta que se llama a `setContentSize`), la ventana queda del tamaño pedido y la captura es exacta.
-- [ ] Con un doble cuyo `setContentSize` no surte efecto, `crearVentanaExportacion` rechaza con `PERFIL_NO_SOPORTADO`, llama a `destroy()`, no llama a `registrarRol` ni a `loadURL` y escribe una línea de error.
-- [ ] Orden comprobado: `setContentSize` va antes de `loadURL`.
+- [x] Con un doble que **recorta en el constructor** (devuelve un `getContentSize` menor hasta que se llama a `setContentSize`), la ventana queda del tamaño pedido y la captura es exacta.
+- [x] Con un doble cuyo `setContentSize` no surte efecto, `crearVentanaExportacion` rechaza con `PERFIL_NO_SOPORTADO`, llama a `destroy()`, no llama a `registrarRol` ni a `loadURL` y escribe una línea de error.
+- [x] Orden comprobado: `setContentSize` va antes de `loadURL`.
 - [ ] Manual (guía): en el equipo de 3440 × 1440, se exportan 2560 × 1440, 3840 × 2160 y 2880 × 2160 en MKV y WebM, con la resolución exacta según `ffprobe`.
 
 ## Pruebas de feedback
@@ -30,3 +30,8 @@ En Windows, toda exportación con un perfil más ancho o más alto que el área 
 - Manual: casos de exportación 1440p, 4K y 2880 × 2160 en Windows de la guía de la fase 6 (`qa`), en un equipo con un monitor menor que el perfil.
 
 ## Notas de implementación
+- `crearVentanaExportacion` (`ventana.ts`) llama a `ventana.setContentSize(ancho, alto)` justo tras `deps.crear` y lee `getContentSize()`; si no coincide, escribe un `error`, hace `destroy()` y rechaza con `PERFIL_NO_SOPORTADO` antes de `registrarRol`, oyentes y `loadURL`. La interfaz `BrowserWindowOffscreen` incorpora `setContentSize` y `getContentSize`. Las opciones de creación y la comprobación de cada captura no cambian.
+- Archivos: `app/src/main/exportacion/ventana.ts` y `ventana.test.ts` (el doble de `montar()` tiene tres modos: respeta, recorta y rebelde).
+- Probar: `npm run test:cambios`; `SHINOBI_UV=<app>/resources/bin/uv.exe npx playwright test e2e/exportacion-captura.spec.ts e2e/exportacion.spec.ts` tras `npm run build`. En Windows con un monitor de 3440 × 1440: exportación real de 2560 × 1440 (MKV AV1) y 3840 × 2160 (WebM VP9), 24 fps, 40 s, ambas completadas; `ffprobe` da 2560×1440 y 3840×2160 con 960 fotogramas.
+- Manual: queda en la guía de la fase 6 la matriz 2560 × 1440, 3840 × 2160 y 2880 × 2160 en MKV y WebM.
+- Deuda: ninguna.

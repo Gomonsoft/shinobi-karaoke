@@ -1,5 +1,5 @@
 # 0245 — Registrar en `app.log` los fallos de exportación
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (exportación)
 - Depende de: —
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md), «Revisión para 0.2.0 — alpha.2», punto 3
@@ -27,3 +27,9 @@ Ningún fallo de exportación llega a `registros/app.log`. QA lo midió: 0 líne
 - Manual (guía): tras una exportación fallida, `registros/app.log` tiene la línea.
 
 ## Notas de implementación
+
+- `ServicioExportacion.terminar()` llama a `registrarFin()`, que escribe una sola línea por trabajo: `error` si el resultado es `error` (por `salida.error`, fallo al sustituir el destino o excepción en `correr`) y `info` si es `cancelada` (`exportación <id> cancelada en el fotograma N de T`, también la de una exportación en cola, con N = 0). Se quitó la línea suelta del `catch` de `correr` para no duplicar. Las completadas no escriben.
+- Formato del error: `exportación <id> falló: <CODIGO>: <mensaje> · MKV AV1 3840×2160 a 30 fps, audio instrumental · N de T fotogramas[ · detalles]`. El perfil usa el formato (`MKV AV1`/`WEBM VP9`) y el audio en su valor crudo (`instrumental`, `instrumental_voz`); los fotogramas salen de `posicionMs` del error.
+- Archivos: `app/src/main/exportacion/servicio.ts` y `servicio.test.ts` (aserciones en los tests de fallo del worker, fallo de rename, caída de la ventana y cancelación).
+- Probar: `npm run test:cambios`. Manual: tras una exportación fallida, `registros/app.log` tiene la línea.
+- Deuda: la rama `catch` de `correr` (excepción inesperada fuera de `ejecutarTrabajo`) no tiene test propio, porque `ejecutarTrabajo` recoge todo internamente; pasa por el mismo `terminar`.

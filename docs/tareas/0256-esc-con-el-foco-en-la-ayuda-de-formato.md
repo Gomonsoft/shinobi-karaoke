@@ -1,5 +1,5 @@
 # 0256 — Esc con el foco en la ayuda de «Formato» no cierra el diálogo de exportación
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (exportación)
 - Depende de: —
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)
@@ -24,3 +24,8 @@ Con el foco en el botón ⓘ de «Formato», el primer Esc cierra la ayuda, como
 - Manual: repetir el caso 1.9 de la guía de la fase 6.
 
 ## Notas de implementación
+
+- `cerrarAyuda` (`Formulario.tsx`) solo intercepta Esc si `ayudaAbierta`; con la ayuda cerrada el evento llega al diálogo y lo cierra.
+- Archivos: `app/src/renderer/src/exportacion/dialogo/Formulario.tsx` y `DialogoExportacion.test.tsx` (el test del popover ⓘ comprueba ahora un segundo Esc que cierra el diálogo).
+- Probar: `npx vitest run src/renderer/src/exportacion/dialogo`. Manual: caso 1.9 de la guía de la fase 6.
+- Deuda: ninguna.

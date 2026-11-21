@@ -209,7 +209,8 @@ export function Formulario(p: PropsFormulario) {
     ['DESTINO_NO_DISPONIBLE', 'DESTINO_OCUPADO', 'SIN_ESPACIO'].includes(error.codigo)
 
   const cerrarAyuda = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape') return
+    // Con la ayuda cerrada, Esc llega al diálogo y lo cierra.
+    if (e.key !== 'Escape' || !ayudaAbierta) return
     // Esc cierra primero el popover y devuelve el foco; no llega al diálogo.
     e.preventDefault()
     e.stopPropagation()
