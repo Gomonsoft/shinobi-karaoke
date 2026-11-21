@@ -66,3 +66,12 @@ Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera
 
   Los valores son provisionales y se calibran con las canciones del usuario. Usa aritmética entera, así que es determinista.
 - La precisión del fin propuesto es de ± 1 bloque (10 ms) más el margen. El botón exige el estado `lista` de los picos. Con `generando`, `no_disponible` o `error` explica el motivo y permite reintentar como la onda.
+
+## Revisión para 0.2.1 — fases 8 y 9
+
+Fecha: 2026-11-21. Detalle en el [ADR 0021](0021-sincronia-simplificada-y-editor-preciso-de-linea.md) §8 y §9.
+
+- **Doble clic en el cuerpo de una región** (y Mayús + L): selecciona la línea y reproduce con `hastaMs` el tramo `[máx(0, inicio − MARGEN_ESCUCHA_LINEA_MS), mín(duración, finEfectivo + MARGEN_ESCUCHA_LINEA_MS)]` en tiempo de audio, y se pausa al final. `MARGEN_ESCUCHA_LINEA_MS = 500` en `shared/escucha.ts`. Con «Bloquear enunciado» en la misma línea solo se busca y el bucle sigue; en otra línea el bucle termina sin restaurar la posición (spec 06 §8.4). El doble clic sobre un tirador no reproduce.
+- **Arrastrar el inicio o el fin** de una región descarta las palabras de esa línea (regla de ADR 0021 §4). Lo hace la operación de dominio que ya calcula la vista temporal, así que el aviso sale una vez por gesto y el deshacer es un paso.
+- **Bucle del editor preciso**: usa `fijarBucle` con `[inicio − margen, fin + margen]` en tiempo de audio (margen 0, 0,5 o 1 s). Con la ventana abierta, los tiradores de la línea abierta no se muestran en la línea de tiempo y su región dibuja las fronteras del borrador (spec 06, fase 9). No hay temporizador ni otro reloj. El tramo estirado para conservar el tono (ADR 0021 §9) se reproduce con `loopStart`/`loopEnd` sobre su propio buffer, con la misma regla de fase de este ADR.
+- **Forma de onda ampliada**: un consumidor más de `picos.leer`, sobre el intervalo del bucle con presupuesto ≤ 4096 bloques. Con líneas de hasta 40 s obtiene el nivel 0 (10 ms por bloque), suficiente para ver el arranque de cada sílaba. **Sin cambios** en el formato, el worker ni main.

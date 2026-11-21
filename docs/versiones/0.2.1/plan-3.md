@@ -8,9 +8,9 @@ Aprobada por el usuario el 2026-11-21 («apruebo las fases 7 a 9, que sea 0.2.1�
 
 | Fase | Entrega | Estado |
 |---|---|---|
-| 7 | Correcciones pendientes de alpha.1 | Aprobada · por desglosar |
-| 8 | Sincronía y editor más simples | Aprobada · por desglosar |
-| 9 | Editor preciso de línea | Aprobada · por desglosar |
+| 7 | Correcciones pendientes de alpha.1 | Aprobada · desglosada en el [backlog](backlog.md) |
+| 8 | Sincronía y editor más simples | Aprobada · desglosada en el [backlog](backlog.md) |
+| 9 | Editor preciso de línea | Aprobada · desglosada en el [backlog](backlog.md) |
 
 ```mermaid
 flowchart LR

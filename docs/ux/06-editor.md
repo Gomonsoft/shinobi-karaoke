@@ -5,7 +5,7 @@
 - Restricciones: [arquitectura.md §7 y "Restricciones e implicaciones para UX" §5–§6](../arquitectura.md)
 - Sistema visual: [sistema-visual.md §6–§10](sistema-visual.md) (componentes, foco, estilo predeterminado, reglas de contraste, valores fijos de render)
 - Preguntas: [0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md) (usuario: **sincronía solo por línea** en el MVP), [0004](../preguntas/0004-fuentes-tipograficas-incluidas-y-del-sistema.md) (solo fuentes incluidas), [0005](../preguntas/0005-viabilidad-detalles-ux-fase-0.md) y [0006](../preguntas/0006-ajustes-specs-ux-tras-0005.md) (pausas, fin automático, precisión del toque, lista incompleta), [0024](../preguntas/0024-stepper-letra-actual-y-volver-a-letra-desde-el-editor.md) (stepper y volver a Letra), [0025](../preguntas/0025-detalles-tecnicos-del-editor-fase-5.md) (detalles técnicos de la Fase 5; respondida: pantalla completa en la Fase 6, desplazamiento ±30 s, el tono baja con la velocidad, un solo volumen, API de guardado), [0026](../preguntas/0026-textos-pendientes-del-editor-fase-5.md) (letra recargada y regla de "color más claro"; respondida)
-- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca); 2026-11-11, bloqueo de edición durante la sesión en otra pantalla de la [fase 4 de 0.2.0](#fase-4-de-020--ventana-secundaria-y-cola); 2026-11-20, degradados, indicadores de espera, Letra lista y «Ajustar los silencios» de la [fase 5 de 0.2.0](#fase-5-de-020--estilo-espera-y-letra-lista); 2026-11-20, «Exportar video…» de la [fase 6 de 0.2.0](#fase-6-de-020--exportación).
+- Revisión: 2026-11-05, puesta al día para la Fase 5; 2026-11-06, "Probar a pantalla completa" para la Fase 6 (ver "Cambios de esta revisión" al final); 2026-11-08, layout adaptable y paneles de la [subfase 2.1 de 0.2.0](#subfase-21--layout-adaptable-y-paneles); 2026-11-09, temas en el panel Estilo de la [fase 3 de 0.2.0](#fase-3-de-020--temas-y-biblioteca); 2026-11-11, bloqueo de edición durante la sesión en otra pantalla de la [fase 4 de 0.2.0](#fase-4-de-020--ventana-secundaria-y-cola); 2026-11-20, degradados, indicadores de espera, Letra lista y «Ajustar los silencios» de la [fase 5 de 0.2.0](#fase-5-de-020--estilo-espera-y-letra-lista); 2026-11-20, «Exportar video…» de la [fase 6 de 0.2.0](#fase-6-de-020--exportación); 2026-11-21, sincronía y editor más simples de la [fase 8 de 0.2.1](#fase-8-de-021--sincronía-y-editor-más-simples) (sin tiempos por palabra importados, sin S, doble clic en la línea de tiempo, sin desplazamiento de toda la letra, pestaña «Funciones», «Hecho» y «Marcar como …» en las dos modalidades) y editor preciso de línea de la [fase 9 de 0.2.1](#fase-9-de-021--editor-preciso-de-línea).
 
 ## Objetivo
 Dejar la letra **a tiempo** con la música y darle un **estilo** propio con las opciones mínimas del MVP (fondo, color de letra, color de lo ya cantado, fuente), viendo el resultado en todo momento, y marcar la canción como **lista**.
@@ -551,6 +551,8 @@ Respecto a la versión de la Fase 0, sin cambiar el alcance:
 - Sección «Tema» en el panel Estilo: «Temas definidos» con vínculo vivo y «Tema personalizado» con copia propia, procedencia, «Volver a heredar», edición de tema con confirmación de impacto, «Guardar como tema nuevo…», renombrar, duplicar, eliminar y tema de álbum o artista. Retira «Restablecer estilo predeterminado» y «Usar este estilo en canciones nuevas» (el predeterminado pasa a Ajustes). Ver [Fase 3](#fase-3-de-020--temas-y-biblioteca), con sus criterios T1–T30.
 
 ## Fuera del MVP — ampliación futura: sincronía por palabra
+> Sustituida en 0.2.1 por el [editor preciso de línea](#fase-9-de-021--editor-preciso-de-línea). Desde la [fase 8 de 0.2.1](#81--tiempos-por-palabra-importados) las palabras importadas ya no se muestran ni se usan. Se conserva como registro.
+
 Decisión del usuario ([0002](../preguntas/0002-sincronia-por-palabra-en-mvp.md)): el MVP solo ofrece herramientas **por línea**; las palabras con tiempos que lleguen de LRCLIB o de un LRC mejorado se **muestran** (◆ en la fila, resaltado por palabra en la vista previa) y se **conservan**, pero no se editan. Esta sección **no se implementa en el MVP**; describe cómo ampliar el diseño en una versión posterior sin rehacer la vista:
 
 1. **Segunda pasada opcional**: en la lista, cada línea sincronizada ofrece "Sincronizar palabras" (tecla **W**). Se entra en el modo "Sincronizar al ritmo" **acotado a esa línea**: suena desde 1 s antes de su inicio, a 0,75× por defecto, y cada **Intro** marca el inicio de la siguiente palabra (la primera palabra hereda el inicio de la línea; el fin de cada palabra = inicio de la siguiente; la última termina en el fin de la línea). Retroceso deshace, Esc sale.
@@ -1854,3 +1856,604 @@ Origen: [plan, fase 6, feature 7](../versiones/0.2.0/plan-2.md#fase-6--exportaci
 - EX5. Un cambio de tiempos o de estilo hecho mientras se exporta se autoguarda y no aparece en el video resultante.
 - EX6. Con una exportación de esta canción en curso, el ítem es «Ver exportación» y abre el diálogo en su estado.
 - EX7. El diálogo «Atajos de teclado» incluye la fila `edi.atajo.exportar`.
+
+## Fase 8 de 0.2.1 — Sincronía y editor más simples
+
+Origen: [plan 0.2.1, fase 8](../versiones/0.2.1/plan-3.md#fase-8--sincronía-y-editor-más-simples) y [feedback de 0.2.0-alpha.1](../versiones/0.2.0/feedback-alpha-1.md) (puntos 3 a 9; decisiones D2 y D3 aplicadas al aprobar). Preguntas: [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) (arquitecto: datos de las palabras, fin automático, doble clic) y [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) (usuario: lo marcado **(decisión provisional)**). Biblioteca: [02 · Fase 8](02-biblioteca.md#fase-8-de-021--estados-y-fecha-de-añadido). Reproductor: [07 · Fase 8](07-reproductor.md#fase-8-de-021--sin-palabras-importadas-ni-desplazamiento-y-barra-de-carga). Valores visuales: [sistema visual · 0.2.1](sistema-visual.md#021--sincronía-editor-preciso-y-barra-de-carga-fases-8-y-9).
+
+Esta sección **quita** piezas y reordena acciones; no añade funciones de edición (eso es la [fase 9](#fase-9-de-021--editor-preciso-de-línea)). Respeta la [subfase 2.1](#subfase-21--layout-adaptable-y-paneles): nada añade scroll de página.
+
+**Sustituye** (lo no mencionado no cambia):
+- Wireframe A: el ◆ de la fila y su nota; «(S)» en el botón «Sincronizar al ritmo». Wireframe B: «y desplazamiento global». Wireframe C: «◆ por palabra» y el bloque «Desplazamiento de toda la letra» con su ayuda. Wireframe de la subfase 2.1 (dock, fila 2): «(S)».
+- «Datos que usa»: la viñeta de `moverInicioLinea` («sus palabras se mueven con ella; las que no caben se descartan»). Ver 8.2.
+- «Lista de líneas», fila «Fila de línea»: la frase «Con tiempos por palabra: ◆ …». Ver 8.1 y la [fase 9](#indicador-en-la-lista-el-panel-y-la-línea-de-tiempo).
+- «Modo Sincronizar al ritmo», fila «Entrar»: «o **S**». Regla 3 de «Reglas de una marca»: «palabras que se mueven o se descartan» (ver 8.2).
+- «Fin automático de una línea»: el primer caso («palabras con tiempo → fin de la última palabra») ya no usa palabras importadas (8.1).
+- «Ajuste fino», viñeta «Consecuencias de mover un inicio»: ver 8.2.
+- La sección **«Desplazamiento de toda la letra (`letra.offset_ms`)»**, la sección **«Panel angosto: «Desplazamiento de toda la letra»»** de la subfase 2.1, el texto «desplazamiento global» de «Deshacer y rehacer» y de «Vista previa», y la viñeta «**, / .** en el reproductor…» de «Probar a pantalla completa». Ver 8.5.
+- La tabla **«Atajos de teclado»** entera (ver [Atajos de teclado en 0.2.1](#atajos-de-teclado-en-021)).
+- «Cabecera», fila «⋯»; «Guardado, borrador y lista», filas «Marcar como lista», «Canción Lista: Hecho» y «Volver a borrador»; LL, wireframe «Dock, fila 2» y fila «Menú ⋯ de la cabecera»; AS, viñeta «También en el menú ⋯»; Fase 6, fila «⋯ de la cabecera › Exportar video…». Ver 8.6.
+- Estados: «Ayuda Bluetooth» (posición y texto), «Lista» y «Letra lista / Letra lista incompleta» (ver 8.6).
+- Criterios: 5 (◆), 10 («o cambiar el desplazamiento»), 11 («S o el botón»), 19 (posición de la nota), 23, 26, 27 («desplazamiento»), 39, 40, 42 (la parte de «, / .»), 43; subfase 2.1: 20; fase 5: LL1, LL5; fase 6: EX1 y EX6 («del ⋯»). Ver «Criterios de aceptación de la fase 8 (editor)».
+
+### 8.1 · Tiempos por palabra importados
+
+Decisión del usuario (D2): los tiempos por palabra que llegan con la letra (LRCLIB, LRC mejorado) **dejan de usarse** y solo se borran del archivo cuando se edita la línea.
+
+| Dónde | Antes | Desde 0.2.1 |
+|---|---|---|
+| Lista de líneas | ◆ al final de la fila con el tooltip `edi.palabras.tooltip` | Nada. La fila es igual que la de una línea sin palabras. |
+| Panel Sincronía | «◆ por palabra» (`edi.palabras.etiqueta`) junto al texto de la línea | Nada. |
+| Línea de tiempo | Región sin marcas propias | Sin cambios: región sin marcas. |
+| Vista previa, «Probar a pantalla completa», reproductor, ventana secundaria y video | Resaltado por palabra con los tiempos importados | **Barrido progresivo** de la línea entre su inicio y su fin efectivo. |
+| Fin automático (`finEfectivo`) | Con palabras: fin de la última palabra | Las palabras importadas no cuentan: se aplica el resto de la regla (pausa siguiente, línea siguiente a ≤ 8 s, etc.). Lo que se ve en la línea de tiempo es lo que suena **(decisión provisional; contrato en [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §1)**. |
+| «Ajustar los silencios» | Saltaba las líneas con palabras | Solo salta las líneas con tiempos por palabra **hechos a mano** ([fase 9](#fase-9-de-021--editor-preciso-de-línea)). Las que tenían palabras importadas se ajustan como cualquier otra. Cambia el texto `edi.silencios.explicacion`. |
+
+- **Canciones que ya los tienen** (Final Ruin, Valiente, Sinmigo, Assassins Creed Unity): no muestran nada especial, ni aviso ni insignia. Abrirlas no escribe nada.
+- **Cuándo se borran del archivo**: al editar el inicio o el fin de esa línea por cualquier vía (8.2) o al cambiar su texto. Como no cambia nada visible, se borran **sin aviso**.
+- Las únicas palabras que se muestran, se usan al reproducir y se avisan al descartarse son las hechas a mano en el [editor preciso](#fase-9-de-021--editor-preciso-de-línea).
+
+### 8.2 · Regla: editar el inicio o el fin descarta los tiempos por palabra
+
+Cualquier cambio del inicio o del fin de una línea fuera del editor preciso **descarta sus tiempos por palabra** (sustituye a «las palabras se mueven con la línea»). Cuenta como cambio:
+- arrastrar un tirador de la línea de tiempo y soltarlo con un valor distinto;
+- Alt/Ctrl/Cmd (+ Mayús) + ← / → y los campos Inicio y Fin del panel;
+- I, O, «Fijar inicio aquí», «Fijar fin aquí», «Fijar fin (O)» y «I» de los rieles, «Usar fin automático»;
+- Supr / Retroceso («Borrar tiempos de esta línea»);
+- una marca del modo «Sincronizar al ritmo» sobre la línea y la regla 2 de ese modo (líneas posteriores que pierden su tiempo);
+- que su fin fijado pase a automático porque el inicio siguiente se movió antes;
+- «Ajustar los silencios» (solo si la línea no tiene palabras hechas a mano, que nunca ajusta).
+
+Qué ve el usuario:
+- **Palabras importadas**: se borran sin aviso (8.1).
+- **Palabras hechas a mano**: toast `edi.toast.palabras` con [Deshacer] una vez por gesto (variante plural si el gesto afecta a varias líneas). [Deshacer] o Ctrl/Cmd + Z devuelven en **un paso** los tiempos de la línea y sus palabras. Antes del gesto, el panel ya lo advierte con `edi.preciso.aviso.descartar` (fase 9).
+- **Durante el modo «Sincronizar al ritmo»** no se muestran toasts; al salir, si alguna línea perdió palabras hechas a mano, un único toast `edi.toast.palabras.ritmo` (sin acción: cada marca se deshace con Retroceso dentro del modo o con Ctrl/Cmd + Z después).
+- Un arrastre cancelado (Esc, pérdida de captura) o un clic sin cambio no descarta nada.
+
+`edi.toast.palabras` cambia de texto (antes hablaba de palabras que «no cabían»). El toast `edi.toast.finauto` no cambia; si ocurren las dos cosas, salen los dos, como hoy.
+
+### 8.3 · Sin atajo S
+
+- **S** no hace nada en el editor (ni con el foco en la lista, ni en la línea de tiempo, ni en el panel). No se reasigna a otra acción.
+- «Sincronizar al ritmo» sigue en su botón del dock con el texto `edi.boton.sync` sin «(S)»; su tooltip es el mismo texto, sin atajo.
+- El banner `edi.banner.sinsync` deja de mencionar la tecla. El foco inicial sin ninguna línea sincronizada sigue en el botón (Intro o Espacio lo pulsan).
+- El diálogo «Atajos de teclado» ya no tiene la fila de S.
+
+### 8.4 · Doble clic en una región de la línea de tiempo: escuchar la línea
+
+```text
+Líneas   [ verso anterior ]  [ ⇢ Is this the real life? ⇠ ]  [ verso siguiente ]
+                           ↑ −0,5 s                       ↑ +0,5 s
+                           empieza aquí                    se pausa aquí
+```
+
+| Aspecto | Comportamiento |
+|---|---|
+| Gesto | Doble clic sobre el **cuerpo** de una región (no sobre un tirador: el doble clic en un tirador no reproduce, para no confundirse con un arrastre). El primer clic selecciona la línea como hoy. Tooltip de la región: `edi.timeline.region.tooltip`. |
+| Tramo | Desde `máx(0, inicio mostrado − 500 ms)` hasta `mín(duración, fin efectivo mostrado + 500 ms)`. Los 500 ms son una constante con nombre compartida por la antelación y el margen final (nombre propuesto `MARGEN_ESCUCHA_LINEA_MS`; [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §6). Suena con la pista de escucha y la velocidad actuales. |
+| Final del tramo | Se **pausa** al llegar al final del tramo y el cabezal se queda ahí **(decisión provisional, [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) §1)**. Así se escucha solo esa línea y un nuevo doble clic la repite. |
+| Con la reproducción en curso | Se interrumpe sin pausa intermedia y salta al tramo. |
+| Con «Bloquear enunciado» en la **misma** línea | El bucle sigue activo: el cabezal salta a `máx(0, inicio audible − 500 ms)`, la primera vuelta incluye esos 500 ms y las siguientes empiezan en el inicio, como siempre. No se pausa al final (manda el bucle). |
+| Con «Bloquear enunciado» en **otra** línea | El doble clic cambia la selección, así que el bucle termina (regla de la fase 2), pero **no** se restaura la posición previa: suena el tramo de la línea nueva. |
+| Con la escucha de comprobación en curso | Se sustituye por el tramo. |
+| Región recortada (inicio fuera del audio) | No suena nada; tooltip 2 s junto a la región con `edi.timeline.bucle.fuera`. |
+| Línea sin tiempos | No tiene región, así que no hay doble clic. El equivalente de teclado sobre una línea sin inicio no hace nada y muestra `edi.escucharLinea.sinInicio` junto al botón o la fila. |
+| Modo «Sincronizar al ritmo» | La línea de tiempo está minimizada e inactiva: no aplica. |
+| Con el editor preciso abierto (fase 9) | El doble clic en la región de **otra** línea la selecciona (la ventana pasa a esa línea) y suena su tramo; en la región de la línea abierta suena su tramo sin cambiar la ventana. |
+| Equivalente de teclado | **Mayús + L** sobre la línea seleccionada (fuera de campos de texto; también con el foco en la lista, en la línea de tiempo o en el panel). También en el menú contextual de la fila de la lista («Escuchar la línea», fase 9). **L** no cambia: «Escuchar desde esta línea», desde 2 s antes y sin pausa al final. |
+| Doble clic en una fila de la **lista** | No cambia: escuchar desde 2 s antes, sin pausa al final **(decisión provisional, 0147 §1)**. |
+| Lectores de pantalla | Sin anuncio (es audio). |
+
+### 8.5 · Sin «Desplazamiento de toda la letra»
+
+Decisión del usuario (D3): se retira la interfaz; el dato se conserva y se respeta.
+- **Se retiran**: la sección del panel Sincronía (título, −0,1 s, campo, +0,1 s, Restablecer, ayuda y mensaje de rango), las teclas **,** y **.** en el editor y en «Probar a pantalla completa» (spec 07, fase 8), el indicador `rep.offset` y todos sus textos (lista en «Microcopy»). Esas teclas no se reasignan.
+- **Se conserva** `letra.offset_ms` en el archivo, con su rango. Si una canción lo trae distinto de 0 (archivo editado a mano o de otra instalación), todo sigue funcionando igual que hoy: tiempos mostrados = `inicio_ms + offset_ms`, marcas guardadas como `t − offset_ms`, ticks, regiones, vista previa, reproductor y video con el desplazamiento aplicado. No se muestra ningún aviso ni valor: «lo que ves es lo que oyes» se mantiene **(decisión provisional, 0147 §2)**.
+- **Nota Bluetooth** (`edi.ayuda.bluetooth`): sigue saliendo al salir del modo «Sincronizar al ritmo» por primera vez en la sesión, ahora bajo «Escuchar al ajustar» / «Bloquear enunciado», con texto nuevo (ya no remite al desplazamiento).
+- `edi.banner.yasync` deja de mencionar el desplazamiento.
+- El panel Sincronía queda con: título de la línea, Inicio, Fin, escuchar, borrar, «Escuchar al ajustar», «Bloquear enunciado» y (fase 9) «Editor preciso de línea…». La regla general del panel angosto (300–480 px, ninguna fila de botones se parte, ningún encabezado se repite como etiqueta) sigue valiendo.
+
+### 8.6 · Estados y acciones: dock, pestaña «Funciones» y menú ⋯
+
+#### Dock, fila 2
+
+```
+Borrador     │ Escuchar [Original|Voz|Instrumental]   [◉ Sincronizar al ritmo] [Marcar como letra lista] [Marcar como lista] │
+Lista        │ Escuchar [Original|Voz|Instrumental]   [◉ Sincronizar al ritmo] [Marcar como letra lista] [Hecho]             │
+Letra lista  │ Escuchar [Original|Voz|Instrumental]   [◉ Sincronizar al ritmo] [Marcar como lista]       [Hecho]             │
+```
+El último botón es el primario; el penúltimo, secundario. Ningún estado tiene más de tres botones a la derecha, así que la fila cabe igual que en LL1.
+
+| Botón | Estado | Comportamiento |
+|---|---|---|
+| **Marcar como lista** (primario) | Borrador | Sin cambios (spec base y LL). |
+| **Marcar como letra lista** (secundario) | Borrador | Sin cambios (LL). |
+| **Hecho** (primario) | Lista y Letra lista | Sin cambios: vuelve a la Biblioteca con la tarjeta enfocada; con líneas sin inicio, primera pulsación de la visita con `edi.hecho.incompleta`. |
+| **Marcar como letra lista** (secundario) | Lista | Nuevo. Cambia la modalidad a «Letra lista» **y vuelve a la Biblioteca**, como al terminar un borrador: aviso de primera activación (`edi.letraLista.dialogo`) si no está silenciado, vaciado del guardado, filtro, foco, resalte de 2 s y toast `bib.toast.letraLista` **(decisión provisional, 0147 §3)**. |
+| **Marcar como lista** (secundario) | Letra lista | Nuevo. Cambia la modalidad a «Lista» sin diálogo y vuelve a la Biblioteca con el toast `bib.toast.lista`. |
+| Los dos anteriores con líneas sin inicio | Lista o Letra lista incompleta | No exigen que todas las líneas tengan inicio (la canción ya está terminada; como el cambio de modalidad de la fase 5). Comparten con «Hecho» el popover `edi.hecho.incompleta` de la primera pulsación de la visita: [Sincronizar ahora] cierra el popover y selecciona la primera sin inicio; [Salir igualmente] hace el cambio y sale. |
+
+Con un borrador de tema abierto (D3), los dos botones nuevos salen del editor, así que primero aparece `tema.dialogo.salir` (regla de la fase 3).
+
+#### Pestaña «Funciones»
+
+Tercera pestaña del panel, junto a «Sincronía» y «Estilo»: `[Sincronía | Estilo | Funciones]`. Reúne las funciones mayores que antes vivían en el menú ⋯.
+
+```
+│ [Sincronía|Estilo|Funciones]                       [»] │
+│ Exportar video                                         │  h3
+│ Crea un archivo de video con la letra y el             │  t-pequeno, texto-2
+│ instrumental para verlo fuera de la app.               │
+│ [🎞 Exportar video…]                        Ctrl+E      │  botón secundario + atajo (texto-3)
+│ ─────────────────────────────────────────────────      │
+│ Ajustar los silencios                                  │
+│ Lleva el fin de cada línea al último momento con voz   │
+│ antes de un silencio.                                  │
+│ [⌇ Ajustar los silencios…]                              │
+│ ⓘ Para ajustar los silencios falta: sincronizar        │  motivo visible si no está disponible
+│   3 líneas.                                            │  (t-pequeno, texto-2, icono info)
+│ ─────────────────────────────────────────────────      │
+│ Modo de reproducción                                   │
+│ ✓ Lista: se canta con barrido.                         │  estado actual
+│ [Cambiar a «Letra lista»…]                             │
+│ ─────────────────────────────────────────────────      │
+│ Estado de la canción                                   │
+│ Lista. Si vuelve a borrador, no se podrá reproducir    │
+│ hasta que la marques otra vez. No se pierde nada.      │
+│ [Volver a borrador…]                                   │
+```
+
+| Sección | Borrador | Lista | Letra lista |
+|---|---|---|---|
+| **Exportar video** | Botón «Exportar video…» con las condiciones de la fase 6 (en borrador el diálogo muestra `exp.nota.borrador`). Con una exportación de esta canción en curso o en cola: «Ver exportación» y debajo `bib.exp.linea` / `bib.exp.cola` en `t-pequeno`. | Igual | Igual |
+| **Ajustar los silencios** | Botón con la precondición, el diálogo y el resultado de AS (sin cambios). | Igual | Igual |
+| **Modo de reproducción** | Texto `edi.funciones.modo.borrador`; sin botón (se elige al terminar con los botones del dock). | `edi.funciones.modo.lista` + [Cambiar a «Letra lista»…]: misma lógica que la fila «Menú ⋯» de LL (aviso si no está silenciado, cambio **sin salir del editor**, insignia y toast `edi.letraLista.toast.cambio`, fuera del historial). | `edi.funciones.modo.letraLista` + [Cambiar a «Lista»] (sin diálogo, toast `edi.letraLista.toast.karaoke`). |
+| **Estado de la canción** | `edi.funciones.estado.borrador`; sin botón. | `edi.funciones.estado.lista` + [Volver a borrador…] (diálogo `bib.dialogo.borrador`; al confirmar sigue en el editor, la insignia pasa a Borrador y el dock al del borrador). | `edi.funciones.estado.letraLista` + [Volver a borrador…] (igual; olvida la modalidad). |
+
+- **Motivo de no disponible, siempre a la vista**: un botón no disponible es `aria-disabled` (sigue enfocable) y debajo muestra su motivo en `t-pequeno` `texto-2` con icono `info`, enlazado con `aria-describedby`. Exportar: `exp.motivo.sinPistas` / `exp.motivo.sinLineas`. Ajustar los silencios: el primer renglón de su popover (`edi.silencios.falta.*`); al pulsarlo se abre el popover de siempre con todos los renglones y sus acciones ([Ir a la primera], [Reintentar]). El texto se actualiza en vivo.
+- Todos los botones de la pestaña son **secundarios** (el primario rojo sigue siendo el del dock).
+- **Línea de tiempo con «Funciones»**: el dock es como en «Sincronía» (transporte + línea de tiempo), para ver el resultado de «Ajustar los silencios» (resalte de 2 s). Solo «Estilo» la oculta.
+- **Modo «Sincronizar al ritmo»**: la pestaña «Funciones» queda inactiva, como «Estilo». Ctrl/Cmd + E tampoco actúa (fase 6).
+- **Teclado**: las tres pestañas son un `tablist` (←/→ entre pestañas, Inicio/Fin). La pestaña elegida dura la visita, como hasta ahora. **Ctrl/Cmd + E** sigue abriendo la exportación desde cualquier pestaña.
+- **Panel angosto**: a 300 px las tres pestañas y «Minimizar» caben en una fila de 36 px sin partirse; las secciones de «Funciones» usan el scroll del panel.
+- **Panel minimizado (riel)**: al final del riel se añade el botón `edi.layout.riel.funciones` («Funciones», icono `blocks`, 32 px de alto, ancho del riel). Expande el panel en la pestaña «Funciones» y pone el foco en el primer botón disponible de la pestaña. El resto del riel no cambia.
+- **Por debajo del mínimo** (disposición B): la columna izquierda tiene las tres pestañas.
+- **Al terminar una acción** el foco vuelve a su botón (o al botón que lo sustituye: «Cambiar a «Lista»» tras «Cambiar a «Letra lista»…»; «Exportar video…» → «Ver exportación»). Tras «Volver a borrador…», al título de la sección «Estado de la canción» (`tabindex="-1"`), porque el botón desaparece.
+
+#### Menú ⋯ de la cabecera
+
+Queda con dos ítems: «Atajos de teclado (F1)» y, tras un separador, «Restablecer distribución de paneles» (subfase 2.1; también restablece la ventana del editor preciso, fase 9). Se retiran del menú «Exportar video…» / «Ver exportación», «Ajustar los silencios…», «Cambiar a «Letra lista»…», «Cambiar a «Lista»» y «Volver a borrador…».
+
+### 8.7 · Barra de espera en la vista previa
+
+La vista previa usa el mismo render que el reproductor y el video: la barra pasa a ser una **barra de carga** de ancho fijo que se llena de izquierda a derecha (detalle en [07 · Fase 8](07-reproductor.md#barra-de-espera-como-barra-de-carga) y [sistema visual · 0.2.1](sistema-visual.md#021--sincronía-editor-preciso-y-barra-de-carga-fases-8-y-9)). En el editor, también en una canción Letra lista, la barra usa los colores de karaoke (pista en el color de la letra, relleno en el de lo ya cantado), igual que el barrido de la vista previa. «Ver un ejemplo» la muestra así. El texto de la casilla («Barra hasta la próxima línea») no cambia.
+
+### Atajos de teclado en 0.2.1
+
+Sustituye la tabla de «Atajos de teclado» (las reglas de su párrafo inicial no cambian). Los atajos dentro del editor preciso están en la [fase 9](#teclado-de-la-ventana).
+
+| Tecla | Acción |
+|-------|--------|
+| Espacio | Reproducir / pausa (también en el modo sincronizar) |
+| Inicio | Ir al principio |
+| ← / → (en la barra de tiempo) | −/+ 5 s |
+| Intro | (Modo sincronizar) marcar inicio; mantener ≥ 300 ms = marcar también el fin |
+| Retroceso | (Modo sincronizar) deshacer la última marca · (fuera del modo) borrar tiempos de la línea |
+| Supr | Borrar tiempos de la línea seleccionada |
+| Esc | Cancelar la cuenta atrás / salir del modo sincronizar / cerrar popover, diálogo o editor preciso / volver a la Biblioteca |
+| ↑ / ↓ | Línea anterior / siguiente (saltan pausas) |
+| Alt + ← / → | Inicio −/+ 10 ms (con Mayús: 100 ms) |
+| Ctrl/Cmd + ← / → | Fin −/+ 10 ms (con Mayús: 100 ms) |
+| I / O | Fijar inicio / fin en la posición actual |
+| L | Escuchar desde la línea seleccionada (desde 2 s antes) |
+| Mayús + L | Escuchar la línea seleccionada (de 0,5 s antes a 0,5 s después) |
+| P | Abrir el editor preciso de la línea seleccionada (fase 9) |
+| 1 / 2 / 3 | Escuchar Original / Voz / Instrumental |
+| Ctrl/Cmd + Z · Ctrl/Cmd + Mayús + Z (Ctrl + Y) | Deshacer · Rehacer |
+| F | Probar a pantalla completa |
+| Ctrl/Cmd + E | Exportar video |
+| F6 / Mayús + F6 | Pasar el foco entre el editor preciso y el resto del editor (fase 9) |
+| F1 / ? | Atajos de teclado |
+
+Ya no existen: **S** (Sincronizar al ritmo), **,** y **.** (desplazamiento). La nota sobre `, .` frente a los corchetes deja de aplicar.
+
+### Estados (fase 8, editor)
+| Estado | Presentación |
+|---|---|
+| Canción con tiempos por palabra importados | Igual que una sin palabras: sin ◆, barrido progresivo. |
+| Borrador | Insignia «✎ Borrador»; dock con «Marcar como letra lista» y «Marcar como lista». Funciones: modo y estado solo con texto. |
+| Lista | Insignia «✓ Lista»; dock con «Marcar como letra lista» y «Hecho». Funciones: «Cambiar a «Letra lista»…» y «Volver a borrador…». |
+| Letra lista | Insignia «✓ Letra lista»; dock con «Marcar como lista» y «Hecho». Funciones: «Cambiar a «Lista»» y «Volver a borrador…». |
+| Lista / Letra lista incompleta | Como su estado, con la insignia de incompleta; «Hecho» y «Marcar como …» comparten `edi.hecho.incompleta`. |
+| Función no disponible | Botón `aria-disabled` con su motivo debajo. |
+| Reproduciendo el tramo de una línea (doble clic o Mayús + L) | Transporte en reproducción; al final del tramo, en pausa. |
+
+### Accesibilidad (fase 8, editor)
+- La pestaña «Funciones» es un `tabpanel` con nombre «Funciones»; cada sección tiene `h3`; cada motivo de no disponible está en el `aria-describedby` de su botón.
+- El riel anuncia el botón «Funciones» con su nombre; al expandir se anuncia `edi.layout.anuncio.expandido` como siempre.
+- Retirar S, `,` y `.` no deja atajos de una tecla sin documentar: el diálogo de atajos es la tabla anterior.
+- Mayús + L tiene `aria-keyshortcuts` en el ítem del menú contextual de la fila (fase 9).
+
+### Microcopy (fase 8, editor)
+| Clave | Texto |
+|---|---|
+| `edi.boton.sync` | Sincronizar al ritmo |
+| `edi.banner.sinsync` | Empieza por sincronizar: pulsa Sincronizar al ritmo y marca cada línea al oírla. |
+| `edi.banner.yasync` | Esta letra ya viene sincronizada. Escúchala y ajusta las líneas que no coincidan con la voz. |
+| `edi.ayuda.bluetooth` | ¿Usas auriculares o altavoces Bluetooth? Añaden un retraso que cambia de un equipo a otro: para sincronizar, mejor con cable o con los altavoces del equipo. |
+| `edi.toast.palabras` | La línea {n} vuelve al barrido progresivo: se quitaron sus tiempos por palabra. — [Deshacer] · (varias) {k} líneas vuelven al barrido progresivo: se quitaron sus tiempos por palabra. — [Deshacer] |
+| `edi.toast.palabras.ritmo` | Al marcarlas de nuevo, {k} líneas volvieron al barrido progresivo. · (k = 1) Al marcarla de nuevo, la línea {n} volvió al barrido progresivo. |
+| `edi.silencios.explicacion` | Shinobi Karaoke buscará en la voz el primer silencio después de cada línea y llevará su fin al último momento con voz. Las líneas sin silencio, las que tienen tiempos por palabra hechos a mano y las pausas no cambian. |
+| `edi.timeline.region.tooltip` | {texto de la línea} · Doble clic: escuchar esta línea |
+| `edi.escucharLinea` | Escuchar la línea (Mayús + L) |
+| `edi.escucharLinea.sinInicio` | Fija primero el inicio de esta línea. |
+| `edi.atajo.escucharLinea` | Mayús + L — Escuchar la línea seleccionada (de 0,5 s antes a 0,5 s después) |
+| `edi.funciones` | Funciones |
+| `edi.funciones.exportar.titulo` | Exportar video |
+| `edi.funciones.exportar.ayuda` | Crea un archivo de video con la letra y el instrumental para verlo fuera de la app. |
+| `edi.funciones.exportar.boton` | Exportar video… · (en curso o en cola) Ver exportación |
+| `edi.funciones.silencios.titulo` | Ajustar los silencios |
+| `edi.funciones.silencios.ayuda` | Lleva el fin de cada línea al último momento con voz antes de un silencio. |
+| `edi.funciones.silencios.boton` | Ajustar los silencios… |
+| `edi.funciones.modo.titulo` | Modo de reproducción |
+| `edi.funciones.modo.borrador` | Se elige al terminar la canción: «Marcar como lista» (con barrido) o «Marcar como letra lista» (sin barrido). |
+| `edi.funciones.modo.lista` | ✓ Lista: se canta con barrido. |
+| `edi.funciones.modo.letraLista` | ✓ Letra lista: la letra cambia línea a línea, sin barrido. |
+| `edi.funciones.estado.titulo` | Estado de la canción |
+| `edi.funciones.estado.borrador` | Borrador. Se guarda sola mientras trabajas; para cantarla, márcala como lista. |
+| `edi.funciones.estado.lista` | Lista. Si vuelve a borrador, no se podrá reproducir hasta que la marques otra vez. No se pierde nada. |
+| `edi.funciones.estado.letraLista` | Letra lista. Si vuelve a borrador, no se podrá reproducir hasta que la marques otra vez y se volverá a elegir el modo. No se pierde nada. |
+| `edi.funciones.borrador.boton` | Volver a borrador… |
+| `edi.funciones.aLetraLista` | Cambiar a «Letra lista»… |
+| `edi.funciones.aLista` | Cambiar a «Lista» |
+| `edi.layout.riel.funciones` | Funciones — nombre accesible: Expandir panel en Funciones |
+
+**Claves retiradas** (no se implementan; el código que las use se quita): `edi.palabras.tooltip`, `edi.palabras.etiqueta`, `edi.offset.titulo`, `edi.offset.ayuda`, `edi.offset.rango`, `edi.offset.campo`, `edi.offset.restablecer`, `edi.boton.restablecer`, `edi.menu.borrador`, `edi.menu.aLetraLista`, `edi.menu.aLista`, `edi.menu.exportar` (sustituida por `edi.funciones.exportar.boton`) y la variante «en el menú ⋯» de `edi.silencios.boton`. En spec 07: `rep.offset` y la variante «desplazamiento» de `rep.ind.*`.
+
+### Criterios de aceptación de la fase 8 (editor)
+
+**Tiempos por palabra importados y regla de descarte**
+- E8-1. Con Final Ruin (35 de 36 líneas con palabras importadas), ninguna fila muestra ◆, el panel no muestra «por palabra», y la vista previa barre cada línea de forma progresiva entre su inicio y su fin efectivo (test del modelo de render con una línea con palabras importadas: el ancho pintado es proporcional al tiempo transcurrido). Abrir la canción no escribe `cancion.json`.
+- E8-2. Corregir el fin de una línea de Final Ruin o de Valiente (tirador, campo o Ctrl/Cmd + →) deja el barrido terminando exactamente con la línea en la vista previa, en «Probar a pantalla completa» y en el reproductor; el archivo guardado ya no tiene `palabras` en esa línea y las demás líneas conservan las suyas.
+- E8-3. El fin automático de una línea con palabras importadas no depende de ellas: coincide con el de la misma línea sin palabras (test unitario de `finEfectivo`).
+- E8-4. Cada vía de 8.2 (tirador, flechas con modificador, campos, I, O, «Usar fin automático», Supr, marca al ritmo, regla 2, fin fijado que pasa a automático) descarta las palabras de la línea afectada; con palabras importadas no aparece ningún toast; con palabras hechas a mano aparece `edi.toast.palabras` una vez y [Deshacer] devuelve en un paso tiempos y palabras. Un arrastre cancelado no descarta nada.
+- E8-5. «Ajustar los silencios» ajusta las líneas con palabras importadas (y les quita las palabras) y salta las que tienen palabras hechas a mano; el diálogo muestra el texto nuevo de `edi.silencios.explicacion`.
+
+**S, doble clic y desplazamiento**
+- E8-6. S no hace nada con el foco en la lista, en la línea de tiempo, en el panel ni en el transporte; el botón «Sincronizar al ritmo» entra en el modo; el botón y el banner no mencionan S y el diálogo de atajos no tiene esa fila.
+- E8-7. Doble clic en el cuerpo de una región reproduce desde `máx(0, inicio mostrado − 500 ms)` (± 20 ms, test con reloj simulado) y se pausa en `fin efectivo + 500 ms`; con la reproducción en curso salta sin pausa; con el inicio a 0,3 s empieza en 0. El valor viene de una constante con nombre (comprobado en el código).
+- E8-8. Con «Bloquear enunciado» en la misma línea, el doble clic reinicia el bucle desde 0,5 s antes y el bucle sigue; en otra línea, el bucle termina y suena el tramo de la nueva sin volver a la posición anterior. El doble clic sobre un tirador no reproduce.
+- E8-9. Mayús + L hace lo mismo que el doble clic sobre la línea seleccionada; sobre una línea sin inicio no hace nada y muestra `edi.escucharLinea.sinInicio`. L y el doble clic en la lista conservan su comportamiento (2 s antes, sin pausa al final).
+- E8-10. No hay sección de desplazamiento en el panel (el texto «Desplazamiento de toda la letra» no aparece en ningún sitio del editor) y `,` / `.` no hacen nada en el editor ni en «Probar a pantalla completa». Con una canción de prueba con `offset_ms: 1500`, la lista, los ticks, las regiones, la vista previa y el reproductor muestran los tiempos desplazados 1,5 s y marcar en `t` guarda `t − 1500` (los mismos tests de antes, sin la interfaz).
+- E8-11. Al salir del modo sincronizar por primera vez en la sesión aparece la nota Bluetooth con el texto nuevo, bajo «Bloquear enunciado».
+
+**Dock, Funciones y menú ⋯**
+- E8-12. El dock muestra, a la derecha de la fila 2: en borrador «Marcar como letra lista» + «Marcar como lista» (primario); en Lista «Marcar como letra lista» + «Hecho» (primario); en Letra lista «Marcar como lista» + «Hecho» (primario). La fila no se parte en los seis viewports de la subfase 2.1.
+- E8-13. En una Lista, «Marcar como letra lista» (con el aviso si no está silenciado) cambia la modalidad, vuelve a la Biblioteca con la tarjeta enfocada y resaltada y muestra `bib.toast.letraLista`; en una Letra lista, «Marcar como lista» la cambia sin diálogo y muestra `bib.toast.lista`. Con líneas sin inicio, la primera pulsación de la visita (de cualquiera de los dos o de «Hecho») muestra `edi.hecho.incompleta`.
+- E8-14. La pestaña «Funciones» está junto a «Sincronía» y «Estilo» y contiene «Exportar video…», «Ajustar los silencios…», el modo de reproducción y el estado de la canción con los textos y botones de la tabla según el estado (borrador, Lista, Letra lista). Cada acción hace lo mismo que su versión anterior del menú ⋯ (mismos diálogos, toasts e historial).
+- E8-15. Con la separación sin completar, «Exportar video…» está `aria-disabled` y muestra `exp.motivo.sinPistas` debajo; con una línea sin inicio, «Ajustar los silencios…» muestra su motivo debajo y al pulsarlo abre el popover con [Ir a la primera]. Los motivos se actualizan sin recargar.
+- E8-16. El menú ⋯ contiene solo «Atajos de teclado (F1)» y «Restablecer distribución de paneles».
+- E8-17. Con el panel minimizado, el botón «Funciones» del riel expande el panel en esa pestaña con el foco en su primer botón disponible. En el modo sincronizar la pestaña «Funciones» está inactiva. A 300 px de ancho del panel, las tres pestañas no se parten.
+- E8-18. Las funciones mayores (exportar, ajustar los silencios, cambiar de modalidad y volver a borrador) se alcanzan sin abrir ⋯, con ratón y con teclado.
+
+**Capturas de revisión**
+- E8-19. En `docs/ux/revision-0.2.1-fase-8/`, nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 720 al 100 % y al 125 %: `final-ruin-sin-palabras`, `panel-sin-desplazamiento`, `dock-borrador`, `dock-lista`, `dock-letra-lista`, `funciones-borrador`, `funciones-lista`, `funciones-no-disponible`, `riel-funciones`, `menu-cabecera`.
+
+## Fase 9 de 0.2.1 — Editor preciso de línea
+
+Origen: [plan 0.2.1, fase 9](../versiones/0.2.1/plan-3.md#fase-9--editor-preciso-de-línea) y palabras del usuario: «El "editor preciso de línea" será una ventana tipo pop up, o sea que vive en la ventana principal del editor (muy parecido a las subventanas de programas como los de Adobe) donde se podrá marcar el tiempo de inicio y fin por palabra (mejorará el barrido), reproducir en bucle (con un poco de espacio para que el humano pueda escuchar a diferentes velocidades), así como editar rápidamente esa línea» y «en cuanto un editor en la línea de tiempo edite, se descartará el tiempo por palabra». Contratos: [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) (arquitecto; revisión de ADR 0005 y 0010). Decisiones provisionales: [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md).
+
+Esta sección **sustituye** a «Fuera del MVP — ampliación futura: sincronía por palabra» (ideas de 0.1.0 que no se implementan) y a la frase «no sincroniza palabra a palabra» de «Objetivo». Lo demás del editor no cambia salvo donde se dice.
+
+### Conceptos
+- **Tiempos por palabra hechos a mano**: inicio y fin de cada palabra de una línea, creados **solo** en esta ventana. Son los únicos que se pintan palabra a palabra (las palabras importadas se ignoran, fase 8). En el archivo se distinguen de las importadas ([0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §2).
+- **Palabra**: cada fragmento del texto de la línea separado por espacios; la puntuación va con su palabra («life?»). Una línea de una sola palabra también se puede editar.
+- **Marcada / sin marcar**: una palabra está **marcada** cuando el usuario fijó sus tiempos (al vuelo, con tiradores, campos o I/O). Las **sin marcar** reciben un reparto automático: cada tramo de palabras sin marcar seguidas se reparte, proporcional al número de caracteres de cada palabra (sin espacios, puntuación incluida; mínimo 1) y sin huecos, entre el fin de la marcada anterior (o el inicio de la línea) y el inicio de la marcada siguiente (o el fin de la línea). Al aplicar, todas las palabras se guardan con sus tiempos.
+- **Borrador de la ventana**: lo que se cambia en la ventana no toca la canción hasta **Aplicar** (o cerrar, que aplica). La vista previa sí lo muestra en vivo.
+- **Reglas de validez** (se cumplen siempre por construcción; ningún control permite romperlas):
+  1. Palabras en el orden del texto.
+  2. Cada palabra dentro de `[inicio de la línea, fin de la línea]`.
+  3. Sin solapes: `fin(k) ≤ inicio(k + 1)`; pueden tocarse.
+  4. Cada palabra dura al menos **20 ms** (`inicio < fin`, con 20 ms de mínimo; decisión provisional, [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §3).
+  5. Los límites de la línea siguen las reglas del editor (inicio estrictamente entre los vecinos con tiempo, `inicio < fin ≤ siguiente`).
+  
+  Unos tiempos hechos a mano que no cumplan las reglas al abrir (archivo editado a mano) se cargan como **sin marcar** con el reparto automático y el aviso `edi.preciso.cargadasInvalidas`.
+
+### Abrir la ventana
+
+| Desde | Elemento |
+|---|---|
+| Lista de líneas | Botón icono **«Editor preciso de línea»** (`edi.preciso.abrir`, icono `whole-word`, 32 × 32) en la fila de título de la lista, a la izquierda de «Minimizar». Actúa sobre la línea seleccionada. |
+| Lista de líneas | **Menú contextual** de una fila (clic secundario, tecla Menú o Mayús + F10 con la fila activa; selecciona la fila antes de abrirse): «Editor preciso de línea… (P)» · «Escuchar la línea (Mayús + L)» · «Escuchar desde esta línea (L)» · separador · «Borrar tiempos de esta línea (Supr)» (destructivo, al final). Componente «Menú contextual» de sistema-visual §6. |
+| Teclado | **P** con la línea seleccionada (fuera de campos de texto, con el foco en cualquier parte del editor salvo la propia ventana). |
+| Panel Sincronía | Botón secundario «Editor preciso de línea… (P)» bajo «Bloquear enunciado». |
+| Lista minimizada (riel) | Botón icono `whole-word` bajo «I»: «Editor preciso de línea (P)». |
+
+- **Disponible** con una línea (no pausa) seleccionada que **tiene inicio**, el audio cargado, fuera del modo «Sincronizar al ritmo» y sin «Error de audio». No hace falta la forma de onda ni la separación (sin voz separada, la ventana avisa en la zona de onda, como la línea de tiempo).
+- **No disponible**: botones `aria-disabled` con tooltip; P no hace nada salvo mostrar el mismo tooltip junto a la fila. Motivos: línea sin inicio `edi.preciso.no.sinInicio`; modo sincronizar `edi.preciso.no.ritmo`; error de audio, como el resto del transporte.
+- Con la ventana ya abierta, P y el botón le devuelven el foco.
+
+### La ventana
+
+```
+┌ ⠿ Editor preciso · Línea 12 de 52 ────────────────── [‹ Anterior] [Siguiente ›] [✕] ┐
+│ Texto [ Is this the real life?                                                   ]  │
+│                                                                                     │
+│  00:12.0      00:12.5      00:13.0      00:13.5      00:14.0      00:14.5     00:15 │ regla
+│ ░░░░┃▂▃▅▇▅▃▂▁▁▂▃▅▇█▇▅▃▂▁▁▂▅▇▅▃▂▁▁▂▃▅▇▇▅▃▂▁▁▂▃▅▅▃▂▁┃░░░░                          │ voz de la línea
+│ ░░░░┃[ Is ][ this ][the]  ╔ real ═══╗[ life?     ]┃░░░░                          │ palabras
+│     ┃inicio de la línea  ◁ ▷ tiradores    fin de la línea┃                         │
+│ margen                                                    margen                    │
+│ ───────────────────────────────────────────────────────────────────────────────── │
+│ Palabra 4 de 5 · «real»   Inicio [00:13.42] Fin [00:13.95]  [Fijar inicio (I)] [Fijar fin (O)] │
+│ 3 de 5 palabras marcadas a mano                                                     │
+│ ───────────────────────────────────────────────────────────────────────────────── │
+│ [⟳ ▶ Bucle de la línea (Espacio)] [▶ Palabra]   Margen [0 s|0,5 s|1 s]   Velocidad [0,5×|0,75×|1×] │
+│ ⓘ A menor velocidad el tono también baja.        (solo por debajo de 1× y si el tono no se conserva) │
+│ [ MARCAR (Intro) ]  Pulsa Intro cuando empiece cada palabra; mantenla pulsada       │
+│                     mientras suena para marcar también su final.                    │
+│ ───────────────────────────────────────────────────────────────────────────────── │
+│ [Repartir de nuevo] [Quitar los tiempos por palabra]            [Cancelar] [Aplicar] │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**No modal (decisión y justificación).** La ventana es **no modal** (`role="dialog"`, `aria-modal="false"`, sin velo):
+- el usuario la pidió como subventana tipo Adobe, que convive con el resto;
+- hace falta ver la **vista previa** mientras se marca (el barrido palabra a palabra con el borrador) y pasar de línea con la **lista**; un velo los taparía;
+- el audio es el mismo motor del editor: el transporte y la ventana no compiten, comparten estado (8 abajo).
+
+Para que no haya dos formas de editar lo mismo a la vez, la **línea abierta queda bloqueada fuera de la ventana** (ver «Relación con el resto del editor») y las acciones masivas aplican primero el borrador. **(Decisión provisional, [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) §4.)**
+
+| Aspecto | Valor |
+|---|---|
+| Superficie | `fondo-1`, borde 1 px `borde-control`, radio `r-l`, sombra de menús y diálogos (sistema-visual §4). Barra de título de 40 px en `fondo-2`. |
+| Tamaño inicial | 760 × 440 px CSS (en `rem`). **Mínimo** 560 × 360. **Máximo**: el área del editor (bajo la barra de la app) menos 16 px por cada lado. |
+| Posición inicial | Arriba, alineada con el borde superior de la zona superior del editor + 12 px; a la izquierda, junto al borde derecho de la lista de líneas + 12 px (para no tapar la lista); si no cabe, se desplaza a la izquierda hasta caber, y si aun así no cabe se centra. Nunca tapa la cabecera del editor. |
+| Mover | Arrastrando la barra de título (asa `⠿` y título; cursor `move`). Con teclado: el asa es un botón «Mover la ventana» (`edi.preciso.mover`); con el foco en ella, las flechas la mueven 16 px (Mayús: 64 px) e Inicio la devuelve a la posición inicial. Siempre queda entera dentro del área del editor (se detiene en los bordes). |
+| Cambiar el tamaño | Asa de 16 × 16 en la esquina inferior derecha (objetivo 24 × 24, cursor `nwse-resize`). Con teclado: botón «Cambiar el tamaño de la ventana» (`edi.preciso.tamano`); flechas ±16 px (Mayús: 64), Inicio = tamaño inicial. Entre mínimo y máximo. |
+| Recordar | Posición, tamaño y margen de bucle se guardan **para todas las canciones** con las preferencias de distribución de la subfase 2.1 (al soltar un arrastre o tras una ráfaga de teclado). Si al abrir no cabe (ventana más pequeña), se dibuja recortada y recolocada sin cambiar la preferencia. «Restablecer distribución de paneles» (menú ⋯) vuelve a los valores iniciales. Doble clic en la barra de título: posición y tamaño iniciales. |
+| Por debajo del mínimo de diseño | Ocupa el ancho del editor menos 16 px por lado y el alto disponible, con scroll interno; no se mueve. |
+| Entrada | Fundido de 120 ms (sin fundido con movimiento reducido). |
+| Pestañas del panel | La ventana no depende de la pestaña: sigue abierta en Sincronía, Estilo o Funciones. |
+
+**Foco**
+- Al abrir: en la **tira de palabras**, sobre la primera palabra sin marcar (o la primera, si todas están marcadas). Se anuncia `edi.preciso.anuncio.abrir`.
+- **Tab** recorre solo la ventana (vuelve al principio tras el último control), como un diálogo; **F6 / Mayús + F6** pasan el foco al editor (al último elemento que lo tenía) y de vuelta. Un clic fuera mueve el foco donde se hace clic sin cerrar la ventana.
+- Al cerrar, el foco vuelve a lo que la abrió (botón de la lista, del panel o del riel; con P o el menú contextual, a la fila de la línea).
+
+### Contenido
+
+| Zona | Comportamiento |
+|---|---|
+| **Barra de título** | `edi.preciso.titulo` («Editor preciso · Línea {n} de {total}»), [‹ Anterior] y [Siguiente ›] (botones icono con texto en el tooltip, `edi.preciso.anterior` / `.siguiente`) y [✕] (`edi.preciso.cerrar`). |
+| **Texto** | Campo de texto de una línea con el texto actual. Ver «Edición rápida del texto». |
+| **Regla** | Como la de la línea de tiempo (sistema-visual, 0.2.0), solo del intervalo de la vista. Un clic busca a ese instante (si el bucle está activo y el instante está dentro, sigue el bucle). |
+| **Vista** | Fija, sin zoom propio: va de `inicio − margen` a `fin + margen` (mínimo 0,25 s a cada lado aunque el margen sea 0, para poder agarrar los tiradores de la línea), recortada a `[0, duración]`. Las zonas de margen se pintan sombreadas (`░`). Para ver más detalle, se agranda la ventana. Si la línea cambia de límites, la vista se recalcula al soltar. |
+| **Voz de la línea** | Picos de la pista de voz (ADR 0015) con la resolución adaptada a la vista (mucho más detalle que la línea de tiempo). Estados como la fase 2: pendiente `edi.timeline.voz.pendiente`, preparando `edi.timeline.voz.generando`, error `edi.timeline.voz.error` + [Reintentar]. Regla, palabras y tiradores funcionan en todos. Decorativa (`aria-hidden`). |
+| **Límites de la línea** | Dos tiradores altos (toda la altura de onda y palabras): «Inicio de la línea» y «Fin de la línea» (discontinuo si el fin es automático). Se pueden ajustar dentro de las reglas del editor y **sin cruzar las palabras**: el inicio no pasa del inicio de la primera palabra **marcada** ni el fin del fin de la última marcada (las sin marcar se vuelven a repartir). Cambiar los límites aquí **no** descarta las palabras. |
+| **Tira de palabras** | Un segmento por palabra entre su inicio y su fin, con su texto (cortado con «…» si no cabe; completo en tooltip y nombre accesible). Marcada: borde continuo `texto-2`, fondo `fondo-3`, texto `texto-1`. Sin marcar: borde discontinuo `borde-control`, sin relleno, texto `texto-3`. Seleccionada: borde 2 px `acento-texto` y sus tiradores. Clic: selecciona (no busca). Doble clic: escucha esa palabra (como [▶ Palabra]). |
+| **Tiradores de palabra** | Solo en la palabra seleccionada: «Inicio de la palabra» y «Fin de la palabra», con el aspecto y los objetivos de los tiradores de la línea de tiempo (≥ 24 × 24, escalonados si casi coinciden con los de la palabra vecina). Arrastre con captura, tiempo provisional junto al puntero y parada en el último valor válido (entre el fin de la palabra anterior —o el inicio de la línea— y el inicio de la siguiente —o el fin de la línea—, con 20 ms de mínimo). Tooltip de límite 2 s: `edi.preciso.limite.*`. Esc cancela el arrastre. Mover un tirador **marca** la palabra. |
+| **Detalle de la palabra** | `edi.preciso.palabra` («Palabra {k} de {m} · «{palabra}»»), campos Inicio y Fin (`mm:ss.cc`, mismas reglas que los del panel), [Fijar inicio (I)] y [Fijar fin (O)] en la posición del cabezal (fuera de límites: no cambian nada y muestran el tooltip de límite). Debajo, `edi.preciso.recuento` («{a} de {m} palabras marcadas a mano»). |
+| **Bucle de la línea** | Botón con `aria-pressed` (`edi.preciso.bucle`, icono `repeat` + ▶/❚❚): suena de `inicio − margen` a `fin + margen` y vuelve a empezar, hasta pausarlo. Espacio lo inicia y lo pausa (con el foco en la ventana, fuera del campo de texto). Al reanudar sigue donde estaba. |
+| **▶ Palabra** | Escucha una vez la palabra seleccionada, de `inicio − 250 ms` a `fin + 250 ms`, y vuelve a la posición previa (como la escucha de comprobación). **Mayús + Espacio**. Pausa el bucle si sonaba y lo reanuda al terminar. |
+| **Margen** | Control segmentado 0 s · 0,5 s · 1 s, por defecto **0,5 s** (el mismo valor que el doble clic de la fase 8). Se aplica antes y después de la línea. Se recuerda (ver «Recordar»). |
+| **Velocidad** | El **mismo** control y el mismo estado que el del transporte (0,5× · 0,75× · 1×): cambiar uno cambia el otro. Los tiempos se guardan siempre en tiempo real de la canción. Por debajo de 1×, si el motor no conserva el tono, aparece debajo `edi.preciso.tono` (`info`). Si el arquitecto adopta una técnica que conserva el tono, la nota no aparece y el tooltip de velocidad del transporte cambia a su variante (ver [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §5). |
+| **Marcar al vuelo** | Botón grande «MARCAR (Intro)» (44 px de alto, marca en `pointerdown` y suelta en `pointerup`) + ayuda `edi.preciso.vuelo.ayuda`. Ver «Marcar al vuelo». |
+| **Repartir de nuevo** | Secundario. Pasa todas las palabras a sin marcar con el reparto automático. Un paso del borrador. |
+| **Quitar los tiempos por palabra** | Secundario. Solo si la línea tiene palabras hechas a mano o el borrador tiene marcas. Deja el borrador en «sin palabras»: la tira se atenúa y aparece el aviso `edi.preciso.quitar.aviso`; al aplicar, la línea vuelve al barrido progresivo. Cualquier marca nueva sale de ese estado. Un paso del borrador. |
+| **Cancelar / Aplicar** | Ver «Aplicar, cancelar y cerrar». «Aplicar» es **secundario** con texto `t-cuerpo-fuerte`: el primario rojo de la vista sigue siendo el del dock (sistema-visual §1; la ventana no es modal). |
+
+### Marcar al vuelo
+
+Mismo gesto que «Sincronizar al ritmo», a escala de palabra.
+
+| Acción | Comportamiento |
+|---|---|
+| **Intro** (pulsar) con el foco en la tira de palabras, o `pointerdown` en «MARCAR» | Marca el **inicio** de la palabra seleccionada en el instante de la pulsación (marca de tiempo del evento con la latencia de salida compensada, como en el modo al ritmo; ADR 0005) y la selección pasa a la palabra siguiente. Si la palabra anterior terminaba después de ese instante, su fin se recorta a él. Las palabras posteriores que empezaban antes de ese instante pasan a sin marcar y se reparten. Repeticiones automáticas del teclado: ignoradas. |
+| **Intro** (mantener ≥ 300 ms) | Al soltar, fija el **fin** de esa palabra en ese instante (limitado por el inicio de la siguiente marcada y el fin de la línea). |
+| Pulsación corta (< 300 ms) | El fin de la palabra queda «abierto»: será el inicio de la siguiente palabra que se marque. Si no se marca ninguna más, se queda con el reparto automático (y en la última palabra, el fin de la línea). |
+| Demasiado pronto | Si el instante es ≤ al inicio de la palabra anterior marcada, o deja menos de 20 ms por cada palabra sin marcar anterior: no marca y muestra 2 s `edi.preciso.pronto` en la ayuda. |
+| Fuera de la línea | Si el instante está en el margen (antes del inicio o desde el fin de la línea): no marca y muestra 2 s `edi.preciso.fuera`. |
+| Tras la última palabra | La selección se queda en la última; otra pulsación la vuelve a marcar. |
+| **Pasada** | Empieza con la primera marca tras seleccionar una palabra o tras empezar el bucle. Cuando el bucle vuelve a empezar, la selección vuelve a la palabra donde empezó la pasada (para repetir el mismo tramo, o la línea entera si empezó en la primera). |
+| **Retroceso** | Deshace la última marca de la pasada (con lo que recortó o repartió): la selección vuelve a esa palabra y, si suena, el cabezal salta a 1 s antes de la marca deshecha (sin salir del intervalo del bucle). Sin marcas en la pasada, no hace nada. |
+| Sin bucle | También se puede marcar con el audio sonando por otra vía (transporte); solo cuentan las pulsaciones dentro de la línea. |
+| La ventana de la app pierde el foco | Pausa (como el modo al ritmo). |
+| Historial | Cada marca es un paso del **borrador** de la ventana. |
+
+### Edición rápida del texto
+
+- Campo de texto de una línea; Intro o salir del campo confirma el cambio en el borrador; Esc restaura el texto anterior. Pegar varios renglones los une con un espacio.
+- No admite quedar vacío: `edi.preciso.texto.vacio` (borde `error`, no se confirma). Mismo máximo de longitud por línea que la vista Letra. Para borrar o dividir líneas sigue estando «Corregir la letra».
+- **Tiempos al cambiar el texto** (función pura, test unitario):
+  - Mismo número de palabras: cada palabra conserva los tiempos y el estado de la que ocupaba su posición (corregir una falta no pierde nada).
+  - Distinto número: se emparejan las palabras antiguas y nuevas por igualdad de texto y orden (diff LCS por palabras, como el de la vista Letra por líneas). Las emparejadas conservan tiempos y estado; las nuevas o cambiadas pasan a sin marcar y se reparten en su hueco. Aviso `edi.preciso.texto.repartidas` si hay alguna.
+- El cambio de texto es un paso del borrador y se guarda **al aplicar**, con los tiempos ([0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §4). Al aplicar, la línea **conserva** su inicio, su fin y sus palabras (a diferencia de «Corregir la letra», donde una línea cambiada pierde los tiempos).
+- Los atajos de una tecla de la ventana no actúan dentro del campo (Intro confirma el texto, no marca).
+
+### Aplicar, cancelar y cerrar
+
+| Acción | Comportamiento |
+|---|---|
+| **Aplicar** (botón o Ctrl/Cmd + Intro) | Escribe en la canción, en **un solo paso** del historial del editor (`edi.preciso.paso`): el texto (si cambió), los límites (si cambiaron) y las palabras con sus tiempos, o ninguna si se eligió «Quitar…». Si quedan palabras y el fin era automático, el fin **se fija** en su valor actual, para que un cambio de las vecinas no lo mueva **(decisión provisional, 0145 §3)**. Se autoguarda como cualquier cambio. Cierra la ventana y anuncia `edi.preciso.anuncio.aplicado`. Sin cambios en el borrador, solo cierra. |
+| **✕ y Esc** | **Cierran aplicando** (igual que Aplicar): en el editor nada se pierde por una tecla y cualquier cambio se deshace con Ctrl/Cmd + Z **(decisión provisional, 0147 §5)**. Tooltip de ✕: `edi.preciso.cerrar`. Esc primero cancela un arrastre, restaura el campo de texto o cierra un tooltip. |
+| **Cancelar** | Sin cambios: cierra. Con cambios: el pie se sustituye por la confirmación en línea `edi.preciso.descartar` con [Seguir editando] (foco) y [Descartar cambios] (destructivo); al confirmar, cierra sin tocar la canción. |
+| **Anterior / Siguiente** (botones, ↑ / ↓ con el foco en la ventana fuera de controles que usan flechas) | Aplican el borrador (un paso, si hay cambios) y cargan la línea anterior o siguiente **con inicio**, saltando pausas y líneas sin inicio; la selección del editor la sigue. En los extremos, el botón queda `disabled` con `edi.preciso.extremo`. La ventana no se mueve ni pierde el foco. |
+| **Cambiar la selección fuera** (lista, clic en una región, ↑/↓ con el foco en el editor) | Igual que Anterior/Siguiente: aplica y carga la línea elegida. Si no tiene inicio, la ventana muestra en lugar de la onda y la tira el estado `edi.preciso.vacio.sinInicio` con [Fijar inicio aquí (I)] (que fija el inicio en el cabezal con las reglas de siempre y carga la línea). |
+
+### Deshacer
+
+- **Dentro de la ventana** (foco en ella, fuera del campo de texto): Ctrl/Cmd + Z y Ctrl/Cmd + Mayús + Z (Ctrl + Y) deshacen y rehacen pasos del **borrador** (marcas, tiradores, campos, I/O, límites, texto, repartir, quitar). El borrador se vacía al aplicar, cancelar o cambiar de línea.
+- **En el editor**: un «Aplicar» es **un** paso (`edi.preciso.paso`, «Palabras de la línea {n}»). Deshacerlo devuelve texto, límites y palabras anteriores (también las importadas, si las tenía); si la ventana está abierta en esa línea, la recarga.
+- **⟲ / ⟳ de la cabecera o Ctrl/Cmd + Z con el foco en el editor** mientras el borrador tiene cambios: primero se aplica el borrador y después se deshace, así que el primer ⟲ deja la línea como estaba antes de abrir la ventana. La ventana sigue abierta con la línea recargada.
+- El descarte posterior por la regla de la fase 8 se deshace en un paso con [Deshacer] del toast o Ctrl/Cmd + Z.
+
+### Relación con el resto del editor
+
+| Mientras la ventana está abierta | Comportamiento |
+|---|---|
+| Línea abierta en la línea de tiempo | Su región se dibuja con las marcas de palabra del borrador; sus tiradores no se muestran y no se pueden enfocar (tooltip de la región `edi.preciso.ocupado`). |
+| Panel Sincronía y riel de la línea abierta | Campos Inicio y Fin, «Fijar inicio/fin aquí», «Usar fin automático», «Borrar tiempos», «Bloquear enunciado» e «I»/«Fijar fin (O)» de los rieles: inactivos con `edi.preciso.ocupado`. I, O, Supr, Retroceso y Alt/Ctrl + flechas con el foco en el editor no hacen nada y muestran ese tooltip. |
+| Bloquear enunciado | Si estaba activo al abrir, termina (sin restaurar la posición): el bucle de la ventana lo sustituye. |
+| Transporte | Funciona: Espacio con el foco en el editor reproduce o pausa; buscar fuera del intervalo del bucle termina el bucle de la ventana (regla de la fase 2). La velocidad es la misma. Escuchar Original / Voz / Instrumental (1/2/3) funciona también con el foco en la ventana. |
+| Vista previa | Muestra la línea con el **borrador** (barrido palabra a palabra con los tiempos de la ventana); en pausa, el estado de siempre. |
+| Otras líneas | Se seleccionan con la lista, la línea de tiempo o ↑/↓: la ventana pasa a esa línea (aplicando). No se editan otras líneas mientras la ventana está abierta. |
+| Estilo, Funciones, zoom, divisores, minimizar | Funcionan. |
+| Sincronizar al ritmo, «Ajustar los silencios», «Corregir la letra», salir del editor (cualquier vía), Ctrl/Cmd + N / , | Aplican el borrador y **cierran** la ventana antes de seguir. |
+| Probar a pantalla completa (F), Exportar (Ctrl/Cmd + E) | Aplican el borrador (así el reproductor y el guardado lo incluyen); la ventana sigue abierta debajo y al volver mantiene la línea. |
+| `LETRA_DESACTUALIZADA` (recarga) | La ventana se cierra sin aplicar; el toast `edi.toast.recargada` de siempre lo explica. |
+
+### Indicador en la lista, el panel y la línea de tiempo
+
+- **Lista**: las filas con tiempos por palabra hechos a mano llevan al final el icono `whole-word` 14 px en `texto-2` (◈ en los wireframes) con el tooltip `edi.preciso.indicador`. Su nombre accesible añade `edi.preciso.indicador.aria`. Las importadas no lo llevan.
+- **Panel Sincronía** (línea seleccionada con palabras hechas a mano): bajo el texto de la línea, «◈ Tiempos por palabra hechos a mano» (`t-pequeno`, `texto-2`) y el aviso `edi.preciso.aviso.descartar` (`t-pequeno`, `texto-3`), para que el usuario sepa antes de tocar Inicio o Fin.
+- **Línea de tiempo**: la región muestra una marca vertical de 1 px `texto-3` en cada frontera entre palabras (decorativa). Al pasar el ratón por un tirador de una línea con palabras, su tooltip añade `edi.preciso.aviso.tirador`.
+
+### Cómo se pinta
+
+- Una línea con palabras hechas a mano se barre **palabra a palabra**: cada palabra se llena de izquierda a derecha entre su inicio y su fin; entre dos palabras el barrido espera al final de la anterior; el espacio que sigue a una palabra se pinta al empezar la siguiente. Vale para la vista previa, «Probar a pantalla completa», el reproductor, la ventana secundaria y el video (mismo render). Las líneas partidas en dos renglones siguen el orden de lectura de la primera fase de 0.2.0.
+- En **Letra lista** no hay barrido (sin cambios): las palabras no cambian nada al reproducir ni al exportar.
+- Guardar y reabrir conserva las palabras, el texto y el fin fijado.
+
+### Teclado de la ventana
+
+Con el foco dentro de la ventana y fuera del campo de texto. Las flechas sin modificador las usa el control enfocado si las necesita (tira de palabras ←/→, controles segmentados, asas de mover y tamaño).
+
+| Tecla | Acción |
+|---|---|
+| Espacio | Reproducir / pausar el bucle de la línea |
+| Mayús + Espacio | Escuchar la palabra seleccionada |
+| Intro (pulsar · mantener) | Marcar el inicio de la palabra seleccionada · y su fin al soltar (con el foco en la tira o en «MARCAR»; en un botón, Intro lo activa) |
+| Retroceso | Deshacer la última marca de la pasada |
+| ← / → (en la tira) | Palabra anterior / siguiente |
+| Inicio / Fin (en la tira) | Primera / última palabra |
+| Alt + ← / → | Inicio de la palabra −/+ 10 ms (con Mayús: 100 ms) |
+| Ctrl/Cmd + ← / → | Fin de la palabra −/+ 10 ms (con Mayús: 100 ms) |
+| I / O | Fijar inicio / fin de la palabra en el cabezal |
+| ↑ / ↓ | Línea anterior / siguiente (aplicando) |
+| 1 / 2 / 3 | Escuchar Original / Voz / Instrumental |
+| Ctrl/Cmd + Z · Ctrl/Cmd + Mayús + Z (Ctrl + Y) | Deshacer · rehacer en el borrador |
+| Ctrl/Cmd + Intro | Aplicar |
+| Esc | Cancelar el arrastre o el campo; si no, cerrar aplicando |
+| F6 / Mayús + F6 | Pasar el foco al editor |
+| F1 / ? | Atajos de teclado (el diálogo añade una sección «Editor preciso de línea» con esta tabla) |
+
+Con el foco en la ventana no actúan: L, Mayús + L, P, Supr, F, Ctrl/Cmd + E, Inicio (como «ir al principio»). Todos llaman a `preventDefault`.
+
+### Estados (fase 9)
+| Estado | Presentación |
+|---|---|
+| Línea sin palabras hechas a mano | Todas sin marcar con el reparto automático; recuento «0 de {m}». |
+| Línea con palabras hechas a mano | Todas marcadas con sus tiempos; recuento «{m} de {m}». |
+| Tiempos guardados no válidos | Cargadas como sin marcar + `edi.preciso.cargadasInvalidas` (`aviso`). |
+| Sin separación / forma de onda preparando / con error | Zona de onda con el texto de la línea de tiempo; todo lo demás funciona. |
+| Bucle sonando / en pausa | Botón con ❚❚ / ▶ y `aria-pressed`. |
+| Velocidad < 1× sin conservar el tono | Nota `edi.preciso.tono`. |
+| «Quitar los tiempos por palabra» elegido | Tira atenuada + `edi.preciso.quitar.aviso`. |
+| Confirmando descartar | Pie con `edi.preciso.descartar`. |
+| Línea seleccionada sin inicio | `edi.preciso.vacio.sinInicio` con [Fijar inicio aquí (I)]. |
+| Una línea de una palabra | Una sola palabra; «Anterior/Siguiente» igual. |
+
+### Accesibilidad (fase 9)
+- Ventana: `role="dialog"`, `aria-modal="false"`, `aria-labelledby` = título. Región propia en el orden de *landmarks* del editor.
+- Tira de palabras: `role="listbox"` horizontal (`aria-orientation="horizontal"`) con nombre `edi.preciso.tira`; cada palabra es una opción con nombre `edi.preciso.aria.palabra` («Palabra 4 de 5, real, de 00:13.42 a 00:13.95, marcada a mano» / «…, sin marcar»). *Roving tabindex*.
+- Tiradores de palabra y de línea: `role="slider"` con `aria-valuetext` («00:13.42») y límites como en la fase 2.
+- Anuncios (`aria-live="polite"`, región del editor), solo en hitos: abrir, cambiar de línea, aplicar, cancelar, `edi.preciso.pronto`, `edi.preciso.fuera`, `edi.preciso.texto.repartidas`. No se anuncia cada marca ni el cabezal.
+- El estado de cada palabra no depende solo del color: borde continuo / discontinuo y el texto del nombre accesible.
+- Contraste: textos de la ventana en `texto-1/2/3` sobre `fondo-1/2/3` (≥ 4,7:1); marcas de palabra y tiradores ≥ 3:1 (sistema-visual, 0.2.1).
+- Objetivos ≥ 24 × 24 (tiradores) y ≥ 32 × 32 (botones); «MARCAR», 44 px de alto.
+- Movimiento reducido: sin fundido de entrada.
+
+### Microcopy (fase 9, editor)
+| Clave | Texto |
+|---|---|
+| `edi.preciso.abrir` | Editor preciso de línea (P) · (menú y panel) Editor preciso de línea… (P) |
+| `edi.preciso.no.sinInicio` | Fija primero el inicio de esta línea. |
+| `edi.preciso.no.ritmo` | No disponible mientras sincronizas al ritmo. |
+| `edi.preciso.titulo` | Editor preciso · Línea {n} de {total} |
+| `edi.preciso.anterior` / `edi.preciso.siguiente` | Línea anterior (↑) · Línea siguiente (↓) |
+| `edi.preciso.extremo` | No hay más líneas sincronizadas en esta dirección. |
+| `edi.preciso.cerrar` | Cerrar y aplicar (Esc) |
+| `edi.preciso.mover` | Mover la ventana (flechas) |
+| `edi.preciso.tamano` | Cambiar el tamaño de la ventana (flechas) |
+| `edi.preciso.texto` | Texto |
+| `edi.preciso.texto.vacio` | La línea no puede quedar vacía. Para quitarla, usa «Corregir la letra». |
+| `edi.preciso.texto.repartidas` | {k} palabras nuevas sin marcar: márcalas o revisa su reparto. · (k = 1) 1 palabra nueva sin marcar: márcala o revisa su reparto. |
+| `edi.preciso.tira` | Palabras de la línea |
+| `edi.preciso.aria.palabra` | Palabra {k} de {m}, {palabra}, de {inicio} a {fin}, marcada a mano · (sin marcar) Palabra {k} de {m}, {palabra}, de {inicio} a {fin}, sin marcar |
+| `edi.preciso.linea.inicio` / `edi.preciso.linea.fin` | Inicio de la línea · Fin de la línea · (automático) Fin de la línea (automático) |
+| `edi.preciso.palabra.inicio` / `edi.preciso.palabra.fin` | Inicio de la palabra · Fin de la palabra |
+| `edi.preciso.palabra` | Palabra {k} de {m} · «{palabra}» |
+| `edi.preciso.recuento` | {a} de {m} palabras marcadas a mano |
+| `edi.preciso.fijarinicio` / `edi.preciso.fijarfin` | Fijar inicio (I) · Fijar fin (O) |
+| `edi.preciso.limite.anterior` | No puede ir antes de la palabra anterior. · (primera) No puede ir antes del inicio de la línea. |
+| `edi.preciso.limite.siguiente` | No puede pasar de la palabra siguiente. · (última) No puede pasar del fin de la línea. |
+| `edi.preciso.limite.minimo` | Cada palabra dura al menos 0,02 s. |
+| `edi.preciso.limite.linea` | La línea no puede cortar una palabra marcada. |
+| `edi.preciso.bucle` | Bucle de la línea (Espacio) |
+| `edi.preciso.palabraEscuchar` | Palabra (Mayús + Espacio) — nombre accesible: Escuchar la palabra seleccionada |
+| `edi.preciso.margen` | Margen · 0 s · 0,5 s · 1 s — ayuda: Silencio que suena antes y después de la línea en el bucle. |
+| `edi.preciso.velocidad` | Velocidad |
+| `edi.preciso.tono` | A menor velocidad, el tono también baja. Los tiempos que marques valen igual a cualquier velocidad. |
+| `edi.preciso.marcar` | Marcar (Intro) |
+| `edi.preciso.vuelo.ayuda` | Pulsa Intro cuando empiece cada palabra; mantenla pulsada mientras suena para marcar también su final. Retroceso deshace la última marca. |
+| `edi.preciso.pronto` | Demasiado pronto: aún no ha empezado la palabra anterior. |
+| `edi.preciso.fuera` | Fuera de la línea: marca mientras suena la letra. |
+| `edi.preciso.repartir` | Repartir de nuevo |
+| `edi.preciso.quitar` | Quitar los tiempos por palabra |
+| `edi.preciso.quitar.aviso` | Al aplicar, esta línea volverá al barrido progresivo. |
+| `edi.preciso.cancelar` | Cancelar |
+| `edi.preciso.aplicar` | Aplicar (Ctrl+Intro / ⌘Intro) |
+| `edi.preciso.descartar` | ¿Descartar los cambios de esta línea? — [Seguir editando] [Descartar cambios] |
+| `edi.preciso.paso` | Palabras de la línea {n} (nombre del paso en el historial y en el anuncio de deshacer) |
+| `edi.preciso.vacio.sinInicio` | Esta línea aún no tiene inicio. Fíjalo para marcar sus palabras. — [Fijar inicio aquí (I)] |
+| `edi.preciso.cargadasInvalidas` | Los tiempos por palabra guardados de esta línea no eran válidos: se han repartido de nuevo. Revísalos antes de aplicar. |
+| `edi.preciso.ocupado` | Esta línea está abierta en el editor preciso. |
+| `edi.preciso.indicador` | Tiempos por palabra hechos a mano: se resalta palabra a palabra. |
+| `edi.preciso.indicador.aria` | (se añade a `edi.aria.linea`) , con tiempos por palabra |
+| `edi.preciso.indicador.panel` | Tiempos por palabra hechos a mano |
+| `edi.preciso.aviso.descartar` | Si cambias su inicio o su fin aquí o en la línea de tiempo, se quitarán (podrás deshacerlo). |
+| `edi.preciso.aviso.tirador` | Moverlo quitará los tiempos por palabra de esta línea. |
+| `edi.preciso.anuncio.abrir` | Editor preciso de la línea {n}: {texto}. {a} de {m} palabras marcadas. |
+| `edi.preciso.anuncio.aplicado` | Palabras de la línea {n} aplicadas. · (quitadas) La línea {n} vuelve al barrido progresivo. |
+| `edi.preciso.atajos.titulo` | Editor preciso de línea (sección del diálogo de atajos) |
+| `edi.menu.contextual.linea` | Editor preciso de línea… (P) · Escuchar la línea (Mayús + L) · Escuchar desde esta línea (L) · Borrar tiempos de esta línea (Supr) |
+
+### Criterios de aceptación de la fase 9 (editor)
+
+**Abrir y ventana**
+- P1. P, el botón de la fila de título de la lista, el del panel Sincronía, el del riel y «Editor preciso de línea…» del menú contextual de una fila abren la ventana para la línea seleccionada; con una línea sin inicio o en el modo sincronizar son `aria-disabled` con su motivo y P no abre nada.
+- P2. La ventana abre a 760 × 440 px junto a la lista sin tapar la cabecera, con el foco en la primera palabra sin marcar; se mueve arrastrando la barra de título y con las flechas sobre «Mover la ventana», cambia de tamaño entre 560 × 360 y el área del editor, nunca sale del área del editor y recuerda posición, tamaño y margen tras reiniciar; «Restablecer distribución de paneles» la devuelve a los valores iniciales.
+- P3. Es no modal: con la ventana abierta, la vista previa, el transporte, la lista y las pestañas responden al ratón; F6 lleva el foco al editor y de vuelta; Tab no sale de la ventana. Al cerrar, el foco vuelve al elemento que la abrió.
+- P4. En los seis viewports de la subfase 2.1, la ventana a su tamaño inicial (o recortada) no produce scroll de página y sus filas de controles no se parten a 560 px de ancho.
+
+**Palabras, validez y marcar**
+- P5. Una línea sin palabras hechas a mano abre con todas sin marcar repartidas por número de caracteres entre su inicio y su fin (test unitario: «Is this the real life?» de 12,00 a 14,00 s cuenta 18 caracteres sin espacios y da «Is» 12,000–12,222 s y «life?» 13,444–14,000 s, ± 1 ms); una con palabras hechas a mano abre con sus tiempos.
+- P6. Arrastrar un tirador de palabra, escribir en sus campos, I/O y Alt/Ctrl + flechas respetan las reglas de validez (orden, dentro de la línea, sin solapes, 20 ms de mínimo), se detienen en el último valor válido con el tooltip de límite y marcan la palabra; las sin marcar vecinas se reparten de nuevo.
+- P7. Con el bucle sonando a 0,5×, 0,75× y 1×, cada Intro marca el inicio de la palabra seleccionada con un error ≤ 20 ms (test con marcas de tiempo simuladas) y avanza la selección; mantener ≥ 300 ms fija también el fin; una pulsación corta deja el fin abierto hasta la siguiente marca; una pulsación en el margen muestra `edi.preciso.fuera` y una demasiado pronto `edi.preciso.pronto` sin marcar nada; Retroceso deshace la última marca de la pasada.
+- P8. Al volver a empezar el bucle, la selección vuelve a la palabra donde empezó la pasada.
+- P9. El bucle suena de `inicio − margen` a `fin + margen` con margen 0, 0,5 y 1 s (recortado a la canción), Espacio lo pausa y reanuda, «▶ Palabra» y Mayús + Espacio escuchan la palabra con 250 ms antes y después y vuelven a la posición. El control de velocidad de la ventana y el del transporte cambian a la vez; por debajo de 1× aparece `edi.preciso.tono` si el motor no conserva el tono.
+- P10. Los límites de la línea se ajustan en la ventana sin cruzar las palabras marcadas ni las reglas del editor, y no descartan las palabras.
+
+**Texto**
+- P11. Cambiar «Is this the real life?» por «Is this the reel life?» conserva los tiempos de las cinco palabras; por «Is this the real life? Oh» conserva las cinco y añade «Oh» sin marcar con `edi.preciso.texto.repartidas` (test de la función pura con LCS); vaciar el campo muestra `edi.preciso.texto.vacio` y no se confirma; Esc restaura el texto.
+- P12. Al aplicar con el texto cambiado, la lista, la vista previa y `cancion.json` muestran el texto nuevo y la línea conserva inicio, fin y palabras.
+
+**Aplicar, deshacer y navegación**
+- P13. «Aplicar», Ctrl/Cmd + Intro, ✕ y Esc escriben texto, límites y palabras en un solo paso del historial y cierran; un solo Ctrl/Cmd + Z en el editor lo devuelve todo como antes de abrir. Si el fin era automático y quedan palabras, se guarda fijado.
+- P14. «Cancelar» sin cambios cierra; con cambios pide `edi.preciso.descartar` con el foco en «Seguir editando» y «Descartar cambios» cierra sin tocar el archivo.
+- P15. Dentro de la ventana, Ctrl/Cmd + Z deshace pasos del borrador (una marca, un arrastre, un cambio de texto) sin tocar el historial del editor; ⟲ de la cabecera con cambios pendientes deja la línea como antes de abrir.
+- P16. Anterior/Siguiente, ↑/↓ en la ventana y elegir otra línea en la lista o en la línea de tiempo aplican el borrador (un paso por línea con cambios) y cargan la otra línea saltando pausas y líneas sin inicio; en los extremos el botón está `disabled` con `edi.preciso.extremo`; una línea sin inicio elegida fuera muestra `edi.preciso.vacio.sinInicio`.
+- P17. Con la ventana abierta, los tiradores, campos, I/O/Supr y «Bloquear enunciado» de la línea abierta están inactivos con `edi.preciso.ocupado`; «Sincronizar al ritmo», «Ajustar los silencios», «Corregir la letra» y salir del editor aplican y cierran; F y Ctrl/Cmd + E aplican y la ventana sigue abierta al volver.
+
+**Resultado y descarte**
+- P18. Una línea con palabras hechas a mano se barre palabra a palabra en la vista previa, en «Probar a pantalla completa», en el reproductor y en el video (modelo de fotograma idéntico para el mismo tiempo; test con tiempos conocidos), y no se barre en Letra lista. Guardar y reabrir la canción la conserva.
+- P19. La fila de la lista muestra el icono `whole-word` con `edi.preciso.indicador` y su nombre accesible incluye «con tiempos por palabra»; el panel muestra `edi.preciso.indicador.panel` y `edi.preciso.aviso.descartar`; la región muestra las fronteras entre palabras.
+- P20. Mover después el inicio o el fin de esa línea en la línea de tiempo (o con cualquier vía de 8.2) vuelve al barrido progresivo, muestra `edi.toast.palabras` y un solo Ctrl/Cmd + Z (o [Deshacer]) devuelve tiempos y palabras.
+- P21. Con tiempos por palabra hechos a mano no válidos en el archivo (solapados), la ventana los carga como sin marcar con `edi.preciso.cargadasInvalidas`.
+
+**Teclado y capturas**
+- P22. Todo el flujo (abrir, mover, cambiar el tamaño, elegir palabra, ajustar, marcar, escuchar, editar el texto, aplicar, cancelar, cambiar de línea) es operable solo con teclado; el diálogo de atajos incluye la sección `edi.preciso.atajos.titulo`; los atajos de una tecla no actúan en el campo de texto.
+- P23. Capturas en `docs/ux/revision-0.2.1-fase-9/` con nombre `editor-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 720 al 100 % y al 125 %: `preciso-abierto`, `preciso-marcando`, `preciso-palabra-seleccionada`, `preciso-texto-repartido`, `preciso-descartar`, `preciso-sin-onda`, `lista-indicador`, `toast-palabras-descartadas`, y `preciso-1024x576-125` en el tamaño mínimo de ventana.
+
+**Verificación manual** (guía de `docs/Test-manuales/0.2.1/`): marcar a mano una línea rápida y una lenta de una canción real a 0,5× y a 1× y comprobar que el barrido coincide con la voz en el reproductor; que la nota del tono se entiende; que mover y redimensionar la ventana es cómodo con un portátil de 1366 × 768; que Esc aplicando no sorprende.

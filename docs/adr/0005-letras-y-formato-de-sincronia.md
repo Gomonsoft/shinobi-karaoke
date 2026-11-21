@@ -150,3 +150,15 @@ Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportac
 - El video usa las mismas reglas de tiempo que el reproductor: el fotograma `n` pinta `fotogramaEn(letra, n × 1000 / FPS − offset_ms)`, con `finEfectivo`, líneas sin inicio omitidas y pausas sin dibujar (§2).
 - El video empieza en 00:00 y dura lo mismo que el audio, sin silencio previo (provisional, [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §3).
 - No se exporta LRC en esta fase (la conversión a LRC sigue sin interfaz).
+
+## Revisión para 0.2.1 — fases 8 y 9
+
+Fecha: 2026-11-21. El detalle está en el [ADR 0021](0021-sincronia-simplificada-y-editor-preciso-de-linea.md). Sustituye, en lo que se contradiga, a la decisión 4 y a las revisiones del 2026-11-04 sobre palabras.
+
+- **Palabras importadas**: LRCLIB (`lyricsfile`) y el LRC mejorado **dejan de importar** tiempos por palabra. Las letras ya guardadas los conservan en el archivo, pero **no se pintan**: esas líneas usan el barrido progresivo entre su inicio y su `finEfectivo` (ADR 0021 §2 y §5).
+- **Palabras hechas a mano**: solo nacen en el editor preciso de línea (fase 9) y se marcan con `origen_palabras: "manual"` en la línea. Son las únicas que se pintan palabra a palabra (ADR 0021 §1).
+- **`finEfectivo` solo cuenta las palabras visibles**: fin fijado → fin de la última palabra manual válida → reglas automáticas. Las importadas ya no deciden el fin (ADR 0021 §3).
+- **Regla nueva**: cualquier edición del inicio o del fin de una línea descarta sus palabras, con un solo paso de deshacer. Las palabras ya no se desplazan con su línea (ADR 0021 §4).
+- **Al importar**, el fin fijado de una línea puede salir del fin de su última palabra con `end_ms` explícito si la línea no trae un `end_ms` válido (ADR 0021 §5).
+- **Desplazamiento global** (decisión 5): se retira de la interfaz; `offset_ms` se sigue leyendo, validando y aplicando (ADR 0021 §8). La corrección de Bluetooth deja de remitir a él.
+- **Velocidad** (decisión 5 y revisión de la fase 5): las mismas (0,5×, 0,75×, 1×). Fuera del editor preciso sigue bajando el tono. Dentro de la ventana, por debajo de 1×, el tono se conserva con un tramo estirado por WSOLA sobre el mismo reloj (ADR 0021 §9).
