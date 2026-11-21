@@ -1,4 +1,5 @@
 # 0192 — Workflow: disparador por etiqueta y trabajo `comprobar-version`
+
 - Estado: Pendiente
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0191
@@ -7,9 +8,11 @@
 - ¿Red?: no para las pruebas de feedback; el ensayo en GitHub es la tarea 0195
 
 ## Objetivo
+
 Que `.github/workflows/empaquetado.yml` se dispare también con etiquetas `v*` y que, antes de construir, compruebe que la etiqueta coincide con la versión de app y worker. `construir` y `probar-instalador` no cambian.
 
 ## Criterios de aceptación
+
 - [ ] `name: Empaquetado y publicación`. Disparadores: `workflow_dispatch` (sin entradas) y `push: tags: ['v*']`. Sigue sin `push` de ramas ni `pull_request`.
 - [ ] `permissions: contents: read` en la raíz y `concurrency: { group: empaquetado-${{ github.ref }}, cancel-in-progress: false }`.
 - [ ] Trabajo `comprobar-version` en `ubuntu-24.04`, `timeout-minutes: 10`, con `checkout` (`fetch-depth: 0`, para poder mirar `main`) y `setup-node` por los SHA del ADR 0013. Sin `npm ci`: `version.mjs` no tiene dependencias.
@@ -22,10 +25,12 @@ Que `.github/workflows/empaquetado.yml` se dispare también con etiquetas `v*` y
 - [ ] `app/scripts/workflow-empaquetado.test.ts` actualizado: los disparadores son exactamente `workflow_dispatch` y `push.tags: ['v*']`; ningún trabajo salvo `publicar` (tarea 0194) tiene permisos distintos de `contents: read`; `construir` necesita `comprobar-version`; siguen las aserciones de acciones fijadas por SHA, matrices y artefactos.
 
 ## Pruebas de feedback
+
 - Unitarias: `npx vitest run scripts/workflow-empaquetado.test.ts`. Si `actionlint` (MIT) está disponible en el equipo, `actionlint .github/workflows/empaquetado.yml` sin errores; si no, se anota.
 - E2E: ninguna.
 - Críticos: no.
 - Manual: ninguno (el ensayo en GitHub es la 0195).
 
 ## Notas de implementación
+
 (las rellena el programador al terminar)

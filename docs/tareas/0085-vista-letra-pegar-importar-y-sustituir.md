@@ -1,4 +1,5 @@
 # 0085 — Vista Letra: pegar la letra, importar archivo y confirmar la sustitución (wireframe B)
+
 - Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: 0084, 0078 (conversores en `shared/`). Integración real con 0083.
@@ -8,9 +9,11 @@
 - Cuándo: después de 0084; en paralelo con 0086 y 0087.
 
 ## Objetivo
+
 Las dos alternativas manuales de la vista Letra y la confirmación común antes de sustituir una letra que ya tiene alguna línea.
 
 ## Criterios de aceptación
+
 - [ ] **"Pegar la letra"** muestra B: título, ayuda `let.pegar.ayuda` (ampliada con "Borra los renglones que no se cantan…", `0022` §6; sin filtrado de renglones de estructura) y un área de texto con etiqueta accesible y el foco.
   - **Toda la conversión es del renderer** con los conversores puros de `shared/letras` (`esLrc`, `lrcALetra`, `textoPlanoALetra`, `contarLineas`), sin llamadas al main hasta guardar (`preguntas/0023` §1). Se calcula sobre un valor diferido (`useDeferredValue`) para no bloquear la escritura con textos largos; `generarId` puede ser `crypto.randomUUID` (el main renormaliza al guardar).
   - **Contador en vivo** `let.pegar.contador` con `contarLineas(convertir(texto))`, sin contar renglones vacíos.
@@ -41,6 +44,7 @@ Las dos alternativas manuales de la vista Letra y la confirmación común antes 
   - importar un LRC con `ignoradas: 2` → C muestra el aviso.
 
 ## Notas de implementación
+
 - **Qué se hizo**: vista B (`PegarLetra.tsx`), importar de archivo (`importar.ts`, hook `useImportarArchivo`) y confirmación de sustituir (`sustituir.tsx`, hook `useConfirmarSustituir` + `existenteDe`). Textos en `textosPegar.ts` (`let.pegar.*`, `let.importar.ignoradas`, `let.error.archivo`, diálogo).
 - **Conversión** 100 % en el renderer (`esLrc`/`lrcALetra`/`textoPlanoALetra`, `useDeferredValue`, `crypto.randomUUID`); sin llamadas al main hasta guardar. Texto > 512 KB: aviso `error` propio (copy no previsto en la spec; anotarlo para el diseñador).
 - **Estado en `Letra.tsx`**: `pegando`, `textoPegado` (se conserva al ir a A y volver; se limpia al guardar o al salir), `existente` (líneas y si hay sincronía, actualizado tras cada guardado) e `ignoradasImportadas` (estado local para C). `BusquedaLetra` recibe `confirmar` y su `onUsada` pasa también las líneas.

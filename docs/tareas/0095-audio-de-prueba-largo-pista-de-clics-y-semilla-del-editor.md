@@ -1,4 +1,5 @@
 # 0095 — Audio de prueba: FLAC largo, pista de clics y canciones del editor en la semilla
+
 - Estado: Hecha
 - Paso del pipeline: 4 (pruebas)
 - Depende de: — (**puede empezar ya**)
@@ -8,14 +9,17 @@
 - Paralelizable con: todas salvo 0110 y 0111, que la usan.
 
 ## Contexto para quien implementa
+
 - `flac.ts` genera un FLAC mínimo válido: silencio estéreo de 16 bits a 44,1 kHz, en bloques de 4096 muestras con subtramas `CONSTANT`. El número de trama se escribe en un solo byte (`n & 0x7f`), así que como mucho hay 127 bloques (≈ 11,8 s). La semilla (`semilla.ts`, `npm run semilla`, que también usan los E2E con `sembrar(datos)`) escribe ese silencio de ~1 s como `fuente/mezcla.flac` y `pistas/*.flac`.
 - El editor necesita audio de **varias decenas de segundos** para el transporte y el E2E, y una **pista de clics** (pulsos periódicos audibles) para la prueba manual de precisión (0111).
 - Las letras del repositorio son **inventadas** (ADR 0005).
 
 ## Objetivo
+
 Generar FLAC largos (silencio y clics) sin dependencias y sembrar canciones pensadas para el editor.
 
 ## Criterios de aceptación
+
 - [x] `flac.ts`:
   - número de trama en **UTF-8 de FLAC** (1 byte < 0x80, 2 bytes < 0x800, 3 bytes < 0x10000), con el CRC-8 sobre toda la cabecera;
   - `silencioFlac(bloques)` admite hasta 65535 bloques; el valor por defecto (11) no cambia;
@@ -30,13 +34,14 @@ Generar FLAC largos (silencio y clics) sin dependencias y sembrar canciones pens
   - 17 «Editor: pista de clics», artista «Shinobi Pruebas»:
     - `mezcla.flac`, `voz.flac` e `instrumental.flac` = `pulsosFlac({ segundos: 30, periodoMs: 2000, desfaseMs: 2000 })`;
     - letra `manual` de 12 líneas ("Clic 1" … "Clic 12") sin tiempos y una pausa tras la 6;
-    - separación completada. Sirve para la prueba manual: la línea *k* debería marcarse en `2000·k` ms;
+    - separación completada. Sirve para la prueba manual: la línea _k_ debería marcarse en `2000·k` ms;
   - 18 «Editor: separando», separación `en_curso` con `progreso: 0.42`, sin pistas, letra sincronizada de 6 líneas y `mezcla.flac` = 30 s de silencio;
   - 19 «Editor: lista incompleta», `estado: 'lista'`, pistas de 30 s y 8 líneas con una sin inicio.
 - [x] Las canciones existentes no cambian (los E2E de fases anteriores cuentan tarjetas: actualiza **solo** los recuentos que dependan del total de la semilla, por ejemplo en `e2e/biblioteca.spec.ts`, y anótalo en las notas).
 - [x] `semilla.test.ts`: las tres canciones nuevas validan y sus FLAC duran 30 s según `STREAMINFO`. El total efectivo de la semilla es de 18 entradas (pregunta 0028).
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check
@@ -47,6 +52,7 @@ npm run build && npx playwright test e2e/biblioteca.spec.ts
 ```
 
 ## Notas de implementación
+
 - `flac.ts` conserva el FLAC de silencio por defecto y genera clips de duración exacta, incluidos los pulsos para la prueba manual. Los tests comprueban CRC, posiciones de clics y decodificación local con PyAV.
 - Se añadieron las canciones 17–19 sin editar las anteriores. Quedan 18 entradas (15 previas y 3 nuevas) y se conservan los casos de daño deliberado. Los recuentos de Biblioteca y del menú contextual reflejan ese total. Se registró la discrepancia del enunciado en la pregunta 0028.
 - Pasaron lint, TypeScript, formato, Vitest (1564 pasadas, 12 omitidas), build y Playwright (69 pasadas, 2 omitidas). La escucha manual de la pista de clics queda para la 0111.

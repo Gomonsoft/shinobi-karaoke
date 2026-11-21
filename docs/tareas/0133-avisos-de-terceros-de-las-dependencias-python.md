@@ -1,4 +1,5 @@
 # 0133 — Avisos de terceros: dependencias Python transitivas
+
 - Estado: En curso
 - Paso del pipeline: 0 (distribución)
 - Depende de: — (orden en `THIRD_PARTY_NOTICES.md`: después de 0132)
@@ -6,13 +7,16 @@
 - ¿Red?: **el script, sí** (API JSON de PyPI, con el índice de PyTorch si hace falta), por eso **no** entra en `pytest` por defecto. Sus tests, no: usan respuestas fijas.
 
 ## Objetivo
+
 Cumplir lo que `THIRD_PARTY_NOTICES.md` promete desde la Fase 2: "El resto de dependencias transitivas se revisarán al empaquetar". No se redistribuyen, pero el usuario debe ver qué instala y hay que confirmar que nada viola el ADR 0002.
 
 ## Archivos
+
 - `worker/scripts/licencias_requisitos.py` y `worker/tests/test_licencias_requisitos.py`;
 - `THIRD_PARTY_NOTICES.md`.
 
 ## Contratos
+
 - Sin dependencias nuevas: patrón de `worker/scripts/medir_descarga.py`.
 - Lee los 5 archivos de `worker/requisitos/`, une los paquetes y consulta `license_expression`, `license` y clasificadores de PyPI.
 - Salida ordenada entre `<!-- inicio:dependencias-python -->` y `<!-- fin:dependencias-python -->`: paquete, versión, licencia, en qué perfiles.
@@ -21,12 +25,14 @@ Cumplir lo que `THIRD_PARTY_NOTICES.md` promete desde la Fase 2: "El resto de de
 - Si aparece una licencia incompatible, **no se decide en la tarea**: se abre pregunta para el arquitecto.
 
 ## Criterios de aceptación
+
 - [x] Tests sin red, con respuestas de PyPI grabadas e inventadas: expresión SPDX, clasificador, licencia desconocida, no comercial, lista revisada.
 - [x] `uv run pytest` sigue sin usar la red.
 - [ ] Ejecutado una vez con red; resultado en `THIRD_PARTY_NOTICES.md`.
 - [ ] Se quita la frase "se revisarán al empaquetar".
 
 ## Verificación
+
 ```bash
 cd worker
 uv run ruff check . && uv run ruff format --check scripts/licencias_requisitos.py tests/test_licencias_requisitos.py
@@ -35,6 +41,7 @@ uv run python scripts/licencias_requisitos.py        # CON RED
 ```
 
 ## Notas de implementación
+
 Se implementaron `worker/scripts/licencias_requisitos.py` y `worker/tests/test_licencias_requisitos.py`. El script lee los cinco archivos de requisitos, agrupa versiones por perfil, consulta PyPI en paralelo, clasifica `license_expression`, `license` y clasificadores, rechaza licencias no comerciales/desconocidas/incompatibles, admite excepciones manuales con motivo y clasifica los paquetes `nvidia-*` como licencia de NVIDIA no redistribuida. `cuda-toolkit==12.8.1`, sin licencia declarada en PyPI, se registró manualmente con el motivo revisado en `REVISIONES_MANUALES` (meta-paquete publicado por NVIDIA que instala paquetes `nvidia-*`).
 
 Verificación sin red: las 8 pruebas pasan; Ruff check y format:check pasan. Ejecución real contra PyPI el 2026-11-06: falla de forma intencional y no modifica `THIRD_PARTY_NOTICES.md`. PyPI declara `Creative Commons Attribution-NonCommercial 4.0 International` para `diffq==0.2.4` (macOS arm64 y Linux x64 CPU/CUDA) y `diffq-fixed==0.2.4` (Windows x64 CPU/CUDA). La licencia restringe el uso comercial y contradice ADR 0002. Se abrió [`pregunta 0046`](../preguntas/0046-licencia-no-comercial-de-diffq.md) para el arquitecto; no se añadió excepción.

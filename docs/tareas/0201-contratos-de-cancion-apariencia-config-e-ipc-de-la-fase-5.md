@@ -37,7 +37,7 @@ Fijar en `shared/` y en el preload el contrato de datos e IPC de la fase 5, para
 
 ## Archivos
 
-Los de «Objetivo» y sus pruebas. Si falta una función de main al compilar, se deja un *stub* que lanza un error, documentado en las notas para 0203.
+Los de «Objetivo» y sus pruebas. Si falta una función de main al compilar, se deja un _stub_ que lanza un error, documentado en las notas para 0203.
 
 ## Criterios de aceptación
 

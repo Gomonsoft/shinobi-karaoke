@@ -1,4 +1,5 @@
 # 0045 — Vista de progreso: subpasos de la fuente (descarga y preparación)
+
 - Estado: Hecha
 - Paso del pipeline: 1 (la parte de separación es de la Fase 3)
 - Depende de: 0014, 0020, 0043
@@ -7,9 +8,11 @@
 - Spec UX: docs/ux/04-progreso-pipeline.md §1 (subpasos "Descargar de YouTube" y "Preparar el audio", estados error/interrumpido, cancelar), docs/ux/03-anadir-cancion.md (criterio 13); docs/ux/00-mapa-de-vistas.md §3 ("Continuar" de un borrador)
 
 ## Objetivo
+
 Tras "Continuar" en Añadir canción, la app navega a la vista 04. En la Fase 2 esta vista muestra solo los subpasos de la fuente; la separación aparece como subpaso pendiente sin acciones hasta la Fase 3, que completará la vista.
 
 ## Criterios de aceptación
+
 - [ ] `vistas/progreso/` con la cabecera de 0043 (paso 2 actual), título `prog.titulo`, subtítulo, lista de subpasos con iconos (○ ⟳ ✓ ✕ ⚠ ⏸): "Descargar de YouTube" (solo si `fuente.tipo === "youtube"`), "Preparar el audio" y "Separar voz e instrumental" (en esta fase siempre ○ sin texto de acción; anotarlo como provisional en el código).
 - [ ] Descarga en curso (trabajo vivo de `useTrabajosVivos`): `prog.fase.descargando` con %, "X MB de Y MB" (de `detalle.bytes/total`), barra determinada que no retrocede, ETA según `prog.eta` (sin ETA los primeros 15 s: "Calculando tiempo…"); fase `preparando` → "Preparar el audio" ⟳ indeterminado; fase `actualizando` → texto `prog.reintento.ytdlp` (0050). En cola → ⏸ "En cola" (texto de cola de la fuente: provisional "En cola: empezará cuando termine «{otra}».", `preguntas/0013` §4).
 - [ ] Al completarse, ✓ con el dato de la derecha (MB descargados para la descarga). Bloque "Mientras tanto…" con "Buscar la letra mientras tanto" (navega al marcador de Letra) y "Volver a la biblioteca"; foco inicial en el primero; Esc vuelve a la Biblioteca sin cancelar.
@@ -20,6 +23,7 @@ Tras "Continuar" en Añadir canción, la app navega a la vista 04. En la Fase 2 
 - [ ] Tests de componente con trabajos y progreso falsos: archivo local (sin fila de descarga, preparar ✓), descarga con % y ETA a los 15 s, preparando, actualizando, en cola, completado, error reintentable y no reintentable, interrumpido, cancelar en cola y en curso.
 
 ## Notas de implementación
+
 - **Qué se hizo**: `app/src/renderer/src/vistas/progreso/` (`Progreso.tsx`, `modelo.ts` lógica pura de filas/bloques/anuncios, `textos.ts`, `progreso.module.css`, tests `Progreso.test.tsx` y `modelo.test.ts`), montada en `App.tsx` para `{tipo:'cancion', paso:'progreso'}` con la `CabeceraCancion` de 0043. Subpasos "Descargar de YouTube" (solo YouTube), "Preparar el audio" y "Separar voz e instrumental" (provisional Fase 3: siempre ○). Descarga con %, "X MB de Y MB", ETA (`Calculando tiempo…` mientras el main no da ETA, es decir, los primeros 15 s), barra que no retrocede, `preparando`, `actualizando` (`prog.reintento.ytdlp` "de YouTube"), cola (`prog.cola.descarga` / `.mantenimiento` según 0013 §4 ya respondida), cancelar (en cola sin diálogo; en curso con `prog.dialogo.cancelar.descarga`, foco en "Seguir descargando"), estado "Descarga pendiente" (banner `info` + "Descargar ahora", sin "Mientras tanto…"), error (`add.error.*`; reintentable -> Reintentar, no reintentable -> "Usar otro enlace"), interrumpido, anuncios `aria-live`.
 - **Cambios mínimos fuera de la vista**: `shared/ipc.ts` (`progresoTrabajoSchema.detalle?: {bytes,total}`) y `main/trabajos/gestor.ts` (pasa `detalle` del worker al evento de progreso; el MB de la descarga no llegaba al renderer); `navegacion/estado.ts` (`Vista anadir` admite `iniciales` con los metadatos conservados de "Usar otro enlace"); `shared/derivados.ts` (`vistaAlContinuar` admite `fuenteEnCola`: fuente `pendiente` con descarga en cola abre Progreso, y `Biblioteca.tsx` lo pasa); `cancion/pasos.ts` (el paso 2 es navegable con un trabajo de fuente vivo); tarjeta: "Falta descargar el audio" (`bib.paso.falta.descarga`) y "Actualizando el descargador…" (`bib.paso.actualizando`).
 - **Decisiones**: `fuente.reintentar(id)` aún no existe (0049): se accede opcionalmente a `window.shinobi.fuente` y los tests usan API falsa; si falta, toast de error. "Descargar ahora" usa el mismo canal (0049 admite fuente `pendiente`). Reintentable = todos los códigos salvo `URL_NO_VALIDA`, `URL_NO_SOPORTADA`, `VIDEO_NO_DISPONIBLE`, `FORMATO_NO_SOPORTADO`, `AUDIO_DEMASIADO_CORTO`. Esc ya vuelve a la Biblioteca por los atajos globales sin cancelar.

@@ -14,6 +14,7 @@ Crear las funciones puras y los esquemas de dominio que usan main y renderer: cl
 ## Contrato
 
 **`app/src/shared/identidad.ts`** (nuevo):
+
 - `claveTexto(t: string | null | undefined): string | null` = NFC(`toLowerCase`(NFC(colapsar(recortar(t))))), `""` → `null`. `colapsar` cambia cada secuencia `\s+` (incluye NBSP y U+3000) por un espacio.
 - `claveArtista(m)`, `claveAlbum(m) → { artista, album } | null` (null si falta cualquiera de las dos claves).
 - `claveAlbumTexto({ artista, album })`: serialización estable para mapas (por ejemplo `JSON.stringify([artista, album])`).
@@ -21,6 +22,7 @@ Crear las funciones puras y los esquemas de dominio que usan main y renderer: cl
 - `normalizarNombreTema(t)`: NFC, recortado, espacios colapsados; `claveNombreTema = claveTexto`.
 
 **`app/src/shared/temas.ts`** (nuevo):
+
 - `estiloTemaSchema` = `estiloSchema`; `temaSchema` `{ id: uuid, nombre (1–60 tras normalizar), creado, modificado, revision ≥ 1, estilo }`.
 - `catalogoSchema` según ADR 0016 §1, con asignaciones `{ artista, nombre_artista, tema_id }` y `{ artista, album, nombre_artista, nombre_album, tema_id }`, `predeterminado`, `borrado_pendiente`, `apartado: iso | null`, `claves: 1`, `esquema: 1`. `superRefine` con todas las reglas del §1 (ids únicos, referencias presentes, una asignación por clave, claves normalizadas, `clave(nombre_*) === clave`, nombres de tema únicos por clave, `borrado_pendiente.tema_id` presente).
 - `migrarCatalogo(json) → { tipo: "ok", catalogo } | { tipo: "mas_nuevo" } | { tipo: "invalido", error }`, con `MIGRACIONES_CATALOGO = {}` y el patrón de `migrarCancion` (`shared/migraciones.ts`).
@@ -46,9 +48,9 @@ Crear las funciones puras y los esquemas de dominio que usan main y renderer: cl
 
 ## Criterios de aceptación
 
-- [x] Claves: «Queen», «QUEEN » y «queen» dan la misma clave; «Jarabe  de Palo» (doble espacio y NBSP) y «jarabe de palo» también; «Canción» (NFC) y «Canción» (NFD) dan la misma clave; «Canción» y «Cancion» dan claves distintas; «İstanbul» produce una clave NFC estable; `"   "` → `null`. Álbum sin artista → `claveAlbum` `null`.
+- [x] Claves: «Queen», «QUEEN » y «queen» dan la misma clave; «Jarabe de Palo» (doble espacio y NBSP) y «jarabe de palo» también; «Canción» (NFC) y «Canción» (NFD) dan la misma clave; «Canción» y «Cancion» dan claves distintas; «İstanbul» produce una clave NFC estable; `"   "` → `null`. Álbum sin artista → `claveAlbum` `null`.
 - [x] `nombreVisibleGrupo` devuelve la grafía de la canción con `modificada` más reciente y es determinista con empates.
-- [x] `catalogoSchema` rechaza: id repetido, `predeterminado` o asignación a un tema inexistente, dos asignaciones con la misma clave, clave no normalizada, `nombre_artista` cuya clave no coincide, dos temas «Noche Ninja» y «noche  ninja»; acepta «Canción» y «Cancion».
+- [x] `catalogoSchema` rechaza: id repetido, `predeterminado` o asignación a un tema inexistente, dos asignaciones con la misma clave, clave no normalizada, `nombre_artista` cuya clave no coincide, dos temas «Noche Ninja» y «noche ninja»; acepta «Canción» y «Cancion».
 - [x] `migrarCatalogo` con `esquema: 2` devuelve `mas_nuevo`; con JSON inválido, `invalido`.
 - [x] `catalogoInicial` llama al tema «Shinobi» con el estilo de fábrica y «Mi estilo» con cualquier otro; el tema queda como `predeterminado`.
 - [x] `resolverApariencia` cubre, con una prueba por fila: `propio`, `tema` presente y ausente (`respaldo`), `heredar` con álbum, con artista, con álbum de otro artista homónimo (no aplica), con base `aleatorio` presente y ausente, con base `predeterminado_anterior` presente y ausente, con base `incluido`, sin base con y sin predeterminado, y con `indice` `null`. `temaNombre` es el nombre del tema resuelto o `null` con `incluido`/`propio`; con `respaldo` es `apariencia.tema_nombre ?? null`.
@@ -60,6 +62,7 @@ Crear las funciones puras y los esquemas de dominio que usan main y renderer: cl
 ## Notas de implementación
 
 **Qué se hizo.** Modelo puro en `shared/` sin E/S ni dependencias nuevas.
+
 - `identidad.ts`: `claveTexto`, `claveArtista`, `claveAlbum`, `claveAlbumTexto`, `nombreVisibleGrupo`, `normalizarNombreTema`, `claveNombreTema`, `VERSION_CLAVES`, tipos `ClaveAlbum` y `MetadatosIdentidad`.
 - `temas.ts`: `temaSchema`, `nombreTemaSchema`, `catalogoSchema` (con todas las reglas del ADR §1), `migrarCatalogo` (+ `MIGRACIONES_CATALOGO`), `catalogoInicial`, `aparienciaSchema`, `baseAparienciaSchema`, `crearIndiceCatalogo`, `resolverApariencia`, `esAparienciaNeutra`, `estilosIguales`; tipos `Tema`, `Catalogo`, `Apariencia`, `BaseApariencia`, `Procedencia`, `IndiceCatalogo`, `CancionResoluble`, `ResolucionApariencia`, `ResultadoMigrarCatalogo`, `BorradoPendiente`, `AsignacionArtista`, `AsignacionAlbum`.
 - `cancion.ts`: `apariencia: aparienciaSchema.optional()`; `esquema` sigue en 1; no se añade el campo al leer.
@@ -67,6 +70,7 @@ Crear las funciones puras y los esquemas de dominio que usan main y renderer: cl
 - Fixtures: `idDePrueba`, `temaDePrueba`, `catalogoDePrueba`, `aparienciaDePrueba`.
 
 **Decisiones.**
+
 - `temas.ts` no importa `cancion.ts` (que sí lo importa a él) para evitar un ciclo de módulos con TDZ; por eso `migrarCatalogo` devuelve `invalido.error` como `string` (no `ErrorDatosInvalidos`) y `resolverApariencia` acepta la forma estructural `CancionResoluble`.
 - `tema_id: null` con `modo` distinto de `tema` se tolera (ejemplo del ADR), equivale a ausente.
 - `indice === null` y `heredar` sin `base`: `respaldo` (sin catálogo no se conoce el predeterminado); la rama 3.5 (`incluido`) solo se alcanza con índice presente y sin predeterminado. Con `base: incluido` da `incluido` aun sin índice.

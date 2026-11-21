@@ -19,9 +19,9 @@
 
 ## Coordinación (evitar choques)
 
-- Mover las reglas del transporte (`.transporte`, `.transporteFila`, `.transporteAcciones`, `.grupoTransporte`, `.volumen`, `.barraTiempo`, `.ticks` y las *media queries* que las afectan) de `editor.module.css` a un `transporte.module.css` nuevo. `BannerSincronizar.tsx` usa `.transporteFila`: actualizar su importación (solo esa línea).
+- Mover las reglas del transporte (`.transporte`, `.transporteFila`, `.transporteAcciones`, `.grupoTransporte`, `.volumen`, `.barraTiempo`, `.ticks` y las _media queries_ que las afectan) de `editor.module.css` a un `transporte.module.css` nuevo. `BannerSincronizar.tsx` usa `.transporteFila`: actualizar su importación (solo esa línea).
 - Conservar de momento `position: sticky` en `.transporte`. Lo retira 0157 al crear el dock.
-- En `editor.module.css` solo se tocan el bloque del transporte (que se borra) y `.desplazamiento`/`.ajustesTiempo`. 0157 se encarga de las reglas de layout. Quien integre en segundo lugar resuelve un conflicto de *hunks* distintos.
+- En `editor.module.css` solo se tocan el bloque del transporte (que se borra) y `.desplazamiento`/`.ajustesTiempo`. 0157 se encarga de las reglas de layout. Quien integre en segundo lugar resuelve un conflicto de _hunks_ distintos.
 - Nada en `Editor.tsx`. Si hiciera falta una prop nueva, que sea opcional con un valor por defecto compatible.
 
 ## Archivos

@@ -33,6 +33,7 @@ Calcular en el modelo puro del render qué ayudas de espera tocan en cada instan
   - **barra**: `fraccion = clamp((t − origen) / (destino − origen), 0, 1)`.
 
   Con `ninguna casilla activa`, el resultado es `null`.
+
 - **`fotogramaEstatico`**: `espera: null`.
 - **Adaptación mínima de `PantallaLetra.tsx`**: pinta los puntos a partir de `fotograma.espera?.puntos` con el mismo marcado de hoy. **No** añade barra ni cuenta, que corresponden a 0213. La comparación que hoy hace con `f.puntos` para volver a pintar pasa a comparar `espera?.puntos` y `espera?.cuenta`. `clave` no cambia por dígito.
 

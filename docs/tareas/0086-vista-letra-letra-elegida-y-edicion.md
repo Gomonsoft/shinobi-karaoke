@@ -1,4 +1,5 @@
 # 0086 — Vista Letra: letra elegida y edición del texto con autoguardado (wireframe C)
+
 - Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: 0084, 0079 (`letraATexto`). Integración real con 0083.
@@ -8,9 +9,11 @@
 - Cuándo: después de 0084; en paralelo con 0085 y 0087.
 
 ## Objetivo
+
 Pantalla de la letra ya elegida: resumen del origen, área de texto editable que conserva la sincronía de lo que no cambia, y salidas a "Buscar otra letra", "Importar archivo" e "Ir al editor".
 
 ## Criterios de aceptación
+
 - [ ] **Resumen** `let.actual` con el formato `Letra actual · {origen} · {sincronía} · {n} líneas` ("1 línea" en singular; `0022` §1):
   - `{origen}`: "de LRCLIB" / "pegada" / "de un archivo" (sin nombre de archivo; el esquema no cambia);
   - `{sincronía}`: "sincronizada por palabra" / "sincronizada por línea" / "sin sincronizar" / "sincronizada en parte", con la regla de `ux/05` §1 (en parte = hay líneas con y sin inicio);
@@ -21,7 +24,7 @@ Pantalla de la letra ya elegida: resumen del origen, área de texto editable que
   - aviso informativo `let.edicion.marcas` mientras algún renglón del área empiece por una marca `[m:ss]` o `[mm:ss.xx]` (regex por renglón en el renderer, sin el main; `0023` §3). Las marcas se guardan como texto literal y no bloquean el guardado;
   - **autoguardado** con `letras.editarTexto` al salir del área (blur) o tras 1 s sin escribir, y también al desmontar la vista si hay cambios pendientes;
   - "✎ Borrador · guardado" en la cabecera tras confirmarse.
-  **No se reescribe** el contenido del área mientras tiene el foco, aunque el guardado normalice (por ejemplo, funda renglones vacíos): el texto normalizado aparece al volver a la vista.
+    **No se reescribe** el contenido del área mientras tiene el foco, aunque el guardado normalice (por ejemplo, funda renglones vacíos): el texto normalizado aparece al volver a la vista.
 - [ ] **Cero líneas** (`0022` §2, criterio 15):
   - en `borrador` se guarda y **la vista sigue en C**: se muestra `let.actual.vacia` en lugar del resumen, "Ir al editor" queda inactivo, el stepper pasa a Letra ○ y Editor no navegable con `paso.motivo.sinLetra`;
   - en `lista`, el main lo rechaza (0083) y se muestra `let.error.listaSinLineas` bajo el área sin borrar lo escrito; el aviso desaparece en cuanto el área tiene ≥ 1 línea, que se guarda con normalidad. Sin botón "Volver a borrador".
@@ -44,6 +47,7 @@ Pantalla de la letra ya elegida: resumen del origen, área de texto editable que
   - el área no se reescribe con el foco.
 
 ## Notas de implementación
+
 - Qué se hizo: vista C real en `app/src/renderer/src/vistas/letra/LetraElegida.tsx` (resumen `let.actual`, atribución LRCLIB, área de texto con autoguardado, avisos `let.edicion.aviso`/`let.edicion.marcas`/`let.error.listaSinLineas`, aviso `let.importar.ignoradas` con [×], botones). Lógica pura en `modeloElegida.ts` (`sincroniaActual`, `hayMarcasDeTiempo`, `tieneLineas`, `huella`); textos en `textosElegida.ts`.
 - Decisiones: el texto del área es estado controlado que solo cambia al escribir o al recargar por un cambio externo (nunca con el foco). Guarda con `letras.editarTexto` por blur, a 1 s sin escribir y al desmontar. El resumen de C se calcula en el renderer aplicando `aplicarTextoEditado` a la letra local tras cada guardado exitoso (la respuesta de `editarTexto` solo trae el `ResumenCancionIpc`). Cero líneas: en borrador se guarda y se muestra `let.actual.vacia`; en lista el rechazo del main muestra `let.error.listaSinLineas` (se quita al escribir una línea). "Ir al editor" inactivo con `noDisponible` (`aria-disabled`, enfocable). Cambios externos: ante `evento:cancion` se relee `biblioteca.obtener` y, si la letra difiere (huella sin ids) y no hay foco ni pendientes, se recarga.
 - Cambios en archivos compartidos: `Letra.tsx` (guarda la letra que muestra C en `letraC`, con `clave` para remontarla al sustituirla; pasa el origen a `guardada`: lrclib/manual/archivo; `sinCache` para "Buscar otra letra"), `BusquedaLetra.tsx` (prop `sinCacheInicial`), y las aserciones `Letra elegida · N líneas` de `Letra.test.tsx` y `PegarLetra.test.tsx` pasan a `Letra actual · … · N líneas` (y sus fixtures de `letra` llevan `origen`). `TEXTO.letraElegida` de `textos.ts` queda sin uso.

@@ -1,4 +1,5 @@
 # 0113 — Main: modo reproductor de la ventana (pantalla completa, estado previo, zoom) y pantalla encendida
+
 - Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112
@@ -7,18 +8,21 @@
 - Archivos:
   - crea `app/src/main/ventana/modoReproductor.ts` y `modoReproductor.test.ts`;
   - **compartidos**: `app/src/main/index.ts` (crear el control, vincularlo en `crearVentana()`, pasarlo como `ventana` a los handlers), `app/src/main/menu.ts` (+ test: ids de los elementos de zoom), `app/src/main/seguridad.ts` (+ `seguridad.test.ts`; retirar `fullscreen`).
-- Paralelizable con: 0114–0122 (las vistas usan la API falsa). Toca `main/index.ts` en un bloque propio: si 0124 está en curso, coordinad el *merge* (bloques distintos).
+- Paralelizable con: 0114–0122 (las vistas usan la API falsa). Toca `main/index.ts` en un bloque propio: si 0124 está en curso, coordinad el _merge_ (bloques distintos).
 
 ## Contexto para quien implementa
+
 - Hay una sola ventana (`crearVentana()` en `main/index.ts`); en macOS se puede volver a crear con `activate`. Los handlers IPC se registran antes de crear la ventana, así que el control es un objeto único que se **vincula** a la ventana cuando existe.
 - En macOS las transiciones de pantalla completa son asíncronas: `isFullScreen()` solo es fiable tras `enter-full-screen`/`leave-full-screen`, y una petición durante la transición se puede perder (docs de `BrowserWindow`).
 - El menú "Ver" (`main/menu.ts`) ya tiene `{ role: 'togglefullscreen', label: 'Pantalla completa' }` y los elementos de zoom (dos `zoomIn`, `zoomOut`, `resetZoom`) **sin id**.
 - `SHINOBI_*` de pruebas solo se aplican sin empaquetar (`!app.isPackaged`), como `SHINOBI_SILENCIAR_AUDIO`.
 
 ## Objetivo
+
 Que el reproductor ponga la ventana a pantalla completa y la devuelva a su estado previo, que conozca cualquier cambio de pantalla completa, que el zoom no funcione mientras está abierto y que la pantalla no se apague mientras suena.
 
 ## Criterios de aceptación
+
 - [ ] **`ControlModoReproductor`**:
   ```ts
   interface VentanaModo {
@@ -43,7 +47,7 @@ Que el reproductor ponga la ventana a pantalla completa y la devuelva a su estad
   - Cada `enter-full-screen`/`leave-full-screen` notifica a los suscriptores con el valor real, venga de una petición o del menú, F11 o el botón verde.
   - `evitarReposo(true)` inicia `prevent-display-sleep` si no hay uno activo; `false` lo detiene. Nunca hay dos bloqueos a la vez.
   - `closed` de la ventana y `reiniciar()` detienen el bloqueo, olvidan el modo y reactivan el zoom (sin tocar la pantalla completa de una ventana que ya no existe).
-- [ ] **Doble para pruebas**: con `SHINOBI_PANTALLA_COMPLETA_SIMULADA=1` y sin empaquetar, `vincular` recibe un adaptador que guarda un booleano, no llama a `setFullScreen` real y emite el evento en el siguiente *tick*. El resto del control no cambia.
+- [ ] **Doble para pruebas**: con `SHINOBI_PANTALLA_COMPLETA_SIMULADA=1` y sin empaquetar, `vincular` recibe un adaptador que guarda un booleano, no llama a `setFullScreen` real y emite el evento en el siguiente _tick_. El resto del control no cambia.
 - [ ] **Cableado** (`main/index.ts`):
   - `bloqueador` = `powerSaveBlocker`;
   - `fijarZoomActivo` activa o desactiva los elementos del menú con id `zoom-mas`, `zoom-mas-oculto`, `zoom-menos`, `zoom-restablecer` (`Menu.getApplicationMenu()?.getMenuItemById(id)`);
@@ -55,11 +59,13 @@ Que el reproductor ponga la ventana a pantalla completa y la devuelva a su estad
 - [ ] Tests unitarios del control para todo lo anterior, con temporizadores y ventana falsos.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check && npm test
 npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test
 ```
+
 La comprobación con la ventana real (`isFullScreen()` en macOS y Windows) es del E2E 0123.
 
 ## Notas de implementación

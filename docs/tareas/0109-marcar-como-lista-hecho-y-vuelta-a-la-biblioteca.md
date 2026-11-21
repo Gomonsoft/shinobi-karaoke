@@ -1,4 +1,5 @@
 # 0109 — Editor: "Marcar como lista", "Hecho", "Volver a borrador" y vuelta a la Biblioteca (resalte de 2 s, filtro y toasts)
+
 - Estado: Hecha
 - Paso del pipeline: 5
 - Depende de: 0090 (`biblioteca.marcarLista`), 0091, 0100 (`Popover`), 0103, 0104, 0105
@@ -13,19 +14,21 @@
 - Paralelizable con: 0106–0108.
 
 ## Contexto para quien implementa
+
 - `motivosParaNoEstarLista(cancion)` y `puedeMarcarseLista` (`shared/derivados.ts`) dan los motivos `SIN_PISTAS` y `LINEAS_SIN_INICIO` (con los números de línea). El estado de la separación (en curso con %, en cola, pendiente o error) sale del resumen y de `useTrabajosVivos()`.
 - `biblioteca.marcarLista(id)` (0090) valida de nuevo en el main. `biblioteca.volverABorrador(id)` ya existe.
 - La guarda de salida y `vaciar()` son de 0104. El editor no navega sin vaciar.
 - La Biblioteca guarda el filtro a nivel de módulo (`vistas/biblioteca/Biblioteca.tsx`, tarea 0020). Las tarjetas son enfocables. Los toasts se muestran con `mostrarToast` (`componentes/gestorToasts.ts`) y son globales.
 
 ## Criterios de aceptación
+
 - [ ] **Vista**: `{ tipo: 'biblioteca'; enfocar?: { id: string; resaltar: boolean } }`. `claveVista` no cambia.
 - [ ] **Biblioteca** con `enfocar`:
-  - si el filtro de la sesión es *Borradores* y la canción ya es Lista, pasa a *Todas*;
+  - si el filtro de la sesión es _Borradores_ y la canción ya es Lista, pasa a _Todas_;
   - la tarjeta se desplaza a la vista y recibe el foco;
   - con `resaltar`, borde de 2 px `exito` durante 2 s con 200 ms de fundido (sin fundido con `prefers-reduced-motion`);
   - el resto de la Biblioteca no cambia.
-  Tests en `Biblioteca.test.tsx`.
+    Tests en `Biblioteca.test.tsx`.
 - [ ] **Marcar como lista** (borrador):
   - disponible si la separación está completada, hay ≥ 1 línea y todas tienen inicio;
   - al pulsar: `vaciar()` → `marcarLista(id)` → `ir({ tipo: 'biblioteca', enfocar: { id, resaltar: true } })` + toast `bib.toast.lista` "«{título}» está lista para cantar." **sin acción** (Fase 6);
@@ -41,7 +44,7 @@
 - [ ] **Hecho** (Lista):
   - vuelve con `enfocar: { id, resaltar: false }`, sin toast;
   - si está incompleta, la **primera** pulsación de la visita abre el popover `edi.hecho.incompleta` (singular y plural) con [Sincronizar ahora] (cierra y selecciona la primera sin inicio) y [Salir igualmente]; la segunda sale directamente.
-- [ ] **‹ Biblioteca y demás salidas siendo borrador**: si `cambiosEnVisita` (*reducer*) es `true`, toast `edi.toast.borrador` "Borrador guardado." al llegar a la Biblioteca; si no, ninguno. Se resuelve en la guarda de salida (0104) cuando el destino es la Biblioteca.
+- [ ] **‹ Biblioteca y demás salidas siendo borrador**: si `cambiosEnVisita` (_reducer_) es `true`, toast `edi.toast.borrador` "Borrador guardado." al llegar a la Biblioteca; si no, ninguno. Se resuelve en la guarda de salida (0104) cuando el destino es la Biblioteca.
 - [ ] **Volver a borrador…** (⋯, solo Lista):
   - diálogo `bib.dialogo.borrador` (reutiliza `DialogoConfirmar` de `vistas/biblioteca/DialogosCancion.tsx`);
   - al confirmar, `volverABorrador(id)` y se queda en el editor: la insignia pasa a Borrador y el primario a "Marcar como lista";
@@ -55,6 +58,7 @@
   - toast de borrador solo con cambios.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check
@@ -62,7 +66,8 @@ npx vitest run src/renderer/src/vistas/editor src/renderer/src/vistas/biblioteca
 ```
 
 ## Notas de implementación
-- Se revisó y completó el trabajo parcial de Codex: `BotonLista.tsx` (primario con popover de motivos, Hecho con aviso de incompleta en la primera pulsación, `DialogoVolverABorradorEditor`, `avisarBorradorAlSalir`), `navegacion/estado.ts` (`enfocar`), `Biblioteca.tsx` (cambio a *Todas*, foco, resalte de 2 s con `data-resaltada` y CSS que respeta `prefers-reduced-motion`).
+
+- Se revisó y completó el trabajo parcial de Codex: `BotonLista.tsx` (primario con popover de motivos, Hecho con aviso de incompleta en la primera pulsación, `DialogoVolverABorradorEditor`, `avisarBorradorAlSalir`), `navegacion/estado.ts` (`enfocar`), `Biblioteca.tsx` (cambio a _Todas_, foco, resalte de 2 s con `data-resaltada` y CSS que respeta `prefers-reduced-motion`).
 - Lo que faltaba: conectar en `Editor.tsx` el `BotonLista` (en lugar del primario deshabilitado), el ítem ⋯ "Volver a borrador…" (solo Lista) y su diálogo; y `useGuardadoEditor.tsx` recibe un 5.º parámetro `alSalirGuardado(destino)` que se invoca tras un vaciado correcto en la guarda de salida, desde donde se muestra el toast "Borrador guardado." solo si hubo `cambiosEnVisita` y el destino es la Biblioteca sin `enfocar`.
 - El toast de "lista" sale sin [▶ Reproducir] (Fase 6, pregunta 0025 §1).
 - Probar: `npx vitest run src/renderer/src/vistas/editor src/renderer/src/vistas/biblioteca`; a mano, `npm run semilla && npm run dev`, abrir un borrador completo en el editor y pulsar Marcar como lista.

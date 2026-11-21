@@ -1,4 +1,5 @@
 # 0070 — Biblioteca: "Reintentar" que relanza el paso, "Cancelar trabajo" y "Re-separar pistas" en el menú ⋯
+
 - Estado: Hecha
 - Paso del pipeline: 1 y 2
 - Depende de: 0059, 0068 (diálogos de cancelar). Integración real con 0065; se puede empezar con la API falsa
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0069, 0071 y 0072
 
 ## Objetivo
+
 Saldar la deuda de 0019/0020: el botón "Reintentar" de la tarjeta hoy navega como "Continuar". Además faltan dos entradas del menú ⋯.
 
 ## Criterios de aceptación
+
 - [x] **Reintentar** (tarjeta con un paso en `error` o `interrumpido`) relanza **sin salir de la Biblioteca**:
   - fuente de YouTube → `fuente.reintentar(id)` (0049);
   - separación → `separacion.separar(id)` (0065).
@@ -29,6 +32,7 @@ Saldar la deuda de 0019/0020: el botón "Reintentar" de la tarjeta hoy navega co
 - [x] Tests (`Biblioteca.acciones.test.tsx`, `tarjeta.test.tsx`): línea de paso en `descargando_modelo` y en cada reintento; Reintentar de fuente y de separación sin navegar, no reintentable → Ver, Cancelar trabajo en cola y en curso (con el diálogo correcto según el paso), Re-separar en dañada por pistas, sin Re-separar en dañada por JSON, sin mezcla ni en una canción completa separada con Rápido.
 
 ## Notas de implementación
+
 - **Reintentar** (`Biblioteca.tsx`, `reintentarPaso`): `fuente.reintentar(id)` o `separacion.separar(id)` según el primer paso en error/interrumpido (`pasoConProblema` en `tarjeta.ts`), sin navegar; si falla, toast con el título del código + "Copiar detalles". Error de fuente no reintentable (`textoDeError(...).reintentable === false`) -> botón "Ver" (acción `ver`, navega como Continuar). Los errores de separación son siempre reintentables.
 - **Cancelar trabajo** (menú ⋯ si hay trabajo vivo, también en dañadas): en cola, `trabajos.cancelar` sin diálogo; en curso, `DialogoCancelarDescarga`/`DialogoCancelarSeparacion` de 0068.
 - **Re-separar pistas**: solo dañadas con `motivo === 'pistas'` y mezcla presente. Para saberlo se añadió el campo opcional `sinMezcla` a `ResumenCancion`/`resumenCancionSchema` (calculado en `ServicioBiblioteca` al escanear/cargar; `guardar` lo conserva). Una dañada con trabajo vivo muestra la línea del trabajo ("En cola para separar", etc.) con insignia Dañada. No se ofrece en canciones separadas con Rápido (preguntas/0020 §3).

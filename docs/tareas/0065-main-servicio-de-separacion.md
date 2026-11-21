@@ -1,4 +1,5 @@
 # 0065 — Main: servicio de separación (encolar en la cola pesada, pistas, factor medido y limpieza)
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0056, 0059, 0060, 0063, 0064
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0061, 0062, 0067 y 0068 (la vista se prueba antes con la API falsa)
 
 ## Objetivo
+
 `main/separacion/servicio.ts`: lanza, recoge y limpia las separaciones. Los reintentos por memoria, la descarga del modelo que falta y la oferta de Rápido son de 0066. Aquí la política de reintento es `null`.
 
 ## Criterios de aceptación
+
 - [ ] **Encolar automáticamente al completar la fuente**:
   - archivo local: tras materializar la canción (0042);
   - YouTube: en el `alResultado` de `descargar-youtube` (0049), después de escribir `fuente` `completado`.
@@ -19,7 +22,7 @@
   - existe `fuente/mezcla.flac` y el paso `fuente` está `completado`;
   - no hay ningún trabajo vivo de esa canción en la cola pesada;
   - `separacion` está en `pendiente`, `error` o `interrumpido`, o en `completado` con la canción **dañada porque faltan las pistas** ("Re-separar pistas", `ux/02`).
-  En otro caso → `ARGUMENTOS_NO_VALIDOS` (sin escribir nada). Con la instalación no `completa` → `RUNTIME_NO_DISPONIBLE`.
+    En otro caso → `ARGUMENTOS_NO_VALIDOS` (sin escribir nada). Con la instalación no `completa` → `RUNTIME_NO_DISPONIBLE`.
 - [ ] **Argumentos** (0059):
   - `modelo` = el del **modo vigente al empezar** (servicio de configuración de 0056: Calidad, o Rápido solo con `rapido_aceptado`), leído cuando el trabajo **empieza** y no al encolarlo (`ux/08`: los que están en cola usan el modo vigente al empezar). Hace falta un gancho del gestor `alEmpezar(trabajo) → args`, o construir los args de forma perezosa; anotar cuál se eligió;
   - `dispositivo` = `cuda` si el perfil vigente es `cuda`, si no `cpu` (Apple Silicon incluido, `preguntas/0010`);
@@ -41,6 +44,7 @@
   - integración (`*.integracion.test.ts`) con el worker real y el separador falso de 0060: dos canciones → la segunda en cola hasta que termina la primera.
 
 ## Notas de implementación
+
 - **Servicio** (`app/src/main/separacion/servicio.ts`, `ServicioSeparacion`): `separar` (reglas de aceptación, `RUNTIME_NO_DISPONIBLE` tras validar argumentos), `alCompletarFuente`, `limpiarAlArrancar` (`biblioteca/*/pistas.tmp` y `modelos/*.partial`), `estimar` (cablea `estimarCancion` de 0067) y `entornoSeparadorFalso` (solo sin empaquetar; `index.ts` lo pasa al worker). Política de reintento `null`.
 - **Gancho elegido: `alEmpezar`** en el gestor (`PeticionTrabajo.alEmpezar(trabajo) -> { args, ritmoEsperado?, modo?, dispositivo? }`): los args (modo vigente, dispositivo, `pistas.tmp` vaciada) y el ritmo esperado se calculan cuando el trabajo empieza. `TrabajoIpc.modo`/`dispositivo` salen de ahí. `PlanReintento.dispositivo?` queda preparado para 0066.
 - **Encolado automático**: YouTube, por suscripción al gestor (trabajo `descargar-youtube` terminado `completado`, es decir tras escribir `fuente` completado); archivo local, con `ServicioImportacionArchivo.deps.alFuenteLista` tras `materializar`. No se encola al arrancar, ni en la semilla, ni al sustituir la fuente.

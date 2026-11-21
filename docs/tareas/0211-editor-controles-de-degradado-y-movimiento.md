@@ -21,6 +21,7 @@ En Estilo › Fondo, elegir la forma del degradado, el centro, el ángulo de ini
   - en el lineal y el radial, por igual de 0 a 1.
 
   Se aplica al cambiar de forma y al añadir o quitar colores. Un cónico abierto con la última parada en 1 no se reparte hasta que el usuario cambia algo.
+
 - **Movimiento**:
   - la casilla empieza desmarcada; al marcarla guarda `{ periodo_s: 30, sentido: 'horario' }` y al desmarcarla, `null`;
   - **Velocidad** es un segmentado Lenta / Media / Rápida (60/30/15). Otro `periodo_s` guardado aparece como cuarta opción «{n} s», que desaparece al elegir otra;

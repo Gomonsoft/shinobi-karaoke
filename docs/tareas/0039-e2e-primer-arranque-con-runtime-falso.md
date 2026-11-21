@@ -1,4 +1,5 @@
 # 0039 — E2E del primer arranque con runtime falso (sin red)
+
 - Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0035, 0037
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/01-primer-arranque.md (criterios de aceptación)
 
 ## Objetivo
+
 Probar de punta a punta, con la app compilada y sin Internet, los recorridos del primer arranque usando el escenario falso del ADR 0009 §8.
 
 ## Criterios de aceptación
+
 - [x] `SHINOBI_RUNTIME_FALSO=<escenario.json>` (ignorado si `app.isPackaged`, igual que `SHINOBI_PAPELERA_PRUEBAS`) sustituye `EjecutorUv`, `Diagnosticador`, `DescargadorModelos`, `EspacioLibre` y `DetectorGpu` por dobles que siguen el escenario: plataforma/perfil previsto, espacio libre, bytes y duración por fase, fallo con un código en una fase (una vez o siempre), rebaja de perfil, artefactos que crea en disco (venv y marcador simulados, archivo de modelo). Esquema del escenario validado con Zod y documentado en `app/e2e/README` o en el propio archivo de dobles.
 - [x] Escenarios E2E (Playwright `_electron`, directorio de datos temporal de 0023), cada uno < 15 s:
   1. CPU, todo bien: B1 con cifras del manifiesto → B2 con 3 fases y mensaje Rápido → B3 → "Empezar" → Biblioteca vacía; `config.json` queda `completa`.
@@ -23,6 +26,7 @@ Probar de punta a punta, con la app compilada y sin Internet, los recorridos del
 - [x] Se ejecutan en el job de E2E actual de la CI (Linux) y localmente en macOS; sin descargas ni red.
 
 ## Notas de implementación
+
 - **Qué se hizo**:
   - `app/src/main/runtime/falso/`: `escenario.ts` (esquema Zod estricto y documentado, `cargarEscenarioFalso`, que devuelve `null` si `app.isPackaged`, y `manifiestoParaEscenario` para modelos "diminutos"), `dobles.ts` (`crearDoblesRuntime`: `EjecutorUv`, `Diagnosticador`, `DescargadorModelos`, `EspacioLibre`, `DetectorGpu` y entorno de plataforma) y `falso.test.ts` (10 casos). `composicion.ts` recibe `falso` y sustituye los cinco puertos; `index.ts` lo carga de `SHINOBI_RUNTIME_FALSO` y, con el escenario activo, deja la actualización de yt-dlp en no-op.
   - Los dobles crean en disco lo que crearía el real: intérprete del venv (el marcador lo escribe el gestor real), archivos dispersos que crecen a ritmo constante en `runtime/python` y `runtime/cache-uv` (el gestor mide esos directorios), y el archivo del modelo (disperso con el tamaño del manifiesto, o de 2 KiB con SHA-256 válido con `modelos: "diminutos"`, necesario para la verificación completa de 0035). Cada llamada se anota en `llamadas.jsonl` junto al escenario.

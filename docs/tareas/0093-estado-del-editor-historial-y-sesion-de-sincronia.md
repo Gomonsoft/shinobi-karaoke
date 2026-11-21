@@ -1,4 +1,5 @@
 # 0093 — Interfaz (puro): estado del editor, deshacer/rehacer y sesión de "Sincronizar al ritmo"
+
 - Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0092
@@ -8,52 +9,85 @@
 - Paralelizable con: 0090, 0091, 0094–0102.
 
 ## Contexto para quien implementa
+
 - Las operaciones de tiempos están en `app/src/shared/letras/tiempos.ts` (0092). Son puras, trabajan con **tiempo guardado** y devuelven `ResultadoTiempos = { letra, cambiado, limite, palabrasDescartadas, finesAutomaticos }`.
 - Mientras el editor está abierto, guarda en local la `Letra` y el `Estilo` (`app/src/shared/estilo.ts`). La vista (0104) envía al main la última instantánea.
 - El historial es **de la visita**: no se persiste y se vacía al salir del editor.
-- Sin dependencias nuevas: un *reducer* puro para `useReducer`.
+- Sin dependencias nuevas: un _reducer_ puro para `useReducer`.
 
 ## Objetivo
-Un *reducer* puro con el estado editable, el historial y la sesión de sincronía. La vista solo despacha acciones y reacciona a los avisos: tooltip de límite, toasts de palabras y fines, y saltos de reproducción.
+
+Un _reducer_ puro con el estado editable, el historial y la sesión de sincronía. La vista solo despacha acciones y reacciona a los avisos: tooltip de límite, toasts de palabras y fines, y saltos de reproducción.
 
 ## Criterios de aceptación
+
 - [x] Tipos y API:
   ```ts
-  export interface Instantanea { letra: Letra; estilo: Estilo }
-  export interface EntradaHistorial { antes: Instantanea; clave: string; en: number; sesionSync: number | null; marcaId?: string }
+  export interface Instantanea {
+    letra: Letra;
+    estilo: Estilo;
+  }
+  export interface EntradaHistorial {
+    antes: Instantanea;
+    clave: string;
+    en: number;
+    sesionSync: number | null;
+    marcaId?: string;
+  }
   export type Aviso =
-    | { tipo: 'limite'; limite: Limite; id: string | null }
-    | { tipo: 'consecuencias'; palabrasDescartadas: string[]; finesAutomaticos: string[] } // toasts con [Deshacer]
+    | { tipo: "limite"; limite: Limite; id: string | null }
+    | {
+        tipo: "consecuencias";
+        palabrasDescartadas: string[];
+        finesAutomaticos: string[];
+      }; // toasts con [Deshacer]
   export interface EstadoEditor {
-    actual: Instantanea
-    pasado: EntradaHistorial[]          // máx. 200; se descarta la más antigua
-    futuro: Instantanea[]
-    seleccion: string | null
-    sync: { activo: boolean; sesion: number; siguiente: string | null }
-    aviso: (Aviso & { n: number }) | null // n crece en cada aviso (para re-dispararlo)
-    version: number                      // crece con cada cambio de `actual`
-    cambiosEnVisita: boolean              // hubo algún cambio (para edi.toast.borrador)
+    actual: Instantanea;
+    pasado: EntradaHistorial[]; // máx. 200; se descarta la más antigua
+    futuro: Instantanea[];
+    seleccion: string | null;
+    sync: { activo: boolean; sesion: number; siguiente: string | null };
+    aviso: (Aviso & { n: number }) | null; // n crece en cada aviso (para re-dispararlo)
+    version: number; // crece con cada cambio de `actual`
+    cambiosEnVisita: boolean; // hubo algún cambio (para edi.toast.borrador)
   }
   export type AccionEditor =
-    | { tipo: 'cargar'; instantanea: Instantanea; seleccion: string | null }
-    | { tipo: 'seleccionar'; id: string | null } | { tipo: 'mover_seleccion'; sentido: -1 | 1 }
-    | { tipo: 'ajustar_inicio'; deltaMs: number; ahora: number }
-    | { tipo: 'ajustar_fin'; deltaMs: number; duracionMs: number; ahora: number }
-    | { tipo: 'fijar_inicio'; ms: number; ahora: number } | { tipo: 'fijar_fin'; ms: number; duracionMs: number; ahora: number }
-    | { tipo: 'fin_automatico'; ahora: number } | { tipo: 'borrar_tiempos'; ahora: number }
-    | { tipo: 'desplazar'; deltaMs: number; ahora: number } | { tipo: 'fijar_desplazamiento'; ms: number; ahora: number }
-    | { tipo: 'estilo'; estilo: Estilo; clave: string; ahora: number }   // clave: 'fondo.tipo', 'fondo.angulo', 'fondo.parada.1', 'letra.color', …
-    | { tipo: 'entrar_sync'; desdeId: string | null } | { tipo: 'salir_sync' }
-    | { tipo: 'sync_siguiente'; id: string }                            // clic en una fila durante el modo
-    | { tipo: 'marcar'; ms: number; ahora: number }                     // ms = tiempo guardado
-    | { tipo: 'fin_al_soltar'; id: string; ms: number; duracionMs: number }
-    | { tipo: 'deshacer_marca' }
-    | { tipo: 'deshacer' } | { tipo: 'rehacer' }
-  export function estadoInicial(i: Instantanea, seleccion: string | null): EstadoEditor
-  export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor
+    | { tipo: "cargar"; instantanea: Instantanea; seleccion: string | null }
+    | { tipo: "seleccionar"; id: string | null }
+    | { tipo: "mover_seleccion"; sentido: -1 | 1 }
+    | { tipo: "ajustar_inicio"; deltaMs: number; ahora: number }
+    | {
+        tipo: "ajustar_fin";
+        deltaMs: number;
+        duracionMs: number;
+        ahora: number;
+      }
+    | { tipo: "fijar_inicio"; ms: number; ahora: number }
+    | { tipo: "fijar_fin"; ms: number; duracionMs: number; ahora: number }
+    | { tipo: "fin_automatico"; ahora: number }
+    | { tipo: "borrar_tiempos"; ahora: number }
+    | { tipo: "desplazar"; deltaMs: number; ahora: number }
+    | { tipo: "fijar_desplazamiento"; ms: number; ahora: number }
+    | { tipo: "estilo"; estilo: Estilo; clave: string; ahora: number } // clave: 'fondo.tipo', 'fondo.angulo', 'fondo.parada.1', 'letra.color', …
+    | { tipo: "entrar_sync"; desdeId: string | null }
+    | { tipo: "salir_sync" }
+    | { tipo: "sync_siguiente"; id: string } // clic en una fila durante el modo
+    | { tipo: "marcar"; ms: number; ahora: number } // ms = tiempo guardado
+    | { tipo: "fin_al_soltar"; id: string; ms: number; duracionMs: number }
+    | { tipo: "deshacer_marca" }
+    | { tipo: "deshacer" }
+    | { tipo: "rehacer" };
+  export function estadoInicial(
+    i: Instantanea,
+    seleccion: string | null,
+  ): EstadoEditor;
+  export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor;
   /** Última marca de la sesión actual (para habilitar Deshacer y rebobinar): id y tiempo guardado de la marca. */
-  export function ultimaMarcaDeSesion(e: EstadoEditor): { id: string; ms: number } | null
-  export const puedeDeshacer = (e: EstadoEditor) => boolean; export const puedeRehacer = (e: EstadoEditor) => boolean
+  export function ultimaMarcaDeSesion(
+    e: EstadoEditor,
+  ): { id: string; ms: number } | null;
+  export const puedeDeshacer = (e: EstadoEditor) => boolean;
+  export const puedeRehacer = (e: EstadoEditor) => boolean;
   ```
 - [x] **Reglas**:
   - Las acciones de tiempos actúan sobre `seleccion`, que debe ser una línea; sin ella no hacen nada.
@@ -80,7 +114,7 @@ Un *reducer* puro con el estado editable, el historial y la sesión de sincroní
   - `deshacer_marca`:
     - si la última entrada es una marca de la sesión actual → `deshacer`, y además `siguiente = seleccion = marcaId`;
     - si no, no hace nada.
-    La vista lee antes `ultimaMarcaDeSesion` para saltar a `marca − 3 s`.
+      La vista lee antes `ultimaMarcaDeSesion` para saltar a `marca − 3 s`.
   - `deshacer` / `rehacer`: estándar. Suben `version`, no tocan `sync.activo` y conservan la `seleccion` si la línea sigue existiendo.
   - `salir_sync`: `activo = false` y `seleccion = siguiente ?? seleccion`.
   - `cargar`: estado nuevo y sin historial (al entrar y tras `LETRA_DESACTUALIZADA`).
@@ -99,6 +133,7 @@ Un *reducer* puro con el estado editable, el historial y la sesión de sincroní
   - aviso de consecuencias al descartar palabras.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

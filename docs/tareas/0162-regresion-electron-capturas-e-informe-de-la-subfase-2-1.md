@@ -14,13 +14,13 @@ Cerrar la subfase. Verificar en Electron los criterios 1–25 de la spec y los d
 ## Matriz y forma de lanzarla
 
 | Ventana física | Escala | `--force-device-scale-factor` | `setContentSize` (DIP = CSS) |
-|---|---|---|---|
-| 1280 × 720 | 100 % | 1 | 1280 × 720 |
-| 1280 × 720 | 125 % | 1.25 | 1024 × 576 |
-| 1720 × 1440 | 100 % | 1 | 1720 × 1440 |
-| 1720 × 1440 | 125 % | 1.25 | 1376 × 1152 |
-| 1920 × 1080 | 100 % | 1 | 1920 × 1080 |
-| 1920 × 1080 | 125 % | 1.25 | 1536 × 864 |
+| -------------- | ------ | ----------------------------- | ---------------------------- |
+| 1280 × 720     | 100 %  | 1                             | 1280 × 720                   |
+| 1280 × 720     | 125 %  | 1.25                          | 1024 × 576                   |
+| 1720 × 1440    | 100 %  | 1                             | 1720 × 1440                  |
+| 1720 × 1440    | 125 %  | 1.25                          | 1376 × 1152                  |
+| 1920 × 1080    | 100 %  | 1                             | 1920 × 1080                  |
+| 1920 × 1080    | 125 %  | 1.25                          | 1536 × 864                   |
 
 - Cada caso comprueba al empezar `devicePixelRatio`, `innerWidth` e `innerHeight`. Si el sistema operativo no concede el tamaño porque la pantalla del equipo es menor, el caso se **omite con una anotación** (`test.info().annotations`), no se da por bueno, y el informe indica en qué equipo se verificó cada viewport. Los seis tienen que quedar verificados en al menos un equipo antes del PR.
 - CI (Linux con xvfb): ampliar la pantalla virtual del paso E2E a `-s "-screen 0 3840x2160x24"` en `.github/workflows/ci.yml` para que quepan todos los viewports. Es el único cambio de CI de la subfase.

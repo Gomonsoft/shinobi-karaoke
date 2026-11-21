@@ -7,9 +7,11 @@
 - Spec UX: [10 · Exportar a video](../ux/10-exportacion.md) (catálogo, nombre propuesto, códigos de error)
 
 ## Objetivo
+
 Publicar los tipos, esquemas, canales y funciones puras de la exportación para que main, worker y renderer avancen en paralelo. **Única tarea de la fase que toca `shared/` y `preload/`.**
 
 ## Contrato
+
 - **`shared/exportacion.ts`** (puro, sin dependencias de Electron):
   - `FORMATOS` (`mkv_av1`, `webm_vp9`: contenedor, extensión, nombres para la interfaz, por defecto `mkv_av1`) y `RESOLUCIONES` por proporción (16:9: 1280 × 720, 1920 × 1080, 2560 × 1440, 3840 × 2160; 4:3: 640 × 480, 1024 × 768, 1600 × 1200, 2880 × 2160), `FPS = [24, 30, 60]`.
   - `PARAMETROS_CODIFICACION` (preset/CRF por formato y resolución) y `MEMORIA_MINIMA` por resolución, con los valores del ADR 0019 §5.
@@ -25,6 +27,7 @@ Publicar los tipos, esquemas, canales y funciones puras de la exportación para 
 - **Preload**: `window.shinobi.exportacion.*` en `preload/index.ts`; nuevo `preload/exportacion.ts` con `window.shinobiExportacion` (`inicial`, `listo`, `alFotograma`). Dobles para el renderer (API falsa) y fixtures en `shared/__fixtures__/exportacion.ts`.
 
 ## Criterios de aceptación
+
 - [ ] `combinaciones()` da 48 combinaciones, todas con dimensiones pares y dentro de los techos de 0050.
 - [ ] `nombrePropuesto` cubre caracteres prohibidos, artista vacío, nombres largos y puntos finales.
 - [ ] Los esquemas rechazan resoluciones o FPS fuera del catálogo, rutas en `iniciar` y `n` negativo en `listo`.
@@ -32,6 +35,7 @@ Publicar los tipos, esquemas, canales y funciones puras de la exportación para 
 - [ ] Un `config.json` sin `exportacion` o con valores inválidos se lee con los valores por defecto.
 
 ## Pruebas de feedback
+
 - Unitarias: `shared/exportacion.test.ts` (catálogo, estimaciones, nombre, fotogramas), tests de esquemas en `ipc.test.ts`, cobertura de `ROLES_POR_CANAL`, lectura tolerante de `config`.
 - E2E: ninguna.
 - Críticos: sí (toca `shared/` y `preload/`).

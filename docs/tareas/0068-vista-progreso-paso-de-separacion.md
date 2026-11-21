@@ -1,4 +1,5 @@
 # 0068 — Vista de progreso: paso de separación (cola, fases, tiempo, cancelar, pendiente, errores y oferta de Rápido)
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0045 (Hecha), 0057 (módulo `aviso-rapido` y API), 0059, 0067. Se desarrolla con la API falsa; la integración real llega con 0065/0066
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0065 y 0066
 
 ## Objetivo
+
 Completar en `vistas/progreso/` el subpaso que 0045 dejó como "○ provisional Fase 3". El estado "Terminado" con la escucha es la tarea 0069.
 
 ## Criterios de aceptación
+
 - [ ] **En cola**: ⏸ con `prog.cola` y el título de la canción que se está separando ("2.ª en la cola" si hay más de una delante), más `prog.eta.previa` (0067). "Cancelar separación" la retira de la cola sin diálogo.
 - [ ] **En curso**, según la fase (0059):
   - `descargando_modelo` → `prog.fase.modelo` (o `prog.fase.modelo.rapido` si el trabajo usa Rápido), con barra determinada y "X MB de Y MB" (criterio 18);
@@ -50,6 +53,7 @@ Completar en `vistas/progreso/` el subpaso que 0045 dejó como "○ provisional 
   - interrumpido, y modelo y dispositivo realmente usados.
 
 ## Notas de implementación
+
 - **Qué se hizo**: subpaso de separación completo en `vistas/progreso/`: cola (posición, título de la otra, estimación previa de 0067), fases (`descargando_modelo` Calidad/Rápido con MB, `preparando`/`cargando_modelo`, `separando` con barra sin retroceso y ETA, `guardando`, `reintentando` memoria/memoria_cpu), indicador "Modelo · ⓘ" con popover, cancelar (cola sin diálogo; en curso con `DialogoCancelarSeparacion`), pendiente + "Separar ahora", interrumpido, errores por código (Calidad/Rápido) y oferta de Rápido con `DialogoAvisoRapido` y `runtime.aceptarYUsarRapido('separacion')`. Anuncios por fase sin valores interpolados. Primario "Ir al editor" si hay letra.
 - **Archivos**: `modelo.ts` (filaSeparar, bloques `pendienteSeparacion`/`interrumpidoSeparacion`/`errorSeparacion`), `textos.ts` (`SEP`, `textoDeErrorSeparacion`), `Progreso.tsx`, `IndicadorModelo.tsx`, `DialogosCancelar.tsx` (exporta `DialogoCancelarDescarga` y `DialogoCancelarSeparacion` para 0070/0071), tests `Progreso.test.tsx` y `modelo.test.ts`.
 - **Decisiones**: la oferta se decide con `estado.ofrecerRapido` del runtime (0066 aplica ahí "Calidad y causa distinta de SIN_CONEXION"); con `rapidoPendiente` el botón es "Usar el modelo Rápido" sin diálogo y "Reintentar" repite `aceptarYUsarRapido`. El error de la descarga de Rápido es estado local de la vista (sin oferta). El modelo usado sin trabajo vivo: último visto, `pistas.modelo.perfil` o `runtime.modo`. `prog.eta.previa` no usa la variante `.aprox` (no existe texto). Con la fuente completada y la separación `pendiente` se muestra "Separar ahora" (puede verse un instante antes de que 0065 encole sola). `PROCESO_TERMINADO` no tiene rama propia (cae en `prog.error.generico`). El typecheck de `detalle` ya estaba acotado por fase.

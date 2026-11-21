@@ -1,4 +1,5 @@
 # 0006 — Esquemas y reglas de dominio compartidas (cancion.json, config.json, errores, JSON Lines)
+
 - Estado: Hecha
 - Paso del pipeline: 5 (afecta a todos)
 - Depende de: 0002
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/00-mapa-de-vistas.md §3 y §7 (paso actual, códigos de error), docs/ux/sistema-visual.md §8 (estilo predeterminado), docs/ux/06-editor.md criterio 7d (palabras que se mueven con su línea)
 
 ## Objetivo
+
 Una única fuente de verdad en `app/src/shared/` para los formatos de datos y las reglas derivadas que usarán main y renderer.
 
 ## Criterios de aceptación
+
 - [x] Esquemas Zod y tipos inferidos para `cancion.json` versión 1 exactamente como ADR 0006 (revisión 2026-11-03): `metadatos`, `fuente` (con `mezcla`), `pistas` (nullable), `letra` (nullable) con elementos `tipo: "linea" | "pausa"`, `estilo` v1 (sólido/degradado con 2–4 paradas, colores `#RRGGBB`, ángulo 0–359, `fuente.origen` solo `"incluida"` en el MVP), `pasos` con sus estados y `error {codigo, mensaje}`.
 - [x] Validación de los invariantes de la letra de ADR 0006 (inicios crecientes, `inicio < fin ≤ siguiente inicio`, pausas sin texto ni palabras, sin pausas consecutivas ni al principio/final, **palabras** solo en líneas con inicio, crecientes, dentro de `[inicio de la línea, inicio del siguiente elemento con inicio]`), con mensajes de error comprensibles.
 - [x] Esquema de `config.json` v1 (ADR 0006): `instalacion`, `separacion` (`modo`, `modelos_descargados`, `factores_medidos`), `reproductor` (`volumen`, `silenciado`), `aviso_youtube_aceptado`, `ultima_comprobacion_ytdlp`, `estilo_predeterminado`; con **valores por defecto** para campos ausentes (lectura tolerante). El estilo predeterminado es el de `sistema-visual.md` §8.
@@ -24,6 +27,7 @@ Una única fuente de verdad en `app/src/shared/` para los formatos de datos y la
 - [x] Cobertura de tests ≥ 90 % en `shared/`.
 
 ## Notas de implementación
+
 - **Qué se hizo**: módulos en `app/src/shared/` (reexportados por `index.ts`): `errores.ts` (catálogo `CODIGOS_ERROR`), `estilo.ts` (esquema v1, `ESTILO_PREDETERMINADO`, familias incluidas), `letra.ts` (esquema, `validarInvariantesLetra`, `contarLineas`, `finEfectivo`, `moverInicioLinea`, `borrarTiemposLinea`), `cancion.ts`, `config.ts` (lectura tolerante con `prefault`), `migraciones.ts` (`migrarCancion`/`migrarConfig`, errores `ErrorEsquemaNoSoportado` y `ErrorDatosInvalidos`), `protocolo.ts` (mensajes JSON Lines + `parsearLineaWorker`), `derivados.ts` (`pasoActual`, `etiquetaPasoActual`, `motivosParaNoEstarLista`, `puedeMarcarseLista`, `estaIncompleta`, `vistaAlContinuar`). Fixtures en `__fixtures__/index.ts` (objeto `FIXTURES` con las 13 situaciones, más ayudantes `linea`, `pausa`, `letra`).
 - **Dependencias**: `zod` (MIT) y `@vitest/coverage-v8` (dev) instaladas con `npm install`; script `npm run test:cobertura`.
 - **Decisiones donde el ADR no es explícito** (conservadoras): los inicios son estrictamente crecientes (iguales se rechazan); un `fin_ms` o `palabras` sin `inicio_ms` es inválido; una lista de palabras vacía es inválida (debe ser `null`); ids únicos; el `fin` de una palabra no se compara con el inicio de la siguiente. `moverInicioLinea(letra, id, ms)` opera sobre el objeto `letra`, lanza `RangeError` si el nuevo inicio no queda estrictamente entre los inicios vecinos (el editor ya limita) y devuelve `{ letra, palabrasDescartadas, finesAutomaticos }`; también anula el fin fijado de la línea anterior si pasa a pisar a la movida y descarta las palabras de la anterior que no quepan. `finEfectivo(letra, id, duracionMs)` devuelve null sin inicio. `vistaAlContinuar(cancion, { progresoVisto })`: "ya vista" no es derivable de los datos, así que se pasa como opción (por defecto false → Progreso). `pasoActual` devuelve `'lista'` si `estado === 'lista'`.

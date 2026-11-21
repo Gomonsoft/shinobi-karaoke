@@ -1,4 +1,5 @@
 # 0063 — Gestor de trabajos: reintentos automáticos según `reintentable`, fase `reintentando` y muerte del proceso por el sistema
+
 - Estado: Hecha
 - Paso del pipeline: 1 y 2 (infraestructura)
 - Depende de: 0059; 0014, 0049 (Hechas)
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0060 y 0064 (0064 toca `progreso.ts`; esta, `gestor.ts`)
 
 ## Objetivo
+
 Saldar la deuda de 0014 ("sin reintentos automáticos según `reintentable`"): el gestor relanza un trabajo fallido según una **política** del llamador, sin pasar el paso a `error` mientras queden intentos, y lo anuncia como fase `reintentando`.
 
 ## Criterios de aceptación
+
 - [x] `encolar(...)` admite `politicaReintento?: (error, intento, args) => { args, esperaMs, motivo } | null`.
   - `null` → error definitivo (comportamiento actual).
   - Si devuelve un plan, el trabajo **sigue vivo** con el mismo `id` y en la misma cola, sin volver al final: el paso sigue `en_curso` y `cancion.json` no cambia salvo `progreso`.
@@ -32,6 +35,7 @@ Saldar la deuda de 0014 ("sin reintentos automáticos según `reintentable`"): e
 - [x] Tests del gestor: plan → mismo id, paso sigue `en_curso`, `intento` sube, espera respetada (relojes falsos); política `null` → `error`; cancelar durante la espera; cierre durante la espera → `interrumpido`; `alDescartar` entre intentos; máximo de intentos respetado.
 
 ## Notas de implementación
+
 - **Gestor** (`app/src/main/trabajos/gestor.ts`): `PeticionTrabajo.politicaReintento?: (error, intento, args) => PlanReintento | null` (`PlanReintento = { args, esperaMs, motivo }`). `correr()` es ahora un bucle: si el worker falla y la política devuelve plan, `esperarReintento` llama a `alDescartar`, sube `intento`, sustituye `args`, reinicia estimador/umbral (conservando `ritmoEsperado` de 0064), emite `trabajo:progreso` con fase `reintentando` (`detalle { motivo, espera_s }`, `intento`) y un `trabajo:cambio`, y espera `esperaMs` sin proceso vivo. El trabajo conserva `id`, puesto en la cola y paso `en_curso`; `cancion.json` no se toca. Cancelar durante la espera -> `pendiente`; cerrar la app -> `interrumpido`. El flujo de `YOUTUBE_BLOQUEADO` (0050) se mantiene y se integra en el mismo bucle. El gestor no limita los intentos: los limita la política.
 - `alResultado(datos, { intento, args })` recibe el intento y los args finales (para 0065).
 - `intento` en `TrabajoIpc` y en los eventos de progreso solo se informa si el trabajo tiene política y `intento <= 3` (el esquema compartido `intentoSchema` es 1–3, pensado para la separación); en los demás es `null`/ausente. Deuda: la descarga de YouTube puede llegar a un 4.º intento interno que no se expone.

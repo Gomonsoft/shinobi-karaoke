@@ -19,8 +19,9 @@ Implementar en `app/src/main/sesion/` la lógica de la cola y de la sesión como
   - `vaciar({ contexto })`;
   - `candidata()`;
   - `marcarDisponibilidad(cancionId, motivo | 'ok')`, `quitarCancion(cancionId)` (eliminada) y `actualizarTitulos`.
-  
+
   Errores: `ENTRADA_NO_ENCONTRADA` y `COLA_LLENA` (500). Los id de entrada los genera una función inyectada.
+
 - **`maquina.ts`**: `reducir(estado, evento, ahoraMs) → { estado, efectos[] }`.
   - **Eventos**:
     - `abrir` (con `inicio`), `aceptadaApertura` y `documentoListo`;
@@ -75,6 +76,7 @@ Cada punto es al menos una prueba de Vitest con reloj simulado:
 Hecho en `app/src/main/sesion/`: `cola.ts`, `maquina.ts`, `proyeccion.ts`, `index.ts` y pruebas (`cola`, `maquina`, `proyeccion`; 105 pruebas, cobertura de líneas ≥ 99 %). Probar: `npx vitest run --project node src/main/sesion`.
 
 Decisiones de diseño (para 0181):
+
 - `reducir(estado, evento, ahoraMs)` devuelve `{ estado, efectos, error?, aplicado?, entradaId?, antesDe? }`. Un fallo (`COLA_LLENA`, `ENTRADA_NO_ENCONTRADA`, `CONFIRMACION_OBSOLETA`, `SESION_EN_CURSO`, `SESION_NO_ACTIVA`, `CANCION_EN_REPRODUCCION`) deja el estado intacto. Sin cambio, el estado es la misma referencia.
 - El estado lleva un `Entorno { nuevoId, transicionS }` inyectado. La revisión sube con cada cambio observable (no con la posición ni con operaciones nulas) y añade `difundir`.
 - Los comandos `cargar` salen sin el DTO (solo `entradaId`, `cancionId`, `desdeMs`, `pausada`, `anuncio`) y sin `sesionId`/`revision`: el servicio los completa.
@@ -85,6 +87,7 @@ Decisiones de diseño (para 0181):
 - Eventos de biblioteca: `disponibilidad`, `cancionEliminada` y `titulos`.
 
 Opciones provisionales (no bloqueantes):
+
 - Fin natural con el cierre pendiente: pasa a `espera` (o `fin_de_cola`), sin cuenta; `cancelarCierre` no la arranca.
 - Activa fallida o aún cargando al conservar: vuelve al frente de las pendientes (con su disponibilidad); si era una reanudación, vuelve a ser contexto reanudable.
 - `abrir` con `cola` y un contexto interrumpido consume la primera pendiente; con contexto terminado, abre en `espera`.

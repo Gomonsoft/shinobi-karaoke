@@ -1,4 +1,5 @@
 # 0121 — Reproductor desde la Biblioteca y desde el toast «lista para cantar» (capa a nivel de App)
+
 - Estado: En curso
 - Paso del pipeline: 6
 - Depende de: 0119 (y 0120 para los errores; se puede empezar con 0119 y cerrar cuando 0120 esté)
@@ -15,20 +16,26 @@
 - Paralelizable con: 0120, 0122 (0122 toca `Editor.tsx`, no `BotonLista.tsx`). Debe ir **antes** de 0122 si las dos tocan `estado.ts` (0122 no debería).
 
 ## Contexto para quien implementa
+
 - Hoy "▶ Reproducir" (tarjeta, portada, Intro, menú ⋯) hace `ir({ tipo: 'reproductor', id })` y `App.tsx` dibuja un `Marcador`. La spec pide que el reproductor se abra **encima** de la Biblioteca, que se queda montada (filtro, búsqueda y desplazamiento intactos). Por eso deja de ser una vista y pasa a ser una capa (ADR 0011 §4).
 - Tras "Marcar como lista", `BotonLista.tsx` navega a la Biblioteca y muestra `mostrarToast({ tipo: 'exito', mensaje: '«…» está lista para cantar.' })` sin acción. Un toast con `accion` es persistente (no se cierra solo), y el contenedor lo cierra al pulsar la acción (comprueba `Toasts.tsx`).
 - Las tarjetas llevan `data-tarjeta="<id>"` (`TarjetaCancion.tsx`).
 
 ## Objetivo
+
 Cantar desde la Biblioteca con un clic, y desde el toast de "lista", volviendo a la Biblioteca tal como estaba.
 
 ## Criterios de aceptación
+
 - [ ] **Contexto** `navegacion/reproductor.tsx`:
   ```ts
-  export interface ControlReproductor { abrir(cancionId: string): void; abierto: string | null }
-  export const ReproductorContexto: React.Context<ControlReproductor | null>
-  export function useReproductor(): ControlReproductor
-  export function CapaReproductor(): JSX.Element | null   // la dibuja App
+  export interface ControlReproductor {
+    abrir(cancionId: string): void;
+    abierto: string | null;
+  }
+  export const ReproductorContexto: React.Context<ControlReproductor | null>;
+  export function useReproductor(): ControlReproductor;
+  export function CapaReproductor(): JSX.Element | null; // la dibuja App
   ```
   `App.tsx` envuelve la aplicación con el proveedor y dibuja `<CapaReproductor />` después de `<Marco>` (dentro de los contextos de navegación, trabajos y biblioteca). Abrir mientras ya hay uno abierto no hace nada.
 - [ ] **`ReproductorBiblioteca`** (lo dibuja la capa):
@@ -51,6 +58,7 @@ Cantar desde la Biblioteca con un clic, y desde el toast de "lista", volviendo a
   - error `no_encontrada` → `comprobarPistas` llamado.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check && npm test

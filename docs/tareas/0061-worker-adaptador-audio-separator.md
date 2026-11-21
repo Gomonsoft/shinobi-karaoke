@@ -1,4 +1,5 @@
 # 0061 — Worker: adaptador `audio-separator` (sin ffmpeg, soundfile, CPU en Apple Silicon, renombrado de stems y progreso por `tqdm`)
+
 - Estado: Hecha
 - Paso del pipeline: 2
 - Depende de: 0060
@@ -8,9 +9,11 @@
 - Cuándo: tras 0060; en paralelo con 0065. Es la única tarea que toca internos de audio-separator
 
 ## Objetivo
+
 Implementar `SeparadorReal`, la versión real de la interfaz `Separador`, con todo lo que midió el spike 0005 encapsulado en un único módulo comentado.
 
 ## Criterios de aceptación
+
 - [x] `worker/shinobi_worker/separacion_real.py` (solo se importa desde la fábrica de 0060):
   - **Sin ffmpeg** (`preguntas/0009`): anula `Separator.check_ffmpeg_installed` en **un único punto comentado** y crea `Separator(use_soundfile=True, output_format="FLAC", model_file_dir=<modelo.dir>, output_dir=<salida_dir>)`. Ningún otro módulo toca internos de audio-separator.
   - **Dispositivo** (`preguntas/0010`): con `dispositivo == 'cpu'` fuerza la CPU en todos los SO. PyTorch no ve MPS ni CUDA y ONNX Runtime usa solo `CPUExecutionProvider`. Mecanismo equivalente al `--cpu` de `spikes/separacion/separar.py`. Con `'cuda'`, la selección automática de audio-separator.
@@ -37,6 +40,7 @@ Implementar `SeparadorReal`, la versión real de la interfaz `Separador`, con to
 - [x] `ruff` y tests normales sin el extra `separacion` instalado (el adaptador no se importa en la CI normal salvo con el módulo de prueba).
 
 ## Notas de implementación
+
 - **Archivos**: `worker/shinobi_worker/separacion_real.py` (`SeparadorReal`; nombre fijado por la fabrica de 0060, no `separacion_audio_separator`), `worker/tests/test_separacion_contrato.py` (19 tests, CI normal, con `audio_separator`, `torch` y `tqdm` de prueba inyectados en `sys.modules`; PATH vacio verificado con `shutil.which`), `worker/tests/test_separacion_real.py` (`pesado`, se salta sin extra o sin `SHINOBI_MODELOS_DIR`).
 - **Parche y dispositivo**: `_aplicar_parche` (unico punto) anula `Separator.check_ffmpeg_installed`; `_cpu_forzada` sustituye `torch.cuda.is_available` y `torch.backends.mps.is_available` por `False` (con `__wrapped__`) solo durante la separacion y los restaura; sin GPU visible, audio-separator usa `CPUExecutionProvider` en ONNX. Con `cuda`, seleccion automatica.
 - **Bloques `pequenos`**: `segment_size` 256 -> 128 y `batch_size = 1`. Calidad: `mdxc_params={segment_size:128, override_model_segment_size:True, batch_size:1, overlap:None, pitch_shift:0}` (el override es necesario: sin el, MDXC usa el `chunk_size` del yaml). Rapido: `mdx_params={hop_length:1024, segment_size:128, overlap:0.25, batch_size:1, enable_denoise:False}`. `normal` no pasa parametros (defaults de audio-separator).

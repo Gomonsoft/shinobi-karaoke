@@ -7,9 +7,11 @@
 - Spec UX: [10](../ux/10-exportacion.md) (estados, errores, varias exportaciones, interacción con otras acciones, cierre de la app)
 
 ## Objetivo
+
 `ServicioExportacion` en main: orquesta todo y lo conecta al IPC, a la biblioteca, al cierre de la app y a la sesión. **Única tarea de la fase que toca `main/ipc/handlers.ts`, `main/index.ts` y `main/cierre.ts`.**
 
 ## Contrato
+
 - `main/exportacion/servicio.ts`:
   - **cola** propia de concurrencia 1; una exportación por canción; `DESTINO_OCUPADO`;
   - **perfiles**: lanza `capacidades-exportacion` la primera vez y guarda el resultado; combina con `MEMORIA_MINIMA` (`os.totalmem()`) para `soportado` y `motivo`;
@@ -23,6 +25,7 @@
 - `handlers.ts`: canales de §10 con remitente por rol. `index.ts`: cableado y `recuperarAlArrancar()` (aviso único al renderer). `cierre.ts`: `hayAlgoEnCurso` cuenta exportaciones; al confirmar se cancelan; «Reparar el motor» también las cancela. En macOS, cerrar la principal no las detiene.
 
 ## Criterios de aceptación
+
 - [ ] Con dobles de worker y ventana: éxito, cancelación en cola y en curso, fallo de worker, fallo de `rename`, `LIMPIEZA_FALLIDA` y caída de la ventana offscreen, cada uno con el estado, el código y la limpieza del ADR.
 - [ ] Dos exportaciones: la segunda espera y empieza sola; una segunda de la misma canción se rechaza.
 - [ ] Editar la canción durante la exportación no cambia la instantánea (V14); eliminarla la cancela.
@@ -30,6 +33,7 @@
 - [ ] `hayAlgoEnCurso` es verdadero con una exportación en cola.
 
 ## Pruebas de feedback
+
 - Unitarias: `servicio.test.ts` con dobles (worker, ventana, destinos, reloj), `handlers.test.ts` de los canales nuevos, `cierre.test.ts`.
 - E2E: ninguna propia (la cubre 0241).
 - Críticos: sí.

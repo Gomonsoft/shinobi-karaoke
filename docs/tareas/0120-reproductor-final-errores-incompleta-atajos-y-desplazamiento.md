@@ -1,4 +1,5 @@
 # 0120 — Reproductor: pantalla final, errores, lista incompleta, diálogo de atajos, desplazamiento y anuncios
+
 - Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0119
@@ -9,14 +10,17 @@
 - Paralelizable con: 0121 y 0122 (que solo montan el componente; los tres tocan carpetas distintas).
 
 ## Contexto para quien implementa
+
 - 0119 deja preparados los puntos de enganche: `alDesplazar`, `alFallarPista` y las acciones `desplazar`/`atajos` del teclado. El motor (0117) da `finalizado`, `errorPrincipal` y `errorVoz` con `{ tipo, detalle, ruta }`.
 - "Copiar detalles": `sistema.info()` da la versión y el SO. La escritura en el portapapeles se hace como en el resto de la app (busca el uso actual de "Copiar detalles", p. ej. en la vista de progreso o en el guardado del editor).
 - `CuentaFinal` y `textoIncompleta` están en `modelo.ts` (0118).
 
 ## Objetivo
+
 Cerrar todos los estados del reproductor y lo que solo aparece según el origen.
 
 ## Criterios de aceptación
+
 - [ ] **Pantalla final** (wireframe D):
   - con `finalizado`: `evitarReposo(false)`, franjas ocultas y cursor visible;
   - título y artista sobre el fondo del estilo; [↻ Otra vez] y [✕ `rep.volver.biblioteca` | `rep.volver.editor`] con el foco;
@@ -31,7 +35,7 @@ Cerrar todos los estados del reproductor y lo que solo aparece según el origen.
   - botones [`rep.copiar`] y [Volver a … según el origen] (primario, foco);
   - llama una vez a `alFallarPista({ pista: 'principal', tipo })` y a `evitarReposo(false)`;
   - Esc sale.
-  "Copiar detalles" copia exactamente:
+    "Copiar detalles" copia exactamente:
   ```
   Shinobi Karaoke {versión} · {so}
   Reproductor: {instrumental|original} ({ruta}) · {tipo} · {detalle}
@@ -42,7 +46,7 @@ Cerrar todos los estados del reproductor y lo que solo aparece según el origen.
   - el mismo texto en `t-pequeno` con ⚠ bajo «título · artista» de la franja superior, cuando se ve;
   - anunciado una sola vez con `aria-live` al empezar, junto a `rep.aria.inicio`;
   - nada en la zona de la letra.
-  Desde el editor no se muestra nunca.
+    Desde el editor no se muestra nunca.
 - [ ] **Diálogo de atajos** (F1, `?` o ⌨): componente `Dialogo` del sistema con `rep.atajos.titulo` y la tabla de la spec. Sin las filas que no aplican: `,`/`.` fuera del editor, la voz sin voz disponible. Al abrir pausa la reproducción; al cerrar sigue en pausa y el foco vuelve a donde estaba.
 - [ ] **Desplazamiento** (solo con `alDesplazar`):
   - `,`/`.` llaman a `alDesplazar(∓100)`;
@@ -60,6 +64,7 @@ Cerrar todos los estados del reproductor y lo que solo aparece según el origen.
   - `,` en el tope muestra el aviso de rango.
 
 ## Verificación
+
 ```bash
 cd app && npm run lint && npm run typecheck && npm run format:check && npm test
 ```

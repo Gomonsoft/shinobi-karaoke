@@ -1,4 +1,5 @@
 # 0140 — Icono de la app en los instaladores
+
 - Estado: En curso
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0130
@@ -7,23 +8,28 @@
 - ¿Red?: no.
 
 ## Objetivo
+
 Sustituir el icono de Electron. Hoy no hay ningún icono en el repositorio: electron-builder avisa de "default Electron icon is used".
 
 ## Archivos
+
 `app/build/icon.png` (1024 × 1024) y, si hace falta, `icon.icns` e `icon.ico`.
 
 ## Criterios de aceptación
+
 - [x] Icono del diseñador, de licencia compatible con GPL-3.0 y anotado en `THIRD_PARTY_NOTICES.md` si es de terceros.
 - [x] El log de electron-builder ya no muestra "default Electron icon".
 - [ ] Se ve en el instalador NSIS y sus accesos directos, en el Dock y el DMG, y en el menú de aplicaciones de Linux.
 - [ ] Tamaños anotados de nuevo en 0136.
 
 ## Verificación
+
 ```bash
 cd app && npm run empaquetar:dir
 ```
 
 ## Notas de implementación
+
 Se rasterizó el SVG de `ux/sistema-visual.md` §1.1 en `app/build/icon.png`.
 Es de creación propia y se distribuye bajo la licencia del proyecto.
 Se comprobaron RGBA, 1024 × 1024, los píxeles de referencia y la legibilidad del rombo

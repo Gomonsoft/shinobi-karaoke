@@ -19,7 +19,7 @@ Los tres tamaños preferidos y los tres estados minimizado/expandido se guardan 
   - Expone `preferencias` y `actualizar(parcial, motivo)`.
 - **Cuándo se escribe** (`config.actualizar({ editor: { paneles: … } })`):
   - Al confirmar un arrastre (`alConfirmar`).
-  - 500 ms después de la última tecla en un divisor (*debounce*).
+  - 500 ms después de la última tecla en un divisor (_debounce_).
   - Al minimizar o expandir por acción del usuario.
   - Al restablecer.
   - **Nunca** durante el arrastre ni por la minimización por falta de espacio, el modo sincronizar o la disposición bajo mínimo.

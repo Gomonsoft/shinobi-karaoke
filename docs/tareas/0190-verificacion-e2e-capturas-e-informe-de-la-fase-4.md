@@ -28,18 +28,18 @@ Ejecutar solo esta spec (`npx playwright test e2e/sesion-flujo.spec.ts` tras `np
 
 ### Lo que ya cubre Vitest (no se repite en E2E)
 
-| Escenario del ADR 0017 §13 | Dónde queda |
-|---|---|
-| Cola: siguiente y final, repetida, reordenar, quitar y deshacer; la activa no se interrumpe (S4–S6) | `main/sesion/cola.test.ts` y `maquina.test.ts` ([0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md)); panel en Vitest de [0185](0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md)/[0186](0186-panel-de-cola-lista-de-pendientes.md) |
-| Reordenar durante la cuenta, misma u otra candidata (P5) | `maquina.test.ts` (0178) |
-| Entrada no disponible, «Pasar a la siguiente» y «Descartar» (S9, P8) | `maquina.test.ts` (0178) y `servicio.test.ts` ([0181](0181-servicio-de-sesion-e-ipc-en-main.md)) |
-| Bloqueo de edición y `EDICION_BLOQUEADA` en todas las fases (E1–E5) | `servicio.test.ts` (0181) y Vitest de [0183](0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md)/[0187](0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) |
-| Cierre: eliminar, cancelar, cuenta congelada, `ses.cierre.obsoleto`, cierre durante la cuenta, «Reiniciar» (S12, P9, P11) | `maquina.test.ts` (0178) y Vitest de 0185 |
-| Desconexión y reconexión de pantalla (S15, ADR §3) | `pantallas.test.ts` y `ventanaSecundaria.test.ts` ([0180](0180-pantallas-ventana-secundaria-pantalla-completa-y-reposo.md)) y `servicio.test.ts` (0181); con cable real, en la guía manual |
-| Roles, remitente por canal y `sesionId` ajeno | `seguridad.test.ts` y `registro.test.ts` ([0179](0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md)) y `seguridad.spec.ts` |
-| Reposo con titulares (P14) | `reposo.test.ts` (0180); con el sistema real, en la guía manual |
-| Ajustes «Cuenta entre canciones» (AR1–AR3) | Vitest de [0188](0188-ajustes-cuenta-entre-canciones.md) |
-| Salir con sesión o con cola (S13) | Vitest de [0189](0189-salir-de-la-app-con-sesion-o-cola.md) |
+| Escenario del ADR 0017 §13                                                                                                | Dónde queda                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cola: siguiente y final, repetida, reordenar, quitar y deshacer; la activa no se interrumpe (S4–S6)                       | `main/sesion/cola.test.ts` y `maquina.test.ts` ([0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md)); panel en Vitest de [0185](0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md)/[0186](0186-panel-de-cola-lista-de-pendientes.md) |
+| Reordenar durante la cuenta, misma u otra candidata (P5)                                                                  | `maquina.test.ts` (0178)                                                                                                                                                                                                                            |
+| Entrada no disponible, «Pasar a la siguiente» y «Descartar» (S9, P8)                                                      | `maquina.test.ts` (0178) y `servicio.test.ts` ([0181](0181-servicio-de-sesion-e-ipc-en-main.md))                                                                                                                                                    |
+| Bloqueo de edición y `EDICION_BLOQUEADA` en todas las fases (E1–E5)                                                       | `servicio.test.ts` (0181) y Vitest de [0183](0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md)/[0187](0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md)                                                           |
+| Cierre: eliminar, cancelar, cuenta congelada, `ses.cierre.obsoleto`, cierre durante la cuenta, «Reiniciar» (S12, P9, P11) | `maquina.test.ts` (0178) y Vitest de 0185                                                                                                                                                                                                           |
+| Desconexión y reconexión de pantalla (S15, ADR §3)                                                                        | `pantallas.test.ts` y `ventanaSecundaria.test.ts` ([0180](0180-pantallas-ventana-secundaria-pantalla-completa-y-reposo.md)) y `servicio.test.ts` (0181); con cable real, en la guía manual                                                          |
+| Roles, remitente por canal y `sesionId` ajeno                                                                             | `seguridad.test.ts` y `registro.test.ts` ([0179](0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md)) y `seguridad.spec.ts`                                                                                                          |
+| Reposo con titulares (P14)                                                                                                | `reposo.test.ts` (0180); con el sistema real, en la guía manual                                                                                                                                                                                     |
+| Ajustes «Cuenta entre canciones» (AR1–AR3)                                                                                | Vitest de [0188](0188-ajustes-cuenta-entre-canciones.md)                                                                                                                                                                                            |
+| Salir con sesión o con cola (S13)                                                                                         | Vitest de [0189](0189-salir-de-la-app-con-sesion-o-cola.md)                                                                                                                                                                                         |
 
 Si al escribir el informe algún criterio no tiene prueba en ninguna de estas tareas, se añade un Vitest en la tarea responsable, no un E2E aquí.
 
@@ -49,7 +49,7 @@ Dos pantallas reales en Windows, macOS (Spaces y transición) y Linux X11/Waylan
 
 ## Capturas
 
-Solo las que exigen las specs UX para la revisión del diseñador: S18 (spec 02), P16 (spec 07), E8 (spec 06) y AR4 (spec 08), en `docs/ux/revision-fase-4/` con sus nombres y tamaños. Se generan con una spec *opt-in* (`e2e/sesion-capturas.spec.ts`, saltada salvo con `SHINOBI_CAPTURAS_4=1`, como `temas-capturas.spec.ts`), fuera de la regresión del CI. Se crea `README.md` con la semilla usada, el equipo y el estado «tomadas».
+Solo las que exigen las specs UX para la revisión del diseñador: S18 (spec 02), P16 (spec 07), E8 (spec 06) y AR4 (spec 08), en `docs/ux/revision-fase-4/` con sus nombres y tamaños. Se generan con una spec _opt-in_ (`e2e/sesion-capturas.spec.ts`, saltada salvo con `SHINOBI_CAPTURAS_4=1`, como `temas-capturas.spec.ts`), fuera de la regresión del CI. Se crea `README.md` con la semilla usada, el equipo y el estado «tomadas».
 
 ## Informe
 
