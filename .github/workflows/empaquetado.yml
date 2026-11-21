@@ -428,3 +428,73 @@ jobs:
           path: publicacion/*
           retention-days: 14
           if-no-files-found: error
+
+  publicar:
+    name: Publicar en GitHub Releases
+    needs: [comprobar-version, preparar-publicacion]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ETIQUETA: ${{ needs.comprobar-version.outputs.etiqueta }}
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      PREVIA: ${{ needs.comprobar-version.outputs.previa }}
+      BORRADOR: ${{ vars.PUBLICACION_BORRADOR }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: publicacion-${{ needs.comprobar-version.outputs.version }}
+          path: publicacion
+      - name: Comprobar que no existe una Release de esta etiqueta
+        run: |
+          if gh release view "$ETIQUETA" > /dev/null 2>&1; then
+            echo "::error::Ya existe una Release para $ETIQUETA; no se sobrescribe."
+            exit 1
+          fi
+      - name: Crear la Release en borrador con sus recursos
+        working-directory: publicacion
+        run: |
+          args=("$ETIQUETA" --verify-tag --draft --title "Shinobi Karaoke $VERSION" --notes-file notas.md)
+          if [[ "$PREVIA" == true ]]; then args+=(--prerelease --latest=false); else args+=(--latest); fi
+          if [[ "$(jq -r .generar_notas datos.json)" == true ]]; then args+=(--generate-notes); fi
+          gh release create "${args[@]}" \
+            Shinobi-Karaoke-Windows-x64.exe \
+            Shinobi-Karaoke-Mac-chip-Apple.dmg \
+            Shinobi-Karaoke-Linux-x64.AppImage \
+            shinobi-karaoke-linux-x64.deb \
+            SHA256SUMS.txt
+      - name: Comprobar los recursos subidos
+        working-directory: publicacion
+        run: |
+          gh release view "$ETIQUETA" --json assets --jq '.assets[] | "\(.name) \(.size)"' | sort > subidos.txt
+          for archivo in Shinobi-Karaoke-Windows-x64.exe Shinobi-Karaoke-Mac-chip-Apple.dmg Shinobi-Karaoke-Linux-x64.AppImage shinobi-karaoke-linux-x64.deb SHA256SUMS.txt; do
+            echo "$archivo $(stat -c %s "$archivo")"
+          done | sort > locales.txt
+          diff locales.txt subidos.txt
+      - name: Publicar o dejar en borrador
+        id: estado
+        run: |
+          if [[ "$BORRADOR" == true ]]; then
+            echo "estado=borrador (pendiente de publicar a mano)" >> "$GITHUB_OUTPUT"
+          else
+            gh release edit "$ETIQUETA" --draft=false
+            echo "estado=publicada" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Resumir
+        env:
+          ESTADO: ${{ steps.estado.outputs.estado }}
+          SERVIDOR: ${{ github.server_url }}
+        run: |
+          tipo=estable
+          if [[ "$PREVIA" == true ]]; then tipo="previa (pre-release)"; fi
+          {
+            echo "## Release $ETIQUETA"
+            echo
+            echo "- Enlace: $SERVIDOR/$GH_REPO/releases/tag/$ETIQUETA"
+            echo "- Estado: $ESTADO"
+            echo "- Tipo: $tipo"
+          } >> "$GITHUB_STEP_SUMMARY"

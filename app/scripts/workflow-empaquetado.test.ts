@@ -11,6 +11,8 @@ interface Paso {
 
 interface Trabajo {
   needs?: string | string[]
+  if?: string
+  env?: Record<string, string>
   permissions?: Record<string, string>
   'timeout-minutes'?: number
   steps: Paso[]
@@ -139,5 +141,30 @@ describe('workflow manual de empaquetado', () => {
       uses?.startsWith('actions/download-artifact@')
     )
     expect(descarga?.with).toMatchObject({ 'merge-multiple': true })
+  })
+
+  it('publicar es el único con escritura, solo con etiqueta y sin ejecutar código del repositorio', () => {
+    const publicar = flujo.jobs.publicar!
+    expect(publicar.permissions).toEqual({ contents: 'write' })
+    expect(publicar.if).toBe("github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')")
+    expect(publicar.needs).toEqual(['comprobar-version', 'preparar-publicacion'])
+    const acciones = publicar.steps.flatMap(({ uses }) => (uses ? [uses] : []))
+    expect(acciones).toHaveLength(1)
+    expect(acciones[0]).toMatch(/^actions\/download-artifact@[a-f0-9]{40}$/)
+    expect(publicar.steps.some(({ run }) => run?.includes('npm') || run?.includes('node '))).toBe(
+      false
+    )
+    const escritores = Object.entries(flujo.jobs).filter(
+      ([, t]) => t.permissions?.contents === 'write'
+    )
+    expect(escritores.map(([n]) => n)).toEqual(['publicar'])
+    expect(publicar.env).toMatchObject({ BORRADOR: '${{ vars.PUBLICACION_BORRADOR }}' })
+  })
+
+  it('no usa acciones de terceros', () => {
+    const acciones = Object.values(flujo.jobs).flatMap(({ steps }) =>
+      steps.flatMap(({ uses }) => (uses ? [uses] : []))
+    )
+    for (const accion of acciones) expect(accion.startsWith('actions/')).toBe(true)
   })
 })
