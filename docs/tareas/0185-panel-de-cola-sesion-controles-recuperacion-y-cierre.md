@@ -40,6 +40,7 @@ Crear el panel «Cola de reproducción» de la Biblioteca. Esta tarea cubre la e
   - `DialogoCierreSesion.tsx` (`ses.cierre`) cuando `cierrePendiente.origen === 'principal'`, con `CONFIRMACION_OBSOLETA` → `ses.cierre.obsoleto` y confirmar de nuevo;
   - con origen `secundaria`, `ses.cierre.esperando` y los controles de sesión inactivos;
   - después de cerrar se aplican los focos y anuncios de la spec (P5 conservada, `ses.toast.eliminada` y P6).
+- **Datos de la canción** ([0080](../preguntas/0080-duracion-y-lineas-sin-sincronizar-en-las-filas-de-la-cola.md)): al montar `ListaPendientes`, se le pasan `duracionDe(cancionId)` y `lineasSinSincronizarDe(cancionId)` resueltas con `useBibliotecaCompartida()`. Un dato ausente o `duracionMs: null` se trata como desconocido. La misma fuente sirve para `bib.lista.incompleta` en el bloque de la activa. No cambia `EntradaIpc`.
 - **Foco**: nunca se queda en `body` cuando cambia el bloque de la activa o se cierra el panel. Un fallo solo mueve el foco si este estaba en el panel.
 
 ## Archivos
@@ -47,6 +48,8 @@ Crear el panel «Cola de reproducción» de la Biblioteca. Esta tarea cubre la e
 `app/src/renderer/src/vistas/biblioteca/cola/**` (salvo `ListaPendientes.tsx` y sus pruebas, que son de 0186) y la colocación del panel en `Biblioteca.tsx` y `biblioteca.module.css` (pocas líneas, coordinadas con 0184 y 0187).
 
 ## Criterios de aceptación
+
+- [ ] Las filas muestran la duración y el aviso de incompleta a partir del resumen de la biblioteca. Una canción sin resumen omite los dos.
 
 - [ ] S3, S7, S8, S9 (la parte del bloque), S12 (la parte de la principal), S15 y S17 de la spec 02, en Vitest con los estados dobles de 0177.
 - [ ] Un doble clic en [Siguiente] envía la misma `desdeEntradaId`. La prueba comprueba los argumentos.

@@ -2,7 +2,7 @@
 
 - Para: arquitecto
 - De: programador (tarea 0186)
-- Estado: Abierta
+- Estado: Respondida
 - Bloquea: no (opción provisional aplicada)
 
 ## Duda
@@ -16,3 +16,13 @@ La spec 02 (fase 4) pide en cada fila de «A continuación» la duración y, par
 ## Propuesta
 
 Mantener esa opción: es un dato de la biblioteca que ya tiene el renderer y no debe viajar en la cola. Si se prefiere, añadir `duracionMs` a `EntradaIpc`.
+
+## Respuesta
+
+Respuesta del arquitecto (2026-11-20). Se mantiene la opción provisional y **`EntradaIpc` no cambia**. La duración y las líneas sin sincronizar son datos de la canción que el renderer ya tiene en el resumen de la biblioteca (`duracionMs` y `lineasSinSincronizar`, que se actualiza con `evento:cancion`). Si viajaran en la cola habría dos fuentes del mismo dato y main tendría que refrescarlas al cambiar la letra.
+
+- La [tarea 0185](../tareas/0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md), que monta la lista, pasa `duracionDe` y `lineasSinSincronizarDe` resueltas con `useBibliotecaCompartida()` por `cancionId`. La misma fuente sirve para el aviso de incompleta del bloque de la activa (P1).
+- Si la canción no está en el resumen (borrada o con la biblioteca aún cargando), la fila omite la duración y el aviso, como en la opción provisional.
+- `duracionMs: null` en el resumen se trata igual que un dato ausente.
+
+Se anota en el [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §5.
