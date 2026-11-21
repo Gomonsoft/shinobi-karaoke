@@ -1,0 +1,199 @@
+.cuenta {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 2.2cqh;
+  transform: translate(-50%, -50%);
+}
+
+.disco {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: max(104px, 29cqh);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 60%);
+}
+
+.anillo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg) scaleY(-1);
+  fill: none;
+  stroke-width: 3.4;
+}
+
+.anilloPista {
+  stroke: rgb(255 255 255 / 35%);
+}
+
+.anilloRelleno {
+  stroke: #fff;
+}
+
+.numero {
+  font-size: max(64px, 18cqh);
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0.04em 0.12em rgb(0 0 0 / 55%);
+  animation: entra 200ms ease-out;
+}
+
+.etiquetaCuenta {
+  padding: 0.25em 0.8em;
+  border-radius: 999px;
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+  color: #fff;
+  background: rgb(0 0 0 / 60%);
+}
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.tarjeta {
+  position: absolute;
+  right: 4cqw;
+  bottom: 6cqh;
+  max-width: 40cqw;
+  padding: 1.25em 1em;
+  border-radius: var(--r-l);
+  color: #fff;
+  background: rgb(0 0 0 / 60%);
+  animation: fundido 200ms ease-out;
+}
+
+.tarjetaEtiqueta {
+  font-size: max(var(--t-pequeno), 1.8cqh);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tarjetaTitulo,
+.tarjetaArtista {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tarjetaTitulo {
+  font-size: max(20px, 3.2cqh);
+  font-weight: 600;
+}
+
+.tarjetaArtista {
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+}
+
+@keyframes fundido {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.esperaVacia {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1.5cqh;
+  padding: var(--e-5);
+  text-align: center;
+}
+
+.marca {
+  font-size: max(32px, 6cqh);
+  color: var(--texto-3);
+}
+
+.mensajeEspera {
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+  color: var(--texto-2);
+}
+
+.pildoraFin {
+  margin-block-start: 2cqh;
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+}
+
+.invisible {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.fallo {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1cqh;
+  padding: var(--e-5);
+  text-align: center;
+  background: var(--fondo-0);
+}
+
+.falloTexto {
+  margin: 0;
+  font-size: max(24px, 3.2cqh);
+  color: #fff;
+}
+
+.falloIcono {
+  vertical-align: middle;
+  color: var(--aviso);
+}
+
+.falloTitulo {
+  margin: 0;
+  font-size: max(var(--t-cuerpo), 2.2cqh);
+  color: var(--texto-2);
+}
+
+.estado {
+  position: fixed;
+  z-index: 45;
+  inset: 0;
+  overflow: hidden;
+  color: #fff;
+  background: var(--fondo-0);
+  container-type: size;
+}
+
+.estado.conFondo {
+  background: var(--k-fondo);
+}
+
+.estado:focus {
+  outline: none;
+}
+
+.sinCursor {
+  cursor: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .numero,
+  .tarjeta {
+    animation: none;
+  }
+}

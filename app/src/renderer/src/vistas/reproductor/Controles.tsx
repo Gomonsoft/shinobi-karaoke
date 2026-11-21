@@ -10,6 +10,7 @@ import {
   RotateCcw,
   RotateCw,
   SkipBack,
+  SkipForward,
   Volume2,
   VolumeX,
   X
@@ -44,6 +45,8 @@ interface Props {
   buscar(ms: number): void
   cambiarNivel(cambio: Parameters<Volumen['cambiar']>[0]): void
   retener(motivo: string, activa: boolean): void
+  /** Ventana secundaria (spec 07, fase 4): «Cerrar reproductor» y «Siguiente». */
+  sesion?: { hayPendientes: boolean }
 }
 
 function BotonControl({ etiqueta, ...props }: ComponentProps<typeof BotonIcono>) {
@@ -77,7 +80,8 @@ export function Controles({
   actuar,
   buscar,
   cambiarNivel,
-  retener
+  retener,
+  sesion
 }: Props) {
   const [arrastre, setArrastre] = useState<number | null>(null)
   const arrastrando = useRef(false)
@@ -119,14 +123,14 @@ export function Controles({
         onPointerEnter={() => retener('superior', true)}
         onPointerLeave={() => retener('superior', false)}
       >
-        <Tooltip contenido={R.tooltip.salir}>
+        <Tooltip contenido={sesion ? R.cola.tooltipCerrar : R.tooltip.salir}>
           <button
             className={`${estilos.control} ${estilos.salir}`}
             type="button"
-            aria-keyshortcuts="Escape"
-            onClick={() => actuar({ tipo: 'salir' })}
+            aria-keyshortcuts={sesion ? 'Control+W Meta+W' : 'Escape'}
+            onClick={() => actuar(sesion ? { tipo: 'cerrar' } : { tipo: 'salir' })}
           >
-            <Icono icono={X} /> {R.salir}
+            <Icono icono={X} /> {sesion ? R.cola.cerrar : R.salir}
           </button>
         </Tooltip>
         <div className={estilos.identidad}>
@@ -174,7 +178,7 @@ export function Controles({
           <div className={estilos.grupo}>
             <BotonControl
               icono={SkipBack}
-              etiqueta={R.tooltip.principio}
+              etiqueta={sesion ? R.cola.tooltipReiniciar : R.tooltip.principio}
               aria-keyshortcuts="Home 0"
               disabled={!listo}
               onClick={() => actuar({ tipo: 'principio' })}
@@ -200,6 +204,15 @@ export function Controles({
               disabled={!listo}
               onClick={() => actuar({ tipo: 'saltar', deltaMs: 5000 })}
             />
+            {sesion && (
+              <BotonControl
+                icono={SkipForward}
+                etiqueta={R.cola.tooltipSiguiente}
+                aria-keyshortcuts="Shift+N"
+                noDisponible={sesion.hayPendientes ? undefined : R.cola.siguienteNo}
+                onClick={() => actuar({ tipo: 'siguiente' })}
+              />
+            )}
             {listo && !sonando && <span className="t-pequeno">{R.pausa}</span>}
           </div>
           <div className={estilos.grupo}>
