@@ -46,6 +46,8 @@ El diálogo «Exportar video» en su estado de formulario, con formato, audio, p
 - La nota «Lista incompleta» solo se muestra en canciones Lista (según la tabla de la spec).
 - Tras una validación fallida no se vuelve a pedir el destino (se asume que `iniciar` no consume el `destinoId` si falla). Revisar con 0237.
 
+- Corrección tras las capturas de la fase 6: una sola zona de scroll (`.cuerpo`); el popover ⓘ pasa de `position: absolute` a bloque en línea bajo la etiqueta «Formato» (con `scrollIntoView` al abrirlo); el aviso «ya existe», el error general y las notas van en `.notas`, `position: sticky; bottom: 0` dentro de la zona con scroll, así quedan visibles encima de los botones (el aviso «ya existe» deja de ir justo bajo «Guardar como»).
+
 ### Cómo probarlo
 `cd app && npx vitest run --project renderer src/renderer/src/exportacion`. La apertura real del diálogo llega con 0240 (puntos de entrada) y la integración con main con 0237.
 

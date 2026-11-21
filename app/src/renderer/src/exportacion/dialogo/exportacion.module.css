@@ -26,6 +26,7 @@
 .lateral {
   position: sticky;
   top: 0;
+  min-width: 0;
 }
 /* Con el diálogo estrecho (< 720 px de ancho; el cuerpo mide ≈ 41 rem), la muestra pasa arriba. */
 @container dialogo (max-width: 41rem) {
@@ -87,16 +88,12 @@
 
 /* ---------- Ayuda del formato ---------- */
 .ayudaFormato {
-  position: relative;
+  display: inline-flex;
 }
+/* En línea, bajo la etiqueta: dentro de la zona con scroll nunca se recorta. */
 .popover {
-  position: absolute;
-  z-index: 6;
-  top: calc(100% + var(--e-1));
-  right: 0;
   display: grid;
   gap: var(--e-2);
-  width: min(26rem, 80vw);
   padding: var(--e-3) var(--e-4);
   border-radius: var(--r-m);
   background: var(--fondo-3);
@@ -122,8 +119,14 @@
   text-overflow: ellipsis;
 }
 .notas {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
   display: grid;
   gap: var(--e-2);
+  /* Tapa el contenido que pasa por detrás y deja respirar el borde inferior. */
+  padding-block: var(--e-2) 0;
+  background: var(--fondo-1);
 }
 .estimacion {
   margin: 0;

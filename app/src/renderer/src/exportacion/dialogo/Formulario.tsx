@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Info } from 'lucide-react'
 import {
   FORMATOS,
@@ -132,6 +132,11 @@ export function Formulario(p: PropsFormulario) {
   const botonAyuda = useRef<HTMLButtonElement>(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const proporcion = proporcionDeOpciones(opciones)
+  const popover = useRef<HTMLDivElement>(null)
+  // Al abrirse en línea puede quedar bajo el pliegue de la zona con scroll: se trae a la vista.
+  useEffect(() => {
+    if (ayudaAbierta) popover.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [ayudaAbierta])
 
   if (!cancion || !perfiles) {
     return (
@@ -262,28 +267,29 @@ export function Formulario(p: PropsFormulario) {
                 onClick={() => setAyudaAbierta((v) => !v)}
                 onKeyDown={cerrarAyuda}
               />
-              {ayudaAbierta && (
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-                <div
-                  id={idAyuda}
-                  role="region"
-                  aria-label={AYUDA_FORMATO.titulo}
-                  className={estilos.popover}
-                  onKeyDown={cerrarAyuda}
-                >
-                  <h3>{AYUDA_FORMATO.titulo}</h3>
-                  <p>{AYUDA_FORMATO.intro}</p>
-                  <p>
-                    <strong>MKV (AV1 + Opus)</strong>: {AYUDA_FORMATO.mkv}
-                  </p>
-                  <p>
-                    <strong>WebM (VP9 + Opus)</strong>: {AYUDA_FORMATO.webm}
-                  </p>
-                  <p>{AYUDA_FORMATO.cierre}</p>
-                </div>
-              )}
             </span>
           </span>
+          {ayudaAbierta && (
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+            <div
+              ref={popover}
+              id={idAyuda}
+              role="region"
+              aria-label={AYUDA_FORMATO.titulo}
+              className={estilos.popover}
+              onKeyDown={cerrarAyuda}
+            >
+              <h3>{AYUDA_FORMATO.titulo}</h3>
+              <p>{AYUDA_FORMATO.intro}</p>
+              <p>
+                <strong>MKV (AV1 + Opus)</strong>: {AYUDA_FORMATO.mkv}
+              </p>
+              <p>
+                <strong>WebM (VP9 + Opus)</strong>: {AYUDA_FORMATO.webm}
+              </p>
+              <p>{AYUDA_FORMATO.cierre}</p>
+            </div>
+          )}
           <ControlSegmentado
             etiqueta={EXP.formato}
             opciones={opcionesFormato}
@@ -311,7 +317,6 @@ export function Formulario(p: PropsFormulario) {
             <Boton onClick={p.alCambiarDestino}>{EXP.cambiar}</Boton>
           </div>
           <Anuncio texto={anuncios.destino} />
-          {destino?.existe && <AvisoEnLinea tipo="aviso">{EXP.avisoExiste}</AvisoEnLinea>}
           {errorCampo && errorEnDestino && (
             <AvisoEnLinea tipo="error">
               <strong>{errorCampo.titulo}</strong> {errorCampo.explicacion}
@@ -323,13 +328,16 @@ export function Formulario(p: PropsFormulario) {
             {textoEstimacion}
           </p>
         )}
-        {errorCampo && !errorEnDestino && (
-          <AvisoEnLinea tipo="error">
-            <strong>{errorCampo.titulo}</strong> {errorCampo.explicacion}
-          </AvisoEnLinea>
-        )}
-        {notas.length > 0 && (
+        {(destino?.existe || (errorCampo && !errorEnDestino) || notas.length > 0) && (
+          // Pegada al borde inferior de la zona con scroll: los avisos que condicionan la
+          // decisión se ven siempre, encima de los botones del pie.
           <div className={estilos.notas} data-notas>
+            {destino?.existe && <AvisoEnLinea tipo="aviso">{EXP.avisoExiste}</AvisoEnLinea>}
+            {errorCampo && !errorEnDestino && (
+              <AvisoEnLinea tipo="error">
+                <strong>{errorCampo.titulo}</strong> {errorCampo.explicacion}
+              </AvisoEnLinea>
+            )}
             {notas.map((n) => (
               <AvisoEnLinea key={n.id} tipo={n.tipo}>
                 {n.texto}

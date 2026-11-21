@@ -41,12 +41,18 @@ Nombre: `exportacion-{ancho}x{alto}-{escala}-{estado}.png`, a 1280 × 800 al 100
   diseñador los quiere en imagen, hay que añadir un doble en desarrollo.
 - `bloqueo-sesion` no existe: V23 se retiró; exportar y la sesión conviven (queda `nota-sesion`).
 
-## Observaciones al tomarlas
+## Observaciones al tomarlas (corregidas)
 
-- **Popover de ayuda recortado** (`ayuda-formato`, sobre todo al 125 %): el popover se dibuja dentro de
-  la zona con scroll del diálogo y queda cortado por el borde izquierdo («ué formato elegir») y por
-  abajo; para leerlo entero hay que hacer scroll.
-- **Barra de scroll en la columna de la muestra**: a 720 de alto el formulario y la columna derecha
-  hacen scroll por separado (se ve en `nota-sesion` y `ayuda-formato`).
-- La nota de sesión y el aviso de sustitución quedan bajo el pliegue a 1280 × 720 al 125 %: las
-  capturas los desplazan a la vista; el usuario los ve solo tras bajar el scroll.
+Las tres se corrigieron después de la primera tanda y las capturas están regeneradas:
+
+- **Popover de ayuda recortado**: ahora se despliega en línea bajo la etiqueta «Formato» (ocupa el ancho
+  de la columna) y se trae a la vista al abrirlo. A 1024 × 576 es más alto que la zona visible y se
+  recorre con el scroll del cuerpo, sin recortes laterales.
+- **Doble barra de scroll**: el diálogo tiene una sola zona con scroll (el cuerpo); la barra no se
+  repite junto a la columna de la muestra.
+- **Avisos bajo el pliegue**: «ya existe y se sustituirá», los errores y las notas (sesión, etc.) van
+  pegados al borde inferior de la zona con scroll, encima de los botones, y se ven sin desplazarse
+  (`nota-sesion` y `archivo-existe`). Con avisos largos a 1024 × 576 queda poco espacio para el resto
+  de campos, que se recorren con el scroll.
+- 1280 × 720 al 125 % equivale a una ventana de 1024 × 576 CSS, el mínimo de la app: no hace falta
+  una captura aparte.
