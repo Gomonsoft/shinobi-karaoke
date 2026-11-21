@@ -43,6 +43,16 @@ describe('configSchema (lectura tolerante)', () => {
         omitir_aviso_letra_lista: false
       },
       biblioteca: { agrupar: 'ninguno' },
+      exportacion: {
+        formato: 'mkv_av1',
+        audio: 'instrumental',
+        proporcion: '16:9',
+        ancho: 1920,
+        alto: 1080,
+        fps: 30,
+        carpeta: null,
+        factor_corrector: 1
+      },
       aviso_youtube_aceptado: null,
       ultima_comprobacion_ytdlp: null,
       estilo_predeterminado: ESTILO_PREDETERMINADO

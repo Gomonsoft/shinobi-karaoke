@@ -340,6 +340,23 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.sesion
   }
 
+  /** Hasta 0237 los canales de exportación existen (el contrato está completo) y fallan con `ERROR_INTERNO`. */
+  const sinServicioExportacion = Object.fromEntries(
+    Object.values(CANALES.exportacion).map((canal) => [
+      canal,
+      (): Promise<RespuestaIpc<never>> => {
+        deps.registrar?.('error', `${canal}: el servicio de exportación no está disponible.`)
+        return Promise.resolve({
+          ok: false,
+          error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
+        })
+      }
+    ])
+  ) as unknown as Record<
+    (typeof CANALES.exportacion)[keyof typeof CANALES.exportacion],
+    ManejadorIpc
+  >
+
   /** Defensa de ADR 0017 §9: durante la sesión no se edita la lista. */
   const sinSesion = (): void => {
     if (deps.sesion?.edicionBloqueada()) {
@@ -361,7 +378,9 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       throw errorConCodigo('SESION_NO_ACTIVA', 'No hay una sesión activa.')
     }
   }
-  const rolDe = (ctx: ContextoIpc): RolVentana => ctx.rol ?? 'principal'
+  /** Rol de sesión de quien llama; la ventana de exportación no llama a canales de sesión. */
+  const rolDe = (ctx: ContextoIpc): 'principal' | 'secundaria' =>
+    ctx.rol === 'secundaria' ? 'secundaria' : 'principal'
 
   /** `obtener` con la apariencia resuelta con el catálogo vigente (ADR 0016 §9). */
   const cancionParaRenderer = (id: string): CancionIpc | null => {
@@ -663,6 +682,8 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.cola.quitar]: envolver(CANALES.cola.quitar, (p) => sesion().quitar(p.entradaId)),
     [CANALES.cola.vaciar]: envolver(CANALES.cola.vaciar, (p) => sesion().vaciar(p.contexto)),
+    // Fase 6: los servicios llegan con 0237; hasta entonces fallan con ERROR_INTERNO.
+    ...sinServicioExportacion,
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),

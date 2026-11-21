@@ -115,7 +115,8 @@ export interface RegistroRoles {
 /** Rutas del documento que puede cargar cada rol (ADR 0017 §11 punto 5). */
 const RUTAS_POR_ROL: Record<RolVentana, readonly string[]> = {
   principal: ['/index.html', '/'],
-  secundaria: ['/reproductor.html']
+  secundaria: ['/reproductor.html'],
+  exportacion: ['/exportacion.html']
 }
 
 function rutaDeDocumento(url: string): string | null {

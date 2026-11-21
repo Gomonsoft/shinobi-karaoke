@@ -303,7 +303,7 @@ export class ServicioSesion {
     await this.enviar({ tipo: 'repetir', entradaId })
   }
 
-  async solicitarCierre(origen: RolVentana): Promise<void> {
+  async solicitarCierre(origen: Exclude<RolVentana, 'exportacion'>): Promise<void> {
     this.exigir(await this.enviar({ tipo: 'solicitarCierre', origen }))
   }
 

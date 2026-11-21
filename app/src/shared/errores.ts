@@ -43,7 +43,10 @@ export const CODIGOS_ERROR = [
   'COLA_LLENA',
   'DESTINO_NO_DISPONIBLE',
   'SIN_CODIFICADOR',
-  'ENTRADA_INCOMPLETA'
+  'ENTRADA_INCOMPLETA',
+  'DESTINO_OCUPADO',
+  'PERFIL_NO_SOPORTADO',
+  'LIMPIEZA_FALLIDA'
 ] as const
 
 /**
@@ -62,7 +65,10 @@ export const CODIGOS_ERROR = [
  * `SESION_EN_CURSO`, `SESION_NO_ACTIVA`, `GUARDADO_PENDIENTE`, `PANTALLA_NO_DISPONIBLE`,
  * `CANCION_EN_REPRODUCCION`, `ENTRADA_NO_ENCONTRADA` y `COLA_LLENA`.
  * Fase 6 (ADR 0019 §10): el worker emite `DESTINO_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `ENTRADA_INCOMPLETA` y
- * también `CANCION_NO_DISPONIBLE` (comando `exportar`), que por eso deja de ser solo de main.
+ * también `CANCION_NO_DISPONIBLE` (comando `exportar`), que por eso deja de ser solo de main. Solo de main:
+ * `DESTINO_OCUPADO` (otra exportación usa ese destino), `PERFIL_NO_SOPORTADO` (el equipo no puede crear ese
+ * perfil, p. ej. `capturePage` devuelve otro tamaño) y `LIMPIEZA_FALLIDA` (no se pudo borrar el temporal;
+ * lleva la ruta para «Mostrar en la carpeta»).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',
@@ -80,7 +86,10 @@ export const CODIGOS_SOLO_MAIN = [
   'PANTALLA_NO_DISPONIBLE',
   'CANCION_EN_REPRODUCCION',
   'ENTRADA_NO_ENCONTRADA',
-  'COLA_LLENA'
+  'COLA_LLENA',
+  'DESTINO_OCUPADO',
+  'PERFIL_NO_SOPORTADO',
+  'LIMPIEZA_FALLIDA'
 ] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]
