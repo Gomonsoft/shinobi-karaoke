@@ -1,6 +1,7 @@
-import { basename, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { idPorEntrada } from './scripts/preloads-autocontenidos'
 
 const alias = { '@shared': resolve('src/shared') }
 
@@ -27,9 +28,8 @@ function preloadsAutocontenidos(): {
       if (!importer || opciones.isEntry) return null
       const resuelto = await this.resolve(source, importer, { ...opciones, skipSelf: true })
       if (!resuelto || resuelto.external || resuelto.id.includes('node_modules')) return null
-      if (resuelto.id.startsWith('\0') || !resuelto.id.startsWith(resolve('src'))) return null
-      const etiqueta = /\?e=([^&]+)/.exec(importer)?.[1] ?? basename(importer).replace(/\..*$/, '')
-      return { ...resuelto, id: `${resuelto.id.replace(/\?e=[^&]+/, '')}?e=${etiqueta}` }
+      const id = idPorEntrada(resuelto.id, importer, resolve('src'))
+      return id ? { ...resuelto, id } : null
     }
   } as never
 }

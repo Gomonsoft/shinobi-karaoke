@@ -31,12 +31,14 @@ describe('verificar-paquete', () => {
   let recursos: string
   let listaAsar: string[]
   let fuses: Record<string, number | string>
+  let codigoPreload: string
 
   beforeEach(() => {
     temporal = mkdtempSync(join(tmpdir(), 'shinobi-paquete-'))
     recursos = join(temporal, 'resources')
     listaAsar = [...ENTRADAS_ASAR]
     fuses = { ...FUSES_OK }
+    codigoPreload = 'const e=require("electron");'
     const escribir = (ruta: string, texto = 'fixture') => {
       const destino = join(recursos, ruta)
       mkdirSync(join(destino, '..'), { recursive: true })
@@ -80,6 +82,7 @@ describe('verificar-paquete', () => {
       plataforma: 'linux',
       leerFuses: async () => fuses,
       listarAsar: () => listaAsar,
+      leerAsar: () => Buffer.from(codigoPreload),
       comprobarEjecutable: () => true,
       ejecutar: () => 'uv 0.13.7'
     })
@@ -90,6 +93,13 @@ describe('verificar-paquete', () => {
     expect(informe.tamano_desempaquetado).toBeGreaterThan(0)
     expect(informe.fuses.OnlyLoadAppFromAsar).toBe(true)
     expect(informe.comprobaciones).toContain('uv 0.13.7')
+  })
+
+  it('rechaza un preload que requiere archivos locales (sin sandbox no carga)', async () => {
+    codigoPreload = 'require("electron");require("./chunks/canales.js")'
+    await expect(verificar()).rejects.toThrow(
+      '/out/preload/index.js requiere "./chunks/canales.js"'
+    )
   })
 
   it('falla con la ruta concreta cuando falta uv', async () => {
