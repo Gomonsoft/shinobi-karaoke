@@ -87,14 +87,14 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 |---|---|---|---|
 | [0177 · Contratos compartidos](../../tareas/0177-contratos-compartidos-de-sesion-cola-y-roles.md) | Hecha | Fase 3 | `shared/sesion.ts`, canales y `ROLES_POR_CANAL`, contrato IPC, códigos, `config.reproductor.transicion_s`/`secundaria`, `preload/secundaria.ts`, dobles |
 | [0178 · Cola y máquina de sesión](../../tareas/0178-modelo-puro-de-cola-y-maquina-de-sesion.md) | Hecha | 0177 | `main/sesion/{cola,maquina,proyeccion}.ts` puros: avance, cuenta, eventos tardíos, cierre, reanudación |
-| [0179 · Roles de ventana](../../tareas/0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md) | Pendiente | 0177 | `RegistroVentanas`, remitente por rol y documento, eventos dirigidos, `reproductor.html` y entradas de build |
-| [0180 · Pantallas y ventana secundaria](../../tareas/0180-pantallas-ventana-secundaria-pantalla-completa-y-reposo.md) | Pendiente | 0179 | `ControlPantallaCompleta`, `GestorReposo`, pantallas y Wayland, ventana secundaria, recuperación, dobles de pantallas |
+| [0179 · Roles de ventana](../../tareas/0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md) | Hecha | 0177 | `RegistroVentanas`, remitente por rol y documento, eventos dirigidos, `reproductor.html` y entradas de build |
+| [0180 · Pantallas y ventana secundaria](../../tareas/0180-pantallas-ventana-secundaria-pantalla-completa-y-reposo.md) | Hecha | 0179 | `ControlPantallaCompleta`, `GestorReposo`, pantallas y Wayland, ventana secundaria, recuperación, dobles de pantallas |
 | [0181 · Servicio de sesión e IPC](../../tareas/0181-servicio-de-sesion-e-ipc-en-main.md) | Pendiente | 0178, 0180 | `ServicioSesion`, revalidación, defensas de edición, silencio y reposo, canales nuevos, cierre de la app |
 | [0182 · Reproductor en la secundaria](../../tareas/0182-reproductor-en-la-ventana-secundaria.md) | Hecha (integración con 0181) | 0177, 0179 | Modo `sesion`, S1–S4, cuenta, reanudación, atajos, diálogo de cierre en la secundaria |
 | [0183 · Estado de sesión y bloqueo](../../tareas/0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md) | Hecha | 0177 | `renderer/src/sesion/`, textos, `edi.bloqueo` en todos los puntos de entrada, indicador de sesión |
 | [0184 · Diálogo de pantallas](../../tareas/0184-dialogo-abrir-el-reproductor-en-otra-pantalla.md) | Pendiente | 0183 | «Abrir el reproductor en otra pantalla», Wayland, errores, cabecera |
 | [0185 · Panel: sesión y cierre](../../tareas/0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md) | Pendiente | 0183, 0184 | Panel, P1–P6, controles, banners de recuperación, `ses.cierre` en la principal |
-| [0186 · Panel: pendientes](../../tareas/0186-panel-de-cola-lista-de-pendientes.md) | Pendiente | 0183 | Lista, reordenar con ratón, teclado y menú, quitar y deshacer, vaciar |
+| [0186 · Panel: pendientes](../../tareas/0186-panel-de-cola-lista-de-pendientes.md) | Hecha | 0183 | Lista, reordenar con ratón, teclado y menú, quitar y deshacer, vaciar |
 | [0187 · Tarjetas y menús](../../tareas/0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) | Pendiente | 0183, 0184 | «A la cola», ⋯ de Lista, toasts, línea de cola, bloqueos de la tarjeta |
 | [0188 · Ajustes › Reproductor](../../tareas/0188-ajustes-cuenta-entre-canciones.md) | Hecha | 0177 | Selector «Cuenta entre canciones» |
 | [0189 · Salir con sesión o cola](../../tareas/0189-salir-de-la-app-con-sesion-o-cola.md) | Pendiente | 0181, 0183 | `ses.salir`, variante con trabajos y variante de macOS |

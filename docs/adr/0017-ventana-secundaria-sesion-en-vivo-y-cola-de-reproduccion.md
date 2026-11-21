@@ -198,6 +198,7 @@ Correspondencia con `cola.causa.*` de la spec 02:
 | `lectura`, `decodificacion` | No se ha podido leer su audio (error del motor, 0011). |
 | `otro` | Algo salió mal. |
 
+- **Datos de la canción en la principal** ([0080](../preguntas/0080-duracion-y-lineas-sin-sincronizar-en-las-filas-de-la-cola.md)): `EntradaIpc` no lleva la duración ni las líneas sin sincronizar. El panel las toma del resumen de la biblioteca del renderer por `cancionId`, para no duplicar en la cola un dato que ya mantiene la biblioteca.
 - **Identidad por entrada**: cada «Agregar» crea un `entradaId` (UUID), así que repetir una canción da entradas distintas. La posición conservada pertenece a la entrada.
 - **La cola existe sin sesión**. Se puede encolar con la secundaria cerrada. Abrir una sesión consume la cola.
 - **Límite**: 500 pendientes (`COLA_LLENA`). Es un tope de memoria y de tamaño de mensaje, no de producto.

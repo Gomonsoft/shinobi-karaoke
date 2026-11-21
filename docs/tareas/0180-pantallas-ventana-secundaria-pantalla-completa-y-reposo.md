@@ -1,6 +1,6 @@
 # 0180 — Pantallas, ventana secundaria, pantalla completa por ventana y reposo
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0179](0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md)
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §2, §3 y §4, [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-4) §1–§2
@@ -41,12 +41,34 @@ Implementar las piezas nativas que gestionan las pantallas, la ventana secundari
 
 ## Criterios de aceptación
 
-- [ ] Las pruebas de `modoReproductor.test.ts` siguen en verde sin cambios de expectativa (reproductor local, ADR 0011).
-- [ ] `GestorReposo`: con `local` y `sesion` retenidos, liberar `local` mantiene el bloqueo, y liberar `sesion` lo suelta. `liberarTodo` lo suelta siempre (doble de `powerSaveBlocker`).
-- [ ] `listarPantallas` con 3 pantallas dobles (una sin `label`) da «Pantalla {n}» para la que no tiene nombre, marca bien `principal` y `conVentanaPrincipal`, y respeta el orden por `x` e `y`. `preseleccion` cubre los tres casos.
-- [ ] `abrirSecundaria` en la pantalla 2 simulada crea la ventana dentro de su `workArea` y no le da el foco. En la pantalla de la principal y en pantalla completa, sí.
-- [ ] `quitar(2)` con la secundaria en pantalla completa sale de pantalla completa, la coloca al 80 % de la primaria y emite `alPantallaPerdida`. `añadir` de la misma pantalla emite `alPantallaReconectada` sin moverla. `moverA` vuelve a ponerla en pantalla completa.
-- [ ] Con `colocacion: 'sistema'` no se llama a `setBounds` ni a `setPosition` y no hay avisos de pantalla.
-- [ ] `render-process-gone`, `unresponsive` y `responsive` llegan a sus avisos (doble de `webContents`).
+- [x] Las pruebas de `modoReproductor.test.ts` siguen en verde sin cambios de expectativa (reproductor local, ADR 0011).
+- [x] `GestorReposo`: con `local` y `sesion` retenidos, liberar `local` mantiene el bloqueo, y liberar `sesion` lo suelta. `liberarTodo` lo suelta siempre (doble de `powerSaveBlocker`).
+- [x] `listarPantallas` con 3 pantallas dobles (una sin `label`) da «Pantalla {n}» para la que no tiene nombre, marca bien `principal` y `conVentanaPrincipal`, y respeta el orden por `x` e `y`. `preseleccion` cubre los tres casos.
+- [x] `abrirSecundaria` en la pantalla 2 simulada crea la ventana dentro de su `workArea` y no le da el foco. En la pantalla de la principal y en pantalla completa, sí.
+- [x] `quitar(2)` con la secundaria en pantalla completa sale de pantalla completa, la coloca al 80 % de la primaria y emite `alPantallaPerdida`. `añadir` de la misma pantalla emite `alPantallaReconectada` sin moverla. `moverA` vuelve a ponerla en pantalla completa.
+- [x] Con `colocacion: 'sistema'` no se llama a `setBounds` ni a `setPosition` y no hay avisos de pantalla.
+- [x] `render-process-gone`, `unresponsive` y `responsive` llegan a sus avisos (doble de `webContents`).
 
 ## Notas de implementación
+
+### Qué se hizo
+
+- `main/ventana/pantallaCompleta.ts`: `ControlPantallaCompleta` (estado deseado, transiciones, suscripción, gancho `alEstabilizar`). `ControlModoReproductor` lo envuelve y conserva su API y comportamiento; `modoReproductor.test.ts` no se ha tocado y sigue en verde. Admite `reposo` (un `GestorReposo`) o, por compatibilidad con las pruebas, `bloqueador`.
+- `main/ventana/reposo.ts`: `GestorReposo` (`retener`, `liberar`, `liberarTodo`; titulares `local` y `sesion`). `index.ts` crea `gestorReposo` (exportado para 0181), lo inyecta en `ControlModoReproductor` y lo libera del todo en `before-quit`.
+- `main/sesion/pantallas.ts`: `listarPantallas`, `colocacionDelSistema`, `preseleccion` y `observarPantallas` (con `ScreenLike` y `PantallaSistema`).
+- `main/sesion/ventanaSecundaria.ts`: `abrirSecundaria(peticion, deps)` y su manejador (`moverA`, `fijarPantallaCompleta`, `mostrar`, `cerrar`, `destruir`, `alCerrarSolicitado`, `alCambiarPantallaCompleta`, `alCaer`, `alNoResponder`, `alResponder`, `alPantallaPerdida`, `alPantallaReconectada`), `ErrorPantallaNoDisponible` (código `PANTALLA_NO_DISPONIBLE`) y `limitesAl80`.
+- `main/sesion/pantallasPrueba.ts`: `ScreenSimulado`, `pantallasSimuladas` (`SHINOBI_PANTALLAS_SIMULADAS`, puerto `globalThis.__shinobiPruebas.pantallas` con `quitar` y `añadir`) y `pantallaCompletaSimulada`.
+- Pruebas: `reposo.test.ts`, `pantallas.test.ts` y `ventanaSecundaria.test.ts`.
+
+### Cómo probarlo
+
+`npm run typecheck && npm run lint && npm run format:check && npm test`.
+
+### Decisiones y deuda técnica
+
+- Las dependencias (`crear`, `screen`, `rutaPreload`) se pasan a `abrirSecundaria` en un segundo argumento. El cableado real (registro del rol `secundaria`, `bloquearNavegacionTotal`, carga de `reproductor.html`, lectura de `SHINOBI_PANTALLAS_SIMULADAS` y `SHINOBI_PANTALLA_COMPLETA_SIMULADA`) lo hace 0181 en su función `crear`; `index.ts` no se ha tocado más allá del reposo.
+- Pantalla perdida: la tarea y la spec 07 dicen «pantalla primaria» y el ADR 0017 §3 dice «la de la principal»; se ha seguido la tarea (primaria).
+- Con `colocacion: 'sistema'` la ventana se abre en ventana (960 x 540) y no se pide pantalla completa (el operador pulsa F, spec 07).
+- Extra no pedido: `alCaer` también avisa con `'recarga'` ante un `did-start-navigation` del *frame* principal posterior a la primera carga (ADR 0017 §3).
+- `moverA` con la pantalla en pantalla completa sale, mueve al 80 % de la nueva pantalla y vuelve a entrar; si se había perdido en pantalla completa, la restaura aunque estuviera en ventana.
+- No hay E2E de pantallas (no lo pide la tarea); lo cubrirá 0181/0186 con el puerto de pruebas.
