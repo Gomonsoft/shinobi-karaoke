@@ -24,6 +24,7 @@ import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
 import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
+import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { detallesDeError } from '../biblioteca/errores'
@@ -218,6 +219,7 @@ const mensajeToast = (err: unknown): { codigo: string; mensaje: string } => {
 /** Vista 04: subpasos de la fuente (descarga y preparación) y de la separación (Fase 3). */
 export function Progreso({ id }: { id: string }) {
   const { ir } = useNavegacion()
+  const bloqueo = useAccionBloqueable()
   const vivos = useTrabajosVivos()
   const datos = useDatos(id)
   const raiz = useRef<HTMLElement>(null)
@@ -527,10 +529,12 @@ export function Progreso({ id }: { id: string }) {
       }
     })
   // Al salir hacia Letra se marca el progreso como visto: "Continuar" ya no vuelve a esta vista.
-  const irAPasoLetra = (editor: boolean | undefined) => {
-    if (!editor) marcarProgresoVisto(id)
-    ir({ tipo: 'cancion', id, paso: editor ? 'editor' : 'letra' })
-  }
+  // Con sesión (spec 06) explica el bloqueo en vez de navegar.
+  const irAPasoLetra = (editor: boolean | undefined) =>
+    bloqueo.intentar(() => {
+      if (!editor) marcarProgresoVisto(id)
+      ir({ tipo: 'cancion', id, paso: editor ? 'editor' : 'letra' })
+    })
 
   const motorPorReparar = errorMotor && !motorReparado
   const textoErrorSep =
@@ -596,8 +600,10 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
+                  {...bloqueo.atributos(bloque.editor ? SEP.botonEditor : TEXTO.botonLetra)}
                   onClick={() => irAPasoLetra(bloque.editor)}
                 >
+                  {bloqueo.candado}
                   {bloque.editor ? SEP.botonEditor : TEXTO.botonLetra}
                 </Boton>
                 {volver}
@@ -612,8 +618,10 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
+                  {...bloqueo.atributos(bloque.editor ? SEP.botonEditor : SEP.botonLetraFin)}
                   onClick={() => irAPasoLetra(bloque.editor)}
                 >
+                  {bloqueo.candado}
                   {bloque.editor ? SEP.botonEditor : SEP.botonLetraFin}
                 </Boton>
                 {volver}

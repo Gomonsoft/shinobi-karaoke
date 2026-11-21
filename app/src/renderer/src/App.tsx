@@ -1,13 +1,20 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useCallback, useMemo, useState } from 'react'
 import { ContenedorToasts } from './componentes/Toasts'
 import { DialogoCierre } from './navegacion/DialogoCierre'
 import { Marco } from './navegacion/Marco'
-import { NavegacionContexto, vistaInicial, type Navegacion, type Vista } from './navegacion/estado'
+import {
+  esVistaDeEdicion,
+  NavegacionContexto,
+  vistaInicial,
+  type Navegacion,
+  type Vista
+} from './navegacion/estado'
 import { crearNavegacionGuardada } from './navegacion/salida'
 import { CapaReproductor, ProveedorReproductor } from './navegacion/reproductor'
 import { useArrastrarArchivo } from './navegacion/useArrastrarArchivo'
 import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
 import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
+import { ProveedorSesion, useSesion } from './sesion/ProveedorSesion'
 import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
 import { Biblioteca } from './vistas/biblioteca/Biblioteca'
 import { BibliotecaContexto, useBiblioteca } from './vistas/biblioteca/useBiblioteca'
@@ -56,8 +63,19 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
   const vacia = biblioteca.estado === 'listo' && biblioteca.canciones.length === 0
   const trabajos = useEstadoTrabajos()
   const [salida] = useState(() => crearNavegacionGuardada(ir))
-  const navegar = salida.ir
-  const navegacion = useMemo<Navegacion>(() => ({ vista, ...salida }), [vista, salida])
+  // Defensa (spec 06): con sesión no se navega a Letra ni al Editor, aunque la vista lo intente.
+  const { edicionBloqueada, abrirBloqueo } = useSesion()
+  const navegar = useCallback<Navegacion['ir']>(
+    (destino, alNavegar) => {
+      if (edicionBloqueada && esVistaDeEdicion(destino)) abrirBloqueo()
+      else salida.ir(destino, alNavegar)
+    },
+    [salida, edicionBloqueada, abrirBloqueo]
+  )
+  const navegacion = useMemo<Navegacion>(
+    () => ({ vista, ...salida, ir: navegar }),
+    [vista, salida, navegar]
+  )
   useAtajosGlobales(vista, navegar)
   useArrastrarArchivo(vista, navegar)
   useAvisosTrabajos(vista, navegar)
@@ -111,7 +129,11 @@ export function App() {
 
   return (
     <>
-      {inicial && <Aplicacion inicial={inicial} />}
+      {inicial && (
+        <ProveedorSesion>
+          <Aplicacion inicial={inicial} />
+        </ProveedorSesion>
+      )}
       <ContenedorToasts />
     </>
   )

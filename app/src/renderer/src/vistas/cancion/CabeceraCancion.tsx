@@ -19,6 +19,9 @@ import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { Tooltip } from '../../componentes/Tooltip'
 import { useNavegacion, type PasoCancion } from '../../navegacion/estado'
 import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { EDI_BLOQUEO } from '../../sesion/textos'
+import { Candado } from '../../sesion/useAccionBloqueable'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import type { TrabajoVivo } from '../biblioteca/tarjeta'
 import { pasosDeCancion, pasosDeNueva, type DatosPaso, type IndicadorPaso } from './pasos'
@@ -70,22 +73,29 @@ function Paso({
   compacta: boolean
 }) {
   const [forzar, setForzar] = useState(false)
+  const { abrirBloqueo } = useSesion()
   const Ic = ICONOS[datos.indicador]
+  const bloqueado = datos.bloqueadoPorSesion === true
   const boton = (
     <button
       type="button"
       className={`${estilos.paso} ${estilos[`ind_${datos.indicador}`]}`}
       aria-current={datos.actual ? 'step' : undefined}
-      aria-disabled={datos.navegable ? undefined : true}
-      aria-label={`Paso ${datos.numero}, ${datos.etiqueta}, ${datos.descripcion}${datos.actual && datos.indicador !== 'actual' ? ', paso actual' : ''}`}
+      aria-disabled={datos.navegable && !bloqueado ? undefined : true}
+      aria-label={`Paso ${datos.numero}, ${datos.etiqueta}, ${datos.descripcion}${datos.actual && datos.indicador !== 'actual' ? ', paso actual' : ''}${bloqueado ? EDI_BLOQUEO.aria : ''}`}
       onBlur={() => setForzar(false)}
       onClick={() => {
-        if (datos.navegable) onIr()
+        if (bloqueado) abrirBloqueo()
+        else if (datos.navegable) onIr()
         else setForzar(true)
       }}
     >
       <span className={estilos.circulo} aria-hidden="true">
-        <Icono icono={Ic} tamano={datos.indicador === 'actual' ? 10 : 14} />
+        {bloqueado ? (
+          <Candado />
+        ) : (
+          <Icono icono={Ic} tamano={datos.indicador === 'actual' ? 10 : 14} />
+        )}
       </span>
       <span className={estilos.etiqueta} aria-hidden="true">
         {datos.etiqueta}
@@ -128,6 +138,7 @@ export function CabeceraCancion({
 }: CabeceraCancionProps) {
   const { ir } = useNavegacion()
   const { trabajos, progreso } = useTrabajosVivos()
+  const { haySesion } = useSesion()
 
   let pasos: DatosPaso[]
   if (resumen === null) {
@@ -137,10 +148,15 @@ export function CabeceraCancion({
       const t = trabajos.find((x) => x.cancionId === resumen.id && x.paso === paso)
       return t ? { trabajo: t, progreso: progreso[t.id] ?? null } : null
     }
-    pasos = pasosDeCancion(resumen, actual, {
-      fuente: vivo('fuente'),
-      separacion: vivo('separacion')
-    })
+    pasos = pasosDeCancion(
+      resumen,
+      actual,
+      {
+        fuente: vivo('fuente'),
+        separacion: vivo('separacion')
+      },
+      haySesion
+    )
   }
 
   const estado = guardado ? ESTADO_GUARDADO[guardado] : null

@@ -117,3 +117,18 @@ export const AJT = {
   cargando: 'Cargando tus temas…',
   errorCarga: 'No se pudieron cargar tus temas.'
 } as const
+
+/** Sección «Reproductor» (docs/ux/08 · fase 4, claves `aj.rep.*`). */
+export const AJREP = {
+  titulo: 'Reproductor',
+  cuenta: 'Cuenta entre canciones',
+  opcion: (n: number): string => `${String(n)} s`,
+  opcionPredeterminada: (n: number): string => `${String(n)} s (predeterminado)`,
+  ayuda:
+    'Cuando termina una canción y hay otra en la cola, la pantalla del reproductor cuenta estos segundos antes de empezarla.',
+  errorGuardar: 'No se pudo guardar el ajuste.',
+  copiar: 'Copiar detalles'
+} as const
+
+/** Valores del selector, en segundos (el 4 es el predeterminado). */
+export const OPCIONES_CUENTA_S = [2, 3, 4, 5, 8, 10, 15] as const

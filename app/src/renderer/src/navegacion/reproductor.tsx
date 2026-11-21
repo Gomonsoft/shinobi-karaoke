@@ -1,9 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ReproductorBiblioteca } from '../vistas/reproductor/ReproductorBiblioteca'
+import { useSesion } from '../sesion/ProveedorSesion'
 import { useNavegacion } from './estado'
 
 export interface ControlReproductor {
+  /** No hace nada mientras hay una sesión en otra ventana. */
   abrir(cancionId: string): void
   abierto: string | null
 }
@@ -18,15 +20,20 @@ export function useReproductor(): ControlReproductor {
 
 export function ProveedorReproductor({ children }: { children: ReactNode }) {
   const navegacion = useNavegacion()
+  const { haySesion } = useSesion()
   const actual = useRef(navegacion)
+  const conSesion = useRef(haySesion)
   const [abierto, setAbierto] = useState<string | null>(null)
   const idAbierto = useRef<string | null>(null)
 
   useEffect(() => {
     actual.current = navegacion
-  }, [navegacion])
+    conSesion.current = haySesion
+  }, [navegacion, haySesion])
 
   const abrir = useCallback((id: string) => {
+    // Con sesión hay un solo transporte audible: el reproductor local no se abre (spec 02).
+    if (conSesion.current) return
     if (idAbierto.current !== null || actual.current.vista.tipo === 'primer-arranque') return
     const abrirCapa = () => {
       idAbierto.current = id

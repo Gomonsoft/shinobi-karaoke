@@ -54,7 +54,8 @@ export function Boton({
       {...resto}
       type={type}
       className={clases}
-      aria-disabled={inactivo || undefined}
+      // Un `aria-disabled` propio (p. ej. acción bloqueada por la sesión) se respeta sin anular el clic.
+      aria-disabled={inactivo || resto['aria-disabled'] || undefined}
       aria-busy={cargando || undefined}
       aria-describedby={
         [noDisponible ? idMotivo : undefined, resto['aria-describedby']]

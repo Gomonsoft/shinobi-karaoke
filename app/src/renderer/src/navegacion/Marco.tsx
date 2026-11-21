@@ -3,6 +3,7 @@ import { Mic, Plus, Settings } from 'lucide-react'
 import { Boton } from '../componentes/Boton'
 import { BotonIcono } from '../componentes/BotonIcono'
 import { Icono } from '../componentes/Icono'
+import { IndicadorSesion } from '../sesion/IndicadorSesion'
 import { IndicadorActividad } from './IndicadorActividad'
 import { claveVista, vistaAjustesDesde, VISTAS_SIN_BARRA, useNavegacion } from './estado'
 import estilos from './marco.module.css'
@@ -60,6 +61,7 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
           </button>
           <div className={estilos.contexto} />
           <div className={estilos.acciones}>
+            <IndicadorSesion />
             <IndicadorActividad />
             <BotonIcono
               icono={Settings}

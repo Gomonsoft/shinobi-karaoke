@@ -4,6 +4,10 @@ import { ContenedorToasts } from '../componentes/Toasts'
 import { cerrarTodosLosToasts } from '../componentes/gestorToasts'
 import { textoDeError, textoDeErrorSeparacion } from '../vistas/progreso/textos'
 import { tituloErrorAviso } from '@shared/avisos'
+import { estadoP1 } from '@shared/__fixtures__/sesion'
+import { instalarApiSesion } from '../sesion/pruebas'
+import { ProveedorSesion } from '../sesion/ProveedorSesion'
+import { EDI_BLOQUEO } from '../sesion/textos'
 import type { Vista } from './estado'
 import { useAvisosTrabajos } from './useAvisosTrabajos'
 
@@ -152,5 +156,22 @@ describe('textos de aviso en sintonía con la vista de progreso', () => {
         textoDeErrorSeparacion('MEMORIA_INSUFICIENTE', m).titulo
       )
     }
+  })
+
+  it('con sesión, «Abrir editor» muestra el bloqueo y no navega (E1)', async () => {
+    instalarApiSesion(estadoP1())
+    const ir = vi.fn()
+    render(
+      <ProveedorSesion>
+        <Sonda vista={biblioteca} ir={ir} />
+      </ProveedorSesion>
+    )
+    await act(async () => {})
+    act(() =>
+      aviso!({ ...ok, tipo: 'lista', etiqueta: 'Abrir editor', destino: 'editor', texto: 'lista' })
+    )
+    act(() => screen.getByRole('button', { name: 'Abrir editor' }).click())
+    expect(ir).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog', { name: EDI_BLOQUEO.titulo })).toBeInTheDocument()
   })
 })
