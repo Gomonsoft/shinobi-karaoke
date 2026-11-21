@@ -146,6 +146,18 @@ Criterio: riesgo «CPU durante la separación» del ADR 0017 y medidas del infor
 | 9.5 | Al minuto 15, mira la memoria de la app (Windows: Administrador de tareas; macOS: Monitor de Actividad; Linux: Monitor del sistema), sumando los procesos de Shinobi Karaoke | Anota la cifra: es la «memoria con las dos ventanas» del informe | ☐ |
 | 9.6 | Al acabar, cierra el reproductor con «Cerrar y eliminar cola» | La sesión termina sin errores | ☐ |
 
+### 10. Salir de la app con el reproductor abierto (macOS)
+
+Criterio de la spec: S13 · Decisión 0059 §4.
+
+| # | Paso | Resultado esperado | OK |
+|---|---|---|---|
+| 10.1 | Con el reproductor abierto en la otra pantalla y canciones en cola, cierra la ventana principal con el botón rojo | Aparece «¿Cerrar la ventana?»; al confirmar se cierra el reproductor y la cola se conserva | ☐ |
+| 10.2 | Vuelve a abrir la ventana desde el Dock | La cola sigue ahí | ☐ |
+| 10.3 | Abre otra vez el reproductor y pulsa Cmd + Q | Aparece «¿Salir…?» con el foco en «Cancelar» | ☐ |
+| 10.4 | Pulsa «Cancelar» | No se cierra nada y la canción sigue sonando | ☐ |
+| 10.5 | Repite Cmd + Q y confirma | Se cierran las dos ventanas; al abrir la app no hay sesión ni cola | ☐ |
+
 ## Ejecuciones
 
 | Fecha | Persona | Equipo y SO | Pantallas / audio | Resultado | Notas |
