@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { listPackage } from '@electron/asar'
+import { extractFile, listPackage } from '@electron/asar'
 import { getCurrentFuseWire } from '@electron/fuses'
 
 const DIRECTORIO = dirname(fileURLToPath(import.meta.url))
@@ -196,7 +196,20 @@ function verificarFuses(wire) {
   return encontrados
 }
 
-function verificarAsar(asar, listar) {
+function verificarPreloads(asar, entradas, leer) {
+  const preloads = entradas.filter((ruta) => /^\/out\/preload\/[^/]+\.js$/.test(ruta))
+  for (const ruta of preloads) {
+    const codigo = leer(asar, ruta.slice(1)).toString('utf8')
+    for (const m of codigo.matchAll(/\brequire\(\s*(["'`])([^"'`]+)\1\s*\)/g)) {
+      exigir(
+        m[2] === 'electron',
+        `El preload ${ruta} requiere "${m[2]}": un preload con sandbox solo puede requerir "electron"`
+      )
+    }
+  }
+}
+
+function verificarAsar(asar, listar, leer) {
   exigir(asar, 'Falta resources/app.asar')
   const entradas = listar(asar, { isPack: false }).map((ruta) => ruta.replaceAll('\\', '/'))
   const conjunto = new Set(entradas)
@@ -221,6 +234,7 @@ function verificarAsar(asar, listar) {
     const prohibida = coincideProhibida(ruta)
     exigir(!prohibida, `Entrada prohibida en app.asar: ${ruta} (${prohibida})`)
   }
+  verificarPreloads(asar, entradas, leer)
   return entradas
 }
 
@@ -229,6 +243,7 @@ export async function verificarPaquete({
   plataforma = process.platform,
   leerFuses = getCurrentFuseWire,
   listarAsar = listPackage,
+  leerAsar = extractFile,
   comprobarEjecutable = estaEjecutable,
   ejecutar = (comando, argumentos) => {
     const resultado = spawnSync(comando, argumentos, { encoding: 'utf8' })
@@ -320,7 +335,7 @@ export async function verificarPaquete({
   )
 
   const asar = join(raices.recursos, 'app.asar')
-  const entradasAsar = verificarAsar(asar, listarAsar)
+  const entradasAsar = verificarAsar(asar, listarAsar, leerAsar)
   const ejecutableFuses =
     raices.ejecutable ??
     (plataforma === 'win32' ? raices.ejecutable : join(raices.paquete, 'shinobi-karaoke'))
