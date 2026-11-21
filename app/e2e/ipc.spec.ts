@@ -61,6 +61,7 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'biblioteca',
       'cola',
       'config',
+      'exportacion',
       'fuente',
       'letras',
       'pantallas',
