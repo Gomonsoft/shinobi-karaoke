@@ -31,6 +31,7 @@ import {
 } from './modelo'
 import { ENLACE_ACTUALIZAR_MACOS, PA } from './textos'
 import estilos from './primerArranque.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 /** Logotipo: fondo + marca, lo único que se ve en los primeros 300 ms de B0. */
 export function Logotipo() {
@@ -208,8 +209,10 @@ async function copiarDetallesEquipo(r: RequisitosRuntimeIpc): Promise<void> {
       window.shinobi.sistema.info(),
       window.shinobi.config.obtener()
     ]).catch(() => [null, null] as const)
-    const soporte = info && config ? infoSoporte(info, config) : null
-    await navigator.clipboard.writeText(detallesEquipo(r, soporte))
+    // La versión va al final (`copiarDetalles`): se quita la primera línea de la información de soporte.
+    const soporte =
+      info && config ? infoSoporte(info, config).split('\n').slice(1).join('\n') : null
+    await copiarDetalles(detallesEquipo(r, soporte))
     mostrarToast({ tipo: 'exito', mensaje: PA.detallesCopiados })
   } catch {
     mostrarToast({ tipo: 'error', mensaje: PA.detallesNoCopiados })

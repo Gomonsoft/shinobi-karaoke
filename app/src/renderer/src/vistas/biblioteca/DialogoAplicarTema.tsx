@@ -13,6 +13,7 @@ import { tituloDeTarjeta } from './tarjeta'
 import { tituloDeError } from './textosError'
 import { LOTE, resumirLote } from './textosSeleccion'
 import estilos from './biblioteca.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 /** Cómo se cierra el diálogo (la Biblioteca decide el modo selección y el foco con esto). */
 export type SalidaLote =
@@ -180,10 +181,7 @@ export function DialogoAplicarTema({ canciones, catalogo, desdeTarjeta = false, 
                   {nombre(c.id, c.titulo, c.artista)} — {LOTE.fila(c)}
                 </span>
                 {c.estado === 'error' && (
-                  <Boton
-                    variante="fantasma"
-                    onClick={() => void navigator.clipboard?.writeText(c.codigo ?? '')}
-                  >
+                  <Boton variante="fantasma" onClick={() => void copiarDetalles(c.codigo ?? '')}>
                     {LOTE.copiarDetalles}
                   </Boton>
                 )}

@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { datosCompilacion } from './scripts/compilacion.mjs'
 import { idPorEntrada } from './scripts/preloads-autocontenidos'
 
 const alias = { '@shared': resolve('src/shared') }
@@ -38,7 +39,11 @@ export default defineConfig({
   main: {
     resolve: { alias },
     // Módulo de YouTube desactivable al compilar (ADR 0003, mitigación 5): SHINOBI_SIN_YOUTUBE=1.
-    define: { __SHINOBI_YOUTUBE__: JSON.stringify(process.env.SHINOBI_SIN_YOUTUBE !== '1') }
+    // Número de compilación (ADR 0020, fase 10): un dato que falta en el CI hace fallar el build.
+    define: {
+      __SHINOBI_YOUTUBE__: JSON.stringify(process.env.SHINOBI_SIN_YOUTUBE !== '1'),
+      __SHINOBI_COMPILACION__: JSON.stringify(datosCompilacion({ env: process.env }))
+    }
   },
   // Un preload por rol de ventana (ADR 0017 §2): `index` (principal), `secundaria` y `exportacion`.
   preload: {

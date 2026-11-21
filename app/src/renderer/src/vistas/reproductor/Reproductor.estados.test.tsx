@@ -61,7 +61,13 @@ function montar(cambios: Partial<PropsReproductor> = {}, antesDeCargar = Promise
   }
   window.shinobi = {
     ventana,
-    sistema: { info: async () => ({ version: '0.1.0', so: 'Sistema de prueba' }) }
+    sistema: {
+      info: async () => ({
+        version: '0.1.0',
+        so: 'Sistema de prueba',
+        compilacion: { canal: 'local', numero: null, commit: null }
+      })
+    }
   } as unknown as ApiShinobi
   const alSalir = vi.fn()
   const props: PropsReproductor = {
@@ -159,7 +165,7 @@ describe('estados del reproductor', () => {
     fireEvent.click(screen.getByRole('button', { name: R.copiar }))
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
-        'Shinobi Karaoke 0.1.0 · Sistema de prueba\nReproductor: instrumental (pistas/instrumental.flac) · no_encontrada · HTTP 404'
+        'Sistema: Sistema de prueba\nReproductor: instrumental (pistas/instrumental.flac) · no_encontrada · HTTP 404\nVersión: 0.1.0 (local, sin número, sin commit)'
       )
     )
     fireEvent.keyDown(screen.getByRole('alert'), { key: 'Escape' })

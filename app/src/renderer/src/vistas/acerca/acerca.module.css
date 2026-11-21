@@ -12,6 +12,40 @@
   flex-wrap: wrap;
   gap: var(--e-2);
 }
+.version {
+  user-select: text;
+}
+.lineaCanal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+}
+.canal {
+  margin: 0;
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  color: var(--texto-2);
+}
+.canalAviso {
+  color: var(--aviso);
+}
+.canalAviso svg {
+  margin-right: var(--e-1);
+  vertical-align: text-bottom;
+}
+.canalLocal {
+  color: var(--texto-3);
+}
+.hash {
+  font-family: var(--fuente-tiempo);
+}
+.copiarVersion {
+  height: 28px;
+  padding: 0 var(--e-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
 .creditos {
   color: var(--texto-2);
 }

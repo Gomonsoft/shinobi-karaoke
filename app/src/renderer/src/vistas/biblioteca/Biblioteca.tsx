@@ -46,6 +46,7 @@ import {
   type BibliotecaDatos
 } from './useBiblioteca'
 import estilos from './biblioteca.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 function Esqueletos() {
   return (
@@ -444,7 +445,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         mensaje: `No se pudo mover «${titulo}» a la papelera.`,
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -461,7 +462,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         mensaje: 'No se pudo volver a borrador.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -483,7 +484,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       mensaje: tituloDeError(codigo),
       accion: {
         etiqueta: 'Copiar detalles',
-        alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+        alAccionar: () => void copiarDetalles(detallesDeError(err))
       }
     })
   }, [])

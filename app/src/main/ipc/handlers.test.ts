@@ -152,6 +152,7 @@ function crearDeps() {
     salir: vi.fn(),
     infoSistema: vi.fn(() => ({
       version: '1.0.0',
+      compilacion: { canal: 'local', numero: null, commit: null },
       so: 'Test 1',
       plataforma: 'linux',
       youtube: true,
@@ -475,6 +476,7 @@ describe('manejadores IPC', () => {
       ok: true,
       valor: {
         version: '1.0.0',
+        compilacion: { canal: 'local', numero: null, commit: null },
         so: 'Test 1',
         plataforma: 'linux',
         youtube: true,

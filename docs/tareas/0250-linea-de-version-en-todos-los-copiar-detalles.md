@@ -1,5 +1,5 @@
 # 0250 — Línea de versión al final de todos los «Copiar detalles»
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: transversal
 - Depende de: 0248
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §2
@@ -28,3 +28,9 @@ Todo texto que la app copia para pegarlo en una incidencia termina con la misma 
 - Manual: copiar los detalles de un error de exportación con la app de la *Release* y comprobar la última línea (guía de la versión).
 
 ## Notas de implementación
+
+- Hecho: `renderer/src/soporte/detalles.ts` (`conLineaVersion`, `copiarDetalles`, una sola petición de `sistema.info()` guardada; si falla, copia sin la línea y reintenta la próxima vez) con `detalles.test.ts`. Los 22 sitios del inventario (`rg "navigator.clipboard"`) pasan por `copiarDetalles`; solo queda `navigator.clipboard` en `AcercaDe.tsx` (0249, sin la línea) y en el ayudante. `DialogoSeguimiento.detallesDe` ya no pone su `Versión:` propia (el resto del texto no cambia); `PantallaError` copia `Sistema: {so}` + reproductor + línea común (quita `Shinobi Karaoke {version} · {so}`); B6/B6b quitan la primera línea de `infoSoporte` para no repetir la versión. Main: `runtime/servicio.ts` deja de poner la versión arriba y termina con `deps.lineaVersion` (`versionApp` -> `lineaVersion`, pasado desde `index.ts` y `composicion.ts`).
+- `DialogoFormulario.tsx` (exportación) importa `copiarDetalles as copiarConVersion`; cambio mínimo de 2 líneas.
+- Pruebas: tests actualizados de AnadirCancion, Biblioteca.acciones, PanelCola, DialogoEliminarTema, PrimerArranque, Reproductor.estados (copiar es ahora asíncrono: `waitFor`) y `runtime/servicio.test.ts` (última línea).
+- Comprobación `rg`: `rg "navigator.clipboard" app/src/renderer/src --glob '!*.test.*'` solo da `AcercaDe.tsx` y `soporte/detalles.ts`.
+- Manual: copiar los detalles de un error de exportación con la app de la Release y comprobar la última línea (guía de la versión).

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import { TriangleAlert } from 'lucide-react'
 import type { InfoSistema, TextoLegal } from '@shared/ipc'
+import { hashCorto, identificador, numeroVisible } from '@shared/compilacion'
 import { Boton } from '../../componentes/Boton'
+import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import estilos from './acerca.module.css'
 import { DialogoAvisoYoutube } from './DialogoAvisoYoutube'
@@ -35,6 +38,50 @@ function lineaModelo(config: Config): string {
   return fecha ? `rapido (aceptado el ${fecha})` : 'rapido'
 }
 
+/** Línea que copia [Copiar versión] y que encabeza la información para soporte. */
+export function textoVersion(info: InfoSistema): string {
+  return `Shinobi Karaoke ${identificador(info.version, info.compilacion)}`
+}
+
+const VERSION_PREVIA = /-(alpha|beta|rc)\./
+
+/** Línea de canal bajo la versión (`aj.acerca.canal.*`); el texto sale de `shared/compilacion`. */
+function LineaCanal({ info, alCopiar }: { info: InfoSistema; alCopiar: () => void }) {
+  const c = info.compilacion
+  const hash = hashCorto(c)
+  const texto =
+    c.canal === 'desarrollo'
+      ? T.canalDesarrollo
+      : c.canal === 'local'
+        ? T.canalLocal
+        : VERSION_PREVIA.test(info.version)
+          ? T.canalPrevia
+          : T.canalPublicada
+  const clase = `${estilos.canal} ${c.canal === 'desarrollo' ? estilos.canalAviso : c.canal === 'local' ? estilos.canalLocal : ''}`
+  return (
+    <div className={estilos.lineaCanal}>
+      <p className={clase}>
+        {c.canal === 'desarrollo' && <Icono icono={TriangleAlert} tamano={16} />}
+        {texto}
+        {hash && (
+          <>
+            {` · ${T.commit} `}
+            <span className={estilos.hash}>{hash}</span>
+          </>
+        )}
+      </p>
+      <Boton
+        variante="fantasma"
+        className={estilos.copiarVersion}
+        aria-label={T.copiarVersionAria(numeroVisible(info.version, c))}
+        onClick={alCopiar}
+      >
+        {T.copiarVersion}
+      </Boton>
+    </div>
+  )
+}
+
 /**
  * Texto que se copia con "Copiar información para soporte" (`ux/08`, criterio 9): siempre las
  * mismas líneas y en el mismo orden; lo que aún no existe se copia como `sin instalar`.
@@ -43,7 +90,7 @@ export function infoSoporte(info: InfoSistema, config: Config): string {
   const perfil = config.instalacion.perfil_hardware
   const comprobacion = info.ytdlp?.ultimaComprobacion ?? config.ultima_comprobacion_ytdlp
   return [
-    `Shinobi Karaoke ${info.version}`,
+    textoVersion(info),
     `Sistema: ${lineaSo(info)}`,
     `Perfil de hardware: ${perfil ? NOMBRE_PERFIL[perfil] : SIN_INSTALAR}`,
     `Modelo de separación: ${lineaModelo(config)}`,
@@ -88,6 +135,16 @@ export function AcercaDe() {
     }
   }
 
+  const copiarVersion = async () => {
+    try {
+      if (!info) return
+      await navigator.clipboard.writeText(textoVersion(info))
+      mostrarToast({ tipo: 'exito', mensaje: T.versionCopiada })
+    } catch {
+      mostrarToast({ tipo: 'error', mensaje: T.versionError })
+    }
+  }
+
   const abrirCarpeta = () =>
     window.shinobi.sistema
       .abrirCarpetaDatos()
@@ -98,7 +155,14 @@ export function AcercaDe() {
       <h2 id="acerca-titulo" className={estilos.titulo}>
         {T.titulo}
       </h2>
-      {info && <p>{T.version(info.version)}</p>}
+      {info && (
+        <>
+          <p className={estilos.version}>
+            {T.version(numeroVisible(info.version, info.compilacion))}
+          </p>
+          <LineaCanal info={info} alCopiar={() => void copiarVersion()} />
+        </>
+      )}
       <div className={estilos.botones}>
         <Boton onClick={() => setLegal('gpl')}>{T.verLicencia}</Boton>
         <Boton onClick={() => setLegal('terceros')}>{T.verTerceros}</Boton>

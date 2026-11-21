@@ -15,6 +15,7 @@ import { detallesDeError } from '../biblioteca/errores'
 import { mensajeListaMarcada, tituloDeTarjeta } from '../biblioteca/tarjeta'
 import { E } from './textos'
 import type { SeparacionEditor } from './Transporte'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface Props {
   resumen: ResumenCancionIpc
@@ -30,7 +31,7 @@ export function avisarError(mensaje: string, error: unknown) {
     mensaje,
     accion: {
       etiqueta: 'Copiar detalles',
-      alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(error))
+      alAccionar: () => void copiarDetalles(detallesDeError(error))
     }
   })
 }

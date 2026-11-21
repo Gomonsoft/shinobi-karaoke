@@ -1,5 +1,5 @@
 # 0247 — Icono de las ventanas, AppUserModelId de desarrollo y verificación del icono del exe
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: [0012](../adr/0012-empaquetado-con-electron-builder-fuses-uv-y-licencias.md), «Revisión para 0.2.0 — alpha.2 (icono en las ventanas)»; [0013](../adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md) (verificación del paquete)
@@ -33,3 +33,8 @@ Líneas comprobadas en `app/src/main/index.ts`: ventana principal en 250 (`new B
 - Manual: el punto de la barra de tareas en Windows, en la guía de la versión (`qa`).
 
 ## Notas de implementación
+
+- Hecho: `src/main/ventana/icono.ts` (`rutaIcono`, 6 casos en `icono.test.ts`); `icon` en la ventana principal y en la secundaria (`crearVentanaSecundaria` lo añade sobre `opciones`; la offscreen de exportación no lo lleva). `ID_APP_WINDOWS_DESARROLLO` en `shared/titulo.ts` y `setAppUserModelId(app.isPackaged ? … : …)`. `electron-builder.yml`: `extraResources` con `build/icon.png` -> `icon.png` (test de `electron-builder.test.ts` actualizado) y `verificar-paquete.mjs` exige `resources/icon.png` en Linux. Verificación del exe de Windows en `verificar-paquete.mjs`: `iconosDelExe`/`comprobarIconoExe` con `resedit` (1.7.2 fijo en `devDependencies` y en el lock; `licencias:comprobar` en verde); falla si no hay iconos, si alguna imagen coincide con `node_modules/electron/dist/electron.exe` o si ese exe no existe. `leerIconos` es inyectable (los tests de `verificarPaquete` son todos `linux`).
+- Pruebas: `icono.test.ts` y el bloque «icono del .exe» de `verificar-paquete.test.ts` (búferes falsos y detección real de `electron.exe`, omitida si no existe).
+- No ejecutado: `empaquetar:dir` + `verificar-paquete.mjs release/win-unpacked` (lo demuestra `construir (windows-2025)` del CI).
+- Manual (guía): con `npm run dev` en Windows, la barra de tareas muestra el icono de la app (provisional de 0140) y no el de Electron; instalada, coincide con el del acceso directo.

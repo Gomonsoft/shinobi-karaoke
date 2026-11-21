@@ -11,6 +11,7 @@ import { Formulario } from './Formulario'
 import { EXP, ERRORES_EXP, formatearPosicion, textoErrorExp } from './textos'
 import { useFormulario } from './useFormulario'
 import estilos from './exportacion.module.css'
+import { copiarDetalles as copiarConVersion } from '../../soporte/detalles'
 
 /** Tiempo sin perfiles a partir del cual se explica la espera (`exp.cargando`). */
 export const RETARDO_CARGANDO_MS = 300
@@ -36,7 +37,7 @@ function textoSinPerfiles(codigo: CodigoError | 'no_comprobado'): string {
 }
 
 function copiarDetalles(texto: string): void {
-  void navigator.clipboard?.writeText(texto)
+  void copiarConVersion(texto)
   mostrarToast({ tipo: 'exito', mensaje: EXP.copiados })
 }
 

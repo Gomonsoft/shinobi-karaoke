@@ -13,6 +13,7 @@ import { type AccionEditor, type AparienciaEditor, type EstadoEditor } from './e
 import type { ControlTema, DestinoFocoTema } from './SeccionTema'
 import { E } from './textos'
 import { useBorradorTema } from './useBorradorTema'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface Opciones {
   resumen: ResumenCancionIpc
@@ -28,9 +29,7 @@ const ahora = (): number => Date.now()
 
 function copiar(err: unknown): void {
   const e = err as { codigo?: string; mensaje?: string } | null
-  void navigator.clipboard
-    ?.writeText(`${e?.codigo ?? 'ERROR_INTERNO'}: ${e?.mensaje ?? ''}`)
-    .catch(() => undefined)
+  void copiarDetalles(`${e?.codigo ?? 'ERROR_INTERNO'}: ${e?.mensaje ?? ''}`).catch(() => undefined)
 }
 
 function avisarError(err: unknown): void {

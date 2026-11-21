@@ -1,5 +1,5 @@
 # 0249 — «Acerca de» con número de compilación, canal y «Copiar versión»
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0248
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §2
@@ -29,3 +29,8 @@ Mostrar en «Acerca de» (Ajustes y el diálogo del primer arranque, que compart
 - Manual: AC1 con la app de la *Release* `v0.2.0-alpha.2` instalada (guía de la versión).
 
 ## Notas de implementación
+
+- Hecho: `AcercaDe.tsx` pinta `T.version(numeroVisible(...))`, la línea de canal (`aviso` + ⚠ en desarrollo, `texto-3` en local, hash en monoespaciada sin enlace; previa si la versión lleva `-alpha/-beta/-rc.`) y [Copiar versión] (fantasma, 28 px, nombre accesible con el número, toasts `Versión copiada.` / `No se pudo copiar la versión.`, el foco se queda). `textoVersion` (`Shinobi Karaoke {identificador}`) encabeza `infoSoporte` y es lo que copia el botón. Textos en `textos.ts`; estilos en `acerca.module.css`. Sin `sistema.info()` no hay líneas ni botón. El diálogo del primer arranque comparte el bloque.
+- Pruebas: `AcercaDe.test.tsx` (5 estados: previa, estable, desarrollo, local con y sin commit; copia correcta y con portapapeles fallido; primera línea de `infoSoporte`).
+- AC8: spec opt-in `e2e/acerca-capturas.spec.ts` (`SHINOBI_CAPTURAS_10=1`), que sustituye en main el manejador `sistema:info` para cada estado y escribe `docs/ux/revision-fase-10/ajustes-1280x800-100-acerca-{previa|desarrollo|local}.png`. No se ha ejecutado (requiere `npm run build`); solo se comprobó que Playwright la lista.
+- Manual: AC1 con la app de la Release `v0.2.0-alpha.2` instalada (guía de la versión).

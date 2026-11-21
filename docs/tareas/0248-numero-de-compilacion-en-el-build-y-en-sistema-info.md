@@ -1,5 +1,5 @@
 # 0248 — Número de compilación: datos del build, `shared/compilacion.ts` y `sistema.info()`
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §2; [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md) (variables solo al compilar)
@@ -46,3 +46,8 @@ Dar a la app su número de compilación (`<versión>-<N>`), su commit y su canal
 - Manual: AC7 en la guía de la versión: con la app de la *Release*, `git rev-list --count <hash>` da N.
 
 ## Notas de implementación
+
+- Hecho: `app/scripts/compilacion.mjs` (+ `.d.mts`): `contar` (falla en clon superficial), `datosCompilacion` (publicada/desarrollo exigen número ≥ 1 y commit de 40 hex; sin canal es `local` con el commit de git si responde; otro canal lanza) y la orden `contar --salida-github`. `electron.vite.config.ts` lo inyecta en `main.define` como `__SHINOBI_COMPILACION__` (un dato mal en el CI hace fallar el build). `src/shared/compilacion.ts` (esquema zod, `numeroVisible`, `hashCorto`, `identificador`, `lineaVersion`) y `src/main/compilacion.ts` (constante validada; inválida o sin definir = `local`). `infoSistemaSchema` lleva `compilacion` (obligatoria) y el manejador de `index.ts` la rellena. Al arrancar se escribe `Shinobi Karaoke {identificador}` en `app.log` y, en macOS, `setAboutPanelOptions`. Ninguna lectura de `SHINOBI_COMPILACION_*` en `src/`.
+- Pruebas: `scripts/compilacion.test.ts` (incluye un clon `--depth 1` real) y `src/shared/compilacion.test.ts`. Fixtures de `InfoSistema` actualizados (handlers, AcercaDe, Ajustes, PrimerArranque, Reproductor.estados).
+- No ejecutado (a petición de la sesión principal): `npm run build`. Pendiente comprobar en un build: sin variables da `local`; con `SHINOBI_COMPILACION_CANAL=desarrollo` y sin número, falla.
+- Deuda: no hay test del manejador `infoSistema` de `index.ts` (no hay test de `index.ts`); lo cubren los críticos.

@@ -4,6 +4,7 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { detallesDeError } from '../biblioteca/errores'
 import estilos from './ajustes.module.css'
 import { AJREP, OPCIONES_CUENTA_S } from './textos'
+import { copiarDetalles } from '../../soporte/detalles'
 
 /** Valores del selector: la lista fija más el valor guardado si es válido y no está en ella. */
 export function opcionesCuenta(valor: number): number[] {
@@ -48,7 +49,7 @@ export function ReproductorAjustes() {
         mensaje: AJREP.errorGuardar,
         accion: {
           etiqueta: AJREP.copiar,
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }

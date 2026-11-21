@@ -9,6 +9,7 @@ import { detallesDeError } from './errores'
 import { GRUPO } from './textosTema'
 import { TEMAS_NO_DISPONIBLES } from './textosSeleccion'
 import estilos from './biblioteca.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface Props {
   /** Solo grupos `asignable` (artista y álbum). */
@@ -87,7 +88,7 @@ export function TemaGrupo({ grupo, catalogo }: Props) {
             mensaje: TEMA.toastError,
             accion: {
               etiqueta: TEMA.copiarDetalles,
-              alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+              alAccionar: () => void copiarDetalles(detallesDeError(err))
             }
           })
         }}

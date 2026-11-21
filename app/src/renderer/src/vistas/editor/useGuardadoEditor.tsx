@@ -7,6 +7,7 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { registrarVaciadoAlCerrar } from '../../navegacion/salida'
 import { GuardadoEditor, type EstadoGuardado } from './guardado'
+import { copiarDetalles } from '../../soporte/detalles'
 
 /** Secuenciador de resúmenes vivos: la respuesta del pedido más reciente manda (ADR 0016 §9). */
 export interface SecuenciaResumen {
@@ -109,9 +110,7 @@ export function useGuardadoEditor({
           accion: {
             etiqueta: 'Copiar detalles',
             alAccionar: () =>
-              void navigator.clipboard
-                ?.writeText(`${e.error.codigo}: ${e.error.mensaje}`)
-                .catch(() => undefined)
+              void copiarDetalles(`${e.error.codigo}: ${e.error.mensaje}`).catch(() => undefined)
           }
         })
       },

@@ -245,7 +245,7 @@ describe('P3 · fallo de una entrada (S9)', () => {
     Object.assign(navigator, { clipboard: { writeText: escribir } })
     const r = await montar(estadoP3())
     fireEvent.click(r.panel.getByRole('button', { name: 'Copiar detalles' }))
-    expect(escribir).toHaveBeenCalledWith('SIN_PISTAS')
+    await waitFor(() => expect(escribir).toHaveBeenCalledWith('SIN_PISTAS'))
   })
 })
 

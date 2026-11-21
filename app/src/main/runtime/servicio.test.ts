@@ -84,7 +84,7 @@ function preparar(
     deteccion: { requisitosPrevios: () => Promise.resolve(previos) },
     manifiesto,
     datos: '/Users/ana/datos',
-    versionApp: '1.2.3',
+    lineaVersion: 'Versión: 1.2.3 (local, sin número, sin commit)',
     descripcionSo: 'Darwin 24',
     ultimasLineasRegistro: () =>
       Promise.resolve([
@@ -209,7 +209,9 @@ describe('servicio de runtime (0036)', () => {
       c.instalacion.error = { codigo: 'SIN_ESPACIO', mensaje: 'poco', fase: 'motor' }
     })
     const t = await servicio.detalles()
-    expect(t).toContain('1.2.3')
+    expect(t.split(String.fromCharCode(10)).at(-1)).toBe(
+      'Versión: 1.2.3 (local, sin número, sin commit)'
+    )
     expect(t).toContain('Darwin 24')
     expect(t).toContain('Fase: motor')
     expect(t).toContain('SIN_ESPACIO')
