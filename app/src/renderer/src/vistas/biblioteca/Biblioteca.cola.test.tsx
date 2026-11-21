@@ -89,6 +89,7 @@ describe('tarjetas durante la sesión (S10, E1)', () => {
       'Agregar al final',
       'Editar',
       'Editar datos',
+      'Exportar video…',
       'Aplicar tema…',
       'Volver a borrador',
       'Mostrar en la carpeta',

@@ -74,6 +74,37 @@ export const EXP_ACTIVIDAD = {
   lineaTarjetaIndeterminada: 'Exportando video…'
 } as const
 
+/** `exp.eliminar.extra`: se añade al texto de «Eliminar…». */
+export const EXP_ELIMINAR_EXTRA = 'Se cancelará la exportación de video en curso.'
+
+/** `exp.cierre.*`: diálogo de cierre con trabajos (spec 04 §3). */
+export const EXP_CIERRE = {
+  item: (titulo: string): string => `exportar «${titulo}»`,
+  extra: 'Los videos a medio exportar no se guardarán; los archivos que ya existían no se tocan.'
+} as const
+
+/** Menú ⋯ (`bib.menu.exportar`, `edi.menu.exportar`) y motivos de «no disponible». */
+export const EXP_MENU = {
+  exportar: 'Exportar video…',
+  exportarEditor: 'Exportar video… (Ctrl/Cmd + E)',
+  ver: 'Ver exportación',
+  cancelar: 'Cancelar exportación…',
+  sinPistas: 'Podrás exportar cuando termine la separación.',
+  sinLineas: 'Sincroniza al menos una línea para exportar.',
+  /** Modo «Sincronizar al ritmo» o «Error de audio» (texto provisional: la spec no lo define). */
+  noDisponible: 'No se puede exportar ahora mismo.',
+  atajo: 'Exportar video'
+} as const
+
+/** `edi.exp.guardado`. */
+export const EXP_GUARDADO = {
+  titulo: 'No se pudieron guardar los últimos cambios',
+  cuerpo:
+    'Si exportas ahora, el video no los incluirá. Shinobi Karaoke seguirá intentando guardarlos.',
+  quedarme: 'Quedarme en el editor',
+  igualmente: 'Exportar igualmente'
+} as const
+
 /** Duración real del trabajo («7 min 12 s»). */
 export function formatearDuracionTrabajo(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000))
