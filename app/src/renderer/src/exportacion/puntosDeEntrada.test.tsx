@@ -16,10 +16,8 @@ import type { ExportacionVista } from './estado'
 import { lineaDeExportacion } from './lineas'
 import { useExportarDesdeEditor } from '../vistas/editor/useExportarDesdeEditor'
 
-const vista = (e: Parameters<typeof exportacionDePrueba>[0] = {}): ExportacionVista => ({
-  ...exportacionDePrueba({ cancionId: 'c1', ...e }),
-  tardoMs: null
-})
+const vista = (e: Parameters<typeof exportacionDePrueba>[0] = {}): ExportacionVista =>
+  exportacionDePrueba({ cancionId: 'c1', ...e })
 
 function contexto(
   exportaciones: ExportacionVista[] = [],
@@ -31,7 +29,6 @@ function contexto(
     abrir: vi.fn(),
     cerrar: vi.fn(),
     iniciada: vi.fn(),
-    existia: () => false,
     pedirCancelar: vi.fn(),
     ...extra
   }
@@ -109,7 +106,7 @@ describe('tarjeta de la Biblioteca (X1–X3)', () => {
           edicion: paso('pendiente')
         }
       }),
-      contexto([{ ...e, tardoMs: null }])
+      contexto([e])
     )
     expect(opciones()).toContain('Ver exportación')
     expect(opciones()).toContain('Cancelar exportación…')

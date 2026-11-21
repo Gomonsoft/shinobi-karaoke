@@ -64,6 +64,44 @@ describe('esquemas de la exportación', () => {
     expect(args(canal, [{ ...base, ruta: '/tmp' }])).toBe(false)
   })
 
+  it('destinoPropuesto admite desdeTrabajoId y es excluyente con desdeDestinoId (0133)', () => {
+    const canal = CANALES.exportacion.destinoPropuesto
+    const base = { cancionId: 'c1', formato: 'mkv_av1' }
+    expect(args(canal, [{ ...base, desdeTrabajoId: ID_TRABAJO }])).toBe(true)
+    expect(args(canal, [{ ...base, desdeTrabajoId: 'x' }])).toBe(false)
+    expect(args(canal, [{ ...base, desdeTrabajoId: ID_TRABAJO, desdeDestinoId: ID_DESTINO }])).toBe(
+      false
+    )
+  })
+
+  it('mostrarEnCarpeta acepta un trabajoId o un avisoId, uno solo (0132)', () => {
+    const canal = CANALES.exportacion.mostrarEnCarpeta
+    expect(args(canal, [{ trabajoId: ID_TRABAJO }])).toBe(true)
+    expect(args(canal, [{ avisoId: ID_TRABAJO }])).toBe(true)
+    expect(args(canal, [{ trabajoId: ID_TRABAJO, avisoId: ID_TRABAJO }])).toBe(false)
+    expect(args(canal, [{ avisoId: 'x' }])).toBe(false)
+    expect(args(canal, [{ ruta: '/tmp/a' }])).toBe(false)
+  })
+
+  it('avisosPendientes responde una lista de avisos con tipo conocido', () => {
+    const res = CONTRATO[CANALES.exportacion.avisosPendientes].res
+    const aviso = { avisoId: ID_TRABAJO, tipo: 'interrumpida', cancionId: 'c1', titulo: 'T' }
+    expect(res.safeParse([aviso, { ...aviso, tipo: 'limpieza_fallida' }]).success).toBe(true)
+    expect(res.safeParse([{ ...aviso, tipo: 'otro' }]).success).toBe(false)
+  })
+
+  it('ExportacionIpc lleva destinoExistia, iniciadaEn, terminadaEn y limpiezaFallida', () => {
+    const res = CONTRATO[CANALES.exportacion.estado].res
+    const e = exportacionCompletada()
+    expect(e).toMatchObject({ destinoExistia: false, limpiezaFallida: false })
+    expect(res.safeParse([{ ...e, limpiezaFallida: true, destinoExistia: true }]).success).toBe(
+      true
+    )
+    const sin: Partial<typeof e> = { ...e }
+    delete sin.limpiezaFallida
+    expect(res.safeParse([sin]).success).toBe(false)
+  })
+
   it('listo rechaza n negativo o no entero y trabajoId que no es UUID', () => {
     const listo = (o: object) =>
       args(CANALES.exportacion.listo, [{ trabajoId: ID_TRABAJO, n: 0, ...o }])

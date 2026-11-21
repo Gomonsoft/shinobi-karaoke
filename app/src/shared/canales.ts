@@ -70,6 +70,7 @@ export const CANALES = {
     cancelar: 'exportacion:cancelar',
     estado: 'exportacion:estado',
     mostrarEnCarpeta: 'exportacion:mostrarEnCarpeta',
+    avisosPendientes: 'exportacion:avisosPendientes',
     /** Solo ventana de exportación. */
     inicial: 'exportacion:inicial',
     listo: 'exportacion:listo'
@@ -192,6 +193,8 @@ export const CANALES = {
     exportacionCambio: 'exportacion:cambio',
     /** Progreso de la exportación, ≤ 4 por segundo, solo a la principal. */
     exportacionProgreso: 'exportacion:progreso',
+    /** Aviso de arranque (interrumpida, limpieza fallida), solo a la principal (0132). */
+    exportacionAviso: 'exportacion:aviso',
     /** Pide pintar el fotograma `n`, solo a la ventana de exportación. */
     exportacionFotograma: 'exportacion:fotograma'
   }
@@ -242,6 +245,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.exportacion.cancelar]: PRINCIPAL,
   [CANALES.exportacion.estado]: PRINCIPAL,
   [CANALES.exportacion.mostrarEnCarpeta]: PRINCIPAL,
+  [CANALES.exportacion.avisosPendientes]: PRINCIPAL,
   [CANALES.exportacion.inicial]: EXPORTACION,
   [CANALES.exportacion.listo]: EXPORTACION,
   [CANALES.ventana.modoReproductor]: PRINCIPAL,

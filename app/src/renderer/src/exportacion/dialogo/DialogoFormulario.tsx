@@ -21,8 +21,10 @@ interface Props {
   temaBorrador?: boolean
   /** «Cambiar opciones» (D): parte de estas opciones en lugar de las recordadas. */
   opcionesIniciales?: OpcionesExportacion
+  /** «Cambiar opciones» (D): el destino parte del de esa exportación (0133). */
+  desdeTrabajoId?: string
   /** `iniciar` fue aceptado: el diálogo pasa a seguir la exportación. */
-  alIniciada(trabajoId: string, existia: boolean): void
+  alIniciada(trabajoId: string): void
   alCerrar(): void
 }
 
@@ -46,10 +48,11 @@ export function DialogoFormulario({
   cancionId,
   temaBorrador,
   opcionesIniciales,
+  desdeTrabajoId,
   alIniciada,
   alCerrar
 }: Props) {
-  const f = useFormulario(cancionId, opcionesIniciales)
+  const f = useFormulario(cancionId, opcionesIniciales, desdeTrabajoId)
   const { haySesion } = useSesion()
   const navegacion = useContext(NavegacionContexto)
   const idCabecera = useId()
@@ -180,7 +183,7 @@ export function DialogoFormulario({
   const sustituye = f.destino?.existe === true
   const exportar = async () => {
     const trabajoId = await f.iniciar()
-    if (trabajoId) alIniciada(trabajoId, sustituye)
+    if (trabajoId) alIniciada(trabajoId)
   }
   return (
     <Dialogo

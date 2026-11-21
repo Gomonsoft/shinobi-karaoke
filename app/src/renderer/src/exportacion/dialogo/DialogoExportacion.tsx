@@ -21,7 +21,8 @@ export function DialogoExportacion({ peticion, alCerrar }: Props) {
       cancionId={peticion.cancionId}
       temaBorrador={peticion.temaBorrador}
       opcionesIniciales={peticion.opciones}
-      alIniciada={(trabajoId, existia) => iniciada(trabajoId, peticion.cancionId, existia)}
+      desdeTrabajoId={peticion.desdeTrabajoId}
+      alIniciada={(trabajoId) => iniciada(trabajoId, peticion.cancionId)}
       alCerrar={alCerrar}
     />
   )

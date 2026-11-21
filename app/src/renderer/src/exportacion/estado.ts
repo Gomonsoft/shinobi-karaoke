@@ -10,10 +10,14 @@ import {
  * hace retroceder el estado (cola → curso → terminada) ni la barra de progreso.
  */
 
-/** Una exportación con lo que solo el renderer sabe: cuánto tardó (desde que la vio empezar). */
-export interface ExportacionVista extends ExportacionIpc {
-  /** Milisegundos entre ver la exportación en curso y verla terminada; `null` si no los vio. */
-  tardoMs: number | null
+/** Lo que el renderer muestra de una exportación; «Tardó…» sale de `terminadaEn − iniciadaEn`. */
+export type ExportacionVista = ExportacionIpc
+
+/** Milisegundos que tardó una exportación terminada; `null` si no hay fechas válidas. */
+export function duracionDe(e: Pick<ExportacionIpc, 'iniciadaEn' | 'terminadaEn'>): number | null {
+  if (!e.iniciadaEn || !e.terminadaEn) return null
+  const ms = Date.parse(e.terminadaEn) - Date.parse(e.iniciadaEn)
+  return Number.isFinite(ms) ? Math.max(0, ms) : null
 }
 
 export interface AlmacenExportaciones {
@@ -46,10 +50,9 @@ export function esProgresoAtrasado(
   return nuevo.valor !== null && actual.valor !== null && nuevo.valor < actual.valor
 }
 
-export function crearAlmacenExportaciones(ahora: () => number = Date.now): AlmacenExportaciones {
+export function crearAlmacenExportaciones(): AlmacenExportaciones {
   const porId = new Map<string, ExportacionVista>()
   const vistos = new Set<string>()
-  const inicios = new Map<string, number>()
   const oyentes = new Set<() => void>()
   let instantanea: readonly ExportacionVista[] = []
 
@@ -57,7 +60,6 @@ export function crearAlmacenExportaciones(ahora: () => number = Date.now): Almac
     const terminadas = [...porId.values()].filter((e) => e.estado === 'terminada')
     for (const e of terminadas.slice(0, Math.max(0, terminadas.length - MAX_TERMINADAS))) {
       porId.delete(e.trabajoId)
-      inicios.delete(e.trabajoId)
     }
     instantanea = [...porId.values()]
     oyentes.forEach((cb) => cb())
@@ -67,17 +69,11 @@ export function crearAlmacenExportaciones(ahora: () => number = Date.now): Almac
     const previa = porId.get(e.trabajoId)
     if (previa && ORDEN_ESTADO[e.estado] < ORDEN_ESTADO[previa.estado]) return previa
     if (previa?.estado === 'terminada') return previa
-    if (e.estado === 'en_curso' && !inicios.has(e.trabajoId)) inicios.set(e.trabajoId, ahora())
     let progreso = e.progreso
     if (previa?.progreso && progreso && esProgresoAtrasado(previa.progreso, progreso)) {
       progreso = previa.progreso
     }
-    const inicio = inicios.get(e.trabajoId)
-    const tardoMs =
-      e.estado === 'terminada' && inicio !== undefined
-        ? Math.max(0, ahora() - inicio)
-        : (previa?.tardoMs ?? null)
-    porId.set(e.trabajoId, { ...e, progreso, tardoMs })
+    porId.set(e.trabajoId, { ...e, progreso })
     return previa
   }
 
@@ -115,31 +111,25 @@ export type AvisoExportacion =
   | { tipo: 'cancelada' }
   | { tipo: 'quitada' }
   | { tipo: 'limpieza' }
-  | { tipo: 'interrumpida' }
 
 /**
- * Qué aviso corresponde a un `exportacion:cambio` según lo que ya se sabía de esa exportación.
- * Provisional hasta la respuesta a la pregunta 0132: `LIMPIEZA_FALLIDA` y la caída del proceso
- * («interrumpida») se deducen de `error.codigo`.
+ * Avisos que corresponden a un `exportacion:cambio` según lo que ya se sabía de esa exportación.
+ * El temporal que no se pudo borrar (`limpiezaFallida`) se suma al aviso normal del resultado
+ * (ADR 0019 §10, 0132). Los avisos de arranque llegan aparte (`AvisoExportacionIpc`).
  */
 export function clasificarAviso(
   previa: ExportacionVista | undefined,
   nueva: ExportacionIpc
-): AvisoExportacion | null {
-  if (nueva.estado !== 'terminada' || previa?.estado === 'terminada') return null
-  if (nueva.error?.codigo === 'LIMPIEZA_FALLIDA') return { tipo: 'limpieza' }
-  if (
-    !previa &&
-    nueva.resultado === 'error' &&
-    nueva.error?.codigo === 'PROCESO_TERMINADO' &&
-    nueva.error.posicionMs === null
-  )
-    return { tipo: 'interrumpida' }
-  if (nueva.resultado === 'completada') return { tipo: 'ok' }
-  if (nueva.resultado === 'error') return { tipo: 'error' }
-  if (nueva.resultado === 'cancelada')
-    return { tipo: previa?.estado === 'en_cola' ? 'quitada' : 'cancelada' }
-  return null
+): AvisoExportacion[] {
+  if (nueva.estado !== 'terminada' || previa?.estado === 'terminada') return []
+  const avisos: AvisoExportacion[] = []
+  if (nueva.resultado === 'completada') avisos.push({ tipo: 'ok' })
+  else if (nueva.resultado === 'error') avisos.push({ tipo: 'error' })
+  else if (nueva.resultado === 'cancelada') {
+    avisos.push({ tipo: previa?.estado === 'en_cola' ? 'quitada' : 'cancelada' })
+  }
+  if (nueva.limpiezaFallida) avisos.push({ tipo: 'limpieza' })
+  return avisos
 }
 
 /** Porcentaje entero de «Crear el video» (0–100). */

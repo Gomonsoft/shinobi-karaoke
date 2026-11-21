@@ -151,18 +151,8 @@
   top: 0;
   left: 0;
   transform-origin: top left;
-}
-.marca {
-  position: absolute;
-  padding: 0.35em 0.7em;
-  border-radius: var(--r-pildora);
-  background: rgb(0 0 0 / 50%);
-  color: #fff;
-  font-family: 'Atkinson Hyperlegible Next', var(--fuente-interfaz), sans-serif;
-  font-weight: 700;
-  line-height: 1.2;
-  opacity: 0.85;
-  white-space: nowrap;
+  /* Las unidades `cqh` de la marca de agua del video se miden sobre el alto real del fotograma. */
+  container-type: size;
 }
 
 /* ---------- Esqueleto de carga ---------- */

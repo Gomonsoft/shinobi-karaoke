@@ -7,6 +7,7 @@ import {
   combinaciones,
   nombrePropuesto,
   totalFotogramas,
+  type AvisoExportacionIpc,
   type DestinoIpc,
   type ExportacionIpc,
   type InicialExportacionIpc,
@@ -119,6 +120,10 @@ export function exportacionDePrueba(sobrescribir: Partial<ExportacionIpc> = {}):
     bytes: null,
     fotogramas: null,
     duracionMs: 40_000,
+    destinoExistia: false,
+    iniciadaEn: '2026-11-20T10:00:00.000Z',
+    terminadaEn: null,
+    limpiezaFallida: false,
     ...sobrescribir
   }
 }
@@ -130,12 +135,13 @@ export const exportacionCompletada = (): ExportacionIpc =>
     resultado: 'completada',
     progreso: null,
     bytes: 3_400_000,
-    fotogramas: 1200
+    fotogramas: 1200,
+    terminadaEn: '2026-11-20T10:02:00.000Z'
   })
 
 /** Exportación en cola (posición 1). */
 export const exportacionEnCola = (): ExportacionIpc =>
-  exportacionDePrueba({ estado: 'en_cola', posicion: 1, progreso: null })
+  exportacionDePrueba({ estado: 'en_cola', posicion: 1, progreso: null, iniciadaEn: null })
 
 /** Exportación fallida con la posición alcanzada. */
 export const exportacionFallida = (
@@ -145,6 +151,7 @@ export const exportacionFallida = (
     estado: 'terminada',
     resultado: 'error',
     progreso: null,
+    terminadaEn: '2026-11-20T10:01:00.000Z',
     error: { codigo, mensaje: 'Fallo de prueba', posicionMs: 12_000 }
   })
 
@@ -158,6 +165,7 @@ export interface ApiExportacionFalsa {
   llamadas: unknown[][]
   emitirCambio(exportacion: ExportacionIpc): void
   emitirProgreso(progreso: ProgresoExportacionIpc): void
+  emitirAviso(aviso: AvisoExportacionIpc): void
 }
 
 /**
@@ -171,6 +179,7 @@ export function crearApiExportacionFalsa(
   const llamadas: unknown[][] = []
   const cambios = new Set<(e: ExportacionIpc) => void>()
   const progresos = new Set<(p: ProgresoExportacionIpc) => void>()
+  const avisos = new Set<(a: AvisoExportacionIpc) => void>()
   const defecto: Record<string, unknown> = {
     perfiles: perfilesDePrueba(),
     estimar: { bytes: 80_000_000, segundos: 120 },
@@ -179,7 +188,8 @@ export function crearApiExportacionFalsa(
     iniciar: { trabajoId: ID_TRABAJO },
     cancelar: undefined,
     estado: [],
-    mostrarEnCarpeta: undefined
+    mostrarEnCarpeta: undefined,
+    avisosPendientes: []
   }
   const metodo =
     (nombre: string) =>
@@ -206,6 +216,8 @@ export function crearApiExportacionFalsa(
     cancelar: metodo('cancelar'),
     estado: metodo('estado'),
     mostrarEnCarpeta: metodo('mostrarEnCarpeta'),
+    avisosPendientes: metodo('avisosPendientes'),
+    alAviso: suscribir(avisos),
     alCambiar: suscribir(cambios),
     alProgreso: suscribir(progresos)
   } as unknown as ApiExportacionPrincipal
@@ -213,6 +225,7 @@ export function crearApiExportacionFalsa(
     api,
     llamadas,
     emitirCambio: (e) => cambios.forEach((cb) => cb(e)),
-    emitirProgreso: (p) => progresos.forEach((cb) => cb(p))
+    emitirProgreso: (p) => progresos.forEach((cb) => cb(p)),
+    emitirAviso: (a) => avisos.forEach((cb) => cb(a))
   }
 }

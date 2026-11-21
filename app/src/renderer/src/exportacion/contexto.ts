@@ -11,6 +11,8 @@ export interface PeticionExportacion {
   temaBorrador?: boolean
   /** «Cambiar opciones» (D): el formulario parte de estas opciones en lugar de las recordadas. */
   opciones?: OpcionesExportacion
+  /** «Cambiar opciones» (D): el destino parte del que usó esa exportación (0133). */
+  desdeTrabajoId?: string
 }
 
 export interface ContextoExportacion {
@@ -22,10 +24,8 @@ export interface ContextoExportacion {
   abrir(peticion: PeticionExportacion): void
   /** Cierra el diálogo, esté en el estado que esté. */
   cerrar(): void
-  /** El diálogo aceptó `iniciar`: pasa a seguir esa exportación. `existia`: el destino ya existía. */
-  iniciada(trabajoId: string, cancionId: string, existia: boolean): void
-  /** El destino ya existía al exportar (`exp.error.conservado`, `exp.dialogo.cancelar`). */
-  existia(trabajoId: string): boolean
+  /** El diálogo aceptó `iniciar`: pasa a seguir esa exportación. */
+  iniciada(trabajoId: string, cancionId: string): void
   /** Cancela con la confirmación de `exp.dialogo.cancelar`; en cola, sin confirmar. */
   pedirCancelar(trabajoId: string): void
 }
@@ -36,7 +36,6 @@ const vacio: ContextoExportacion = {
   abrir: () => undefined,
   cerrar: () => undefined,
   iniciada: () => undefined,
-  existia: () => false,
   pedirCancelar: () => undefined
 }
 

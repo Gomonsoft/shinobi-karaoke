@@ -201,3 +201,26 @@ describe('ServicioAvisos', () => {
     expect(m.dock.rebotar).not.toHaveBeenCalled()
   })
 })
+
+describe('avisarSistema (0237)', () => {
+  it('sin foco notifica y parpadea, sin evento al renderer', () => {
+    const m = montar({ plataforma: 'win32' })
+    m.servicio.avisarSistema('«Mi canción»: video exportado.')
+    expect(m.avisos).toEqual([])
+    expect(m.ventana.parpadear).toHaveBeenCalledWith(true)
+    expect(m.notificacion()?.cuerpo).toBe('«Mi canción»: video exportado.')
+    m.notificacion()?.alClic()
+    expect(m.ventana.traer).toHaveBeenCalled()
+    expect(m.abrir).toEqual([])
+  })
+
+  it('con foco no hace nada; en macOS rebota el Dock', () => {
+    const con = montar({ plataforma: 'linux', enfocada: true })
+    con.servicio.avisarSistema('x')
+    expect(con.mostrar).not.toHaveBeenCalled()
+    const mac = montar({ plataforma: 'darwin' })
+    mac.servicio.avisarSistema('x')
+    expect(mac.dock.rebotar).toHaveBeenCalled()
+    expect(mac.dock.fijarInsignia).toHaveBeenCalledWith('1')
+  })
+})

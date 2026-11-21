@@ -47,10 +47,10 @@ describe('catálogo', () => {
     expect(parametrosDe('webm_vp9', 2160)).toEqual({ cpu_used: 8, crf: 34 })
   })
 
-  it('solo las resoluciones de 2160 líneas piden 8 GB', () => {
+  it('solo las resoluciones de 2160 líneas piden 7 GiB', () => {
     expect(Object.keys(MEMORIA_MINIMA)).toHaveLength(8)
-    expect(memoriaMinimaDe(3840, 2160)).toBe(8 * 1024 ** 3)
-    expect(memoriaMinimaDe(2880, 2160)).toBe(8 * 1024 ** 3)
+    expect(memoriaMinimaDe(3840, 2160)).toBe(7 * 1024 ** 3)
+    expect(memoriaMinimaDe(2880, 2160)).toBe(7 * 1024 ** 3)
     expect(memoriaMinimaDe(2560, 1440)).toBeNull()
   })
 

@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FORMATOS, type FormatoId } from '@shared/exportacion'
 import type { Letra } from '@shared/letra'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
+import { MarcaDeAgua } from '../MarcaDeAgua'
 import type { CancionExportable } from './cancion'
 import { EXP, medidas } from './textos'
 import estilos from './exportacion.module.css'
@@ -14,26 +15,11 @@ interface Props {
   formato: FormatoId
 }
 
-/** Marca de agua de la spec 10 con sus valores reales (margen 3 %, cuerpo máx(14 px, 2,2 %)). */
-function MarcaDeAgua({ alto }: { alto: number }) {
-  const cuerpo = Math.max(14, alto * 0.022)
-  const margen = alto * 0.03
-  return (
-    <span
-      data-marca-agua
-      className={estilos.marca}
-      style={{ right: margen, bottom: margen, fontSize: cuerpo }}
-    >
-      Shinobi Karaoke
-    </span>
-  )
-}
-
 /**
  * Fotograma fijo con el estilo de la canción (docs/ux/10, «Muestra»): la primera línea con inicio
  * a medio barrer y la siguiente debajo; sin barrido en «Letra lista». Se pinta a la resolución
  * real del video y se reduce a la anchura disponible, para que las proporciones sean las del
- * video. Decorativa: el formato no la cambia.
+ * video. Decorativa: el formato no la cambia. La marca de agua es la misma del video (0235).
  */
 export function MuestraExportacion({ cancion, ancho, alto, fps, formato }: Props) {
   const caja = useRef<HTMLDivElement>(null)
@@ -87,7 +73,7 @@ export function MuestraExportacion({ cancion, ancho, alto, fps, formato }: Props
               fondoEstatico
             />
           )}
-          <MarcaDeAgua alto={alto} />
+          <MarcaDeAgua />
         </div>
       </div>
       <p className="t-pequeno" data-muestra-resumen>

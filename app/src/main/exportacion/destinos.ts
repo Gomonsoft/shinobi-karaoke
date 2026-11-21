@@ -142,6 +142,28 @@ export class Destinos<V = unknown> {
     return this.emitir(join(carpeta, nombre), formato, recordadaNoDisponible)
   }
 
+  /**
+   * Para «Reintentar» (0133): misma carpeta y nombre que `ruta` (de un trabajo de esta sesión) con la
+   * extensión del formato. Si esa carpeta ya no se puede escribir, el propuesto normal.
+   */
+  async destinoDesdeRuta(
+    ruta: string,
+    cancion: CancionDestino,
+    formato: FormatoId,
+    carpetaRecordada: string | null
+  ): Promise<DestinoIpc> {
+    if (await this.disco.esCarpetaEscribible(dirname(ruta))) {
+      const nombre = this.conExtension(basename(ruta), FORMATOS[formato].extension, true)
+      return this.emitir(join(dirname(ruta), nombre), formato, false)
+    }
+    return this.destinoPropuesto(cancion, formato, carpetaRecordada)
+  }
+
+  /** Ruta de un `destinoId` vigente sin gastarlo (para comprobar `DESTINO_OCUPADO` antes de `consumir`). */
+  rutaDe(destinoId: string): string | null {
+    return this.mirar(destinoId)?.ruta ?? null
+  }
+
   /** Diálogo «Guardar»; `null` si se cancela (el `destinoId` actual sigue vigente). */
   async elegirDestino(destinoId: string, ventana: V): Promise<DestinoIpc | null> {
     const actual = this.mirar(destinoId)
@@ -162,9 +184,13 @@ export class Destinos<V = unknown> {
 
   /** Para `iniciar`: devuelve la ruta y gasta el `destinoId`. Rechaza el caducado o el ya usado. */
   async consumir(destinoId: string): Promise<string> {
-    const e = this.sacar(destinoId)
+    const e = this.mirar(destinoId)
     if (!e) throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
+    // Un destino que ya no se puede usar no se gasta: el usuario puede cambiarlo.
     await this.validar(e.ruta)
+    if (!this.vigentes.delete(destinoId)) {
+      throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
+    }
     return e.ruta
   }
 

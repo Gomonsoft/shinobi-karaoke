@@ -12,7 +12,9 @@ import {
   PROPORCIONES,
   RESULTADOS_EXPORTACION,
   ESTADOS_EXPORTACION,
+  TIPOS_AVISO_EXPORTACION,
   esCombinacionValida,
+  type AvisoExportacionIpc,
   type DestinoIpc,
   type EstimacionExportacionIpc,
   type ExportacionIpc,
@@ -845,16 +847,31 @@ export const iniciarExportacionSchema = z
   .refine(perfilValido, perfilNoValido)
 export type IniciarExportacion = z.infer<typeof iniciarExportacionSchema>
 
-/** `desdeDestinoId`: conserva carpeta y nombre del destino anterior y cambia la extensión (0124). */
-export const destinoPropuestoSchema = z.strictObject({
-  cancionId: idCancionSchema,
-  formato: formatoExportacionSchema,
-  desdeDestinoId: z.uuid().optional()
-})
+/**
+ * `desdeDestinoId`: conserva carpeta y nombre del destino anterior y cambia la extensión (0124).
+ * `desdeTrabajoId`: los del trabajo terminado en esta sesión, para «Reintentar» (0133). Excluyentes.
+ */
+export const destinoPropuestoSchema = z
+  .strictObject({
+    cancionId: idCancionSchema,
+    formato: formatoExportacionSchema,
+    desdeDestinoId: z.uuid().optional(),
+    desdeTrabajoId: z.uuid().optional()
+  })
+  .refine(
+    (p) => p.desdeDestinoId === undefined || p.desdeTrabajoId === undefined,
+    'desdeDestinoId y desdeTrabajoId son excluyentes'
+  )
 export type DestinoPropuestoPeticion = z.infer<typeof destinoPropuestoSchema>
 
 export const elegirDestinoSchema = z.strictObject({ destinoId: z.uuid() })
 export const trabajoExportacionSchema = z.strictObject({ trabajoId: trabajoExportacionIdSchema })
+/** El archivo final de un trabajo, o el temporal que no se pudo borrar de un trabajo o de un aviso. */
+export const mostrarEnCarpetaSchema = z.union([
+  z.strictObject({ trabajoId: trabajoExportacionIdSchema }),
+  z.strictObject({ avisoId: z.uuid() })
+])
+export type MostrarEnCarpetaPeticion = z.infer<typeof mostrarEnCarpetaSchema>
 export const MAX_FOTOGRAMAS = 10_000_000
 export const listoExportacionSchema = z.strictObject({
   trabajoId: trabajoExportacionIdSchema,
@@ -937,8 +954,19 @@ export const exportacionIpcSchema = z.object({
   carpeta: z.string(),
   bytes: z.number().nonnegative().nullable(),
   fotogramas: z.int().nonnegative().nullable(),
-  duracionMs: z.number().nonnegative()
+  duracionMs: z.number().nonnegative(),
+  destinoExistia: z.boolean(),
+  iniciadaEn: z.string().nullable(),
+  terminadaEn: z.string().nullable(),
+  limpiezaFallida: z.boolean()
 }) satisfies z.ZodType<ExportacionIpc>
+
+export const avisoExportacionIpcSchema = z.object({
+  avisoId: z.uuid(),
+  tipo: z.enum(TIPOS_AVISO_EXPORTACION),
+  cancionId: z.string(),
+  titulo: z.string()
+}) satisfies z.ZodType<AvisoExportacionIpc>
 
 export const inicialExportacionSchema = z.object({
   trabajoId: trabajoExportacionIdSchema,
@@ -1167,9 +1195,10 @@ export const CONTRATO = {
   [CANALES.exportacion.cancelar]: { args: z.tuple([trabajoExportacionSchema]), res: z.void() },
   [CANALES.exportacion.estado]: { args: vacio, res: z.array(exportacionIpcSchema) },
   [CANALES.exportacion.mostrarEnCarpeta]: {
-    args: z.tuple([trabajoExportacionSchema]),
+    args: z.tuple([mostrarEnCarpetaSchema]),
     res: z.void()
   },
+  [CANALES.exportacion.avisosPendientes]: { args: vacio, res: z.array(avisoExportacionIpcSchema) },
   [CANALES.exportacion.inicial]: { args: vacio, res: inicialExportacionSchema },
   [CANALES.exportacion.listo]: { args: z.tuple([listoExportacionSchema]), res: z.void() }
 } as const
@@ -1266,7 +1295,7 @@ export interface ApiShinobi {
     /** Las 48 combinaciones con `soportado` y `motivo`; la primera vez espera el sondeo del equipo. */
     perfiles(): Promise<PerfilesIpc>
     estimar(peticion: z.infer<typeof estimarExportacionSchema>): Promise<EstimacionExportacionIpc>
-    /** Con `desdeDestinoId` conserva carpeta y nombre del destino anterior y cambia la extensión. */
+    /** Con `desdeDestinoId` conserva carpeta y nombre del destino anterior; con `desdeTrabajoId`, los del trabajo. */
     destinoPropuesto(peticion: DestinoPropuestoPeticion): Promise<DestinoIpc>
     /** Diálogo «Guardar» del sistema; `null` si se cancela. */
     elegirDestino(destinoId: string): Promise<DestinoIpc | null>
@@ -1275,7 +1304,11 @@ export interface ApiShinobi {
     cancelar(trabajoId: string): Promise<void>
     /** En curso, en cola y terminadas en esta sesión de la app. */
     estado(): Promise<ExportacionIpc[]>
-    mostrarEnCarpeta(trabajoId: string): Promise<void>
+    /** El archivo de un trabajo, o el temporal que no se pudo borrar (de un trabajo o de un aviso). */
+    mostrarEnCarpeta(referencia: MostrarEnCarpetaPeticion): Promise<void>
+    /** Avisos de arranque aún no entregados; cada uno se entrega una sola vez. */
+    avisosPendientes(): Promise<AvisoExportacionIpc[]>
+    alAviso(cb: (aviso: AvisoExportacionIpc) => void): () => void
     alCambiar(cb: (exportacion: ExportacionIpc) => void): () => void
     alProgreso(cb: (progreso: ProgresoExportacionIpc) => void): () => void
   }

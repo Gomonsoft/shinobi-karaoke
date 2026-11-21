@@ -68,7 +68,8 @@ export const CODIGOS_ERROR = [
  * también `CANCION_NO_DISPONIBLE` (comando `exportar`), que por eso deja de ser solo de main. Solo de main:
  * `DESTINO_OCUPADO` (otra exportación usa ese destino), `PERFIL_NO_SOPORTADO` (el equipo no puede crear ese
  * perfil, p. ej. `capturePage` devuelve otro tamaño) y `LIMPIEZA_FALLIDA` (no se pudo borrar el temporal;
- * lleva la ruta para «Mostrar en la carpeta»).
+ * lleva la ruta para «Mostrar en la carpeta»). Desde 0237 `LIMPIEZA_FALLIDA` ya no es el código de un trabajo:
+ * tras cancelar o fallar se indica con `ExportacionIpc.limpiezaFallida` (ADR 0019 §10).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',

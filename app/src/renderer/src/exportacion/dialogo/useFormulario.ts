@@ -63,7 +63,11 @@ function mensajeDe(err: unknown): string {
  * perfiles y las opciones recordadas; aplica las reglas de perfil no soportado; mantiene el
  * destino, la estimación y los anuncios; y lanza la exportación.
  */
-export function useFormulario(cancionId: string, opcionesIniciales?: OpcionesExportacion) {
+export function useFormulario(
+  cancionId: string,
+  opcionesIniciales?: OpcionesExportacion,
+  desdeTrabajoId?: string
+) {
   const [carga, setCarga] = useState<CargaFormulario>({ tipo: 'cargando' })
   const [cancion, setCancion] = useState<CancionExportable | null>(null)
   const [perfiles, setPerfiles] = useState<PerfilesIpc | null>(null)
@@ -145,7 +149,8 @@ export function useFormulario(cancionId: string, opcionesIniciales?: OpcionesExp
         const { opciones: inicial } = normalizar(p, base)
         const d = await api.exportacion.destinoPropuesto({
           cancionId,
-          formato: inicial.formato
+          formato: inicial.formato,
+          ...(desdeTrabajoId ? { desdeTrabajoId } : {})
         })
         if (!activo) return
         setCancion(exportable)

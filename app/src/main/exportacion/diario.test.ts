@@ -30,7 +30,12 @@ describe('DiarioExportacion', () => {
     const d = new DiarioExportacion(raiz)
     await d.escribir(entrada(temporal))
     expect(JSON.parse(await readFile(d.ruta, 'utf8')).titulo).toBe('Mi canción')
-    expect(await d.recuperarAlArrancar()).toEqual({ titulo: 'Mi canción', cancionId: 'c1' })
+    expect(await d.recuperarAlArrancar()).toEqual({
+      titulo: 'Mi canción',
+      cancionId: 'c1',
+      temporal,
+      limpiezaFallida: false
+    })
     await expect(stat(temporal)).rejects.toThrow()
     await expect(stat(d.ruta)).rejects.toThrow()
     expect(await d.recuperarAlArrancar()).toBeNull()
@@ -39,7 +44,20 @@ describe('DiarioExportacion', () => {
   it('avisa aunque el temporal ya no exista', async () => {
     const d = new DiarioExportacion(raiz)
     await d.escribir(entrada(join(raiz, 'no-esta')))
-    expect(await d.recuperarAlArrancar()).toEqual({ titulo: 'Mi canción', cancionId: 'c1' })
+    expect(await d.recuperarAlArrancar()).toMatchObject({ cancionId: 'c1', limpiezaFallida: false })
+  })
+
+  it('si el temporal no se puede borrar lo indica y el diario se borra igual', async () => {
+    const temporal = join(raiz, '.a.mkv.12345678.shinobi-parcial')
+    const d = new DiarioExportacion(raiz, {
+      borrarArchivo: async (ruta) => {
+        if (ruta === temporal) throw new Error('EBUSY')
+        await rm(ruta, { force: true })
+      }
+    })
+    await d.escribir(entrada(temporal))
+    expect(await d.recuperarAlArrancar()).toMatchObject({ temporal, limpiezaFallida: true })
+    await expect(stat(d.ruta)).rejects.toThrow()
   })
 
   it('borrar elimina el diario', async () => {

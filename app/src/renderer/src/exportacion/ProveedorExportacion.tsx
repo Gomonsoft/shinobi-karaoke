@@ -11,6 +11,7 @@ import { Boton } from '../componentes/Boton'
 import { Dialogo } from '../componentes/Dialogo'
 import { mostrarToast } from '../componentes/gestorToasts'
 import estilosComponentes from '../componentes/componentes.module.css'
+import type { AvisoExportacionIpc } from '@shared/exportacion'
 import { ExportacionContexto, type ContextoExportacion, type PeticionExportacion } from './contexto'
 import { DialogoExportacion } from './dialogo/DialogoExportacion'
 import { EXP_ANUNCIO, EXP_PROGRESO, EXP_TOAST } from './dialogo/textosProgreso'
@@ -68,7 +69,6 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
   const [dialogo, setDialogo] = useState<PeticionExportacion | null>(null)
   const [cancelar, setCancelar] = useState<string | null>(null)
   const [anuncio, setAnuncio] = useState('')
-  const [existentes, setExistentes] = useState<ReadonlySet<string>>(() => new Set())
   const avisados = useRef(new Set<string>())
   const dialogoRef = useRef(dialogo)
   const exportacionesRef = useRef(exportaciones)
@@ -86,9 +86,9 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
     setDialogo({ ...peticion, trabajoId: peticion.trabajoId ?? activa?.trabajoId })
   }, [])
 
-  const mostrarEnCarpeta = useCallback(async (trabajoId: string) => {
+  const mostrarEnCarpeta = useCallback(async (ref: { trabajoId: string } | { avisoId: string }) => {
     try {
-      await window.shinobi.exportacion.mostrarEnCarpeta(trabajoId)
+      await window.shinobi.exportacion.mostrarEnCarpeta(ref)
     } catch {
       mostrarToast({ tipo: 'aviso', mensaje: EXP_TOAST.noExiste })
     }
@@ -105,7 +105,7 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
             mensaje: EXP_TOAST.ok(e.titulo),
             accion: {
               etiqueta: EXP_PROGRESO.mostrar,
-              alAccionar: () => void mostrarEnCarpeta(e.trabajoId)
+              alAccionar: () => void mostrarEnCarpeta({ trabajoId: e.trabajoId })
             }
           })
           break
@@ -133,24 +133,39 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
             mensaje: EXP_TOAST.limpieza,
             accion: {
               etiqueta: EXP_PROGRESO.mostrar,
-              alAccionar: () => void mostrarEnCarpeta(e.trabajoId)
-            }
-          })
-          break
-        case 'interrumpida':
-          // Aviso único por exportación, sin diálogo de fallo (0132).
-          if (avisados.current.has(e.trabajoId)) return
-          avisados.current.add(e.trabajoId)
-          mostrarToast({
-            tipo: 'aviso',
-            mensaje: EXP_TOAST.interrumpida(e.titulo),
-            accion: {
-              etiqueta: EXP_TOAST.exportar,
-              alAccionar: () => abrir({ cancionId: e.cancionId })
+              alAccionar: () => void mostrarEnCarpeta({ trabajoId: e.trabajoId })
             }
           })
           break
       }
+    },
+    [abrir, mostrarEnCarpeta]
+  )
+
+  /** Avisos de arranque (0132): no son trabajos. Cada `avisoId` se muestra una sola vez. */
+  const avisarDeArranque = useCallback(
+    (a: AvisoExportacionIpc) => {
+      if (avisados.current.has(a.avisoId)) return
+      avisados.current.add(a.avisoId)
+      if (a.tipo === 'interrumpida') {
+        mostrarToast({
+          tipo: 'aviso',
+          mensaje: EXP_TOAST.interrumpida(a.titulo),
+          accion: {
+            etiqueta: EXP_TOAST.exportar,
+            alAccionar: () => abrir({ cancionId: a.cancionId })
+          }
+        })
+        return
+      }
+      mostrarToast({
+        tipo: 'aviso',
+        mensaje: EXP_TOAST.limpieza,
+        accion: {
+          etiqueta: EXP_PROGRESO.mostrar,
+          alAccionar: () => void mostrarEnCarpeta({ avisoId: a.avisoId })
+        }
+      })
     },
     [abrir, mostrarEnCarpeta]
   )
@@ -179,11 +194,11 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
       const actual = buscar(nueva.trabajoId)
       if (!actual) return
       anunciar(hitoDe(previa, actual, textosHito))
-      const aviso = clasificarAviso(previa, nueva)
-      if (!aviso) return
       // Con la ventana sin foco los toasts esperan a que vuelva (como los de la spec 04).
-      if (document.hasFocus()) avisar(aviso, actual)
-      else pendientes.push({ aviso, e: actual })
+      for (const aviso of clasificarAviso(previa, nueva)) {
+        if (document.hasFocus()) avisar(aviso, actual)
+        else pendientes.push({ aviso, e: actual })
+      }
     }
     const alProgreso: Parameters<typeof api.alProgreso>[0] = (p) => {
       const antes = buscar(p.trabajoId)
@@ -196,18 +211,29 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
       pendientes = []
       lista.forEach(({ aviso, e }) => avisar(aviso, e))
     }
-    const bajas = [api.alCambiar(alCambiar), api.alProgreso(alProgreso)]
+    const bajas = [
+      api.alCambiar(alCambiar),
+      api.alProgreso(alProgreso),
+      api.alAviso(avisarDeArranque)
+    ]
     window.addEventListener('focus', alFoco)
     void api.estado().then(
       (lista) => almacen.inicial(lista),
       () => undefined
     )
+    // Un aviso emitido antes de suscribirse no se pierde: main lo guarda hasta que se pide.
+    void Promise.resolve()
+      .then(() => api.avisosPendientes())
+      .then(
+        (lista) => lista.forEach(avisarDeArranque),
+        () => undefined
+      )
     return () => {
       bajas.forEach((baja) => baja())
       window.removeEventListener('focus', alFoco)
       clearTimeout(temporizador)
     }
-  }, [almacen, avisar])
+  }, [almacen, avisar, avisarDeArranque])
 
   const valor = useMemo<ContextoExportacion>(
     () => ({
@@ -216,8 +242,7 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
         exportaciones.find((e) => e.cancionId === cancionId && e.estado !== 'terminada'),
       abrir,
       cerrar: () => setDialogo(null),
-      iniciada: (trabajoId, cancionId, existia) => {
-        if (existia) setExistentes((s) => new Set(s).add(trabajoId))
+      iniciada: (trabajoId, cancionId) => {
         setDialogo({ cancionId, trabajoId })
         // El evento de cambio puede llegar después de la respuesta de `iniciar`.
         void window.shinobi.exportacion.estado().then(
@@ -225,7 +250,6 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
           () => undefined
         )
       },
-      existia: (trabajoId) => existentes.has(trabajoId),
       pedirCancelar: (trabajoId) => {
         const e = exportacionesRef.current.find((x) => x.trabajoId === trabajoId)
         if (!e || e.estado === 'terminada') return
@@ -236,7 +260,7 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
         } else setCancelar(trabajoId)
       }
     }),
-    [exportaciones, existentes, abrir, almacen]
+    [exportaciones, abrir, almacen]
   )
 
   const cancelando = cancelar ? exportaciones.find((e) => e.trabajoId === cancelar) : undefined
@@ -254,7 +278,7 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
       {dialogo && <DialogoExportacion peticion={dialogo} alCerrar={() => setDialogo(null)} />}
       {cancelando && (
         <DialogoCancelarExportacion
-          existia={existentes.has(cancelando.trabajoId)}
+          existia={cancelando.destinoExistia}
           alSeguir={() => setCancelar(null)}
           alConfirmar={() => {
             setCancelar(null)
