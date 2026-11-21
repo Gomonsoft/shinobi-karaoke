@@ -10,7 +10,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 2 | Regiones editables, bucle, zoom y picos de voz | Implementada · [informe](informe-fase-2.md) |
 | 2.1 | Estabilización del editor y paneles adaptables | Cerrada · [informe](informe-fase-2.1.md) |
 | 3 | Temas y agrupación de biblioteca | Implementada · [informe](informe-fase-3.md) |
-| 4 | Ventana secundaria y cola | En curso · [backlog](backlog.md#fase-4--ventana-secundaria-y-cola) |
+| 4 | Ventana secundaria y cola | Implementada · [informe](informe-fase-4.md) |
 | 5 | Degradados, ayudas de espera, Letra lista y ajuste de silencios | En curso · [backlog](backlog.md#fase-5--estilo-espera-letra-lista-y-ajuste-de-silencios) |
 | 6 | Exportación de video | Desglosada · prueba técnica hecha ([ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)) · [backlog](backlog.md#fase-6--exportación) |
 

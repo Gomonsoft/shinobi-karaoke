@@ -98,7 +98,7 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 | [0187 · Tarjetas y menús](../../tareas/0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) | Hecha | 0183, 0184 | «A la cola», ⋯ de Lista, toasts, línea de cola, bloqueos de la tarjeta |
 | [0188 · Ajustes › Reproductor](../../tareas/0188-ajustes-cuenta-entre-canciones.md) | Hecha | 0177 | Selector «Cuenta entre canciones» |
 | [0189 · Salir con sesión o cola](../../tareas/0189-salir-de-la-app-con-sesion-o-cola.md) | Hecha | 0181, 0183 | `ses.salir`, variante con trabajos y variante de macOS |
-| [0190 · Pruebas de integración, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Pendiente | 0177–0189 | Una spec `sesion-flujo` (≤ 4 pruebas), capturas, CI en verde, guía manual ejecutada por el usuario e informe |
+| [0190 · Pruebas de integración, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Hecha (el cierre formal espera a la guía manual) | 0177–0189 | `sesion-flujo` (4 pruebas), 40 capturas, CI en verde e [informe](informe-fase-4.md); la guía manual la ejecuta el usuario |
 
 **Decisiones.**
 

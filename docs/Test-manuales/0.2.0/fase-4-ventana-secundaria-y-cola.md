@@ -169,6 +169,18 @@ Correcciones posteriores a la primera versión de esta guía. Repite cada una tr
 | 11.3 | Repite con «Cerrar y eliminar cola» (eliminar la cola) estando en otra cosa | Igual: el foco **no salta** al botón. Si no hiciste nada, el foco sí puede volver a «Abrir en otra pantalla…» (comportamiento normal) | ☐ |
 | 11.4 | **Solo en Windows**, con la app **empaquetada** (instalada con el instalador, no `npm run dev`): ábrela | La app **arranca** y muestra la **Biblioteca** (el preload carga). No queda una ventana en blanco ni un error; si fallara, la Biblioteca aparecería vacía o sin botones | ☐ |
 
+### 12. Criterios sin prueba automática (informe de la fase 4)
+
+Criterios de la spec: S17, E5, S12 y S16. El informe los marca «sin evidencia» o parciales.
+
+| # | Paso | Resultado esperado | OK |
+|---|---|---|---|
+| 12.1 | Con la ventana a 1024 × 576 y el panel «Cola de reproducción» abierto, mira la Biblioteca | Las tarjetas quedan en 2 columnas y no aparece scroll horizontal (S17) | ☐ |
+| 12.2 | Abre una canción en el Editor, cambia un tiempo y un color del estilo, y sin guardar vuelve a la Biblioteca y abre el reproductor en la otra pantalla | Los cambios del editor quedan guardados antes de que empiece la canción: al cerrar el reproductor y reabrir el editor siguen ahí (E5) | ☐ |
+| 12.3 | Con canciones en cola, cierra el reproductor eligiendo «Cerrar y conservar cola» | El foco queda en «Abrir en otra pantalla…» del panel (S12) | ☐ |
+| 12.4 | Con el panel de la cola enfocado, pulsa letras sueltas (p. ej. `s`, `n`) y recorre el panel con Tab | Ninguna letra suelta ejecuta acciones; el foco nunca desaparece (S16) | ☐ |
+| 12.5 | Arrastra con el ratón una canción pendiente a otra posición, también hasta los bordes de una lista larga | La canción se mueve a donde la sueltas y la lista se desplaza sola en los bordes; la canción que suena no se interrumpe (S5) | ☐ |
+
 ## Ejecuciones
 
 | Fecha | Persona | Equipo y SO | Pantallas / audio | Resultado | Notas |

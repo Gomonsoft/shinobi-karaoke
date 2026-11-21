@@ -1,6 +1,6 @@
 # 0190 — Pruebas de integración, capturas e informe de la fase 4
 
-- Estado: En curso
+- Estado: Hecha (el cierre formal de la fase espera a la guía manual)
 - Paso del pipeline: 4 y 6
 - Depende de: [0177](0177-contratos-compartidos-de-sesion-cola-y-roles.md)–[0189](0189-salir-de-la-app-con-sesion-o-cola.md)
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §13 (estrategia de pruebas), [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-4), [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-4)
@@ -81,3 +81,9 @@ Actualizar el estado de la fase en [plan-2](../versiones/0.2.0/plan-2.md) y en e
 - No se comprueba que la secundaria esté dentro de la pantalla 2 simulada: con una sola pantalla real macOS la recoloca (x = 0). La colocación la cubre `ventanaSecundaria.test.ts`; con pantallas reales, la guía manual.
 - `app/e2e/sesion-capturas.spec.ts` (opt-in, `SHINOBI_CAPTURAS_4=1`): guion corregido y ejecutado; las 40 capturas están en `docs/ux/revision-fase-4/` (ver su README: cómo se llega a `cuenta`, `espera` y `reanudada`, y cierre con `app.exit(0)` porque `app.close()` se cuelga con sesión abierta). Las de P16 a 1920x1080 quedan limitadas por la pantalla de esta Mac (macOS limita `setContentSize`; salen recortadas): para tomarlas completas hace falta un monitor de al menos 1080 px de alto. Sin defectos de la app nuevos. Detalle de pruebas: `app.close()` de Playwright se cuelga con una sesión o cola abiertas porque salir pide confirmación (comportamiento previsto, ADR 0017); `sesion-flujo.spec.ts` y `sesion-capturas.spec.ts` cierran ahora con `app.exit(0)`, y `sesion-flujo` vuelve a pasar (4/4).
 - Defectos de código de features: ninguno encontrado.
+
+### Informe y estado (2026-11-20)
+
+- Informe escrito: [informe-fase-4](../versiones/0.2.0/informe-fase-4.md), con S1–S18, P1–P16, E1–E8 y AR1–AR4 trazados. CI en verde (run 44855351917, commit `b6ed411`: 6 trabajos; E2E en Ubuntu 187 correctos y 20 omitidos). Criterios sin evidencia: S17 y E5.
+- Plan y backlog actualizados (fase 4: «Implementada»).
+- **Estado «Hecha», pero el cierre formal de la fase espera a la guía manual**: la [guía](../Test-manuales/0.2.0/fase-4-ventana-secundaria-y-cola.md) no se ha ejecutado, así que el criterio «guía manual ejecutada por el usuario» y las medidas (latencia, desviación de la cuenta, memoria, cortes en 30 min) siguen pendientes. Falta además reconfirmar el verde del CI sobre el HEAD final de `alpha-2`.
