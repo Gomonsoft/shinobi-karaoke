@@ -6,6 +6,7 @@ sin escribir fuera de `temporal`; en cualquier error el temporal se borra.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import os
 import sys
@@ -157,18 +158,23 @@ def _traducir(e: BaseException, fotograma: int) -> ErrorWorker:
 def exportar(args: dict[str, Any], entrada: BinaryIO | None = None) -> None:
     """`entrada` solo se inyecta en las pruebas; por defecto es el stdin binario."""
     cfg = _validar(args)
-    estado = {"fotograma": 0}
+    estado: dict[str, Any] = {"fotograma": 0, "salida": None}
     try:
         resultado = _exportar(cfg, entrada, estado)
     except BaseException as e:
-        cfg["temporal"].unlink(missing_ok=True)
+        # En Windows no se puede borrar un archivo abierto: se cierra el contenedor antes.
+        if estado["salida"] is not None:
+            with contextlib.suppress(Exception):
+                estado["salida"].close()
+        with contextlib.suppress(OSError):
+            cfg["temporal"].unlink(missing_ok=True)
         if isinstance(e, KeyboardInterrupt | SystemExit):
             raise
         raise _traducir(e, estado["fotograma"]) from e
     protocolo.resultado(resultado)
 
 
-def _exportar(cfg: dict[str, Any], entrada: BinaryIO | None, estado: dict[str, int]) -> dict:
+def _exportar(cfg: dict[str, Any], entrada: BinaryIO | None, estado: dict[str, Any]) -> dict:
     import av
 
     ancho, alto, fps, total = cfg["ancho"], cfg["alto"], cfg["fps"], cfg["total"]
@@ -184,6 +190,7 @@ def _exportar(cfg: dict[str, Any], entrada: BinaryIO | None, estado: dict[str, i
         entrada = getattr(sys.stdin.buffer, "raw", sys.stdin.buffer)
 
     salida = av.open(str(temporal), mode="w", format=contenedor)
+    estado["salida"] = salida
     opciones = _opciones(cfg["formato"], cfg["parametros"])
     video = salida.add_stream(codec, rate=Fraction(fps), options=opciones)
     video.width, video.height = ancho, alto
@@ -256,6 +263,7 @@ def _exportar(cfg: dict[str, Any], entrada: BinaryIO | None, estado: dict[str, i
     for paquete in sonido.encode(None):
         salida.mux(paquete)
     salida.close()
+    estado["salida"] = None
     with temporal.open("r+b") as f:
         os.fsync(f.fileno())
     return _verificar(temporal, cfg)
