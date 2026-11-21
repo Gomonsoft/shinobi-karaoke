@@ -186,3 +186,172 @@ it('reparte el avance de una palabra partida dentro de su propia ventana', () =>
   expect(recorte(segunda!)).not.toContain('24px')
   expect(recorte(tercera!)).toBe('inset(100%)')
 })
+
+// --- Fase 5: fondo en movimiento, indicadores de espera y modo sin barrido ---
+
+const conHueco = letra([
+  linea('a', 'Nubes de sal', 2000, { fin_ms: 4000 }),
+  linea('b', 'Cantan al viento', 12_000)
+])
+
+function estiloFase5(movimiento = false) {
+  const estilo = estiloPredeterminado()
+  if (movimiento && estilo.fondo.tipo === 'degradado') {
+    estilo.fondo.movimiento = { periodo_s: 30, sentido: 'horario' }
+  }
+  estilo.espera = {
+    puntos: true,
+    barra: true,
+    cuenta: true,
+    primera_entrada: true,
+    umbral_ms: 4000
+  }
+  return estilo
+}
+
+function montar(ui: (reloj: () => number) => React.ReactElement) {
+  const pendientes: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => pendientes.push(fn))
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+  const t = { ms: 0 }
+  const vista = render(ui(() => t.ms))
+  return {
+    ...vista,
+    en(ms: number) {
+      t.ms = ms
+      act(() => pendientes.shift()!(ms))
+    }
+  }
+}
+
+it('R6, R7, R10 y R11: barra, cuenta y un único anuncio por hueco', () => {
+  const anuncios: number[] = []
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={conHueco}
+      estilo={estiloFase5()}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+      alAnunciarEspera={(n) => anuncios.push(n)}
+    />
+  ))
+  const raiz = pantalla.container.firstElementChild as HTMLElement
+  pantalla.en(3000)
+  expect(anuncios).toEqual([])
+  pantalla.en(4000)
+  expect(anuncios).toEqual([8])
+  expect(raiz.style.getPropertyValue('--k-fraccion')).toBe('0')
+  expect(pantalla.container.querySelector('[data-indicador=barra]')).toHaveAttribute(
+    'aria-hidden',
+    'true'
+  )
+  expect(pantalla.container.querySelector('[data-indicador=cuenta]')).toBeNull()
+  pantalla.en(8000)
+  expect(raiz.style.getPropertyValue('--k-fraccion')).toBe('0.5')
+  pantalla.en(9500)
+  expect(pantalla.container.querySelector('[data-indicador=cuenta]')).toHaveTextContent('3')
+  pantalla.en(10_500)
+  expect(pantalla.container.querySelector('[data-indicador=cuenta]')).toHaveTextContent('2')
+  expect(anuncios).toEqual([8])
+  pantalla.en(12_000)
+  expect(pantalla.container.querySelector('[data-indicador]')).toBeNull()
+})
+
+it('R10: con movimiento reducido el número no lleva animación', () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={conHueco}
+      estilo={estiloFase5()}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+    />
+  ))
+  pantalla.en(10_500)
+  const cuenta = pantalla.container.querySelector('[data-indicador=cuenta]')!
+  expect(cuenta).toHaveTextContent('2')
+  expect(cuenta.classList.contains(estilos.entraNumero!)).toBe(false)
+})
+
+it('R5: los indicadores no son hijos de ninguna línea', () => {
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={conHueco}
+      estilo={estiloFase5()}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+    />
+  ))
+  pantalla.en(10_500)
+  const barra = pantalla.container.querySelector('[data-indicador=barra]')!
+  const cuenta = pantalla.container.querySelector('[data-indicador=cuenta]')!
+  expect(barra.parentElement).toBe(pantalla.container.firstElementChild)
+  expect(cuenta.parentElement).toBe(pantalla.container.firstElementChild)
+})
+
+it('R12: sin barrido no hay capa de resaltado y los indicadores usan el color de la letra', () => {
+  const lineaPorPalabras = {
+    ...linea('a', 'Una dos', 2000, { fin_ms: 4000 }),
+    palabras: [
+      { texto: 'Una', inicio_ms: 2000, fin_ms: 3000 },
+      { texto: 'dos', inicio_ms: 3000, fin_ms: 4000 }
+    ]
+  }
+  const pantalla = montar((reloj) => (
+    <PantallaLetra
+      {...props}
+      letra={letra([lineaPorPalabras, linea('b', 'Cantan', 12_000)])}
+      estilo={estiloFase5()}
+      barrido={false}
+      reproduciendo
+      obtenerTiempoAudio={reloj}
+    />
+  ))
+  pantalla.en(3000)
+  expect(pantalla.container.querySelector(`.${estilos.resaltado}`)).toBeNull()
+  expect(pantalla.container.querySelector('[data-barrido]')).toBeNull()
+  expect(pantalla.container.querySelector('[data-linea=a]')).toHaveTextContent('Una dos')
+  expect(pantalla.container.firstElementChild!.classList.contains(estilos.sinBarrido!)).toBe(true)
+  const fija = render(<PantallaLetra {...props} barrido={false} reproduciendo={false} />)
+  expect(fija.container.querySelector(`.${estilos.resaltado}`)).toBeNull()
+})
+
+it('R2, R3 y G2: el fondo se mueve con el reloj de audio, y no con movimiento reducido', () => {
+  const montarFondo = (extra = {}) =>
+    montar((reloj) => (
+      <PantallaLetra
+        {...props}
+        letra={conHueco}
+        estilo={estiloFase5(true)}
+        reproduciendo
+        obtenerTiempoAudio={reloj}
+        {...extra}
+      />
+    ))
+  const fondo = (c: HTMLElement) =>
+    (c.firstElementChild as HTMLElement).style.getPropertyValue('--k-fondo')
+  const cero = fondo(render(<PantallaLetra {...props} reproduciendo={false} />).container)
+  const base = montarFondo()
+  base.en(0)
+  const a = fondo(base.container)
+  base.en(7500)
+  const b = fondo(base.container)
+  expect(b).not.toBe(a)
+  expect(b).toContain('225deg')
+  base.unmount()
+
+  const fijo = montarFondo({ fondoEstatico: true })
+  fijo.en(7500)
+  expect(fondo(fijo.container)).toContain('135deg')
+  fijo.unmount()
+
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+  const reducido = montarFondo()
+  reducido.en(7500)
+  expect(fondo(reducido.container)).toContain('135deg')
+  // Sin movimiento (estilo de 0.1.0) el CSS es el de siempre.
+  expect(cero).toContain('135deg')
+})

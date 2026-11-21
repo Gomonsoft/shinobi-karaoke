@@ -1,6 +1,6 @@
 # 0213 — Pantalla de letra: fondo en movimiento, indicadores de espera y modo sin barrido
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0204](0204-geometria-del-fondo-y-css-de-los-tres-degradados.md), [0206](0206-derivacion-de-los-comodines-de-espera-en-el-fotograma.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §2, §3 y §5, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-5), [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-5)
@@ -54,3 +54,21 @@ Que el render compartido (vista previa del editor, reproductor local, secundaria
 - Manual (guía de la fase): legibilidad de la cuenta y la barra a 5 m en una TV y un proyector, fluidez en un equipo modesto con la secundaria y que el movimiento no maree.
 
 ## Notas de implementación
+
+Implementada en `app/src/renderer/src/karaoke/`.
+
+- `PantallaLetra.tsx`: props nuevas `barrido` (por defecto `true`), `fondoEstatico` (por defecto `false`) y `alAnunciarEspera(segundos)`.
+  - **Fondo**: en el mismo `requestAnimationFrame` que el barrido se escribe `--k-fondo` con `fondoCssEn(fondo, tAudio)`. Solo si hay movimiento y no hay `fondoEstatico`, movimiento reducido ni documento oculto. Con el componente en pausa (`reproduciendo=false`) se pinta una vez con el tiempo de audio actual. La limpieza del efecto restaura la fase 0.
+  - **Indicadores**: la barra (variable `--k-fraccion`, ancho `40 % × (1 − fraccion)`) y la cuenta son hijos directos de la raíz, absolutos y `aria-hidden`; los puntos siguen sobre la línea siguiente. Color `--k-indicador` (= `color_resaltado`, o `color` con `.sinBarrido`).
+  - **Sin barrido**: no hay `Barrido` ni capa `.resaltado`, tampoco por palabras ni en `fotogramaEstatico`.
+  - **Anuncio**: una vez por cambio de `espera.clave` en huecos de 2 s o más que no son la primera entrada. El bucle solo corre con `reproduciendo`, así que no hay anuncios en pausa. La clave se olvida al salir del hueco, por lo que volver a entrar al buscar la anuncia otra vez.
+- `useMovimientoReducido.ts` movido a `karaoke/`; el antiguo de `sesion/` lo reexporta.
+- `pantallaLetra.module.css`: `.barra`, `.cuentaEspera`, `.entraNumero` (150 ms, sin animación con movimiento reducido) y `.sinBarrido`.
+- Pruebas: `PantallaLetra.test.tsx` (R2, R3, R5, R6, R7, R10, R11, R12, G2). En jsdom no hay layout: R5 y R6 se comprueban por estructura (indicadores fuera de las líneas) y por la variable `--k-fraccion` (0, 0,5, 1). Las coordenadas y los píxeles reales quedan para el E2E de 0219.
+
+**Cómo extender (0235, `tiempoFijoMs`)**: el pintado del fondo está aislado en `pintarFondo(tAudioMs)` y el resto del fotograma sale de `fotogramaEn(letra, tAudio − offset)`. Con un tiempo fijo basta llamar a ambos una vez en el efecto, sin `requestAnimationFrame`.
+
+**Desviaciones y deuda**
+- El anuncio se entrega por callback porque la raíz es `aria-hidden`. El contenedor debe cablear `alAnunciarEspera` con `rep.espera.aria` en su región `aria-live` (el del Reproductor ya existe, en `Reproductor.tsx`). Eso queda para 0216; no se tocó `Reproductor.tsx`.
+- Con `reproduciendo=false` el fondo no sigue las búsquedas hasta que cambie una dependencia del efecto (lo cubrirá `tiempoFijoMs` en 0235).
+- Verificación manual: legibilidad de la cuenta y la barra a 5 m, fluidez en un equipo modesto con la secundaria y que el movimiento no maree.
