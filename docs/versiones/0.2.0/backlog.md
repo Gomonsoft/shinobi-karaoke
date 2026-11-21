@@ -244,9 +244,9 @@ Resumen: render por índice de fotograma en una ventana offscreen con el mismo `
 | [0235 · Render por fotograma](../../tareas/0235-render-por-fotograma-y-marca-de-agua.md) | Pendiente | 0230, 0234, 0204, 0206, 0213 | `PantallaLetra` con `tiempoFijoMs`, animaciones por fotograma, anfitrión y marca de agua |
 | [0236 · Destinos y diario](../../tareas/0236-destinos-temporal-y-diario-de-exportacion.md) | Hecha | 0230 | Destino en main, temporal junto al destino, `rename`, limpieza y diario tras caída |
 | [0237 · Servicio e IPC](../../tareas/0237-servicio-de-exportacion-e-ipc.md) | Pendiente | 0231–0234, 0236, 0202, 0203 | `ServicioExportacion`: cola, perfiles, instantánea, orquestación, cancelación, suspensión, cierre e IPC |
-| [0238 · Diálogo: formulario](../../tareas/0238-dialogo-de-exportacion-formulario.md) | Pendiente | 0230 | A, E y F con formato, perfiles no soportados, destino, estimación, notas y muestra |
-| [0239 · Progreso y resultado](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) | Pendiente | 0238 | Estado de exportaciones, B–D, toasts y anuncios |
-| [0240 · Puntos de entrada](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) | Pendiente | 0239 | Biblioteca, editor (Ctrl/Cmd + E), panel de actividad, eliminar y cierre |
+| [0238 · Diálogo: formulario](../../tareas/0238-dialogo-de-exportacion-formulario.md) | Hecha | 0230 | A, E y F con formato, perfiles no soportados, destino, estimación, notas y muestra |
+| [0239 · Progreso y resultado](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) | Hecha | 0238 | Estado de exportaciones, B–D, toasts y anuncios |
+| [0240 · Puntos de entrada](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) | Hecha | 0239 | Biblioteca, editor (Ctrl/Cmd + E), panel de actividad, eliminar y cierre |
 | [0241 · Integración, capturas e informe](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) | Pendiente | 0230–0240 | `exportacion.spec.ts` (≤ 3 pruebas), capturas opt-in, informe |
 
 **Paralelismo.**
