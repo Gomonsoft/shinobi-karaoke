@@ -55,7 +55,7 @@ for (const [ancho, alto] of [
                 crear(o: unknown): Promise<{
                   lista: Promise<void>
                   pintar(n: number): Promise<void>
-                  capturar(): Promise<Buffer>
+                  capturar(): Promise<{ imagen: Buffer; asentada: boolean; intentos: number }>
                   destruir(): void
                 }>
               }
@@ -68,7 +68,7 @@ for (const [ancho, alto] of [
             try {
               await ventana.lista
               await ventana.pintar(0)
-              const bytes = await ventana.capturar()
+              const { imagen: bytes } = await ventana.capturar()
               return { longitud: bytes.length, pixel: [...bytes.subarray(0, 4)] }
             } finally {
               ventana.destruir()
