@@ -4,7 +4,7 @@
 - Paso del pipeline: 4–6
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, [0005](../adr/0005-letras-y-formato-de-sincronia.md#revisión-para-020--fase-5), [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md) §4
-- Spec UX: no aplica al modelo. Los indicadores nuevos (barra y cuenta) se pintan en 0213 con la spec.
+- Spec UX: [07 · Indicadores de espera](../ux/07-reproductor.md#indicadores-de-espera) (R6–R9 en el modelo). Los indicadores nuevos (barra y cuenta) se pintan en 0213.
 
 ## Objetivo
 
@@ -21,7 +21,7 @@ Calcular en el modelo puro del render qué ayudas de espera tocan en cada instan
     puntos: 0 | 1 | 2 | 3,       // 0 si la casilla está desactivada o restante > 3000
     cuenta: 1 | 2 | 3 | null,    // null si la casilla está desactivada o restante > 3000
     barra: boolean,              // casilla activada
-    clave: string                // cambia al empezar la espera y en cada dígito
+    clave: string                // identifica el hueco (`origen:destino`); solo cambia al empezar una espera
   } | null
   ```
 
@@ -34,7 +34,7 @@ Calcular en el modelo puro del render qué ayudas de espera tocan en cada instan
 
   Con `ninguna casilla activa`, el resultado es `null`.
 - **`fotogramaEstatico`**: `espera: null`.
-- **Adaptación mínima de `PantallaLetra.tsx`**: pinta los puntos a partir de `fotograma.espera?.puntos` con el mismo marcado de hoy. **No** añade barra ni cuenta, que corresponden a 0213. Lo que dependa de `f.puntos` (por ejemplo, `claveTransicion`) pasa a usar `espera?.clave`.
+- **Adaptación mínima de `PantallaLetra.tsx`**: pinta los puntos a partir de `fotograma.espera?.puntos` con el mismo marcado de hoy. **No** añade barra ni cuenta, que corresponden a 0213. La comparación que hoy hace con `f.puntos` para volver a pintar pasa a comparar `espera?.puntos` y `espera?.cuenta`. `clave` no cambia por dígito.
 
 ## Archivos
 
@@ -47,6 +47,7 @@ Calcular en el modelo puro del render qué ayudas de espera tocan en cada instan
 - [ ] Con un hueco de 2 s (umbral 1000) la cuenta empieza en 2.
 - [ ] Sin siguiente no hay espera. Con `primera_entrada: false` no hay espera inicial.
 - [ ] Mismo `t` tras buscar, igual fotograma.
+- [ ] `clave` es la misma durante todo un hueco, aunque cambien los dígitos, y distinta en el hueco siguiente. Necesario para el anuncio único de la spec 07, R11.
 - [ ] Las pruebas existentes de `render.test.ts` y `PantallaLetra.test.tsx` pasan, adaptadas solo en el nombre del campo.
 
 ## Pruebas de feedback

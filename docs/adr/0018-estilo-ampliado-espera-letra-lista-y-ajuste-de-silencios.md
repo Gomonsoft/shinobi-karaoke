@@ -125,7 +125,7 @@ Opciones **1A, 2A, 3A, 4A, 5A y 6A**.
   - radial: `radial-gradient(circle farthest-corner at <x>% <y>%, <paradas>)`;
   - cónico: `conic-gradient(from <ángulo>deg at <x>% <y>%, <paradas>, <color de la primera parada> 100%)`.
 
-  **Cierre del cónico**: se añade al final el color de la primera parada en el 100 %, así que el tramo entre la última parada y el 100 % funde hacia el primer color (cierre suave). Si la última parada está en 1, el cierre es una costura nítida entre los dos colores. La interpolación es en sRGB, la de CSS por defecto para colores hexadecimales, la misma que usa `contraste.ts`.
+  **Cierre del cónico**: se añade al final el color de la primera parada en el 100 %, así que el tramo entre la última parada y el 100 % funde hacia el primer color (cierre suave). Si la última parada está en 1, el cierre es una costura nítida entre los dos colores. El editor reparte las paradas del cónico en i/n (0, 1/n, …, (n−1)/n) para que el tramo de cierre mida lo mismo que los demás (spec 06 · G). Es una regla de la interfaz: el esquema solo exige posiciones no decrecientes en [0, 1] y no cambia. La interpolación es en sRGB, la de CSS por defecto para colores hexadecimales, la misma que usa `contraste.ts`.
 - **Geometría en función del tiempo**: es una función pura, `geometriaFondoEn(fondo, tAudioMs, { estatico })`, que devuelve `{ anguloGrados, centro }`, en `renderer/src/karaoke/fondo.ts`. Al exportar se ejecuta en la misma página.
   - `fase = ((t mod P) + P) mod P / P`, con `P = periodo_s × 1000` y `t` el **tiempo de audio** de la posición de reproducción, sin el `offset_ms` de la letra e incluido el silencio previo negativo del reproductor. Así el mismo instante da la misma fase en editor, reproductor y exportación, sin depender del desplazamiento de la letra.
   - `θ = 2π × fase × s`, con `s = +1` en sentido horario y `−1` en antihorario.
@@ -155,7 +155,7 @@ Opciones **1A, 2A, 3A, 4A, 5A y 6A**.
   - `barra`: `fraccion = (t − origen) / (destino − origen)`, que termina exactamente en el inicio siguiente.
 
   Las tres casillas se combinan.
-- **Fotograma**: `FotogramaLetra` sustituye `puntos` por `espera: { origenMs, destinoMs, restanteMs, fraccion, primera, puntos: 0|1|2|3, cuenta: 1|2|3|null, barra: boolean, clave } | null`. `clave` cambia al empezar la espera y en cada dígito, y la vista la usa para anunciar hitos sin anunciar cada segundo. La configuración llega en el contexto del render desde el **estilo resuelto** (`normalizarEstilo(estilo).espera`).
+- **Fotograma**: `FotogramaLetra` sustituye `puntos` por `espera: { origenMs, destinoMs, restanteMs, fraccion, primera, puntos: 0|1|2|3, cuenta: 1|2|3|null, barra: boolean, clave } | null`. `clave` identifica el hueco (`origen:destino`) y **solo cambia al empezar una espera** (o al saltar a otro hueco al buscar). La vista la usa para el único anuncio por hueco; los cambios de dígito se leen en `cuenta` y `puntos` (revisión del 2026-11-20). La configuración llega en el contexto del render desde el **estilo resuelto** (`normalizarEstilo(estilo).espera`).
 - **Posición del texto**: los indicadores se pintan en huecos reservados con posicionamiento absoluto, fuera del flujo de la letra. Mostrarlos u ocultarlos no mueve el texto ni invalida la geometría de renglones de la fase 1.
 - **Colores**: se usan solo el color de letra y el de resaltado, así que el aviso de contraste (§4) los cubre.
 - **Movimiento reducido**: sin transiciones de entrada ni salida. La presentación concreta (por ejemplo, la barra por pasos) la decide la spec.
@@ -375,6 +375,15 @@ Según [`pruebas.md`](../pruebas.md): Vitest primero y E2E solo para integració
   - Insignia y aviso de primera activación de «Letra lista».
   - Botón con aviso y recuentos para «Ajustar los silencios».
   - Restricciones y textos pendientes en [0101](../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md).
+
+## Revisiones
+
+- 2026-11-20 (specs de la fase 5 y respuesta a [0101](../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md)):
+  - **`espera.clave`**: identifica el hueco y solo cambia al empezar una espera, no en cada dígito. La spec 07 (R11) anuncia una vez por hueco. Afecta a la tarea 0206, que aún no ha empezado.
+  - **Cónico**: el editor reparte las paradas en i/n (G4). No cambia ni el esquema ni `fondoCss`; el cierre suave añadido en el 100 % ya da un tramo de cierre igual a los demás.
+  - **Velocidad**: la interfaz ofrece Lenta, Media y Rápida (`periodo_s` 60, 30 y 15) y siempre guarda `sentido: "horario"`. Un antihorario guardado se respeta. Ninguno de los dos cambia el esquema (10–120 s).
+  - **Barra**: la spec la pinta encogiéndose, con un ancho de `40 % × (1 − fraccion)`. Se usa la misma `fraccion`.
+  - **Activación de la cuenta** al ajustar los silencios: la spec confirma la opción A de [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) §1.
 
 ## Fuentes
 

@@ -2,7 +2,7 @@
 
 - Estado: Pendiente
 - Paso del pipeline: 6
-- Depende de: fase 4 integrada; tipos de la fase 5 que amplían `estilo` y añaden `modalidad` ([ADR 0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1 y §5, tareas de la fase 5 del rango 0200–0229 que tocan `shared/estilo.ts` y `shared/cancion.ts`)
+- Depende de: fase 4 integrada; [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md) y [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md) de la fase 5 (estilo ampliado y `cancion.modalidad`, [ADR 0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1 y §5)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §5, §6, §10 y §11, [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-6), [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-6)
 - Spec UX: [10 · Exportar a video](../ux/10-exportacion.md) (catálogo, nombre propuesto, códigos de error)
 

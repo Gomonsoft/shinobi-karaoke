@@ -108,3 +108,13 @@ Ventana secundaria, sesión en vivo y cola. Fecha: 2026-11-11. El detalle está 
 - **Silencio de la principal.** Durante una sesión, main silencia la principal con `webContents.setAudioMuted(true)` como garantía de un único audio.
 - **Dobles de prueba.** `SHINOBI_PANTALLAS_SIMULADAS` y su puerto de pruebas en main solo existen sin empaquetar, como los demás `SHINOBI_*`.
 - **Nota sobre la fase 3.** La restricción «con roles de ventana, `temas.*` y `guardarApariencia` solo desde la principal» queda aplicada por `ROLES_POR_CANAL`.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Tercer rol, `exportacion`**: una ventana offscreen por exportación, creada y destruida por main, con entrada `renderer/exportacion.html` (misma CSP) y preload `preload/exportacion.ts`, que expone solo `window.shinobiExportacion` (`inicial`, `listo` y el evento `exportacion:fotograma`). `sandbox`, `contextIsolation`, sin `nodeIntegration`, silenciada, zoom 1 y toda navegación bloqueada. El remitente se comprueba por rol, *frame*, origen, ruta `/exportacion.html` y `trabajoId` vigente (§10).
+- **Canales de la principal**: `exportacion.perfiles`, `estimar`, `destinoPropuesto`, `elegirDestino`, `iniciar`, `cancelar`, `estado` y `mostrarEnCarpeta`, con Zod y catálogos cerrados (no se aceptan dimensiones libres).
+- **Rutas**: el renderer nunca envía una ruta. El destino se elige con `dialog.showSaveDialog` en main y se referencia con un `destinoId` de un solo uso. Main rechaza destinos dentro del directorio de datos. «Mostrar en la carpeta» usa `shell.showItemInFolder` con la ruta que guarda main.
+- **Permisos**: no cambian. **Medios**: la ventana de exportación comparte origen pero no pide `shinobi-media://` (el audio lo lee el worker).
+- **Dobles**: `SHINOBI_EXPORTACION_PERFIL_PRUEBA` solo sin empaquetar.

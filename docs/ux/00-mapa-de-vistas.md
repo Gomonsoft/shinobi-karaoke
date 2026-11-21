@@ -76,7 +76,7 @@ flowchart LR
 ### 0.2.0, fase 5 · Estilo, espera y Letra lista
 No hay vistas nuevas. Cambios dentro de las existentes ([06](06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista), [07](07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista), [02](02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista)):
 - **Editor › Estilo**: forma del degradado (lineal, radial, cónico), centro, movimiento con velocidad; sección «Indicadores de espera» (puntos, barra, cuenta 3·2·1, silencio mínimo, «Cambiar solo en esta canción», «Ver un ejemplo»). Bajo la vista previa, «Detener el movimiento del fondo».
-- **Editor › Sincronía**: «Espera antes de esta línea» en el panel C; «Ajustar los silencios» en la fila de la línea de tiempo (y en el menú ⋯).
+- **Editor › Sincronía**: «Ajustar los silencios» en la fila de la línea de tiempo (y en el menú ⋯). La elección de indicadores hueco a hueco no entra en esta fase (propuesta 015).
 - **Editor › dock**: «Marcar como letra lista» junto a «Marcar como lista»; menú ⋯ con «Cambiar a «Letra lista»…» / «Cambiar a «Lista»».
 - **Reproductor** (local y secundaria): fondo en movimiento ligado a la canción, indicadores de espera en los huecos y modo Letra lista sin barrido.
 - **Biblioteca**: insignia «Letra lista» (cuenta como Lista: mismo filtro, acciones y cola).

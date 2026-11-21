@@ -560,3 +560,12 @@ Escenarios:
 - Electron, seguridad (validar el remitente de IPC, limitar la navegación): https://www.electronjs.org/docs/latest/tutorial/security
 - Node.js `performance.now()` (reloj monotónico): https://nodejs.org/api/perf_hooks.html#performancenow
 - Decisiones de producto: [0048](../preguntas/0048-escucha-editor-durante-evento.md), [0049](../preguntas/0049-politica-cola-de-reproduccion.md). Discusión: [R1](../versiones/0.2.0/discusion/r1-arquitecto.md), [R2](../versiones/0.2.0/discusion/r2-arquitecto.md), [R4](../versiones/0.2.0/discusion/r4-arquitecto.md).
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Convivencia**: se puede exportar durante una sesión y abrir una sesión durante una exportación (§9). La ventana de exportación está silenciada y fuera de pantalla, así que la secundaria sigue siendo el único audio; el worker y el renderer offscreen corren con prioridad baja.
+- **Sin bloqueo**: no se crea `EXPORTACION_BLOQUEADA`. Si la guía manual mostrara cortes, se añadiría un bloqueo por perfil con una revisión del ADR 0019.
+- `hayAlgoEnCurso` cuenta también las exportaciones en curso o en cola. En macOS, cerrar la ventana principal no detiene la exportación.
+- `RegistroVentanas` gana el rol `exportacion` (ADR 0008, revisión de fase 6).

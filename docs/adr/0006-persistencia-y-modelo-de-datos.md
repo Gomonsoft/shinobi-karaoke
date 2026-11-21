@@ -314,3 +314,11 @@ Estilo ampliado, espera, Letra lista y ajuste de silencios. Fecha: 2026-11-20. E
 - **Comparaciones**: cualquier igualdad de estilos (`estilosIguales`, portada neutra, nombre del primer tema) compara la forma normalizada (`normalizarEstilo`), para que un estilo sin los campos nuevos sea igual a uno con sus valores por defecto explícitos.
 - **Pérdida aceptada**: si 0.1.0 reescribe una canción, descarta estos campos. Al volver a 0.2.0 se leen con su valor por defecto. Es la misma regla que `apariencia`.
 - «Ajustar los silencios» no añade datos: escribe `fin_ms` con `letras.guardarTiempos` y, si activa la cuenta, la espera con `guardarApariencia`.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **`config.exportacion`**: `{ formato, audio, proporcion, ancho, alto, fps, carpeta, factor_corrector }`, todos opcionales y con lectura tolerante por campo. Lo escribe solo main al aceptar una exportación (recordar opciones, provisional [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §5) y al terminarla (`factor_corrector`, entre 0,25 y 8). No entra en `configParcialRendererSchema`.
+- **Diario** `exportacion/en-curso.json` en el directorio de datos, con escritura atómica: `{ trabajoId, cancionId, titulo, temporal, destino, inicio }`. Existe solo mientras hay una exportación en curso; al arrancar, si existe, main borra el temporal y avisa una vez (§6).
+- La exportación **no escribe** en `cancion.json` ni en `biblioteca/`: la instantánea vive en memoria y los destinos dentro del directorio de datos se rechazan (único escritor).

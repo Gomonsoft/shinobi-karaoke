@@ -2,8 +2,8 @@
 
 - Estado: Pendiente
 - Paso del pipeline: 6
-- Depende de: [0230](0230-contratos-compartidos-de-la-exportacion.md), [0234](0234-ventana-offscreen-de-exportacion-y-rol.md); tareas de la fase 5 que crean `geometriaFondoEn` (`karaoke/fondo.ts`), `FotogramaLetra.espera` y `barrido={false}` en `PantallaLetra` ([ADR 0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §2, §3 y §5; rango 0200–0229)
-- ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §2, [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-6), [0005](../adr/0005-letras-y-formato-de-sincronia.md#revisión-020--fase-6-exportación)
+- Depende de: [0230](0230-contratos-compartidos-de-la-exportacion.md), [0234](0234-ventana-offscreen-de-exportacion-y-rol.md); de la fase 5, [0204](0204-geometria-del-fondo-y-css-de-los-tres-degradados.md) (`geometriaFondoEn`), [0206](0206-derivacion-de-los-comodines-de-espera-en-el-fotograma.md) (`FotogramaLetra.espera`) y [0213](0213-pantalla-de-letra-fondo-en-movimiento-indicadores-y-sin-barrido.md) (`PantallaLetra` con fondo por fotograma y `barrido={false}`) ([ADR 0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §2, §3 y §5). Toca el mismo `PantallaLetra.tsx` que 0213: empieza cuando 0213 esté integrada
+- ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §2, [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-6), [0005](../adr/0005-letras-y-formato-de-sincronia.md#revisión-para-020--fase-6)
 - Spec UX: [10](../ux/10-exportacion.md) §«Qué contiene el video» y §«Marca de agua»; [sistema visual](../ux/sistema-visual.md#020--exportación-de-video-fase-6)
 
 ## Objetivo

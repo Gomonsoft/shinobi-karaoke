@@ -144,7 +144,15 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 
 ## Fase 5 · Estilo, espera, Letra lista y ajuste de silencios
 
-Decisión en el [ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md), con revisiones de fase 5 en 0005, 0006, 0010, 0011, 0015 y 0016. Rama de trabajo: `alpha-2`. La **primera ola** (0200–0210) no depende de las specs UX y puede empezar ya. Las tareas con interfaz (0211–0219) están reservadas: se completarán cuando las specs incorporen la [pregunta 0101](../../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md).
+Decisión en el [ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md), con revisiones de fase 5 en 0005, 0006, 0010, 0011, 0015 y 0016 y la revisión del 2026-11-20, que adapta el ADR a las specs. Rama de trabajo: `alpha-2`. La **primera ola** (0200–0210) no depende de la interfaz. Las tareas con interfaz (0211–0219) siguen las specs de la fase 5:
+
+- [06 · Editor](../../ux/06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista): G1–G12, IE1–IE7, LL1–LL8 y AS1–AS9;
+- [07 · Reproductor](../../ux/07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista): R1–R14;
+- [02 · Biblioteca](../../ux/02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista): LB1–LB7;
+- [sistema visual](../../ux/sistema-visual.md#020--estilo-espera-y-letra-lista-fase-5);
+- respuesta de UX a [0101](../../preguntas/0101-contratos-de-la-fase-5-para-las-specs.md).
+
+Ajustes no cambia en esta fase. Preguntas al usuario: [0100](../../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) y [0110](../../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md), ninguna de las dos bloquea.
 
 | Tarea | Estado | Depende de | Entrega |
 |---|---|---|---|
@@ -156,47 +164,69 @@ Decisión en el [ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-a
 | [0205 · Peor contraste por tramos](../../tareas/0205-peor-contraste-por-tramos-y-cierre-conico.md) | Pendiente | 0200 | 9 muestras por tramo y cierre del cónico |
 | [0206 · Comodines en el fotograma](../../tareas/0206-derivacion-de-los-comodines-de-espera-en-el-fotograma.md) | Pendiente | 0200 | `espera` en `FotogramaLetra`; puntos legados idénticos; adaptación mínima de `PantallaLetra` |
 | [0207 · Detección de voz y propuesta](../../tareas/0207-deteccion-de-voz-y-propuesta-de-ajuste-de-silencios.md) | Pendiente | 0200 | `shared/silencios.ts` con picos sintéticos |
-| [0208 · Nivel base de picos](../../tareas/0208-lectura-del-nivel-base-de-picos-en-el-editor.md) | Pendiente | — | `vistas/editor/picosBase.ts` sobre `picos.leer` |
+| [0208 · Nivel base de picos](../../tareas/0208-lectura-del-nivel-base-de-picos-en-el-editor.md) | Hecha | — | `vistas/editor/picosBase.ts` sobre `picos.leer` |
 | [0209 · Historial: reemplazos y ajuste](../../tareas/0209-historial-del-editor-reemplazos-y-ajustar-silencios.md) | Pendiente | 0201, 0207 | `reemplazos` en `AparienciaEditor`; acciones `espera` y `ajustar_silencios` (un paso) |
 | [0210 · Calibración de silencios](../../tareas/0210-herramienta-de-calibracion-del-ajuste-de-silencios.md) | Pendiente | 0207 | `app/scripts/calibrar-silencios.ts`, de solo lectura, para las 6 canciones del usuario |
-| 0211 · Editor: degradados | Reservada (spec) | 0200, 0204, 0205 | Controles de forma, ángulo, centro y movimiento; detener la vista previa; aviso de contraste |
-| 0212 · Editor: indicadores de espera | Reservada (spec) | 0202, 0203, 0209 | Sección de espera, umbral, herencia y personalización, y ejemplo |
-| 0213 · Pantalla de letra: fondo en movimiento, indicadores y sin barrido | Reservada (spec) | 0204, 0206 | Fondo por fotograma con movimiento reducido, barra y cuenta en huecos reservados, anuncios y `barrido={false}` |
-| 0214 · Editor: Letra lista | Reservada (spec) | 0203, 0213 | «Marcar como letra lista», motivos, aviso de la primera activación y cambio de modalidad |
-| 0215 · Editor: «Ajustar los silencios» | Reservada (spec) | 0208, 0209 | Botón, motivos, aviso con recuentos, aplicar y deshacer; E2E en `editor.spec.ts` |
-| 0216 · Reproductor, sesión y «Probar»: modalidad y movimiento | Reservada (spec) | 0203, 0213 | `barrido` según la modalidad y el estilo con espera en reproductor local, secundaria y prueba |
-| 0217 · Biblioteca: Letra lista | Reservada (spec) | 0203 | Insignia, filtro y acciones de Letra lista |
-| 0218 · Temas y Ajustes | Reservada (spec) | 0202 | Lo que pida la spec: impacto con espera personalizada y procedencia en temas |
-| 0219 · Integración, guía manual e informe | Reservada | 0200–0218 | E2E mínimos, CI en verde, guía manual (degradados, movimiento reducido, comodines a distancia y calibración) e informe |
+| [0211 · Editor: degradados](../../tareas/0211-editor-controles-de-degradado-y-movimiento.md) | Pendiente | 0200, 0204, 0205 (0213 para G7/G8) | Forma, cuadrícula de centro, ángulo de inicio, reparto i/n del cónico, movimiento con velocidad, «Detener el movimiento» y resumen D1/D4 (G1–G11) |
+| [0212 · Editor: indicadores de espera](../../tareas/0212-editor-indicadores-de-espera.md) | Pendiente | 0202, 0203, 0209, 0213 | Sección «Indicadores de espera», umbral, «Cambiar solo en esta canción» o «Usar los del tema», D3 y «Ver un ejemplo» (IE1–IE7) |
+| [0213 · Pantalla de letra](../../tareas/0213-pantalla-de-letra-fondo-en-movimiento-indicadores-y-sin-barrido.md) | Pendiente | 0204, 0206 | Fondo por fotograma con movimiento reducido o detenido, barra y cuenta en posiciones reservadas, anuncio por hueco y `barrido={false}` (R2, R3, R5–R12) |
+| [0214 · Editor: Letra lista](../../tareas/0214-editor-letra-lista.md) | Pendiente | 0201, 0203 | Botón en el dock, popover, diálogo de la primera activación, insignias, cambio de modalidad en ⋯ y contraste informativo (LL1–LL7) |
+| [0215 · Editor: «Ajustar los silencios»](../../tareas/0215-editor-ajustar-los-silencios.md) | Pendiente | 0207, 0208, 0209 | Botón en la línea de tiempo y en ⋯, motivos, diálogo con recuentos y lista, recálculo, toast y resalte; un E2E en `editor.spec.ts` (AS1–AS8) |
+| [0216 · Reproductor, sesión y «Probar»](../../tareas/0216-reproductor-sesion-y-probar-modalidad-y-movimiento.md) | Pendiente | 0203, 0213 | `barrido` según la modalidad en el reproductor local, la secundaria y «Probar»; fondo quieto en S1, S2 y S4 (R1–R4, R12, R13, LL8) |
+| [0217 · Biblioteca: Letra lista](../../tareas/0217-biblioteca-insignia-letra-lista.md) | Pendiente | 0201 (dobles), 0203 | Insignia, aria, filtro *Listas*, toast de vuelta y portadas en fase 0 (LB1–LB6) |
+| [0218 · Capturas de revisión](../../tareas/0218-capturas-de-revision-de-la-fase-5.md) | Pendiente | 0211–0217 | `e2e/fase5-capturas.spec.ts` *opt-in* (F5-1, R14 y LB7). Sustituye a la reserva «Temas y Ajustes», que no hace falta |
+| [0219 · Integración, guía e informe](../../tareas/0219-integracion-guia-manual-e-informe-de-la-fase-5.md) | Pendiente | 0200–0218 | `e2e/fase5.spec.ts` (≤ 4 pruebas), CI, casos de la guía manual para `qa`, calibración e informe |
 
-Quedan libres 0220–0229 para ajustes que surjan de las specs o de las preguntas [0100](../../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) y 0101.
+Quedan libres 0220–0229 para ajustes que salgan de las respuestas a 0100 y 0110 o de la calibración.
 
-**Paralelismo (primera ola).**
+**Paralelismo.**
 
-1. 0200 va primero, salvo 0208, que puede empezar ya.
-2. Con 0200 integrada pueden avanzar a la vez cuatro líneas:
-   - **contratos y main**: 0201 → 0202 → 0203, en secuencia porque comparten `shared/temas.ts` y la cola de apariencia;
-   - **render**: 0204, 0205 y 0206, en paralelo entre sí porque tocan archivos distintos de `karaoke/`;
-   - **silencios**: 0207 → 0210;
-   - **editor**: 0208 en paralelo con todo.
-3. 0209 espera a 0201 y a 0207.
+1. **Primera ola**:
+   - 0200 primero; 0208 ya está hecha;
+   - después, cuatro líneas a la vez:
+     - **contratos y main**: 0201 → 0202 → 0203;
+     - **render**: 0204, 0205 y 0206 en paralelo;
+     - **silencios**: 0207 → 0210;
+     - **historial**: 0209, que espera a 0201 y 0207.
+2. **Interfaz**, a medida que se integran sus dependencias:
+   - **render compartido**: 0213, en cuanto estén 0204 y 0206. Es el cuello de botella de 0211 (G7/G8), 0212 y 0216;
+   - **editor**: 0211, 0214 y 0215 pueden avanzar en paralelo como componentes nuevos. 0212 espera a 0209 y 0213, y se integra en `PanelEstilo.tsx` después de 0211;
+   - **reproductor y biblioteca**: 0216 tras 0213 y 0203. 0217 en paralelo con cualquier otra tarea, contra dobles de 0201.
+3. **Cierre**: 0218 (capturas) tras 0211–0217, y después 0219.
 
 **Propiedad de archivos.**
 
-- `shared/estilo.ts`, `shared/espera.ts`, `shared/__fixtures__/estilo-0.1.0.ts` y `estilosIguales`: solo 0200.
-- `shared/{cancion,config,ipc,sesion,derivados}.ts`, `aparienciaSchema` de `shared/temas.ts`, `shared/__fixtures__/` (resumen y sesión) y `preload/`: solo 0201.
-- `resolverApariencia` de `shared/temas.ts`, `main/temas/**` y `main/biblioteca/resumen.ts`: 0202.
-- `main/biblioteca/{servicio,operaciones}.ts`, los manejadores de `marcarLista` y `guardarApariencia` y la entrada activa de `main/sesion/servicio.ts`: 0203.
-- `karaoke/{fondo,estiloCss}.ts`: 0204.
-- `karaoke/contraste.ts`: 0205.
-- `karaoke/render.ts` y el cambio mínimo de `PantallaLetra.tsx`: 0206. El resto de `PantallaLetra.tsx` es de 0213.
-- `shared/silencios.ts` y `shared/__fixtures__/picos.ts`: 0207.
-- `vistas/editor/picosBase.ts`: 0208.
-- `vistas/editor/{estado,guardado}.ts`: 0209.
-- `app/scripts/calibrar-silencios.ts` y la entrada en `package.json`: 0210.
-- `e2e/`: ninguna tarea de la primera ola añade E2E.
+- **Primera ola**:
+  - `shared/estilo.ts`, `shared/espera.ts`, `shared/__fixtures__/estilo-0.1.0.ts` y `estilosIguales`: solo 0200;
+  - `shared/{cancion,config,ipc,sesion,derivados}.ts`, `aparienciaSchema` de `shared/temas.ts`, los dobles de resumen y sesión en `shared/__fixtures__/` y `preload/`: solo 0201;
+  - `resolverApariencia` de `shared/temas.ts`, `main/temas/**` y `main/biblioteca/resumen.ts`: 0202;
+  - `main/biblioteca/{servicio,operaciones}.ts`, los manejadores de `marcarLista` y `guardarApariencia` y la entrada activa de `main/sesion/servicio.ts`: 0203;
+  - `karaoke/{fondo,estiloCss}.ts`: 0204;
+  - `karaoke/contraste.ts`: 0205;
+  - `karaoke/render.ts` y el cambio mínimo de `PantallaLetra.tsx`: 0206;
+  - `shared/silencios.ts` y `shared/__fixtures__/picos.ts`: 0207;
+  - `vistas/editor/picosBase.ts`: 0208;
+  - `vistas/editor/{estado,guardado}.ts`: 0209;
+  - `app/scripts/calibrar-silencios.ts`: 0210.
+- **Interfaz**:
+  - `karaoke/PantallaLetra.tsx`, `pantallaLetra.module.css` y `karaoke/useMovimientoReducido.ts`: 0213;
+  - `vistas/editor/estilo/{ControlesFondo,paradas}`: 0211;
+  - `vistas/editor/estilo/{SeccionEspera,ejemploEspera}`: 0212;
+  - `vistas/editor/{BotonLista,BotonLetraLista,DialogoLetraLista}`: 0214;
+  - `vistas/editor/silencios/**` y `PistaSincronia.tsx` (botón y resalte): 0215;
+  - `vistas/reproductor/**`: 0216;
+  - `vistas/biblioteca/{TarjetaCancion,tarjeta}` y los textos de la Biblioteca: 0217.
+- **Archivos compartidos**, en pocas líneas por tarea y por orden de integración:
+  - `vistas/editor/PanelEstilo.tsx`: 0211 → 0212 → 0214 (solo la presentación del aviso de contraste);
+  - `vistas/editor/Editor.tsx`: 0211 (botón «Detener») → 0214 (dock, cabecera y ⋯) → 0215 (ítem de ⋯) → 0216 (modalidad en «Probar»);
+  - `vistas/editor/textos.ts`: cada tarea añade su bloque (`edi.fondo.*`, `edi.espera.*`, `edi.letraLista.*` y `edi.silencios.*`), en el mismo orden;
+  - `Biblioteca.tsx`: solo 0217 (toast de vuelta).
+- **`e2e/`**:
+  - 0215 añade una prueba en `editor.spec.ts`;
+  - 0218, `fase5-capturas.spec.ts` (*opt-in*);
+  - 0219, `fase5.spec.ts`.
 
-**Verificación.** Pruebas de feedback según [pruebas.md](../../pruebas.md): Vitest con picos sintéticos y la copia congelada del esquema de 0.1.0. Los críticos se ejecutan en las tareas que tocan `shared/` o `main/`. Lo visual, el movimiento reducido del sistema y la calibración con canciones reales van a la guía manual de la fase (0219).
+**Verificación.** Pruebas de feedback según [pruebas.md](../../pruebas.md): Vitest con picos sintéticos, la copia del esquema de 0.1.0 y el render con reloj simulado. Los críticos se ejecutan en las tareas que tocan `shared/`, `main/`, el dock de «Marcar como lista» o el reproductor. Lo visual, la distancia, el hardware modesto, las dos pantallas, el movimiento reducido del sistema y la calibración con canciones reales van a la guía manual que escribe `qa` (lista de casos en 0219).
 
 ## Fases siguientes
 
@@ -204,7 +234,7 @@ Quedan libres 0220–0229 para ajustes que surjan de las specs o de las pregunta
 |---|---|---|
 | 3 | Temas y agrupación de biblioteca | Desglosada arriba (0163–0176), con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) y [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) |
 | 4 | Ventana secundaria y cola | Desglosada arriba (0177–0190), con [0048](../../preguntas/0048-escucha-editor-durante-evento.md), [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) y [0058](../../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)–[0061](../../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) |
-| 5 | Degradados, comodines, Letra lista y ajuste de silencios | Desglosada arriba: primera ola 0200–0210 e interfaz reservada en 0211–0219 ([ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)) |
+| 5 | Degradados, comodines, Letra lista y ajuste de silencios | Desglosada arriba: 0200–0219 (primera ola 0200–0210, interfaz 0211–0219) ([ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)) |
 | 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
 
 La [publicación pendiente del MVP](../../tareas/0142-primera-version-publica.md) sigue en la hoja de ruta.

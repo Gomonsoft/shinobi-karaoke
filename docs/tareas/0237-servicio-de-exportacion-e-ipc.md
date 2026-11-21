@@ -2,7 +2,7 @@
 
 - Estado: Pendiente
 - Paso del pipeline: 6
-- Depende de: [0231](0231-worker-comando-exportar.md), [0232](0232-capacidades-de-exportacion-y-licencias-de-codecs.md), [0233](0233-cliente-del-worker-con-tuberia-y-bucle-de-fotogramas.md), [0234](0234-ventana-offscreen-de-exportacion-y-rol.md), [0236](0236-destinos-temporal-y-diario-de-exportacion.md)
+- Depende de: [0231](0231-worker-comando-exportar.md), [0232](0232-capacidades-de-exportacion-y-licencias-de-codecs.md), [0233](0233-cliente-del-worker-con-tuberia-y-bucle-de-fotogramas.md), [0234](0234-ventana-offscreen-de-exportacion-y-rol.md), [0236](0236-destinos-temporal-y-diario-de-exportacion.md); de la fase 5, [0202](0202-resolucion-de-apariencia-con-reemplazos-de-espera.md) y [0203](0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md) (estilo resuelto con reemplazos y `modalidad` para la instantánea)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §1, §3, §5, §8–§11, [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md#revisión-para-020--fase-6)
 - Spec UX: [10](../ux/10-exportacion.md) (estados, errores, varias exportaciones, interacción con otras acciones, cierre de la app)
 
