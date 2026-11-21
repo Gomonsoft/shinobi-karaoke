@@ -1,6 +1,6 @@
 # 0208 — Lectura del nivel base de picos en el editor
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: fase 2 (picos) integrada; sin dependencias de la fase 5
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §6.2, [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md#revisión-para-020--fase-5)
@@ -42,3 +42,11 @@ Obtener en el renderer el nivel base completo (bloques de 10 ms) de la caché de
 - Manual: nada.
 
 ## Notas de implementación
+
+- Se creó `picosBase.ts` con `leerPicosBase(api, cancionId, duracionMs, { signal })` y `olvidarPicosBase()`. Es una función pura sobre `api.picos` y no toca main, preload ni el contrato.
+- Lee ventanas de 40 960 ms con presupuesto de 4096 bloques. Valida `pasoMs === 10` y `primerBloque === k × 4096`. Decodifica los pares int16 little-endian y concatena en un `Int16Array`.
+- La generación se compara con la de `solicitar`. Si cambia, reintenta una vez y después devuelve `generando`.
+- Memo a nivel de módulo por `cancionId:generacion`. Sirve para 0209 y 0215, y `olvidarPicosBase()` lo vacía.
+- Si se aborta, devuelve `{ estado: 'error' }` sin leer más. Es una elección provisional, porque el contrato no fija el resultado de abortar.
+- Pruebas: `picosBase.test.ts` (8 casos). Sin E2E ni manual.
+- Deuda: ninguna.
