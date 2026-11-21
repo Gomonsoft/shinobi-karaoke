@@ -300,6 +300,9 @@ it('una búsqueda fuera del bucle conserva su destino', async () => {
 it('recarga una visita desactualizada en pausa, vacía historial y no reintenta', async () => {
   const { fallar, llamadas } = montar(cancionSincronizadaLrclib())
   const primero = await screen.findByRole('option', { name: /^Línea 1,/ })
+  // Los atajos se registran en un efecto pasivo (useAtajosEditor): bajo carga caen después de que
+  // aparezca la línea y la tecla se perdía (~10 % con 8 procesos en paralelo).
+  await act(async () => {})
   fallar('letras.guardarTiempos', 'LETRA_DESACTUALIZADA')
   fireEvent.keyDown(primero, { key: '.' })
   // Esperar a que React aplique el cambio: en la CI de Linux la aserción

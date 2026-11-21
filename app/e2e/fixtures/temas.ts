@@ -16,6 +16,7 @@ import {
   TEMA_NOCHE_NINJA,
   TEMA_SOL
 } from '../../src/main/biblioteca/semilla'
+import { salirSinConfirmar } from '../salir'
 import { crearTemporal } from '../temporales'
 import { idSemilla, lanzar } from './editor'
 import { leerCancion } from './separacion'
@@ -146,7 +147,10 @@ export async function conTemas(
     await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
     await prueba(v, datos, app)
   } finally {
-    await app.close().catch(() => undefined)
+    // Sin `app.close()`: con un borrador o un guardado pendiente main pide confirmación al cerrar y,
+    // si la prueba falló con un diálogo abierto, nadie contesta: se agota el tiempo y el error real
+    // queda enmascarado («1 error was not a part of any test»). Regla 8 de docs/pruebas.md.
+    await salirSinConfirmar(app)
   }
 }
 
