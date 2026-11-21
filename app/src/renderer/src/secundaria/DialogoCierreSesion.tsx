@@ -8,9 +8,12 @@ import { SES } from './textos'
  * Se monta solo mientras `cierrePendiente.origen === 'secundaria'`.
  */
 export function DialogoCierreSesion({
+  pendientes,
   alConfirmar,
   alCancelar
 }: {
+  /** Número de canciones pendientes («Quedan {n} canciones»). */
+  pendientes: number
   /** Rechaza con `CONFIRMACION_OBSOLETA` si la cola cambió desde la revisión del estado. */
   alConfirmar(cola: 'eliminar' | 'conservar'): Promise<void>
   alCancelar(): void
@@ -48,7 +51,7 @@ export function DialogoCierreSesion({
         </>
       }
     >
-      <p id={idCuerpo}>{SES.cierre.cuerpo}</p>
+      <p id={idCuerpo}>{SES.cierre.cuerpo(pendientes)}</p>
       {obsoleto && <p role="alert">{SES.cierre.obsoleto}</p>}
     </Dialogo>
   )

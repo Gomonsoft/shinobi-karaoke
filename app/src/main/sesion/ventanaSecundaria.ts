@@ -258,16 +258,15 @@ export function abrirSecundaria(
     alCaer(cb) {
       ventana.webContents.on('render-process-gone', ((_e: unknown, detalles: { reason: string }) =>
         cb(detalles?.reason ?? 'desconocido')) as never)
-      // Una recarga del documento (no la carga inicial) también termina la sesión (ADR 0017 §3).
+      // Una recarga del documento (no la carga inicial) también termina la sesión (ADR 0017 §3). Se
+      // detecta al confirmarse la navegación (`did-navigate`): `did-start-navigation` también salta
+      // con una navegación que `bloquearNavegacionTotal` cancela, y esa no recarga nada.
       let cargada = false
       ventana.webContents.on('did-finish-load', (() => {
         cargada = true
       }) as never)
-      ventana.webContents.on('did-start-navigation', ((detalles: {
-        isMainFrame: boolean
-        isSameDocument: boolean
-      }) => {
-        if (cargada && detalles.isMainFrame && !detalles.isSameDocument) cb('recarga')
+      ventana.webContents.on('did-navigate', (() => {
+        if (cargada) cb('recarga')
       }) as never)
     },
     alNoResponder: (cb) => void ventana.webContents.on('unresponsive', cb as never),

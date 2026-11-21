@@ -158,14 +158,20 @@ function secundaria(extra: Partial<EstadoSecundariaIpc> = {}): EstadoSecundariaI
     revision: 1,
     sesionId: SESION_ID,
     fase: 'transicion',
-    candidata: { titulo: 'Canción 2', artista: 'Artista 2', estilo: estiloPredeterminado() },
+    candidata: {
+      entradaId: uuid(2),
+      titulo: 'Canción 2',
+      artista: 'Artista 2',
+      estilo: estiloPredeterminado()
+    },
+    activa: null,
     transicion: {
       transicionId: TRANSICION_ID,
       restanteMs: 3000,
       duracionMs: 4000,
       congelada: false
     },
-    hayPendientes: true,
+    pendientes: 2,
     cierrePendiente: null,
     motivoFallo: null,
     ...extra
@@ -185,8 +191,9 @@ export const estadoS3 = (extra: Partial<EstadoSecundariaIpc> = {}): EstadoSecund
   secundaria({
     fase: 'fin_de_cola',
     candidata: null,
+    activa: { entradaId: uuid(1), titulo: 'Canción 1', artista: 'Artista 1' },
     transicion: null,
-    hayPendientes: false,
+    pendientes: 0,
     ...extra
   })
 
@@ -195,7 +202,9 @@ export const estadoS4 = (extra: Partial<EstadoSecundariaIpc> = {}): EstadoSecund
   secundaria({
     fase: 'error',
     candidata: null,
+    activa: { entradaId: uuid(1), titulo: 'Canción 1', artista: 'Artista 1' },
     transicion: null,
+    pendientes: 1,
     motivoFallo: 'sin_pistas',
     ...extra
   })

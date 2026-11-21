@@ -1,6 +1,6 @@
 # 0181 — Servicio de sesión e IPC en main
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6 (y 4 por el bloqueo)
 - Depende de: [0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md), [0180](0180-pantallas-ventana-secundaria-pantalla-completa-y-reposo.md)
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §3–§9 y §11, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-4), [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-4), [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-4)
@@ -72,3 +72,55 @@ Integrar la máquina de [0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md) 
 - [ ] E2E mínimo (`e2e/sesion-main.spec.ts`) con pantallas simuladas: abrir, recibir `cargar` en la secundaria e informar `fin` dos veces da una sola cuenta. Esto se comprueba en `sesion:estado`.
 
 ## Notas de implementación
+
+### Qué se hizo
+
+- `main/sesion/servicio.ts` (nuevo): `ServicioSesion` con la máquina de 0178. Cada evento pasa por una cadena de promesas y `reducir` con reloj inyectable. Ejecuta los efectos:
+  - `comando`: se completa con `sesionId` y `revision`, y `cargar` con el DTO preparado en la revalidación (sin rutas). Los comandos que definen la pantalla (`cargar`, `transicion`, `fin_de_cola`, `error`) se guardan como `comandoActual` para `sesion.inicial`.
+  - `programar` y `cancelar`: `setTimeout` inyectable que entrega `vencida`.
+  - `revalidar`: `obtener` + estado Lista + `comprobarPistas`. Da `ilegible` sin `cancion.json` legible, `sin_pistas` si falta el instrumental, `no_lista` y `no_encontrada`. Devuelve `duracionMs` y `primeraLineaMs`.
+  - `difundir`: `sesion:estado` a la principal y `sesion:estadoSecundaria` a la secundaria. `sesion:posicion` sale como mucho 1 vez por segundo y entrada.
+  - Bloqueo de edición, silencio de la principal (se restaura el valor previo), `GestorReposo` (`retener/liberar('sesion')`) y `config.reproductor.secundaria`.
+  - Suscripción a la biblioteca (eliminada, título y disponibilidad: borrador → `no_lista`, dañada → `sin_pistas` o `ilegible`).
+  - Ventana: cierre interceptado (`close` → `solicitarCierre('secundaria')`), caída, «no responde», pantalla perdida o reconectada, y pantalla completa.
+  - Pantallas: `pantallas:cambiadas` a la principal.
+- `main/ipc/handlers.ts`: se retira `CanalDeSesionPendiente`. Hay manejadores para los 24 canales nuevos, con un `ContextoIpc { rol, sender }` que fija main (`OpcionesRegistro.rolDe`).
+  - Defensas: `EDICION_BLOQUEADA`, `SESION_EN_CURSO`, `CANCION_EN_REPRODUCCION` y `GUARDADO_PENDIENTE` (dependencia `guardadoPendiente`).
+  - Los canales compartidos devuelven el estado del rol que llama.
+  - Un `webContents` que no es el de la sesión vigente recibe `SESION_NO_ACTIVA`. `informar` le responde `{ aplicado: false }`.
+  - `ventana.fijarPantallaCompleta` y `estaEnPantallaCompleta` desde la secundaria actúan sobre su ventana.
+  - `sesion:preferencias` va a la secundaria solo si cambia `config.reproductor`.
+- `main/index.ts`: crea `ServicioSesion` con `abrirSecundaria` (la función `crearVentanaSecundaria` registra el rol, llama a `bloquearNavegacionTotal` y carga `reproductor.html`). Lee `SHINOBI_PANTALLAS_SIMULADAS` y `SHINOBI_PANTALLA_COMPLETA_SIMULADA`. Se retira el atajo de prueba de 0179 (`SHINOBI_VENTANA_SECUNDARIA_PRUEBA` y el menú `dev-secundaria-prueba`), y `e2e/seguridad.spec.ts` abre ahora la sesión real.
+- `main/cierre.ts`: `hayAlgoEnCurso` incluye `sesionActiva` y `colaNoVacia`. `motivoDeCierre` y la intención (`ventana` o `salir`) llegan a `hayAlgoEnCurso` y `pedirConfirmacion`. `app:solicitudCierre` lleva `{ trabajos, sesion, cola, variante }` (`SolicitudCierreIpc` en `shared/sesion.ts`; el preload reenvía la carga y `alSolicitudCierre(cb: (motivo) => void)`).
+  - macOS, cerrar la ventana: variante `cerrarVentanaMac`. Solo pregunta por la sesión, cierra la secundaria y conserva la cola.
+  - Otras plataformas y salir: `prepararSalida()` cierra la secundaria sin su diálogo y ya no vuelve a preguntar.
+  - `before-quit` llama a `prepararSalida()` y a `liberarTodo()`.
+- 0068 (ADR 0017 §10, revisión 2):
+  - `shared/sesion.ts`: `candidata.entradaId`, `activa` y `pendientes` (sustituye a `hayPendientes`); `transicion.candidata.entradaId`; `error` con `entradaId` y `titulo`.
+  - Fixtures, `proyeccion.ts` y `maquina.ts` ajustados.
+  - `AppSecundaria`: `empezar` usa `candidata.entradaId`; `siguiente` y `repetir`, `activa.entradaId`. S4 muestra `activa.titulo`. `DialogoCierreSesion` dice «Quedan {n} canciones…». `secundaria/textos.ts` reexporta `SES` de `sesion/textos.ts` y se retira la opción provisional.
+  - `PantallaEstadoSesion` solo cambia `hayPendientes` por `pendientes > 0`.
+
+### Cómo probarlo
+
+`cd app && npm run typecheck && npm run lint && npm run format:check && npx vitest run`.
+E2E: `npm run build && npx playwright test e2e/sesion-main.spec.ts e2e/seguridad.spec.ts e2e/ipc.spec.ts`.
+Pruebas nuevas: `main/sesion/servicio.test.ts` (35 casos con dobles de biblioteca, ventana, reloj y temporizadores), `main/ipc/handlers.sesion.test.ts`, `cierre.test.ts`, `proyeccion.test.ts`, `maquina.test.ts`, `AppSecundaria.test.tsx` y `e2e/sesion-main.spec.ts`.
+
+### Desviaciones y decisiones
+
+- **Excepción 0068 a la propiedad de archivos**: se tocaron `shared/sesion.ts`, `shared/__fixtures__/sesion.ts`, `shared/sesion.test.ts`, `shared/ipc.ts` (tipo de `alSolicitudCierre`), `main/sesion/{proyeccion,maquina}.ts` con sus pruebas y `renderer/src/secundaria/*`. También `renderer/src/vistas/reproductor/sesion/PantallaEstadoSesion.tsx` (una línea) y `e2e/ipc.spec.ts`, cuya lista de claves de `window.shinobi` no se actualizó en 0177. No se tocó `vistas/biblioteca` ni `renderer/src/sesion`.
+- **Evento nuevo en la máquina**: `{ tipo: 'pantallaCompleta', activa }`. `pantalla.movida` limpiaría incidencias y no servía para reflejar la pantalla completa. Cubierto con prueba.
+- **Corrección en 0180 (`ventanaSecundaria.ts`)**: la recarga se detectaba con `did-start-navigation`, que también salta con las navegaciones que `bloquearNavegacionTotal` cancela. Un intento de navegar terminaba la sesión (lo detectó `e2e/seguridad.spec.ts`). Ahora se detecta con `did-navigate` posterior a `did-finish-load`. La prueba se ajustó.
+- **Pantalla perdida**: la secundaria va a la pantalla primaria, como en la tarea y la spec 07. El ADR 0017 §3 decía «la de la principal». Se mantiene y se anota.
+- `silencioPrevio` del DTO es `anuncio === 'inicio'`. `revalidada` recibe `primeraLineaMs` (`inicio_ms + offset_ms` de la primera línea con tiempo).
+- Un cierre por `forzarCierre` o `cerrarConservando` usa la causa `forzada` (conserva la cola, sin incidencia). La caída (`secundaria_caida`) solo viene de `render-process-gone` o de una recarga.
+- `ventana.fijarPantallaCompleta` y `ventana.estaEnPantallaCompleta` tienen `ROLES_POR_CANAL = AMBAS`; los resuelve el rol (la secundaria actúa sobre su ventana).
+- `RegistroVentanas` admite un solo `secundaria`, y se da de baja en `closed`: un `webContents` viejo no pasa el paso 5 del remitente. Además `esSecundariaVigente` compara con el de la sesión.
+
+### Deuda técnica y notas para otras tareas
+
+- En S4, `pendientes` cuenta también la fallida si era la candidata. El botón «Pasar a la siguiente canción» puede aparecer sin una siguiente real, y main lo ignora. Haría falta un campo aparte para distinguirlo.
+- `app:solicitudCierre` ya lleva el motivo, pero el diálogo del renderer (`DialogoCierre.tsx`) sigue respondiendo como antes. Los textos `ses.salir` son de 0189.
+- `sesion.preferencias` devuelve `config.reproductor` completo, con `secundaria` (ver deuda de 0177). No se estrechó.
+- `e2e/ventana.spec.ts` (DPR 1) falla en esta máquina macOS (DPR distinto de 1); no se comprobó si ya fallaba antes de esta tarea. No se ejecutó la suite E2E completa, por política.

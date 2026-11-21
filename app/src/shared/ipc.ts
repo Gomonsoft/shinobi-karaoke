@@ -35,6 +35,7 @@ import {
   quitarColaSchema,
   repetirSesionSchema,
   sesionInicialSchema,
+  type SolicitudCierreIpc,
   siguienteSesionSchema,
   transporteSesionSchema,
   vaciarColaSchema,
@@ -1153,7 +1154,7 @@ export interface ApiShinobi {
     /** Sale de la aplicación (en macOS, `window.close()` deja la app en el Dock). */
     salir(): Promise<void>
     /** Main pide confirmar el cierre mientras hay una instalación en curso. */
-    alSolicitudCierre(cb: () => void): () => void
+    alSolicitudCierre(cb: (motivo: SolicitudCierreIpc) => void): () => void
   }
   /** Avisos de trabajos terminados o fallidos y clic en la notificación del sistema (0072). */
   avisos: {

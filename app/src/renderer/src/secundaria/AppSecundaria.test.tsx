@@ -19,6 +19,9 @@ import { R } from '../vistas/reproductor/textos'
 import { AppSecundaria } from './AppSecundaria'
 import { SES } from './textos'
 
+const ID_CANDIDATA = '00000000-0000-4000-8000-000000000002'
+const ID_ACTIVA = '00000000-0000-4000-8000-000000000001'
+
 const ENTRADA_ID = entrada(1).entradaId
 const OTRA_ENTRADA_ID = entrada(7).entradaId
 
@@ -160,7 +163,12 @@ describe('AppSecundaria · estados S1–S4', () => {
     expect(numero()).toBe('1')
     const otra = estadoS1({
       revision: 2,
-      candidata: { titulo: 'Otra', artista: 'Alguien', estilo: estiloPredeterminado() },
+      candidata: {
+        entradaId: '00000000-0000-4000-8000-000000000077',
+        titulo: 'Otra',
+        artista: 'Alguien',
+        estilo: estiloPredeterminado()
+      },
       transicion: {
         transicionId: '00000000-0000-4000-8000-000000000999',
         restanteMs: 4000,
@@ -210,14 +218,15 @@ describe('AppSecundaria · estados S1–S4', () => {
     expect(anuncio()).toBe(R.cola.aria.espera('Canción 2'))
     fireEvent.pointerMove(screen.getByRole('region', { name: R.cola.ventana }))
     fireEvent.click(screen.getByRole('button', { name: R.cola.iniciar('Canción 2') }))
-    expect(llamadas(f, 'sesion.empezar')).toHaveLength(1)
+    expect(llamadas(f, 'sesion.empezar')).toEqual([['sesion.empezar', ID_CANDIDATA]])
   })
 
   it('S3 ofrece «Otra vez» y S2 sin candidata muestra la marca (P11)', async () => {
     const { f } = await montar(estadoS3())
     fireEvent.click(screen.getByRole('button', { name: R.cola.otraVez }))
-    expect(llamadas(f, 'sesion.repetir')).toHaveLength(1)
-    act(() => f.emitirEstado(estadoS2({ revision: 9, candidata: null, hayPendientes: false })))
+    // «Otra vez» repite la última terminada (0068).
+    expect(llamadas(f, 'sesion.repetir')).toEqual([['sesion.repetir', ID_ACTIVA]])
+    act(() => f.emitirEstado(estadoS2({ revision: 9, candidata: null, pendientes: 0 })))
     expect(screen.getByTestId('espera-vacia')).toHaveTextContent(R.cola.espera)
     expect(screen.queryByRole('button', { name: /Iniciar/ })).not.toBeInTheDocument()
   })
@@ -227,15 +236,17 @@ describe('AppSecundaria · estados S1–S4', () => {
     expect(screen.getByTestId('tarjeta-siguiente')).toBeInTheDocument()
     expect(screen.queryByTestId('cuenta-transicion')).not.toBeInTheDocument()
     fireEvent.keyDown(window, { key: ' ' })
-    expect(llamadas(f, 'sesion.empezar')).toHaveLength(1)
+    expect(llamadas(f, 'sesion.empezar')).toEqual([['sesion.empezar', ID_CANDIDATA]])
   })
 
   it('S4 es una alerta; sin pendientes no ofrece pasar y añade el texto de fin', async () => {
-    const { f } = await montar(estadoS4({ hayPendientes: true }))
+    const { f } = await montar(estadoS4({ pendientes: 1 }))
     expect(screen.getByRole('alert')).toHaveTextContent(R.cola.fallo)
     fireEvent.click(screen.getByRole('button', { name: R.cola.pasar }))
-    expect(llamadas(f, 'sesion.siguiente')).toHaveLength(1)
-    act(() => f.emitirEstado(estadoS4({ revision: 3, hayPendientes: false })))
+    // Un fallo de una entrada que la secundaria nunca cargó: título e id vienen del estado (0068).
+    expect(screen.getByText('«Canción 1»')).toBeInTheDocument()
+    expect(llamadas(f, 'sesion.siguiente')).toEqual([['sesion.siguiente', ID_ACTIVA]])
+    act(() => f.emitirEstado(estadoS4({ revision: 3, pendientes: 0 })))
     expect(screen.getByRole('alert')).toHaveTextContent(`${R.cola.fallo} ${R.cola.falloFin}`)
     expect(screen.queryByRole('button', { name: R.cola.pasar })).not.toBeInTheDocument()
   })
@@ -246,6 +257,8 @@ describe('AppSecundaria · estados S1–S4', () => {
     expect(numero()).toBe('2')
     act(() => f.emitirEstado(estadoS1({ revision: 2, cierrePendiente: { origen: 'secundaria' } })))
     expect(screen.getByRole('dialog', { name: SES.cierre.titulo })).toBeInTheDocument()
+    // «Quedan {n} canciones» (0068).
+    expect(screen.getByRole('dialog')).toHaveTextContent('Quedan 2 canciones')
     await avanzar(5000)
     expect(numero()).toBe('2')
     act(() => f.emitirEstado(estadoS1({ revision: 3 })))
@@ -398,7 +411,14 @@ describe('AppSecundaria · reproductor de la sesión', () => {
       error: { motivo: 'no_encontrada', pista: 'instrumental' }
     })
     act(() =>
-      f.emitirComando({ tipo: 'error', sesionId: SESION_ID, revision: 6, motivo: 'sin_pistas' })
+      f.emitirComando({
+        tipo: 'error',
+        sesionId: SESION_ID,
+        revision: 6,
+        motivo: 'sin_pistas',
+        entradaId: ENTRADA_ID,
+        titulo: 'Canción 1'
+      })
     )
     act(() => f.emitirEstado(estadoS4({ revision: 6 })))
     expect(screen.getByRole('alert')).toHaveTextContent(R.cola.fallo)
@@ -466,7 +486,7 @@ describe('AppSecundaria · reproductor de la sesión', () => {
     expect(llamadas(f, 'sesion.siguiente')).toEqual([['sesion.siguiente', ENTRADA_ID]])
     act(() =>
       f.emitirEstado(
-        estadoS1({ revision: 9, fase: 'reproduciendo', transicion: null, hayPendientes: false })
+        estadoS1({ revision: 9, fase: 'reproduciendo', transicion: null, pendientes: 0 })
       )
     )
     fireEvent.keyDown(window, { key: 'N', shiftKey: true })
@@ -495,7 +515,7 @@ describe('AppSecundaria · reproductor de la sesión', () => {
         sesionId: SESION_ID,
         revision: 6,
         transicion: {
-          candidata: { titulo: 'Canción 2', artista: 'Artista 2' },
+          candidata: { entradaId: ENTRADA_ID, titulo: 'Canción 2', artista: 'Artista 2' },
           restanteMs: 3000,
           duracionMs: 4000
         }

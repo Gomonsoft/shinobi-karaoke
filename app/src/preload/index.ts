@@ -160,7 +160,7 @@ const api: ApiShinobi = {
     guardadoPendiente: (pendiente) => invocar(CANALES.app.guardadoPendiente, pendiente),
     confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
     salir: () => invocar(CANALES.app.salir),
-    alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, () => cb())
+    alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, cb)
   },
   avisos: {
     alAviso: (cb) => suscribir(CANALES.eventos.avisoTrabajo, cb),

@@ -61,7 +61,9 @@ describe('proyecciones', () => {
     expect(s).toMatchObject({
       fase: 'reproduciendo',
       candidata: null,
-      hayPendientes: true,
+      // La que suena es la entrada de referencia de los botones (0068).
+      activa: { entradaId: id, titulo: expect.any(String), artista: expect.any(String) },
+      pendientes: 1,
       motivoFallo: null
     })
   })
@@ -94,7 +96,10 @@ describe('proyecciones', () => {
     })!
     expect(estadoSecundariaIpcSchema.parse(s)).toEqual(s)
     expect(consultados).toEqual(['c2'])
-    expect(s.candidata).toMatchObject({ titulo: 'T2', artista: 'A2' })
+    expect(s.candidata).toMatchObject({ entradaId: e.cola.pendientes[0]!.entradaId, titulo: 'T2' })
+    // En la cuenta los botones usan la candidata: no hay «activa» (0068).
+    expect(s.activa).toBeNull()
+    expect(s.pendientes).toBe(1)
     expect(s.transicion).toMatchObject({ restanteMs: 3000, duracionMs: 4000, congelada: false })
     expect(aIpcPrincipal(e, 20_000).sesion?.transicion?.restanteMs).toBe(0)
     // Sin estiloDe usa el predeterminado.
@@ -112,9 +117,36 @@ describe('proyecciones', () => {
     const s = aIpcSecundaria(e, 0)!
     expect(estadoSecundariaIpcSchema.parse(s)).toEqual(s)
     expect(s).toMatchObject({ fase: 'error', motivoFallo: 'sin_pistas', candidata: null })
+    // La fallida llega con su id y su título aunque la secundaria nunca la cargó (0068).
+    expect(s.activa).toEqual({
+      entradaId: e.cola.activa!.entradaId,
+      titulo: e.cola.activa!.titulo,
+      artista: e.cola.activa!.artista
+    })
     const p = aIpcPrincipal(e, 0)
     expect(estadoSesionIpcSchema.parse(p)).toEqual(p)
     expect(p.sesion?.error).toMatchObject({ motivo: 'sin_pistas', codigo: 'CANCION_NO_DISPONIBLE' })
+  })
+
+  it('fin de cola: activa es la última terminada, para «Otra vez» (0068)', () => {
+    let e = ejecutar([agregar(1), { tipo: 'abrir', sesionId: SESION, inicio: { tipo: 'cola' } }])
+    e = reducir(e, { tipo: 'documentoListo', sesionId: SESION }, 0).estado
+    const id = e.cola.activa!.entradaId
+    e = reducir(e, { tipo: 'revalidada', entradaId: id, resultado: 'ok' }, 0).estado
+    e = reducir(
+      e,
+      { tipo: 'informe', informe: { tipo: 'reproduciendo', sesionId: SESION, entradaId: id } },
+      0
+    ).estado
+    e = reducir(
+      e,
+      { tipo: 'informe', informe: { tipo: 'fin', sesionId: SESION, entradaId: id } },
+      1000
+    ).estado
+    const s = aIpcSecundaria(e, 1000)!
+    expect(estadoSecundariaIpcSchema.parse(s)).toEqual(s)
+    expect(s).toMatchObject({ fase: 'fin_de_cola', candidata: null, pendientes: 0 })
+    expect(s.activa).toEqual({ entradaId: id, titulo: 'T1', artista: 'A1' })
   })
 
   it('un fallo sin detalle se proyecta como «otro»', () => {

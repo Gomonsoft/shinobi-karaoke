@@ -426,7 +426,10 @@ describe('informes, duplicados y tardíos', () => {
       codigo: 'decodificacion:instrumental'
     })
     expect(comandos(r)).toEqual([
-      { tipo: 'comando', comando: { tipo: 'error', motivo: 'decodificacion' } }
+      {
+        tipo: 'comando',
+        comando: { tipo: 'error', motivo: 'decodificacion', entradaId: b.activaId, titulo: 'T1' }
+      }
     ])
     expect(b.pendientes).toEqual(['c2'])
     expect(b.estado.cola.activa?.cancionId).toBe('c1')
@@ -450,7 +453,7 @@ describe('fin natural y cuenta', () => {
         comando: {
           tipo: 'transicion',
           transicion: {
-            candidata: { titulo: 'T2', artista: 'A2' },
+            candidata: { entradaId: b.entradaDe(2), titulo: 'T2', artista: 'A2' },
             restanteMs: 4000,
             duracionMs: 4000
           }
@@ -516,7 +519,12 @@ describe('fin natural y cuenta', () => {
       expect(b.fase).toBe('error')
       expect(b.estado.sesion?.error?.motivo).toBe(motivo)
       expect(b.estado.cola.activa?.cancionId).toBe('c1')
-      expect(comandos(r)).toEqual([{ tipo: 'comando', comando: { tipo: 'error', motivo } }])
+      expect(comandos(r)).toEqual([
+        {
+          tipo: 'comando',
+          comando: { tipo: 'error', motivo, entradaId: b.activaId, titulo: 'T1' }
+        }
+      ])
       // No avanza sola.
       b.avanzar(60_000)
       expect(b.fase).toBe('error')
@@ -1406,6 +1414,20 @@ describe('pantallas y respuesta de la secundaria', () => {
     const despues = b.estado
     b.enviar({ tipo: 'responde', responde: true })
     expect(b.estado).toBe(despues)
+  })
+
+  it('la pantalla completa cambia el estado sin tocar las incidencias y es idempotente', () => {
+    const b = new Banco()
+    b.sesionSonando(1)
+    b.enviar({ tipo: 'responde', responde: false })
+    b.enviar({ tipo: 'pantallaCompleta', activa: true })
+    expect(b.principal.sesion).toMatchObject({
+      pantallaCompleta: true,
+      incidencia: { tipo: 'secundaria_no_responde' }
+    })
+    const antes = b.estado
+    b.enviar({ tipo: 'pantallaCompleta', activa: true })
+    expect(b.estado).toBe(antes)
   })
 
   it('sin sesión los eventos de pantalla y respuesta se ignoran', () => {
