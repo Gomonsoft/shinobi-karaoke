@@ -5,6 +5,7 @@
 - Paso del pipeline: 6 (reproductor) y, por el bloqueo, 4 (editor)
 - Versión: 0.2.0-alfa, fase 4 (features 10 · Ventana secundaria y 11 · Cola)
 - Alineado con las specs UX de la fase 4 ([02](../ux/02-biblioteca.md#fase-4-de-020--ventana-secundaria-y-cola), [06](../ux/06-editor.md#fase-4-de-020--ventana-secundaria-y-cola), [07](../ux/07-reproductor.md#fase-4-de-020--ventana-secundaria-y-cola), [08](../ux/08-ajustes-y-acerca.md#fase-4-de-020--ventana-secundaria-y-cola), [mapa](../ux/00-mapa-de-vistas.md) y [sistema visual](../ux/sistema-visual.md)) y con las preguntas respondidas [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md) (UX), [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) (usuario: 1B, 2A, 3B y 4A), [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) (usuario: 1A y 2A) y [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) (UX: Wayland).
+- Revisión 2: 2026-11-20, tras [0068](../preguntas/0068-ids-y-conteo-en-el-estado-reducido-de-la-secundaria.md). `EstadoSecundariaIpc` lleva los ids que necesitan los botones de la secundaria y el número de pendientes (§10). Los comandos `transicion` y `error` llevan el id de la entrada (§7).
 - Revisión 1: 2026-11-11, conciliación con las specs y las respuestas. Cambian:
   - §3: la ventana pasa a una ventana sin cortar el audio y no hay incidencias de pantalla si se desconoce la pantalla;
   - §5: motivos de fallo y abrir con una canción descarta la última reproducida;
@@ -290,9 +291,9 @@ Main **ignora sin error** (`{ ok: true, valor: { aplicado: false } }`, registrad
 - `pausar { causa }`;
 - `reanudar`;
 - `reiniciar`;
-- `transicion { candidata: { titulo, artista }, restanteMs, duracionMs } | null`;
+- `transicion { candidata: { entradaId, titulo, artista }, restanteMs, duracionMs } | null`;
 - `fin_de_cola`;
-- `error { motivo }`.
+- `error { entradaId, titulo, motivo }`.
 
 La secundaria ignora los comandos de otra sesión y los de transporte de otra entrada.
 
@@ -348,7 +349,18 @@ La secundaria ignora los comandos de otra sesión y los de transporte de otra en
   
   Sin rutas de archivo: el motor construye `shinobi-media://<id>/pistas/...` como ahora (`karaoke/pistas.ts`). El protocolo de medios no cambia, porque la secundaria tiene el mismo origen que la principal y su CORS exacto la cubre (ADR 0008 §2).
 - En modo sesión **no hay `CuentaFinal` de salida** ni pantalla final. El final natural solo informa `fin`. La secundaria pinta los estados de la spec 07 (S1 cuenta, S2 en espera, S3 fin de la cola y S4 fallo) a partir del estado reducido y de los comandos. La cuenta sale de `restanteMs`, con un `performance.now()` local. Con movimiento reducido cambia el número sin animación (R4). Solo anuncia la siguiente al empezar la transición y cuando cambia la candidata.
-- El estado reducido de la secundaria (`EstadoSecundariaIpc`) solo incluye fase, candidata (título, artista y estilo resuelto para el fondo de S1 y S2), si hay pendientes, `cierrePendiente` y el motivo genérico de fallo. No incluye la lista de pendientes ni detalles técnicos.
+- El estado reducido de la secundaria (`EstadoSecundariaIpc`, revisión 2) incluye:
+  - `revision`, `sesionId` y `fase`;
+  - `candidata: { entradaId, titulo, artista, estilo } | null`, con el estilo resuelto para el fondo de S1 y S2;
+  - `activa: { entradaId, titulo, artista } | null`, la entrada de referencia: la que suena en `cargando`, `reproduciendo` y `pausada`; la fallida en `error`; la última terminada en `fin_de_cola`; y `null` en `abriendo`, `espera` y `transicion`;
+  - `transicion`, `pendientes` (número), `cierrePendiente` y `motivoFallo`.
+  
+  No incluye la lista de pendientes ni detalles técnicos.
+- **Botones de la secundaria**:
+  - `sesion.empezar` usa `candidata.entradaId`;
+  - `sesion.siguiente` y `sesion.repetir` usan `activa.entradaId`;
+  - S4 muestra `activa.titulo`;
+  - `ses.cierre` usa `pendientes`.
 - **Volumen y voz guía**: la secundaria lee `sesion.preferencias()` (solo `config.reproductor`) y escribe con `sesion.guardarPreferencias(parcial)`, un esquema estricto con los mismos rangos que `config.reproductor`, como mucho cada 500 ms (como `useVolumenCompartido`).
 - **Toasts**: la secundaria no muestra toasts de la app. La principal sigue mostrando los suyos, porque no hay capa local abierta.
 

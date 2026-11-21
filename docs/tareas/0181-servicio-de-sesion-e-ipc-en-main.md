@@ -34,12 +34,27 @@ Integrar la máquina de [0178](0178-modelo-puro-de-cola-y-maquina-de-sesion.md) 
   - al confirmar, la secundaria se cierra sin el diálogo de cola. Con `cerrarVentanaMac` la cola se conserva;
   - `before-quit` llama a `liberarTodo()`.
 - **Retirar** el atajo de prueba de [0179](0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md), o sustituirlo por `sesion.abrir` real.
+- **Estado reducido de la secundaria** (respuesta a [0068](../preguntas/0068-ids-y-conteo-en-el-estado-reducido-de-la-secundaria.md), ADR 0017 §10, revisión 2). Corresponde a esta tarea:
+  - ampliar `estadoSecundariaIpcSchema` en `shared/sesion.ts`: `candidata.entradaId`, `activa: { entradaId, titulo, artista } | null` y `pendientes: int ≥ 0`, que sustituye a `hayPendientes`;
+  - ampliar los comandos `transicion` (`candidata.entradaId`) y `error` (`entradaId`, `titulo`), y ajustar los fixtures de `shared/__fixtures__/sesion.ts`;
+  - calcular los campos nuevos en `aIpcSecundaria` y en los comandos de `main/sesion/proyeccion.ts` y `maquina.ts`;
+  - ajustar `renderer/src/secundaria/AppSecundaria.tsx` y `secundaria/textos.ts`. `empezar` usa `candidata.entradaId`; `siguiente` y `repetir` usan `activa.entradaId`; S4 muestra `activa.titulo`, y `ses.cierre` muestra el número. Se retira la opción provisional de 0182.
+  
+  Es una excepción explícita a la propiedad de archivos de la fase (`shared/` era de 0177, y `secundaria/` de 0182).
 
 ## Archivos
 
-`app/src/main/sesion/servicio.ts` (y su prueba de integración con dobles), `app/src/main/ipc/handlers.ts` y `handlers.test.ts`, `app/src/main/index.ts`, `app/src/main/cierre.ts` y `cierre.test.ts`. Solo lee `main/sesion/{cola,maquina,proyeccion,pantallas,ventanaSecundaria}.ts`, y cualquier cambio en ellos se coordina con su tarea.
+`app/src/main/sesion/servicio.ts` (y su prueba de integración con dobles), `app/src/main/ipc/handlers.ts` y `handlers.test.ts`, `app/src/main/index.ts`, `app/src/main/cierre.ts` y `cierre.test.ts`. Por 0068 también `app/src/shared/sesion.ts`, `app/src/shared/__fixtures__/sesion.ts`, `app/src/main/sesion/{proyeccion,maquina}.ts` (y sus pruebas) y `app/src/renderer/src/secundaria/{AppSecundaria.tsx,textos.ts}` (y sus pruebas). Solo lee `main/sesion/{cola,maquina,proyeccion,pantallas,ventanaSecundaria}.ts`, y cualquier cambio en ellos se coordina con su tarea.
 
 ## Criterios de aceptación
+
+- [ ] 0068:
+  - en S1 y S2, «Empezar ya» e «Iniciar» de la secundaria consumen la candidata;
+  - un fallo al consumir una entrada que la secundaria nunca cargó muestra su título en S4, y «Pasar a la siguiente canción» desde la secundaria avanza una sola vez;
+  - «Otra vez» en S3 repite la última;
+  - el diálogo de cierre de la secundaria dice «Quedan {n} canciones».
+  
+  Se prueba con Vitest en `proyeccion.test.ts` y en las pruebas de `AppSecundaria`.
 
 - [ ] Integración con dobles (ventanas, pantallas, biblioteca y reloj):
   - un `fin` y dos `siguiente` intercalados con una revalidación lenta producen un solo avance;
