@@ -375,3 +375,18 @@ describe('vuelta del editor', () => {
     expect(tarjeta.parentElement).not.toHaveAttribute('data-resaltada')
   })
 })
+
+describe('Letra lista (fase 5)', () => {
+  it('LB1/LB4/LB6: insignia en Listas, sigue al resumen y la portada usa la fase 0', async () => {
+    const ll = resumenPrueba({ id: 'l', titulo: 'Neón', estado: 'lista', modalidad: 'letra_lista' })
+    const { emitir } = montar([ll, borrador])
+    fireEvent.click(await screen.findByRole('radio', { name: 'Listas 1' }))
+    const tarjeta = screen.getByRole('article', { name: /Letra lista, sin barrido\./ })
+    const insignia = within(tarjeta).getByText('Letra lista')
+    expect(insignia).toHaveAttribute('title', expect.stringContaining('sin barrido'))
+    expect(tarjeta.querySelector('[style*="background"]')).not.toBeNull()
+    emitir({ id: 'l', resumen: { ...ll, modalidad: 'karaoke' } })
+    expect(within(screen.getByRole('article')).queryByText('Letra lista')).toBeNull()
+    expect(within(screen.getByRole('article')).getByText('Lista')).toBeInTheDocument()
+  })
+})
