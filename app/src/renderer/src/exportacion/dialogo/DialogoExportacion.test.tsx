@@ -6,6 +6,7 @@ import {
   ID_DESTINO
 } from '@shared/__fixtures__/exportacion'
 import { SesionContexto, sesionVacia } from '../../sesion/ProveedorSesion'
+import { ExportacionContexto } from '../contexto'
 import { cancionIpcDePrueba, instalarApiExportacion } from '../pruebas'
 import { DialogoExportacion } from './DialogoExportacion'
 
@@ -18,12 +19,25 @@ function montar(
 ) {
   const api = instalarApiExportacion(opciones)
   const alCerrar = vi.fn()
+  const iniciada = vi.fn()
   const vista = render(
     <SesionContexto.Provider value={{ ...sesionVacia, haySesion: sesion }}>
-      <DialogoExportacion peticion={{ cancionId: ID, temaBorrador }} alCerrar={alCerrar} />
+      <ExportacionContexto.Provider
+        value={{
+          exportaciones: [],
+          activaDe: () => undefined,
+          abrir: () => undefined,
+          cerrar: alCerrar,
+          iniciada,
+          existia: () => false,
+          pedirCancelar: () => undefined
+        }}
+      >
+        <DialogoExportacion peticion={{ cancionId: ID, temaBorrador }} alCerrar={alCerrar} />
+      </ExportacionContexto.Provider>
     </SesionContexto.Provider>
   )
-  return { api, alCerrar, ...vista }
+  return { api, alCerrar, iniciada, ...vista }
 }
 
 const formulario = () => screen.findByRole('radiogroup', { name: 'Audio' })
@@ -248,7 +262,7 @@ describe('DialogoExportacion · formulario (A)', () => {
       .mockRejectedValueOnce({ codigo: 'DESTINO_OCUPADO', mensaje: 'x' })
       .mockResolvedValueOnce({ trabajoId: 't-1' })
     const api = crearApiExportacionFalsa({ iniciar })
-    const { alCerrar } = montar({ exportacion: api })
+    const { iniciada } = montar({ exportacion: api })
     await formulario()
     const exportar = screen.getByRole('button', { name: 'Exportar' })
     await waitFor(() => expect(exportar).toBeEnabled())
@@ -263,9 +277,9 @@ describe('DialogoExportacion · formulario (A)', () => {
       audio: 'instrumental',
       destinoId: ID_DESTINO
     })
-    expect(alCerrar).not.toHaveBeenCalled()
+    expect(iniciada).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }))
-    await waitFor(() => expect(alCerrar).toHaveBeenCalled())
+    await waitFor(() => expect(iniciada).toHaveBeenCalledWith('t-1', ID, false))
   })
 
   it('durante la validación el primario dice «Exportando…»', async () => {

@@ -63,7 +63,7 @@ function mensajeDe(err: unknown): string {
  * perfiles y las opciones recordadas; aplica las reglas de perfil no soportado; mantiene el
  * destino, la estimación y los anuncios; y lanza la exportación.
  */
-export function useFormulario(cancionId: string) {
+export function useFormulario(cancionId: string, opcionesIniciales?: OpcionesExportacion) {
   const [carga, setCarga] = useState<CargaFormulario>({ tipo: 'cargando' })
   const [cancion, setCancion] = useState<CancionExportable | null>(null)
   const [perfiles, setPerfiles] = useState<PerfilesIpc | null>(null)
@@ -133,11 +133,13 @@ export function useFormulario(cancionId: string) {
         const exportable = cancionExportable(c)
         const recordadas = config?.exportacion
         const base: OpcionesExportacion = {
-          audio: recordadas?.audio ?? OPCIONES_INICIALES.audio,
-          formato: recordadas?.formato ?? OPCIONES_INICIALES.formato,
-          ancho: recordadas?.ancho ?? OPCIONES_INICIALES.ancho,
-          alto: recordadas?.alto ?? OPCIONES_INICIALES.alto,
-          fps: recordadas?.fps ?? OPCIONES_INICIALES.fps
+          ...(opcionesIniciales ?? {
+            audio: recordadas?.audio ?? OPCIONES_INICIALES.audio,
+            formato: recordadas?.formato ?? OPCIONES_INICIALES.formato,
+            ancho: recordadas?.ancho ?? OPCIONES_INICIALES.ancho,
+            alto: recordadas?.alto ?? OPCIONES_INICIALES.alto,
+            fps: recordadas?.fps ?? OPCIONES_INICIALES.fps
+          })
         }
         if (!exportable.vozDisponible) base.audio = 'instrumental'
         const { opciones: inicial } = normalizar(p, base)
@@ -158,6 +160,8 @@ export function useFormulario(cancionId: string) {
     return () => {
       activo = false
     }
+    // Las opciones iniciales solo cuentan al abrir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancionId])
 
   // Estimación: se recalcula con cada opción; una respuesta atrasada no pisa a la nueva.

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useId, useRef, useState } from 'react'
-import { sinPerfiles, causaSinPerfiles } from './modelo'
+import { causaSinPerfiles, sinPerfiles, type OpcionesExportacion } from './modelo'
 import type { CodigoError } from '@shared/errores'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
@@ -19,8 +19,10 @@ interface Props {
   cancionId: string
   /** Hay un borrador de tema sin guardar en el editor. */
   temaBorrador?: boolean
+  /** «Cambiar opciones» (D): parte de estas opciones en lugar de las recordadas. */
+  opcionesIniciales?: OpcionesExportacion
   /** `iniciar` fue aceptado: el diálogo pasa a seguir la exportación. */
-  alIniciada(trabajoId: string): void
+  alIniciada(trabajoId: string, existia: boolean): void
   alCerrar(): void
 }
 
@@ -40,8 +42,14 @@ function copiarDetalles(texto: string): void {
  * Estados A (formulario), E (archivo existente), «Cargando perfiles», «Validando» y F (sin
  * perfiles) del diálogo «Exportar video» (docs/ux/10).
  */
-export function DialogoFormulario({ cancionId, temaBorrador, alIniciada, alCerrar }: Props) {
-  const f = useFormulario(cancionId)
+export function DialogoFormulario({
+  cancionId,
+  temaBorrador,
+  opcionesIniciales,
+  alIniciada,
+  alCerrar
+}: Props) {
+  const f = useFormulario(cancionId, opcionesIniciales)
   const { haySesion } = useSesion()
   const navegacion = useContext(NavegacionContexto)
   const idCabecera = useId()
@@ -172,7 +180,7 @@ export function DialogoFormulario({ cancionId, temaBorrador, alIniciada, alCerra
   const sustituye = f.destino?.existe === true
   const exportar = async () => {
     const trabajoId = await f.iniciar()
-    if (trabajoId) alIniciada(trabajoId)
+    if (trabajoId) alIniciada(trabajoId, sustituye)
   }
   return (
     <Dialogo
