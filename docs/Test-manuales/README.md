@@ -29,4 +29,7 @@ Test-manuales/
 | Versión | Guía | Estado |
 |---|---|---|
 | — | [Flujo principal](flujo-principal.md) | Lista |
-| 0.2.0 | [Fase 4 · Ventana secundaria y cola](0.2.0/fase-4-ventana-secundaria-y-cola.md) | Lista |
+| 0.2.0 | [Fase 4 · Ventana secundaria y cola](0.2.0/fase-4-ventana-secundaria-y-cola.md) | Lista (11 casos) |
+| 0.2.0 | [Fase 5 · Calibración de «Ajustar los silencios»](0.2.0/fase-5-calibracion-de-silencios.md) | Lista |
+| 0.2.0 | [Fase 5 · Estilo, espera y Letra lista](0.2.0/fase-5-estilo-espera-y-letra-lista.md) | Lista (17 casos) |
+| 0.2.0 | [Fase 6 · Exportación a video](0.2.0/fase-6-exportacion.md) | Pendiente de ajustar al cerrar la fase (16 casos) |

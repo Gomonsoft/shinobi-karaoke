@@ -158,6 +158,17 @@ Criterio de la spec: S13 · Decisión 0059 §4.
 | 10.4 | Pulsa «Cancelar» | No se cierra nada y la canción sigue sonando | ☐ |
 | 10.5 | Repite Cmd + Q y confirma | Se cierran las dos ventanas; al abrir la app no hay sesión ni cola | ☐ |
 
+### 11. Regresiones corregidas a comprobar
+
+Correcciones posteriores a la primera versión de esta guía. Repite cada una tras cualquier cambio en el editor, el reproductor o el empaquetado.
+
+| # | Paso | Resultado esperado | OK |
+|---|---|---|---|
+| 11.1 | Abre una canción en el editor con la ventana **a pantalla completa** (maximizada) y mira el borde inferior y la derecha. Intenta desplazar la página con la rueda del ratón o el trackpad | **No hay scroll de página**: no se desplaza ni 1 px (antes se colaba por el aviso oculto del cierre de sesión). Repite en 1280 × 720 y 1920 × 1080 | ☐ |
+| 11.2 | Con una sesión abierta, cierra el reproductor («Cerrar reproductor») y, **antes de que termine**, haz clic en el buscador de la Biblioteca (o pulsa Tab hasta otro control) para estar en otra cosa | El foco se queda donde lo pusiste: **no salta** al botón «Abrir en otra pantalla…» | ☐ |
+| 11.3 | Repite con «Cerrar y eliminar cola» (eliminar la cola) estando en otra cosa | Igual: el foco **no salta** al botón. Si no hiciste nada, el foco sí puede volver a «Abrir en otra pantalla…» (comportamiento normal) | ☐ |
+| 11.4 | **Solo en Windows**, con la app **empaquetada** (instalada con el instalador, no `npm run dev`): ábrela | La app **arranca** y muestra la **Biblioteca** (el preload carga). No queda una ventana en blanco ni un error; si fallara, la Biblioteca aparecería vacía o sin botones | ☐ |
+
 ## Ejecuciones
 
 | Fecha | Persona | Equipo y SO | Pantallas / audio | Resultado | Notas |
