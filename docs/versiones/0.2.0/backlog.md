@@ -228,6 +228,50 @@ Quedan libres 0220–0229 para ajustes que salgan de las respuestas a 0100 y 011
 
 **Verificación.** Pruebas de feedback según [pruebas.md](../../pruebas.md): Vitest con picos sintéticos, la copia del esquema de 0.1.0 y el render con reloj simulado. Los críticos se ejecutan en las tareas que tocan `shared/`, `main/`, el dock de «Marcar como lista» o el reproductor. Lo visual, la distancia, el hardware modesto, las dos pantallas, el movimiento reducido del sistema y la calibración con canciones reales van a la guía manual que escribe `qa` (lista de casos en 0219).
 
+## Fase 6 · Exportación
+
+Decisión en el [ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md), con la prueba técnica en [`docs/poc/0019-exportacion/`](../../poc/0019-exportacion/) y revisiones de fase 6 en 0005, 0006, 0008, 0009, 0011, 0012, 0013 y 0017. Spec: [10 · Exportar a video](../../ux/10-exportacion.md) (V1–V29, M1–M8) y las secciones «Fase 6» de [02](../../ux/02-biblioteca.md#fase-6-de-020--exportación), [06](../../ux/06-editor.md#fase-6-de-020--exportación) y el [sistema visual](../../ux/sistema-visual.md#020--exportación-de-video-fase-6). Preguntas: [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) y [0131](../../preguntas/0131-contratos-tecnicos-de-la-exportacion.md) respondidas; [0130](../../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) (usuario) y [0120](../../preguntas/0120-formatos-y-resoluciones-de-la-exportacion.md) (usuario) no bloquean.
+
+Resumen: render por índice de fotograma en una ventana offscreen con el mismo `PantallaLetra`, captura en main y fotogramas BGRA por la tubería al worker PyAV, que codifica MKV (AV1 + Opus, por defecto) o WebM (VP9 + Opus). 8 resoluciones × 24/30/60 FPS. Una exportación a la vez, en cola propia; convive con la separación y con la sesión en vivo.
+
+| Tarea | Estado | Depende de | Entrega |
+|---|---|---|---|
+| [0230 · Contratos compartidos](../../tareas/0230-contratos-compartidos-de-la-exportacion.md) | Pendiente | Fase 4, 0200, 0201 | `shared/exportacion.ts` (catálogo, estimaciones, nombre), IPC, rol `exportacion`, errores, `config.exportacion`, preloads y dobles |
+| [0231 · Worker `exportar`](../../tareas/0231-worker-comando-exportar.md) | Pendiente | — | Fotogramas por stdin, mezcla, AV1/VP9 + Opus, progreso, errores, verificación; pytest en los 3 SO |
+| [0232 · Capacidades y licencias](../../tareas/0232-capacidades-de-exportacion-y-licencias-de-codecs.md) | Pendiente | — | `capacidades-exportacion`, `inspeccionar_av.py` exige los códecs, `THIRD_PARTY_NOTICES.md` |
+| [0233 · Tubería y bucle](../../tareas/0233-cliente-del-worker-con-tuberia-y-bucle-de-fotogramas.md) | Pendiente | 0230 | Cliente del worker con stdin y prioridad baja; bucle con ≤ 2 fotogramas pendientes |
+| [0234 · Ventana offscreen](../../tareas/0234-ventana-offscreen-de-exportacion-y-rol.md) | Pendiente | 0230 | `exportacion.html`, rol, remitente, captura BGRA a escala 1, verificación del paquete |
+| [0235 · Render por fotograma](../../tareas/0235-render-por-fotograma-y-marca-de-agua.md) | Pendiente | 0230, 0234, 0204, 0206, 0213 | `PantallaLetra` con `tiempoFijoMs`, animaciones por fotograma, anfitrión y marca de agua |
+| [0236 · Destinos y diario](../../tareas/0236-destinos-temporal-y-diario-de-exportacion.md) | Pendiente | 0230 | Destino en main, temporal junto al destino, `rename`, limpieza y diario tras caída |
+| [0237 · Servicio e IPC](../../tareas/0237-servicio-de-exportacion-e-ipc.md) | Pendiente | 0231–0234, 0236, 0202, 0203 | `ServicioExportacion`: cola, perfiles, instantánea, orquestación, cancelación, suspensión, cierre e IPC |
+| [0238 · Diálogo: formulario](../../tareas/0238-dialogo-de-exportacion-formulario.md) | Pendiente | 0230 | A, E y F con formato, perfiles no soportados, destino, estimación, notas y muestra |
+| [0239 · Progreso y resultado](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) | Pendiente | 0238 | Estado de exportaciones, B–D, toasts y anuncios |
+| [0240 · Puntos de entrada](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) | Pendiente | 0239 | Biblioteca, editor (Ctrl/Cmd + E), panel de actividad, eliminar y cierre |
+| [0241 · Integración, capturas e informe](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) | Pendiente | 0230–0240 | `exportacion.spec.ts` (≤ 3 pruebas), capturas opt-in, informe |
+
+**Paralelismo.**
+
+1. 0231 y 0232 (worker, Python) pueden empezar ya, sin esperar a nada.
+2. 0230 va primero en TypeScript (necesita 0200 y 0201 de la fase 5).
+3. Con 0230 integrada, cuatro líneas a la vez: main (0233 y 0236 en paralelo), ventana (0234), interfaz (0238 → 0239 → 0240, contra la API falsa) y render (0235, cuando también estén 0204, 0206 y 0213).
+4. 0237 es el punto de integración de main (necesita 0231–0234 y 0236, y 0202/0203 de la fase 5).
+5. La integración en Electron de 0235 y 0238–0240 necesita 0237. Hasta entonces, cada una se prueba con dobles.
+6. 0241 cierra la fase.
+
+**Propiedad de archivos.**
+- `shared/{exportacion,canales,ipc,errores,config}.ts`, `shared/__fixtures__/exportacion.ts` y `preload/`: solo 0230.
+- `worker/shinobi_worker/exportar.py` y `worker/tests/test_exportar.py`: 0231. `worker/shinobi_worker/capacidades_exportacion.py`, `worker/scripts/inspeccionar_av.py` y `THIRD_PARTY_NOTICES.md`: 0232. `worker/shinobi_worker/comandos.py`: 0231 y luego 0232 (una línea cada una).
+- `main/trabajos/worker.ts` y `main/exportacion/bucle.ts`: 0233.
+- `main/exportacion/ventana.ts`, `main/ventana/registro.ts`, `main/seguridad.ts`, `electron.vite.config.ts`, `renderer/exportacion.html` y el script de verificación del paquete: 0234.
+- `karaoke/PantallaLetra.tsx`, su CSS y `karaoke/animacionesPorFotograma.ts`, y `renderer/src/exportacion/{main.tsx,AppExportacion.tsx,MarcaDeAgua.tsx}`: 0235 (después de 0213, que toca el mismo `PantallaLetra`).
+- `main/exportacion/{destinos,diario}.ts`: 0236.
+- `main/exportacion/servicio.ts`, `main/ipc/handlers.ts`, `main/index.ts` y `main/cierre.ts`: 0237.
+- `renderer/src/exportacion/dialogo/**` y `textos.ts`: 0238; `renderer/src/exportacion/estado.ts` y los estados B–D: 0239.
+- `vistas/biblioteca/` (menú y línea de la tarjeta, eliminar), `vistas/editor/` (⋯ y atajo), panel de actividad y `navegacion/{DialogoCierre,textosCierre}`: 0240.
+- `e2e/`: 0234 añade `exportacion-captura.spec.ts` y amplía `seguridad.spec.ts`; 0241 añade `exportacion.spec.ts` y `exportacion-capturas.spec.ts` (opt-in).
+
+**Guía manual de la fase** (`docs/Test-manuales/0.2.0/fase-6-exportacion.md`, la escribe `qa`): M1–M8 de la spec 10; tiempos y tamaños de 1080p30 y 4K/60 en Windows y Linux frente a la tabla del ADR; exportar durante una sesión en dos pantallas reales con un perfil modesto y con 4K/60; suspensión del equipo durante una exportación larga; reproducción del archivo en VLC, OBS, navegadores y los reproductores de serie de los 3 SO (alimenta `exp.formato.ayuda`).
+
 ## Fases siguientes
 
 | Fase | Alcance | Desglose |
@@ -235,7 +279,7 @@ Quedan libres 0220–0229 para ajustes que salgan de las respuestas a 0100 y 011
 | 3 | Temas y agrupación de biblioteca | Desglosada arriba (0163–0176), con [0047](../../preguntas/0047-temas-asignados-edicion-y-borrado.md) y [0052](../../preguntas/0052-predeterminado-y-canciones-que-dependen-de-el.md) |
 | 4 | Ventana secundaria y cola | Desglosada arriba (0177–0190), con [0048](../../preguntas/0048-escucha-editor-durante-evento.md), [0049](../../preguntas/0049-politica-cola-de-reproduccion.md) y [0058](../../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)–[0061](../../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) |
 | 5 | Degradados, comodines, Letra lista y ajuste de silencios | Desglosada arriba: 0200–0219 (primera ola 0200–0210, interfaz 0211–0219) ([ADR 0018](../../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)) |
-| 6 | Exportación | Al iniciar la fase, con prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) |
+| 6 | Exportación | Desglosada arriba (0230–0241), con la prueba técnica de [0050](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) ([ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)) |
 
 La [publicación pendiente del MVP](../../tareas/0142-primera-version-publica.md) sigue en la hoja de ruta.
 
