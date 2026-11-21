@@ -265,6 +265,7 @@ Los *presets* 10 y superiores de SVT-AV1 avisan de que pueden producir artefacto
 
 - **Destino elegido en main**. El renderer nunca envía una ruta.
   - `exportacion.destinoPropuesto({ cancionId, formato })` calcula la carpeta (la última usada si existe y se puede escribir; si no, `app.getPath('videos')`; si no, `app.getPath('home')`) y el nombre `exp.nombre` saneado (spec 10). Devuelve `{ destinoId, ruta, existe, libreBytes, carpetaRecordadaNoDisponible }`.
+  - Con `desdeDestinoId` (`destinoPropuesto({ cancionId, formato, desdeDestinoId })`), main conserva la carpeta y el nombre del destino anterior (elegido con [Cambiar…]) y solo cambia la extensión al formato nuevo; vuelve a calcular `existe` y `libreBytes` y emite un `destinoId` nuevo (el anterior caduca). Si el anterior ya no es válido, devuelve el propuesto normal. Así cambiar de formato no pierde la elección del usuario ([0124](../preguntas/0124-destino-conservado-al-cambiar-de-formato.md)).
   - `exportacion.elegirDestino({ destinoId })` abre `dialog.showSaveDialog` sobre la ventana principal con esa ruta y el filtro de la extensión. Main fuerza la extensión del formato si el usuario escribió otra.
   - `destinoId` es un UUID de un solo uso que main asocia en memoria a la ruta absoluta. Caduca a los 30 min o al usarse.
   - Main **rechaza** destinos dentro del directorio de datos de la app (`biblioteca/`, `runtime/`…) con `DESTINO_NO_DISPONIBLE`, para mantener el único escritor (ADR 0006).
@@ -318,7 +319,7 @@ Según 0050, la competencia por recursos no es motivo de bloqueo. Por eso:
 |---|---|---|---|
 | `exportacion.perfiles` | principal | — | `{ formatos: FormatoIpc[], perfiles: PerfilIpc[] }` con `soportado` y `motivo` |
 | `exportacion.estimar` | principal | `{ cancionId, formato, ancho, alto, fps, audio }` | `{ bytes: number \| null, segundos: number \| null }` |
-| `exportacion.destinoPropuesto` | principal | `{ cancionId, formato }` | `DestinoIpc` (`destinoId`, `ruta`, `existe`, `libreBytes`, `carpetaRecordadaNoDisponible`) |
+| `exportacion.destinoPropuesto` | principal | `{ cancionId, formato, desdeDestinoId?: uuid }` | `DestinoIpc` (`destinoId`, `ruta`, `existe`, `libreBytes`, `carpetaRecordadaNoDisponible`) |
 | `exportacion.elegirDestino` | principal | `{ destinoId: uuid }` | `DestinoIpc \| null` (cancelado) |
 | `exportacion.iniciar` | principal | `{ cancionId, formato, ancho, alto, fps, audio: 'instrumental' \| 'instrumental_voz', destinoId: uuid }` | `{ trabajoId: uuid }` |
 | `exportacion.cancelar` | principal | `{ trabajoId: uuid }` | `void` (también quita de la cola) |

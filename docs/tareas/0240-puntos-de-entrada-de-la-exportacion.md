@@ -17,7 +17,7 @@ Abrir el diálogo desde donde lo pide la spec y reflejar las exportaciones en la
 
 ## Criterios de aceptación
 - [ ] V1, V2, V12 (fila del panel y tarjeta) y V25 (texto del cierre) de la spec 10.
-- [ ] Con una sesión activa, «Exportar video…» sigue disponible en la Biblioteca (sin candado).
+- [ ] Con una sesión activa, «Exportar video…» sigue disponible en la Biblioteca, sin candado (X6 de la spec 02 con una sola rama).
 
 ## Pruebas de feedback
 - Unitarias: Testing Library del menú de la tarjeta, del ⋯ del editor y del atajo, de la fila del panel y del diálogo de cierre.

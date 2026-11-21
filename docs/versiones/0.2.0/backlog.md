@@ -237,8 +237,8 @@ Resumen: render por índice de fotograma en una ventana offscreen con el mismo `
 | Tarea | Estado | Depende de | Entrega |
 |---|---|---|---|
 | [0230 · Contratos compartidos](../../tareas/0230-contratos-compartidos-de-la-exportacion.md) | Pendiente | Fase 4, 0200, 0201 | `shared/exportacion.ts` (catálogo, estimaciones, nombre), IPC, rol `exportacion`, errores, `config.exportacion`, preloads y dobles |
-| [0231 · Worker `exportar`](../../tareas/0231-worker-comando-exportar.md) | Pendiente | — | Fotogramas por stdin, mezcla, AV1/VP9 + Opus, progreso, errores, verificación; pytest en los 3 SO |
-| [0232 · Capacidades y licencias](../../tareas/0232-capacidades-de-exportacion-y-licencias-de-codecs.md) | Pendiente | — | `capacidades-exportacion`, `inspeccionar_av.py` exige los códecs, `THIRD_PARTY_NOTICES.md` |
+| [0231 · Worker `exportar`](../../tareas/0231-worker-comando-exportar.md) | Hecha | — | Fotogramas por stdin, mezcla, AV1/VP9 + Opus, progreso, errores, verificación; pytest en los 3 SO |
+| [0232 · Capacidades y licencias](../../tareas/0232-capacidades-de-exportacion-y-licencias-de-codecs.md) | Hecha | — | `capacidades-exportacion`, `inspeccionar_av.py` exige los códecs, `THIRD_PARTY_NOTICES.md` |
 | [0233 · Tubería y bucle](../../tareas/0233-cliente-del-worker-con-tuberia-y-bucle-de-fotogramas.md) | Pendiente | 0230 | Cliente del worker con stdin y prioridad baja; bucle con ≤ 2 fotogramas pendientes |
 | [0234 · Ventana offscreen](../../tareas/0234-ventana-offscreen-de-exportacion-y-rol.md) | Pendiente | 0230 | `exportacion.html`, rol, remitente, captura BGRA a escala 1, verificación del paquete |
 | [0235 · Render por fotograma](../../tareas/0235-render-por-fotograma-y-marca-de-agua.md) | Pendiente | 0230, 0234, 0204, 0206, 0213 | `PantallaLetra` con `tiempoFijoMs`, animaciones por fotograma, anfitrión y marca de agua |

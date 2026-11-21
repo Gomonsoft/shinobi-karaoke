@@ -11,14 +11,14 @@ El diálogo «Exportar video» en su estado de formulario, con formato, audio, p
 
 ## Contrato
 - `renderer/src/exportacion/dialogo/` (nuevo): `DialogoExportacion` (contenedor de estados; este tarea implementa A, E, F, «Cargando perfiles» y «Validando»), `Formulario`, `MuestraExportacion` (fotograma fijo con `PantallaLetra` estático y `MarcaDeAgua` escalada), `textos.ts` con las claves `exp.*`.
-- **Formato**: control segmentado con los dos formatos de `FORMATOS` (ADR 0019 §5, la spec preveía este caso); `exp.formato.ayuda` con los textos de compatibilidad del ADR.
+- **Formato**: control segmentado con los dos formatos de `FORMATOS` (ADR 0019 §5), con `exp.formato.pista`, popover `exp.formato.ayuda` y `exp.formato.noDisponible`. Al cambiar de formato pide `destinoPropuesto` con `desdeDestinoId` si el destino lo eligió el usuario (conserva carpeta y nombre; ver [0124](../preguntas/0124-destino-conservado-al-cambiar-de-formato.md) sobre `exp.anuncio.destino`).
 - Perfiles no soportados con su motivo, cambio automático de FPS y proporción no disponible, según la spec. Sin candado de evento: con sesión activa solo la nota `exp.nota.sesion`.
 - Destino con `destinoPropuesto`/`elegirDestino`; recordar opciones lo hace main al iniciar.
 - Estimación con `exportacion.estimar` y aviso de espacio.
 
 ## Criterios de aceptación
-- [ ] V3–V10 de la spec 10 con la API falsa.
-- [ ] V23 (rama «pueden convivir»): con sesión activa, la nota aparece y «Exportar» sigue disponible.
+- [ ] V3–V10 y V30 de la spec 10 con la API falsa.
+- [ ] V23: con sesión activa, la nota `exp.nota.sesion` aparece y «Exportar» sigue disponible (V24 retirado).
 - [ ] Estado F con `RUNTIME_NO_DISPONIBLE` (acción «Reparar el motor de audio») y con `SIN_CODIFICADOR`.
 - [ ] A 1024 × 576 sin scroll horizontal (V29, parte del formulario).
 

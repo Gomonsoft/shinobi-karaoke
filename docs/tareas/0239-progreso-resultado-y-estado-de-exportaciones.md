@@ -17,7 +17,8 @@ Seguir una exportación desde la principal: progreso, cola, cancelar, éxito, fa
 
 ## Criterios de aceptación
 - [ ] V11–V13, V15, V20–V22 de la spec 10 con la API falsa (un doble por código de error).
-- [ ] V25 y V26 en lo que toca al renderer (texto `exp.cierre.*` en el diálogo de cierre y toast tras la caída).
+- [ ] V25 y V26 (ya no condicionado) en lo que toca al renderer: texto `exp.cierre.*` en el diálogo de cierre y toast `exp.toast.interrumpida` tras la caída.
+- [ ] V14–V18 y V20 en lo que muestra la principal (resumen con el formato corto, detalle del éxito, `exp.error.posicion` siempre presente).
 - [ ] V27 y V28 para los estados B–D.
 
 ## Pruebas de feedback
