@@ -1,6 +1,6 @@
 # 0231 — Worker: comando `exportar`
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: — (puede empezar en paralelo con 0230; los códigos de error deben coincidir con los de 0230)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §4 y §5, [0009](../adr/0009-gestor-de-runtime-y-dobles-de-prueba.md#revisión-para-020--fase-6)
@@ -31,3 +31,15 @@ Comando `python -m shinobi_worker exportar --args '<json>'` que lee fotogramas B
 - Manual: nada (los tiempos reales van a la guía de la fase).
 
 ## Notas de implementación
+
+Comando `exportar` implementado en `worker/shinobi_worker/exportar.py` (registrado en `comandos.py`) siguiendo el contrato y `docs/poc/0019-exportacion/codificar.py`. La función `exportar(args, entrada=None)` admite un flujo inyectado para las pruebas; sin él lee `sys.stdin.buffer.raw`. Si `line_size` del plano BGRA no coincide con `ancho × 4`, lee a un búfer y copia por filas (sin NumPy). El audio se trunca o rellena con silencio a `duracion_ms` y se intercala en bloques de 100 ms. La verificación final cuenta paquetes de video y compara la duración con ± 1 fotograma; si falla da `VERIFICACION_FALLIDA` (código ya existente).
+
+Cambios de soporte (fuera de `exportar.py`):
+- `ErrorWorker` y `protocolo.error` admiten `detalle` opcional (`{ fotograma }`); `__main__` lo reenvía. El esquema TS `mensajeErrorSchema` aún no declara `detalle` (zod lo descarta sin fallar): lo recoge 0230/0233.
+- `errores.py` añade `DESTINO_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `ENTRADA_INCOMPLETA` y `CANCION_NO_DISPONIBLE`. **El test de Vitest `protocolo.test.ts` («coincide con CODIGOS_ERROR…») fallará hasta que 0230 añada los tres primeros a `CODIGOS_ERROR` de `shared/errores.ts` y saque `CANCION_NO_DISPONIBLE` de `CODIGOS_SOLO_MAIN`** (ahora también lo emite el worker).
+
+Archivos: `worker/shinobi_worker/{exportar,comandos,errores,protocolo,__main__}.py`, `worker/tests/test_exportar.py`.
+
+Cómo probarlo: `cd worker && uv run pytest tests/test_exportar.py` (6 pruebas, < 1 s: ambos formatos a 320 × 240 y 24 FPS con 48 fotogramas, mezcla y normalización, stdin cortado, codificador ausente con doble, pista ausente). Worker completo: 338 pruebas OK; ruff OK.
+
+Deuda: no se mide tiempo ni memoria reales (guía manual de la fase). `hilos` solo se aplica si es > 0. La comprobación de `MEMORIA_INSUFICIENTE` por proceso muerto es de main (0237).

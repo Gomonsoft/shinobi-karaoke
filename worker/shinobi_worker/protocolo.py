@@ -50,8 +50,21 @@ def resultado(datos: dict[str, Any]) -> None:
     _emitir({"tipo": "resultado", "datos": datos})
 
 
-def error(codigo: str, mensaje: str, reintentable: bool = False) -> None:
-    _emitir({"tipo": "error", "codigo": codigo, "mensaje": mensaje, "reintentable": reintentable})
+def error(
+    codigo: str,
+    mensaje: str,
+    reintentable: bool = False,
+    detalle: dict[str, Any] | None = None,
+) -> None:
+    mensaje_error: dict[str, Any] = {
+        "tipo": "error",
+        "codigo": codigo,
+        "mensaje": mensaje,
+        "reintentable": reintentable,
+    }
+    if detalle is not None:
+        mensaje_error["detalle"] = detalle
+    _emitir(mensaje_error)
 
 
 # Fases de progreso que emite `separar` (tarea 0059). Debe coincidir con `FASES_SEPARACION_WORKER`
