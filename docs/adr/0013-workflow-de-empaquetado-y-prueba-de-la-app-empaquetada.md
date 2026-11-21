@@ -108,6 +108,7 @@ Tres niveles, siempre indicados en el resumen. **Instalación probada**: se inst
 - Impacto en UX: ninguno en la app.
 
 ## Revisiones
+- 2026-11-20: **ampliado por el [ADR 0020](0020-publicacion-en-github-releases-y-politica-de-versiones.md)**. §1 "Disparador": además de `workflow_dispatch`, `push: tags: ['v*']`; el workflow pasa a llamarse "Empaquetado y publicación" y añade `comprobar-version`, `preparar-publicacion` y `publicar`. `permissions: contents: read` sigue en la raíz y solo `publicar` tiene `contents: write`. `construir`, `probar-instalador`, las acciones y sus SHA no cambian (comprobados de nuevo el 2026-11-20).
 - 2026-11-06: el run 42291261968 confirmó ventanas en Windows y macOS, `macos-15` arm64 y FUSE en Ubuntu 24.04. Los cuatro formatos pasaron sus pruebas de instalación o ejecución en runners. El AppImage usó `--no-sandbox` con AppArmor restringido y el `.deb` mantuvo el sandbox. Gatekeeper con cuarentena, SmartScreen y macOS 14 quedan para 0139.
 - 2026-11-06: creado en el desglose de la Fase 7. Precisa el AGENTS.md: "las variables `SHINOBI_*` se ignoran" tiene la excepción `SHINOBI_DATOS` del ADR 0008.
 

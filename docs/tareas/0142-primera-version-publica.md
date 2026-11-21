@@ -2,12 +2,12 @@
 - Estado: Bloqueada (por `preguntas/0035` y `0036`; `0037` y `0044` condicionan el contenido). **Fuera de lo que se implementa en esta fase.**
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0133, 0134, 0136, 0137, 0138, 0139, 0140, 0141
-- ADRs: 0012, 0013
+- ADRs: 0012, 0013, 0020
 - Spec UX: docs/ux/09-descarga-e-instalacion.md (§1.2, §3, §4; estado E1; criterios 2, 8–10, 13)
 - ¿Red?: sí. Publica en GitHub: **solo con la orden expresa del usuario**.
 
 ## Objetivo
-Recoger, para no perderlo, todo lo que hace falta antes de publicar. **No se implementa hasta que el usuario responda.** El flujo concreto de *Release* lo fija el arquitecto tras `preguntas/0035`, en una revisión del ADR 0013.
+Recoger, para no perderlo, todo lo que hace falta antes de publicar. **No se implementa hasta que el usuario responda.** El flujo concreto de *Release* (etiqueta `v*`, workflow, notas y `SHA256SUMS.txt`) lo fija el ADR 0020 (tareas 0191–0195). Esta tarea sigue siendo la puerta de la primera versión **estable** y del paso del README a E1; para las alfas, ver `preguntas/0140` y `0141`.
 
 ## Puerta de publicación
 - [ ] `preguntas/0035`: repositorio público, o vía alternativa de código fuente (obligación GPL).
