@@ -22,4 +22,8 @@ La fase 6 de 0.2.0 añade «Exportar video…» ([plan](../versiones/0.2.0/plan-
 4. **A**: aviso en el diálogo de pantallas y botón «Cancelar la exportación y abrir»; las exportaciones en cola esperan a que termine la sesión. El evento tiene prioridad.
 5. **Recordar** audio, proporción, resolución, FPS y carpeta (no el nombre del archivo).
 
+## Nota del diseñador UX (2026-11-20)
+- **Punto 4: sin efecto.** El [ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9 determina que exportar y una sesión en otra pantalla **pueden convivir**, así que la premisa de la pregunta no se da: no hay aviso, botón «Cancelar la exportación y abrir» ni espera de la cola. Solo se muestra una nota informativa en el diálogo de exportación (spec 10). Si una revisión futura del ADR añadiera un bloqueo por perfil, el punto se reabriría. No hace falta responderlo.
+- **Punto 5**: con el ADR 0019 hay dos formatos (MKV por defecto y WebM); la spec 10 recuerda también el formato elegido, junto a las demás opciones.
+
 ## Respuesta

@@ -96,17 +96,16 @@ flowchart LR
 - «Lista» y «Letra lista» se cambian entre sí desde el menú ⋯ del editor sin pasar por borrador.
 
 ### 0.2.0, fase 6 · Exportación de video
-- **Exportar a video** ([10](10-exportacion.md)): **diálogo** (no una vista) con cinco estados: formulario (audio, proporción, resolución, FPS, formato, destino, estimación, muestra con la marca de agua), exportando (subpasos, cancelar, seguir en segundo plano), en cola, éxito («Mostrar en la carpeta») y fallo (causa, «Copiar detalles», «Cambiar opciones», «Reintentar»). Se abre encima de la Biblioteca o del Editor, que siguen montados.
+- **Exportar a video** ([10](10-exportacion.md)): **diálogo** (no una vista) con cinco estados: formulario (audio, proporción, resolución, FPS, formato MKV o WebM, destino, estimación, muestra con la marca de agua), exportando (subpasos, cancelar, seguir en segundo plano), en cola, éxito («Mostrar en la carpeta») y fallo (causa, «Copiar detalles», «Cambiar opciones», «Reintentar»). Se abre encima de la Biblioteca o del Editor, que siguen montados.
 - **Biblioteca** ([02 · Fase 6](02-biblioteca.md#fase-6-de-020--exportación)): «Exportar video…» en el ⋯ de las Listas (incluidas «Letra lista» e incompletas); «Ver exportación» y «Cancelar exportación…» mientras se exporta; línea «⟳ Exportando video {n} %» en la tarjeta.
 - **Editor** ([06 · Fase 6](06-editor.md#fase-6-de-020--exportación)): «Exportar video…» en el ⋯ de la cabecera y **Ctrl/Cmd + E**, también en borradores con pistas y alguna línea sincronizada.
 - **Panel de actividad** (04): las exportaciones son un trabajo más, con [Ir] (reabre el diálogo) y [✕]. El diálogo de cierre de la app las incluye.
-- **Sesión en otra pantalla**: según el ADR 0019, exportar convive con el evento (nota informativa) o se bloquea con candado y el diálogo «No se puede exportar mientras el reproductor está abierto en otra ventana». Un perfil que el equipo no puede producir se marca **dentro** del diálogo como «no disponible en este equipo», sin candado.
+- **Sesión en otra pantalla**: exportar convive con el evento ([ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9): sin candado, solo una nota informativa en el diálogo; abrir una sesión con una exportación en marcha no la detiene. Un perfil que el equipo no puede producir se marca **dentro** del diálogo como «no disponible en este equipo», sin candado.
 
 ```mermaid
 flowchart LR
     BIB[2 · Biblioteca<br/>⋯ de una Lista] -- "Exportar video…" --> FORM{{10 · Exportar video<br/>formulario}}
     EDI[6 · Editor<br/>⋯ / Ctrl+Cmd+E] -- "vacía el guardado" --> FORM
-    BIB -. "durante una sesión<br/>(si no pueden convivir)" .-> BLQX{{No se puede exportar…}}
     FORM -- "Cancelar / Esc" --> ORIGEN([vuelve al origen])
     FORM -- "Exportar" --> PROG{{10 · Exportando}}
     FORM -- "Exportar (otra en curso)" --> COLA{{10 · En cola}}
@@ -122,7 +121,7 @@ flowchart LR
     TOAST -- "Ver" --> ERR
 ```
 - Atajo nuevo: **Ctrl/Cmd + E** (solo Editor).
-- Errores nuevos (detalle en spec 10 §"Errores"; códigos provisionales hasta el ADR 0019): `SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `EXPORTACION_BLOQUEADA`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA`; desconocido = «Algo salió mal al crear el video».
+- Errores nuevos (detalle en spec 10 §"Errores"; códigos finales del ADR 0019 §10): `SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA` y `ERROR_INTERNO` («Algo salió mal al crear el video»). No hay código de bloqueo por sesión.
 
 ## 2. Estructura de la ventana
 

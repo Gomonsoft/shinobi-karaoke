@@ -884,7 +884,7 @@ Origen: [plan, fase 6, feature 7](../versiones/0.2.0/plan-2.md#fase-6--exportaci
 | Lista (también «Letra lista» e incompleta) | Nuevo ítem **«Exportar video…»** (`exp.menu`, icono `film`) después de «Editar datos» y antes de «Aplicar tema…». Abre el diálogo de spec 10 (A). Con una exportación de esa canción en curso o en cola, el ítem es **«Ver exportación»** y además aparece **«Cancelar exportación…»** (antes del separador de los destructivos), que abre `exp.dialogo.cancelar` (en cola: retira sin confirmación). |
 | Borrador | Sin «Exportar video…» (la exportación de un borrador solo se ofrece desde el editor, spec 06 · Fase 6). Si el borrador se está exportando (lanzado desde el editor): «Ver exportación» y «Cancelar exportación…». |
 | Dañada | Sin cambios. |
-| Durante una sesión en otra pantalla | Si el ADR 0019 permite exportar a la vez: igual que sin sesión. Si no: «Exportar video…» se pinta `aria-disabled` con el candado de la fase 4 y su nombre accesible añade `exp.bloqueo.aria`; al activarlo, diálogo `exp.bloqueo` (spec 10). «Ver exportación» y «Cancelar exportación…» siguen disponibles. |
+| Durante una sesión en otra pantalla | Igual que sin sesión, **sin candado**: exportar y la sesión conviven ([ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9). El diálogo de spec 10 muestra la nota `exp.nota.sesion`. |
 
 No hay botón de exportar en la tarjeta ni atajo propio: la acción principal sigue siendo «▶ Reproducir» (o «A la cola» durante la sesión).
 
@@ -904,10 +904,10 @@ No hay botón de exportar en la tarjeta ni atajo propio: la acción principal si
 - **Volver a borrador**: permitido; la exportación sigue (usa una instantánea).
 
 ### Abrir el reproductor en otra pantalla con una exportación en curso
-Solo si el ADR 0019 **no** permite que convivan: el diálogo «Abrir el reproductor en otra pantalla» muestra, sobre los botones, el banner `aviso` `ses.exportando` y el primario pasa a ser `ses.exportando.boton` («Cancelar la exportación y abrir»), que cancela la exportación (con limpieza) y abre la sesión. «Cancelar» cierra el diálogo y la exportación sigue. Si solo hay exportaciones **en cola**, el diálogo no cambia: esperan sin empezar hasta que termine la sesión (`exp.cola.sesion`). Opción provisional ([0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §4). Si conviven, el diálogo no cambia.
+El diálogo «Abrir el reproductor en otra pantalla» **no cambia**: la sesión se abre normalmente y las exportaciones en curso y en cola siguen sin pausarse ([ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9). No hay banner ni botón «Cancelar la exportación y abrir»; el punto 4 de [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) queda sin efecto.
 
 ### Microcopy (fase 6, biblioteca)
-Las claves `exp.*`, `bib.exp.*`, `act.exp` y `ses.exportando*` están en [spec 10 · Microcopy](10-exportacion.md#microcopy). Únicas nuevas de esta vista:
+Las claves `exp.*`, `bib.exp.*` y `act.exp` están en [spec 10 · Microcopy](10-exportacion.md#microcopy). Únicas nuevas de esta vista:
 | Clave | Texto |
 |---|---|
 | `bib.menu.exportar` | Exportar video… · Ver exportación · Cancelar exportación… |
@@ -918,5 +918,5 @@ Las claves `exp.*`, `bib.exp.*`, `act.exp` y `ses.exportando*` están en [spec 1
 - X3. La tarjeta muestra `bib.exp.linea` con porcentaje y tiempo actualizados ≥ 1 vez cada 2 s sin mover el foco ni reordenarse, o `bib.exp.cola` en cola; al terminar la línea desaparece y el estado de la canción no cambia.
 - X4. El panel de actividad lista la exportación con [Ir] y [✕] y la cuenta en el indicador.
 - X5. Eliminar una canción que se exporta muestra `exp.eliminar.extra` y, al confirmar, no queda temporal en el disco.
-- X6. Durante una sesión, «Exportar video…» se comporta según el ADR 0019: disponible con la nota `exp.nota.sesion`, o con candado y `exp.bloqueo`; en el segundo caso, el diálogo de pantallas con una exportación en curso muestra `ses.exportando` y `ses.exportando.boton`.
+- X6. Durante una sesión, «Exportar video…» está disponible sin candado y el diálogo muestra `exp.nota.sesion`; con una exportación en curso, el diálogo de pantallas no cambia y, al abrir la sesión, la exportación sigue.
 - X7. Captura `docs/ux/revision-fase-6/exportacion-1280x800-100-tarjeta-exportando.png` (tarjeta con la línea y el ⋯ abierto).

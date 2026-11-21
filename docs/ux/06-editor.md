@@ -1815,14 +1815,14 @@ Lista revelada (hasta 8 filas visibles, scroll propio, orden de la letra; datos 
 
 ## Fase 6 de 0.2.0 — exportación
 
-Origen: [plan, fase 6, feature 7](../versiones/0.2.0/plan-2.md#fase-6--exportación). Diálogo, progreso, errores, marca de agua y criterios completos: [10 · Exportar a video](10-exportacion.md). Esta sección define **cómo se llega desde el editor**; el editor no cambia en nada más. Durante una sesión en otra pantalla el editor está bloqueado (fase 4), así que desde aquí nunca se exporta con un evento en marcha.
+Origen: [plan, fase 6, feature 7](../versiones/0.2.0/plan-2.md#fase-6--exportación). Diálogo, progreso, errores, marca de agua y criterios completos: [10 · Exportar a video](10-exportacion.md). Esta sección define **cómo se llega desde el editor**; el editor no cambia en nada más. Durante una sesión en otra pantalla el editor está bloqueado (fase 4), así que desde aquí nunca se **inicia** una exportación con un evento en marcha; una exportación lanzada desde el editor sigue si después se abre una sesión (exportar y la sesión conviven, [ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9). El editor no usa candado de exportación.
 
 ### Punto de entrada
 | Elemento | Comportamiento |
 |---|---|
 | ⋯ de la cabecera › **«Exportar video…»** | Nuevo ítem (`exp.menu`, icono `film`) entre «Atajos de teclado (F1)» y «Volver a borrador…». Con una exportación de esta canción en curso o en cola: **«Ver exportación»** (abre el diálogo de spec 10 en su estado). |
 | **Ctrl/Cmd + E** | Equivale al ítem. Se añade al diálogo «Atajos de teclado» (fila `edi.atajo.exportar`). No actúa con el foco en un campo de texto, durante el modo «Sincronizar al ritmo» ni con un diálogo o popover abierto. |
-| Disponible | Separación completada (existe `pistas/instrumental.flac`), ≥ 1 línea con inicio, fuera del modo sincronizar y sin «Error de audio». En **Lista y en Borrador** (en borrador, el diálogo muestra `exp.nota.borrador`; opción provisional, [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §1). |
+| Disponible | Separación completada (existe `pistas/instrumental.flac`), ≥ 1 línea con inicio, fuera del modo sincronizar y sin «Error de audio». En **Lista y en Borrador** (en borrador, el diálogo muestra `exp.nota.borrador` y el video lleva siempre barrido, aunque la modalidad elegida sea «Letra lista», ADR 0019 §2; opción provisional, [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §1). |
 | No disponible | `aria-disabled` (sigue enfocable en el menú) con tooltip: separación en curso, en cola, pendiente, con error o interrumpida → `exp.motivo.sinPistas`; ninguna línea con inicio → `exp.motivo.sinLineas`. En el modo sincronizar y en «Error de audio» queda inactivo como el resto del ⋯. Ctrl/Cmd + E no hace nada en esos casos. |
 
 ### Al abrir
