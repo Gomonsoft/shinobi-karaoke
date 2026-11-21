@@ -217,11 +217,15 @@ describe('comandos a la secundaria', () => {
       {
         tipo: 'transicion',
         ...base,
-        transicion: { candidata: { titulo: 'T', artista: 'A' }, restanteMs: 4000, duracionMs: 4000 }
+        transicion: {
+          candidata: { entradaId: id, titulo: 'T', artista: 'A' },
+          restanteMs: 4000,
+          duracionMs: 4000
+        }
       },
       { tipo: 'transicion', ...base, transicion: null },
       { tipo: 'fin_de_cola', ...base },
-      { tipo: 'error', ...base, motivo: 'sin_pistas' }
+      { tipo: 'error', ...base, motivo: 'sin_pistas', entradaId: id, titulo: 'T' }
     ]) {
       expect(comandoSecundariaIpcSchema.safeParse(c).success).toBe(true)
     }

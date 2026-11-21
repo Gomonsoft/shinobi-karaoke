@@ -85,7 +85,8 @@ export function PantallaEstadoSesion({
   const visibilidad = useRef<VisibilidadControles | null>(null)
   const [visible, setVisible] = useState(true)
   const [atajosAbiertos, setAtajosAbiertos] = useState(false)
-  const { fase, candidata, transicion, cierrePendiente, hayPendientes } = estado
+  const { fase, candidata, transicion, cierrePendiente } = estado
+  const hayPendientes = estado.pendientes > 0
   const enCuenta = fase === 'transicion' && transicion !== null
   const enEspera = fase === 'espera' || (fase === 'transicion' && transicion === null)
   const enFin = fase === 'fin_de_cola'

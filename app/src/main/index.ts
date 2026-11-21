@@ -11,6 +11,7 @@ import {
   Notification,
   powerSaveBlocker,
   protocol,
+  screen,
   session,
   shell,
   type MenuItemConstructorOptions
@@ -51,7 +52,13 @@ import {
 import { rutaDatos } from './rutas'
 import { leerTextoLegal } from './textoLegal'
 import { lanzadorDeApp } from './lanzadorApp'
-import { crearControlCierre, hayAlgoEnCurso } from './cierre'
+import {
+  crearControlCierre,
+  hayAlgoEnCurso,
+  motivoDeCierre,
+  type FuentesEnCurso,
+  type IntencionCierre
+} from './cierre'
 import {
   ActualizadorYtDlp,
   CerrojoLecturaEscritura,
@@ -74,6 +81,14 @@ import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron 
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
 import { RegistroVentanas } from './ventana/registro'
 import { GestorReposo } from './ventana/reposo'
+import { ServicioSesion } from './sesion/servicio'
+import { listarPantallas, observarPantallas, type ScreenLike } from './sesion/pantallas'
+import { pantallaCompletaSimulada, pantallasSimuladas } from './sesion/pantallasPrueba'
+import {
+  abrirSecundaria,
+  type OpcionesVentanaSecundaria,
+  type VentanaSecundariaLike
+} from './sesion/ventanaSecundaria'
 
 /** Roles de las ventanas de la app (ADR 0017 §1). */
 const ventanas = new RegistroVentanas<BrowserWindow>()
@@ -91,6 +106,9 @@ export let servicioTemas: ServicioTemas | null = null
 function aPrincipal(canal: string, carga: unknown): void {
   ventanas.enviarA('principal', canal, carga)
 }
+
+/** Sesión en vivo y cola de reproducción (ADR 0017, 0181). */
+export let servicioSesion: ServicioSesion | null = null
 
 /** Importación de archivo local (0042). */
 export let importacionArchivo: ServicioImportacionArchivo | null = null
@@ -134,17 +152,7 @@ function instalarMenuDesarrollo(): void {
     label: 'Desarrollo',
     submenu: [
       { label: 'Lanzar demo (cola pesada, 30 s)', click: () => lanzar('pesada', 30) },
-      { label: 'Lanzar demo (cola ligera, 15 s)', click: () => lanzar('ligera', 15) },
-      // Solo pruebas (0179): secundaria vacía con el rol `secundaria` para el E2E de seguridad.
-      ...(process.env.SHINOBI_VENTANA_SECUNDARIA_PRUEBA === '1'
-        ? [
-            {
-              id: 'dev-secundaria-prueba',
-              label: 'Abrir secundaria de prueba',
-              click: () => crearVentanaSecundariaPrueba()
-            }
-          ]
-        : [])
+      { label: 'Lanzar demo (cola ligera, 15 s)', click: () => lanzar('ligera', 15) }
     ]
   }
   const actual = Menu.getApplicationMenu()
@@ -177,15 +185,27 @@ const modoReproductor = new ControlModoReproductor({
   }
 })
 
+/** En macOS cerrar la ventana principal no sale de la app: la cola se conserva (ADR 0017 §9). */
+const cierraSoloLaVentana = (intencion: IntencionCierre): boolean =>
+  intencion === 'ventana' && process.platform === 'darwin'
+
+/** Qué impide cerrar sin preguntar, según se pida cerrar la ventana o salir. */
+const fuentesDeCierre = (intencion: IntencionCierre): FuentesEnCurso => ({
+  instalando: () => runtime?.servicio.instalando() ?? false,
+  // Trabajos de la cola (0073). Las consultas interactivas no cuentan.
+  hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
+  guardadoPendiente: () => guardadoEditorPendiente,
+  sesionActiva: () => servicioSesion?.sesionActiva() ?? false,
+  colaNoVacia: () => !cierraSoloLaVentana(intencion) && (servicioSesion?.colaNoVacia() ?? false)
+})
+
 const controlCierre = crearControlCierre({
-  // Instalación del runtime o trabajos de la cola (0073). Las consultas interactivas no cuentan.
-  hayAlgoEnCurso: () =>
-    hayAlgoEnCurso({
-      instalando: () => runtime?.servicio.instalando() ?? false,
-      hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
-      guardadoPendiente: () => guardadoEditorPendiente
+  hayAlgoEnCurso: (intencion) => hayAlgoEnCurso(fuentesDeCierre(intencion)),
+  pedirConfirmacion: (intencion) =>
+    aPrincipal(CANALES.eventos.solicitudCierre, {
+      ...motivoDeCierre(fuentesDeCierre(intencion)),
+      variante: cierraSoloLaVentana(intencion) ? 'cerrarVentanaMac' : 'salir'
     }),
-  pedirConfirmacion: () => aPrincipal(CANALES.eventos.solicitudCierre, undefined),
   // Tras confirmar, los trabajos se cancelan como `interrumpido` y no queda ningún proceso hijo.
   // Sin `cancelarTodos()`: en macOS cerrar la ventana no sale de la app y el gestor debe seguir vivo.
   pausar: async () => {
@@ -195,8 +215,17 @@ const controlCierre = crearControlCierre({
       ...(g?.listar().map((t) => g.cancelar(t.id, 'cierre')) ?? [])
     ])
   },
-  cerrarVentana: () => ventanas.principal()?.close(),
-  salir: () => app.quit()
+  // La secundaria se cierra sin su diálogo de cola. En macOS la cola se conserva; en el resto, cerrar
+  // la principal sale de la app y no se vuelve a preguntar.
+  cerrarVentana: () => {
+    if (process.platform === 'darwin') void servicioSesion?.cerrarConservando()
+    else void servicioSesion?.prepararSalida()
+    ventanas.principal()?.close()
+  },
+  salir: () => {
+    void servicioSesion?.prepararSalida()
+    app.quit()
+  }
 })
 
 /** Mínimo de contenido de la ventana, px CSS (spec del editor, subfase 2.1). */
@@ -263,34 +292,18 @@ function crearVentana(): BrowserWindow {
 }
 
 /**
- * Secundaria vacía solo para pruebas (E2E de seguridad, 0179): rol `secundaria`, preload propio y
- * sin sesión. Solo sin empaquetar y con `SHINOBI_VENTANA_SECUNDARIA_PRUEBA=1`. La sustituye 0180.
+ * Crea la ventana de la sesión (ADR 0017 §2): rol `secundaria`, toda navegación bloqueada y
+ * `reproductor.html` como documento. La colocación y los avisos los pone `abrirSecundaria`.
  */
-function crearVentanaSecundariaPrueba(): void {
-  if (ventanas.secundaria()) return
-  const ventana = new BrowserWindow({
-    width: 640,
-    height: 360,
-    title: 'Shinobi Karaoke · Reproductor',
-    backgroundColor: '#000000',
-    show: false,
-    webPreferences: {
-      preload: join(__dirname, '../preload/secundaria.js'),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false,
-      autoplayPolicy: 'no-user-gesture-required'
-    }
-  })
+function crearVentanaSecundaria(opciones: OpcionesVentanaSecundaria): VentanaSecundariaLike {
+  const ventana = new BrowserWindow(opciones)
   ventanas.registrar(ventana, 'secundaria')
-  ventana.setMenu(null)
   bloquearNavegacionTotal(ventana.webContents)
-  ventana.once('ready-to-show', () => ventana.showInactive())
   const urlDev = process.env.ELECTRON_RENDERER_URL
   void ventana.loadURL(
     !app.isPackaged && urlDev ? `${urlDev}/reproductor.html` : `${ORIGEN_APP}/reproductor.html`
   )
+  return ventana as unknown as VentanaSecundariaLike
 }
 
 // El esquema de medios debe registrarse como privilegiado antes de `app.ready` (0012).
@@ -640,12 +653,54 @@ if (instanciaUnica)
         registro
       })
       const busqueda = busquedaLetras
+      const biblioteca = servicioBiblioteca
+      const config = servicioConfig
+      // `SHINOBI_PANTALLAS_SIMULADAS` sustituye `screen` en E2E; se ignora empaquetada (ADR 0017 §13).
+      const pantallasSistema: ScreenLike =
+        pantallasSimuladas({ env: process.env, empaquetada: app.isPackaged }) ??
+        (screen as unknown as ScreenLike)
+      const pantallaCompletaDePrueba = pantallaCompletaSimulada({
+        env: process.env,
+        empaquetada: app.isPackaged
+      })
+      servicioSesion = new ServicioSesion({
+        biblioteca: {
+          obtener: (id) => biblioteca.obtener(id),
+          obtenerResumen: (id) => biblioteca.obtenerResumen(id),
+          estiloDe: (cancion) => biblioteca.resolver(cancion).estilo,
+          comprobarPistas: (id) => biblioteca.comprobarPistas(id),
+          suscribir: (cb) => biblioteca.suscribir(cb)
+        },
+        config,
+        abrirVentana: (peticion) =>
+          abrirSecundaria(peticion, {
+            screen: pantallasSistema,
+            crear: crearVentanaSecundaria,
+            rutaPreload: join(__dirname, '../preload/secundaria.js'),
+            pantallaCompletaSimulada: pantallaCompletaDePrueba
+          }),
+        pantallas: {
+          listar: () => listarPantallas(pantallasSistema, ventanas.principal()),
+          observar: (cb) => observarPantallas(pantallasSistema, cb)
+        },
+        enviarA: (rol, canal, carga) => ventanas.enviarA(rol, canal, carga),
+        // Silencio de la principal mientras dura la sesión; el valor previo se restaura (ADR 0017 §9).
+        principal: {
+          estaSilenciada: () => ventanas.principal()?.webContents.isAudioMuted() ?? false,
+          silenciar: (silenciar) => ventanas.principal()?.webContents.setAudioMuted(silenciar)
+        },
+        reposo: gestorReposo,
+        liberarVisitaLetra: () => servicioLetras.liberarEdicion(),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'sesion', mensaje)
+      })
       registrarIpc(
         ipcMain,
         {
           biblioteca: servicioBiblioteca,
           ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
+          sesion: servicioSesion,
+          guardadoPendiente: () => guardadoEditorPendiente,
           runtime: runtime.servicio,
           confirmarCierre: async () => {
             await controlCierre.confirmar()
@@ -713,6 +768,7 @@ if (instanciaUnica)
         {
           remitenteValido: (evento, canal) =>
             remitenteIpcValido(evento, canal, ventanas, origenRenderer()),
+          rolDe: (evento) => ventanas.rolDe((evento as { sender?: unknown } | null)?.sender),
           enviarA: (rol, canal, carga) => ventanas.enviarA(rol, canal, carga)
         }
       )
@@ -749,6 +805,8 @@ app.on('before-quit', (evento) => {
   if (escriturasVolcadas) return
   controlCierre.alSalir(evento)
   if (evento.defaultPrevented) return
+  // La secundaria se cierra sin su diálogo de cola y se sueltan bloqueos, silencio y reposo.
+  void servicioSesion?.prepararSalida()
   gestorReposo.liberarTodo()
   // Se espera a las escrituras pendientes (0010) antes de salir de verdad.
   evento.preventDefault()

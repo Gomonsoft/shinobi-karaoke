@@ -48,7 +48,12 @@ export interface PropsAppSecundaria {
 }
 
 function esEstadoSecundaria(e: unknown): e is EstadoSecundariaIpc {
-  return typeof e === 'object' && e !== null && 'sesionId' in e && 'hayPendientes' in e
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'sesionId' in e &&
+    typeof (e as { pendientes?: unknown }).pendientes === 'number'
+  )
 }
 
 /**
@@ -61,7 +66,6 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
   const [estado, setEstado] = useState<EstadoSecundariaIpc | null>(null)
   const [activa, setActiva] = useState<Activa | null>(null)
   const [ultima, setUltima] = useState<UltimaEntrada | null>(null)
-  const [tituloFallo, setTituloFallo] = useState<string | null>(null)
   const [pantallaCompleta, setPantallaCompleta] = useState(false)
 
   const sesionId = useRef<string | null>(null)
@@ -69,7 +73,6 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
   const revisionComando = useRef(-1)
   const revisionEstado = useRef(-1)
   const contador = useRef(0)
-  const ultimaEntradaId = useRef<string | null>(null)
   const control = useRef<ControlSesion | null>(null)
 
   const fijarActiva = useCallback((siguiente: Activa | null) => {
@@ -104,13 +107,11 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
           // Un `cargar` repetido de la entrada en curso no reinicia el audio.
           if (actual && actual.entrada.entradaId === c.entrada.entradaId && !actual.terminada)
             return
-          ultimaEntradaId.current = c.entrada.entradaId
           setUltima({
             titulo: c.entrada.titulo,
             artista: c.entrada.artista,
             estilo: c.entrada.estilo
           })
-          setTituloFallo(null)
           fijarActiva({
             clave: ++contador.current,
             entrada: c.entrada,
@@ -177,7 +178,6 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
       const id = sesionId.current
       if (id === null) return
       if (informe.tipo === 'fin' && activaRef.current?.clave === a.clave) a.terminada = true
-      if (informe.tipo === 'error') setTituloFallo(a.entrada.titulo)
       const completo: InformeSecundariaIpc = {
         ...informe,
         sesionId: id,
@@ -205,13 +205,12 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
 
   if (!estado || !volumen) return <div data-testid="secundaria-cargando" />
 
-  /**
-   * PROVISIONAL (pregunta 0068): el estado reducido no lleva el id de la candidata ni el de la
-   * entrada fallida. Se usan los últimos ids conocidos; main responde sin cambios si no coinciden.
-   */
-  const idCandidata = (): string =>
-    estado.transicion?.transicionId ?? ultimaEntradaId.current ?? estado.sesionId
-  const idParaAvanzar = (): string => ultimaEntradaId.current ?? estado.sesionId
+  // Ids de los botones (ADR 0017 §10, revisión 2): el estado de main es la fuente de verdad.
+  const idCandidata = (): string | null => estado.candidata?.entradaId ?? null
+  const idParaAvanzar = (): string | null => estado.activa?.entradaId ?? null
+  /** Solo actúa si hay una entrada de referencia; main ignora lo demás. */
+  const conId = (id: string | null, accion: (id: string) => Promise<unknown>) =>
+    id === null ? undefined : void sinError(accion(id))
   const cierreAbierto = estado.cierrePendiente?.origen === 'secundaria'
 
   return (
@@ -239,7 +238,7 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
             pausada: activa.pausada,
             anuncio: activa.anuncio,
             silencioPrevio: activa.entrada.silencioPrevio,
-            hayPendientes: estado.hayPendientes,
+            hayPendientes: estado.pendientes > 0,
             ventana: api.ventana,
             control,
             informar: (i) => informar(activa, i),
@@ -251,14 +250,14 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
         <PantallaEstadoSesion
           estado={estado}
           ultima={ultima}
-          tituloFallo={tituloFallo}
+          tituloFallo={estado.activa?.titulo ?? null}
           volumen={volumen}
           pantallaCompleta={pantallaCompleta}
           teclasActivas={!cierreAbierto}
-          alEmpezar={() => void sinError(api.sesion.empezar(idCandidata()))}
+          alEmpezar={() => conId(idCandidata(), api.sesion.empezar)}
           alDetener={(id) => void sinError(api.sesion.detenerTransicion(id))}
-          alPasar={() => void sinError(api.sesion.siguiente(idParaAvanzar()))}
-          alOtraVez={() => void sinError(api.sesion.repetir(idParaAvanzar()))}
+          alPasar={() => conId(idParaAvanzar(), api.sesion.siguiente)}
+          alOtraVez={() => conId(idParaAvanzar(), api.sesion.repetir)}
           alCerrar={alCerrar}
           alPantallaCompleta={alPantallaCompleta}
         />
@@ -266,6 +265,7 @@ export function AppSecundaria({ api = window.shinobiReproductor, crearMotor }: P
       {cierreAbierto && (
         <DialogoCierreSesion
           alConfirmar={(cola) => api.sesion.cierre.confirmar(cola, estado.revision)}
+          pendientes={estado.pendientes}
           alCancelar={() => void api.sesion.cierre.cancelar().catch(() => undefined)}
         />
       )}

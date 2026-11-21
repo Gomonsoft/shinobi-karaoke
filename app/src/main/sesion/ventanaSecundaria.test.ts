@@ -269,18 +269,17 @@ describe('abrirSecundaria', () => {
     expect(responde).toHaveBeenCalledOnce()
   })
 
-  it('una recarga cuenta como caída, la carga inicial no', () => {
+  it('una recarga confirmada cuenta como caída; la carga inicial y una navegación cancelada, no', () => {
     const { ventana, manejador } = montar()
     const cae = vi.fn()
     manejador.alCaer(cae)
-    const nav = { isMainFrame: true, isSameDocument: false }
-    ventana.webContents.emit('did-start-navigation', nav)
+    ventana.webContents.emit('did-navigate')
     expect(cae).not.toHaveBeenCalled()
     ventana.webContents.emit('did-finish-load')
-    ventana.webContents.emit('did-start-navigation', { ...nav, isSameDocument: true })
-    ventana.webContents.emit('did-start-navigation', { ...nav, isMainFrame: false })
+    // Una navegación bloqueada por `will-navigate` solo llega a `did-start-navigation`.
+    ventana.webContents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     expect(cae).not.toHaveBeenCalled()
-    ventana.webContents.emit('did-start-navigation', nav)
+    ventana.webContents.emit('did-navigate')
     expect(cae).toHaveBeenCalledWith('recarga')
   })
 

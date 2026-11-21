@@ -11,21 +11,45 @@ export interface FuentesEnCurso {
   /** Trabajos en curso o en cola (`GestorTrabajos.hayPendientes`). No incluye consultas interactivas. */
   hayTrabajos(): boolean
   guardadoPendiente?(): boolean
+  /** Hay una sesión abierta en la ventana secundaria (ADR 0017 §9). */
+  sesionActiva?(): boolean
+  /** Hay entradas pendientes o una activa en la cola de reproducción. */
+  colaNoVacia?(): boolean
+}
+
+/** Qué hay en curso, para que el renderer elija el texto (`app:solicitudCierre`). */
+export interface MotivoCierre {
+  trabajos: boolean
+  sesion: boolean
+  cola: boolean
+}
+
+export function motivoDeCierre(fuentes: FuentesEnCurso): MotivoCierre {
+  return {
+    trabajos:
+      fuentes.instalando() || fuentes.hayTrabajos() || (fuentes.guardadoPendiente?.() ?? false),
+    sesion: fuentes.sesionActiva?.() ?? false,
+    cola: fuentes.colaNoVacia?.() ?? false
+  }
 }
 
 export function hayAlgoEnCurso(fuentes: FuentesEnCurso): boolean {
-  return fuentes.instalando() || fuentes.hayTrabajos() || (fuentes.guardadoPendiente?.() ?? false)
+  const m = motivoDeCierre(fuentes)
+  return m.trabajos || m.sesion || m.cola
 }
+
+/** Qué se pidió: cerrar la ventana principal o salir de la aplicación. */
+export type IntencionCierre = 'ventana' | 'salir'
 
 export interface EventoCancelable {
   preventDefault(): void
 }
 
 export interface DependenciasCierre {
-  /** Hay algo que no debe interrumpirse sin preguntar (hoy, la instalación del runtime). */
-  hayAlgoEnCurso(): boolean
-  /** Envía `app:solicitudCierre` al renderer. */
-  pedirConfirmacion(): void
+  /** Hay algo que no debe interrumpirse sin preguntar (instalación, trabajos, sesión o cola). */
+  hayAlgoEnCurso(intencion: IntencionCierre): boolean
+  /** Envía `app:solicitudCierre` al renderer, con el motivo y la variante. */
+  pedirConfirmacion(intencion: IntencionCierre): void
   /** Pausa lo que esté en curso y espera a que no queden procesos. */
   pausar(): Promise<void>
   cerrarVentana(): void
@@ -42,16 +66,16 @@ export interface ControlCierre {
 }
 
 export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
-  let pendiente: 'ventana' | 'salir' | null = null
+  let pendiente: IntencionCierre | null = null
   let confirmando = false
   let reentrada = false
 
-  function interceptar(evento: EventoCancelable, intencion: 'ventana' | 'salir'): void {
-    if (reentrada || !deps.hayAlgoEnCurso()) return
+  function interceptar(evento: EventoCancelable, intencion: IntencionCierre): void {
+    if (reentrada || !deps.hayAlgoEnCurso(intencion)) return
     evento.preventDefault()
     if (confirmando) return
     pendiente = intencion
-    deps.pedirConfirmacion()
+    deps.pedirConfirmacion(intencion)
   }
 
   return {

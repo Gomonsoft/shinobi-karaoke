@@ -114,13 +114,13 @@ export type ComandoMaquina =
   | {
       tipo: 'transicion'
       transicion: {
-        candidata: { titulo: string; artista: string }
+        candidata: { entradaId: string; titulo: string; artista: string }
         restanteMs: number
         duracionMs: number
       } | null
     }
   | { tipo: 'fin_de_cola' }
-  | { tipo: 'error'; motivo: MotivoFallo }
+  | { tipo: 'error'; motivo: MotivoFallo; entradaId: string; titulo: string }
 
 export type Efecto =
   | { tipo: 'comando'; comando: ComandoMaquina }
@@ -192,6 +192,8 @@ export type Evento =
         | { tipo: 'movida'; pantalla: PantallaIpc | null; pantallaCompleta: boolean }
     }
   | { tipo: 'responde'; responde: boolean }
+  /** La ventana entró o salió de pantalla completa (por el operador, el sistema o una recolocación). */
+  | { tipo: 'pantallaCompleta'; activa: boolean }
 
 export interface Resultado {
   estado: EstadoMaquina
@@ -264,9 +266,12 @@ function aFinDeCola(e: EstadoMaquina, ef: Efectos): EstadoMaquina {
   return conSesion(e, { fase: 'fin_de_cola', transicion: null, error: null })
 }
 
-function aError(e: EstadoMaquina, error: ErrorActiva, ef: Efectos): EstadoMaquina {
+function aError(e: EstadoMaquina, error: ErrorActiva, titulo: string, ef: Efectos): EstadoMaquina {
   cancelarTemporizador(e, ef)
-  ef.push({ tipo: 'comando', comando: { tipo: 'error', motivo: error.motivo } })
+  ef.push({
+    tipo: 'comando',
+    comando: { tipo: 'error', motivo: error.motivo, entradaId: error.entradaId, titulo }
+  })
   return conSesion(e, { fase: 'error', transicion: null, error })
 }
 
@@ -289,7 +294,8 @@ function iniciarCuenta(
 ): EstadoMaquina {
   const candidata = Cola.candidata(e.cola)
   if (!candidata) return aFinDeCola(e, ef)
-  if (candidata.disponibilidad !== 'ok') return aError(e, errorDeCandidata(candidata), ef)
+  if (candidata.disponibilidad !== 'ok')
+    return aError(e, errorDeCandidata(candidata), candidata.titulo, ef)
   cancelarTemporizador(e, ef)
   const duracion = duracionMs ?? Math.round(e.entorno.transicionS() * 1000)
   const congelada = e.sesion?.cierrePendiente != null
@@ -307,7 +313,11 @@ function iniciarCuenta(
     comando: {
       tipo: 'transicion',
       transicion: {
-        candidata: { titulo: candidata.titulo, artista: candidata.artista },
+        candidata: {
+          entradaId: candidata.entradaId,
+          titulo: candidata.titulo,
+          artista: candidata.artista
+        },
         restanteMs: duracion,
         duracionMs: duracion
       }
@@ -354,7 +364,8 @@ function reajustar(e: EstadoMaquina, ahoraMs: number, ef: Efectos): EstadoMaquin
   const candidata = Cola.candidata(e.cola)
   if (s.fase === 'transicion' && s.transicion) {
     if (!candidata) return aFinDeCola(e, ef)
-    if (candidata.disponibilidad !== 'ok') return aError(e, errorDeCandidata(candidata), ef)
+    if (candidata.disponibilidad !== 'ok')
+      return aError(e, errorDeCandidata(candidata), candidata.titulo, ef)
     if (candidata.entradaId === s.transicion.candidataId) return e
     return iniciarCuenta(e, ahoraMs, ef, s.transicion.duracionMs)
   }
@@ -519,6 +530,7 @@ function revalidada(
       aError(
         e,
         { entradaId: ev.entradaId, motivo: ev.resultado, codigo: 'CANCION_NO_DISPONIBLE' },
+        activa.titulo,
         ef
       )
     )
@@ -613,7 +625,7 @@ function informe(
         motivo: inf.error.motivo,
         codigo: `${inf.error.motivo}:${inf.error.pista}`
       }
-      return salida(aError(e, error, ef), { aplicado: true })
+      return salida(aError(e, error, e.cola.activa?.titulo ?? '', ef), { aplicado: true })
     }
   }
 }
@@ -941,6 +953,10 @@ function despachar(e: EstadoMaquina, ev: Evento, ahoraMs: number, ef: Efectos): 
       return pantalla(e, ev.cambio)
     case 'responde':
       return responde(e, ev.responde)
+    case 'pantallaCompleta':
+      return e.sesion && e.sesion.pantallaCompleta !== ev.activa
+        ? salida(conSesion(e, { pantallaCompleta: ev.activa }))
+        : salida(e)
   }
 }
 

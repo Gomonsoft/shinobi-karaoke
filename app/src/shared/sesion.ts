@@ -174,7 +174,20 @@ export const estadoSecundariaIpcSchema = z.strictObject({
   sesionId: uuidSchema,
   fase: faseSesionSchema,
   candidata: z
-    .strictObject({ titulo: textoSchema, artista: textoSchema, estilo: estiloSchema })
+    .strictObject({
+      entradaId: uuidSchema,
+      titulo: textoSchema,
+      artista: textoSchema,
+      estilo: estiloSchema
+    })
+    .nullable(),
+  /**
+   * Entrada de referencia de los botones (ADR 0017 §10, rev. 2): la que suena (`cargando`,
+   * `reproduciendo`, `pausada`), la fallida (`error`) o la última terminada (`fin_de_cola`); `null`
+   * en el resto.
+   */
+  activa: z
+    .strictObject({ entradaId: uuidSchema, titulo: textoSchema, artista: textoSchema })
     .nullable(),
   /** Cuenta en curso (S1); su `restanteMs` se pinta con un reloj local. */
   transicion: z
@@ -185,7 +198,8 @@ export const estadoSecundariaIpcSchema = z.strictObject({
       congelada: z.boolean()
     })
     .nullable(),
-  hayPendientes: z.boolean(),
+  /** Nº de entradas pendientes (para «Quedan {n} canciones»); la lista no se envía. */
+  pendientes: z.int().min(0),
   cierrePendiente: z.strictObject({ origen: rolOrigenSchema }).nullable(),
   /** Fallo genérico para el público (S4); `null` si no hay. */
   motivoFallo: motivoFalloSchema.nullable()
@@ -235,14 +249,25 @@ export const comandoSecundariaIpcSchema = z.discriminatedUnion('tipo', [
     /** `null` cancela la cuenta. */
     transicion: z
       .strictObject({
-        candidata: z.strictObject({ titulo: textoSchema, artista: textoSchema }),
+        candidata: z.strictObject({
+          entradaId: uuidSchema,
+          titulo: textoSchema,
+          artista: textoSchema
+        }),
         restanteMs: duracionMsSchema,
         duracionMs: duracionMsSchema
       })
       .nullable()
   }),
   z.strictObject({ tipo: z.literal('fin_de_cola'), ...baseComando }),
-  z.strictObject({ tipo: z.literal('error'), ...baseComando, motivo: motivoFalloSchema })
+  z.strictObject({
+    tipo: z.literal('error'),
+    ...baseComando,
+    motivo: motivoFalloSchema,
+    /** La entrada fallida, aunque la secundaria no llegara a cargarla. */
+    entradaId: uuidSchema,
+    titulo: textoSchema
+  })
 ])
 export type ComandoSecundariaIpc = z.infer<typeof comandoSecundariaIpcSchema>
 
@@ -356,5 +381,17 @@ export const posicionSesionIpcSchema = z.strictObject({
   duracionMs: duracionMsSchema
 })
 export type PosicionSesionIpc = z.infer<typeof posicionSesionIpcSchema>
+
+/**
+ * Carga de `app:solicitudCierre` (ADR 0017 §9): qué hay en curso y qué se pidió, para que el renderer
+ * elija el texto (0189). `cerrarVentanaMac`: se cierra la ventana principal pero la app sigue abierta.
+ */
+export const solicitudCierreSchema = z.strictObject({
+  trabajos: z.boolean(),
+  sesion: z.boolean(),
+  cola: z.boolean(),
+  variante: z.enum(['salir', 'cerrarVentanaMac'])
+})
+export type SolicitudCierreIpc = z.infer<typeof solicitudCierreSchema>
 
 export { preferenciasSecundariaSchema }
