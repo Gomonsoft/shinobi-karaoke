@@ -84,7 +84,7 @@ describe('crearVentanaExportacion', () => {
 
   it('capturar devuelve BGRA del tamaño exacto y rechaza otro tamaño', async () => {
     const bien = await crearVentanaExportacion(opciones, montar().deps)
-    expect((await bien.capturar()).length).toBe(640 * 480 * 4)
+    expect((await bien.capturar()).imagen.length).toBe(640 * 480 * 4)
     const mal = await crearVentanaExportacion(opciones, montar({ w: 1280, h: 960 }).deps)
     await expect(mal.capturar()).rejects.toMatchObject({ codigo: 'PERFIL_NO_SOPORTADO' })
   })
@@ -99,8 +99,22 @@ describe('crearVentanaExportacion', () => {
         toBitmap: () => colas.shift()!
       })
     const v = await crearVentanaExportacion(opciones, deps)
-    expect((await v.capturar())[0]).toBe(2)
+    expect(await v.capturar()).toMatchObject({ asentada: true, intentos: 3 })
     expect(colas).toHaveLength(0)
+  })
+
+  it('capturar entrega la última y avisa si nunca se asienta', async () => {
+    const { wc, deps } = montar()
+    let n = 0
+    wc.capturePage = () =>
+      Promise.resolve({
+        getSize: () => ({ width: 640, height: 480 }),
+        toBitmap: () => Buffer.alloc(640 * 480 * 4, ++n)
+      })
+    const v = await crearVentanaExportacion(opciones, deps)
+    const c = await v.capturar()
+    expect(c).toMatchObject({ asentada: false, intentos: 5 })
+    expect(c.imagen[0]).toBe(5)
   })
 
   it('bloquea la navegación', async () => {

@@ -82,6 +82,14 @@ export interface OpcionesExportacion {
   alCaer?: (error: Error) => void
 }
 
+export interface CapturaAsentada {
+  imagen: Buffer
+  /** Dos capturas seguidas iguales; si no, `imagen` es la última de las `intentos`. */
+  asentada: boolean
+  /** Capturas hechas (2 a 5). */
+  intentos: number
+}
+
 export interface VentanaExportacion {
   readonly trabajoId: string
   /** Respuesta de `exportacion.inicial`; falla si no hay instantánea. */
@@ -90,8 +98,8 @@ export interface VentanaExportacion {
   readonly lista: Promise<void>
   /** Envía el fotograma `n` y espera su confirmación. */
   pintar(n: number): Promise<void>
-  /** Captura la página (BGRA, `ancho × alto × 4` bytes). */
-  capturar(): Promise<Buffer>
+  /** Captura la página (BGRA, `ancho × alto × 4` bytes) y dice si quedó asentada (ver `CapturaAsentada`). */
+  capturar(): Promise<CapturaAsentada>
   /** `exportacion.listo`: valida el trabajo y el fotograma pendiente. */
   confirmarListo(carga: { trabajoId: string; n: number }): void
   destruir(): void
@@ -206,10 +214,10 @@ export async function crearVentanaExportacion(
       let previa = await capturarUna()
       for (let intento = 0; intento < REINTENTOS_CAPTURA; intento++) {
         const actual = await capturarUna()
-        if (actual.equals(previa)) return actual
+        if (actual.equals(previa)) return { imagen: actual, asentada: true, intentos: intento + 2 }
         previa = actual
       }
-      return previa
+      return { imagen: previa, asentada: false, intentos: REINTENTOS_CAPTURA + 1 }
     },
 
     confirmarListo(carga) {
