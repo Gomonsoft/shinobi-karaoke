@@ -35,6 +35,7 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 4. Si un test ajeno falla en `test:cambios`, comprueba si lo rompe tu cambio. Si no es tuyo (entorno, inestabilidad), anótalo en las notas de la tarea y sigue.
 5. Lo que solo se puede comprobar a mano (hardware, varios monitores, sensación visual) **no es una tarea de agente**: se añade a la guía manual de la fase en `Test-manuales/`.
 6. Las capturas de revisión visual solo se toman cuando la spec UX las pide para una revisión del diseñador.
+7. **Reintentos de foco con `requestAnimationFrame`**: los que viven a nivel de módulo (p. ej. `enfocarCuando`) sobreviven al test que los lanzó y pueden robar el foco al siguiente. Mantén un solo enfoque pendiente a la vez y no dependas en una prueba de reintentos de otra.
 
 ## Regresión en el CI
 
