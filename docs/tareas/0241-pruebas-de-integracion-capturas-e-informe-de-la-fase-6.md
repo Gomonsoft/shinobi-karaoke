@@ -1,6 +1,6 @@
 # 0241 — Pruebas de integración, capturas e informe de la fase 6
 
-- Estado: En curso (hecha la parte de pruebas y capturas; faltan la guía manual de `qa` y el informe)
+- Estado: Hecha (pruebas, capturas, guía manual e [informe](../versiones/0.2.0/informe-fase-6.md) escritos; el **cierre formal espera a que el usuario ejecute la guía manual**; la tarea 0242 sigue pendiente y condicional)
 - Paso del pipeline: 6
 - Depende de: [0230](0230-contratos-compartidos-de-la-exportacion.md)–[0240](0240-puntos-de-entrada-de-la-exportacion.md)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §13
@@ -30,9 +30,9 @@ Las de V29 en `docs/ux/revision-fase-6/` (sin `bloqueo-sesion`; con `nota-sesion
 `docs/versiones/0.2.0/informe-fase-6.md` con el formato de los anteriores: tareas, criterios V1–V30 (V24 retirado) con dónde se comprueba (Vitest, E2E o guía manual), CI en verde en los 3 SO y resultado de la guía manual.
 
 ## Criterios de aceptación
-- [ ] Las 3 pruebas pasan en local y en el CI.
-- [ ] Capturas tomadas y README.
-- [ ] Informe con cada criterio asignado.
+- [x] Las 3 pruebas pasan en local y en el CI (193 E2E en verde en Ubuntu, run 44858445678).
+- [x] Capturas tomadas y README (20 PNG; faltan 4 estados de V29 y el ⋯ abierto de X7, ver el README).
+- [x] Informe con cada criterio asignado ([informe-fase-6.md](../versiones/0.2.0/informe-fase-6.md)).
 
 ## Notas de implementación
 
@@ -47,6 +47,11 @@ Las de V29 en `docs/ux/revision-fase-6/` (sin `bloqueo-sesion`; con `nota-sesion
 - Medidas de tiempo (macOS, local): 3 s a 640×480 24 FPS en MKV AV1 ≈ 2,8 s de prueba completa (arranque incluido); 5 s a 1080p30 MKV, «Tardó 3 s».
 - Pendiente (no es del programador): guía manual (`qa`) e informe de la fase.
 
-### Defectos / observaciones de UI (no corregidos)
+### Defectos / observaciones de UI (corregidos después: commits `03d81e8` y `6339db2`, capturas regeneradas; sin prueba automática, los vigila el caso 17 de la guía)
 - El popover «Qué formato elegir» queda recortado por la zona con scroll del diálogo (borde izquierdo e inferior), visible sobre todo a 1280 × 720 al 125 %.
 - A 720 de alto la columna de la muestra muestra su propia barra de scroll junto a la del formulario.
+
+### Guía e informe (qa, 2026-11-20)
+
+- Guía: `docs/Test-manuales/0.2.0/fase-6-exportacion.md` (17 casos, con el 17 «Criterios sin prueba automática»; se retira el aviso «pendiente de ajustar» tras revisar los textos contra lo implementado y se corrige el paso 1.19 según la pregunta 0124). **No se ha ejecutado.**
+- Informe: `docs/versiones/0.2.0/informe-fase-6.md`. Partes sin prueba automática: V12, V14, V16–V19, V23, V29, X5–X7, EX1, EX2 y EX5. Pregunta **0124 sigue «Abierta»**.

@@ -1,6 +1,6 @@
 # Guía manual · Fase 6 · Exportación a video
 
-> **Estado: pendiente de ajustar al cerrar la fase.** Escrita contra la [spec 10](../../ux/10-exportacion.md) y el [ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) mientras las tareas [0237](../../tareas/0237-servicio-de-exportacion-e-ipc.md) (servicio e IPC), [0238](../../tareas/0238-dialogo-de-exportacion-formulario.md) (formulario), [0239](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) (progreso y resultado), [0240](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) (puntos de entrada) y [0241](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) (integración e informe) siguen en curso. Al cerrarlas, el agente `qa` revisa los textos, los pasos y las cifras contra lo implementado y quita este aviso.
+> **Revisada el 2026-11-20 al cerrar la fase (informe de la fase 6).** Los textos entre «» se contrastaron con los implementados en `app/src` y coinciden (los compuestos con números, como las resoluciones o «{n} %», se arman en el código). Se corrigió el paso 1.19 (pregunta 0124) y se añadió el caso 17, con los criterios que ninguna prueba automática cubre. **La guía no se ha ejecutado todavía**; las cifras de tiempos son de un M1 y de un solo intento, no de esta guía.
 
 - Versión: 0.2.0 · Fase: 6
 - Specs: [Exportación](../../ux/10-exportacion.md) (V1–V30, verificación manual M1–M9) · [Biblioteca · Fase 6](../../ux/02-biblioteca.md#fase-6-de-020--exportación) (X1–X7) · [Editor · Fase 6](../../ux/06-editor.md#fase-6-de-020--exportación) (EX1–EX7) · ADR: [0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) · Tareas: [0231](../../tareas/0231-worker-comando-exportar.md)–[0236](../../tareas/0236-destinos-temporal-y-diario-de-exportacion.md) (hechas) y [0237](../../tareas/0237-servicio-de-exportacion-e-ipc.md)–[0241](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) (en curso)
@@ -63,7 +63,7 @@ Criterios: V1–V4, V10, X1, EX1, EX2, EX7. La primera apertura de cada arranque
 | 1.16 | Abre «Atajos de teclado» (F1) en el editor | Aparece «Ctrl/Cmd + E — Exportar video» | ☐ |
 | 1.17 | Abre el diálogo y cambia formato (WebM), audio, resolución y FPS; pulsa «Exportar» (cuenta con la prueba corta: 24 FPS y 640 × 480), cancela, y vuelve a abrir el diálogo | Las opciones **se recuerdan** (formato, audio, proporción, resolución, FPS y carpeta), no el nombre | ☐ |
 | 1.18 | Pulsa «Cambiar…» en «Guardar como» | Se abre el diálogo «Guardar» del sistema con la carpeta y el nombre «{título} — {artista} (karaoke).mkv». Cancelarlo no cambia nada. Si escribes otra extensión, se pone la del formato | ☐ |
-| 1.19 | Con un destino elegido con «Cambiar…», cambia el formato | Vuelve al nombre propuesto con la otra extensión y aparece unos 4 s «Al cambiar el formato se ha vuelto a proponer el nombre: …» | ☐ |
+| 1.19 | Con un destino elegido con «Cambiar…» (otra carpeta y otro nombre), cambia el formato | **Comportamiento actual (opción provisional de la pregunta 0124):** se conservan la carpeta y el nombre elegidos y solo cambia la extensión (`.mkv` ↔ `.webm`), sin aviso. Si el nombre elegido ya no vale, vuelve al propuesto y aparece unos 4 s «Al cambiar el formato se ha vuelto a proponer el nombre: …». La spec 10 (V30) dice que siempre vuelve al propuesto: anota cuál ocurre y si te parece bien | ☐ |
 | 1.20 | Prueba una canción cuyo título tenga caracteres como `/ : * ? " < > |` | El nombre propuesto los sustituye por «-» | ☐ |
 
 ### 2. Notas del formulario
@@ -294,6 +294,25 @@ Criterio: V20 y el estado F. Solo si puedes dañar el motor en una copia del per
 |---|---|---|---|
 | 16.1 | Con el motor de audio **no instalado** o dañado (en una copia), abre «Exportar video…» | Aparece «Este equipo no puede crear videos.» con la causa («Hay que reparar el motor de audio.») y [Reparar el motor de audio], [Copiar detalles] y [Cerrar] | ☐ |
 | 16.2 | Pulsa [Reparar el motor de audio] | Se abre el flujo de reparación de la fase 3 | ☐ |
+
+### 17. Criterios sin prueba automática (informe de la fase 6)
+
+Criterios de la spec: V16, V17, V18, V19, V20 (`DESTINO_OCUPADO`), V29, X5, X7, EX1, EX2, EX3 y 0243. El [informe de la fase](../../versiones/0.2.0/informe-fase-6.md) los marca «sin evidencia» o parciales. El resto de criterios parciales ya tiene sus pasos en los casos 1–16 (el informe los cita por número).
+
+| # | Paso | Resultado esperado | OK |
+|---|---|---|---|
+| 17.1 | Con la ventana a **1024 × 576** (o a 1280 × 720 al 125 % de escala) y también a 1280 × 800, abre «Exportar video…» con avisos a la vez (destino que ya existe, sesión abierta, perfil costoso). Pulsa el ⓘ de «Formato» (V29) | **Sin scroll horizontal.** El título y los botones («Cancelar», «Exportar») se ven sin desplazarse. Hay **una sola barra de scroll** (la del cuerpo), no dos. El popover «Qué formato elegir» se despliega bajo «Formato» **sin recortes** (ni a la izquierda ni abajo) y se alcanza con el scroll. Los avisos («Ya hay un archivo…», notas) se ven **encima de los botones** sin desplazarse | ☐ |
+| 17.2 | A 1024 × 576, mira los estados que no tienen captura: **en cola** (segunda exportación), **fallo** (por ejemplo, exportar a una carpeta que borras a mitad), **perfil no soportado** (caso 10) y **sin perfiles** (caso 16) | Cada uno cabe con cabecera y botones visibles y sin scroll horizontal | ☐ |
+| 17.3 | Con una exportación de A en marcha hacia un destino, pon otra a exportar a **ese mismo archivo** (elígelo con «Cambiar…») y pulsa «Exportar» (V20) | El formulario rechaza el destino con «Ya se está exportando un video a ese archivo.» y «Elige otro nombre o espera a que termine.»; no se pierde nada de lo que ya se exporta | ☐ |
+| 17.4 | Exporta un video corto de A, déjalo con el mismo instante en pausa en VLC (por ejemplo, 12,3 s) y compáralo con el **reproductor de la app** pausado en el mismo instante (V17) | La **línea actual, la siguiente, el barrido, el `●●●` o la cuenta y el fondo** son los mismos (el video puede verse algo más suave por la compresión) | ☐ |
+| 17.5 | Exporta C (Letra lista) y D (borrador) y mira el mismo instante de cada uno (V18) | C: línea entera en un solo color, sin barrido. D: con barrido, **aunque** lo hubieras marcado como Letra lista antes de volver a borrador | ☐ |
+| 17.6 | Exporta la misma canción en 16:9 y en 4:3 y mira la marca de agua en todo el video, también sobre un fondo claro y uno oscuro y con una línea larga cerca de la esquina (V19) | La marca «Shinobi Karaoke» está **abajo a la derecha en todos los fotogramas**, con el mismo margen (el 3 % del alto) en los dos lados, y **nunca tapa la letra** | ☐ |
+| 17.7 | Compara el volumen del audio del video con el de la canción en el reproductor de la app (V16) | Suena **igual de fuerte** (se aplica la ganancia de la canción); es estéreo | ☐ |
+| 17.8 | En una canción que **tiene** una exportación en curso, abre el ⋯ del **editor** y el de la tarjeta (EX6, X7) | Dicen «Ver exportación» (y en la tarjeta, «Cancelar exportación…»). Anota si el menú de la tarjeta se ve completo con la línea de exportación | ☐ |
+| 17.9 | Mientras esa exportación sigue, elimina la canción (menú ⋯ de la tarjeta › «Eliminar…») y confirma (X5) | El diálogo añade «Se cancelará la exportación de video en curso.»; al confirmar no queda ningún temporal en la carpeta de destino | ☐ |
+| 17.10 | En el editor, abre «Atajos de teclado» (F1) y cierra. Con un **diálogo abierto** (por ejemplo, «Atajos de teclado») pulsa Ctrl/Cmd + E; en una canción con «Error de audio» (si puedes provocarlo) mira el ítem «Exportar video…» (EX2) | Con un diálogo abierto, Ctrl/Cmd + E **no hace nada**. Con «Error de audio» el ítem queda inactivo con «No se puede exportar ahora mismo.» | ☐ |
+| 17.11 | (Opcional) Haz que el guardado falle (por ejemplo, pon `cancion.json` de solo lectura con el editor abierto), cambia un tiempo y pulsa «Exportar video…» (EX3) | Aparece «No se pudieron guardar los últimos cambios» con «Quedarme en el editor» (foco inicial) y «Exportar igualmente»; la primera no abre nada y la segunda abre el diálogo. Restaura los permisos | ☐ |
+| 17.12 | Tras las exportaciones 4K del caso 8, abre `registros/app.log` (carpeta de datos de la app) y busca «no se asentaron» (0243) | Si hay fotogramas no asentados, la línea dice «{n} de {total} fotogramas no se asentaron tras 5 capturas», con la exportación y el perfil; anótalo (frecuencia por sistema). Si no aparece, anota «ninguno» | ☐ |
 
 ## Compatibilidad (M3)
 

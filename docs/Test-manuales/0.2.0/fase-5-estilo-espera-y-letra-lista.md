@@ -184,7 +184,7 @@ Criterios: LL1–LL4, LB1, LB3, R12. Tareas 0214 y 0217. Usa la canción B (o un
 | 10.4 | Marca la casilla «No volver a mostrar este aviso» y pulsa «Cancelar» | Nada cambia en la canción. Vuelve a pulsar el botón: el aviso **sigue saliendo** (cancelar no guarda la preferencia) | ☐ |
 | 10.5 | Pulsa Esc en el diálogo | Se cierra como Cancelar y el foco vuelve al botón «Marcar como letra lista» | ☐ |
 | 10.6 | Confirma **sin** la casilla | Vuelves a la Biblioteca. La tarjeta se enfoca y resalta (borde verde unos 2 s) con la insignia **Letra lista** (con icono de subtítulos). Aparece el aviso ««{título}» tiene la letra lista para cantar.» con [▶ Reproducir] | ☐ |
-| 10.7 | Pasa el ratón por la insignia | El tooltip dice «Se reproduce con la letra sincronizada por línea, sin barrido.» | ☐ |
+| 10.7 | Pasa el ratón por la insignia | El tooltip dice «Se reproduce con la letra sincronizada por líneas, sin barrido.» | ☐ |
 | 10.8 | Elige el filtro «Listas» | La canción cuenta y aparece en «Listas» | ☐ |
 | 10.9 | Pulsa [▶ Reproducir] del aviso (o «Reproducir» de la tarjeta) | El reproductor abre. **La línea actual aparece entera en el color de la letra desde el principio hasta el final de su tiempo, sin rellenarse**. En ningún momento aparece el color de «lo ya cantado» | ☐ |
 | 10.10 | Con una línea que tenga tiempo por palabra (si tienes una), míralo | Tampoco hay barrido por palabras | ☐ |
@@ -328,6 +328,23 @@ Criterio: compatibilidad con la versión anterior (ADR 0018 §1). Usa la **copia
 | 17.2 | Mira la canción antigua con puntos `●●●` antes de la primera línea y en huecos de 4 s o más | Igual que en 0.1.0, sin barra ni cuenta (R9) | ☐ |
 | 17.3 | Con una canción con una **última línea** y la cuenta activada, mira el final de la canción | Tras la última línea **no** hay indicadores | ☐ |
 | 17.4 | Con «Antes de la primera línea» **desmarcada**, reproduce desde 0:00 | La primera entrada solo muestra el título y la línea en espera: sin indicadores | ☐ |
+
+### 18. Criterios sin prueba automática (informe de la fase 5)
+
+Criterios de la spec: G7, G9, IE1, IE2, IE6, IE7, LL1, AS1, LB4, LB6 y R14. El [informe de la fase](../../versiones/0.2.0/informe-fase-5.md) los marca «sin evidencia» o parciales. El resto de criterios parciales del informe ya tiene sus pasos en los casos 1–17 (el informe los cita por número) y no se repite aquí.
+
+| # | Paso | Resultado esperado | OK |
+|---|---|---|---|
+| 18.1 | Con el tema «Prueba cónico» del paso 1.11 aplicado a dos canciones, elimínalo desde Ajustes › Temas (o desde el editor) y abre las dos canciones (G9) | Cada una conserva su degradado con la **misma forma, centro, ángulo, movimiento y velocidad**, ahora como «Tema personalizado» (copia). Ningún valor vuelve a lineal ni se pierde el movimiento | ☐ |
+| 18.2 | Anota la fecha de modificación de `cancion.json` de una canción **antigua** (de 0.1.0). Ábrela en el editor, mira el panel Estilo › «Indicadores de espera» y vuelve a la Biblioteca sin tocar nada. Mira la fecha otra vez (IE1) | La fecha **no cambia**: abrir y mirar no escribe nada | ☐ |
+| 18.3 | En una canción con huecos de 6 s o más, prueba estas combinaciones de casillas y mira un hueco en la vista previa: solo Puntos; solo Barra; solo Cuenta; Puntos y Barra; Puntos y Cuenta; Barra y Cuenta; las tres; y ninguna (IE2) | Cada combinación enseña exactamente los indicadores marcados; sin ninguna, el hueco solo muestra la línea siguiente en espera. Con «Antes de la primera línea» desmarcada, la primera entrada no tiene indicadores | ☐ |
+| 18.4 | Con un degradado en movimiento, pulsa ❚❚ «Detener el movimiento del fondo». Mira si el indicador de «cambios sin guardar» o el historial cambian (Ctrl/Cmd + Z) y, con un lector de pantalla, cómo se anuncia el botón (G7) | El botón queda **pulsado** (el lector dice «pulsado» o equivalente); **no** aparece ningún cambio sin guardar y Ctrl/Cmd + Z no revierte nada por ello; el archivo no cambia. «Probar a pantalla completa» sigue con movimiento | ☐ |
+| 18.5 | Pulsa «Ver un ejemplo» con un lector de pantalla activado y espera a que termine (IE6) | Se anuncia al **empezar** y al **terminar** el ejemplo. No se mueve el cabezal ni se añade un paso al historial (Ctrl/Cmd + Z no cambia nada) | ☐ |
+| 18.6 | Abre una canción con la línea de tiempo visible y mira el botón «Ajustar los silencios» a 1024 × 576, 1280 × 720, 1536 × 864 y 1920 × 1080, y al 125 % de escala (AS1, LL1) | Solo icono por debajo de 1280 px y con texto a partir de ahí; la fila de la línea de tiempo **no se parte** en ninguno. En un borrador completo, la fila de abajo con «Marcar como letra lista» y «Marcar como lista» tampoco se parte | ☐ |
+| 18.7 | Con la cuenta y la barra marcadas, busca con la barra de tiempo (clic) **dentro** de un hueco largo y pausa (R8) | Al saltar aparecen **al instante** la barra con el ancho de ese momento y el número que toca; en pausa se **congelan**; al buscar fuera del hueco desaparecen | ☐ |
+| 18.8 | Con una Letra lista, aplica a la canción otro tema con «Aplicar tema…» y mira la insignia; después «Volver a borrador» (LB4) | La insignia sigue siendo «Letra lista» tras aplicar el tema (la modalidad no cambia); tras volver a borrador, es «✎ Borrador» | ☐ |
+| 18.9 | Si no hiciste el 3.7, mira en la Biblioteca la portada de una canción con degradado en movimiento, en dos momentos distintos y con una sesión abierta (LB6) | La portada se ve **quieta, en la fase 0**, siempre igual | ☐ |
+| 18.10 | Con un monitor de **al menos 1080 px de alto**, en `app/`: `npm run build && SHINOBI_CAPTURAS_5=1 npx playwright test e2e/fase5-capturas.spec.ts --workers=1` y mira `reproductor-1920x1080-*.png` en `docs/ux/revision-0.2.0-fase-5/` (R14) | Las seis capturas miden **1920 × 1080** (hoy salen recortadas en alto) | ☐ |
 
 ## Ejecuciones
 

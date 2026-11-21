@@ -175,7 +175,7 @@ Ajustes no cambia en esta fase. Preguntas al usuario: [0100](../../preguntas/010
 | [0216 · Reproductor, sesión y «Probar»](../../tareas/0216-reproductor-sesion-y-probar-modalidad-y-movimiento.md) | Hecha | 0203, 0213 | `barrido` según la modalidad en el reproductor local, la secundaria y «Probar»; fondo quieto en S1, S2 y S4 (R1–R4, R12, R13, LL8) |
 | [0217 · Biblioteca: Letra lista](../../tareas/0217-biblioteca-insignia-letra-lista.md) | Hecha | 0201 (dobles), 0203 | Insignia, aria, filtro *Listas*, toast de vuelta y portadas en fase 0 (LB1–LB6) |
 | [0218 · Capturas de revisión](../../tareas/0218-capturas-de-revision-de-la-fase-5.md) | Hecha | 0211–0217 | `e2e/fase5-capturas.spec.ts` *opt-in* (F5-1, R14 y LB7). Sustituye a la reserva «Temas y Ajustes», que no hace falta |
-| [0219 · Integración, guía e informe](../../tareas/0219-integracion-guia-manual-e-informe-de-la-fase-5.md) | Pendiente | 0200–0218 | `e2e/fase5.spec.ts` (≤ 4 pruebas), CI, casos de la guía manual para `qa`, calibración e informe |
+| [0219 · Integración, guía e informe](../../tareas/0219-integracion-guia-manual-e-informe-de-la-fase-5.md) | Hecha (el cierre formal espera a la guía manual y a la calibración) | 0200–0218 | `e2e/fase5.spec.ts` (4 pruebas), guías manuales de `qa`, calibración sin ejecutar e [informe](informe-fase-5.md) |
 
 Quedan libres 0220–0229 para ajustes que salgan de las respuestas a 0100 y 0110 o de la calibración.
 
@@ -247,7 +247,7 @@ Resumen: render por índice de fotograma en una ventana offscreen con el mismo `
 | [0238 · Diálogo: formulario](../../tareas/0238-dialogo-de-exportacion-formulario.md) | Hecha | 0230 | A, E y F con formato, perfiles no soportados, destino, estimación, notas y muestra |
 | [0239 · Progreso y resultado](../../tareas/0239-progreso-resultado-y-estado-de-exportaciones.md) | Hecha | 0238 | Estado de exportaciones, B–D, toasts y anuncios |
 | [0240 · Puntos de entrada](../../tareas/0240-puntos-de-entrada-de-la-exportacion.md) | Hecha | 0239 | Biblioteca, editor (Ctrl/Cmd + E), panel de actividad, eliminar y cierre |
-| [0241 · Integración, capturas e informe](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) | Pendiente | 0230–0240 | `exportacion.spec.ts` (≤ 3 pruebas), capturas opt-in, informe |
+| [0241 · Integración, capturas e informe](../../tareas/0241-pruebas-de-integracion-capturas-e-informe-de-la-fase-6.md) | Hecha (el cierre formal espera a la guía manual) | 0230–0240 | `exportacion.spec.ts` (3 pruebas), capturas opt-in, guía manual e [informe](informe-fase-6.md) |
 | [0242 · Captura 4K en Linux](../../tareas/0242-captura-4k-en-linux-con-tamano-incorrecto.md) | Pendiente (solo si falla el paso 8.10 de la guía) | 0234, 0237 | Tamaño exacto de captura a 2160 líneas en Linux o perfiles marcados como no soportados |
 | [0243 · Registro de capturas sin asentar](../../tareas/0243-registro-de-capturas-sin-asentar.md) | Hecha | 0235, 0237 | Recuento en `app.log` de fotogramas sin dos capturas iguales ([0127](../../preguntas/0127-captura-offscreen-con-cuadro-obsoleto.md)) |
 

@@ -1,6 +1,6 @@
 # 0219 — Pruebas de integración, guía manual e informe de la fase 5
 
-- Estado: En curso (hecha la spec E2E; faltan la guía manual de `qa` y el informe de la sesión principal)
+- Estado: Hecha (E2E, guías manuales e [informe](../versiones/0.2.0/informe-fase-5.md) escritos; el **cierre formal espera a que el usuario ejecute las guías** y la calibración de «Ajustar los silencios», y a que 0100 y 0110 se respondan o se acepten)
 - Paso del pipeline: 4–6
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)–[0218](0218-capturas-de-revision-de-la-fase-5.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)
@@ -40,10 +40,10 @@ Cerrar la fase: integración real entre procesos con un E2E mínimo, CI en verde
 
 ## Criterios de aceptación
 
-- [ ] `fase5.spec.ts` pasa en los tres sistemas en el CI.
+- [x] `fase5.spec.ts` pasa en el CI (193 E2E en verde en Ubuntu, run 44858445678; los E2E solo corren en Ubuntu).
 - [ ] Guía manual ejecutada por el usuario, con los resultados anotados.
 - [ ] Preguntas [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) y [0110](../preguntas/0110-decisiones-provisionales-de-ux-de-la-fase-5.md) respondidas, o con su opción provisional aceptada en el informe.
-- [ ] Informe con el estado de cada criterio G, IE, LL, AS, R y LB.
+- [x] Informe con el estado de cada criterio G, IE, LL, AS, R y LB ([informe-fase-5.md](../versiones/0.2.0/informe-fase-5.md)).
 
 ## Pruebas de feedback
 
@@ -63,3 +63,9 @@ Cerrar la fase: integración real entre procesos con un E2E mínimo, CI en verde
 - G2 (píxel a píxel con 0.1.0) no se compara: pasa a la guía manual.
 - Fila del inventario añadida a `docs/pruebas.md`.
 - Pendiente: CI en verde del PR borrador, guía manual de `qa` (casos en el Contrato), informe y preguntas 0100/0110.
+
+### Guías e informe (qa, 2026-11-20)
+
+- Guías: `docs/Test-manuales/0.2.0/fase-5-estilo-espera-y-letra-lista.md` (ahora con el caso 18, «Criterios sin prueba automática») y `fase-5-calibracion-de-silencios.md`. **Ninguna se ha ejecutado.**
+- Informe: `docs/versiones/0.2.0/informe-fase-5.md`. Sin evidencia automática: G9, IE7 y LB6; AS9 pendiente de la calibración; «Ajustar los silencios» sigue **sin calibrar**.
+- Correcciones de la guía: el texto de la ayuda de la insignia es «por líneas» (no «por línea»).

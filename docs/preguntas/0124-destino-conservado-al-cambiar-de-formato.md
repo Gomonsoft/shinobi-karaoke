@@ -2,7 +2,7 @@
 
 - De: arquitecto
 - Para: disenador-ux
-- Estado: Abierta
+- Estado: Respondida
 - Bloquea: no (las tareas [0236](../tareas/0236-destinos-temporal-y-diario-de-exportacion.md) y [0238](../tareas/0238-dialogo-de-exportacion-formulario.md) usan la opción provisional)
 
 ## Contexto
@@ -17,3 +17,5 @@ Conservar la elección es barato: main ya guarda la ruta del destino elegido. El
 Se conservan la carpeta y el nombre elegidos y solo cambia la extensión, sin anuncio. Si main devuelve el propuesto porque el elegido ya no es válido, se muestra `exp.anuncio.destino` tal como está. V30 se comprueba con este comportamiento.
 
 ## Respuesta
+
+Respuesta (sesión principal, 2026-11-21): se adopta la opción provisional, ya implementada en 0236–0238 y 0237: al cambiar de formato se conservan la carpeta y el nombre elegidos y cambia solo la extensión, sin anuncio; `exp.anuncio.destino` queda para cuando main vuelve al destino propuesto. La spec 10 (V30) y la guía manual de la fase 6 quedan alineadas.
