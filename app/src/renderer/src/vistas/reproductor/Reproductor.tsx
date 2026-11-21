@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject
+} from 'react'
 import { createPortal } from 'react-dom'
+import type { Modalidad } from '@shared/cancion'
 import type { Letra } from '@shared/letra'
 import type { Estilo } from '@shared/estilo'
+import type { ApiReproductor } from '@shared/ipc'
 import { OFFSET_MAXIMO_MS } from '@shared/letrasBusqueda'
-import { variablesEstilo } from '../../karaoke/estiloCss'
+import { fondoCssEn, variablesEstilo } from '../../karaoke/estiloCss'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
 import {
   MotorReproductor,
@@ -20,6 +31,7 @@ import { accionDeTeclaReproductor, type AccionReproductor } from './atajos'
 import {
   alternarVoz,
   CuentaFinal,
+  formatearReloj,
   pasoVolumen,
   pasoVoz,
   posicionInicial,
@@ -43,12 +55,50 @@ export interface CancionReproductor {
   gananciaDb: number
   letra: Letra
   estilo: Estilo
+  /** Modalidad al empezar (R13: no cambia durante la reproducción). Por defecto `karaoke`. */
+  modalidad?: Modalidad
   lineasSinSincronizar: number
+}
+
+/** Lo que el anfitrión de la secundaria puede pedirle al reproductor de la sesión. */
+export interface ControlSesion {
+  pausar(): void
+  reanudar(): void
+  reiniciar(): void
+}
+
+/** Informe del motor; `AppSecundaria` le añade `sesionId` y `entradaId` (ADR 0017 §7). */
+export type InformeMotor =
+  | { tipo: 'lista' }
+  | { tipo: 'reproduciendo' | 'pausada' | 'fin' | 'posicion'; posicionMs: number }
+  | {
+      tipo: 'error'
+      error: {
+        motivo: 'no_encontrada' | 'lectura' | 'decodificacion'
+        pista: 'instrumental' | 'voz'
+      }
+    }
+
+/** Propiedades propias de `origen: 'sesion'` (ventana secundaria, ADR 0017 §10). */
+export interface PropsSesionReproductor {
+  /** `cargar` con `pausada`: carga y espera en el segundo indicado. */
+  pausada: boolean
+  anuncio: 'inicio' | 'reanudacion'
+  /** `false`: no se antepone el silencio previo (p. ej. al reanudar). */
+  silencioPrevio: boolean
+  hayPendientes: boolean
+  /** La ventana de la secundaria (allí no existe `window.shinobi`). */
+  ventana: ApiReproductor['ventana']
+  /** El anfitrión lo usa para `pausar`, `reanudar` y `reiniciar`. */
+  control: RefObject<ControlSesion | null>
+  informar(informe: InformeMotor): void
+  alSiguiente(): void
+  alCerrar(): void
 }
 
 export interface PropsReproductor {
   cancion: CancionReproductor
-  origen: 'biblioteca' | 'editor'
+  origen: 'biblioteca' | 'editor' | 'sesion'
   modo: ModoAudio
   desdeMs: number
   volumen: ReturnType<typeof useVolumenCompartido>
@@ -56,6 +106,8 @@ export interface PropsReproductor {
   alDesplazar?(deltaMs: 100 | -100): void
   alFallarPista?(e: { pista: 'principal' | 'voz'; tipo: ErrorPista }): void
   crearMotor?: (o: OpcionesMotorReproductor) => MotorReproductor
+  /** Obligatorio con `origen: 'sesion'`. */
+  sesion?: PropsSesionReproductor
 }
 
 function ignorarError(peticion: Promise<unknown>): void {
@@ -71,12 +123,14 @@ export function Reproductor({
   alSalir,
   alDesplazar,
   alFallarPista,
-  crearMotor
+  crearMotor,
+  sesion
 }: PropsReproductor) {
   const raiz = useRef<HTMLDivElement>(null)
   const motor = useRef<MotorReproductor | null>(null)
   const visibilidad = useRef<VisibilidadControles | null>(null)
   const cuentaFinal = useRef<CuentaFinal | null>(null)
+  const finInformado = useRef(false)
   const saliendo = useRef(false)
   const inicioPendiente = useRef<number | null>(null)
   const autoplayCancelado = useRef(false)
@@ -89,9 +143,13 @@ export function Reproductor({
   const [posicionBarra, setPosicionBarra] = useState(0)
   const [indicador, setIndicador] = useState<string | { fueraDeRango: boolean } | null>(null)
   const [anuncio, setAnuncio] = useState('')
+  // La modalidad se toma al empezar: un cambio en el editor se ve en la siguiente reproducción.
+  const [barrido] = useState(cancion.modalidad !== 'letra_lista')
+  const movimientoReducido = useMovimientoReducido()
   const [atajosAbiertos, setAtajosAbiertos] = useState(false)
   const [restante, setRestante] = useState<number | null>(null)
   const [controlesFinal, setControlesFinal] = useState(false)
+  const esSesion = origen === 'sesion' && sesion !== undefined
   const listo = estado?.listo ?? false
   const sonando = estado?.sonando ?? false
   const finalizado = estado?.finalizado ?? false
@@ -103,7 +161,7 @@ export function Reproductor({
       ? textoIncompleta(cancion.lineasSinSincronizar)
       : null
   const avisoSinIcono = aviso?.replace(/^⚠ /, '') ?? null
-  const mostrarControles = controlesVisibles && (!finalizado || controlesFinal)
+  const mostrarControles = controlesVisibles && (esSesion || !finalizado || controlesFinal)
   const duracionMs = estado?.duracionMs ?? cancion.duracionMs
   const tiempoAudio = useCallback(() => motor.current?.posicionMs() ?? 0, [])
   const opcionesIniciales = useEffectEvent(() => ({
@@ -115,11 +173,55 @@ export function Reproductor({
     volumenVoz: volumen.volumenVoz,
     vozSilenciada: volumen.vozSilenciada
   }))
-  const inicioInicial = useEffectEvent(() => posicionInicial(origen, desdeMs, cancion.letra))
+  const inicioInicial = useEffectEvent(() =>
+    sesion && !sesion.silencioPrevio ? desdeMs : posicionInicial(origen, desdeMs, cancion.letra)
+  )
+  const informar = useEffectEvent((informe: InformeMotor) => sesion?.informar(informe))
+  const posicionAhora = useEffectEvent(() => Math.round(motor.current?.posicionMs() ?? 0))
   const fabricar = useEffectEvent(
     (o: OpcionesMotorReproductor) => crearMotor?.(o) ?? new MotorReproductor(o)
   )
   const alFinalizarCuenta = useEffectEvent(() => salir())
+  /** Informes a main y anuncios de la secundaria (sin pantalla final ni cuenta de cierre). */
+  const procesarEstadoSesion = useEffectEvent(
+    (actual: EstadoMotorReproductor, previo: EstadoMotorReproductor, yaEmpezo: boolean) => {
+      const s = sesion!
+      if (actual.errorPrincipal && !previo.errorPrincipal) {
+        informar({
+          tipo: 'error',
+          error: { motivo: actual.errorPrincipal.tipo, pista: 'instrumental' }
+        })
+      }
+      if (actual.listo && !previo.listo) {
+        informar({ tipo: 'lista' })
+        if (s.anuncio === 'reanudacion') {
+          const mmss = formatearReloj(Math.max(0, posicionAhora()))
+          setIndicador(R.cola.reanudada(mmss))
+          clearTimeout(indicadorTimer.current)
+          indicadorTimer.current = setTimeout(() => setIndicador(null), 2000)
+          setAnuncio(R.cola.aria.reanudada(mmss))
+        }
+      }
+      if (actual.finalizado && !previo.finalizado) {
+        // Un solo `fin` aunque el motor repita estados con `finalizado: true`.
+        if (!finInformado.current) {
+          finInformado.current = true
+          informar({ tipo: 'fin', posicionMs: Math.round(actual.duracionMs ?? 0) })
+        }
+      } else if (actual.sonando && !previo.sonando) {
+        informar({ tipo: 'reproduciendo', posicionMs: posicionAhora() })
+        if (s.anuncio === 'inicio' && !yaEmpezo) {
+          setAnuncio(R.aria.inicio(cancion.titulo, cancion.artista))
+        } else if (yaEmpezo) {
+          setAnuncio(R.aria.reanudacion)
+        }
+      } else if (previo.sonando && !actual.sonando && !actual.errorPrincipal) {
+        informar({ tipo: 'pausada', posicionMs: posicionAhora() })
+        setAnuncio(R.pausa)
+      }
+      if (!actual.finalizado && previo.finalizado) finInformado.current = false
+    }
+  )
   const procesarEstado = useEffectEvent(
     (actual: EstadoMotorReproductor, previo: EstadoMotorReproductor, yaEmpezo: boolean) => {
       if (actual.errorPrincipal && !previo.errorPrincipal) {
@@ -127,6 +229,10 @@ export function Reproductor({
       }
       if (actual.errorVoz && !previo.errorVoz) {
         alFallarPista?.({ pista: 'voz', tipo: actual.errorVoz.tipo })
+      }
+      if (sesion) {
+        procesarEstadoSesion(actual, previo, yaEmpezo)
+        return
       }
       if (actual.finalizado && !previo.finalizado) {
         cuentaFinal.current?.iniciar()
@@ -146,20 +252,24 @@ export function Reproductor({
 
   useEffect(() => {
     const superficie = raiz.current!
-    const inertes = [...document.body.children].filter(
-      (nodo) => nodo !== superficie && !nodo.hasAttribute('inert')
-    )
+    // En la secundaria el reproductor es todo el documento: sin `inert` ni toasts que retener.
+    const inertes = esSesion
+      ? []
+      : [...document.body.children].filter(
+          (nodo) => nodo !== superficie && !nodo.hasAttribute('inert')
+        )
     for (const nodo of inertes) nodo.setAttribute('inert', '')
     superficie.focus({ preventScroll: true })
-    retenerToasts(true)
-    const ventana = window.shinobi.ventana
+    if (!esSesion) retenerToasts(true)
+    const local = sesion ? null : window.shinobi.ventana
+    const ventana = sesion?.ventana ?? window.shinobi.ventana
     let montado = true
     let huboEvento = false
     const bajaPantalla = ventana.alCambiarPantallaCompleta((activa) => {
       huboEvento = true
       setPantallaCompleta(activa)
     })
-    ignorarError(ventana.modoReproductor(true))
+    if (local) ignorarError(local.modoReproductor(true))
     ignorarError(
       ventana.estaEnPantallaCompleta().then((activa) => {
         if (montado && !huboEvento) setPantallaCompleta(activa)
@@ -176,7 +286,7 @@ export function Reproductor({
     const reproductor = fabricar(opcionesIniciales())
     motor.current = reproductor
     const cuenta = new CuentaFinal()
-    cuentaFinal.current = cuenta
+    cuentaFinal.current = esSesion ? null : cuenta
     const bajaCuenta = cuenta.suscribir(setRestante)
     const bajaFin = cuenta.alTerminar(() => alFinalizarCuenta())
     let previo = { ...reproductor.estado() }
@@ -189,6 +299,7 @@ export function Reproductor({
     })
     const inicio = inicioInicial()
     inicioPendiente.current = inicio
+    autoplayCancelado.current = sesion?.pausada ?? false
     const carga = setTimeout(() => setCargaLarga(true), 1000)
     ignorarError(
       reproductor.cargar().then(() => {
@@ -197,6 +308,9 @@ export function Reproductor({
           inicioPendiente.current = null
           return reproductor.reproducir({ desdeMs: inicio })
         }
+        // Cargada en pausa (reanudación): queda en el segundo indicado.
+        if (montado && sesion && reproductor.estado().listo && inicio > 0)
+          reproductor.buscar(inicio)
       })
     )
     return () => {
@@ -214,16 +328,38 @@ export function Reproductor({
       motor.current = null
       visibilidad.current = null
       bajaPantalla()
-      ignorarError(ventana.evitarReposo(false))
-      ignorarError(ventana.modoReproductor(false))
+      if (local) {
+        ignorarError(local.evitarReposo(false))
+        ignorarError(local.modoReproductor(false))
+      }
       for (const nodo of inertes) nodo.removeAttribute('inert')
-      retenerToasts(false)
+      if (!esSesion) retenerToasts(false)
     }
+    // Se monta una vez por entrada: en la sesión, `AppSecundaria` remonta con `key`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    ignorarError(window.shinobi.ventana.evitarReposo(sonando))
-  }, [sonando, finalizado, errorPrincipal])
+    // Con la sesión, el reposo lo retiene main durante toda su vida (ADR 0017 §4).
+    if (!esSesion) ignorarError(window.shinobi.ventana.evitarReposo(sonando))
+  }, [esSesion, sonando, finalizado, errorPrincipal])
+
+  // Posición a main: como mucho 2 por segundo mientras suena.
+  useEffect(() => {
+    if (!esSesion || !sonando) return
+    const intervalo = setInterval(
+      () => informar({ tipo: 'posicion', posicionMs: posicionAhora() }),
+      500
+    )
+    return () => clearInterval(intervalo)
+  }, [esSesion, sonando])
+
+  // Volumen y voz que cambian fuera de este componente (`sesion:preferencias`).
+  useEffect(() => {
+    if (!esSesion) return
+    motor.current?.fijarVolumen(volumen.volumen, volumen.silenciado)
+    motor.current?.fijarVoz(volumen.volumenVoz, volumen.vozSilenciada)
+  }, [esSesion, volumen.volumen, volumen.silenciado, volumen.volumenVoz, volumen.vozSilenciada])
 
   useEffect(() => {
     visibilidad.current?.fijarRetenida('pausa', listo && !sonando)
@@ -256,6 +392,7 @@ export function Reproductor({
       if (motor.current) ignorarError(motor.current.reproducir())
     }
     setPosicionBarra(Math.max(0, tiempoAudio()))
+    sesion?.informar({ tipo: 'posicion', posicionMs: Math.round(tiempoAudio()) })
   }
 
   function repetir(): void {
@@ -307,15 +444,28 @@ export function Reproductor({
   function actuar(accion: AccionReproductor): void {
     const actual = motor.current
     if (!actual) return
-    if (errorPrincipal && accion.tipo !== 'salir') return
+    if (errorPrincipal && accion.tipo !== 'salir' && accion.tipo !== 'cerrar') return
     const configVoz = { voz_guia: volumen.volumenVoz, voz_guia_silenciada: volumen.vozSilenciada }
     let cambio: Parameters<typeof volumen.cambiar>[0] = {}
     switch (accion.tipo) {
       case 'salir':
         salir()
         return
+      case 'cerrar':
+        sesion?.alCerrar()
+        return
+      case 'esc':
+        // Nunca cierra la sesión: solo sale de la pantalla completa.
+        if (pantallaCompleta) ignorarError(sesion!.ventana.fijarPantallaCompleta(false))
+        return
+      case 'siguiente':
+        if (sesion?.hayPendientes) sesion.alSiguiente()
+        else mostrar(R.cola.siguienteNo, 1500)
+        return
       case 'pantalla_completa':
-        ignorarError(window.shinobi.ventana.fijarPantallaCompleta(!pantallaCompleta))
+        ignorarError(
+          (sesion?.ventana ?? window.shinobi.ventana).fijarPantallaCompleta(!pantallaCompleta)
+        )
         break
       case 'alternar':
         if (!listo) return
@@ -363,8 +513,11 @@ export function Reproductor({
         cambio = pasoVoz(configVoz, accion.delta)
         break
       case 'atajos':
-        autoplayCancelado.current = true
-        actual.pausar()
+        // En un evento la canción sigue sonando bajo el diálogo.
+        if (!esSesion) {
+          autoplayCancelado.current = true
+          actual.pausar()
+        }
         visibilidad.current?.fijarRetenida('atajos', true)
         setAtajosAbiertos(true)
         return
@@ -390,6 +543,34 @@ export function Reproductor({
       })
     )
   }
+
+  const actuarDesdeSesion = useEffectEvent((accion: AccionReproductor) => actuar(accion))
+  useEffect(() => {
+    if (!sesion) return
+    const referencia = sesion.control
+    referencia.current = {
+      pausar: () => {
+        const m = motor.current
+        if (!m) return
+        autoplayCancelado.current = true
+        if (m.estado().sonando) m.pausar()
+      },
+      reanudar: () => {
+        const m = motor.current
+        if (!m) return
+        autoplayCancelado.current = false
+        const e = m.estado()
+        if (e.listo && !e.sonando && !e.finalizado) actuarDesdeSesion({ tipo: 'alternar' })
+      },
+      reiniciar: () => actuarDesdeSesion({ tipo: 'principio' })
+    }
+  }, [sesion])
+  useEffect(() => {
+    const referencia = sesion?.control
+    return () => {
+      if (referencia) referencia.current = null
+    }
+  }, [sesion?.control])
 
   const alTeclear = useEffectEvent((e: KeyboardEvent) => {
     if (e.defaultPrevented || raiz.current?.hasAttribute('inert')) return
@@ -429,22 +610,39 @@ export function Reproductor({
   return createPortal(
     <div
       ref={raiz}
-      role="dialog"
-      aria-modal="true"
+      role={esSesion ? 'region' : 'dialog'}
+      aria-modal={esSesion ? undefined : 'true'}
       aria-label={R.aria.region(cancion.titulo)}
       tabIndex={-1}
       data-pantalla-completa={String(pantallaCompleta)}
-      className={`${estilos.raiz} ${mostrarControles || finalizado || errorPrincipal ? '' : estilos.sinCursor}`}
-      style={variablesEstilo(cancion.estilo) as CSSProperties}
+      className={`${estilos.raiz} ${mostrarControles || (finalizado && !esSesion) || errorPrincipal ? '' : estilos.sinCursor}`}
+      style={
+        {
+          ...variablesEstilo(cancion.estilo),
+          // La pantalla final se queda en la fase del último instante (movimiento reducido: fase 0).
+          ...(finalizado && !esSesion
+            ? {
+                '--k-fondo': fondoCssEn(cancion.estilo.fondo, Math.max(0, tiempoAudio()), {
+                  estatico: movimientoReducido
+                })
+              }
+            : {})
+        } as CSSProperties
+      }
       onPointerMove={() => actividad(true)}
       onPointerDown={() => actividad(true)}
     >
-      {errorPrincipal ? (
-        <PantallaError error={errorPrincipal} modo={modo} origen={origen} alSalir={salir} />
-      ) : finalizado ? (
+      {errorPrincipal && !esSesion ? (
+        <PantallaError
+          error={errorPrincipal}
+          modo={modo}
+          origen={origen as 'biblioteca' | 'editor'}
+          alSalir={salir}
+        />
+      ) : finalizado && !esSesion ? (
         <PantallaFinal
           {...titulo}
-          origen={origen}
+          origen={origen as 'biblioteca' | 'editor'}
           restante={restante}
           alRepetir={repetir}
           alSalir={salir}
@@ -457,8 +655,10 @@ export function Reproductor({
           letra={listo ? cancion.letra : { ...cancion.letra, lineas: [] }}
           duracionMs={duracionMs}
           obtenerTiempoAudio={listo ? tiempoAudio : undefined}
+          barrido={barrido}
+          alAnunciarEspera={(segundos) => setAnuncio(R.espera.aria(segundos))}
           reproduciendo
-          avisoTitulo={avisoSinIcono ?? undefined}
+          avisoTitulo={esSesion ? undefined : (avisoSinIcono ?? undefined)}
           cargando={!listo && cargaLarga}
           textoCargando={R.cargando}
         />
@@ -469,7 +669,7 @@ export function Reproductor({
       {!errorPrincipal && (
         <Controles
           {...titulo}
-          aviso={avisoSinIcono}
+          aviso={esSesion ? null : avisoSinIcono}
           listo={listo}
           sonando={sonando}
           pantallaCompleta={pantallaCompleta}
@@ -483,6 +683,7 @@ export function Reproductor({
           buscar={buscar}
           cambiarNivel={cambiarNivel}
           retener={(motivo, activa) => visibilidad.current?.fijarRetenida(motivo, activa)}
+          sesion={sesion && { hayPendientes: sesion.hayPendientes }}
         />
       )}
       {!errorPrincipal && <IndicadorBreve texto={textoVisible} />}
@@ -493,6 +694,7 @@ export function Reproductor({
         abierto={atajosAbiertos}
         vozDisponible={vozDisponible}
         puedeDesplazar={puedeDesplazar}
+        sesion={esSesion}
         alCerrar={() => {
           setAtajosAbiertos(false)
           visibilidad.current?.fijarRetenida('atajos', false)

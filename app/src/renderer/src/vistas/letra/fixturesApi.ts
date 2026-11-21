@@ -1,5 +1,6 @@
 import type { ApiShinobi, ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
 import type { ElementoLetra } from '@shared/letra'
+import { identidadResumenPrueba } from '../biblioteca/resumenPrueba'
 import { sincroniaDe, type ArchivoLetraLeido, type CandidatoLetra } from '@shared/letrasBusqueda'
 
 /** API falsa de `letras.*` para 0084–0086 hasta que existan 0082 y 0083. */
@@ -100,8 +101,10 @@ export function apiLetrasFalsa(opciones: OpcionesApiLetrasFalsa = {}): {
     artista: 'Artista inventado',
     duracionMs: 215000,
     estado: 'borrador',
+    modalidad: 'karaoke',
     modificada: '2026-11-05T10:00:00Z',
     estilo: null,
+    ...identidadResumenPrueba(),
     miniatura: null,
     pasos: null,
     incompleta: false,

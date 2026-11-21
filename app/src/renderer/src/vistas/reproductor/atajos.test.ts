@@ -70,3 +70,21 @@ describe('atajos del reproductor', () => {
     expect(accionDeTeclaReproductor(tecla('Tab'), opciones)).toBeNull()
   })
 })
+
+describe('atajos de la secundaria', () => {
+  const sesion = { origen: 'sesion', vozDisponible: true, focoEnBoton: false } as const
+  it('Esc no cierra, Mayús+N avanza y Ctrl/Cmd+W cierra', () => {
+    expect(accionDeTeclaReproductor(tecla('Escape'), sesion)).toEqual({ tipo: 'esc' })
+    expect(accionDeTeclaReproductor({ ...tecla('N'), shiftKey: true }, sesion)).toEqual({
+      tipo: 'siguiente'
+    })
+    expect(accionDeTeclaReproductor({ ...tecla('w'), ctrlKey: true }, sesion)).toEqual({
+      tipo: 'cerrar'
+    })
+    expect(accionDeTeclaReproductor({ ...tecla('w'), metaKey: true }, sesion)).toEqual({
+      tipo: 'cerrar'
+    })
+    expect(accionDeTeclaReproductor({ ...tecla('w'), ctrlKey: true }, opciones)).toBeNull()
+    expect(accionDeTeclaReproductor({ ...tecla('N'), shiftKey: true }, opciones)).toBeNull()
+  })
+})

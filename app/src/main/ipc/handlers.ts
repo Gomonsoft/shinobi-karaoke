@@ -25,17 +25,34 @@ import {
   type GuardarLetra,
   type GuardarTiempos,
   type EdicionLetraIpc,
-  type Estilo,
   type EditarTextoLetra,
   type ArchivoLetraLeido,
   CODIGOS_ERROR,
   ErrorDatosInvalidos,
   type Cancion,
-  type Config
+  type CancionIpc,
+  type Config,
+  type CatalogoIpc,
+  type CrearTema,
+  type DuplicarTema,
+  type ImpactoIpc,
+  type OperacionTema,
+  type RenombrarTema,
+  type ResultadoOperacionIpc,
+  type OpcionesMarcarLista,
+  type SeleccionApariencia,
+  type TemaIpc
 } from '../../shared'
+import type { InicialExportacionIpc } from '../../shared/exportacion'
+import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
+import { resueltaDeResolucion } from '../biblioteca/resumen'
+import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
+import type { ServicioPicos } from '../picos/servicio'
+import type { ServicioSesion } from '../sesion/servicio'
+import type { ServicioExportacion } from '../exportacion/servicio'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -45,13 +62,28 @@ export interface BibliotecaIpc {
     id: string,
     cambio: { metadatos: { titulo: string; artista: string; album: string | null } }
   ): Promise<ResumenCancion>
-  guardarEstilo(id: string, estilo: Estilo): Promise<ResumenCancion>
-  marcarLista(id: string): Promise<ResumenCancion>
+  guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion>
+  /** Resolución de la canción con el catálogo vigente (`biblioteca.obtener`). */
+  resolver(cancion: Cancion): ResolucionCancion
+  marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion>
   comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
   eliminar(id: string): Promise<void>
   mostrarEnCarpeta(id: string): Promise<void>
   suscribir(cb: (evento: EventoCancion) => void): () => void
+}
+
+/** Subconjunto de `ServicioTemas` (0165–0167) que usa la IPC. */
+export interface TemasIpc {
+  catalogo(): CatalogoIpc
+  previsualizar(op: OperacionTema): Promise<ImpactoIpc>
+  ejecutar(op: OperacionTema, ficha: string): Promise<ResultadoOperacionIpc>
+  crear(datos: CrearTema): Promise<TemaIpc>
+  renombrar(datos: RenombrarTema): Promise<TemaIpc>
+  duplicar(datos: DuplicarTema): Promise<TemaIpc>
+  reanudarBorrado(): Promise<ResultadoOperacionIpc>
+  cancelarBorrado(): Promise<void>
+  descartarAvisoApartado(): Promise<void>
 }
 
 export interface ConfigIpc {
@@ -133,10 +165,76 @@ export interface VentanaIpc {
   suscribir(cb: (activa: boolean) => void): () => void
 }
 
+/** Subconjunto de `ServicioSesion` (0181) que usa la IPC; ausente, sus canales responden `ERROR_INTERNO`. */
+export type SesionIpc = Pick<
+  ServicioSesion,
+  | 'edicionBloqueada'
+  | 'cancionActiva'
+  | 'esSecundariaVigente'
+  | 'pantallas'
+  | 'estadoPrincipal'
+  | 'estadoDelRol'
+  | 'abrir'
+  | 'mostrar'
+  | 'moverAPantalla'
+  | 'fijarPantallaCompleta'
+  | 'estaEnPantallaCompleta'
+  | 'transporte'
+  | 'siguiente'
+  | 'empezar'
+  | 'detenerTransicion'
+  | 'repetir'
+  | 'forzarCierre'
+  | 'solicitarCierre'
+  | 'confirmarCierre'
+  | 'cancelarCierre'
+  | 'inicial'
+  | 'informar'
+  | 'agregar'
+  | 'mover'
+  | 'quitar'
+  | 'vaciar'
+>
+
+/** Subconjunto de `ServicioExportacion` (0237) que usa la IPC; ausente, sus canales responden `ERROR_INTERNO`. */
+export type ExportacionServicioIpc = Pick<
+  ServicioExportacion,
+  | 'perfiles'
+  | 'estimar'
+  | 'destinoPropuesto'
+  | 'elegirDestino'
+  | 'iniciar'
+  | 'cancelar'
+  | 'cancelarTodas'
+  | 'estado'
+  | 'mostrarEnCarpeta'
+  | 'avisosPendientes'
+  | 'suscribir'
+  | 'suscribirProgreso'
+  | 'suscribirAviso'
+>
+
+/** Lo que la ventana offscreen de exportación (0234) ofrece a sus dos canales. */
+export interface VentanaExportacionIpc {
+  inicial(): InicialExportacionIpc
+  confirmarListo(carga: { trabajoId: string; n: number }): void
+}
+
 export interface DependenciasIpc {
+  /** Exportación de video (ADR 0019). */
+  exportacion?: ExportacionServicioIpc
+  /** Ventana offscreen vigente (0234). */
+  ventanaExportacion?: () => VentanaExportacionIpc | null
+  /** Sesión en vivo y cola (ADR 0017). */
+  sesion?: SesionIpc
+  /** El editor tiene un guardado que termina tarde (`app.guardadoPendiente`). */
+  guardadoPendiente?(): boolean
   ventana?: VentanaIpc
   letras?: LetrasIpc
+  /** Catálogo de temas (ADR 0016); ausente, los canales `temas.*` responden `ERROR_INTERNO`. */
+  temas?: TemasIpc
   separacion?: SeparacionIpc
+  picos?: Pick<ServicioPicos, 'solicitar' | 'leer' | 'duranteCambio'>
   runtime: RuntimeIpc
   /** Respuesta del renderer a la solicitud de cierre (`cierre.ts`). */
   fijarGuardadoPendiente?(pendiente: boolean): void
@@ -182,17 +280,33 @@ export function aErrorIpc(e: unknown): ErrorIpc {
     return { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Los datos no son válidos.' }
   }
   if (e instanceof Error && esCodigo((e as { codigo?: unknown }).codigo)) {
-    const detalles = (e as { detalles?: unknown }).detalles
-    return {
-      codigo: (e as unknown as ErrorIpc).codigo,
-      mensaje: e.message,
-      ...(typeof detalles === 'string' && detalles ? { detalles } : {})
-    }
+    const { codigo, detalles } = e as unknown as { codigo: ErrorIpc['codigo']; detalles?: unknown }
+    // `CONFIRMACION_OBSOLETA` lleva el impacto nuevo serializado (ADR 0016 §7, §11).
+    const texto =
+      typeof detalles === 'string'
+        ? detalles
+        : codigo === 'CONFIRMACION_OBSOLETA' && detalles !== undefined
+          ? JSON.stringify(detalles)
+          : ''
+    return { codigo, mensaje: e.message, ...(texto ? { detalles: texto } : {}) }
   }
   return { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
 }
 
-export type ManejadorIpc = (args: unknown[]) => Promise<RespuestaIpc<unknown>>
+/** Quién llama: lo fija main a partir del registro de ventanas, nunca el renderer. */
+export interface ContextoIpc {
+  rol: RolVentana | null
+  /** `webContents` remitente (para comprobar que es el de la sesión vigente). */
+  sender: unknown
+}
+
+export type ManejadorIpc = (args: unknown[], ctx?: ContextoIpc) => Promise<RespuestaIpc<unknown>>
+
+const CONTEXTO_PRINCIPAL: ContextoIpc = { rol: 'principal', sender: null }
+
+/** Error con código estable para la IPC (`aErrorIpc` lo traduce). */
+const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
+  Object.assign(new Error(mensaje), { codigo })
 
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
 export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
@@ -207,12 +321,12 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.youtube
   }
 
-  const envolver =
+  const envolverCtx =
     <C extends CanalInvocable>(
       canal: C,
-      fn: (...args: z.output<(typeof CONTRATO)[C]['args']>) => unknown
+      fn: (ctx: ContextoIpc, ...args: z.output<(typeof CONTRATO)[C]['args']>) => unknown
     ): ManejadorIpc =>
-    async (crudos) => {
+    async (crudos, ctx = CONTEXTO_PRINCIPAL) => {
       const parseo = CONTRATO[canal].args.safeParse(crudos)
       if (!parseo.success) {
         return {
@@ -221,7 +335,7 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         }
       }
       try {
-        const valor = await fn(...(parseo.data as never))
+        const valor = await fn(ctx, ...(parseo.data as never))
         return { ok: true, valor }
       } catch (e) {
         const error = aErrorIpc(e)
@@ -229,6 +343,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         return { ok: false, error }
       }
     }
+
+  const envolver = <C extends CanalInvocable>(
+    canal: C,
+    fn: (...args: z.output<(typeof CONTRATO)[C]['args']>) => unknown
+  ): ManejadorIpc => envolverCtx(canal, (_ctx, ...args) => fn(...(args as never)))
 
   /** Sin servicio (hasta 0065) el canal falla con `ERROR_INTERNO`. */
   const separacion = (): SeparacionIpc => {
@@ -241,36 +360,135 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.letras
   }
 
+  const temas = (): TemasIpc => {
+    if (!deps.temas) throw new Error('El servicio de temas no está disponible.')
+    return deps.temas
+  }
+
+  const sesion = (): SesionIpc => {
+    if (!deps.sesion) throw new Error('El servicio de sesión no está disponible.')
+    return deps.sesion
+  }
+
+  const exportacion = (): ExportacionServicioIpc => {
+    if (!deps.exportacion) throw new Error('El servicio de exportación no está disponible.')
+    return deps.exportacion
+  }
+
+  /** Remitente por rol (ADR 0019 §10): la principal usa los canales de exportación; la ventana offscreen, solo los suyos. */
+  const exigirRol = (ctx: ContextoIpc, rol: RolVentana): void => {
+    if (ctx.rol !== rol) throw errorConCodigo('ARGUMENTOS_NO_VALIDOS', 'Origen no permitido.')
+  }
+
+  const ventanaExportacion = (): VentanaExportacionIpc => {
+    const ventana = deps.ventanaExportacion?.()
+    if (!ventana) throw new Error('No hay ventana de exportación.')
+    return ventana
+  }
+
+  /** Defensa de ADR 0017 §9: durante la sesión no se edita la lista. */
+  const sinSesion = (): void => {
+    if (deps.sesion?.edicionBloqueada()) {
+      throw errorConCodigo(
+        'EDICION_BLOQUEADA',
+        'No se puede editar mientras el reproductor está abierto en otra ventana.'
+      )
+    }
+  }
+  /** La canción activa de la sesión no se elimina ni vuelve a borrador. */
+  const noActiva = (id: string): void => {
+    if (deps.sesion?.cancionActiva(id)) {
+      throw errorConCodigo('CANCION_EN_REPRODUCCION', 'La canción está en reproducción.')
+    }
+  }
+  /** Un `webContents` de otra sesión (ya cerrada) no puede actuar. */
+  const vigente = (ctx: ContextoIpc): void => {
+    if (ctx.rol === 'secundaria' && !sesion().esSecundariaVigente(ctx.sender)) {
+      throw errorConCodigo('SESION_NO_ACTIVA', 'No hay una sesión activa.')
+    }
+  }
+  /** Rol de sesión de quien llama; la ventana de exportación no llama a canales de sesión. */
+  const rolDe = (ctx: ContextoIpc): 'principal' | 'secundaria' =>
+    ctx.rol === 'secundaria' ? 'secundaria' : 'principal'
+
+  /** `obtener` con la apariencia resuelta con el catálogo vigente (ADR 0016 §9). */
+  const cancionParaRenderer = (id: string): CancionIpc | null => {
+    const cancion = biblioteca.obtener(id)
+    if (!cancion) return null
+    return { ...cancion, resuelta: resueltaDeResolucion(biblioteca.resolver(cancion)) }
+  }
+
   return {
+    [CANALES.temas.catalogo]: envolver(CANALES.temas.catalogo, () => temas().catalogo()),
+    [CANALES.temas.previsualizar]: envolver(CANALES.temas.previsualizar, (op) =>
+      temas().previsualizar(op)
+    ),
+    [CANALES.temas.ejecutar]: envolver(CANALES.temas.ejecutar, (op, ficha) =>
+      temas().ejecutar(op, ficha)
+    ),
+    [CANALES.temas.crear]: envolver(CANALES.temas.crear, (datos) => temas().crear(datos)),
+    [CANALES.temas.renombrar]: envolver(CANALES.temas.renombrar, (datos) =>
+      temas().renombrar(datos)
+    ),
+    [CANALES.temas.duplicar]: envolver(CANALES.temas.duplicar, (datos) => temas().duplicar(datos)),
+    [CANALES.temas.reanudarBorrado]: envolver(CANALES.temas.reanudarBorrado, () =>
+      temas().reanudarBorrado()
+    ),
+    [CANALES.temas.cancelarBorrado]: envolver(CANALES.temas.cancelarBorrado, () =>
+      temas().cancelarBorrado()
+    ),
+    [CANALES.temas.descartarAvisoApartado]: envolver(CANALES.temas.descartarAvisoApartado, () =>
+      temas().descartarAvisoApartado()
+    ),
     [CANALES.letras.buscar]: envolver(CANALES.letras.buscar, (p) => letras().buscar(p)),
-    [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) =>
-      resumenParaRenderer(await letras().guardar(p))
+    [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) => {
+      sinSesion()
+      return resumenParaRenderer(await letras().guardar(p))
+    }),
+    [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) => {
+      sinSesion()
+      return resumenParaRenderer(await letras().editarTexto(p))
+    }),
+    [CANALES.letras.guardarTiempos]: envolver(
+      CANALES.letras.guardarTiempos,
+      async (p, sesionId) => {
+        sinSesion()
+        return resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
+      }
     ),
-    [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) =>
-      resumenParaRenderer(await letras().editarTexto(p))
-    ),
-    [CANALES.letras.guardarTiempos]: envolver(CANALES.letras.guardarTiempos, async (p, sesionId) =>
-      resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
-    ),
-    [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) =>
-      letras().abrirEdicion(id)
-    ),
+    [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) => {
+      sinSesion()
+      return letras().abrirEdicion(id)
+    }),
     [CANALES.letras.cerrarEdicion]: envolver(CANALES.letras.cerrarEdicion, (id) =>
       letras().cerrarEdicion(id)
     ),
-    [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () =>
-      letras().leerArchivo()
-    ),
-    [CANALES.ventana.modoReproductor]: envolver(CANALES.ventana.modoReproductor, (activo) =>
-      deps.ventana?.modoReproductor(activo)
-    ),
-    [CANALES.ventana.fijarPantallaCompleta]: envolver(
+    [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () => {
+      sinSesion()
+      return letras().leerArchivo()
+    }),
+    [CANALES.ventana.modoReproductor]: envolver(CANALES.ventana.modoReproductor, (activo) => {
+      if (activo && deps.sesion?.edicionBloqueada()) {
+        throw errorConCodigo('SESION_EN_CURSO', 'Hay un reproductor abierto en otra ventana.')
+      }
+      return deps.ventana?.modoReproductor(activo)
+    }),
+    // Cada ventana actúa sobre la suya: la secundaria, sobre la de la sesión.
+    [CANALES.ventana.fijarPantallaCompleta]: envolverCtx(
       CANALES.ventana.fijarPantallaCompleta,
-      (activa) => deps.ventana?.fijarPantallaCompleta(activa)
+      (ctx, activa) => {
+        if (ctx.rol !== 'secundaria') return deps.ventana?.fijarPantallaCompleta(activa)
+        vigente(ctx)
+        return sesion().fijarPantallaCompleta(activa)
+      }
     ),
-    [CANALES.ventana.estaEnPantallaCompleta]: envolver(
+    [CANALES.ventana.estaEnPantallaCompleta]: envolverCtx(
       CANALES.ventana.estaEnPantallaCompleta,
-      () => deps.ventana?.estaEnPantallaCompleta() ?? false
+      (ctx) => {
+        if (ctx.rol !== 'secundaria') return deps.ventana?.estaEnPantallaCompleta() ?? false
+        vigente(ctx)
+        return sesion().estaEnPantallaCompleta()
+      }
     ),
     [CANALES.ventana.evitarReposo]: envolver(CANALES.ventana.evitarReposo, (activo) =>
       deps.ventana?.evitarReposo(activo)
@@ -286,24 +504,46 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       biblioteca.listar().map(resumenParaRenderer)
     ),
     [CANALES.biblioteca.obtener]: envolver(CANALES.biblioteca.obtener, (id) =>
-      biblioteca.obtener(id)
+      cancionParaRenderer(id)
     ),
     [CANALES.biblioteca.actualizarMetadatos]: envolver(
       CANALES.biblioteca.actualizarMetadatos,
       async (id, metadatos) => resumenParaRenderer(await biblioteca.actualizar(id, { metadatos }))
     ),
-    [CANALES.biblioteca.guardarEstilo]: envolver(
-      CANALES.biblioteca.guardarEstilo,
-      async (id, estilo) => resumenParaRenderer(await biblioteca.guardarEstilo(id, estilo))
+    [CANALES.biblioteca.guardarApariencia]: envolver(
+      CANALES.biblioteca.guardarApariencia,
+      async (id, seleccion) => {
+        sinSesion()
+        return resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
+      }
     ),
-    [CANALES.biblioteca.marcarLista]: envolver(CANALES.biblioteca.marcarLista, async (id) =>
-      resumenParaRenderer(await biblioteca.marcarLista(id))
+    [CANALES.biblioteca.marcarLista]: envolver(
+      CANALES.biblioteca.marcarLista,
+      async (id, opciones) => {
+        sinSesion()
+        return resumenParaRenderer(
+          await (opciones ? biblioteca.marcarLista(id, opciones) : biblioteca.marcarLista(id))
+        )
+      }
     ),
-    [CANALES.biblioteca.volverABorrador]: envolver(CANALES.biblioteca.volverABorrador, async (id) =>
-      resumenParaRenderer(await biblioteca.volverABorrador(id))
+    [CANALES.biblioteca.volverABorrador]: envolver(
+      CANALES.biblioteca.volverABorrador,
+      async (id) => {
+        noActiva(id)
+        return resumenParaRenderer(await biblioteca.volverABorrador(id))
+      }
     ),
-    [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) =>
-      biblioteca.eliminar(id)
+    [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) => {
+      noActiva(id)
+      return deps.picos?.duranteCambio(id, () => biblioteca.eliminar(id)) ?? biblioteca.eliminar(id)
+    }),
+    [CANALES.picos.solicitar]: envolver(
+      CANALES.picos.solicitar,
+      (id, reintentar) => deps.picos?.solicitar(id, reintentar) ?? { estado: 'no_disponible' }
+    ),
+    [CANALES.picos.leer]: envolver(
+      CANALES.picos.leer,
+      (peticion) => deps.picos?.leer(peticion) ?? null
     ),
     [CANALES.biblioteca.mostrarEnCarpeta]: envolver(CANALES.biblioteca.mostrarEnCarpeta, (id) =>
       biblioteca.mostrarEnCarpeta(id)
@@ -362,7 +602,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.runtime.requisitos]: envolver(CANALES.runtime.requisitos, (opciones) =>
       runtime.requisitos(opciones.recalcularEspacio)
     ),
-    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, () => runtime.instalar()),
+    // «Reparar el motor» cancela antes las exportaciones, como un trabajo más (ADR 0019 §8).
+    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, async () => {
+      await deps.exportacion?.cancelarTodas()
+      runtime.instalar()
+    }),
     [CANALES.runtime.pausar]: envolver(CANALES.runtime.pausar, () => runtime.pausar()),
     [CANALES.runtime.detalles]: envolver(CANALES.runtime.detalles, () => runtime.detalles()),
     [CANALES.runtime.estimarSeparacion]: envolver(CANALES.runtime.estimarSeparacion, (ms, modelo) =>
@@ -383,6 +627,150 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.runtime.cancelarVolverACalidad]: envolver(CANALES.runtime.cancelarVolverACalidad, () =>
       runtime.cancelarVolverACalidad()
     ),
+    // --- Fase 4: pantallas, sesión y cola (ADR 0017 §11) ---
+    [CANALES.pantallas.listar]: envolver(CANALES.pantallas.listar, () => sesion().pantallas()),
+    [CANALES.sesion.estado]: envolver(CANALES.sesion.estado, () => sesion().estadoPrincipal()),
+    [CANALES.sesion.abrir]: envolver(CANALES.sesion.abrir, (peticion) => {
+      if (deps.guardadoPendiente?.()) {
+        throw errorConCodigo('GUARDADO_PENDIENTE', 'El editor todavía está guardando.')
+      }
+      return sesion().abrir(peticion)
+    }),
+    [CANALES.sesion.mostrar]: envolver(CANALES.sesion.mostrar, () => sesion().mostrar()),
+    [CANALES.sesion.moverAPantalla]: envolver(CANALES.sesion.moverAPantalla, (p) =>
+      sesion().moverAPantalla(p.pantallaId)
+    ),
+    [CANALES.sesion.fijarPantallaCompleta]: envolver(
+      CANALES.sesion.fijarPantallaCompleta,
+      (activa) => sesion().fijarPantallaCompleta(activa)
+    ),
+    [CANALES.sesion.transporte]: envolver(CANALES.sesion.transporte, (p) =>
+      sesion().transporte(p.accion, p.entradaId)
+    ),
+    [CANALES.sesion.siguiente]: envolverCtx(CANALES.sesion.siguiente, async (ctx, p) => {
+      vigente(ctx)
+      await sesion().siguiente(p.desdeEntradaId)
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.empezar]: envolverCtx(CANALES.sesion.empezar, async (ctx, p) => {
+      vigente(ctx)
+      await sesion().empezar(p.candidataId)
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.detenerTransicion]: envolverCtx(
+      CANALES.sesion.detenerTransicion,
+      async (ctx, p) => {
+        vigente(ctx)
+        await sesion().detenerTransicion(p.transicionId)
+        return sesion().estadoDelRol(rolDe(ctx))
+      }
+    ),
+    [CANALES.sesion.repetir]: envolverCtx(CANALES.sesion.repetir, async (ctx, p) => {
+      vigente(ctx)
+      await sesion().repetir(p.entradaId)
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.forzarCierre]: envolver(CANALES.sesion.forzarCierre, () =>
+      sesion().forzarCierre()
+    ),
+    [CANALES.sesion.solicitarCierre]: envolverCtx(CANALES.sesion.solicitarCierre, async (ctx) => {
+      vigente(ctx)
+      await sesion().solicitarCierre(rolDe(ctx))
+      return sesion().estadoDelRol(rolDe(ctx))
+    }),
+    [CANALES.sesion.confirmarCierre]: envolverCtx(
+      CANALES.sesion.confirmarCierre,
+      async (ctx, p) => {
+        vigente(ctx)
+        await sesion().confirmarCierre(p.cola, p.revision)
+      }
+    ),
+    [CANALES.sesion.cancelarCierre]: envolverCtx(CANALES.sesion.cancelarCierre, async (ctx) => {
+      vigente(ctx)
+      await sesion().cancelarCierre()
+    }),
+    [CANALES.sesion.inicial]: envolverCtx(CANALES.sesion.inicial, (ctx) =>
+      sesion().inicial(ctx.sender)
+    ),
+    // Un `webContents` ajeno (de otra sesión) recibe `{ aplicado: false }`, sin error.
+    [CANALES.sesion.informar]: envolverCtx(CANALES.sesion.informar, (ctx, informe) =>
+      sesion().informar(informe, ctx.sender)
+    ),
+    [CANALES.sesion.preferencias]: envolverCtx(CANALES.sesion.preferencias, (ctx) => {
+      vigente(ctx)
+      return config.obtener().reproductor
+    }),
+    [CANALES.sesion.guardarPreferencias]: envolverCtx(
+      CANALES.sesion.guardarPreferencias,
+      async (ctx, parcial) => {
+        vigente(ctx)
+        return (await config.actualizar({ reproductor: parcial })).reproductor
+      }
+    ),
+    [CANALES.cola.agregar]: envolver(CANALES.cola.agregar, (p) =>
+      sesion().agregar(p.cancionId, p.donde)
+    ),
+    [CANALES.cola.mover]: envolver(CANALES.cola.mover, (p) =>
+      sesion().mover(p.entradaId, p.antesDe)
+    ),
+    [CANALES.cola.quitar]: envolver(CANALES.cola.quitar, (p) => sesion().quitar(p.entradaId)),
+    [CANALES.cola.vaciar]: envolver(CANALES.cola.vaciar, (p) => sesion().vaciar(p.contexto)),
+    [CANALES.exportacion.perfiles]: envolverCtx(CANALES.exportacion.perfiles, (ctx) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().perfiles()
+    }),
+    [CANALES.exportacion.estimar]: envolverCtx(CANALES.exportacion.estimar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().estimar(p)
+    }),
+    [CANALES.exportacion.destinoPropuesto]: envolverCtx(
+      CANALES.exportacion.destinoPropuesto,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().destinoPropuesto(p)
+      }
+    ),
+    [CANALES.exportacion.elegirDestino]: envolverCtx(
+      CANALES.exportacion.elegirDestino,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().elegirDestino(p.destinoId)
+      }
+    ),
+    [CANALES.exportacion.iniciar]: envolverCtx(CANALES.exportacion.iniciar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().iniciar(p)
+    }),
+    [CANALES.exportacion.cancelar]: envolverCtx(CANALES.exportacion.cancelar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().cancelar(p.trabajoId)
+    }),
+    [CANALES.exportacion.estado]: envolverCtx(CANALES.exportacion.estado, (ctx) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().estado()
+    }),
+    [CANALES.exportacion.mostrarEnCarpeta]: envolverCtx(
+      CANALES.exportacion.mostrarEnCarpeta,
+      (ctx, ref) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().mostrarEnCarpeta(ref)
+      }
+    ),
+    [CANALES.exportacion.avisosPendientes]: envolverCtx(
+      CANALES.exportacion.avisosPendientes,
+      (ctx) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().avisosPendientes()
+      }
+    ),
+    [CANALES.exportacion.inicial]: envolverCtx(CANALES.exportacion.inicial, (ctx) => {
+      exigirRol(ctx, 'exportacion')
+      return ventanaExportacion().inicial()
+    }),
+    [CANALES.exportacion.listo]: envolverCtx(CANALES.exportacion.listo, (ctx, carga) => {
+      exigirRol(ctx, 'exportacion')
+      return ventanaExportacion().confirmarListo(carga)
+    }),
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),
@@ -400,10 +788,12 @@ export interface IpcMainLike {
 }
 
 export interface OpcionesRegistro {
-  /** Debe devolver true solo para los eventos que vienen de nuestra ventana. */
-  remitenteValido?: (evento: unknown) => boolean
-  /** Envía un evento a todos los renderers. */
-  difundir: (canal: string, carga: unknown) => void
+  /** Debe devolver true solo si el evento viene de una ventana con permiso en ese canal. */
+  remitenteValido?: (evento: unknown, canal: string) => boolean
+  /** Rol registrado del remitente (`RegistroVentanas.rolDe(evento.sender)`); sin él, `principal`. */
+  rolDe?: (evento: unknown) => RolVentana | null
+  /** Envía un evento a la ventana con ese rol (ADR 0017 §11); no hace nada si no existe. */
+  enviarA: (rol: RolVentana, canal: string, carga: unknown) => void
 }
 
 /** Registra los canales y reenvía los eventos de los servicios. Devuelve la función para deshacerlo. */
@@ -416,33 +806,52 @@ export function registrarIpc(
   const canales = Object.keys(manejadores) as CanalInvocable[]
   for (const canal of canales) {
     ipc.handle(canal, (evento, ...args) => {
-      if (opciones.remitenteValido && !opciones.remitenteValido(evento)) {
+      if (opciones.remitenteValido && !opciones.remitenteValido(evento, canal)) {
         return {
           ok: false,
           error: { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Origen no permitido.' }
         } satisfies RespuestaIpc<never>
       }
-      return manejadores[canal](args)
+      const contexto: ContextoIpc = {
+        rol: opciones.rolDe ? opciones.rolDe(evento) : 'principal',
+        sender: (evento as { sender?: unknown } | null)?.sender ?? null
+      }
+      return manejadores[canal](args, contexto)
     })
   }
+  // Los eventos de datos son de la principal; el servicio de sesión envía los suyos a cada rol.
+  const aPrincipal = (canal: string, carga: unknown): void =>
+    opciones.enviarA('principal', canal, carga)
   const bajaPantallaCompleta = deps.ventana?.suscribir((activa) =>
-    opciones.difundir(CANALES.eventos.pantallaCompleta, activa)
+    aPrincipal(CANALES.eventos.pantallaCompleta, activa)
   )
   const bajaCancion = deps.biblioteca.suscribir((e) =>
-    opciones.difundir(CANALES.eventos.cancion, eventoParaRenderer(e))
+    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e))
   )
-  const bajaConfig = deps.config.suscribir((c) => opciones.difundir(CANALES.eventos.config, c))
-  const bajaTrabajo = deps.trabajos.suscribir((t) => opciones.difundir(CANALES.eventos.trabajo, t))
+  // La secundaria solo recibe `config.reproductor`, y solo cuando cambia (ADR 0017 §11).
+  let reproductorPrevio = JSON.stringify(deps.config.obtener().reproductor)
+  const bajaConfig = deps.config.suscribir((c) => {
+    aPrincipal(CANALES.eventos.config, c)
+    const reproductor = JSON.stringify(c.reproductor)
+    if (reproductor === reproductorPrevio) return
+    reproductorPrevio = reproductor
+    opciones.enviarA('secundaria', CANALES.eventos.sesionPreferencias, c.reproductor)
+  })
+  const bajaTrabajo = deps.trabajos.suscribir((t) => aPrincipal(CANALES.eventos.trabajo, t))
   const bajaProgreso = deps.trabajos.suscribirProgreso((p) =>
-    opciones.difundir(CANALES.eventos.trabajoProgreso, p)
+    aPrincipal(CANALES.eventos.trabajoProgreso, p)
   )
   const bajaRtProgreso = deps.runtime.alProgreso((p) =>
-    opciones.difundir(CANALES.eventos.runtimeProgreso, p)
+    aPrincipal(CANALES.eventos.runtimeProgreso, p)
   )
-  const bajaRtCambio = deps.runtime.alCambiar((e) =>
-    opciones.difundir(CANALES.eventos.runtimeCambio, e)
-  )
+  const bajaRtCambio = deps.runtime.alCambiar((e) => aPrincipal(CANALES.eventos.runtimeCambio, e))
+  const bajasExportacion = [
+    deps.exportacion?.suscribir((e) => aPrincipal(CANALES.eventos.exportacionCambio, e)),
+    deps.exportacion?.suscribirProgreso((p) => aPrincipal(CANALES.eventos.exportacionProgreso, p)),
+    deps.exportacion?.suscribirAviso((a) => aPrincipal(CANALES.eventos.exportacionAviso, a))
+  ]
   return () => {
+    for (const baja of bajasExportacion) baja?.()
     bajaPantallaCompleta?.()
     bajaRtProgreso()
     bajaRtCambio()

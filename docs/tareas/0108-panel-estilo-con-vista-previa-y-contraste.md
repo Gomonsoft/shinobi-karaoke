@@ -1,4 +1,5 @@
 # 0108 — Editor: panel Estilo (fondo, colores, fuente) con aviso de contraste y estilo predeterminado
+
 - Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: 0097, 0099, 0105
@@ -8,12 +9,14 @@
 - Paralelizable con: 0106, 0107 y 0109.
 
 ## Contexto para quien implementa
+
 - Componentes (0099): `SelectorColor`, `SelectorFuente`, `DialAngulo` y `ControlSegmentado`.
 - Utilidades (0097): `SUGERIDOS_FONDO`, `SUGERIDOS_LETRA`, `aSolido`, `aDegradado`, `variarLuminosidad30`, `repartirParadas`, `evaluarContraste` y `sugerirResaltado`.
-- Cada cambio se despacha como `{ tipo: 'estilo', estilo, clave, ahora: Date.now() }` al *reducer* (0093), que agrupa los cambios del mismo campo en menos de 1 s, y se guarda con `useGuardadoEditor` (0104).
+- Cada cambio se despacha como `{ tipo: 'estilo', estilo, clave, ahora: Date.now() }` al _reducer_ (0093), que agrupa los cambios del mismo campo en menos de 1 s, y se guarda con `useGuardadoEditor` (0104).
 - Configuración: `config.obtener().estilo_predeterminado` y `config.actualizar({ estilo_predeterminado })` (ya existen).
 
 ## Criterios de aceptación
+
 - [ ] **Fondo**:
   - Sólido/Degradado con `aDegradado`/`aSolido` (un paso de deshacer);
   - ángulo con `DialAngulo`;
@@ -39,6 +42,7 @@
   - punto de aviso en la pestaña.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check
@@ -46,6 +50,7 @@ npx vitest run src/renderer/src/vistas/editor
 ```
 
 ## Notas de implementación
+
 - Se revisó y completó el trabajo parcial de Codex: `PanelEstilo.tsx` (fondo sólido/degradado, dial, 2–4 paradas repartidas, letra, avisos de contraste con acciones, restablecer y "usar en canciones nuevas"), su test y CSS, y los ajustes de `SelectorColor`/`ControlSegmentado` (opción con `aviso`).
 - Lo que faltaba: cablear el panel en `Editor.tsx` (antes `<PanelEstilo />` vacío): `evaluarContraste` memoizado, punto `aviso` en la pestaña "Estilo" mientras haya algún aviso, `inactivo` en el modo sincronizar, despacho de `{ tipo: 'estilo', ... ahora: Date.now() }` y estado local del estilo predeterminado (se actualiza tras `config.actualizar`).
 - Archivos clave: `vistas/editor/PanelEstilo.tsx`, `panelEstilo.module.css`, `Editor.tsx`.

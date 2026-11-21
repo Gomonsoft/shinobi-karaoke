@@ -20,6 +20,7 @@ import { Logotipo } from './PantallasInicio'
 import { RAPIDO } from '../aviso-rapido/textos'
 import { PA } from './textos'
 import estilos from './primerArranque.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 type EstadoFase = EstadoRuntimeIpc['fases'][FaseRuntime]
 
@@ -49,7 +50,7 @@ function Detalles({ clave }: { clave: string }) {
 
   const copiar = async () => {
     try {
-      await navigator.clipboard.writeText(await window.shinobi.runtime.detalles())
+      await copiarDetalles(await window.shinobi.runtime.detalles())
       mostrarToast({ tipo: 'exito', mensaje: PA.detallesCopiados })
     } catch {
       mostrarToast({ tipo: 'error', mensaje: PA.detallesNoCopiados })

@@ -15,7 +15,7 @@ export function PantallaFinal({
 }: {
   titulo: string
   artista: string
-  origen: OrigenReproductor
+  origen: Exclude<OrigenReproductor, 'sesion'>
   restante: number | null
   alRepetir(): void
   alSalir(): void

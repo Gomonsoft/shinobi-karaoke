@@ -125,6 +125,7 @@ function montar(o: Opciones = {}) {
       info: () =>
         Promise.resolve({
           version: '0.1.0',
+          compilacion: { canal: 'local', numero: null, commit: null },
           so: 'Darwin 23.6.0',
           plataforma: 'darwin',
           youtube: false,
@@ -568,7 +569,11 @@ describe('B2 Instalando', () => {
     fireEvent.click(screen.getByRole('button', { name: /Ver detalles/ }))
     expect(await screen.findByText('DETALLES DE SOPORTE')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Copiar detalles' }))
-    await waitFor(() => expect(api.copiar).toHaveBeenCalledWith('DETALLES DE SOPORTE'))
+    await waitFor(() =>
+      expect(api.copiar).toHaveBeenCalledWith(
+        'DETALLES DE SOPORTE\nVersión: 0.1.0 (local, sin número, sin commit)'
+      )
+    )
     expect(await screen.findByText('Detalles copiados')).toBeInTheDocument()
   })
 

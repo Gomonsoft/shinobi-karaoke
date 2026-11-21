@@ -192,12 +192,7 @@
 }
 
 .soloLector {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  composes: soloLector from '../../componentes/componentes.module.css';
 }
 
 /* Línea de la oferta del modelo Rápido dentro del banner de B4 (0057). */

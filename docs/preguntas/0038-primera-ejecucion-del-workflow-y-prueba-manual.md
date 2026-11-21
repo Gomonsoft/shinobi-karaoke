@@ -5,7 +5,7 @@
 - Bloquea: el cierre de 0136 y 0137 (su ejecución en GitHub) y la tarea 0139 (prueba manual y capturas). **No bloquea** escribir el código de ninguna tarea.
 
 ## Contexto
-**Workflow.** El archivo ya está en `main` y el empaquetado interno se ejecutó correctamente desde GitHub. Las pruebas automatizadas de los instaladores y los seis trabajos de CI también pasaron; los enlaces están en [`pendientes-fase-8.md`](../pendientes-fase-8.md).
+**Workflow.** El archivo ya está en `main` y el empaquetado interno se ejecutó correctamente desde GitHub. Las pruebas automatizadas de los instaladores y los seis trabajos de CI también pasaron; los enlaces están en [`pendientes-fase-8.md`](../versiones/0.1.0/pendientes-fase-8.md).
 
 La estimación de minutos de este contexto se hizo cuando el repositorio era privado y no debe usarse para calcular el consumo actual. El repositorio ya es público; revisar el uso vigente de Actions en la configuración de GitHub si se necesita volver a presupuestar ejecuciones.
 

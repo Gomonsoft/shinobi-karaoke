@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import type { Cancion } from '@shared/cancion'
+import { modalidadEfectiva, type Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
@@ -111,6 +111,7 @@ function CancionCargada({
         gananciaDb: cancion.fuente.ganancia_db,
         letra: cancion.letra ?? LETRA_VACIA,
         estilo: cancion.estilo,
+        modalidad: modalidadEfectiva(cancion),
         lineasSinSincronizar
       }}
       origen="biblioteca"

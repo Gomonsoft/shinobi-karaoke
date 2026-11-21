@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
+import { CANALES } from '../shared/canales'
 import {
+  bloquearNavegacionTotal,
   conPlazo,
   instalarPermisos,
   instalarPoliticaNavegacion,
@@ -126,24 +128,88 @@ describe('permisos', () => {
 })
 
 describe('remitenteIpcValido', () => {
-  const frame = { url: ORIGEN + '/index.html' }
-  const wc = { mainFrame: frame }
-  it('acepta el frame principal del renderer', () => {
-    expect(remitenteIpcValido({ sender: wc, senderFrame: frame }, [wc], ORIGEN)).toBe(true)
+  const frameP = { url: ORIGEN + '/index.html' }
+  const principal = { mainFrame: frameP }
+  const frameS = { url: ORIGEN + '/reproductor.html' }
+  const secundaria = { mainFrame: frameS }
+  const registro = {
+    rolDe: (wc: unknown) =>
+      wc === principal ? ('principal' as const) : wc === secundaria ? ('secundaria' as const) : null
+  }
+  const valido = (evento: unknown, canal: string): boolean =>
+    remitenteIpcValido(evento, canal, registro, ORIGEN)
+  const evP = { sender: principal, senderFrame: frameP }
+  const evS = { sender: secundaria, senderFrame: frameS }
+  /** Evento de un `webContents` con el rol y el documento dados (para casos de ruta). */
+  const conRol = (rol: 'principal' | 'secundaria' | null, url: string, canal: string): boolean => {
+    const f = { url }
+    const wc = { mainFrame: f }
+    return remitenteIpcValido({ sender: wc, senderFrame: f }, canal, { rolDe: () => rol }, ORIGEN)
+  }
+
+  it('acepta cada rol en sus canales', () => {
+    expect(valido(evP, CANALES.biblioteca.listar)).toBe(true)
+    expect(valido(evP, CANALES.sesion.estado)).toBe(true)
+    expect(valido(evS, CANALES.sesion.informar)).toBe(true)
+    expect(valido(evS, CANALES.ventana.fijarPantallaCompleta)).toBe(true)
   })
-  it('rechaza ventana desconocida, subframe, sin frame u otro origen', () => {
-    expect(remitenteIpcValido({ sender: {}, senderFrame: frame }, [wc], ORIGEN)).toBe(false)
-    expect(remitenteIpcValido({ sender: wc, senderFrame: { url: frame.url } }, [wc], ORIGEN)).toBe(
+  it('acepta "/" para la principal (desarrollo)', () => {
+    expect(conRol('principal', ORIGEN + '/', CANALES.biblioteca.listar)).toBe(true)
+  })
+  it('rechaza los canales de otro rol', () => {
+    expect(valido(evS, CANALES.biblioteca.listar)).toBe(false)
+    expect(valido(evS, CANALES.temas.catalogo)).toBe(false)
+    expect(valido(evP, CANALES.sesion.informar)).toBe(false)
+  })
+  it('rechaza canales desconocidos', () => {
+    expect(valido(evP, 'canal:inexistente')).toBe(false)
+    expect(valido(evP, 'toString')).toBe(false)
+  })
+  it('rechaza webContents sin registrar, subframe, sin frame u otro origen', () => {
+    expect(valido({ sender: {}, senderFrame: frameP }, CANALES.biblioteca.listar)).toBe(false)
+    expect(
+      valido({ sender: principal, senderFrame: { url: frameP.url } }, CANALES.biblioteca.listar)
+    ).toBe(false)
+    expect(valido({ sender: principal }, CANALES.biblioteca.listar)).toBe(false)
+    expect(valido(null, CANALES.biblioteca.listar)).toBe(false)
+    expect(conRol('principal', 'https://example.com/index.html', CANALES.biblioteca.listar)).toBe(
       false
     )
-    expect(remitenteIpcValido({ sender: wc }, [wc], ORIGEN)).toBe(false)
-    expect(remitenteIpcValido(null, [wc], ORIGEN)).toBe(false)
-    const mal = { url: 'https://example.com/' }
-    expect(remitenteIpcValido({ sender: { mainFrame: mal }, senderFrame: mal }, [], ORIGEN)).toBe(
-      false
-    )
-    const w2 = { mainFrame: mal }
-    expect(remitenteIpcValido({ sender: w2, senderFrame: mal }, [w2], ORIGEN)).toBe(false)
+    expect(conRol(null, ORIGEN + '/index.html', CANALES.biblioteca.listar)).toBe(false)
+  })
+  it('la ventana de exportación solo llega a sus canales y desde su documento', () => {
+    const f = { url: ORIGEN + '/exportacion.html' }
+    const ev = { sender: { mainFrame: f }, senderFrame: f }
+    const reg = { rolDe: () => 'exportacion' as const }
+    const ok = (canal: string): boolean => remitenteIpcValido(ev, canal, reg, ORIGEN)
+    expect(ok(CANALES.exportacion.inicial)).toBe(true)
+    expect(ok(CANALES.exportacion.listo)).toBe(true)
+    expect(ok(CANALES.biblioteca.listar)).toBe(false)
+    expect(ok(CANALES.exportacion.iniciar)).toBe(false)
+    expect(valido(evP, CANALES.exportacion.listo)).toBe(false)
+    expect(conRol('principal', ORIGEN + '/exportacion.html', CANALES.biblioteca.listar)).toBe(false)
+  })
+  it('rechaza un documento que no es el del rol', () => {
+    expect(conRol('principal', ORIGEN + '/reproductor.html', CANALES.biblioteca.listar)).toBe(false)
+    expect(conRol('secundaria', ORIGEN + '/index.html', CANALES.sesion.informar)).toBe(false)
+    expect(conRol('secundaria', ORIGEN + '/', CANALES.sesion.informar)).toBe(false)
+  })
+})
+
+describe('bloquearNavegacionTotal', () => {
+  it('cancela will-navigate, will-redirect y will-frame-navigate', () => {
+    const oyentes = new Map<string, (d: { preventDefault(): void }) => void>()
+    bloquearNavegacionTotal({ on: (n, cb) => void oyentes.set(n, cb as never) })
+    expect([...oyentes.keys()].sort()).toEqual([
+      'will-frame-navigate',
+      'will-navigate',
+      'will-redirect'
+    ])
+    for (const cb of oyentes.values()) {
+      const preventDefault = vi.fn()
+      cb({ preventDefault })
+      expect(preventDefault).toHaveBeenCalled()
+    }
   })
 })
 

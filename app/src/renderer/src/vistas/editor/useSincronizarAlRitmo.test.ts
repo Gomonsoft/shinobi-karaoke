@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { letra, linea, pausa } from '@shared/__fixtures__'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { EstadoMotor, Velocidad } from '../../karaoke/motorAudio'
-import { estadoInicial, reducirEditor } from './estado'
+import { aparienciaPropia, estadoInicial, reducirEditor } from './estado'
 import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
 
 function montar(velocidad: Velocidad = 1, offset = 0) {
@@ -57,7 +57,7 @@ function montar(velocidad: Velocidad = 1, offset = 0) {
   const hook = renderHook(() => {
     const [edicion, despachar] = useReducer(
       reducirEditor,
-      estadoInicial({ letra: l, estilo: estiloPredeterminado() }, 'a')
+      estadoInicial({ letra: l, apariencia: aparienciaPropia(estiloPredeterminado()) }, 'a')
     )
     const sync = useSincronizarAlRitmo({ edicion, despachar, motor, duracionMs: 30_000, alSalir })
     return { edicion, sync }
@@ -162,7 +162,7 @@ it('no marca si el motor no suena y Esc/terminar pausa y avisa a la vista', () =
 
 it('el reducer marca 1000 líneas sin superar 10 ms por marca en promedio', () => {
   const l = letra(Array.from({ length: 1000 }, (_, i) => linea(String(i), `Verso ${i}`, null)))
-  let e = estadoInicial({ letra: l, estilo: estiloPredeterminado() }, '0')
+  let e = estadoInicial({ letra: l, apariencia: aparienciaPropia(estiloPredeterminado()) }, '0')
   e = reducirEditor(e, { tipo: 'entrar_sync', desdeId: null })
   const desde = performance.now()
   for (let i = 0; i < 1000; i++) e = reducirEditor(e, { tipo: 'marcar', ms: i * 20, ahora: i * 20 })

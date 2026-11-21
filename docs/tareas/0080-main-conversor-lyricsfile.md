@@ -1,4 +1,5 @@
 # 0080 — Main: conversor Lyricsfile (YAML de LRCLIB) con la dependencia `yaml`
+
 - Estado: Hecha
 - Paso del pipeline: 3
 - Depende de: 0078
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0079 y 0081.
 
 ## Objetivo
+
 Leer el campo `lyricsfile` de LRCLIB, con sincronía por palabra, y pasarlo a `ElementoLetra[]` en `app/src/main/letras/lyricsfile.ts`. El YAML **no entra en el bundle del renderer**.
 
 ## Criterios de aceptación
+
 - [x] **Dependencia `yaml`** (eemeli/yaml, ISC) en `dependencies`, con la versión fijada en el lockfile.
   - Se añade a `THIRD_PARTY_NOTICES.md`.
   - El diálogo de licencias (0038) la muestra sin más cambios, porque lee ese archivo (`main/textoLegal.ts`).
@@ -35,6 +38,7 @@ Leer el campo `lyricsfile` de LRCLIB, con sincronía por palabra, y pasarlo a `E
   - YAML roto → `null`.
 
 ## Notas de implementación
+
 - `app/src/main/letras/lyricsfile.ts`: `convertirLyricsfile(texto, generarId?)` devuelve `ElementoLetra[]` normalizado con `normalizarLetra`; `null` si el YAML no es válido, supera el límite de alias (`maxAliasCount` 50, aplicado en `toJS`) o la estructura (Zod) no se reconoce; `[]` si `lines: []` o `instrumental: true`. Una entrada de más de 2 MB lanza `ErrorLyricsfileDemasiadoGrande` (el llamante, 0082, debe capturarla y pasar a `syncedLyrics`). Usa `parseDocument` con esquema `core` y `prettyErrors`.
 - Aislamiento: `yaml` 2.9.1 (ISC) en `dependencies` y en `THIRD_PARTY_NOTICES.md`. El test `lyricsfile.test.ts` comprueba que nada bajo `src/renderer` ni `src/shared` lo importa.
 - Probar: `cd app && npx vitest run src/main/letras`.

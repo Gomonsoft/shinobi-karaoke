@@ -1,0 +1,77 @@
+/* Diálogo «Abrir el reproductor en otra pantalla» (docs/ux/02, fase 4). Solo tokens. */
+
+.cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.grupo legend {
+  padding: 0;
+  margin-bottom: var(--e-2);
+  color: var(--texto-2);
+}
+
+.opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-3);
+  padding: var(--e-2) var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  cursor: pointer;
+}
+
+.opcion:has(input:checked) {
+  border-color: var(--acento-texto);
+  background: var(--fondo-2);
+}
+
+.opcion:has(input:focus-visible) {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.opcion input {
+  margin-top: 0.25rem;
+  accent-color: var(--acento);
+}
+
+.opcionTexto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.opcionNota {
+  color: var(--texto-2);
+}
+
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.casilla input {
+  accent-color: var(--acento);
+}
+
+.nota {
+  margin: 0;
+  color: var(--texto-2);
+}
+
+.empieza {
+  margin: 0;
+  color: var(--texto-1);
+}

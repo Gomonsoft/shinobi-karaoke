@@ -3,7 +3,8 @@ import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { verificarPaquete } from './verificar-paquete.mjs'
+import { existsSync, readFileSync } from 'node:fs'
+import { comprobarIconoExe, iconosDelExe, verificarPaquete } from './verificar-paquete.mjs'
 
 const FUSES_OK = {
   version: '1',
@@ -22,6 +23,8 @@ const ENTRADAS_ASAR = [
   '/out/main/index.js',
   '/out/preload/index.js',
   '/out/renderer/index.html',
+  '/out/renderer/exportacion.html',
+  '/out/preload/exportacion.js',
   '/node_modules/yaml/index.js',
   '/node_modules/zod/index.js'
 ]
@@ -31,12 +34,14 @@ describe('verificar-paquete', () => {
   let recursos: string
   let listaAsar: string[]
   let fuses: Record<string, number | string>
+  let codigoPreload: string
 
   beforeEach(() => {
     temporal = mkdtempSync(join(tmpdir(), 'shinobi-paquete-'))
     recursos = join(temporal, 'resources')
     listaAsar = [...ENTRADAS_ASAR]
     fuses = { ...FUSES_OK }
+    codigoPreload = 'const e=require("electron");'
     const escribir = (ruta: string, texto = 'fixture') => {
       const destino = join(recursos, ruta)
       mkdirSync(join(destino, '..'), { recursive: true })
@@ -69,6 +74,7 @@ describe('verificar-paquete', () => {
     escribir('bin/uv')
     chmodSync(join(recursos, 'bin/uv'), 0o755)
     escribir('apparmor-profile')
+    escribir('icon.png')
     escribir('shinobi-karaoke')
   })
 
@@ -80,6 +86,7 @@ describe('verificar-paquete', () => {
       plataforma: 'linux',
       leerFuses: async () => fuses,
       listarAsar: () => listaAsar,
+      leerAsar: () => Buffer.from(codigoPreload),
       comprobarEjecutable: () => true,
       ejecutar: () => 'uv 0.13.7'
     })
@@ -90,6 +97,18 @@ describe('verificar-paquete', () => {
     expect(informe.tamano_desempaquetado).toBeGreaterThan(0)
     expect(informe.fuses.OnlyLoadAppFromAsar).toBe(true)
     expect(informe.comprobaciones).toContain('uv 0.13.7')
+  })
+
+  it('rechaza un preload que requiere archivos locales (sin sandbox no carga)', async () => {
+    codigoPreload = 'require("electron");require("./chunks/canales.js")'
+    await expect(verificar()).rejects.toThrow(
+      '/out/preload/index.js requiere "./chunks/canales.js"'
+    )
+  })
+
+  it('exige el documento y el preload de la ventana de exportación', async () => {
+    listaAsar = listaAsar.filter((ruta) => !ruta.includes('exportacion'))
+    await expect(verificar()).rejects.toThrow('/out/renderer/exportacion.html')
   })
 
   it('falla con la ruta concreta cuando falta uv', async () => {
@@ -152,5 +171,24 @@ describe('verificar-paquete', () => {
   it('rechaza dependencias transitivas fuera de zod y yaml', async () => {
     listaAsar.push('/node_modules/scheduler/index.js')
     await expect(verificar()).rejects.toThrow('Dependencia no permitida en app.asar: scheduler')
+  })
+})
+
+describe('icono del .exe', () => {
+  const electron = { grupos: 1, imagenes: ['aaa', 'bbb'] }
+
+  it('acepta un icono propio y rechaza ninguno o el de Electron', () => {
+    expect(() => comprobarIconoExe({ grupos: 1, imagenes: ['ccc'] }, electron)).not.toThrow()
+    expect(() => comprobarIconoExe({ grupos: 0, imagenes: [] }, electron)).toThrow(/ningún icono/)
+    expect(() => comprobarIconoExe({ grupos: 1, imagenes: ['ccc', 'bbb'] }, electron)).toThrow(
+      /icono de Electron/
+    )
+  })
+
+  const exeElectron = join(__dirname, '..', 'node_modules', 'electron', 'dist', 'electron.exe')
+  it.skipIf(!existsSync(exeElectron))('detecta electron.exe como icono de Electron', () => {
+    const iconos = iconosDelExe(readFileSync(exeElectron))
+    expect(iconos.grupos).toBeGreaterThan(0)
+    expect(() => comprobarIconoExe(iconos, iconos)).toThrow(/icono de Electron/)
   })
 })

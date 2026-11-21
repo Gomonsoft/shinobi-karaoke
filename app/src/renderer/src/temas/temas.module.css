@@ -1,0 +1,134 @@
+/* ---------- Muestra de tema (sistema-visual, fase 3) ---------- */
+.muestra {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  background: var(--k-fondo);
+  color: var(--k-color);
+  font-family: var(--k-fuente), var(--fuente-interfaz);
+  font-weight: var(--k-peso);
+  line-height: 1;
+  text-shadow: 0 0.04em 0.12em rgb(0 0 0 / 55%);
+  overflow: hidden;
+}
+.m48 {
+  width: 48px;
+  height: 27px;
+  font-size: 14px;
+}
+.m64 {
+  width: 64px;
+  height: 36px;
+  font-size: 18px;
+}
+
+/* ---------- Selector ---------- */
+.botonSelector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+  text-align: left;
+}
+.contenidoOpcion {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-width: 0;
+}
+.nombreOpcion {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.etiquetaPredet {
+  flex: none;
+  padding: 0 var(--e-1);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.opcionNoDisponible {
+  color: var(--texto-2);
+}
+
+/* ---------- Diálogos ---------- */
+.ancho {
+  display: grid;
+  gap: var(--e-3);
+}
+.texto {
+  margin: 0;
+}
+.nota {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.nota3 {
+  margin: 0;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.aviso {
+  color: var(--aviso);
+}
+.desglose {
+  margin: 0;
+  padding-left: var(--e-5);
+}
+.revelador {
+  justify-self: start;
+}
+.cajaLista {
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+}
+.filaCancion {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 2.5rem;
+  padding: 0 var(--e-3);
+}
+.filaCancion + .filaCancion {
+  border-top: 1px solid var(--borde);
+}
+.filaTexto {
+  flex: 1;
+  min-width: 0;
+}
+.simbolo {
+  flex: none;
+  width: 1rem;
+  text-align: center;
+}
+.simboloError {
+  color: var(--error);
+}
+.filaPendiente {
+  color: var(--texto-3);
+}
+.progreso {
+  margin: 0;
+  color: var(--texto-2);
+}
+.campoNombre {
+  display: grid;
+  gap: var(--e-1);
+}
+.contador {
+  justify-self: end;
+}

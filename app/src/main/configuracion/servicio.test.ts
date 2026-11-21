@@ -59,7 +59,9 @@ describe('ServicioConfig', () => {
       volumen: 0.3,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
     expect(c.separacion.modo).toBe('calidad')
   })
@@ -73,7 +75,9 @@ describe('ServicioConfig', () => {
       volumen: 0.8,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
     expect(await readFile(ruta + '.danado', 'utf8')).toBe(invalido)
   })
@@ -85,7 +89,9 @@ describe('ServicioConfig', () => {
       volumen: 0.5,
       silenciado: false,
       voz_guia: 0.3,
-      voz_guia_silenciada: true
+      voz_guia_silenciada: true,
+      transicion_s: 4,
+      secundaria: null
     })
     expect(r.separacion.modo).toBe('rapido')
     expect(r.instalacion.estado).toBe('pendiente')
@@ -221,5 +227,62 @@ describe('RegistroArchivo', () => {
   it('no lanza si el directorio no es escribible', () => {
     const r = new RegistroArchivo(join(datos, 'config-no-existe', '\0'))
     expect(() => r.escribir('error', 'm', 'x')).not.toThrow()
+  })
+
+  describe('biblioteca.agrupar', () => {
+    it('un valor inválido no aparta el config y conserva el resto', async () => {
+      await writeFile(
+        join(datos, 'config.json'),
+        JSON.stringify({ esquema: 1, reproductor: { volumen: 0.3 }, biblioteca: 3 })
+      )
+      const s = await ServicioConfig.abrir(datos)
+      expect(s.obtener().biblioteca.agrupar).toBe('ninguno')
+      expect(s.obtener().reproductor.volumen).toBe(0.3)
+      expect(await readdir(datos)).not.toContain('config.json.danado')
+    })
+    it('actualizar persiste la agrupación', async () => {
+      const s = await ServicioConfig.abrir(datos)
+      await s.actualizar({ biblioteca: { agrupar: 'album' } })
+      expect((await leerConfigDisco()).biblioteca.agrupar).toBe('album')
+    })
+    it('actualizar con un valor desconocido no cambia lo guardado', async () => {
+      const s = await ServicioConfig.abrir(datos)
+      await s.actualizar({ biblioteca: { agrupar: 'artista' } })
+      const mal = { biblioteca: { agrupar: 'x' } } as never
+      // El servicio es tolerante (`.catch`); el rechazo estricto es del esquema de la IPC.
+      await s.actualizar(mal).catch(() => undefined)
+      expect(s.obtener().biblioteca.agrupar).not.toBe('x')
+    })
+  })
+
+  describe('editor.paneles', () => {
+    it('un valor inválido no aparta el config y conserva el resto', async () => {
+      await writeFile(
+        join(datos, 'config.json'),
+        JSON.stringify({
+          esquema: 1,
+          instalacion: { estado: 'completa' },
+          reproductor: { volumen: 0.3 },
+          editor: { paneles: { lista: { ancho: 2000 }, panel: { ancho: 320, minimizado: 'si' } } }
+        })
+      )
+      const s = await ServicioConfig.abrir(datos)
+      const c = s.obtener()
+      expect(c.instalacion.estado).toBe('completa')
+      expect(c.reproductor.volumen).toBe(0.3)
+      expect(c.editor.paneles.lista.ancho).toBe(300)
+      expect(c.editor.paneles.panel).toEqual({ ancho: 320, minimizado: false })
+      expect(await readdir(datos)).not.toContain('config.json.danado')
+    })
+    it('actualizar fusiona solo el campo indicado y lo persiste', async () => {
+      const s = await ServicioConfig.abrir(datos)
+      await s.actualizar({ editor: { paneles: { lista: { ancho: 320 } } } })
+      const c = await leerConfigDisco()
+      expect(c.editor.paneles).toEqual({
+        lista: { ancho: 320, minimizado: false },
+        panel: { ancho: 360, minimizado: false },
+        linea_tiempo: { alto: null, minimizado: false }
+      })
+    })
   })
 })

@@ -170,3 +170,80 @@ Hay que decidir:
 - Electron `webContents.setAudioMuted`: https://www.electronjs.org/docs/latest/api/web-contents#contentssetaudiomutedmuted
 - Salida de audio falsa de Chromium cuando no hay dispositivo: https://codereview.chromium.org/2632733002
 - SoundTouch (LGPL-2.1): https://www.surina.net/soundtouch/ ; Rubber Band (GPL): https://breakfastquay.com/rubberband/
+
+
+## Revisión 0.2.0 · Fin de línea independiente
+
+El panel de sincronía identifica el fin automático y permite fijar el fin con el campo, «Fijar fin aquí» u O. Las tres entradas comparten la operación de edición existente con límites, deshacer, escucha de comprobación y guardado. El editor en reproducción y el reproductor aplican el desplazamiento global a ambos extremos del intervalo. Durante el hueco, la siguiente línea queda en espera sin resaltado. La vista estática del editor sigue mostrando la selección.
+
+## Revisión para 0.2.0 · Regiones y bucle
+
+Los marcadores comparten reglas con los campos. Cada arrastre confirmado aporta un solo paso de historial y guardado, con vista temporal para ajuste en vivo. El bucle del editor usa límites nativos de Web Audio y deriva la posición del reloj de salida. La línea de tiempo transforma coordenadas sin crear otro reloj. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
+
+## Revisión para 0.2.0 · Layout adaptable y paneles
+
+Subfase 2.1 ([plan](../versiones/0.2.0/plan-2.md#subfase-21--estabilización-del-editor), [spec](../ux/06-editor.md#subfase-21--layout-adaptable-y-paneles), tareas 0155–0162). Fecha: 2026-11-08.
+
+**Alternativas consideradas.**
+
+- **A. `react-resizable-panels` (MIT, v4).** Ofrece separadores con el patrón *Window Splitter* de WAI-ARIA y, desde v4, límites en píxeles. Se descarta: la spec pide reglas propias que la librería no modela, como tamaños preferidos frente a efectivos sin sobrescribir la preferencia, un orden de cesión entre ejes, el modo compacto de altura, rieles minimizados de ancho fijo y la línea de tiempo minimizada por falta de espacio. Habría que envolverla y anular buena parte de su estado. Además añade una dependencia con avisos de terceros (0132).
+- **B. Solo CSS (`resize`, `flex-basis`, *container queries*).** No da teclado accesible, `aria-valuenow`, restablecer ni persistencia. Se descarta.
+- **C. Elegida: modelo puro + rejilla CSS + un componente `Divisor` propio.**
+
+**Decisión.**
+
+1. **Modelo puro** `vistas/editor/distribucion.ts`. Recibe el tamaño medido del contenedor del editor, la altura medida de la cabecera y el transporte, la pestaña, el modo sincronizar y las preferencias. Devuelve los tamaños efectivos (lista, panel, alto de la línea de tiempo y de la pista de voz), el modo compacto, la minimización por falta de espacio y la disposición «bajo mínimo». Aplica el orden de cesión de la spec y nunca modifica las preferencias. Las constantes (por defecto, mínimo y máximo) viven en `shared/paneles.ts` y las comparten el modelo y el esquema de `config.json` ([ADR 0006](0006-persistencia-y-modelo-de-datos.md#revisión-para-020--preferencias-de-paneles-del-editor)).
+2. **Medición sin realimentación.** Un único `ResizeObserver` observa el contenedor raíz del editor, cuyo tamaño depende del viewport y no del contenido, además de la cabecera y el transporte. Se aplican las reglas de 0154: nada de pistas `auto`/`max-content` alrededor de canvas y `min-width: 0` en el dock y en las columnas. Los tamaños efectivos se escriben como propiedades CSS (`--ancho-lista`, `--ancho-panel`, `--alto-linea-tiempo`, `--alto-pista-voz`) sobre una rejilla `grid-template-rows: auto minmax(0, 1fr) auto`, con la zona superior en `grid-template-columns: var(--ancho-lista) 12px minmax(0, 1fr) 12px var(--ancho-panel)`. El modelo garantiza el mínimo de 320 px de la vista previa.
+3. **Modo compacto** por *media query* `(max-height: 799.98px)` en CSS. En JS se lee con `matchMedia` solo donde cambia la estructura: la cabecera de una fila y el modelo. La cabecera compacta es una variante opcional de `CabeceraCancion` que solo usa el editor. Las demás vistas no cambian.
+4. **Página sin scroll.** El área de contenido del marco toma `height: calc(100vh - 3.5rem)` y `overflow: hidden` solo en la ruta del editor. Bajo el mínimo de diseño vuelve a `overflow-y: auto` y nunca usa `overflow-x`.
+5. **Ventana mínima** de 1024 × 576 aplicada al **área de contenido**. `BrowserWindow` se crea con `useContentSize: true`, de modo que Electron fija las restricciones con `SetContentSizeConstraints`. `width`/`height` (1280 × 800) pasan también a medir el contenido. Sustituye al mínimo de 1024 × 640 de la ventana con marco ([sistema-visual §4](../ux/sistema-visual.md#4-espaciado-rejilla-y-forma)).
+6. **Fuera del historial y del guardado.** Redimensionar, minimizar y restablecer no pasan por el *reducer* de edición ni por `useGuardadoEditor`, y no cambian la visita.
+
+**Consecuencias.** Sin dependencias nuevas. El orden de cesión se prueba en Vitest con los seis viewports de la matriz, sin Electron. La regresión visual sigue necesitando Electron real (0162). Los viewports mayores que la pantalla del equipo de prueba pueden no estar disponibles, y la tarea 0162 registra en qué equipo se verificó cada uno.
+
+**Fuentes.** `react-resizable-panels` (licencia MIT, notas de v4): https://github.com/bvaughn/react-resizable-panels · WAI-ARIA APG, *Window Splitter*: https://www.w3.org/WAI/ARIA/apg/patterns/windowsplitter/ · Electron `BrowserWindow` (`useContentSize`, `minWidth`, `minHeight`): https://www.electronjs.org/docs/latest/api/browser-window · Código de Electron `NativeWindow::InitFromOptions` (con `useContentSize` usa `SetContentSizeConstraints`; consultado el 2026-11-08): https://github.com/electron/electron/blob/main/shell/browser/native_window.cc
+
+## Revisión para 0.2.0 · fase 3
+
+Temas en el panel Estilo ([ADR 0016](0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §9–§10). Fecha: 2026-11-09.
+
+- **Escritura**: `biblioteca.guardarApariencia(id, seleccion)` sustituye a `biblioteca.guardarEstilo`. La selección es `{ modo: "propio", estilo }` («Personalizar», solo estilo local), `{ modo: "tema", temaId }` o `{ modo: "heredar" }`. Se mantienen el *debounce* del renderer (1 s, como mucho 2 s), la escritura inmediata en main y el vaciado antes de salir o cerrar. Main la serializa en la cola de apariencia. Un tema inexistente o en borrado da `TEMA_NO_ENCONTRADO`, y el editor recarga el catálogo.
+- **Historial**: las instantáneas pasan de `{ letra, estilo }` a `{ letra, apariencia }`, donde `apariencia` es la selección más el estilo propio si lo hay. Deshacer reenvía la selección. Los cambios seguidos del mismo campo del estilo propio se siguen agrupando en menos de 1 s.
+- **«Editar tema»**: borrador del tema en memoria del renderer, fuera del autoguardado de la canción. Sus pasos entran en el historial de la visita, según la spec 06, sin escribir en el catálogo. Solo se persiste con `temas.ejecutar({ tipo: "editar" })`, tras confirmar el impacto, o con `temas.crear` («Guardar como tema nuevo…»). La vista previa pinta el borrador. Salir o cerrar la ventana con un borrador muestra el diálogo de la spec 06. Para avisar al cerrar, el renderer declara `app.guardadoPendiente(true)` mientras haya cambios sin guardar.
+- **Vista previa y «Probar a pantalla completa»**: pintan el estilo resuelto del resumen vivo de la canción, o el estilo de la edición en curso. Al abrir, ese estilo es `resuelta.estilo` de `biblioteca.obtener`. Después se actualiza con la respuesta de `guardarApariencia`, con `cancion:cambiada` y con `biblioteca.listar()` tras `temas:cambiado`. La procedencia y `alHeredar` («Volver a heredar») siguen el mismo camino (ADR 0016 §9). El reproductor conserva la instantánea tomada al abrir aunque el tema cambie durante la sesión.
+- «Usar este estilo en canciones nuevas» y «Restablecer estilo predeterminado» dejan de leer y escribir `config.estilo_predeterminado`. Su sustituto lo define la spec del editor.
+- La visita de letra (`sesionId`) no cambia: los cambios de apariencia no la invalidan, igual que los de estilo.
+
+## Revisión para 0.2.0 — fase 4
+
+Bloqueo del editor durante una sesión en la ventana secundaria ([0048](../preguntas/0048-escucha-editor-durante-evento.md)). Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §9.
+
+- **Autoridad en main.** Mientras dure la sesión, incluidas la pausa, la transición, la espera, el error y el fin de cola, main responde `EDICION_BLOQUEADA` a estos canales:
+  - `letras.abrirEdicion`;
+  - `letras.guardarTiempos`;
+  - `biblioteca.guardarApariencia`;
+  - `biblioteca.marcarLista`;
+  - `letras.guardar`, `letras.editarTexto` y `letras.leerArchivo` (vista Letra, [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) 1A).
+  
+  Una visita que siguiera abierta por un error se libera al aceptar la sesión. Las escrituras que ya estaban en cola antes del bloqueo conservan su turno (§2).
+- **Resolución del autoguardado al iniciar.** La sesión solo se inicia desde la Biblioteca (spec 06, [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md)). La salida normal del editor (borrador de tema, `vaciar()`, `edi.dialogo.salir` si falla, `cerrarEdicion` y `liberarAudio`) ya resuelve el guardado antes. Main conserva la defensa: `sesion.abrir` responde `GUARDADO_PENDIENTE` si `app.guardadoPendiente` sigue activo.
+- **Sin editor en solo lectura.** Durante la sesión no hay editor montado. Al terminar, las acciones de entrada vuelven a funcionar sin recargar.
+- **Aviso.** Al intentar entrar en el editor o en Letra se muestra el diálogo `edi.bloqueo`: «No se puede editar mientras el reproductor está abierto en otra ventana». La vista Letra también se bloquea (spec 06).
+
+## Revisión para 0.2.0 — fase 5
+
+Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md).
+
+- **Render** (`renderer/src/karaoke/`):
+  - `fondo.ts` calcula la geometría del degradado como función pura del tiempo de audio. Fase 0 = estático, con movimiento reducido o detenido en la vista previa.
+  - `estiloCss.ts` genera lineal, radial y cónico, este con cierre hacia el primer color.
+  - `PantallaLetra` escribe la geometría en variables CSS dentro del mismo `requestAnimationFrame`, sin animaciones CSS ni temporizadores. También pinta los indicadores de espera fuera del flujo del texto y admite `barrido={false}` para Letra lista.
+  - `render.ts` sustituye `puntos` por `espera`, con puntos, cuenta, barra, `fraccion` y `clave`.
+- **Contraste**: 9 muestras por tramo entre paradas, más el cierre del cónico. Es un aviso único, válido para cualquier fase del movimiento.
+- **Historial**:
+  - `AparienciaEditor` añade `reemplazos` (espera de la canción).
+  - La acción `ajustar_silencios` es **un** paso con letra y apariencia. Deshacer restaura las dos.
+  - El guardado envía el lote con `guardarTiempos` y, si cambió, `guardarApariencia`, sin canales nuevos.
+  - El ajuste se deshabilita durante la sincronización al ritmo y con un borrador de tema abierto.
+- **Picos en el editor**: para el ajuste se lee el nivel base con `picos.leer` en ventanas de 4096 bloques (40 960 ms), comprobando la `generacion`. Se conserva en memoria durante la visita.
+- **Marcar**: «Marcar como letra lista» usa `biblioteca.marcarLista(id, { modalidad: "letra_lista" })`. El aviso de la primera activación lee y escribe `config.editor.omitir_aviso_letra_lista`.

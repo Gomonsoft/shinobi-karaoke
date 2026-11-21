@@ -17,12 +17,13 @@ export type AccionAtajo =
         | 'rehacer'
         | 'probar'
         | 'atajos'
+        | 'exportar'
     }
   | { tipo: 'ajustar_inicio' | 'ajustar_fin' | 'desplazar' | 'buscar'; deltaMs: number }
   | { tipo: 'mover_seleccion'; sentido: -1 | 1 }
   | { tipo: 'pista'; pista: Pista }
 
-export type FocoEditor = 'lista' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'otro'
+export type FocoEditor = 'lista' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'divisor' | 'otro'
 
 type Tecla = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'> &
   Partial<Pick<KeyboardEvent, 'repeat' | 'isComposing'>>
@@ -46,6 +47,7 @@ export function accionDeTecla(
 
   if (!e.altKey && control) {
     if (tecla === 'z') return { tipo: e.shiftKey ? 'rehacer' : 'deshacer' }
+    if (tecla === 'e' && !e.shiftKey) return { tipo: 'exportar' }
     if (tecla === 'y' && e.ctrlKey && !e.metaKey && !mac) return { tipo: 'rehacer' }
   }
 
@@ -62,14 +64,16 @@ export function accionDeTecla(
     return focoEn === 'barra' && !e.shiftKey ? { tipo: 'buscar', deltaMs: sentido * 5000 } : null
   }
   if (control || e.altKey) return null
-  const enControl = ['barra', 'volumen', 'dial', 'segmentado'].includes(focoEn)
+  const enControl = ['barra', 'volumen', 'dial', 'segmentado', 'divisor'].includes(focoEn)
   if (tecla === 'arrowup' || tecla === 'arrowdown') {
+    // En un divisor las cuatro flechas son suyas: ↑/↓ no cambian de línea.
+    if (focoEn === 'divisor') return null
     return !sync && (!enControl || e.shiftKey)
       ? { tipo: 'mover_seleccion', sentido: tecla === 'arrowup' ? -1 : 1 }
       : null
   }
   if (tecla === 'escape') return { tipo: 'escapar' }
-  if (tecla === ' ' && !enControl) return { tipo: 'reproducir' }
+  if (tecla === ' ' && (!enControl || focoEn === 'divisor')) return { tipo: 'reproducir' }
   if (tecla === 'home' && !enControl) return { tipo: 'principio' }
   if (tecla === 's' && !sync && !e.repeat) return { tipo: 'entrar_sync' }
   if (tecla === 'f' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'probar' }

@@ -1,11 +1,11 @@
-import { readFileSync, unlinkSync } from 'node:fs'
-import { _electron as electron, expect, test } from '@playwright/test'
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { _electron as electron, expect, test, type Locator } from '@playwright/test'
 import { join } from 'node:path'
 import { sembrar } from '../src/main/biblioteca/semilla'
 import { E } from '../src/renderer/src/vistas/editor/textos'
 import { R } from '../src/renderer/src/vistas/reproductor/textos'
 import { crearTemporal } from './temporales'
-import { tarjeta } from './fixtures/separacion'
+import { leerCancion, tarjeta } from './fixtures/separacion'
 
 const lista = 'Reproductor: lista'
 const incompleta = 'Reproductor: lista incompleta'
@@ -15,9 +15,14 @@ const leerConfig = (datos: string) =>
     reproductor: { volumen: number; voz_guia: number; voz_guia_silenciada: boolean }
   }
 
-async function iniciar(nombre: string, simularPantallaCompleta = true) {
+async function iniciar(
+  nombre: string,
+  simularPantallaCompleta = true,
+  preparar?: (datos: string) => void
+) {
   const datos = crearTemporal(nombre)
   await sembrar(datos)
+  preparar?.(datos)
   const app = await electron.launch({
     args: ['.'],
     cwd: process.cwd(),
@@ -35,13 +40,108 @@ async function iniciar(nombre: string, simularPantallaCompleta = true) {
   return { app, datos, ventana }
 }
 
+async function medirPintura(barrido: Locator) {
+  return barrido.evaluate((elemento) => {
+    const capa = elemento.lastElementChild as HTMLElement
+    const rango = document.createRange()
+    rango.selectNodeContents(elemento.firstChild!)
+    const origen = capa.getBoundingClientRect()
+    const rectangulos = Array.from(rango.getClientRects()).filter(({ width }) => width > 0)
+    const vertices = Array.from(
+      capa.style.clipPath.matchAll(/(-?[\d.]+)px (-?[\d.]+)px/g),
+      ([, x, y]) => ({ x: Number(x), y: Number(y) })
+    )
+    const pintados = rectangulos.map((renglon, i) => {
+      const izquierda = vertices[i * 6]
+      const derecha = vertices[i * 6 + 1]
+      if (!izquierda || !derecha) return 'vacío'
+      if (
+        Math.abs(izquierda.x - (renglon.left - origen.left)) > 1 ||
+        Math.abs(izquierda.y - (renglon.top - origen.top)) > 1
+      ) {
+        return 'fuera'
+      }
+      const pintado = derecha.x - izquierda.x
+      if (pintado <= 0 || pintado > renglon.width + 1) return 'fuera'
+      return Math.abs(pintado - renglon.width) < 1 ? 'lleno' : 'parcial'
+    })
+    return { anchos: rectangulos.map(({ width }) => width), pintados }
+  })
+}
+
 test.describe('reproductor sin red', () => {
   test.describe.configure({ timeout: 60_000 })
+
+  test('una línea partida se pinta por renglón incluso al redimensionar', async () => {
+    const { app, ventana } = await iniciar('reproductor-barrido', true, (datos) => {
+      const id = idSemilla(20)
+      const cancion = leerCancion(datos, id)
+      cancion.letra.lineas = [
+        {
+          ...cancion.letra.lineas[0],
+          texto: 'La luz de las estrellas cruza el cielo y pinta de plata las orillas del río',
+          inicio_ms: 0,
+          fin_ms: 24_000
+        }
+      ]
+      writeFileSync(join(datos, 'biblioteca', id, 'cancion.json'), JSON.stringify(cancion))
+    })
+    try {
+      const redimensionar = (ancho: number) =>
+        app.evaluate(({ BrowserWindow }, width) => {
+          const principal = BrowserWindow.getAllWindows()[0]!
+          principal.unmaximize()
+          principal.setMinimumSize(600, 500)
+          principal.setContentSize(width, 560)
+        }, ancho)
+
+      await ventana.emulateMedia({ reducedMotion: 'reduce' })
+      await redimensionar(700)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
+      await tarjeta(ventana, lista)
+        .getByRole('button', { name: /^Reproducir/ })
+        .click()
+      const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
+      const barrido = capa.locator('[data-barrido]')
+      await expect(barrido).toBeVisible({ timeout: 12_000 })
+      await ventana.evaluate(() => document.fonts.ready.then(() => undefined))
+      const area = await capa.boundingBox()
+      if (!area) throw new Error('No se pudo medir el reproductor')
+      await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.95)
+      const barra = capa.getByRole('slider', { name: 'Barra de tiempo' })
+      const inicial = await medirPintura(barrido)
+      expect(inicial.anchos.length).toBeGreaterThanOrEqual(2)
+      const total = inicial.anchos.reduce((suma, ancho) => suma + ancho, 0)
+      const buscarAncho = (ancho: number) =>
+        barra.fill(String(Math.round((24_000 * ancho) / total)))
+
+      await buscarAncho(inicial.anchos[0]! / 2)
+      await expect
+        .poll(async () => (await medirPintura(barrido)).pintados.slice(0, 2))
+        .toEqual(['parcial', 'vacío'])
+      await buscarAncho(inicial.anchos[0]! + inicial.anchos[1]! / 2)
+      await expect
+        .poll(async () => (await medirPintura(barrido)).pintados.slice(0, 2))
+        .toEqual(['lleno', 'parcial'])
+
+      await buscarAncho(inicial.anchos[0]! / 2)
+      await expect(capa.getByRole('button', { name: R.tooltip.pausa })).toBeVisible()
+      await redimensionar(830)
+      await expect
+        .poll(async () => (await medirPintura(barrido)).anchos)
+        .not.toEqual(inicial.anchos)
+      await expect
+        .poll(async () => (await medirPintura(barrido)).pintados.slice(0, 2))
+        .toEqual(['parcial', 'vacío'])
+    } finally {
+      await app.close()
+    }
+  })
 
   test('Biblioteca: controles, atajos, búsqueda y foco al salir', async () => {
     const { app, datos, ventana } = await iniciar('reproductor-biblioteca')
     try {
-      const buscador = ventana.getByRole('searchbox', { name: 'Buscar título o artista' })
+      const buscador = ventana.getByRole('searchbox', { name: /^Buscar título/ })
       await buscador.fill('Reproductor: lista')
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
@@ -93,7 +193,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: aviso de letra incompleta', async () => {
     const { app, ventana } = await iniciar('reproductor-incompleta')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(incompleta)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(incompleta)
       await tarjeta(ventana, incompleta)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -107,7 +207,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: los controles se ocultan y vuelven con el ratón', async () => {
     const { app, ventana } = await iniciar('reproductor-controles')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -132,7 +232,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: la pantalla final se detiene con actividad y permite volver', async () => {
     const { app, ventana } = await iniciar('reproductor-final')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -152,7 +252,7 @@ test.describe('reproductor sin red', () => {
   test('Biblioteca: la pantalla final vuelve sola al terminar la cuenta atrás', async () => {
     const { app, ventana } = await iniciar('reproductor-final-auto')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -175,7 +275,7 @@ test.describe('reproductor sin red', () => {
     const { app, datos, ventana } = await iniciar('reproductor-pista-ausente')
     try {
       unlinkSync(join(datos, 'biblioteca', idSemilla(20), 'pistas', 'instrumental.flac'))
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
@@ -194,7 +294,7 @@ test.describe('reproductor sin red', () => {
     const { app, datos, ventana } = await iniciar('reproductor-voz-ausente')
     try {
       unlinkSync(join(datos, 'biblioteca', idSemilla(20), 'pistas', 'voz.flac'))
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
@@ -214,7 +314,7 @@ test.describe('reproductor sin red', () => {
   test('toast de «lista para cantar» abre el reproductor y cierra el toast', async () => {
     const { app, ventana } = await iniciar('reproductor-toast')
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       const cancion = tarjeta(ventana, lista)
       await cancion.getByRole('button', { name: `Más acciones de «${lista}»` }).click()
       await ventana.getByRole('menuitem', { name: 'Volver a borrador' }).click()
@@ -238,7 +338,7 @@ test.describe('reproductor sin red', () => {
     test.skip(process.platform === 'linux', 'Xvfb sin gestor de ventanas')
     const { app, ventana } = await iniciar('reproductor-pantalla-real', false)
     try {
-      await ventana.getByRole('searchbox', { name: 'Buscar título o artista' }).fill(lista)
+      await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
       await tarjeta(ventana, lista)
         .getByRole('button', { name: /^Reproducir/ })
         .click()
@@ -265,7 +365,7 @@ test.describe('reproductor sin red', () => {
     const { app, datos, ventana } = await iniciar('reproductor-editor')
     try {
       await ventana
-        .getByRole('searchbox', { name: 'Buscar título o artista' })
+        .getByRole('searchbox', { name: /^Buscar título/ })
         .fill('Editor: separación interrumpida')
       const cancion = tarjeta(ventana, 'Editor: separación interrumpida')
       const continuar = cancion.getByRole('button', { name: /^Continuar/ })

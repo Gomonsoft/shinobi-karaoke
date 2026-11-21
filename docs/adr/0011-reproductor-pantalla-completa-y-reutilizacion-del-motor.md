@@ -129,3 +129,37 @@ Restricciones: ADR 0008 (IPC mínima, validada con Zod y con el remitente compro
 - Esc y pantalla completa HTML en Electron: https://github.com/electron/electron/issues/40342 , https://github.com/electron/electron/issues/40365
 - `Element.requestFullscreen` y activación de usuario (MDN): https://developer.mozilla.org/en-US/docs/Web/API/Element/requestFullscreen
 - `AudioBufferSourceNode.start(when, offset)`, programación con el reloj del `AudioContext` (MDN): https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/start
+
+## Revisión para 0.2.0 — fase 4
+
+Reproductor en la ventana secundaria y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md).
+
+- **§1 Pantalla completa.** De `ControlModoReproductor` sale un `ControlPantallaCompleta` por ventana, que guarda el estado deseado, lo reaplica tras las transiciones asíncronas de macOS y difunde los cambios reales. La principal conserva el envoltorio actual, que restaura el estado previo y desactiva el zoom. La secundaria usa el control base sin restauración, en la pantalla que elige el usuario (ADR 0017 §2). El doble `SHINOBI_PANTALLA_COMPLETA_SIMULADA` pasa a aplicarse por ventana.
+- **§2 Pantalla encendida.** Hay un único `GestorReposo` con titulares. El reproductor local mantiene esta regla: retiene solo mientras suena. La sesión en vivo retiene durante toda su vida, también en pausa y entre canciones, y libera al terminar por cualquier causa (ADR 0017 §4). `ventana.evitarReposo` sigue siendo solo de la principal.
+- **§3 Motor.** No cambia. La secundaria usa el mismo `MotorReproductor` y es el **único** motor de audio durante una sesión. No se precarga la canción siguiente.
+- **§4 Capas.** `Reproductor.tsx` gana `origen: 'sesion'`. En ese modo:
+  - ocupa todo el documento de la secundaria, sin `inert`, sin `aria-modal` y sin retener toasts;
+  - no usa `CuentaFinal`: el fin natural solo se informa a main, que decide la transición, el fin de cola o el error;
+  - pinta la cuenta de transición y la vista previa a partir del restante que envía main;
+  - recibe los comandos de transporte de la principal a través de main.
+
+  Mientras haya una sesión no se abren las capas locales: ni «Reproducir» de la Biblioteca ni «Probar a pantalla completa». Main rechaza `ventana.modoReproductor(true)` con `SESION_EN_CURSO`.
+- **§5 Pistas que faltan.** El mismo criterio se aplica en la sesión. Con `no_encontrada`, main llama a `comprobarPistas`. Además revalida la canción y el instrumental cada vez que una entrada de la cola pasa a activa.
+
+## Revisión para 0.2.0 — fase 5
+
+Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §2, §3 y §5.
+
+- **Letra lista**: el reproductor local, la sesión en vivo y «Probar a pantalla completa» (provisional, [0100](../preguntas/0100-decisiones-provisionales-de-la-fase-5.md) §2) pasan `barrido = modalidad !== "letra_lista"` a `PantallaLetra`. En la sesión, `modalidad` viaja en la instantánea de la entrada activa, tomada al consumirla (ADR 0017 §7 y §10). La revalidación de Lista no cambia.
+- **Degradados en movimiento**: la fase se deriva de la posición del motor, incluido el silencio previo negativo. Pausar congela el fondo y buscar lo lleva a la fase de ese instante. Con `prefers-reduced-motion: reduce`, también en la secundaria, se usa la fase 0. El coste del repintado se mide en la guía manual, en un equipo modesto y con la secundaria.
+- **Comodines de espera**: se pintan con el estilo resuelto de la instantánea. No dependen de la cuenta de transición entre canciones, que sigue siendo de main (ADR 0017).
+- **Motor**: sin cambios.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Modo fotograma** del render compartido: `PantallaLetra` gana `tiempoFijoMs` (sin `requestAnimationFrame` ni reloj) y `movimiento` explícito. Las animaciones del render se gobiernan por índice de fotograma con `document.getAnimations()` (§2). Editor, reproductor local y secundaria no cambian de comportamiento.
+- **Regla nueva**: ningún efecto visual del render puede depender de `Date.now`, `performance.now` ni del reloj del documento salvo animaciones que el modo fotograma controla.
+- La **marca de agua** es un componente del anfitrión de exportación, no del reproductor.
+- El reproductor local puede estar abierto mientras se exporta: la ventana offscreen está silenciada.

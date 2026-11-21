@@ -1,4 +1,5 @@
 # 0125 — Interfaz: error `RUNTIME_NO_DISPONIBLE` con "Reparar el motor de audio", confirmación con trabajos activos, variante "ya reparado" y tarjeta con [Ver] (+ E2E)
+
 - Estado: Hecha
 - Paso del pipeline: 3 (deuda que se salda en la Fase 6)
 - Depende de: 0124 (código `RUNTIME_NO_DISPONIBLE` del worker, `marcarDanada`, separador falso con ese código)
@@ -16,10 +17,11 @@
   - crea `app/src/renderer/src/vistas/progreso/DialogoReparar.tsx` (+ test);
   - si hace falta, `app/src/renderer/src/vistas/primer-arranque/PrimerArranque.tsx` (abrirla a mitad de sesión);
   - crea `app/e2e/separacion-motor-incompleto.spec.ts`.
-  Sin archivos compartidos con el resto de la Fase 6.
+    Sin archivos compartidos con el resto de la Fase 6.
 - Paralelizable con: 0112–0123.
 
 ## Contexto para quien implementa
+
 - **Qué hace 0124**:
   - cuando una separación falla porque al motor le falta un paquete, el trabajo termina en error `RUNTIME_NO_DISPONIBLE`;
   - el main pone `config.instalacion.estado = 'dañada'` (`runtime.estado()` → `estado: 'dañada'`) y marca los componentes para reinstalarlos;
@@ -38,14 +40,17 @@
 - **Copiar detalles**: busca el patrón que ya usa el banner de error genérico de `Progreso.tsx` y reutilízalo.
 
 ## Decisión del arquitecto: la reparación cancela los demás trabajos (se mantiene `prog.dialogo.reparar`)
+
 - Reparar reinstala con `uv pip install --reinstall` el mismo entorno de Python que usan todos los procesos del worker, separaciones y descargas de YouTube. Un proceso vivo durante la reinstalación puede fallar a medias, y uno nuevo puede arrancar con paquetes a medio escribir.
 - Además, con la instalación `dañada` el main ya no lanza ningún worker: los trabajos en cola fallarían igualmente en cuanto les tocara.
 - Por tanto no pueden convivir. Antes de abrir B5 se cancelan, con la confirmación de la spec.
 
 ## Objetivo
+
 Que el usuario entienda que hay que reparar el motor, llegue a la reparación con un clic sin perder trabajos sin saberlo, y después pueda volver a separar.
 
 ## Criterios de aceptación
+
 - [ ] **Título** (`tituloDeError('RUNTIME_NO_DISPONIBLE')`): «Hay que reparar el motor de audio». Lo usan el toast de error y la línea de la tarjeta.
 - [ ] **Tarjeta**: `esReintentable` devuelve `false` si el paso con problema (fuente **o separación**) está en `error` con código `RUNTIME_NO_DISPONIBLE`. La tarjeta muestra el título del error y [Ver], que abre la vista de progreso de la canción. Nunca [Reintentar] ni una acción de reparar. Test en `tarjeta.test.ts`, y los demás códigos siguen igual.
 - [ ] **Banner con el motor dañado** (`runtime.estado().estado !== 'completa'`): `prog.error.RUNTIME_NO_DISPONIBLE`, con el texto literal de `ux/04`:
@@ -60,16 +65,17 @@ Que el usuario entienda que hay que reparar el motor, llegue a la reparación co
   1. Lee `trabajos.listar()` y se queda con los que siguen en curso o en cola (el que falló ya no está).
   2. Sin trabajos, navega al momento a `{ tipo: 'primer-arranque' }`.
   3. Con trabajos, abre `DialogoReparar` (componente `Dialogo` del sistema, texto literal de `prog.dialogo.reparar`):
-     > **¿Reparar el motor de audio ahora?** Hay {n} trabajo(s) sin terminar ({lista}). Si reparas ahora, se cancelarán y tendrás que repetirlos. Tu letra y tu estilo están guardados.
 
+     > **¿Reparar el motor de audio ahora?** Hay {n} trabajo(s) sin terminar ({lista}). Si reparas ahora, se cancelarán y tendrás que repetirlos. Tu letra y tu estilo están guardados.
      - singular y plural según `n`;
      - `{lista}` con «título — paso» separados por comas, como en el diálogo de cierre;
      - [Seguir trabajando] (con el foco; no cambia nada) y [Reparar ahora].
+
   4. "Reparar ahora" llama a `trabajos.cancelar(id)` en todos, espera a que terminen las promesas (con un tope de 5 s; si alguno no responde, se sigue igual) y navega a Primer arranque.
 - [ ] **Primer arranque a mitad de sesión** (`ux/01` 12b):
   - muestra B5 con `pa.reparar.titulo`/`pa.reparar.cuerpo`, sin acceso a otras vistas hasta terminar;
   - al terminar, "Empezar" abre la Biblioteca con las canciones existentes, y el panel de actividad y la Biblioteca se actualizan sin reiniciar.
-  Comprueba que la vista funciona montada a mitad de sesión (no solo al arrancar). Si hay que ajustar algo (p. ej. estado en caché del primer `runtime.estado()`), hazlo en la propia vista y anótalo.
+    Comprueba que la vista funciona montada a mitad de sesión (no solo al arrancar). Si hay que ajustar algo (p. ej. estado en caché del primer `runtime.estado()`), hazlo en la propia vista y anótalo.
 - [ ] **Tests de componente** de `Progreso` con la API falsa:
   - banner dañado (foco y dos acciones);
   - banner `.reparado` (Reintentar llama a `separar`);
@@ -83,9 +89,10 @@ Que el usuario entienda que hay que reparar el motor, llegue a la reparación co
   2. [Reparar el motor de audio] → B5 «Hay que reparar el motor de audio».
   3. Con la app reiniciada sobre los mismos datos, arranca directamente en B5 (`config.instalacion.estado === 'dañada'`).
   4. Variante `.reparado`: escribe en `config.json` `instalacion.estado = 'completa'` antes de lanzar, con el paso en error `RUNTIME_NO_DISPONIBLE` → la vista de progreso muestra «El motor de audio ya está reparado.» con [Reintentar].
-  No hace falta completar la reparación. El diálogo con trabajos se cubre con los tests de componente; en E2E solo si el separador falso permite tener otro trabajo vivo de forma estable.
+     No hace falta completar la reparación. El diálogo con trabajos se cubre con los tests de componente; en E2E solo si el separador falso permite tener otro trabajo vivo de forma estable.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check && npm test

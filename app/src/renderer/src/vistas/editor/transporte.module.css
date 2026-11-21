@@ -1,0 +1,70 @@
+/* Transporte del dock (spec 06-editor, subfase 2.1): siempre dos filas, sin partirse. */
+.transporte {
+  display: grid;
+  gap: var(--e-2);
+  min-width: 0;
+}
+
+/* Con alto < 800 los controles del dock miden 32 px (el objetivo mínimo de sistema-visual §4). */
+@media (max-height: 799.98px) {
+  .transporte {
+    --alto-boton: 2rem;
+  }
+}
+
+.fila {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--e-2);
+  min-width: 0;
+  min-height: var(--alto-boton);
+}
+
+.grupo,
+.volumen,
+.acciones {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--e-2);
+  white-space: nowrap;
+}
+
+.volumen {
+  width: 9rem;
+}
+
+.volumen > :last-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.acciones {
+  margin-inline-start: auto;
+}
+
+.tiempo {
+  flex: 0 0 8rem;
+  white-space: nowrap;
+}
+
+.barraTiempo {
+  position: relative;
+  flex: 1 1 15rem;
+  min-width: 15rem;
+}
+
+.ticks {
+  position: absolute;
+  inset: auto 8px 1px;
+  height: 6px;
+  pointer-events: none;
+}
+
+.ticks span {
+  position: absolute;
+  height: 6px;
+  width: 1px;
+  background: var(--texto-3);
+}

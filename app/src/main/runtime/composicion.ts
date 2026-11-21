@@ -56,7 +56,7 @@ export interface OpcionesRuntimeReal {
   plataforma: NodeJS.Platform
   /** `app.runningUnderARM64Translation` (Rosetta / x64 en Windows on ARM, preguntas/0014). */
   ejecutandoBajoTraduccionArm64: boolean
-  versionApp: string
+  lineaVersion: string
   descripcionSo: string
   config: ServicioConfig
   registro: RegistroApp
@@ -129,7 +129,7 @@ export function crearRuntimeReal(o: OpcionesRuntimeReal): RuntimeReal {
     deteccion,
     manifiesto,
     datos: o.datos,
-    versionApp: o.versionApp,
+    lineaVersion: o.lineaVersion,
     descripcionSo: o.descripcionSo,
     ultimasLineasRegistro: (n) => ultimasLineasDeRegistro(dirRegistros, 'runtime', n),
     registrar: (nivel, m) => o.registro.escribir(nivel, 'runtime', m),

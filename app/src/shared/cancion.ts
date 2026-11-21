@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { estiloSchema } from './estilo'
 import { letraSchema } from './letra'
+import { aparienciaSchema } from './temas'
 
 /** Versión actual del esquema de cancion.json. */
 export const VERSION_ESQUEMA_CANCION = 1
@@ -75,16 +76,25 @@ export const pasosSchema = z.object({
   edicion: pasoSchema
 })
 
+/** Modalidad de una canción lista (ADR 0018 §5): con barrido (`karaoke`) o solo letra. */
+export const MODALIDADES = ['karaoke', 'letra_lista'] as const
+export type Modalidad = (typeof MODALIDADES)[number]
+
 export const cancionSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CANCION),
   id: z.string().min(1),
   creada: fechaIso,
   modificada: fechaIso,
   estado: z.enum(['borrador', 'lista']),
+  /** Solo con `lista`; ausente vale `karaoke`. Con `borrador` se ignora al leer. */
+  modalidad: z.enum(MODALIDADES).optional(),
   metadatos: metadatosSchema,
   fuente: fuenteSchema,
   pistas: pistasSchema.nullable(),
   letra: letraSchema.nullable(),
+  /** Selección de tema (ADR 0016 §2). Ausente equivale a propio; no se añade al leer. */
+  apariencia: aparienciaSchema.optional(),
+  /** Con `propio`, la autoridad; con `tema`/`heredar`, la instantánea de respaldo. */
   estilo: estiloSchema,
   pasos: pasosSchema
 })
@@ -93,6 +103,13 @@ export type Cancion = z.infer<typeof cancionSchema>
 export type PasoCancion = z.infer<typeof pasoSchema>
 export type Pasos = z.infer<typeof pasosSchema>
 export type EstadoCancion = Cancion['estado']
+
+/** `letra_lista` solo si la canción está lista y lo declara; en cualquier otro caso, `karaoke`. */
+export function modalidadEfectiva(cancion: Pick<Cancion, 'estado' | 'modalidad'>): Modalidad {
+  return cancion.estado === 'lista' && cancion.modalidad === 'letra_lista'
+    ? 'letra_lista'
+    : 'karaoke'
+}
 
 /** Resumen legible de los problemas de validación de un ZodError. */
 export function resumirErroresZod(error: z.ZodError): string {

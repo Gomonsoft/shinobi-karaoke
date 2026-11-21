@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { AccionMenu } from '@shared/ipc'
-import { VISTAS_CON_ESC, type Vista } from './estado'
+import { VISTAS_CON_ESC, vistaAjustesDesde, vistaDeOrigen, type Vista } from './estado'
 
 export type AccionAtajo = AccionMenu
 
@@ -24,7 +24,7 @@ export function destinoDeAtajo(accion: AccionAtajo, vista: Vista): Vista | null 
   }
   // Ajustes: todas salvo primer arranque.
   if (vista.tipo === 'primer-arranque') return null
-  return vista.tipo === 'ajustes' ? null : { tipo: 'ajustes' }
+  return vista.tipo === 'ajustes' ? null : vistaAjustesDesde(vista)
 }
 
 /**
@@ -60,7 +60,7 @@ export function useAtajosGlobales(vista: Vista, ir: (v: Vista) => void): void {
         if (!VISTAS_CON_ESC.includes(actual.tipo)) return
         if (enCampoDeTexto(e.target) || hayCapaAbierta()) return
         e.preventDefault()
-        navegar({ tipo: 'biblioteca' })
+        navegar(actual.tipo === 'ajustes' ? vistaDeOrigen(actual.origen) : { tipo: 'biblioteca' })
       }
     }
 

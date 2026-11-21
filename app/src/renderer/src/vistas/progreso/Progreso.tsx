@@ -24,6 +24,7 @@ import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
 import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
+import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { detallesDeError } from '../biblioteca/errores'
@@ -52,6 +53,7 @@ import {
   textoDeErrorSeparacion
 } from './textos'
 import estilos from './progreso.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 const ICONOS: Record<IconoFila, LucideIcon> = {
   pendiente: Circle,
@@ -218,6 +220,7 @@ const mensajeToast = (err: unknown): { codigo: string; mensaje: string } => {
 /** Vista 04: subpasos de la fuente (descarga y preparación) y de la separación (Fase 3). */
 export function Progreso({ id }: { id: string }) {
   const { ir } = useNavegacion()
+  const bloqueo = useAccionBloqueable()
   const vivos = useTrabajosVivos()
   const datos = useDatos(id)
   const raiz = useRef<HTMLElement>(null)
@@ -415,7 +418,7 @@ export function Progreso({ id }: { id: string }) {
         mensaje: 'No se pudo cancelar la descarga.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -426,7 +429,7 @@ export function Progreso({ id }: { id: string }) {
       mensaje,
       accion: {
         etiqueta: 'Copiar detalles',
-        alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+        alAccionar: () => void copiarDetalles(detallesDeError(err))
       }
     })
   const abrirReparacion = async () => {
@@ -510,7 +513,7 @@ export function Progreso({ id }: { id: string }) {
         mensaje: 'No se pudo volver a intentar la descarga.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -527,10 +530,12 @@ export function Progreso({ id }: { id: string }) {
       }
     })
   // Al salir hacia Letra se marca el progreso como visto: "Continuar" ya no vuelve a esta vista.
-  const irAPasoLetra = (editor: boolean | undefined) => {
-    if (!editor) marcarProgresoVisto(id)
-    ir({ tipo: 'cancion', id, paso: editor ? 'editor' : 'letra' })
-  }
+  // Con sesión (spec 06) explica el bloqueo en vez de navegar.
+  const irAPasoLetra = (editor: boolean | undefined) =>
+    bloqueo.intentar(() => {
+      if (!editor) marcarProgresoVisto(id)
+      ir({ tipo: 'cancion', id, paso: editor ? 'editor' : 'letra' })
+    })
 
   const motorPorReparar = errorMotor && !motorReparado
   const textoErrorSep =
@@ -596,8 +601,10 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
+                  {...bloqueo.atributos(bloque.editor ? SEP.botonEditor : TEXTO.botonLetra)}
                   onClick={() => irAPasoLetra(bloque.editor)}
                 >
+                  {bloqueo.candado}
                   {bloque.editor ? SEP.botonEditor : TEXTO.botonLetra}
                 </Boton>
                 {volver}
@@ -612,8 +619,10 @@ export function Progreso({ id }: { id: string }) {
                 <Boton
                   variante="primario"
                   data-foco-inicial
+                  {...bloqueo.atributos(bloque.editor ? SEP.botonEditor : SEP.botonLetraFin)}
                   onClick={() => irAPasoLetra(bloque.editor)}
                 >
+                  {bloqueo.candado}
                   {bloque.editor ? SEP.botonEditor : SEP.botonLetraFin}
                 </Boton>
                 {volver}
@@ -678,7 +687,7 @@ export function Progreso({ id }: { id: string }) {
                       <Boton
                         variante="fantasma"
                         onClick={() =>
-                          void navigator.clipboard?.writeText(
+                          void copiarDetalles(
                             detallesDeError({ codigo: bloque.codigo, mensaje: bloque.mensaje })
                           )
                         }
@@ -756,7 +765,7 @@ export function Progreso({ id }: { id: string }) {
                       <Boton
                         variante={motorPorReparar ? 'secundario' : 'fantasma'}
                         onClick={() =>
-                          void navigator.clipboard?.writeText(
+                          void copiarDetalles(
                             detallesDeError({ codigo: bloque.codigo, mensaje: bloque.mensaje })
                           )
                         }

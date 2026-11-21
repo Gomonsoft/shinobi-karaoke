@@ -7,6 +7,9 @@ import { Boton } from '../componentes/Boton'
 import { BotonIcono } from '../componentes/BotonIcono'
 import { Icono } from '../componentes/Icono'
 import { mostrarToast } from '../componentes/gestorToasts'
+import { useExportaciones } from '../exportacion/contexto'
+import type { ExportacionVista } from '../exportacion/estado'
+import { faseDeExportacion } from '../exportacion/lineas'
 import { useCuentaAtras } from '../trabajos/useCuentaAtras'
 import { useTrabajosVivos } from '../trabajos/useTrabajos'
 import { detallesDeError } from '../vistas/biblioteca/errores'
@@ -19,6 +22,7 @@ import {
 import { faseDeTrabajo } from './actividad'
 import { useNavegacion } from './estado'
 import estilos from './marco.module.css'
+import { copiarDetalles } from '../soporte/detalles'
 
 /** `act.boton`: "{n} en curso · {m} en cola", omitiendo la parte que vale 0. */
 export function textoActividad(enCurso: number, enCola: number): string {
@@ -70,6 +74,47 @@ function FilaActividad({ trabajo, progreso, titulo, alIr, alCancelar }: FilaProp
   )
 }
 
+interface FilaExportacionProps {
+  exportacion: ExportacionVista
+  alIr: () => void
+  alCancelar: () => void
+}
+
+/** Fila de una exportación (`act.exp`): [Ir] abre el diálogo en su estado y [✕] cancela. */
+function FilaExportacion({ exportacion, alIr, alCancelar }: FilaExportacionProps) {
+  const fase = faseDeExportacion(exportacion)
+  const titulo = exportacion.titulo
+  const texto = `${titulo} — ${fase.texto}`
+  return (
+    <li className={estilos.fila} data-exportacion={exportacion.trabajoId}>
+      <p className={estilos.filaTexto}>
+        <Icono
+          icono={fase.tipo === 'cola' ? Clock : RefreshCw}
+          tamano={16}
+          className={`${estilos.filaIcono} ${fase.tipo === 'curso' ? estilos.actividadIcono : ''}`}
+        />
+        <span>{texto}</span>
+      </p>
+      {fase.barra !== undefined ? (
+        <BarraProgreso
+          etiqueta={texto}
+          valor={fase.barra ?? 0}
+          indeterminada={fase.barra === null}
+        />
+      ) : (
+        <span />
+      )}
+      <div className={estilos.filaAcciones}>
+        <Boton variante="secundario" onClick={alIr}>
+          Ir
+        </Boton>
+        <BotonIcono icono={X} etiqueta={`Cancelar «${titulo}»`} onClick={alCancelar} />
+      </div>
+      {fase.eta && <span className={estilos.filaEta}>{fase.eta}</span>}
+    </li>
+  )
+}
+
 /**
  * Indicador de actividad de la barra superior (docs/ux/04 §2): botón visible solo con trabajos
  * en curso o en cola que abre un panel con una fila por trabajo ([Ir] y [✕]); al terminar
@@ -79,6 +124,8 @@ export function IndicadorActividad() {
   const { trabajos, progreso, terminado } = useTrabajosVivos()
   const biblioteca = useBibliotecaCompartida()
   const { ir } = useNavegacion()
+  const exp = useExportaciones()
+  const exportando = exp.exportaciones.filter((e) => e.estado !== 'terminada')
   const [abierto, setAbierto] = useState(false)
   const [confirmando, setConfirmando] = useState<string | null>(null)
   const [posicion, setPosicion] = useState<{ top: number; right: number } | null>(null)
@@ -86,8 +133,12 @@ export function IndicadorActividad() {
   const panel = useRef<HTMLDivElement>(null)
   const idPanel = useId()
 
-  const enCurso = trabajos.filter((t) => t.estado === 'en_curso').length
-  const enCola = trabajos.filter((t) => t.estado === 'en_cola').length
+  const enCurso =
+    trabajos.filter((t) => t.estado === 'en_curso').length +
+    exportando.filter((e) => e.estado === 'en_curso').length
+  const enCola =
+    trabajos.filter((t) => t.estado === 'en_cola').length +
+    exportando.filter((e) => e.estado === 'en_cola').length
   const hayActivos = enCurso + enCola > 0
   const visible = abierto && hayActivos
 
@@ -166,7 +217,7 @@ export function IndicadorActividad() {
             : 'No se pudo cancelar la descarga.',
         accion: {
           etiqueta: 'Copiar detalles',
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }
@@ -229,6 +280,17 @@ export function IndicadorActividad() {
                     ir({ tipo: 'cancion', id: t.cancionId, paso: 'progreso' })
                   }}
                   alCancelar={() => pedirCancelar(t)}
+                />
+              ))}
+              {exportando.map((e) => (
+                <FilaExportacion
+                  key={e.trabajoId}
+                  exportacion={e}
+                  alIr={() => {
+                    cerrar()
+                    exp.abrir({ cancionId: e.cancionId, trabajoId: e.trabajoId })
+                  }}
+                  alCancelar={() => exp.pedirCancelar(e.trabajoId)}
                 />
               ))}
             </ul>

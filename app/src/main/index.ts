@@ -1,4 +1,5 @@
-import { release, type as tipoSO } from 'node:os'
+import { mkdir } from 'node:fs/promises'
+import { cpus, release, setPriority, totalmem, type as tipoSO } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
   app,
@@ -10,6 +11,7 @@ import {
   Notification,
   powerSaveBlocker,
   protocol,
+  screen,
   session,
   shell,
   type MenuItemConstructorOptions
@@ -17,7 +19,8 @@ import {
 import { estiloPredeterminado } from '@shared/estilo'
 import { CANALES } from '@shared/canales'
 import { ENTORNO_LRCLIB_URL } from '@shared/letrasBusqueda'
-import { ID_APP_WINDOWS, TITULO_APP } from '@shared/titulo'
+import { hashCorto, identificador, lineaVersion, numeroVisible } from '@shared/compilacion'
+import { ID_APP_WINDOWS, ID_APP_WINDOWS_DESARROLLO, TITULO_APP } from '@shared/titulo'
 import { ServicioBiblioteca } from './biblioteca'
 import {
   ejecutarConCerrojo,
@@ -31,13 +34,16 @@ import { shellConPapeleraDePruebas } from './biblioteca/papelera'
 import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
 import { BusquedaLetras, ServicioLetras, crearClienteLrclib } from './letras'
 import { ServicioConfig } from './configuracion'
+import { ServicioTemas } from './temas'
 import { registrarIpc } from './ipc'
 import { IDS_ZOOM, plantillaMenu } from './menu'
 import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
 import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
 import { RegistroArchivo } from './registro'
+import { COMPILACION } from './compilacion'
 import {
+  bloquearNavegacionTotal,
   conPlazo,
   instalarPermisos,
   instalarPoliticaNavegacion,
@@ -48,7 +54,13 @@ import {
 import { rutaDatos } from './rutas'
 import { leerTextoLegal } from './textoLegal'
 import { lanzadorDeApp } from './lanzadorApp'
-import { crearControlCierre, hayAlgoEnCurso } from './cierre'
+import {
+  crearControlCierre,
+  hayAlgoEnCurso,
+  motivoDeCierre,
+  type FuentesEnCurso,
+  type IntencionCierre
+} from './cierre'
 import {
   ActualizadorYtDlp,
   CerrojoLecturaEscritura,
@@ -66,14 +78,48 @@ import {
 } from './runtime'
 import { configurarWorker, ejecutar, GestorTrabajos } from './trabajos'
 import { crearPuertoModelos, entornoSeparadorFalso, ServicioSeparacion } from './separacion'
+import { ServicioPicos } from './picos/servicio'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
+import { RegistroVentanas } from './ventana/registro'
+import { rutaIcono } from './ventana/icono'
+import {
+  crearVentanaExportacion,
+  type OpcionesExportacion,
+  type VentanaExportacion
+} from './exportacion/ventana'
+import { Destinos } from './exportacion/destinos'
+import { DiarioExportacion } from './exportacion/diario'
+import { ServicioExportacion } from './exportacion/servicio'
+import { GestorReposo } from './ventana/reposo'
+import { ServicioSesion } from './sesion/servicio'
+import { listarPantallas, observarPantallas, type ScreenLike } from './sesion/pantallas'
+import { pantallaCompletaSimulada, pantallasSimuladas } from './sesion/pantallasPrueba'
+import {
+  abrirSecundaria,
+  type OpcionesVentanaSecundaria,
+  type VentanaSecundariaLike
+} from './sesion/ventanaSecundaria'
+
+/** Roles de las ventanas de la app (ADR 0017 §1). */
+const ventanas = new RegistroVentanas<BrowserWindow>()
 
 /** Servicio de configuración (0008); lo usarán los demás servicios y la IPC (0011). */
 export let servicioConfig: ServicioConfig | null = null
 
 /** Servicio de biblioteca (0009); lo usará la IPC (0011). */
 export let servicioBiblioteca: ServicioBiblioteca | null = null
+
+/** Catálogo de temas (ADR 0016, 0168). */
+export let servicioTemas: ServicioTemas | null = null
+
+/** Envía un evento a la ventana principal (los eventos de datos y trabajos son solo suyos). */
+function aPrincipal(canal: string, carga: unknown): void {
+  ventanas.enviarA('principal', canal, carga)
+}
+
+/** Sesión en vivo y cola de reproducción (ADR 0017, 0181). */
+export let servicioSesion: ServicioSesion | null = null
 
 /** Importación de archivo local (0042). */
 export let importacionArchivo: ServicioImportacionArchivo | null = null
@@ -86,6 +132,7 @@ export let runtime: RuntimeReal | null = null
 
 /** Servicio de separación (0065): cola pesada, pistas y factor medido. */
 export let servicioSeparacion: ServicioSeparacion | null = null
+let servicioPicos: ServicioPicos | null = null
 let busquedaLetras: BusquedaLetras | null = null
 
 /** Avisos del sistema al terminar o fallar un trabajo (0072). */
@@ -95,6 +142,9 @@ let servicioAvisos: ServicioAvisos | null = null
 export let actualizadorYtDlp: ActualizadorYtDlp | null = null
 /** Venv donde vive yt-dlp (para la información de soporte, 0054). */
 let dirVenvYtdlp: string | null = null
+
+/** Exportación de video (0237, ADR 0019); `null` si falta algún servicio del que depende. */
+export let servicioExportacion: ServicioExportacion<BrowserWindow | null> | null = null
 
 /** Gestor de trabajos en segundo plano (0014). */
 export let gestorTrabajos: GestorTrabajos | null = null
@@ -135,8 +185,11 @@ function origenRenderer(): string {
 
 let guardadoEditorPendiente = false
 
+/** Bloqueo de reposo compartido entre el reproductor local y la sesión (ADR 0017 §4). */
+export const gestorReposo = new GestorReposo(powerSaveBlocker)
+
 const modoReproductor = new ControlModoReproductor({
-  bloqueador: powerSaveBlocker,
+  reposo: gestorReposo,
   fijarZoomActivo: (activo) => {
     const menu = Menu.getApplicationMenu()
     for (const id of Object.values(IDS_ZOOM)) {
@@ -146,37 +199,75 @@ const modoReproductor = new ControlModoReproductor({
   }
 })
 
+/** En macOS cerrar la ventana principal no sale de la app: la cola se conserva (ADR 0017 §9). */
+const cierraSoloLaVentana = (intencion: IntencionCierre): boolean =>
+  intencion === 'ventana' && process.platform === 'darwin'
+
+/** Qué impide cerrar sin preguntar, según se pida cerrar la ventana o salir. */
+const fuentesDeCierre = (intencion: IntencionCierre): FuentesEnCurso => ({
+  instalando: () => runtime?.servicio.instalando() ?? false,
+  // Trabajos de la cola (0073). Las consultas interactivas no cuentan.
+  hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
+  guardadoPendiente: () => guardadoEditorPendiente,
+  sesionActiva: () => servicioSesion?.sesionActiva() ?? false,
+  colaNoVacia: () => !cierraSoloLaVentana(intencion) && (servicioSesion?.colaNoVacia() ?? false),
+  // En macOS cerrar la principal no detiene las exportaciones (ADR 0019 §8).
+  exportando: () => !cierraSoloLaVentana(intencion) && (servicioExportacion?.hayEnCurso() ?? false)
+})
+
 const controlCierre = crearControlCierre({
-  // Instalación del runtime o trabajos de la cola (0073). Las consultas interactivas no cuentan.
-  hayAlgoEnCurso: () =>
-    hayAlgoEnCurso({
-      instalando: () => runtime?.servicio.instalando() ?? false,
-      hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
-      guardadoPendiente: () => guardadoEditorPendiente
+  hayAlgoEnCurso: (intencion) => hayAlgoEnCurso(fuentesDeCierre(intencion)),
+  pedirConfirmacion: (intencion) =>
+    aPrincipal(CANALES.eventos.solicitudCierre, {
+      ...motivoDeCierre(fuentesDeCierre(intencion)),
+      variante: cierraSoloLaVentana(intencion) ? 'cerrarVentanaMac' : 'salir'
     }),
-  pedirConfirmacion: () => {
-    for (const v of BrowserWindow.getAllWindows())
-      v.webContents.send(CANALES.eventos.solicitudCierre)
-  },
   // Tras confirmar, los trabajos se cancelan como `interrumpido` y no queda ningún proceso hijo.
   // Sin `cancelarTodos()`: en macOS cerrar la ventana no sale de la app y el gestor debe seguir vivo.
-  pausar: async () => {
+  pausar: async (intencion) => {
     const g = gestorTrabajos
     await Promise.allSettled([
       runtime?.servicio.pausar(),
+      cierraSoloLaVentana(intencion) ? undefined : servicioExportacion?.cancelarTodas(),
       ...(g?.listar().map((t) => g.cancelar(t.id, 'cierre')) ?? [])
     ])
   },
-  cerrarVentana: () => BrowserWindow.getAllWindows()[0]?.close(),
-  salir: () => app.quit()
+  // La secundaria se cierra sin su diálogo de cola. En macOS la cola se conserva; en el resto, cerrar
+  // la principal sale de la app y no se vuelve a preguntar.
+  cerrarVentana: () => {
+    if (process.platform === 'darwin') void servicioSesion?.cerrarConservando()
+    else void servicioSesion?.prepararSalida()
+    ventanas.principal()?.close()
+  },
+  salir: () => {
+    void servicioSesion?.prepararSalida()
+    app.quit()
+  }
 })
 
+/** Mínimo de contenido de la ventana, px CSS (spec del editor, subfase 2.1). */
+const ANCHO_MINIMO_VENTANA = 1024
+const ALTO_MINIMO_VENTANA = 576
+
+/** Icono de las ventanas (`undefined` donde lo da el ejecutable o el bundle). */
+function iconoVentanas(): string | undefined {
+  return rutaIcono({
+    empaquetada: app.isPackaged,
+    plataforma: process.platform,
+    dirApp: app.getAppPath(),
+    dirRecursos: process.resourcesPath
+  })
+}
+
 function crearVentana(): BrowserWindow {
+  const icon = iconoVentanas()
   const ventana = new BrowserWindow({
+    ...(icon ? { icon } : {}),
     width: 1280,
     height: 800,
-    minWidth: 1024,
-    minHeight: 640,
+    minWidth: ANCHO_MINIMO_VENTANA,
+    minHeight: ALTO_MINIMO_VENTANA,
+    useContentSize: true,
     title: TITULO_APP,
     show: false,
     webPreferences: {
@@ -186,6 +277,19 @@ function crearVentana(): BrowserWindow {
       nodeIntegration: false
     }
   })
+
+  // Mínimo de diseño (1024 x 576) sobre el área de contenido. En Windows, `minWidth`/`minHeight`
+  // con `useContentSize` no descuentan la barra de menú, así que se ajusta con el marco real.
+  const ajustarMinimo = (): void => {
+    if (ventana.isDestroyed() || ventana.isFullScreen() || ventana.isMaximized()) return
+    const [w = 0, h = 0] = ventana.getSize()
+    const [cw = 0, ch = 0] = ventana.getContentSize()
+    ventana.setMinimumSize(ANCHO_MINIMO_VENTANA + (w - cw), ALTO_MINIMO_VENTANA + (h - ch))
+  }
+  ajustarMinimo()
+  ventana.once('ready-to-show', ajustarMinimo)
+
+  ventanas.registrar(ventana, 'principal')
 
   const simular = !app.isPackaged && process.env.SHINOBI_PANTALLA_COMPLETA_SIMULADA === '1'
   modoReproductor.vincular(simular ? simularPantallaCompleta(ventana) : ventana)
@@ -216,6 +320,25 @@ function crearVentana(): BrowserWindow {
   return ventana
 }
 
+/**
+ * Crea la ventana de la sesión (ADR 0017 §2): rol `secundaria`, toda navegación bloqueada y
+ * `reproductor.html` como documento. La colocación y los avisos los pone `abrirSecundaria`.
+ */
+function crearVentanaSecundaria(opciones: OpcionesVentanaSecundaria): VentanaSecundariaLike {
+  const icon = iconoVentanas()
+  const ventana = new BrowserWindow(icon ? { ...opciones, icon } : opciones)
+  ventanas.registrar(ventana, 'secundaria')
+  bloquearNavegacionTotal(ventana.webContents)
+  const urlDev = process.env.ELECTRON_RENDERER_URL
+  void ventana.loadURL(
+    !app.isPackaged && urlDev ? `${urlDev}/reproductor.html` : `${ORIGEN_APP}/reproductor.html`
+  )
+  return ventana as unknown as VentanaSecundariaLike
+}
+
+/** Ventana offscreen de exportación vigente (la crea 0237; hasta entonces, solo las pruebas). */
+let ventanaExportacionVigente: VentanaExportacion | null = null
+
 // El esquema de medios debe registrarse como privilegiado antes de `app.ready` (0012).
 protocol.registerSchemesAsPrivileged([
   { scheme: ESQUEMA_APP, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -234,7 +357,8 @@ protocol.registerSchemesAsPrivileged([
 
 app.setName(TITULO_APP)
 // Windows: el id del instalador, necesario para las notificaciones (0072, arquitectura §6).
-if (process.platform === 'win32') app.setAppUserModelId(ID_APP_WINDOWS)
+if (process.platform === 'win32')
+  app.setAppUserModelId(app.isPackaged ? ID_APP_WINDOWS : ID_APP_WINDOWS_DESARROLLO)
 // Perfil de Chromium separado de los datos del usuario (ADR 0006).
 app.setPath('userData', join(rutaDatos(), 'electron'))
 
@@ -252,7 +376,7 @@ app.on('web-contents-created', (_e, wc) => {
 })
 
 app.on('second-instance', () => {
-  const ventana = BrowserWindow.getAllWindows()[0]
+  const ventana = ventanas.principal()
   if (!ventana) return
   if (ventana.isMinimized()) ventana.restore()
   ventana.show()
@@ -263,22 +387,80 @@ if (instanciaUnica)
   void app.whenReady().then(async () => {
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
+    registro.escribir(
+      'info',
+      'arranque',
+      `Shinobi Karaoke ${identificador(app.getVersion(), COMPILACION)}`
+    )
+    if (process.platform === 'darwin') {
+      app.setAboutPanelOptions({
+        applicationVersion: numeroVisible(app.getVersion(), COMPILACION),
+        version: hashCorto(COMPILACION) ?? ''
+      })
+    }
+
+    /**
+     * Crea la ventana offscreen de exportación (ADR 0019 §2): rol `exportacion`, `exportacion.html`
+     * y su propio preload. Hay una a la vez; la gobierna el servicio de exportación (0237).
+     */
+    async function crearExportacion(opciones: OpcionesExportacion): Promise<VentanaExportacion> {
+      const urlDev = process.env.ELECTRON_RENDERER_URL
+      return crearVentanaExportacion(opciones, {
+        publicar: (v) => {
+          ventanaExportacionVigente = v
+        },
+        crear: (o) => new BrowserWindow(o) as never,
+        url:
+          !app.isPackaged && urlDev
+            ? `${urlDev}/exportacion.html`
+            : `${ORIGEN_APP}/exportacion.html`,
+        preload: join(__dirname, '../preload/exportacion.js'),
+        registrarRol: (v) => ventanas.registrar(v as never, 'exportacion'),
+        // Prioridad baja: el equipo sigue usable mientras se exporta.
+        bajarPrioridad: (pid) => setPriority(pid, 10),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'exportacion', mensaje)
+      })
+    }
+
+    // Solo para las pruebas E2E de la captura (0234): nunca en la app empaquetada.
+    if (!app.isPackaged && process.env.SHINOBI_PRUEBA_EXPORTACION === '1') {
+      ;(globalThis as { __shinobiExportacion?: unknown }).__shinobiExportacion = {
+        crear: crearExportacion
+      }
+    }
     try {
       servicioConfig = await ServicioConfig.abrir(rutaDatos(), { registro })
     } catch (e) {
       registro.escribir('error', 'arranque', `no se pudo abrir la configuración: ${String(e)}`)
     }
     try {
-      servicioBiblioteca = new ServicioBiblioteca(rutaDatos(), {
+      const biblioteca = new ServicioBiblioteca(rutaDatos(), {
         registro,
         // `SHINOBI_PAPELERA_PRUEBAS` sustituye la papelera real en E2E; se ignora empaquetada (0023).
         shell: shellConPapeleraDePruebas(shell, { env: process.env, empaquetada: app.isPackaged }),
-        estiloPredeterminado: () =>
-          servicioConfig?.obtener().estilo_predeterminado ?? estiloPredeterminado(),
         // Eliminar una canción cancela antes sus trabajos (0014).
-        antesDeEliminar: (id) => gestorTrabajos?.cancelarDeCancion(id) ?? Promise.resolve()
+        // Y las exportaciones de la canción, con limpieza, antes de la papelera (0237).
+        antesDeEliminar: async (id) => {
+          await Promise.all([
+            gestorTrabajos?.cancelarDeCancion(id),
+            servicioExportacion?.cancelarDeCancion(id)
+          ])
+        }
       })
-      await servicioBiblioteca.arrancar()
+      // El catálogo de temas se abre antes de escanear: los resúmenes salen ya resueltos (0168).
+      const dirBiblioteca = join(rutaDatos(), 'biblioteca')
+      await mkdir(dirBiblioteca, { recursive: true })
+      servicioTemas = await ServicioTemas.abrir({
+        dirBiblioteca,
+        puerto: biblioteca.puerto(),
+        estiloInicial: servicioConfig?.obtener().estilo_predeterminado ?? estiloPredeterminado(),
+        registro,
+        alCambiar: (catalogo) => aPrincipal(CANALES.eventos.temasCambiado, catalogo),
+        alProgreso: (progreso) => aPrincipal(CANALES.eventos.temasProgreso, progreso)
+      })
+      biblioteca.conectarTemas(servicioTemas)
+      servicioBiblioteca = biblioteca
+      await biblioteca.arrancar()
     } catch (e) {
       registro.escribir('error', 'arranque', `no se pudo escanear la biblioteca: ${String(e)}`)
     }
@@ -321,6 +503,11 @@ if (instanciaUnica)
           ? { disponible: () => servicioConfig?.obtener().instalacion.estado === 'completa' }
           : {}),
         dirRegistros: join(rutaDatos(), 'registros')
+      })
+      servicioPicos = new ServicioPicos({
+        dirBiblioteca: join(rutaDatos(), 'biblioteca'),
+        tieneVoz: (id) => servicioBiblioteca?.tieneVozSeparada(id) ?? false,
+        ejecutar
       })
       // Cerrojo lectores/escritor de yt-dlp (0050): `info-youtube` y `descargar-youtube` leen.
       const cerrojo = new CerrojoLecturaEscritura()
@@ -384,10 +571,7 @@ if (instanciaUnica)
           config: servicioConfig,
           dirDatos: rutaDatos(),
           actualizarYtDlp,
-          alEstadoInfo: (ev) => {
-            for (const v of BrowserWindow.getAllWindows())
-              v.webContents.send(CANALES.eventos.estadoInfo, ev)
-          },
+          alEstadoInfo: (ev) => aPrincipal(CANALES.eventos.estadoInfo, ev),
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'youtube', mensaje)
         })
       }
@@ -419,7 +603,7 @@ if (instanciaUnica)
           dirApp: app.getAppPath(),
           plataforma: process.platform,
           ejecutandoBajoTraduccionArm64: app.runningUnderARM64Translation,
-          versionApp: app.getVersion(),
+          lineaVersion: lineaVersion(app.getVersion(), COMPILACION),
           descripcionSo: `${tipoSO()} ${release()}`,
           config: servicioConfig,
           registro,
@@ -435,6 +619,7 @@ if (instanciaUnica)
     if (servicioConfig && servicioBiblioteca && gestorTrabajos && runtime) {
       const rt = runtime
       servicioSeparacion = new ServicioSeparacion({
+        publicarPistas: (id, publicar) => servicioPicos?.duranteCambio(id, publicar) ?? publicar(),
         biblioteca: servicioBiblioteca,
         gestor: gestorTrabajos,
         config: servicioConfig,
@@ -494,7 +679,7 @@ if (instanciaUnica)
       const pruebas = puertosDePruebas({ env: process.env, empaquetada: app.isPackaged })
       const puertos = pruebas ?? puertosDeElectron({ Notification, dock: app.dock })
       const ventanaPrincipal = () => {
-        const v = BrowserWindow.getAllWindows()[0]
+        const v = ventanas.principal()
         if (!v) return null
         const real = ventanaDeElectron(v)
         return pruebas ? pruebas.ventana(real) : real
@@ -504,14 +689,8 @@ if (instanciaUnica)
         ventana: ventanaPrincipal,
         notificador: puertos.notificador,
         dock: puertos.dock,
-        difundirAviso: (a) => {
-          for (const v of BrowserWindow.getAllWindows())
-            v.webContents.send(CANALES.eventos.avisoTrabajo, a)
-        },
-        difundirAbrir: (e) => {
-          for (const v of BrowserWindow.getAllWindows())
-            v.webContents.send(CANALES.eventos.abrirCancion, e)
-        },
+        difundirAviso: (a) => aPrincipal(CANALES.eventos.avisoTrabajo, a),
+        difundirAbrir: (e) => aPrincipal(CANALES.eventos.abrirCancion, e),
         obtenerCancion: (id) => biblioteca.obtener(id),
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'avisos', mensaje)
       })
@@ -555,11 +734,92 @@ if (instanciaUnica)
         registro
       })
       const busqueda = busquedaLetras
+      const biblioteca = servicioBiblioteca
+      const config = servicioConfig
+      // `SHINOBI_PANTALLAS_SIMULADAS` sustituye `screen` en E2E; se ignora empaquetada (ADR 0017 §13).
+      const pantallasSistema: ScreenLike =
+        pantallasSimuladas({ env: process.env, empaquetada: app.isPackaged }) ??
+        (screen as unknown as ScreenLike)
+      const pantallaCompletaDePrueba = pantallaCompletaSimulada({
+        env: process.env,
+        empaquetada: app.isPackaged
+      })
+      servicioSesion = new ServicioSesion({
+        biblioteca: {
+          obtener: (id) => biblioteca.obtener(id),
+          obtenerResumen: (id) => biblioteca.obtenerResumen(id),
+          estiloDe: (cancion) => biblioteca.resolver(cancion).estilo,
+          comprobarPistas: (id) => biblioteca.comprobarPistas(id),
+          suscribir: (cb) => biblioteca.suscribir(cb)
+        },
+        config,
+        abrirVentana: (peticion) =>
+          abrirSecundaria(peticion, {
+            screen: pantallasSistema,
+            crear: crearVentanaSecundaria,
+            rutaPreload: join(__dirname, '../preload/secundaria.js'),
+            pantallaCompletaSimulada: pantallaCompletaDePrueba
+          }),
+        pantallas: {
+          listar: () => listarPantallas(pantallasSistema, ventanas.principal()),
+          observar: (cb) => observarPantallas(pantallasSistema, cb)
+        },
+        enviarA: (rol, canal, carga) => ventanas.enviarA(rol, canal, carga),
+        // Silencio de la principal mientras dura la sesión; el valor previo se restaura (ADR 0017 §9).
+        principal: {
+          estaSilenciada: () => ventanas.principal()?.webContents.isAudioMuted() ?? false,
+          silenciar: (silenciar) => ventanas.principal()?.webContents.setAudioMuted(silenciar)
+        },
+        reposo: gestorReposo,
+        liberarVisitaLetra: () => servicioLetras.liberarEdicion(),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'sesion', mensaje)
+      })
+      const exportacionBiblioteca = servicioBiblioteca
+      servicioExportacion = new ServicioExportacion<BrowserWindow | null>({
+        biblioteca: {
+          obtener: (id) => exportacionBiblioteca.obtener(id),
+          estiloDe: (cancion) => exportacionBiblioteca.resolver(cancion).estilo
+        },
+        dirDatos: rutaDatos(),
+        config,
+        destinos: new Destinos<BrowserWindow | null>({
+          dialogoGuardar: async (ventana, o) => {
+            const opciones = {
+              defaultPath: o.defaultPath,
+              filters: [{ name: o.nombreFiltro, extensions: [o.extension] }]
+            }
+            const r = ventana
+              ? await dialog.showSaveDialog(ventana, opciones)
+              : await dialog.showSaveDialog(opciones)
+            return r.canceled || !r.filePath ? null : r.filePath
+          },
+          directorioDatos: rutaDatos(),
+          carpetaVideos: () => app.getPath('videos'),
+          carpetaHogar: () => app.getPath('home')
+        }),
+        diario: new DiarioExportacion(rutaDatos()),
+        ejecutar,
+        crearVentana: crearExportacion,
+        ventanaPrincipal: () => ventanas.principal() ?? null,
+        mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta),
+        avisarSistema: (texto) => servicioAvisos?.avisarSistema(texto),
+        bloqueador: powerSaveBlocker,
+        memoriaTotal: () => totalmem(),
+        nucleos: () => cpus().length,
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'exportacion', mensaje)
+      })
+      // Restos de una caída: el aviso espera a que la principal lo pida (antes de crearla).
+      await servicioExportacion.recuperarAlArrancar()
       registrarIpc(
         ipcMain,
         {
           biblioteca: servicioBiblioteca,
+          exportacion: servicioExportacion,
+          ventanaExportacion: () => ventanaExportacionVigente,
+          ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
+          sesion: servicioSesion,
+          guardadoPendiente: () => guardadoEditorPendiente,
           runtime: runtime.servicio,
           confirmarCierre: async () => {
             await controlCierre.confirmar()
@@ -569,6 +829,7 @@ if (instanciaUnica)
           },
           salir: () => app.quit(),
           trabajos: gestorTrabajos,
+          ...(servicioPicos ? { picos: servicioPicos } : {}),
           ...(servicioSeparacion ? { separacion: servicioSeparacion } : {}),
           fuente: importacionArchivo,
           // 0083: guardar, editar e importar. La búsqueda (buscar) es de 0082.
@@ -598,6 +859,7 @@ if (instanciaUnica)
               : null
             return {
               version: app.getVersion(),
+              compilacion: COMPILACION,
               so: `${tipoSO()} ${release()}`,
               plataforma: process.platform,
               youtube: YOUTUBE_ACTIVO,
@@ -624,15 +886,10 @@ if (instanciaUnica)
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'ipc', mensaje)
         },
         {
-          remitenteValido: (evento) =>
-            remitenteIpcValido(
-              evento,
-              BrowserWindow.getAllWindows().map((v) => v.webContents),
-              origenRenderer()
-            ),
-          difundir: (canal, carga) => {
-            for (const v of BrowserWindow.getAllWindows()) v.webContents.send(canal, carga)
-          }
+          remitenteValido: (evento, canal) =>
+            remitenteIpcValido(evento, canal, ventanas, origenRenderer()),
+          rolDe: (evento) => ventanas.rolDe((evento as { sender?: unknown } | null)?.sender),
+          enviarA: (rol, canal, carga) => ventanas.enviarA(rol, canal, carga)
         }
       )
     }
@@ -641,7 +898,8 @@ if (instanciaUnica)
         plantillaMenu(
           process.platform,
           (accion) => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(CANALES.eventos.menu, accion)
+            // La secundaria no recibe acciones del menú (ADR 0017 §1).
+            aPrincipal(CANALES.eventos.menu, accion)
           },
           // Durante el primer arranque no se puede salir de él por menú ni atajos (ux/01 criterio 1).
           () => runtime?.servicio.completa() ?? false
@@ -651,7 +909,14 @@ if (instanciaUnica)
     if (!app.isPackaged) instalarMenuDesarrollo()
     crearVentana()
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) crearVentana()
+      // Aunque siga abierta la secundaria, se recrea la principal si falta (ADR 0017 §1).
+      const principal = ventanas.principal()
+      if (!principal) crearVentana()
+      else {
+        if (principal.isMinimized()) principal.restore()
+        principal.show()
+        principal.focus()
+      }
     })
   })
 
@@ -660,12 +925,19 @@ app.on('before-quit', (evento) => {
   if (escriturasVolcadas) return
   controlCierre.alSalir(evento)
   if (evento.defaultPrevented) return
+  // La secundaria se cierra sin su diálogo de cola y se sueltan bloqueos, silencio y reposo.
+  void servicioSesion?.prepararSalida()
+  gestorReposo.liberarTodo()
   // Se espera a las escrituras pendientes (0010) antes de salir de verdad.
   evento.preventDefault()
   escriturasVolcadas = true
   // Primero se cancelan los trabajos (sin procesos hijos vivos, 0014) y luego se vuelca todo.
   const cierre = Promise.allSettled([
     gestorTrabajos?.cancelarTodos(),
+    // Cancela las exportaciones con limpieza y suelta el bloqueo de suspensión (0237).
+    servicioExportacion?.cerrar(),
+    servicioPicos?.cerrar(),
+    Promise.resolve(servicioTemas?.cerrar()),
     // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).
     runtime?.servicio.cerrar(),
     importacionArchivo?.cerrar(),

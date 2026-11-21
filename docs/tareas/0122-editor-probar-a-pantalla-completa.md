@@ -1,4 +1,5 @@
 # 0122 — Editor: "Probar a pantalla completa" (botón y F), desplazamiento como un paso de deshacer y vuelta a la posición del reproductor
+
 - Estado: En curso
 - Paso del pipeline: 6
 - Depende de: 0117 (`liberarAudio`), 0118 (`useVolumenCompartido` en el editor), 0119, 0120 (desplazamiento)
@@ -8,9 +9,10 @@
 - Paralelizable con: 0120, 0121.
 
 ## Contexto para quien implementa
+
 - El editor (`Editor.tsx`) tiene:
   - un `MotorAudio` (`useMotorAudio`) con pista (original/voz/instrumental) y velocidad;
-  - un *reducer* con historial (`estado.ts`; acciones `desplazar { deltaMs, ahora }` y `fijar_desplazamiento`);
+  - un _reducer_ con historial (`estado.ts`; acciones `desplazar { deltaMs, ahora }` y `fijar_desplazamiento`);
   - la selección de línea;
   - el guardado con `vaciar()` (`useGuardadoEditor`);
   - los atajos en `atajos.ts` + `useAtajosEditor.ts`. Este último ya ignora el teclado si hay un `[role="dialog"]` en el documento, y la capa del reproductor lo es.
@@ -18,32 +20,34 @@
 - El reproductor (0119/0120) recibe la instantánea en memoria y devuelve `alSalir({ posicionMs })` y `alDesplazar(±100)`.
 
 ## Objetivo
+
 Probar la canción tal como se cantará sin salir del editor ni perder nada de él.
 
 ## Criterios de aceptación
+
 - [x] **Disponibilidad**: el botón `edi.boton.probar` (tooltip `edi.probar.tooltip`) y la tecla F están activos salvo:
   - en el modo "Sincronizar al ritmo" y su cuenta atrás (criterio 18);
   - sin ninguna línea con inicio → inactivo con `edi.probar.sinlineas` (texto y comportamiento exactos de `ux/06`).
-  `DialogoAtajos` muestra "F — Probar a pantalla completa".
+    `DialogoAtajos` muestra "F — Probar a pantalla completa".
 - [x] **Abrir**:
   1. `await vaciar()`. Si falla, se sigue el comportamiento de `ux/06` (comprueba si pide el diálogo de salida o abre igual; si no lo dice, abre igual: el autoguardado sigue reintentando).
   2. Recuerda `{ pista, velocidad }` del motor del editor y llama a `motor.liberarAudio()`.
   3. Calcula `desdeMs`: con la línea seleccionada con inicio, `max(0, inicio_ms + offset_ms − 3000)`; si no tiene inicio, `max(0, motor.posicionMs())`.
-  4. Monta `Reproductor` en una capa con `origen: 'editor'`, `modo` = `'karaoke'` si la separación está completada y `'original'` si no (con la etiqueta `rep.original` arriba en el centro, siempre visible, que dibuja el reproductor), la instantánea `{ letra, estilo }` del *reducer* (en vivo), `titulo`/`artista`/`duracionMs`/`gananciaDb` de la canción y `lineasSinSincronizar: 0` (desde el editor no hay aviso).
+  4. Monta `Reproductor` en una capa con `origen: 'editor'`, `modo` = `'karaoke'` si la separación está completada y `'original'` si no (con la etiqueta `rep.original` arriba en el centro, siempre visible, que dibuja el reproductor), la instantánea `{ letra, estilo }` del _reducer_ (en vivo), `titulo`/`artista`/`duracionMs`/`gananciaDb` de la canción y `lineasSinSincronizar: 0` (desde el editor no hay aviso).
 - [x] **Desplazamiento**:
   - `alDesplazar(delta)` despacha `{ tipo: 'desplazar', deltaMs: delta, ahora, grupo: idPrueba }`;
-  - el *reducer* gana el campo opcional `grupo?: string`: las entradas seguidas con el mismo `grupo` se funden en **una** del historial (un solo Ctrl/Cmd+Z deshace toda la prueba). Sin `grupo`, el comportamiento actual no cambia;
+  - el _reducer_ gana el campo opcional `grupo?: string`: las entradas seguidas con el mismo `grupo` se funden en **una** del historial (un solo Ctrl/Cmd+Z deshace toda la prueba). Sin `grupo`, el comportamiento actual no cambia;
   - `idPrueba` es nuevo en cada apertura;
   - acotado a ±30 000 ms como ya hace el editor;
   - el autoguardado sigue su curso (también si se cierra la ventana con la capa abierta);
-  - tests del *reducer*.
+  - tests del _reducer_.
 - [x] **Volver** (`alSalir({ posicionMs })`):
   - desmonta la capa;
   - `motor.usarPista(pistaRecordada)` y `fijarVelocidad(velocidadRecordada)`, y luego `buscar(posicionMs)`, en pausa;
   - selecciona la línea que sonaba en `posicionMs` (la última con `inicio_ms + offset_ms ≤ posicionMs`); si ninguna había empezado, la selección no cambia;
   - desplaza la lista hasta ella;
   - el foco vuelve al botón "Probar a pantalla completa".
-  El historial conserva todo lo anterior y el paso del desplazamiento, si lo hubo. La visita de `letras.abrirEdicion` no se cierra en ningún momento.
+    El historial conserva todo lo anterior y el paso del desplazamiento, si lo hubo. La visita de `letras.abrirEdicion` no se cierra en ningún momento.
 - [x] La vista previa del editor, el autoguardado y el indicador de guardado siguen funcionando con la capa abierta (el editor sigue montado).
 - [x] Tests (`Editor.test.tsx`, API falsa del editor, reproductor con motor falso):
   - F abre la capa con `desdeMs` = línea − 3 s;
@@ -53,6 +57,7 @@ Probar la canción tal como se cantará sin salir del editor ni perder nada de �
   - F inactiva en el modo de sincronizar.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check && npm test
@@ -60,6 +65,7 @@ npm run build && export SHINOBI_UV="$(which uv)" && npx playwright test e2e/edit
 ```
 
 ## Notas de implementación
+
 - El botón bajo la vista previa y F abren la capa con la letra y el estilo en memoria. Antes se vacía el guardado y, si falla, se reutiliza el diálogo de salida para elegir si abrir igualmente.
 - El editor libera sus buffers antes de abrir. Tras desmontar el reproductor, repone la pista y la velocidad anteriores en pausa, busca el cabezal y devuelve el foco al botón. La selección vuelve a la última línea que había empezado, con desplazamiento de la lista sin llevarse el foco.
 - Los ajustes de desplazamiento de una apertura comparten una clave única de historial. Se guardan en la misma visita de edición y se deshacen con una sola acción.

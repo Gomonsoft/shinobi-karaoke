@@ -108,6 +108,7 @@ Tres niveles, siempre indicados en el resumen. **Instalación probada**: se inst
 - Impacto en UX: ninguno en la app.
 
 ## Revisiones
+- 2026-11-20: **ampliado por el [ADR 0020](0020-publicacion-en-github-releases-y-politica-de-versiones.md)**. §1 "Disparador": además de `workflow_dispatch`, `push: tags: ['v*']`; el workflow pasa a llamarse "Empaquetado y publicación" y añade `comprobar-version`, `preparar-publicacion` y `publicar`. `permissions: contents: read` sigue en la raíz y solo `publicar` tiene `contents: write`. `construir`, `probar-instalador`, las acciones y sus SHA no cambian (comprobados de nuevo el 2026-11-20).
 - 2026-11-06: el run 42291261968 confirmó ventanas en Windows y macOS, `macos-15` arm64 y FUSE en Ubuntu 24.04. Los cuatro formatos pasaron sus pruebas de instalación o ejecución en runners. El AppImage usó `--no-sandbox` con AppArmor restringido y el `.deb` mantuvo el sandbox. Gatekeeper con cuarentena, SmartScreen y macOS 14 quedan para 0139.
 - 2026-11-06: creado en el desglose de la Fase 7. Precisa el AGENTS.md: "las variables `SHINOBI_*` se ignoran" tiene la excepción `SHINOBI_DATOS` del ADR 0008.
 
@@ -121,3 +122,20 @@ Consultadas el 2026-11-06.
 - Versiones y SHA de acciones: `gh api repos/actions/{checkout,setup-node,upload-artifact,download-artifact}/releases/latest` y `git/ref/tags/<etiqueta>`
 - electron-builder 26.18.0, plantillas leídas en local: `templates/nsis/installSection.nsh`, `templates/nsis/uninstaller.nsh`, `out/targets/appimage/appImageUtil.js`
 - ADR 0008, punto "Se mantienen"; ADR 0009 §6 y §8.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- La verificación del paquete comprueba que `exportacion.html` y el preload de exportación están en el asar.
+- No se añade ninguna exportación real a la prueba de humo (necesita el runtime con PyAV). La codificación en los 3 SO la cubre la pytest del worker en `ci.yml`, y los tiempos reales, la guía manual de la fase.
+
+## Revisión para 0.2.0 — fase 10 (detalles de release)
+
+Fecha: 2026-11-21. Detalle en el [ADR 0020, «Revisión para 0.2.0 — fase 10»](0020-publicacion-en-github-releases-y-politica-de-versiones.md#revisión-para-020--fase-10-detalles-de-release). Tareas 0251–0253.
+
+- **Disparador nocturno.** §1 «Disparador» y la tabla de alternativas («Disparador») cambian: además de `workflow_dispatch` y de `push: tags: ['v*']` (ADR 0020), `schedule` con `cron: '23 4 * * *'`. La razón para descartar `push`/`pull_request` sigue en pie: la nocturna **no** se dispara por cada fusión, y solo construye si la cabeza de `develop` no tiene ya su compilación en `shinobi-karaoke-builds` y el canal está configurado. Si no, termina en verde tras `comprobar-version`. `ci.yml` no cambia por esto.
+- **Commit objetivo.** `schedule` siempre corre con el archivo y el commit de `main`, así que `comprobar-version` resuelve el commit que se construye (la cabeza de `develop` en la nocturna; `GITHUB_SHA` en lo demás). `construir`, `probar-instalador` y los trabajos de preparación hacen `checkout` de ese commit y nombran sus artefactos con él, no con `GITHUB_SHA`.
+- **Número de compilación.** `comprobar-version` hace `checkout` con `fetch-depth: 0` para contar los commits. `construir` recibe el número, el commit y el canal como variables para `npm run build`, así que su `checkout` puede seguir siendo superficial.
+- **Lo que no cambia**: los runners, la matriz, las pruebas de humo e instalación, las cuatro acciones y sus SHA (no se añade ninguna), `permissions: contents: read` en la raíz y `retention-days: 14`. El trabajo nuevo `publicar-desarrollo` usa un secreto de este repositorio para escribir **en otro repositorio** y no hace `checkout`.
+- **Consecuencia nueva**: en un repositorio público, `schedule` se desactiva tras 60 días sin actividad (documentación de GitHub); se reactiva a mano.

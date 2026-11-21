@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Play } from 'lucide-react'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
@@ -9,11 +9,13 @@ import estilosBoton from '../../componentes/componentes.module.css'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { useReproductor } from '../../navegacion/reproductor'
+import { useSesion } from '../../sesion/ProveedorSesion'
 import { DialogoConfirmar } from '../biblioteca/DialogosCancion'
 import { detallesDeError } from '../biblioteca/errores'
-import { tituloDeTarjeta } from '../biblioteca/tarjeta'
+import { mensajeListaMarcada, tituloDeTarjeta } from '../biblioteca/tarjeta'
 import { E } from './textos'
 import type { SeparacionEditor } from './Transporte'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface Props {
   resumen: ResumenCancionIpc
@@ -23,21 +25,95 @@ interface Props {
   alEnfocarPrimera(): void
 }
 
-function avisarError(mensaje: string, error: unknown) {
+export function avisarError(mensaje: string, error: unknown) {
   mostrarToast({
     tipo: 'error',
     mensaje,
     accion: {
       etiqueta: 'Copiar detalles',
-      alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(error))
+      alAccionar: () => void copiarDetalles(detallesDeError(error))
     }
   })
+}
+
+interface PropsRenglones {
+  id: string
+  separacion: SeparacionEditor
+  total: number
+  pendientes: number
+  cerrar(): void
+  alEnfocarPrimera(): void
+  /** Renglones adicionales (p. ej. el fin no válido de «Letra lista»). */
+  extra?: ReactNode
+}
+
+/** Renglones del popover «Para marcarla como lista falta:» (también el de «Letra lista»). */
+export function RenglonesFaltas({
+  id,
+  separacion,
+  total,
+  pendientes,
+  cerrar,
+  alEnfocarPrimera,
+  extra
+}: PropsRenglones) {
+  const { ir } = useNavegacion()
+  return (
+    <ul>
+      {!separacion.disponible && (
+        <li>
+          {separacion.enCola ? (
+            E.faltaCola
+          ) : separacion.porcentaje !== null ? (
+            E.faltaSeparando(separacion.porcentaje, separacion.minutos)
+          ) : (
+            <>
+              {E.faltaSeparar}
+              <Boton
+                variante="fantasma"
+                onClick={() => {
+                  cerrar()
+                  ir({ tipo: 'cancion', id, paso: 'progreso' })
+                }}
+              >
+                {E.irSeparacion}
+              </Boton>
+            </>
+          )}
+        </li>
+      )}
+      {total === 0 && (
+        <li>
+          {E.sinLetra}
+          <Boton
+            variante="fantasma"
+            onClick={() => {
+              cerrar()
+              ir({ tipo: 'cancion', id, paso: 'letra' })
+            }}
+          >
+            {E.buscarLetra}
+          </Boton>
+        </li>
+      )}
+      {pendientes > 0 && (
+        <li>
+          {E.faltaLineas(pendientes)}
+          <Boton variante="fantasma" onClick={alEnfocarPrimera}>
+            {E.irPrimera(pendientes)}
+          </Boton>
+        </li>
+      )}
+      {extra}
+    </ul>
+  )
 }
 
 /** Acción principal del editor. Las líneas sin inicio se consultan en la edición local. */
 export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimera }: Props) {
   const { ir } = useNavegacion()
   const { abrir } = useReproductor()
+  const { haySesion } = useSesion()
   const ancla = useRef<HTMLButtonElement>(null)
   const [popover, setPopover] = useState<'faltas' | 'incompleta' | null>(null)
   const [ocupado, setOcupado] = useState(false)
@@ -71,8 +147,11 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
       ir({ tipo: 'biblioteca', enfocar: { id, resaltar: true } })
       mostrarToast({
         tipo: 'exito',
-        mensaje: `«${tituloDeTarjeta(guardada)}» está lista para cantar.`,
-        accion: { etiqueta: 'Reproducir', icono: Play, alAccionar: () => abrir(id) }
+        mensaje: mensajeListaMarcada(guardada),
+        // Con sesión no hay reproductor local: el toast no ofrece [▶ Reproducir] (spec 02).
+        accion: haySesion
+          ? undefined
+          : { etiqueta: 'Reproducir', icono: Play, alAccionar: () => abrir(id) }
       })
     } catch (error) {
       avisarError('No se pudo marcar la canción como lista.', error)
@@ -124,52 +203,14 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
         etiqueta={E.faltaTitulo}
         anunciar
       >
-        <ul>
-          {!separacion.disponible && (
-            <li>
-              {separacion.enCola ? (
-                E.faltaCola
-              ) : separacion.porcentaje !== null ? (
-                E.faltaSeparando(separacion.porcentaje, separacion.minutos)
-              ) : (
-                <>
-                  {E.faltaSeparar}
-                  <Boton
-                    variante="fantasma"
-                    onClick={() => {
-                      setPopover(null)
-                      ir({ tipo: 'cancion', id, paso: 'progreso' })
-                    }}
-                  >
-                    {E.irSeparacion}
-                  </Boton>
-                </>
-              )}
-            </li>
-          )}
-          {total === 0 && (
-            <li>
-              {E.sinLetra}
-              <Boton
-                variante="fantasma"
-                onClick={() => {
-                  setPopover(null)
-                  ir({ tipo: 'cancion', id, paso: 'letra' })
-                }}
-              >
-                {E.buscarLetra}
-              </Boton>
-            </li>
-          )}
-          {pendientes > 0 && (
-            <li>
-              {E.faltaLineas(pendientes)}
-              <Boton variante="fantasma" onClick={enfocarPrimera}>
-                {E.irPrimera(pendientes)}
-              </Boton>
-            </li>
-          )}
-        </ul>
+        <RenglonesFaltas
+          id={id}
+          separacion={separacion}
+          total={total}
+          pendientes={pendientes}
+          cerrar={() => setPopover(null)}
+          alEnfocarPrimera={enfocarPrimera}
+        />
       </Popover>
       <Popover
         abierto={mostrarIncompleta}

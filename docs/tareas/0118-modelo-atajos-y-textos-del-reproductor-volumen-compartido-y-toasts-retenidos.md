@@ -1,4 +1,5 @@
 # 0118 — Reproductor: modelo puro, atajos y textos; volumen compartido; toasts retenidos
+
 - Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: 0112 (campos de voz en `config.reproductor`; para el hook)
@@ -12,6 +13,7 @@
 - Paralelizable con: 0113–0117. Antes de 0119. Si 0122 ya hubiera empezado, este cambio en `Editor.tsx` va antes.
 
 ## Contexto para quien implementa
+
 - La spec 07 trae las tablas de atajos, los textos `rep.*` y las reglas de las franjas, el indicador y la pantalla final. **Copia los textos tal cual** de la sección Microcopy de `ux/07` (revisión vigente al empezar). La voz guía sustituye a "voz original" (pregunta 0030). La spec ya trae la voz guía (§"Voz guía", criterios 19–19d):
   - **V** silencia o reactiva la voz;
   - **Mayús + ↑/↓** cambia su nivel ±10 % y la reactiva;
@@ -21,19 +23,36 @@
 - `gestorToasts.ts` es un almacén externo con `mostrarToast` (máximo 3 a la vez) y `useSyncExternalStore`.
 
 ## Objetivo
+
 Toda la lógica del reproductor que no necesita DOM ni audio, probada aparte, más dos utilidades que comparten el editor y la app.
 
 ## Criterios de aceptación
+
 - [x] **`atajos.ts`**:
   ```ts
   export type AccionReproductor =
-    | { tipo: 'alternar' } | { tipo: 'saltar'; deltaMs: -10000 | -5000 | 5000 | 10000 }
-    | { tipo: 'volumen'; delta: 0.1 | -0.1 } | { tipo: 'silenciar' }
-    | { tipo: 'voz' } | { tipo: 'nivel_voz'; delta: 0.1 | -0.1 }
-    | { tipo: 'principio' } | { tipo: 'pantalla_completa' } | { tipo: 'salir' }
-    | { tipo: 'desplazar'; deltaMs: 100 | -100 } | { tipo: 'atajos' }
-  export function accionDeTeclaReproductor(e: Pick<KeyboardEvent,'key'|'ctrlKey'|'metaKey'|'altKey'|'shiftKey'|'isComposing'>,
-    o: { origen: 'biblioteca' | 'editor'; vozDisponible: boolean; focoEnBoton: boolean }): AccionReproductor | null
+    | { tipo: "alternar" }
+    | { tipo: "saltar"; deltaMs: -10000 | -5000 | 5000 | 10000 }
+    | { tipo: "volumen"; delta: 0.1 | -0.1 }
+    | { tipo: "silenciar" }
+    | { tipo: "voz" }
+    | { tipo: "nivel_voz"; delta: 0.1 | -0.1 }
+    | { tipo: "principio" }
+    | { tipo: "pantalla_completa" }
+    | { tipo: "salir" }
+    | { tipo: "desplazar"; deltaMs: 100 | -100 }
+    | { tipo: "atajos" };
+  export function accionDeTeclaReproductor(
+    e: Pick<
+      KeyboardEvent,
+      "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "isComposing"
+    >,
+    o: {
+      origen: "biblioteca" | "editor";
+      vozDisponible: boolean;
+      focoEnBoton: boolean;
+    },
+  ): AccionReproductor | null;
   ```
   - Espacio/K, ←/→, J/L, ↑/↓, Mayús+↑/↓ (nivel de voz, solo con voz), M, V (solo con voz), Inicio/0, F, Esc, `,`/`.` (solo desde el editor), F1/`?`.
   - Con `focoEnBoton`, Espacio e Intro devuelven `null` (los activa el botón).
@@ -65,11 +84,13 @@ Toda la lógica del reproductor que no necesita DOM ni audio, probada aparte, m�
   - tests.
 
 ## Verificación
+
 ```bash
 cd app && npm run lint && npm run typecheck && npm run format:check && npm test
 ```
 
 ## Notas de implementación
+
 - `vistas/reproductor/` concentra las acciones de teclado, los textos de la spec, el modelo de silencio previo y niveles, y los temporizadores de controles y cierre. El texto hablado del tiempo se comparte con el transporte del editor.
 - `useVolumenCompartido` reúne cambios parciales de ambos niveles y silencios en la misma escritura de configuración cada 500 ms y vacía la última al desmontar. El Editor usa el hook conservando sus controles.
 - `gestorToasts` guarda las tres notificaciones más recientes mientras se retienen y las publica en orden al salir. El plazo de cada una empieza al mostrarse.

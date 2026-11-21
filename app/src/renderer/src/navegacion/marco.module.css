@@ -51,8 +51,24 @@
   padding: var(--margen-vista);
 }
 
+/* Editor a ventana llena (spec 06-editor, subfase 2.1): la página no hace scroll. */
+.contenidoEditor {
+  position: relative;
+  height: calc(100vh - 3.5rem);
+  min-width: 0;
+  padding: 0 1rem;
+  overflow: hidden;
+}
+
+/* Por debajo del mínimo de diseño el editor pide scroll vertical de la página, nunca horizontal. */
+.contenidoEditor:has([data-bajo-minimo]) {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .contenido:focus,
-.contenidoCompleto:focus {
+.contenidoCompleto:focus,
+.contenidoEditor:focus {
   outline: none;
 }
 

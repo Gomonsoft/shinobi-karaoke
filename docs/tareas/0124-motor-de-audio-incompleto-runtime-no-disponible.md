@@ -1,4 +1,5 @@
 # 0124 — Motor de audio incompleto al separar: `RUNTIME_NO_DISPONIBLE`, instalación `dañada` y reinstalación de componentes
+
 - Estado: Hecha
 - Paso del pipeline: 3 (separación; deuda detectada en desarrollo el 2026-11-06, se salda en la Fase 6)
 - Depende de: — (empieza ya). Si 0112 está en curso, coordinad `shared/config.ts` (bloques distintos: `instalacion` aquí, `reproductor` allí).
@@ -11,15 +12,18 @@
 - Paralelizable con: toda la fase. Antes de 0125.
 
 ## Contexto para quien implementa
+
 - Síntoma: si al venv le falta un paquete (visto: `No module named 'audio_separator'`), `crear_separador` (`separacion.py`) convierte el `ImportError` en `ERROR_INTERNO` y la interfaz dice "Algo salió mal al separar". La comprobación barata de cada arranque (`comprobarAlArrancar` en `runtime/gestor.ts`: venv, marcador `runtime/instalado.json`, modelo) no lo detecta.
 - B5 "Reparar" (estado `dañada`) reinstala la fase `componentes` solo si el marcador no es válido. Además `uv pip install` da por instalado un paquete cuya metadata sigue en el venv: hace falta `--reinstall` para repararlo de verdad.
 - La gestión de un fallo de `separar` está en `ServicioSeparacion` (suscripción a `gestor.suscribir` en el constructor; `politicaReintento` y `traducirError` en la petición).
 - `RUNTIME_NO_DISPONIBLE` ya está en el catálogo (`shared/errores.ts` y `worker/shinobi_worker/errores.py`).
 
 ## Objetivo
+
 Que un motor incompleto se diagnostique como tal, que la instalación quede marcada para reparar y que "Reparar" lo arregle de verdad.
 
 ## Criterios de aceptación
+
 - [ ] **Worker**:
   - `crear_separador`: `except ImportError as e` → `ErrorWorker("RUNTIME_NO_DISPONIBLE", f"Falta un componente del motor de audio: {e.name or e}")`, no reintentable;
   - test: con `monkeypatch.setitem(sys.modules, "audio_separator", None)` y quitando `shinobi_worker.separacion_real` de `sys.modules`, `separar` emite `error` con ese código;
@@ -40,6 +44,7 @@ Que un motor incompleto se diagnostique como tal, que la instalación quede marc
 - [ ] La puerta que ya existe en `separar()` (estado distinto de `completa` → `RUNTIME_NO_DISPONIBLE` sin encolar) no llama a `alMotorIncompleto`.
 
 ## Verificación
+
 ```bash
 cd worker && uv run ruff check . && uv run pytest
 cd ../app && npm run lint && npm run typecheck && npm run format:check && npm test

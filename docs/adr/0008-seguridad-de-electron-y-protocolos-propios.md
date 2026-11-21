@@ -63,3 +63,58 @@ Se mantienen como están: `SHINOBI_DATOS` también en builds empaquetados (útil
 - Electron — Fuses: https://www.electronjs.org/docs/latest/tutorial/fuses
 - Electron — `app.requestSingleInstanceLock`: https://www.electronjs.org/docs/latest/api/app#apprequestsingleinstancelockadditionaldata
 - MDN — CORS y `Vary: Origin`: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+
+## Revisión para 0.2.0 · Lectura de picos
+
+El IPC de picos valida canción y ventana de lectura en main. El renderer recibe estado y porciones binarias acotadas. Se mantiene confinamiento de archivos y validación de remitente, sin exponer rutas ni ampliar el protocolo de medios. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
+
+## Revisión para 0.2.0 · fase 3
+
+Canales de temas y apariencia ([ADR 0016](0016-catalogo-de-temas-e-identidad-de-artista-y-album.md) §11). Fecha: 2026-11-09.
+
+- **Canales nuevos**: `temas.catalogo`, `temas.previsualizar`, `temas.ejecutar`, `temas.crear`, `temas.renombrar`, `temas.duplicar`, `temas.reanudarBorrado`, `temas.cancelarBorrado`, `temas.descartarAvisoApartado` y `biblioteca.guardarApariencia`, que sustituye a `biblioteca.guardarEstilo`. Eventos `temas:cambiado` y `temas:progreso`.
+- **Mismas reglas del punto 4**: argumentos en tupla validados con Zod en main, remitente comprobado (ventana, *frame* principal y origen del renderer) y respuestas `{ ok, valor | error }` sin rutas ni detalles internos.
+- **Límites**:
+  - UUID para temas y fichas;
+  - nombres de 1 a 60 caracteres normalizados en main;
+  - de 1 a 2000 ids únicos en lote;
+  - artista y álbum de 1 a 200 caracteres;
+  - `estiloSchema` completo.
+- **Fichas de confirmación**: son opacas, de un solo uso y caducan. Main las guarda en memoria y recalcula el impacto antes de escribir. No autorizan nada por sí solas: main revalida tema, canciones y estado del catálogo.
+- **Fase 4**: con roles de ventana, `temas.*` y `guardarApariencia` solo se aceptan desde la ventana principal.
+
+## Revisión para 0.2.0 — fase 4
+
+Ventana secundaria, sesión en vivo y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md), §1, §2 y §11.
+
+- **Roles de ventana.** Hay dos roles fijos, `principal` y `secundaria`. Main los asigna al crear cada ventana y los guarda por identidad de `webContents` en `RegistroVentanas`. Nunca los toma de la URL ni de un argumento del renderer.
+- **Punto 7 ampliado.** `remitenteIpcValido(evento, canal)` pasa a comprobar:
+  1. que el `webContents` esté registrado;
+  2. que su rol tenga permitido el canal según `ROLES_POR_CANAL`, una tabla en `shared/canales.ts` que cubre **todos** los canales y que un test mantiene completa;
+  3. que el *frame* sea el principal;
+  4. el origen del renderer;
+  5. la ruta del documento del rol: `/index.html` (o `/` en desarrollo) para la principal y `/reproductor.html` para la secundaria.
+
+  Los canales de la secundaria exigen además que el `webContents` sea el de la sesión vigente. El fallo devuelve el mismo error genérico de hoy y no revela el motivo.
+- **Superficie mínima de la secundaria.** Usa una entrada HTML propia (`reproductor.html`, misma CSP) y un preload propio (`preload/secundaria.ts`). Ese preload expone `window.shinobiReproductor` con unos pocos canales (`sesion.inicial`, `sesion.informar`, cierre, preferencias de `reproductor` y pantalla completa de su propia ventana), y no expone `window.shinobi`. Las demás medidas:
+  - `will-navigate` se bloquea siempre, además de la política común del punto 4;
+  - `setMenu(null)` en Windows y Linux;
+  - zoom fijo en 1;
+  - `backgroundThrottling: false`;
+  - `autoplayPolicy` explícito (`no-user-gesture-required`, que ya es el valor por defecto).
+- **Eventos dirigidos.** `difundir` pasa a `enviarA(rol, …)`. La secundaria solo recibe sus comandos de sesión, su estado de pantalla completa y sus preferencias de reproducción. No recibe la biblioteca, ni los trabajos, ni el catálogo.
+- **Medios.** No cambia nada. La secundaria comparte el origen `shinobi-app://app`, así que el CORS exacto del punto 2 la cubre. Recibe datos de la canción sin rutas y construye las URL `shinobi-media://` como el reproductor actual. Se mantiene descartado el token por URL del punto 10.
+- **Permisos.** No cambian. La ventana se pone a pantalla completa y se coloca desde main, así que no se concede `window-management` ni `fullscreen`.
+- **Silencio de la principal.** Durante una sesión, main silencia la principal con `webContents.setAudioMuted(true)` como garantía de un único audio.
+- **Dobles de prueba.** `SHINOBI_PANTALLAS_SIMULADAS` y su puerto de pruebas en main solo existen sin empaquetar, como los demás `SHINOBI_*`.
+- **Nota sobre la fase 3.** La restricción «con roles de ventana, `temas.*` y `guardarApariencia` solo desde la principal» queda aplicada por `ROLES_POR_CANAL`.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Tercer rol, `exportacion`**: una ventana offscreen por exportación, creada y destruida por main, con entrada `renderer/exportacion.html` (misma CSP) y preload `preload/exportacion.ts`, que expone solo `window.shinobiExportacion` (`inicial`, `listo` y el evento `exportacion:fotograma`). `sandbox`, `contextIsolation`, sin `nodeIntegration`, silenciada, zoom 1 y toda navegación bloqueada. El remitente se comprueba por rol, *frame*, origen, ruta `/exportacion.html` y `trabajoId` vigente (§10).
+- **Canales de la principal**: `exportacion.perfiles`, `estimar`, `destinoPropuesto`, `elegirDestino`, `iniciar`, `cancelar`, `estado` y `mostrarEnCarpeta`, con Zod y catálogos cerrados (no se aceptan dimensiones libres).
+- **Rutas**: el renderer nunca envía una ruta. El destino se elige con `dialog.showSaveDialog` en main y se referencia con un `destinoId` de un solo uso. Main rechaza destinos dentro del directorio de datos. «Mostrar en la carpeta» usa `shell.showItemInFolder` con la ruta que guarda main.
+- **Permisos**: no cambian. **Medios**: la ventana de exportación comparte origen pero no pide `shinobi-media://` (el audio lo lee el worker).
+- **Dobles**: `SHINOBI_EXPORTACION_PERFIL_PRUEBA` solo sin empaquetar.

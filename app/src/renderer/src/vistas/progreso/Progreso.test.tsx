@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Cancion } from '@shared/cancion'
 import type { EventoProgresoIpc, TrabajoIpc } from '@shared/ipc'
+import { estadoP1, estadoP5 } from '@shared/__fixtures__/sesion'
+import type { EstadoSesionIpc } from '@shared/sesion'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
+import { instalarApiSesion, type ApiSesionFalsa } from '../../sesion/pruebas'
+import { ProveedorSesion } from '../../sesion/ProveedorSesion'
+import { EDI_BLOQUEO } from '../../sesion/textos'
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
 import { paso, resumenPrueba } from '../biblioteca/resumenPrueba'
 import { olvidarProgresosVistos, progresoVisto } from '../../navegacion/progresoVisto'
@@ -46,6 +51,8 @@ interface Opciones {
   letra?: boolean | 'vacia'
   pistasPerfil?: string
   estimacion?: { min: number; max: number; origen: string } | null
+  /** Estado de la sesión (fase 4); sin él, no hay API de sesión. */
+  sesion?: EstadoSesionIpc
 }
 
 const terminada = (segundos?: number) =>
@@ -96,6 +103,7 @@ function montar(o: Opciones = {}) {
       ...o.runtimeApi
     }
   } as never
+  const sesionApi: ApiSesionFalsa | null = o.sesion ? instalarApiSesion(o.sesion) : null
   const ir = vi.fn<(v: Vista) => void>()
   const { unmount, container } = render(
     <NavegacionContexto.Provider
@@ -108,11 +116,17 @@ function montar(o: Opciones = {}) {
           terminado: false
         }}
       >
-        <Progreso id="c1" />
+        {o.sesion ? (
+          <ProveedorSesion>
+            <Progreso id="c1" />
+          </ProveedorSesion>
+        ) : (
+          <Progreso id="c1" />
+        )}
       </TrabajosContexto.Provider>
     </NavegacionContexto.Provider>
   )
-  return { ir, cancelar, separar, container, desmontar: () => unmount() }
+  return { ir, cancelar, separar, container, sesionApi, desmontar: () => unmount() }
 }
 
 describe('Progreso', () => {
@@ -215,7 +229,9 @@ describe('Progreso', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar descarga' }))
     const dialogo = screen.getByRole('dialog', { name: '¿Cancelar la descarga?' })
-    expect(within(dialogo).getByRole('button', { name: 'Seguir descargando' })).toHaveFocus()
+    await waitFor(() =>
+      expect(within(dialogo).getByRole('button', { name: 'Seguir descargando' })).toHaveFocus()
+    )
     expect(dialogo).toHaveTextContent('«Canción de prueba» se quedará en tu biblioteca')
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Cancelar descarga' }))
     expect(cancelar).toHaveBeenCalledWith('t1')
@@ -302,7 +318,7 @@ describe('Progreso: reparar el motor de audio', () => {
       runtime: { estado: 'dañada', ofrecerRapido: true, rapidoPendiente: true }
     })
     const boton = await reparar()
-    expect(boton).toHaveFocus()
+    await waitFor(() => expect(boton).toHaveFocus())
     const aviso = screen.getByRole('alert')
     expect(aviso).toHaveTextContent(
       'Hay que reparar el motor de audio. Falta una parte del motor que separa la voz de la música. Al repararlo se descarga de nuevo lo que falta; después, vuelve a separar esta canción.'
@@ -319,7 +335,8 @@ describe('Progreso: reparar el motor de audio', () => {
     })
     expect(await screen.findByText('El motor de audio ya está reparado.')).toBeInTheDocument()
     const boton = screen.getByRole('button', { name: 'Reintentar' })
-    expect(boton).toHaveFocus()
+    // El foco lo mueve un efecto pasivo: puede caer después de que aparezca el texto.
+    await waitFor(() => expect(boton).toHaveFocus())
     fireEvent.click(boton)
     expect(separar).toHaveBeenCalledWith('c1')
   })
@@ -339,7 +356,7 @@ describe('Progreso: reparar el motor de audio', () => {
     await reparar()
     act(() => emitir?.({ estado: 'completa' }))
     expect(await screen.findByText('El motor de audio ya está reparado.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reintentar' })).toHaveFocus())
     expect(screen.queryByRole('button', { name: 'Reparar el motor de audio' })).toBeNull()
   })
 
@@ -734,6 +751,9 @@ describe('Progreso: separación', () => {
     it('las pistas apuntan a shinobi-media y solo suena una a la vez', async () => {
       const { container } = montar({ tipo: 'archivo', separacion: terminada(30) })
       const voz = await screen.findByRole('button', { name: 'Reproducir Voz' })
+      // Los efectos de montaje de Escucha (pausan lo que no es la pista activa) se vuelcan en
+      // diferido: sin vaciarlos, bajo carga caen después del clic y pausan la pista recién pulsada.
+      await act(async () => {})
       const audios = container.querySelectorAll('audio')
       expect(audios[0]).toHaveAttribute('src', 'shinobi-media://c1/pistas/voz.flac')
       expect(audios[1]).toHaveAttribute('src', 'shinobi-media://c1/pistas/instrumental.flac')
@@ -761,6 +781,99 @@ describe('Progreso: separación', () => {
       fireEvent.error(container.querySelectorAll('audio')[0]!)
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'No se pudo cargar la pista de voz.'
+      )
+    })
+  })
+
+  describe('con sesión en otra ventana (fase 4)', () => {
+    const TITULO = EDI_BLOQUEO.titulo
+
+    it('E1: «Buscar la letra mientras tanto» muestra el bloqueo y no navega; Entendido devuelve el foco', async () => {
+      const { ir } = montar({
+        trabajos: [trabajoSep()],
+        progreso: [progSep()],
+        sesion: estadoP1()
+      })
+      const boton = await screen.findByRole('button', {
+        name: `Buscar la letra mientras tanto${EDI_BLOQUEO.aria}`
+      })
+      expect(boton).toHaveAttribute('aria-disabled', 'true')
+      boton.focus()
+      fireEvent.click(boton)
+      expect(await screen.findByRole('dialog', { name: TITULO })).toBeInTheDocument()
+      expect(ir).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Entendido' }))
+      expect(boton).toHaveFocus()
+    })
+
+    it('E1: «Ir al editor» también queda bloqueado', async () => {
+      const { ir } = montar({
+        trabajos: [trabajoSep()],
+        progreso: [progSep()],
+        letra: true,
+        sesion: estadoP1()
+      })
+      fireEvent.click(await screen.findByRole('button', { name: /^Ir al editor/ }))
+      expect(await screen.findByRole('dialog', { name: TITULO })).toBeInTheDocument()
+      expect(ir).not.toHaveBeenCalled()
+    })
+
+    it('E3: al terminar la sesión el mismo botón navega a Letra sin recargar', async () => {
+      const { ir, sesionApi } = montar({
+        trabajos: [trabajoSep()],
+        progreso: [progSep()],
+        sesion: estadoP1({ revision: 5 })
+      })
+      await screen.findByRole('button', { name: /^Buscar la letra mientras tanto/ })
+      act(() => sesionApi!.emitirEstado(estadoP5({ revision: 6 })))
+      fireEvent.click(screen.getByRole('button', { name: 'Buscar la letra mientras tanto' }))
+      expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'letra' })
+    })
+
+    it('E7: el paso 3 del stepper lleva candado, nombre ampliado y abre el bloqueo', async () => {
+      const { ir } = montar({
+        tipo: 'archivo',
+        separacion: terminada(30),
+        letra: true,
+        sesion: estadoP1()
+      })
+      const paso3 = await screen.findByRole('button', {
+        name: new RegExp(`^Paso 3, Letra.*${EDI_BLOQUEO.aria}$`)
+      })
+      expect(paso3).toHaveAttribute('aria-disabled', 'true')
+      expect(paso3.querySelector('svg.lucide-lock')).not.toBeNull()
+      // El paso 2 (Separación) no se toca.
+      expect(screen.getByRole('button', { name: /^Paso 2, Separación/ })).not.toHaveAttribute(
+        'aria-disabled'
+      )
+      paso3.focus()
+      fireEvent.click(paso3)
+      expect(await screen.findByRole('dialog', { name: TITULO })).toBeInTheDocument()
+      expect(ir).not.toHaveBeenCalled()
+    })
+
+    it('E6: la escucha de Voz e Instrumental está aria-disabled, sin sonido y con el motivo', async () => {
+      const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
+      montar({ tipo: 'archivo', separacion: terminada(30), sesion: estadoP1() })
+      for (const pista of ['Voz', 'Instrumental']) {
+        const boton = await screen.findByRole('button', {
+          name: `Reproducir ${pista}${EDI_BLOQUEO.aria}`
+        })
+        expect(boton).toHaveAttribute('aria-disabled', 'true')
+        fireEvent.click(boton)
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(EDI_BLOQUEO.escucha)
+        fireEvent.blur(boton)
+      }
+      expect(play).not.toHaveBeenCalled()
+      play.mockRestore()
+    })
+
+    it('sin sesión nada de esto se aplica', async () => {
+      montar({ tipo: 'archivo', separacion: terminada(30), sesion: estadoP5() })
+      const paso3 = await screen.findByRole('button', { name: /^Paso 3, Letra/ })
+      expect(paso3.getAttribute('aria-label')).not.toContain(EDI_BLOQUEO.aria)
+      expect(screen.getByRole('button', { name: 'Reproducir Voz' })).not.toHaveAttribute(
+        'aria-disabled'
       )
     })
   })

@@ -7,13 +7,73 @@ export const CANALES = {
     listar: 'biblioteca:listar',
     obtener: 'biblioteca:obtener',
     actualizarMetadatos: 'biblioteca:actualizarMetadatos',
-    // Guardado y estado de la canción desde el editor (0090).
-    guardarEstilo: 'biblioteca:guardarEstilo',
+    // Guardado y estado de la canción desde el editor (0090). Sustituye a `guardarEstilo` (0164).
+    guardarApariencia: 'biblioteca:guardarApariencia',
     marcarLista: 'biblioteca:marcarLista',
     comprobarPistas: 'biblioteca:comprobarPistas',
     volverABorrador: 'biblioteca:volverABorrador',
     eliminar: 'biblioteca:eliminar',
     mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta'
+  },
+  /** Catálogo de temas y operaciones sobre la apariencia (ADR 0016, 0164). */
+  temas: {
+    catalogo: 'temas:catalogo',
+    previsualizar: 'temas:previsualizar',
+    ejecutar: 'temas:ejecutar',
+    crear: 'temas:crear',
+    renombrar: 'temas:renombrar',
+    duplicar: 'temas:duplicar',
+    reanudarBorrado: 'temas:reanudarBorrado',
+    cancelarBorrado: 'temas:cancelarBorrado',
+    descartarAvisoApartado: 'temas:descartarAvisoApartado'
+  },
+  /** Pantallas del sistema para la ventana secundaria (ADR 0017 §2). */
+  pantallas: {
+    listar: 'pantallas:listar'
+  },
+  /** Sesión en vivo en la ventana secundaria (ADR 0017 §7, §8 y §11). */
+  sesion: {
+    estado: 'sesion:estado',
+    abrir: 'sesion:abrir',
+    mostrar: 'sesion:mostrar',
+    moverAPantalla: 'sesion:moverAPantalla',
+    fijarPantallaCompleta: 'sesion:fijarPantallaCompleta',
+    transporte: 'sesion:transporte',
+    siguiente: 'sesion:siguiente',
+    empezar: 'sesion:empezar',
+    detenerTransicion: 'sesion:detenerTransicion',
+    repetir: 'sesion:repetir',
+    forzarCierre: 'sesion:forzarCierre',
+    solicitarCierre: 'sesion:solicitarCierre',
+    confirmarCierre: 'sesion:confirmarCierre',
+    cancelarCierre: 'sesion:cancelarCierre',
+    /** Solo secundaria. */
+    inicial: 'sesion:inicial',
+    informar: 'sesion:informar',
+    preferencias: 'sesion:preferencias',
+    guardarPreferencias: 'sesion:guardarPreferencias'
+  },
+  /** Cola de reproducción (ADR 0017 §6). */
+  cola: {
+    agregar: 'cola:agregar',
+    mover: 'cola:mover',
+    quitar: 'cola:quitar',
+    vaciar: 'cola:vaciar'
+  },
+  /** Exportación de video (ADR 0019 §10). `inicial` y `listo` son solo de la ventana de exportación. */
+  exportacion: {
+    perfiles: 'exportacion:perfiles',
+    estimar: 'exportacion:estimar',
+    destinoPropuesto: 'exportacion:destinoPropuesto',
+    elegirDestino: 'exportacion:elegirDestino',
+    iniciar: 'exportacion:iniciar',
+    cancelar: 'exportacion:cancelar',
+    estado: 'exportacion:estado',
+    mostrarEnCarpeta: 'exportacion:mostrarEnCarpeta',
+    avisosPendientes: 'exportacion:avisosPendientes',
+    /** Solo ventana de exportación. */
+    inicial: 'exportacion:inicial',
+    listo: 'exportacion:listo'
   },
   ventana: {
     modoReproductor: 'ventana:modoReproductor',
@@ -73,6 +133,10 @@ export const CANALES = {
     /** Estimación previa en minutos de una canción (0067). */
     estimar: 'separacion:estimar'
   },
+  picos: {
+    solicitar: 'picos:solicitar',
+    leer: 'picos:leer'
+  },
   letras: {
     // Cambia los tiempos y el desplazamiento sin cambiar el texto (0090).
     guardarTiempos: 'letras:guardarTiempos',
@@ -90,6 +154,10 @@ export const CANALES = {
   },
   eventos: {
     cancion: 'evento:cancion',
+    /** El catálogo de temas cambió; lleva el catálogo completo (0164). */
+    temasCambiado: 'temas:cambiado',
+    /** Progreso de una operación de varias canciones, ≤ 10 por segundo (0164). */
+    temasProgreso: 'temas:progreso',
     config: 'evento:config',
     pantallaCompleta: 'ventana:pantallaCompleta',
     /** Cambio de estado o de posición en la cola de un trabajo (0014). */
@@ -108,6 +176,144 @@ export const CANALES = {
     /** Un trabajo terminó o falló: el renderer decide si muestra el toast (0072). */
     avisoTrabajo: 'trabajo:aviso',
     /** Clic en la notificación del sistema: abrir la canción (0072). */
-    abrirCancion: 'app:abrirCancion'
+    abrirCancion: 'app:abrirCancion',
+    /** Estado de la sesión y la cola, solo a la principal (ADR 0017 §11). */
+    sesionEstado: 'sesion:estado',
+    /** Posición de la canción activa, ≤ 1 por segundo, solo a la principal. */
+    sesionPosicion: 'sesion:posicion',
+    /** Cambió la lista de pantallas, solo a la principal. */
+    pantallasCambiadas: 'pantallas:cambiadas',
+    /** Comando dirigido a la secundaria. */
+    sesionComando: 'sesion:comando',
+    /** Estado reducido, solo a la secundaria. */
+    sesionEstadoSecundaria: 'sesion:estadoSecundaria',
+    /** Cambió `config.reproductor`, solo a la secundaria. */
+    sesionPreferencias: 'sesion:preferencias',
+    /** Alta, posición, estado y resultado de una exportación, solo a la principal (ADR 0019 §10). */
+    exportacionCambio: 'exportacion:cambio',
+    /** Progreso de la exportación, ≤ 4 por segundo, solo a la principal. */
+    exportacionProgreso: 'exportacion:progreso',
+    /** Aviso de arranque (interrumpida, limpieza fallida), solo a la principal (0132). */
+    exportacionAviso: 'exportacion:aviso',
+    /** Pide pintar el fotograma `n`, solo a la ventana de exportación. */
+    exportacionFotograma: 'exportacion:fotograma'
   }
 } as const
+
+/** Rol de una ventana de la app (ADR 0017 §1); lo asigna main, nunca el renderer. */
+export type RolVentana = 'principal' | 'secundaria' | 'exportacion'
+
+type Valores<T> = T[keyof T]
+/** Nombres de todos los canales invocables (todos los grupos de `CANALES` salvo `eventos`). */
+export type NombreCanalInvocable = Valores<{
+  [K in Exclude<keyof typeof CANALES, 'eventos'>]: Valores<(typeof CANALES)[K]>
+}>
+
+const PRINCIPAL: readonly RolVentana[] = ['principal']
+const SECUNDARIA: readonly RolVentana[] = ['secundaria']
+const EXPORTACION: readonly RolVentana[] = ['exportacion']
+const AMBAS: readonly RolVentana[] = ['principal', 'secundaria']
+
+/**
+ * Roles permitidos en cada canal invocable (ADR 0017 §11). El tipo obliga a declarar todos; una prueba
+ * comprueba además que coincide con `CONTRATO`.
+ */
+export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]> = {
+  [CANALES.biblioteca.listar]: PRINCIPAL,
+  [CANALES.biblioteca.obtener]: PRINCIPAL,
+  [CANALES.biblioteca.actualizarMetadatos]: PRINCIPAL,
+  [CANALES.biblioteca.guardarApariencia]: PRINCIPAL,
+  [CANALES.biblioteca.marcarLista]: PRINCIPAL,
+  [CANALES.biblioteca.comprobarPistas]: PRINCIPAL,
+  [CANALES.biblioteca.volverABorrador]: PRINCIPAL,
+  [CANALES.biblioteca.eliminar]: PRINCIPAL,
+  [CANALES.biblioteca.mostrarEnCarpeta]: PRINCIPAL,
+  [CANALES.temas.catalogo]: PRINCIPAL,
+  [CANALES.temas.previsualizar]: PRINCIPAL,
+  [CANALES.temas.ejecutar]: PRINCIPAL,
+  [CANALES.temas.crear]: PRINCIPAL,
+  [CANALES.temas.renombrar]: PRINCIPAL,
+  [CANALES.temas.duplicar]: PRINCIPAL,
+  [CANALES.temas.reanudarBorrado]: PRINCIPAL,
+  [CANALES.temas.cancelarBorrado]: PRINCIPAL,
+  [CANALES.temas.descartarAvisoApartado]: PRINCIPAL,
+  [CANALES.exportacion.perfiles]: PRINCIPAL,
+  [CANALES.exportacion.estimar]: PRINCIPAL,
+  [CANALES.exportacion.destinoPropuesto]: PRINCIPAL,
+  [CANALES.exportacion.elegirDestino]: PRINCIPAL,
+  [CANALES.exportacion.iniciar]: PRINCIPAL,
+  [CANALES.exportacion.cancelar]: PRINCIPAL,
+  [CANALES.exportacion.estado]: PRINCIPAL,
+  [CANALES.exportacion.mostrarEnCarpeta]: PRINCIPAL,
+  [CANALES.exportacion.avisosPendientes]: PRINCIPAL,
+  [CANALES.exportacion.inicial]: EXPORTACION,
+  [CANALES.exportacion.listo]: EXPORTACION,
+  [CANALES.ventana.modoReproductor]: PRINCIPAL,
+  [CANALES.ventana.fijarPantallaCompleta]: AMBAS,
+  [CANALES.ventana.estaEnPantallaCompleta]: AMBAS,
+  [CANALES.ventana.evitarReposo]: PRINCIPAL,
+  [CANALES.config.obtener]: PRINCIPAL,
+  [CANALES.config.actualizar]: PRINCIPAL,
+  [CANALES.sistema.info]: PRINCIPAL,
+  [CANALES.sistema.abrirEnlace]: PRINCIPAL,
+  [CANALES.sistema.textoLegal]: PRINCIPAL,
+  [CANALES.sistema.abrirCarpetaDatos]: PRINCIPAL,
+  [CANALES.sistema.elegirArchivoAudio]: PRINCIPAL,
+  [CANALES.fuente.importarArchivo]: PRINCIPAL,
+  [CANALES.fuente.cancelarImportacion]: PRINCIPAL,
+  [CANALES.fuente.confirmarArchivo]: PRINCIPAL,
+  [CANALES.fuente.descartarImportacion]: PRINCIPAL,
+  [CANALES.fuente.infoYoutube]: PRINCIPAL,
+  [CANALES.fuente.cancelarInfo]: PRINCIPAL,
+  [CANALES.fuente.confirmarYoutube]: PRINCIPAL,
+  [CANALES.fuente.reintentar]: PRINCIPAL,
+  [CANALES.runtime.estado]: PRINCIPAL,
+  [CANALES.runtime.requisitos]: PRINCIPAL,
+  [CANALES.runtime.instalar]: PRINCIPAL,
+  [CANALES.runtime.pausar]: PRINCIPAL,
+  [CANALES.runtime.detalles]: PRINCIPAL,
+  [CANALES.runtime.estimarSeparacion]: PRINCIPAL,
+  [CANALES.runtime.aceptarYUsarRapido]: PRINCIPAL,
+  [CANALES.runtime.volverACalidad]: PRINCIPAL,
+  [CANALES.runtime.cancelarVolverACalidad]: PRINCIPAL,
+  [CANALES.app.guardadoPendiente]: PRINCIPAL,
+  [CANALES.app.confirmarCierre]: PRINCIPAL,
+  [CANALES.app.salir]: PRINCIPAL,
+  [CANALES.trabajos.listar]: PRINCIPAL,
+  [CANALES.trabajos.cancelar]: PRINCIPAL,
+  [CANALES.trabajos.hayPendientes]: PRINCIPAL,
+  [CANALES.separacion.separar]: PRINCIPAL,
+  [CANALES.separacion.estimar]: PRINCIPAL,
+  [CANALES.picos.solicitar]: PRINCIPAL,
+  [CANALES.picos.leer]: PRINCIPAL,
+  [CANALES.letras.guardarTiempos]: PRINCIPAL,
+  [CANALES.letras.abrirEdicion]: PRINCIPAL,
+  [CANALES.letras.cerrarEdicion]: PRINCIPAL,
+  [CANALES.letras.buscar]: PRINCIPAL,
+  [CANALES.letras.guardar]: PRINCIPAL,
+  [CANALES.letras.editarTexto]: PRINCIPAL,
+  [CANALES.letras.leerArchivo]: PRINCIPAL,
+  [CANALES.pantallas.listar]: PRINCIPAL,
+  [CANALES.sesion.estado]: PRINCIPAL,
+  [CANALES.sesion.abrir]: PRINCIPAL,
+  [CANALES.sesion.mostrar]: PRINCIPAL,
+  [CANALES.sesion.moverAPantalla]: PRINCIPAL,
+  [CANALES.sesion.fijarPantallaCompleta]: PRINCIPAL,
+  [CANALES.sesion.transporte]: PRINCIPAL,
+  [CANALES.sesion.siguiente]: AMBAS,
+  [CANALES.sesion.empezar]: AMBAS,
+  [CANALES.sesion.detenerTransicion]: AMBAS,
+  [CANALES.sesion.repetir]: AMBAS,
+  [CANALES.sesion.forzarCierre]: PRINCIPAL,
+  [CANALES.sesion.solicitarCierre]: AMBAS,
+  [CANALES.sesion.confirmarCierre]: AMBAS,
+  [CANALES.sesion.cancelarCierre]: AMBAS,
+  [CANALES.sesion.inicial]: SECUNDARIA,
+  [CANALES.sesion.informar]: SECUNDARIA,
+  [CANALES.sesion.preferencias]: SECUNDARIA,
+  [CANALES.sesion.guardarPreferencias]: SECUNDARIA,
+  [CANALES.cola.agregar]: PRINCIPAL,
+  [CANALES.cola.mover]: PRINCIPAL,
+  [CANALES.cola.quitar]: PRINCIPAL,
+  [CANALES.cola.vaciar]: PRINCIPAL
+}

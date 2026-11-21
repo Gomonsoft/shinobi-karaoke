@@ -1,23 +1,33 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { configPredeterminada } from '@shared/config'
-import type { ApiShinobi } from '@shared/ipc'
+import type { ApiShinobi, InfoSistema } from '@shared/ipc'
 import { ContenedorToasts } from '../../componentes/Toasts'
 import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
 import { AcercaDe, infoSoporte } from './AcercaDe'
 import { DialogoAcercaDe } from './DialogoAcercaDe'
 
-const info = { version: '0.1.0', so: 'Darwin 25', plataforma: 'darwin', youtube: true }
+const info: InfoSistema = {
+  version: '0.1.0',
+  compilacion: { canal: 'local', numero: null, commit: null },
+  so: 'Darwin 25',
+  plataforma: 'darwin',
+  youtube: true
+}
 
 function instalar(
-  extra: { aviso?: string | null; textoLegal?: ApiShinobi['sistema']['textoLegal'] } = {}
+  extra: {
+    aviso?: string | null
+    textoLegal?: ApiShinobi['sistema']['textoLegal']
+    info?: InfoSistema
+  } = {}
 ) {
   const config = configPredeterminada()
   config.aviso_youtube_aceptado = extra.aviso ?? null
   config.instalacion.perfil_hardware = 'cuda'
   config.separacion.modo = 'calidad'
   const sistema = {
-    info: vi.fn().mockResolvedValue(info),
+    info: vi.fn().mockResolvedValue(extra.info ?? info),
     abrirEnlace: vi.fn().mockResolvedValue(undefined),
     abrirCarpetaDatos: vi.fn().mockResolvedValue(undefined),
     textoLegal: vi.fn(
@@ -108,6 +118,98 @@ describe('AcercaDe', () => {
     expect(await screen.findByText(/Aceptado el 5 de marzo de 2026/)).toBeTruthy()
   })
 
+  const SHA = '3f9c2a1' + 'b'.repeat(33)
+  const casos = [
+    {
+      nombre: 'preliminar publicada',
+      info: {
+        ...info,
+        version: '0.2.0-alpha.2',
+        compilacion: { canal: 'publicada', numero: 1234, commit: SHA }
+      },
+      version: /Versión 0\.2\.0-alpha\.2-1234 · Software libre/,
+      canal: 'Versión preliminar publicada · commit 3f9c2a1',
+      copia: 'Shinobi Karaoke 0.2.0-alpha.2-1234 (publicada, commit 3f9c2a1)'
+    },
+    {
+      nombre: 'estable publicada',
+      info: {
+        ...info,
+        version: '0.3.0',
+        compilacion: { canal: 'publicada', numero: 1302, commit: SHA }
+      },
+      version: /Versión 0\.3\.0-1302 · Software libre/,
+      canal: 'Versión publicada · commit 3f9c2a1',
+      copia: 'Shinobi Karaoke 0.3.0-1302 (publicada, commit 3f9c2a1)'
+    },
+    {
+      nombre: 'desarrollo',
+      info: {
+        ...info,
+        version: '0.2.0-alpha.3',
+        compilacion: { canal: 'desarrollo', numero: 1260, commit: SHA }
+      },
+      version: /Versión 0\.2\.0-alpha\.3-1260 · Software libre/,
+      canal:
+        'Compilación de desarrollo: no es una versión publicada y puede fallar. · commit 3f9c2a1',
+      copia: 'Shinobi Karaoke 0.2.0-alpha.3-1260 (desarrollo, commit 3f9c2a1)'
+    },
+    {
+      nombre: 'local con commit',
+      info: { ...info, compilacion: { canal: 'local', numero: null, commit: SHA } },
+      version: /Versión 0\.1\.0 · Software libre/,
+      canal: 'Compilación local, sin número de compilación · commit 3f9c2a1',
+      copia: 'Shinobi Karaoke 0.1.0 (local, sin número, commit 3f9c2a1)'
+    },
+    {
+      nombre: 'local sin commit',
+      info,
+      version: /Versión 0\.1\.0 · Software libre/,
+      canal: 'Compilación local, sin número de compilación',
+      copia: 'Shinobi Karaoke 0.1.0 (local, sin número, sin commit)'
+    }
+  ] satisfies {
+    nombre: string
+    info: InfoSistema
+    version: RegExp
+    canal: string
+    copia: string
+  }[]
+
+  it.each(casos)('muestra la línea de canal y copia la versión: $nombre', async (caso) => {
+    instalar({ info: caso.info })
+    render(
+      <>
+        <AcercaDe />
+        <ContenedorToasts />
+      </>
+    )
+    const linea = await screen.findByText(caso.version)
+    expect(linea.textContent).not.toMatch(/undefined|null|NaN|-\s/)
+    expect(
+      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === caso.canal)
+    ).toBeTruthy()
+    const boton = screen.getByRole('button', { name: /^Copiar versión / })
+    fireEvent.click(boton)
+    await waitFor(() => expect(screen.getByText('Versión copiada.')).toBeTruthy())
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(caso.copia)
+  })
+
+  it('si el portapapeles falla, [Copiar versión] avisa', async () => {
+    instalar()
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error('no')) }
+    })
+    render(
+      <>
+        <AcercaDe />
+        <ContenedorToasts />
+      </>
+    )
+    fireEvent.click(await screen.findByRole('button', { name: /^Copiar versión / }))
+    expect(await screen.findByText('No se pudo copiar la versión.')).toBeTruthy()
+  })
+
   it('copiar información escribe versión, SO, perfil y modo y muestra el toast', async () => {
     instalar()
     render(
@@ -119,7 +221,7 @@ describe('AcercaDe', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copiar información para soporte' }))
     await waitFor(() => expect(screen.getByText('Información copiada')).toBeTruthy())
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      'Shinobi Karaoke 0.1.0\nSistema: Darwin 25\nPerfil de hardware: GPU NVIDIA (CUDA)\nModelo de separación: calidad\nDispositivo: cuda\nyt-dlp: sin instalar\nÚltima comprobación de yt-dlp: sin instalar'
+      'Shinobi Karaoke 0.1.0 (local, sin número, sin commit)\nSistema: Darwin 25\nPerfil de hardware: GPU NVIDIA (CUDA)\nModelo de separación: calidad\nDispositivo: cuda\nyt-dlp: sin instalar\nÚltima comprobación de yt-dlp: sin instalar'
     )
   })
 
@@ -137,7 +239,7 @@ describe('AcercaDe', () => {
       c
     )
     expect(t.split('\n')).toEqual([
-      'Shinobi Karaoke 0.1.0',
+      'Shinobi Karaoke 0.1.0 (local, sin número, sin commit)',
       'Sistema: macOS 14.5 · arm64',
       'Perfil de hardware: GPU Apple (MPS)',
       'Modelo de separación: calidad',

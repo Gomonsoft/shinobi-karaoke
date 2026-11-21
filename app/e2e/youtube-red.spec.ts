@@ -44,7 +44,9 @@ test('aviso, vista previa y descarga real de un vídeo CC BY', async () => {
     await v.getByRole('button', { name: 'Descargar y continuar' }).click()
     const filas = v.getByRole('list', { name: 'Subpasos' }).getByRole('listitem')
     await expect(filas.nth(1)).toContainText('completado', { timeout: 240_000 })
-    const [id] = readdirSync(join(datos, 'biblioteca')).filter((x) => x !== '.importando')
+    const [id] = readdirSync(join(datos, 'biblioteca')).filter(
+      (x) => x !== '.importando' && !x.startsWith('temas.json')
+    )
     const mezcla = join(datos, 'biblioteca', id!, 'fuente', 'mezcla.flac')
     expect(existsSync(mezcla)).toBe(true)
     expect(readFileSync(mezcla).subarray(0, 4).toString()).toBe('fLaC')

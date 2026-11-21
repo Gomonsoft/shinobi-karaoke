@@ -54,6 +54,50 @@ export const R = {
     ventana: 'Ver en una ventana (F)'
   },
   atajos: { titulo: 'Atajos de teclado' },
+  /** Fase 5 (spec 07): `rep.espera.aria`. */
+  espera: {
+    aria: (n: number): string =>
+      n === 1 ? 'La letra sigue en 1 segundo.' : `La letra sigue en ${n} segundos.`
+  },
+  /** Fase 4 (spec 07): ventana secundaria y cola. */
+  cola: {
+    ventana: 'Shinobi Karaoke · Reproductor',
+    cerrar: 'Cerrar reproductor',
+    tooltipCerrar: 'Cerrar reproductor (Ctrl/Cmd + W)',
+    siguiente: 'Siguiente',
+    tooltipSiguiente: 'Siguiente canción (Mayús + N)',
+    siguienteNo: 'No hay canciones a continuación.',
+    reiniciar: 'Reiniciar canción',
+    tooltipReiniciar: 'Reiniciar canción (Inicio)',
+    cuenta: 'Siguiente canción',
+    aContinuacion: 'A continuación',
+    empezarYa: 'Empezar ya',
+    detener: 'Detener cuenta',
+    iniciar: (titulo: string): string => `Iniciar «${titulo}»`,
+    espera: 'Enseguida empieza la siguiente canción',
+    fin: 'Fin de la cola',
+    otraVez: 'Otra vez',
+    fallo: 'Esta canción no se puede reproducir ahora.',
+    falloFin: 'No hay más canciones en la cola.',
+    pasar: 'Pasar a la siguiente canción',
+    reanudada: (mmss: string): string => `Reanudada en ${mmss}`,
+    aria: {
+      cuenta: (titulo: string, artista: string, n: number): string =>
+        `A continuación: «${titulo}», de ${artista}. Empieza en ${n} ${n === 1 ? 'segundo' : 'segundos'}.`,
+      cambio: (titulo: string, artista: string, n: number): string =>
+        `Cambió la siguiente canción: «${titulo}», de ${artista}. Empieza en ${n} ${n === 1 ? 'segundo' : 'segundos'}.`,
+      espera: (titulo?: string): string =>
+        titulo ? `En espera. A continuación: «${titulo}».` : 'En espera.',
+      fin: 'Fin de la cola.',
+      reanudada: (mmss: string): string => `Reproducción reanudada en ${mmss}.`
+    },
+    atajos: {
+      siguiente: 'Siguiente canción (sin canciones a continuación no hace nada)',
+      cerrar: 'Cerrar el reproductor',
+      esc: 'Cerrar el diálogo o pasar de pantalla completa a ventana (nunca cierra)',
+      alternar: 'Reproducir / pausa. En la cuenta: Empezar ya. En espera: Iniciar'
+    }
+  },
   aria: {
     vozguia: 'Volumen de la voz guía',
     volumen: 'Volumen general',

@@ -3,8 +3,9 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { listPackage } from '@electron/asar'
+import { extractFile, listPackage } from '@electron/asar'
 import { getCurrentFuseWire } from '@electron/fuses'
+import * as ResEdit from 'resedit'
 
 const DIRECTORIO = dirname(fileURLToPath(import.meta.url))
 const UV = JSON.parse(readFileSync(join(DIRECTORIO, 'uv-binarios.json'), 'utf8'))
@@ -42,6 +43,40 @@ export const ENTRADAS_PROHIBIDAS = Object.freeze([
   'react',
   'electron-builder'
 ])
+
+const EXE_ELECTRON = join(DIRECTORIO, '..', 'node_modules', 'electron', 'dist', 'electron.exe')
+const RT_ICON = 3
+const RT_GROUP_ICON = 14
+
+/** Grupos de iconos del exe y huella SHA-256 de cada imagen (`RT_ICON`). */
+export function iconosDelExe(contenido) {
+  const exe = ResEdit.NtExecutable.from(contenido, { ignoreCert: true })
+  const recursos = ResEdit.NtExecutableResource.from(exe)
+  return {
+    grupos: recursos.entries.filter((e) => e.type === RT_GROUP_ICON).length,
+    imagenes: recursos.entries
+      .filter((e) => e.type === RT_ICON)
+      .map((e) => createHash('sha256').update(Buffer.from(e.bin)).digest('hex'))
+  }
+}
+
+/** Falla si el exe no tiene icono o si alguna imagen es idéntica a una de Electron. */
+export function comprobarIconoExe(propio, electron) {
+  exigir(propio.grupos > 0 && propio.imagenes.length > 0, 'El .exe no lleva ningún icono')
+  const deElectron = new Set(electron.imagenes)
+  exigir(
+    !propio.imagenes.some((huella) => deElectron.has(huella)),
+    'El .exe lleva el icono de Electron: electron-builder no lo ha sustituido'
+  )
+}
+
+function verificarIconoExe(ruta, leerIconos) {
+  exigir(
+    existsSync(EXE_ELECTRON),
+    `No se encuentra ${EXE_ELECTRON}: hace falta para comparar el icono (node node_modules/electron/install.js)`
+  )
+  comprobarIconoExe(leerIconos(ruta), leerIconos(EXE_ELECTRON))
+}
 
 const NUMEROS_FUSE = Object.freeze({
   RunAsNode: 0,
@@ -196,7 +231,21 @@ function verificarFuses(wire) {
   return encontrados
 }
 
-function verificarAsar(asar, listar) {
+function verificarPreloads(asar, entradas, leer) {
+  const preloads = entradas.filter((ruta) => /^\/out\/preload\/[^/]+\.js$/.test(ruta))
+  for (const ruta of preloads) {
+    // @electron/asar busca con el separador del sistema: en Windows `out/preload/x.js` no existe, `out\\preload\\x.js` sí.
+    const codigo = leer(asar, ruta.slice(1).split('/').join(sep)).toString('utf8')
+    for (const m of codigo.matchAll(/\brequire\(\s*(["'`])([^"'`]+)\1\s*\)/g)) {
+      exigir(
+        m[2] === 'electron',
+        `El preload ${ruta} requiere "${m[2]}": un preload con sandbox solo puede requerir "electron"`
+      )
+    }
+  }
+}
+
+function verificarAsar(asar, listar, leer) {
   exigir(asar, 'Falta resources/app.asar')
   const entradas = listar(asar, { isPack: false }).map((ruta) => ruta.replaceAll('\\', '/'))
   const conjunto = new Set(entradas)
@@ -205,6 +254,10 @@ function verificarAsar(asar, listar) {
       [...conjunto].some((ruta) => ruta === requerido || ruta.startsWith(`${requerido}/`)),
       `Falta ${requerido} en app.asar`
     )
+  }
+  // Ventana offscreen de exportación (ADR 0019 §2): su documento y su preload.
+  for (const requerido of ['/out/renderer/exportacion.html', '/out/preload/exportacion.js']) {
+    exigir(conjunto.has(requerido), `Falta ${requerido} en app.asar`)
   }
   for (const ruta of entradas) {
     const partes = ruta.split('/').filter(Boolean)
@@ -221,6 +274,7 @@ function verificarAsar(asar, listar) {
     const prohibida = coincideProhibida(ruta)
     exigir(!prohibida, `Entrada prohibida en app.asar: ${ruta} (${prohibida})`)
   }
+  verificarPreloads(asar, entradas, leer)
   return entradas
 }
 
@@ -229,7 +283,9 @@ export async function verificarPaquete({
   plataforma = process.platform,
   leerFuses = getCurrentFuseWire,
   listarAsar = listPackage,
+  leerAsar = extractFile,
   comprobarEjecutable = estaEjecutable,
+  leerIconos = (ruta) => iconosDelExe(readFileSync(ruta)),
   ejecutar = (comando, argumentos) => {
     const resultado = spawnSync(comando, argumentos, { encoding: 'utf8' })
     if (resultado.error) throw resultado.error
@@ -320,18 +376,27 @@ export async function verificarPaquete({
   )
 
   const asar = join(raices.recursos, 'app.asar')
-  const entradasAsar = verificarAsar(asar, listarAsar)
+  const entradasAsar = verificarAsar(asar, listarAsar, leerAsar)
   const ejecutableFuses =
     raices.ejecutable ??
     (plataforma === 'win32' ? raices.ejecutable : join(raices.paquete, 'shinobi-karaoke'))
   const fuses = verificarFuses(await leerFuses(ejecutableFuses))
   if (plataforma === 'darwin') verificarFirmaMac(raices, ejecutar)
-  if (plataforma === 'win32') exigir(existsSync(raices.ejecutable), `Falta ${raices.ejecutable}`)
-  if (plataforma === 'linux')
+  if (plataforma === 'win32') {
+    exigir(existsSync(raices.ejecutable), `Falta ${raices.ejecutable}`)
+    verificarIconoExe(raices.ejecutable, leerIconos)
+  }
+  if (plataforma === 'linux') {
     exigir(
       existsSync(join(raices.recursos, 'apparmor-profile')),
       `Falta ${join(raices.recursos, 'apparmor-profile')}`
     )
+    // Icono de las ventanas en Linux (0247): lo lee `rutaIcono`.
+    exigir(
+      existsSync(join(raices.recursos, 'icon.png')),
+      `Falta ${join(raices.recursos, 'icon.png')}`
+    )
+  }
 
   const tamano = caminar(raices.paquete).reduce((total, ruta) => {
     const info = lstatSync(ruta)
@@ -348,6 +413,7 @@ export async function verificarPaquete({
       `uv ${UV.version}`,
       `app.asar (${entradasAsar.length} entradas)`,
       'fuses',
+      ...(plataforma === 'win32' ? ['icono del .exe distinto del de Electron'] : []),
       ...(plataforma === 'darwin' ? ['firma ad hoc, integridad y arm64'] : [])
     ]
   }

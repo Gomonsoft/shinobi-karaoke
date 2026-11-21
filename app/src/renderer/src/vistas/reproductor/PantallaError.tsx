@@ -6,6 +6,7 @@ import type { EstadoMotorReproductor, ModoAudio } from '../../karaoke/motorRepro
 import type { OrigenReproductor } from './atajos'
 import { R } from './textos'
 import estilos from './reproductor.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 export function PantallaError({
   error,
@@ -15,17 +16,17 @@ export function PantallaError({
 }: {
   error: NonNullable<EstadoMotorReproductor['errorPrincipal']>
   modo: ModoAudio
-  origen: OrigenReproductor
+  origen: Exclude<OrigenReproductor, 'sesion'>
   alSalir(): void
 }) {
   const volver = useRef<HTMLButtonElement>(null)
   useEffect(() => volver.current?.focus({ preventScroll: true }), [])
 
   async function copiar(): Promise<void> {
-    const { version, so } = await window.shinobi.sistema.info()
+    const { so } = await window.shinobi.sistema.info()
     const pista = modo === 'karaoke' ? 'instrumental' : 'original'
-    await navigator.clipboard.writeText(
-      `Shinobi Karaoke ${version} · ${so}\nReproductor: ${pista} (${error.ruta}) · ${error.tipo} · ${error.detalle}`
+    await copiarDetalles(
+      `Sistema: ${so}\nReproductor: ${pista} (${error.ruta}) · ${error.tipo} · ${error.detalle}`
     )
   }
 

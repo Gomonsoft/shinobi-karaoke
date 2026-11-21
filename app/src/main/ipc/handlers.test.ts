@@ -5,10 +5,12 @@ import {
   configPredeterminada,
   enlacePermitido,
   estiloPredeterminado,
+  type Cancion,
   type GuardarTiempos,
   ErrorDatosInvalidos
 } from '../../shared'
 import { ErrorBiblioteca, type EventoCancion, type ResumenCancion } from '../biblioteca'
+import { lista } from '../../shared/__fixtures__'
 import { crearManejadores, registrarIpc, type DependenciasIpc, type IpcMainLike } from './handlers'
 
 const resumen = (id: string, miniatura: string | null = null): ResumenCancion => ({
@@ -17,8 +19,20 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
   artista: 'A',
   duracionMs: 1000,
   estado: 'borrador',
+  modalidad: 'karaoke',
   modificada: '2026-01-01T00:00:00.000Z',
   estilo: null,
+  album: null,
+  claves: { artista: 'a', album: null },
+  apariencia: {
+    modo: 'propio',
+    procedencia: 'propio',
+    temaId: null,
+    temaNombre: null,
+    neutra: false,
+    alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
+    procedenciaEspera: 'propio'
+  },
   miniatura,
   pasos: null,
   incompleta: false,
@@ -26,6 +40,25 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
   danada: false,
   motivo: null
 })
+
+const TEMA_ID = '0b9f7a4e-3c1d-4f6a-9d2e-5a8b1c7e4f30'
+
+/** Servicio de temas simulado: cada método devuelve lo mínimo que acepta el contrato. */
+function temasSimulados() {
+  const tema = { id: TEMA_ID, nombre: 'Neón', revision: 1, estilo: estiloPredeterminado() }
+  const resultado = { catalogoEscrito: true, canciones: [] }
+  return {
+    catalogo: vi.fn(() => ({ temas: [] })),
+    previsualizar: vi.fn(() => Promise.resolve({ ficha: TEMA_ID })),
+    ejecutar: vi.fn(() => Promise.resolve(resultado)),
+    crear: vi.fn(() => Promise.resolve(tema)),
+    renombrar: vi.fn(() => Promise.resolve(tema)),
+    duplicar: vi.fn(() => Promise.resolve(tema)),
+    reanudarBorrado: vi.fn(() => Promise.resolve(resultado)),
+    cancelarBorrado: vi.fn(() => Promise.resolve()),
+    descartarAvisoApartado: vi.fn(() => Promise.resolve())
+  }
+}
 
 function crearDeps() {
   const oyentesCancion: ((e: EventoCancion) => void)[] = []
@@ -35,11 +68,20 @@ function crearDeps() {
   const oyentesRtCambio: ((e: unknown) => void)[] = []
   const oyentesConfig: ((c: ReturnType<typeof configPredeterminada>) => void)[] = []
   const deps = {
+    temas: temasSimulados(),
     biblioteca: {
       listar: vi.fn(() => [resumen('abc', '/ruta/absoluta/miniatura.jpg'), resumen('d')]),
-      obtener: vi.fn(() => null),
+      obtener: vi.fn<(id: string) => Cancion | null>(() => null),
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
-      guardarEstilo: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      guardarApariencia: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      resolver: vi.fn(() => ({
+        estilo: estiloPredeterminado(),
+        procedencia: 'artista' as const,
+        temaId: TEMA_ID,
+        temaNombre: 'Neón',
+        neutra: false,
+        alHeredar: { procedencia: 'predeterminado' as const, temaId: TEMA_ID, temaNombre: 'Neón' }
+      })),
       marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
       comprobarPistas: vi.fn((id: string) => Promise.resolve(resumen(id))),
       volverABorrador: vi.fn((id: string) => Promise.resolve(resumen(id))),
@@ -110,6 +152,7 @@ function crearDeps() {
     salir: vi.fn(),
     infoSistema: vi.fn(() => ({
       version: '1.0.0',
+      compilacion: { canal: 'local', numero: null, commit: null },
       so: 'Test 1',
       plataforma: 'linux',
       youtube: true,
@@ -152,7 +195,7 @@ describe('manejadores IPC', () => {
   it('valida argumentos y remitente del modo reproductor y difunde la pantalla completa', async () => {
     const { deps } = crearDeps()
     const manejadores = new Map<string, (e: unknown, ...a: unknown[]) => unknown>()
-    const difundir = vi.fn()
+    const enviarA = vi.fn()
     const modoReproductor = vi.fn()
     const baja = vi.fn()
     let emitir: ((activa: boolean) => void) | undefined
@@ -171,7 +214,7 @@ describe('manejadores IPC', () => {
           }
         }
       },
-      { remitenteValido: (e) => e === 'mio', difundir }
+      { remitenteValido: (e) => e === 'mio', enviarA }
     )
     const modo = manejadores.get(CANALES.ventana.modoReproductor)!
     for (const [origen, valor] of [
@@ -187,7 +230,7 @@ describe('manejadores IPC', () => {
     expect(await modo('mio', true)).toMatchObject({ ok: true })
     expect(modoReproductor).toHaveBeenCalledWith(true)
     emitir?.(true)
-    expect(difundir).toHaveBeenCalledWith(CANALES.eventos.pantallaCompleta, true)
+    expect(enviarA).toHaveBeenCalledWith('principal', CANALES.eventos.pantallaCompleta, true)
     desregistrar()
     expect(baja).toHaveBeenCalledOnce()
   })
@@ -225,6 +268,10 @@ describe('manejadores IPC', () => {
       [CANALES.config.actualizar, [{ instalacion: { estado: 'completa' } }]],
       [CANALES.config.actualizar, [{ reproductor: { volumen: 5 } }]],
       [CANALES.config.actualizar, [{ ultima_comprobacion_ytdlp: null }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { lista: { ancho: 255 } } } }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { lista: { ancho: 300.5 } } } }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { linea_tiempo: { alto: 175 } } } }]],
+      [CANALES.config.actualizar, [{ editor: { paneles: { lista: { otra: 1 } } } }]],
       [CANALES.sistema.abrirEnlace, ['http://lrclib.net/']],
       [CANALES.sistema.abrirEnlace, ['file:///etc/passwd']]
     ]
@@ -429,6 +476,7 @@ describe('manejadores IPC', () => {
       ok: true,
       valor: {
         version: '1.0.0',
+        compilacion: { canal: 'local', numero: null, commit: null },
         so: 'Test 1',
         plataforma: 'linux',
         youtube: true,
@@ -551,7 +599,7 @@ describe('runtime y cierre (0036)', () => {
     registrarIpc(
       { handle: (c, f) => void manejadores.set(c, f), removeHandler: () => undefined },
       deps,
-      { remitenteValido: (e) => e === 'mio', difundir: vi.fn() }
+      { remitenteValido: (e) => e === 'mio', enviarA: vi.fn() }
     )
     for (const canal of [
       CANALES.runtime.instalar,
@@ -559,7 +607,8 @@ describe('runtime y cierre (0036)', () => {
       CANALES.runtime.aceptarYUsarRapido,
       CANALES.runtime.volverACalidad,
       CANALES.app.confirmarCierre,
-      CANALES.app.salir
+      CANALES.app.salir,
+      ...Object.values(CANALES.temas)
     ]) {
       expect(await manejadores.get(canal)?.('ajeno')).toMatchObject({ ok: false })
     }
@@ -606,7 +655,49 @@ describe('registrarIpc', () => {
     return { ipc, manejadores }
   }
 
-  it('registra 31 canales, rechaza remitentes ajenos y difunde eventos con URL de medios', async () => {
+  it('valida remitente y ventana de picos antes de delegar al servicio', async () => {
+    const { deps } = crearDeps()
+    const { ipc, manejadores } = ipcFalso()
+    const id = '5eed0000-0000-4000-8000-000000000001'
+    const estado = { estado: 'lista' as const, generacion: 'a'.repeat(64) }
+    const lectura = {
+      generacion: estado.generacion,
+      primerBloque: 0,
+      pasoMs: 10,
+      bytes: new Uint8Array(4)
+    }
+    const leer = vi.fn(async () => lectura)
+    const solicitar = vi.fn(async () => estado)
+    registrarIpc(
+      ipc,
+      { ...deps, picos: { leer, solicitar, duranteCambio: (_id, cambiar) => cambiar() } },
+      { remitenteValido: (e) => e === 'mio', enviarA: vi.fn() }
+    )
+    const pedir = manejadores.get(CANALES.picos.solicitar)!
+    const ventana = manejadores.get(CANALES.picos.leer)!
+    const peticion = { cancionId: id, inicioMs: 0, finMs: 100, presupuesto: 4096 }
+    const error = { ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } }
+
+    expect(await pedir('ajeno', id)).toMatchObject(error)
+    expect(await pedir('mio', '../voz.flac')).toMatchObject(error)
+    expect(await ventana('ajeno', peticion)).toMatchObject(error)
+    for (const extra of [
+      { presupuesto: 4097 },
+      { inicioMs: -1 },
+      { finMs: 0 },
+      { ruta: 'voz.flac' }
+    ]) {
+      expect(await ventana('mio', { ...peticion, ...extra })).toMatchObject(error)
+    }
+    expect(leer).not.toHaveBeenCalled()
+    expect(solicitar).not.toHaveBeenCalled()
+    expect(await pedir('mio', id, true)).toEqual({ ok: true, valor: estado })
+    expect(solicitar).toHaveBeenCalledWith(id, true)
+    expect(await ventana('mio', peticion)).toEqual({ ok: true, valor: lectura })
+    expect(leer).toHaveBeenCalledWith(peticion)
+  })
+
+  it('registra los canales, rechaza remitentes ajenos y difunde eventos con URL de medios', async () => {
     const {
       deps,
       oyentesCancion,
@@ -617,11 +708,12 @@ describe('registrarIpc', () => {
       oyentesRtCambio
     } = crearDeps()
     const { ipc, manejadores } = ipcFalso()
-    const difundir = vi.fn()
+    const enviarA = vi.fn()
     const deshacer = registrarIpc(ipc, deps, {
       remitenteValido: (e) => e === 'mio',
-      difundir
+      enviarA
     })
+    // Cada canal del contrato tiene su manejador, también los de la fase 4.
     expect(manejadores.size).toBe(Object.keys(CONTRATO).length)
     expect(await manejadores.get(CANALES.sistema.info)?.('ajeno')).toMatchObject({ ok: false })
     expect(await manejadores.get(CANALES.sistema.info)?.('mio')).toMatchObject({ ok: true })
@@ -629,29 +721,34 @@ describe('registrarIpc', () => {
     oyentesCancion[0]?.({ id: 'abc', resumen: resumen('abc', '/abs/m.jpg') })
     oyentesCancion[0]?.({ id: 'abc', eliminada: true })
     oyentesConfig[0]?.(configPredeterminada())
-    expect(difundir).toHaveBeenNthCalledWith(1, CANALES.eventos.cancion, {
+    expect(enviarA).toHaveBeenNthCalledWith(1, 'principal', CANALES.eventos.cancion, {
       id: 'abc',
       resumen: expect.objectContaining({ miniatura: 'shinobi-media://abc/fuente/miniatura.jpg' })
     })
-    expect(difundir).toHaveBeenNthCalledWith(2, CANALES.eventos.cancion, {
+    expect(enviarA).toHaveBeenNthCalledWith(2, 'principal', CANALES.eventos.cancion, {
       id: 'abc',
       eliminada: true
     })
-    expect(difundir).toHaveBeenNthCalledWith(3, CANALES.eventos.config, expect.any(Object))
+    expect(enviarA).toHaveBeenNthCalledWith(
+      3,
+      'principal',
+      CANALES.eventos.config,
+      expect.any(Object)
+    )
     oyentesTrabajo[0]?.({ id: 't' })
     oyentesProgreso[0]?.({ id: 't', valor: 0.5 })
-    expect(difundir).toHaveBeenNthCalledWith(4, CANALES.eventos.trabajo, { id: 't' })
-    expect(difundir).toHaveBeenNthCalledWith(5, CANALES.eventos.trabajoProgreso, {
+    expect(enviarA).toHaveBeenNthCalledWith(4, 'principal', CANALES.eventos.trabajo, { id: 't' })
+    expect(enviarA).toHaveBeenNthCalledWith(5, 'principal', CANALES.eventos.trabajoProgreso, {
       id: 't',
       valor: 0.5
     })
 
     oyentesRtProgreso[0]?.({ porcentajeGlobal: 5 })
     oyentesRtCambio[0]?.(estadoRt)
-    expect(difundir).toHaveBeenNthCalledWith(6, CANALES.eventos.runtimeProgreso, {
+    expect(enviarA).toHaveBeenNthCalledWith(6, 'principal', CANALES.eventos.runtimeProgreso, {
       porcentajeGlobal: 5
     })
-    expect(difundir).toHaveBeenNthCalledWith(7, CANALES.eventos.runtimeCambio, estadoRt)
+    expect(enviarA).toHaveBeenNthCalledWith(7, 'principal', CANALES.eventos.runtimeCambio, estadoRt)
 
     deshacer()
     expect(manejadores.size).toBe(0)
@@ -732,10 +829,10 @@ describe('IPC del editor', () => {
     expect(await guardar([peticion, 'uuid inválido'])).toMatchObject(error)
     const estilo = estiloPredeterminado()
     estilo.letra.color = '#FFF'
-    expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject(
-      error
-    )
-    expect(deps.biblioteca.guardarEstilo).not.toHaveBeenCalled()
+    expect(
+      await manejadores[CANALES.biblioteca.guardarApariencia](['abc', { modo: 'propio', estilo }])
+    ).toMatchObject(error)
+    expect(deps.biblioteca.guardarApariencia).not.toHaveBeenCalled()
   })
 
   it('delega escrituras y cambios de estado y devuelve un resumen seguro', async () => {
@@ -755,14 +852,129 @@ describe('IPC del editor', () => {
       valor: { miniatura: 'shinobi-media://abc/fuente/miniatura.jpg' }
     })
     expect(guardarTiempos).toHaveBeenCalledWith(peticion, sesionId)
-    expect(await manejadores[CANALES.biblioteca.guardarEstilo](['abc', estilo])).toMatchObject({
-      ok: true
+    expect(
+      await manejadores[CANALES.biblioteca.guardarApariencia](['abc', { modo: 'propio', estilo }])
+    ).toMatchObject({ ok: true })
+    expect(deps.biblioteca.guardarApariencia).toHaveBeenCalledWith('abc', {
+      modo: 'propio',
+      estilo
     })
-    expect(deps.biblioteca.guardarEstilo).toHaveBeenCalledWith('abc', estilo)
     expect(await manejadores[CANALES.biblioteca.marcarLista](['abc'])).toMatchObject({ ok: true })
     expect(deps.biblioteca.marcarLista).toHaveBeenCalledWith('abc')
     expect(await manejadores[CANALES.app.guardadoPendiente]([true])).toMatchObject({ ok: true })
     expect(fijarGuardadoPendiente).toHaveBeenCalledWith(true)
+  })
+
+  it('guardarApariencia delega propio, tema y heredar, y rechaza un modo desconocido', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    const guardar = manejadores[CANALES.biblioteca.guardarApariencia]
+    const temaId = TEMA_ID
+    for (const seleccion of [{ modo: 'tema', temaId }, { modo: 'heredar' }]) {
+      expect(await guardar(['abc', seleccion])).toMatchObject({ ok: true })
+      expect(deps.biblioteca.guardarApariencia).toHaveBeenLastCalledWith('abc', seleccion)
+    }
+    expect(await guardar(['abc', { modo: 'otro' }])).toMatchObject({ ok: false })
+    expect(await guardar(['abc', { modo: 'tema', temaId: 'no-uuid' }])).toMatchObject({ ok: false })
+    expect(deps.biblioteca.guardarApariencia).toHaveBeenCalledTimes(2)
+  })
+
+  it('los canales temas.* validan argumentos, delegan en el servicio y sin servicio dan ERROR_INTERNO', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    const ficha = '7c1e5b9a-2d4f-4a63-8b0e-9f1a3c5d7e21'
+    const op = { tipo: 'borrar', temaId: TEMA_ID }
+    expect(await manejadores[CANALES.temas.catalogo]([])).toMatchObject({ ok: true })
+    expect(await manejadores[CANALES.temas.previsualizar]([op])).toMatchObject({ ok: true })
+    expect(await manejadores[CANALES.temas.ejecutar]([op, ficha])).toMatchObject({ ok: true })
+    expect(deps.temas.ejecutar).toHaveBeenCalledWith(op, ficha)
+    const estilo = estiloPredeterminado()
+    expect(await manejadores[CANALES.temas.crear]([{ nombre: 'X', estilo }])).toMatchObject({
+      ok: true
+    })
+    expect(
+      await manejadores[CANALES.temas.renombrar]([
+        { temaId: TEMA_ID, revisionTema: 1, nombre: 'Y' }
+      ])
+    ).toMatchObject({ ok: true })
+    expect(
+      await manejadores[CANALES.temas.duplicar]([{ temaId: TEMA_ID, nombre: 'Z' }])
+    ).toMatchObject({ ok: true })
+    for (const canal of [
+      CANALES.temas.reanudarBorrado,
+      CANALES.temas.cancelarBorrado,
+      CANALES.temas.descartarAvisoApartado
+    ]) {
+      expect(await manejadores[canal]([])).toMatchObject({ ok: true })
+    }
+    // Argumentos inválidos: rechazo de la validación, sin llegar al servicio.
+    deps.temas.previsualizar.mockClear()
+    expect(await manejadores[CANALES.temas.previsualizar]([{ tipo: 'borrar' }])).toMatchObject({
+      ok: false,
+      error: { mensaje: 'Los argumentos no son válidos.' }
+    })
+    expect(await manejadores[CANALES.temas.catalogo]([1])).toMatchObject({
+      ok: false,
+      error: { mensaje: 'Los argumentos no son válidos.' }
+    })
+    expect(await manejadores[CANALES.temas.ejecutar]([op, 'no-uuid'])).toMatchObject({ ok: false })
+    expect(await manejadores[CANALES.temas.crear]([{ nombre: '', estilo }])).toMatchObject({
+      ok: false
+    })
+    expect(deps.temas.previsualizar).not.toHaveBeenCalled()
+    // Sin servicio de temas.
+    const sin = crearManejadores({ ...deps, temas: undefined })
+    expect(await sin[CANALES.temas.catalogo]([])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ERROR_INTERNO' }
+    })
+  })
+
+  it('CONFIRMACION_OBSOLETA lleva el impacto nuevo serializado en detalles', async () => {
+    const { deps } = crearDeps()
+    const impacto = { ficha: TEMA_ID, afectadas: [] }
+    deps.temas.ejecutar.mockRejectedValueOnce(
+      Object.assign(new Error('obsoleta'), { codigo: 'CONFIRMACION_OBSOLETA', detalles: impacto })
+    )
+    const manejadores = crearManejadores(deps)
+    const r = (await manejadores[CANALES.temas.ejecutar]([
+      { tipo: 'borrar', temaId: TEMA_ID },
+      TEMA_ID
+    ])) as { ok: false; error: { codigo: string; detalles?: string } }
+    expect(r.error.codigo).toBe('CONFIRMACION_OBSOLETA')
+    expect(JSON.parse(r.error.detalles ?? 'null')).toEqual(impacto)
+  })
+
+  it('config.actualizar acepta biblioteca.agrupar y rechaza valores desconocidos', async () => {
+    const { deps } = crearDeps()
+    const manejadores = crearManejadores(deps)
+    const actualizar = manejadores[CANALES.config.actualizar]
+    expect(await actualizar([{ biblioteca: { agrupar: 'album' } }])).toMatchObject({ ok: true })
+    expect(deps.config.actualizar).toHaveBeenCalledWith({ biblioteca: { agrupar: 'album' } })
+    expect(await actualizar([{ biblioteca: { agrupar: 'x' } }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+  })
+
+  it('biblioteca.obtener añade la apariencia resuelta con el catálogo', async () => {
+    const { deps } = crearDeps()
+    const cancion = lista()
+    deps.biblioteca.obtener.mockReturnValueOnce(cancion)
+    const manejadores = crearManejadores(deps)
+    const r = await manejadores[CANALES.biblioteca.obtener](['abc'])
+    expect(deps.biblioteca.resolver).toHaveBeenCalledWith(cancion)
+    expect(r).toMatchObject({
+      ok: true,
+      valor: {
+        resuelta: {
+          procedencia: 'artista',
+          temaId: TEMA_ID,
+          temaNombre: 'Neón',
+          alHeredar: { procedencia: 'predeterminado' }
+        }
+      }
+    })
   })
 
   it('propaga errores de la biblioteca y señala un servicio de letras ausente', async () => {

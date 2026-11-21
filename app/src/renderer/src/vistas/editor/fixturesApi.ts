@@ -3,11 +3,22 @@ import {
   configPredeterminada,
   letraSchema,
   numerosLineasSinInicio,
+  puedeMarcarseLetraLista,
   puedeMarcarseLista,
   type Cancion,
   type CodigoError
 } from '@shared/index'
-import type { ApiShinobi, ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
+import type {
+  AparienciaResumenIpc,
+  ApiShinobi,
+  ErrorIpc,
+  ResueltaIpc,
+  ResumenCancionIpc
+} from '@shared/ipc'
+import { modalidadEfectiva } from '@shared/cancion'
+import { claveAlbumTexto, claveAlbum, claveArtista } from '@shared/index'
+import { aparienciaResumenPrueba } from '../biblioteca/resumenPrueba'
+import { temasFalsos, type TemasFalsos } from '../biblioteca/temasFalsos'
 import { ventanaFalsa } from '../biblioteca/ventanaFalsa'
 
 export function cancionSincronizadaLrclib(): Cancion {
@@ -75,13 +86,22 @@ export function cancionListaIncompleta(): Cancion {
 
 type ApiEditor = {
   [K in 'biblioteca' | 'letras' | 'app' | 'trabajos']: Partial<ApiShinobi[K]>
-} & Pick<ApiShinobi, 'config' | 'alCambiarCancion'> & { ventana: ReturnType<typeof ventanaFalsa> }
+} & Pick<
+  ApiShinobi,
+  'config' | 'temas' | 'alCambiarCancion' | 'alCambiarConfig' | 'alCambiarTemas'
+> & {
+    ventana: ReturnType<typeof ventanaFalsa>
+  }
 
 type OpcionesApiEditor = {
   cancion?: Cancion
   danada?: boolean
   config?: Awaited<ReturnType<ApiShinobi['config']['obtener']>>
   trabajos?: Awaited<ReturnType<ApiShinobi['trabajos']['listar']>>
+  /** Apariencia inicial del resumen y de `resuelta` (por defecto, propio y neutra). */
+  apariencia?: Partial<AparienciaResumenIpc>
+  /** Doble de `temas`; por defecto un catálogo en memoria con un tema. */
+  temas?: TemasFalsos
 }
 
 function error(codigo: CodigoError): ErrorIpc {
@@ -93,14 +113,19 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   api: ApiEditor
   llamadas: { metodo: string; args: unknown[] }[]
   emitirCambio(resumen: ResumenCancionIpc): void
+  /** Cambia la apariencia viva de la canción (p. ej. `alHeredar`) y emite el resumen nuevo (salvo `silencioso`). */
+  fijarApariencia(cambios: Partial<AparienciaResumenIpc>, opciones?: { silencioso?: boolean }): void
   fallar(metodo: string, codigo: CodigoError, veces?: number): void
 } {
   const cancion = structuredClone(opciones.cancion ?? cancionSinSincronizar())
   const config = structuredClone(opciones.config ?? configPredeterminada())
+  let apariencia = aparienciaResumenPrueba(opciones.apariencia)
+  const temas = opciones.temas ?? temasFalsos()
   let sesionActiva: string | null = null
   const llamadas: { metodo: string; args: unknown[] }[] = []
   const fallos = new Map<string, { codigo: CodigoError; veces: number }>()
   const oyentes = new Set<Parameters<ApiShinobi['alCambiarCancion']>[0]>()
+  const oyentesConfig = new Set<Parameters<ApiShinobi['alCambiarConfig']>[0]>()
 
   function registrar(metodo: string, ...args: unknown[]): void {
     llamadas.push({ metodo, args: structuredClone(args) })
@@ -122,8 +147,15 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       artista: cancion.metadatos.artista,
       duracionMs: cancion.metadatos.duracion_ms,
       estado: cancion.estado,
+      modalidad: modalidadEfectiva(cancion),
       modificada: cancion.modificada,
       estilo: structuredClone(cancion.estilo),
+      album: cancion.metadatos.album,
+      claves: {
+        artista: claveArtista(cancion.metadatos),
+        album: ((c) => (c ? claveAlbumTexto(c) : null))(claveAlbum(cancion.metadatos))
+      },
+      apariencia: structuredClone(apariencia),
       miniatura: null,
       pasos: {
         fuente: paso('fuente'),
@@ -165,19 +197,54 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       },
       async obtener(id) {
         registrar('biblioteca.obtener', id)
-        return id === cancion.id ? structuredClone(cancion) : null
+        if (id !== cancion.id) return null
+        const resuelta: ResueltaIpc = {
+          estilo: structuredClone(cancion.estilo),
+          procedencia: apariencia.procedencia,
+          temaId: apariencia.temaId,
+          temaNombre: apariencia.temaNombre,
+          alHeredar: structuredClone(apariencia.alHeredar),
+          procedenciaEspera: apariencia.procedenciaEspera
+        }
+        return { ...structuredClone(cancion), resuelta }
       },
-      async guardarEstilo(id, estilo) {
-        registrar('biblioteca.guardarEstilo', id, estilo)
+      async guardarApariencia(id, seleccion) {
+        registrar('biblioteca.guardarApariencia', id, seleccion)
         exigirId(id)
-        cancion.estilo = structuredClone(estilo)
+        if (seleccion.modo === 'propio') {
+          cancion.estilo = structuredClone(seleccion.estilo)
+          apariencia = { ...apariencia, modo: 'propio', procedencia: 'propio', temaId: null }
+        } else if (seleccion.modo === 'tema') {
+          apariencia = {
+            ...apariencia,
+            modo: 'tema',
+            procedencia: 'cancion',
+            temaId: seleccion.temaId,
+            temaNombre:
+              (await temas.api.temas.catalogo()).temas.find((t) => t.id === seleccion.temaId)
+                ?.nombre ?? null
+          }
+        } else {
+          apariencia = {
+            ...apariencia,
+            modo: 'heredar',
+            procedencia: apariencia.alHeredar.procedencia,
+            temaId: apariencia.alHeredar.temaId,
+            temaNombre: apariencia.alHeredar.temaNombre
+          }
+        }
         return publicar()
       },
-      async marcarLista(id) {
-        registrar('biblioteca.marcarLista', id)
+      async marcarLista(id, opciones) {
+        registrar('biblioteca.marcarLista', id, opciones)
         exigirId(id)
-        if (!puedeMarcarseLista(cancion)) throw error('ARGUMENTOS_NO_VALIDOS')
+        const letraLista = opciones?.modalidad === 'letra_lista'
+        if (!(letraLista ? puedeMarcarseLetraLista(cancion) : puedeMarcarseLista(cancion))) {
+          throw error('ARGUMENTOS_NO_VALIDOS')
+        }
         cancion.estado = 'lista'
+        if (letraLista) cancion.modalidad = 'letra_lista'
+        else delete cancion.modalidad
         cancion.pasos.edicion = {
           estado: 'completado',
           actualizado: cancion.modificada,
@@ -224,6 +291,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         return publicar()
       }
     },
+    ...temas.api,
     config: {
       async obtener() {
         registrar('config.obtener')
@@ -232,9 +300,16 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async actualizar(cambio) {
         registrar('config.actualizar', cambio)
         if (cambio.reproductor) Object.assign(config.reproductor, cambio.reproductor)
-        if (cambio.estilo_predeterminado) {
-          config.estilo_predeterminado = structuredClone(cambio.estilo_predeterminado)
+        if (cambio.editor?.omitir_aviso_letra_lista !== undefined) {
+          config.editor.omitir_aviso_letra_lista = cambio.editor.omitir_aviso_letra_lista
         }
+        const paneles = cambio.editor?.paneles
+        if (paneles) {
+          Object.assign(config.editor.paneles.lista, paneles.lista)
+          Object.assign(config.editor.paneles.panel, paneles.panel)
+          Object.assign(config.editor.paneles.linea_tiempo, paneles.linea_tiempo)
+        }
+        for (const oyente of oyentesConfig) oyente(structuredClone(config))
         return structuredClone(config)
       }
     },
@@ -254,6 +329,10 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     alCambiarCancion(oyente) {
       oyentes.add(oyente)
       return () => oyentes.delete(oyente)
+    },
+    alCambiarConfig(oyente) {
+      oyentesConfig.add(oyente)
+      return () => oyentesConfig.delete(oyente)
     }
   }
 
@@ -261,6 +340,10 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     api,
     llamadas,
     emitirCambio,
+    fijarApariencia(cambios, { silencioso = false } = {}) {
+      apariencia = { ...apariencia, ...cambios }
+      if (!silencioso) publicar()
+    },
     fallar: (metodo, codigo, veces = 1) => fallos.set(metodo, { codigo, veces })
   }
 }

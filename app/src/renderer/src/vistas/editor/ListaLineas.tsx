@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleDashed, Diamond, Play } from 'lucide-react'
+import { CircleDashed, Diamond, PanelLeftClose, Play } from 'lucide-react'
 import type { Letra } from '@shared/letra'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
+import { BotonLayout } from './BotonLayout'
 import { E } from './textos'
 import estilos from './editor.module.css'
 
@@ -18,6 +19,8 @@ interface Props {
   escuchar(id: string): void
   corregir(): void
   banner?: ReactNode
+  /** Minimiza la lista; sin él no hay botón (disposición bajo el mínimo de diseño). */
+  minimizar?(): void
 }
 
 const FILA_PX = 56
@@ -33,13 +36,15 @@ export function ListaLineas({
   seleccionar,
   escuchar,
   corregir,
-  banner
+  banner,
+  minimizar
 }: Props) {
   const lista = useRef<HTMLDivElement>(null)
+  const cajaLineas = useRef<HTMLDivElement>(null)
   const botones = useRef(new Map<string, HTMLButtonElement>())
   const manual = useRef(-Infinity)
   const desplazamiento = useRef<number | null>(null)
-  const ultimoFoco = useRef(0)
+  const ultimoFoco = useRef(foco)
   const [inicio, setInicio] = useState(0)
   const virtual = letra.lineas.length >= 200
   const fin = virtual ? Math.min(inicio + VENTANA, letra.lineas.length) : letra.lineas.length
@@ -51,15 +56,20 @@ export function ListaLineas({
   const indiceSeleccion = seleccion === null ? -1 : (indice.get(seleccion) ?? -1)
   const { sincronizadas, total } = contador(letra)
 
+  /** Alto de lo que hay sobre las filas dentro del scroll (el banner se desplaza con ellas). */
+  const base = () => cajaLineas.current?.offsetTop ?? 0
+  const primeraVisible = (scrollTop: number) =>
+    Math.max(0, Math.floor((scrollTop - base()) / FILA_PX) - MARGEN)
+
   function mostrar(i: number) {
     const nodo = lista.current
     if (!nodo || i < 0) return
-    const top = i * FILA_PX
+    const top = base() + i * FILA_PX
     const abajo = nodo.scrollTop + nodo.clientHeight
     if (top >= nodo.scrollTop && top + FILA_PX <= abajo) return
     nodo.scrollTop = top < nodo.scrollTop ? top : Math.max(0, top + FILA_PX - nodo.clientHeight)
     desplazamiento.current = nodo.scrollTop
-    if (virtual) setInicio(Math.max(0, Math.floor(nodo.scrollTop / FILA_PX) - MARGEN))
+    if (virtual) setInicio(primeraVisible(nodo.scrollTop))
   }
 
   useLayoutEffect(() => {
@@ -83,8 +93,7 @@ export function ListaLineas({
   }, [actual, virtual])
 
   return (
-    <section className={estilos.listaZona} aria-label="Sincronía">
-      {banner}
+    <section id="zona-lista" className={estilos.listaZona} aria-label={E.layout.lista.nombre}>
       <div className={estilos.listaTitulo}>
         <h2>{E.lineas}</h2>
         {sincronizadas < total ? (
@@ -100,83 +109,98 @@ export function ListaLineas({
         ) : (
           <span className={estilos.completa}>{E.contador(sincronizadas, total)} ✓</span>
         )}
+        {minimizar && (
+          <BotonLayout
+            icono={PanelLeftClose}
+            etiqueta={E.layout.lista.minimizar}
+            nombre="lista-minimizar"
+            expandido
+            controla="zona-lista"
+            onClick={minimizar}
+          />
+        )}
       </div>
       <div
-        id="lineas-editor"
-        role="listbox"
-        aria-label={E.lineas}
-        data-foco-editor="lista"
-        tabIndex={indiceSeleccion < inicio || indiceSeleccion >= fin ? 0 : -1}
         ref={lista}
         className={estilos.lista}
         onScroll={(e) => {
           const top = e.currentTarget.scrollTop
           if (top !== desplazamiento.current) manual.current = performance.now()
           desplazamiento.current = null
-          if (virtual) setInicio(Math.max(0, Math.floor(top / FILA_PX) - MARGEN))
+          if (virtual) setInicio(primeraVisible(top))
         }}
       >
-        {virtual && <div aria-hidden="true" style={{ height: inicio * FILA_PX }} />}
-        {numeradas.slice(inicio, fin).map(({ elemento: el, n }, i) => {
-          const tiempo =
-            el.inicio_ms === null
-              ? null
-              : formatearTiempo(tiempoMostrado(el.inicio_ms, letra.offset_ms))
-          if (el.tipo === 'pausa') {
+        {banner && <div className={estilos.bannerLista}>{banner}</div>}
+        <div
+          id="lineas-editor"
+          role="listbox"
+          aria-label={E.lineas}
+          data-foco-editor="lista"
+          tabIndex={indiceSeleccion < inicio || indiceSeleccion >= fin ? 0 : -1}
+          ref={cajaLineas}
+        >
+          {virtual && <div aria-hidden="true" style={{ height: inicio * FILA_PX }} />}
+          {numeradas.slice(inicio, fin).map(({ elemento: el, n }, i) => {
+            const tiempo =
+              el.inicio_ms === null
+                ? null
+                : formatearTiempo(tiempoMostrado(el.inicio_ms, letra.offset_ms))
+            if (el.tipo === 'pausa') {
+              return (
+                <div key={el.id} role="separator" aria-label="pausa" className={estilos.pausa}>
+                  <span>{E.pausa}</span>
+                  {tiempo && (
+                    <Tooltip contenido={E.pausaTiempo}>
+                      <span className="t-tiempo">{tiempo}</span>
+                    </Tooltip>
+                  )}
+                </div>
+              )
+            }
+            const sonando = inicio + i === actual
             return (
-              <div key={el.id} role="separator" aria-label="pausa" className={estilos.pausa}>
-                <span>{E.pausa}</span>
-                {tiempo && (
-                  <Tooltip contenido={E.pausaTiempo}>
-                    <span className="t-tiempo">{tiempo}</span>
+              <button
+                key={el.id}
+                ref={(nodo) => {
+                  if (nodo) botones.current.set(el.id, nodo)
+                  else botones.current.delete(el.id)
+                }}
+                type="button"
+                role="option"
+                aria-label={E.ariaLinea(n, tiempo, el.texto)}
+                aria-selected={el.id === seleccion}
+                aria-current={sonando || undefined}
+                aria-posinset={n}
+                aria-setsize={total}
+                tabIndex={el.id === seleccion ? 0 : -1}
+                className={estilos.linea}
+                onClick={() => seleccionar(el.id)}
+                onDoubleClick={() => escuchar(el.id)}
+              >
+                {sonando ? <Icono icono={Play} tamano={14} /> : <span aria-hidden="true" />}
+                <span className={`t-tiempo ${!tiempo ? estilos.sinTiempo : ''}`}>
+                  {tiempo ?? '--:--.--'}
+                </span>
+                <span className={estilos.textoLinea} title={el.texto}>
+                  {el.texto}
+                </span>
+                {!tiempo && (
+                  <Tooltip contenido={E.faltaTooltip}>
+                    <Icono icono={CircleDashed} tamano={16} />
                   </Tooltip>
                 )}
-              </div>
+                {el.palabras && (
+                  <Tooltip contenido={E.palabrasTooltip}>
+                    <Icono icono={Diamond} tamano={14} />
+                  </Tooltip>
+                )}
+              </button>
             )
-          }
-          const sonando = inicio + i === actual
-          return (
-            <button
-              key={el.id}
-              ref={(nodo) => {
-                if (nodo) botones.current.set(el.id, nodo)
-                else botones.current.delete(el.id)
-              }}
-              type="button"
-              role="option"
-              aria-label={E.ariaLinea(n, tiempo, el.texto)}
-              aria-selected={el.id === seleccion}
-              aria-current={sonando || undefined}
-              aria-posinset={n}
-              aria-setsize={total}
-              tabIndex={el.id === seleccion ? 0 : -1}
-              className={estilos.linea}
-              onClick={() => seleccionar(el.id)}
-              onDoubleClick={() => escuchar(el.id)}
-            >
-              {sonando ? <Icono icono={Play} tamano={14} /> : <span aria-hidden="true" />}
-              <span className={`t-tiempo ${!tiempo ? estilos.sinTiempo : ''}`}>
-                {tiempo ?? '--:--.--'}
-              </span>
-              <span className={estilos.textoLinea} title={el.texto}>
-                {el.texto}
-              </span>
-              {!tiempo && (
-                <Tooltip contenido={E.faltaTooltip}>
-                  <Icono icono={CircleDashed} tamano={16} />
-                </Tooltip>
-              )}
-              {el.palabras && (
-                <Tooltip contenido={E.palabrasTooltip}>
-                  <Icono icono={Diamond} tamano={14} />
-                </Tooltip>
-              )}
-            </button>
-          )
-        })}
-        {virtual && (
-          <div aria-hidden="true" style={{ height: (letra.lineas.length - fin) * FILA_PX }} />
-        )}
+          })}
+          {virtual && (
+            <div aria-hidden="true" style={{ height: (letra.lineas.length - fin) * FILA_PX }} />
+          )}
+        </div>
       </div>
       <button className={estilos.enlace} type="button" onClick={corregir}>
         {E.corregir}

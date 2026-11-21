@@ -1,4 +1,5 @@
 # 0100 — Componentes base: popover con acciones y deuda de 0016 (diálogo `inert`, tooltip en los bordes, búsqueda por letra en menús)
+
 - Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: — (**puede empezar ya**)
@@ -8,7 +9,9 @@
 - Paralelizable con: todas (con cuidado con 0099).
 
 ## Contexto para quien implementa
-Deuda anotada en `docs/backlog.md` (Fase 1, "Componentes (0016)") y asignada a la Fase 5:
+
+Deuda anotada en `docs/versiones/0.1.0/backlog.md` (Fase 1, "Componentes (0016)") y asignada a la Fase 5:
+
 - el diálogo no marca el resto de la app como `inert`;
 - el tooltip no se reposiciona en los bordes de la ventana;
 - el menú no tiene búsqueda por letra.
@@ -16,10 +19,17 @@ Deuda anotada en `docs/backlog.md` (Fase 1, "Componentes (0016)") y asignada a l
 El editor necesita además un **popover no modal con acciones**: el de "Para marcarla como lista falta:", el de `edi.hecho.incompleta` y el tooltip de límite que se muestra 2 s.
 
 ## Criterios de aceptación
+
 - [x] **`Popover`**:
   ```ts
-  interface PopoverProps { abierto: boolean; ancla: RefObject<HTMLElement>; alCerrar(): void
-    titulo?: string; children: ReactNode; etiqueta: string /* aria-label si no hay título */ }
+  interface PopoverProps {
+    abierto: boolean;
+    ancla: RefObject<HTMLElement>;
+    alCerrar(): void;
+    titulo?: string;
+    children: ReactNode;
+    etiqueta: string; /* aria-label si no hay título */
+  }
   ```
   - en portal, colocado bajo o sobre el ancla con volteo (reutiliza `calcularPosicionMenu` o una función equivalente probada);
   - `role="dialog"` **sin** `aria-modal` (no bloquea el resto);
@@ -30,10 +40,11 @@ El editor necesita además un **popover no modal con acciones**: el de "Para mar
   - prop `forzar` con duración opcional: `forzar={{ ms: 2000, clave }}` muestra el tooltip 2 s y vuelve a mostrarse con cada `clave` nueva (para los tooltips de límite del editor);
   - se reposiciona para no salirse de la ventana (izquierda, derecha y volteo arriba/abajo), con una función pura probada.
 - [x] **`Dialogo`**: al abrir, `inert` en los hermanos del portal raíz (el contenedor de la app); al cerrar se restaura. Con diálogos anidados, solo el superior queda activo. Test: un botón de la app no recibe el foco con Tab mientras el diálogo está abierto.
-- [x] **`MenuContextual`**: búsqueda por letra (*type-ahead*): pulsar una letra enfoca el siguiente ítem que empieza por ella, sin distinguir mayúsculas ni tildes.
+- [x] **`MenuContextual`**: búsqueda por letra (_type-ahead_): pulsar una letra enfoca el siguiente ítem que empieza por ella, sin distinguir mayúsculas ni tildes.
 - [x] Los tests existentes de componentes siguen pasando; los E2E `menu-contextual.spec.ts` y `biblioteca-acciones.spec.ts` siguen en verde.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

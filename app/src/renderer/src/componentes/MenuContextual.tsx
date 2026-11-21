@@ -8,7 +8,7 @@ import {
   type KeyboardEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, type LucideIcon } from 'lucide-react'
+import { Ellipsis, Lock, type LucideIcon } from 'lucide-react'
 import { BotonIcono } from './BotonIcono'
 import { Icono } from './Icono'
 import estilos from './componentes.module.css'
@@ -21,6 +21,15 @@ export interface ItemMenu {
   destructivo?: boolean
   /** Línea separadora de 1 px antes del ítem (`role="separator"`, no interactiva). */
   separadorAntes?: boolean
+  /** Motivo por el que no está disponible (aria-disabled): sigue enfocable y no hace nada. */
+  noDisponible?: string
+  /**
+   * Acción bloqueada por la sesión (0183): `aria-disabled` y candado de 14 px, pero sigue
+   * enfocable y, al pulsarla, `alSeleccionar` se ejecuta (explica el bloqueo en un diálogo).
+   */
+  bloqueado?: boolean
+  /** Nombre accesible propio (p. ej. con `edi.bloqueo.aria` añadido). */
+  ariaEtiqueta?: string
   alSeleccionar: () => void
 }
 
@@ -226,13 +235,18 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
                   role="menuitem"
                   tabIndex={-1}
                   className={`${estilos.item} ${it.destructivo ? estilos.itemDestructivo : ''}`}
+                  aria-disabled={it.noDisponible || it.bloqueado ? true : undefined}
+                  aria-label={it.ariaEtiqueta}
+                  title={it.noDisponible}
                   onClick={() => {
+                    if (it.noDisponible) return
                     cerrar(true)
                     it.alSeleccionar()
                   }}
                 >
                   {it.icono && <Icono icono={it.icono} tamano={16} />}
                   {it.etiqueta}
+                  {it.bloqueado && <Icono icono={Lock} tamano={14} />}
                 </button>
               </Fragment>
             ))}

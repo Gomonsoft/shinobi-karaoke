@@ -1,8 +1,10 @@
-import { ESTILO_PREDETERMINADO, type Estilo } from '@shared/estilo'
 import type { EventoProgresoIpc, ResumenCancionIpc, TrabajoIpc } from '@shared/ipc'
+import type { EstadoSesionIpc } from '@shared/sesion'
 import type { EstadoInsignia } from '../../componentes/InsigniaEstado'
+import { BIB_COLA } from '../../sesion/textos'
 import { textoReintentoRed } from '../../trabajos/useCuentaAtras'
 import { textoDeError } from '../progreso/textos'
+import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
 
 /** Tipo de línea bajo la insignia; decide el icono y el color. */
@@ -28,6 +30,10 @@ export type AccionTarjeta = 'reproducir' | 'continuar' | 'reintentar' | 'ver'
 
 /** `bib.paso.modelo` / `bib.paso.reintento.memoria`. */
 export const textoPasoModelo = (n: number): string => `Descargando el modelo ${n} %`
+export const TEXTO_LETRA_LISTA = {
+  ayuda: 'Se reproduce con la letra sincronizada por líneas, sin barrido.',
+  aria: 'Letra lista, sin barrido'
+}
 export const TEXTO_REINTENTO_MEMORIA = 'Reintentando la separación…'
 
 /**
@@ -55,6 +61,8 @@ export interface DatosTarjeta {
   insignia: EstadoInsignia
   /** Texto de la insignia (para lectores: "Lista", "Borrador", "Dañada", "Error"). */
   textoEstado: string
+  /** `title` de la insignia (solo Letra lista: `bib.estado.letraLista.ayuda`). */
+  ayudaEstado?: string
   linea: LineaPasoDatos | null
   /** Acción principal visible (botón de la tarjeta); `null` en dañadas. */
   accion: AccionTarjeta | null
@@ -249,9 +257,11 @@ export function datosDeTarjeta(r: ResumenCancionIpc, vivo?: TrabajoVivo | null):
     }
   }
   if (r.estado === 'lista') {
+    const letraLista = r.modalidad === 'letra_lista'
     return {
-      insignia: 'lista',
-      textoEstado: 'Lista',
+      insignia: letraLista ? 'letra-lista' : 'lista',
+      textoEstado: letraLista ? TEXTO_LETRA_LISTA.aria : 'Lista',
+      ...(letraLista ? { ayudaEstado: TEXTO_LETRA_LISTA.ayuda } : null),
       linea:
         r.incompleta && r.lineasSinSincronizar > 0
           ? { tipo: 'aviso', texto: textoSincronia(r.lineasSinSincronizar) }
@@ -268,26 +278,52 @@ export function datosDeTarjeta(r: ResumenCancionIpc, vivo?: TrabajoVivo | null):
   }
 }
 
-/** `bib.aria.tarjeta`: "{título}, {artista}, {estado}. {línea de paso}." */
+/** Línea de tema visible: una canción con `cancion.json` ilegible no tiene apariencia que mostrar. */
+export function temaDeTarjeta(r: ResumenCancionIpc): ReturnType<typeof lineaDeTema> | null {
+  return r.danada && r.motivo === 'json' ? null : lineaDeTema(r.apariencia)
+}
+
+/** `bib.aria.tarjeta`: "{título}, {artista}, {estado}. {línea de paso}. Tema: {línea de tema}." */
 export function textoAriaTarjeta(r: ResumenCancionIpc, d: DatosTarjeta): string {
   const quien = r.artista === '' ? '' : `${r.artista}, `
   const base = `${tituloDeTarjeta(r)}, ${quien}${d.textoEstado}.`
-  return d.linea ? `${base} ${d.linea.texto}.` : base
-}
-
-function mismoEstilo(a: Estilo, b: Estilo): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
+  const tema = temaDeTarjeta(r)
+  const conPaso = d.linea ? `${base} ${d.linea.texto}.` : base
+  return tema ? `${conPaso} Tema: ${tema.texto}.` : conPaso
 }
 
 /**
- * Portada: estilo propio de la canción o, si es de YouTube (tiene miniatura) y su estilo
- * sigue siendo el predeterminado (de fábrica o el vigente del usuario), la miniatura con velo.
+ * Portada: la miniatura con velo solo mientras la apariencia es neutra (ADR 0016 §3 y §9). Lo decide
+ * main en `apariencia.neutra`; aquí no se comparan estilos ni se lee `config.estilo_predeterminado`.
  */
-export function usaMiniatura(r: ResumenCancionIpc, predeterminadoUsuario?: Estilo | null): boolean {
-  if (r.danada || r.miniatura === null) return false
-  if (!r.estilo) return true
+export function usaMiniatura(r: ResumenCancionIpc): boolean {
+  return !r.danada && r.miniatura !== null && r.apariencia.neutra
+}
+
+/**
+ * «Continuar» de un borrador que lleva sí o sí a Letra o al Editor (fuente y pistas completas):
+ * con una sesión abierta queda bloqueado (spec 06, E1). Los demás destinos se deciden al pulsar.
+ */
+export function continuaHaciaEdicion(r: ResumenCancionIpc): boolean {
   return (
-    mismoEstilo(r.estilo, ESTILO_PREDETERMINADO) ||
-    (!!predeterminadoUsuario && mismoEstilo(r.estilo, predeterminadoUsuario))
+    !r.danada &&
+    r.estado !== 'lista' &&
+    r.pasos?.fuente.estado === 'completado' &&
+    r.pasos.separacion.estado === 'completado'
   )
+}
+
+/** Línea de cola de la tarjeta (`bib.cola.sonando` / `bib.cola.enCola`); `null` si no aplica. */
+export function lineaDeCola(estado: EstadoSesionIpc | null, cancionId: string): string | null {
+  if (!estado) return null
+  if (estado.sesion && estado.activa?.cancionId === cancionId) return BIB_COLA.sonando
+  return estado.pendientes.some((e) => e.cancionId === cancionId) ? BIB_COLA.enCola : null
+}
+
+/** `bib.toast.lista` / `bib.toast.letraLista`: aviso al volver del editor tras marcar la canción. */
+export function mensajeListaMarcada(r: ResumenCancionIpc): string {
+  const titulo = tituloDeTarjeta(r)
+  return r.modalidad === 'letra_lista'
+    ? `«${titulo}» tiene la letra lista para cantar.`
+    : `«${titulo}» está lista para cantar.`
 }

@@ -12,6 +12,10 @@ export interface OpcionSegmentada<T extends string> {
   cargando?: boolean
   /** Punto de aviso con una descripción accesible. */
   aviso?: string
+  /** Punto informativo (`info`, decorativo); `aviso` tiene prioridad. Su texto va en `nombre`. */
+  info?: boolean
+  /** Nombre accesible propio del botón (sustituye a la etiqueta visible). */
+  nombre?: string
 }
 
 interface ControlSegmentadoProps<T extends string> {
@@ -20,6 +24,8 @@ interface ControlSegmentadoProps<T extends string> {
   opciones: OpcionSegmentada<T>[]
   valor: T
   onCambio: (valor: T) => void
+  /** `id` del texto que describe el grupo (`aria-describedby`). */
+  describedBy?: string
 }
 
 /**
@@ -31,7 +37,8 @@ export function ControlSegmentado<T extends string>({
   etiqueta,
   opciones,
   valor,
-  onCambio
+  onCambio,
+  describedBy
 }: ControlSegmentadoProps<T>) {
   const grupo = useRef<HTMLDivElement>(null)
   const idBase = useId()
@@ -67,13 +74,15 @@ export function ControlSegmentado<T extends string>({
       ref={grupo}
       role="radiogroup"
       aria-label={etiqueta}
+      aria-describedby={describedBy}
       className={estilos.segmentado}
       onKeyDown={alTeclear}
     >
       {opciones.map((o, i) => {
         const idMotivo = `${idBase}-${i}`
         const idAviso = `${idMotivo}-aviso`
-        const descripcion = [o.noDisponible ? idMotivo : '', o.aviso ? idAviso : '']
+        const nota = o.aviso
+        const descripcion = [o.noDisponible ? idMotivo : '', nota ? idAviso : '']
           .filter(Boolean)
           .join(' ')
         const boton = (
@@ -81,6 +90,7 @@ export function ControlSegmentado<T extends string>({
             type="button"
             role="radio"
             className={estilos.opcion}
+            aria-label={o.nombre}
             aria-checked={o.valor === valor}
             aria-busy={o.cargando || undefined}
             aria-disabled={o.noDisponible ? true : undefined}
@@ -97,6 +107,9 @@ export function ControlSegmentado<T extends string>({
             )}
             {o.etiqueta}
             {o.aviso && <span className={estilos.puntoAviso} aria-hidden="true" data-aviso />}
+            {!o.aviso && o.info && (
+              <span className={estilos.puntoInfo} aria-hidden="true" data-info />
+            )}
           </button>
         )
         return (
@@ -111,9 +124,9 @@ export function ControlSegmentado<T extends string>({
             ) : (
               boton
             )}
-            {o.aviso && (
+            {nota && (
               <span id={idAviso} className={estilos.soloLector}>
-                {o.aviso}
+                {nota}
               </span>
             )}
           </span>

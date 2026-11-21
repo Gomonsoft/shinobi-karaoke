@@ -1,0 +1,15 @@
+{
+  "separador": "---",
+  "encabezado": "## Qué cambió",
+  "quitar": ["## What's Changed", "**Full Changelog**"],
+  "sustituciones": [
+    {
+      "buscar": "## New Contributors",
+      "poner": "### Personas que colaboran por primera vez"
+    }
+  ],
+  "todosLosCambios": "**Todos los cambios:** [{ETIQUETA_ANTERIOR}…{ETIQUETA}](https://github.com/Gomonsoft/shinobi-karaoke/compare/{ETIQUETA_ANTERIOR}...{ETIQUETA})",
+  "compilacion": "**Compilación:** `{NUMERO}`, del commit [`{HASH}`](https://github.com/Gomonsoft/shinobi-karaoke/commit/{SHA_COMPLETO}). Los instaladores se construyeron y se probaron en [esta ejecución de «Empaquetado y publicación»]({RUN_URL}).",
+  "sinPr": "No hay solicitudes de cambio (PR) en este intervalo: mira todos los cambios en la comparación.",
+  "primeraVersion": "Es la primera versión publicada de Shinobi Karaoke: no hay una anterior con la que comparar."
+}

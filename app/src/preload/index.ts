@@ -30,12 +30,25 @@ const api: ApiShinobi = {
     obtener: (id) => invocar(CANALES.biblioteca.obtener, id),
     actualizarMetadatos: (id, metadatos) =>
       invocar(CANALES.biblioteca.actualizarMetadatos, id, metadatos),
-    guardarEstilo: (id, estilo) => invocar(CANALES.biblioteca.guardarEstilo, id, estilo),
-    marcarLista: (id) => invocar(CANALES.biblioteca.marcarLista, id),
+    guardarApariencia: (id, seleccion) =>
+      invocar(CANALES.biblioteca.guardarApariencia, id, seleccion),
+    marcarLista: (id, opciones) => invocar(CANALES.biblioteca.marcarLista, id, opciones),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
     mostrarEnCarpeta: (id) => invocar(CANALES.biblioteca.mostrarEnCarpeta, id)
+  },
+  temas: {
+    catalogo: () => invocar(CANALES.temas.catalogo),
+    previsualizar: (op) => invocar(CANALES.temas.previsualizar, op),
+    ejecutar: (op, ficha) => invocar(CANALES.temas.ejecutar, op, ficha),
+    crear: (tema) => invocar(CANALES.temas.crear, tema),
+    renombrar: (cambio) => invocar(CANALES.temas.renombrar, cambio),
+    duplicar: (peticion) => invocar(CANALES.temas.duplicar, peticion),
+    reanudarBorrado: () => invocar(CANALES.temas.reanudarBorrado),
+    cancelarBorrado: () => invocar(CANALES.temas.cancelarBorrado),
+    descartarAvisoApartado: () => invocar(CANALES.temas.descartarAvisoApartado),
+    alProgreso: (cb) => suscribir(CANALES.eventos.temasProgreso, cb)
   },
   ventana: {
     modoReproductor: (activo) => invocar(CANALES.ventana.modoReproductor, activo),
@@ -43,6 +56,47 @@ const api: ApiShinobi = {
     estaEnPantallaCompleta: () => invocar(CANALES.ventana.estaEnPantallaCompleta),
     evitarReposo: (activo) => invocar(CANALES.ventana.evitarReposo, activo),
     alCambiarPantallaCompleta: (cb) => suscribir(CANALES.eventos.pantallaCompleta, cb)
+  },
+  pantallas: {
+    listar: () => invocar(CANALES.pantallas.listar)
+  },
+  sesion: {
+    estado: () => invocar(CANALES.sesion.estado),
+    abrir: (peticion) => invocar(CANALES.sesion.abrir, peticion),
+    mostrar: () => invocar(CANALES.sesion.mostrar),
+    moverAPantalla: (pantallaId) => invocar(CANALES.sesion.moverAPantalla, { pantallaId }),
+    fijarPantallaCompleta: (activa) => invocar(CANALES.sesion.fijarPantallaCompleta, activa),
+    transporte: (accion, entradaId) => invocar(CANALES.sesion.transporte, { accion, entradaId }),
+    siguiente: (desdeEntradaId) => invocar(CANALES.sesion.siguiente, { desdeEntradaId }),
+    empezar: (candidataId) => invocar(CANALES.sesion.empezar, { candidataId }),
+    detenerTransicion: (transicionId) =>
+      invocar(CANALES.sesion.detenerTransicion, { transicionId }),
+    repetir: (entradaId) => invocar(CANALES.sesion.repetir, { entradaId }),
+    forzarCierre: () => invocar(CANALES.sesion.forzarCierre),
+    solicitarCierre: () => invocar(CANALES.sesion.solicitarCierre),
+    confirmarCierre: (cola, revision) =>
+      invocar(CANALES.sesion.confirmarCierre, { cola, revision }),
+    cancelarCierre: () => invocar(CANALES.sesion.cancelarCierre)
+  },
+  cola: {
+    agregar: (cancionId, donde) => invocar(CANALES.cola.agregar, { cancionId, donde }),
+    mover: (entradaId, antesDe) => invocar(CANALES.cola.mover, { entradaId, antesDe }),
+    quitar: (entradaId) => invocar(CANALES.cola.quitar, { entradaId }),
+    vaciar: (contexto) => invocar(CANALES.cola.vaciar, { contexto })
+  },
+  exportacion: {
+    perfiles: () => invocar(CANALES.exportacion.perfiles),
+    estimar: (peticion) => invocar(CANALES.exportacion.estimar, peticion),
+    destinoPropuesto: (peticion) => invocar(CANALES.exportacion.destinoPropuesto, peticion),
+    elegirDestino: (destinoId) => invocar(CANALES.exportacion.elegirDestino, { destinoId }),
+    iniciar: (peticion) => invocar(CANALES.exportacion.iniciar, peticion),
+    cancelar: (trabajoId) => invocar(CANALES.exportacion.cancelar, { trabajoId }),
+    estado: () => invocar(CANALES.exportacion.estado),
+    mostrarEnCarpeta: (referencia) => invocar(CANALES.exportacion.mostrarEnCarpeta, referencia),
+    avisosPendientes: () => invocar(CANALES.exportacion.avisosPendientes),
+    alAviso: (cb) => suscribir(CANALES.eventos.exportacionAviso, cb),
+    alCambiar: (cb) => suscribir(CANALES.eventos.exportacionCambio, cb),
+    alProgreso: (cb) => suscribir(CANALES.eventos.exportacionProgreso, cb)
   },
   trabajos: {
     listar: () => invocar(CANALES.trabajos.listar),
@@ -54,6 +108,10 @@ const api: ApiShinobi = {
   separacion: {
     separar: (cancionId) => invocar(CANALES.separacion.separar, cancionId),
     estimar: (cancionId) => invocar(CANALES.separacion.estimar, cancionId)
+  },
+  picos: {
+    solicitar: (id, reintentar) => invocar(CANALES.picos.solicitar, id, reintentar),
+    leer: (peticion) => invocar(CANALES.picos.leer, peticion)
   },
   letras: {
     buscar: (peticion) => invocar(CANALES.letras.buscar, peticion),
@@ -116,7 +174,7 @@ const api: ApiShinobi = {
     guardadoPendiente: (pendiente) => invocar(CANALES.app.guardadoPendiente, pendiente),
     confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
     salir: () => invocar(CANALES.app.salir),
-    alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, () => cb())
+    alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, cb)
   },
   avisos: {
     alAviso: (cb) => suscribir(CANALES.eventos.avisoTrabajo, cb),
@@ -124,6 +182,10 @@ const api: ApiShinobi = {
   },
   alCambiarCancion: (cb) => suscribir(CANALES.eventos.cancion, cb),
   alCambiarConfig: (cb) => suscribir(CANALES.eventos.config, cb),
+  alCambiarTemas: (cb) => suscribir(CANALES.eventos.temasCambiado, cb),
+  alCambiarSesion: (cb) => suscribir(CANALES.eventos.sesionEstado, cb),
+  alPosicionSesion: (cb) => suscribir(CANALES.eventos.sesionPosicion, cb),
+  alCambiarPantallas: (cb) => suscribir(CANALES.eventos.pantallasCambiadas, cb),
   alCambiarEstadoInfo: (cb) => suscribir(CANALES.eventos.estadoInfo, cb),
   alAccionMenu: (cb) => suscribir(CANALES.eventos.menu, cb),
   rutaDeArchivo: (archivo) => webUtils.getPathForFile(archivo)

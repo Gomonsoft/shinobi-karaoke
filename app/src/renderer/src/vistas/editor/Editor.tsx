@@ -8,10 +8,11 @@ import {
   useRef,
   useState
 } from 'react'
-import { Maximize, X } from 'lucide-react'
+import { Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
+import { preferenciasPanelesPredeterminadas } from '@shared/paneles'
 import { finEfectivo, type Letra } from '@shared/letra'
 import {
   contador,
@@ -26,10 +27,12 @@ import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
+import { Divisor } from '../../componentes/Divisor'
 import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { evaluarContraste } from '../../karaoke/contraste'
 import type { Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
@@ -40,15 +43,41 @@ import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { Reproductor, type PropsReproductor } from '../reproductor/Reproductor'
 import { BannerSincronizar } from './BannerSincronizar'
-import { avisarBorradorAlSalir, BotonLista, DialogoVolverABorradorEditor } from './BotonLista'
+import { BotonLayout, type NombreBotonLayout } from './BotonLayout'
+import {
+  avisarBorradorAlSalir,
+  avisarError,
+  BotonLista,
+  DialogoVolverABorradorEditor
+} from './BotonLista'
+import { BotonLetraLista } from './BotonLetraLista'
+import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
+import { LL } from './textosLetraLista'
+import { useExportarDesdeEditor } from './useExportarDesdeEditor'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
+import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
-import { PanelSincronia, mostrarAyudaBluetooth } from './PanelSincronia'
+import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
+import { PistaSincronia } from './PistaSincronia'
+import { useControlEspera, useEjemploEspera, esperaVisible } from './estilo/useEspera'
+import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
+import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
+import { S as SILENCIOS } from './silencios/textos'
+import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
+import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
+import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
+import { RielLista } from './RielLista'
+import { RielPanel } from './RielPanel'
 import { Transporte, type SeparacionEditor } from './Transporte'
 import { EscuchaComprobacion } from './escuchaComprobacion'
 import {
+  aSeleccionIpc,
   estadoInicial,
+  gestoMarcadorVigente,
+  iniciarGestoMarcador,
+  moverGestoMarcador,
+  type GestoMarcador,
   puedeDeshacer,
   puedeRehacer,
   reducirEditor,
@@ -56,7 +85,16 @@ import {
 } from './estado'
 import { E } from './textos'
 import { useAtajosEditor } from './useAtajosEditor'
-import { useGuardadoEditor } from './useGuardadoEditor'
+import {
+  aplicarArrastre,
+  aplicarTecla,
+  preferenciaTrasAccion,
+  type DivisorEditor
+} from './distribucion'
+import { aplicarTamanoVivo, useDistribucion } from './useDistribucion'
+import { useGuardadoEditor, type SecuenciaResumen } from './useGuardadoEditor'
+import { useTemaEditor } from './useTemaEditor'
+import { usePreferenciasPaneles } from './usePreferenciasPaneles'
 import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
 import estilos from './editor.module.css'
 
@@ -80,11 +118,30 @@ export function desdeLinea(letra: Letra, id: string): number {
 }
 
 export function Editor({ id }: { id: string }) {
-  const { ir } = useNavegacion()
+  const { ir, vista } = useNavegacion()
   const [carga, setCarga] = useState<Carga | 'error' | null>(null)
   const sesion = useRef<string | null>(null)
   const generacion = useRef(0)
   const [resumenVivo, setResumenVivo] = useState<ResumenCancionIpc | null>(null)
+  // La respuesta del pedido más reciente manda: guardarApariencia, cancion:cambiada y listar().
+  const secuencia = useRef({ pedida: 0, aplicada: 0 })
+  const resumenes = useMemo<SecuenciaResumen>(
+    () => ({
+      nuevo: () => ++secuencia.current.pedida,
+      aplicar: (token, resumen) => {
+        if (token < secuencia.current.aplicada) return
+        secuencia.current.aplicada = token
+        setResumenVivo(resumen)
+      }
+    }),
+    []
+  )
+  const refrescarResumen = useCallback(async () => {
+    const token = resumenes.nuevo()
+    const lista = await window.shinobi.biblioteca.listar()
+    const actual = lista.find((c) => c.id === id)
+    if (actual) resumenes.aplicar(token, actual)
+  }, [id, resumenes])
 
   const leerVisita = useCallback(async (): Promise<Cancion | null> => {
     const vigente = generacion.current
@@ -103,8 +160,18 @@ export function Editor({ id }: { id: string }) {
     const baja = api.alCambiarCancion((evento) => {
       if (evento.id === id) {
         if (evento.eliminada) setCarga('error')
-        else setResumenVivo(evento.resumen)
+        else resumenes.aplicar(resumenes.nuevo(), evento.resumen)
       }
+    })
+    const bajaTemas = api.alCambiarTemas(() => {
+      const token = resumenes.nuevo()
+      void api.biblioteca.listar().then(
+        (lista) => {
+          const actual = lista.find((c) => c.id === id)
+          if (vigente === generacion.current && actual) resumenes.aplicar(token, actual)
+        },
+        () => undefined
+      )
     })
     void Promise.all([leerVisita(), api.biblioteca.listar(), api.config.obtener()]).then(
       ([cancion, lista, config]) => {
@@ -119,11 +186,12 @@ export function Editor({ id }: { id: string }) {
     return () => {
       generacion.current = vigente + 1
       baja()
+      bajaTemas()
       const token = sesion.current
       sesion.current = null
       if (token) void api.letras.cerrarEdicion(token).catch(() => undefined)
     }
-  }, [id, leerVisita])
+  }, [id, leerVisita, resumenes])
 
   const obtenerSesion = useCallback(() => sesion.current, [])
   const biblioteca = () => ir({ tipo: 'biblioteca' })
@@ -147,6 +215,11 @@ export function Editor({ id }: { id: string }) {
       resumen={resumenVivo ?? carga.resumen}
       leerVisita={leerVisita}
       obtenerSesion={obtenerSesion}
+      resumenes={resumenes}
+      refrescarResumen={refrescarResumen}
+      pestanaInicial={
+        vista.tipo === 'cancion' && vista.pestana === 'estilo' ? 'estilo' : 'sincronia'
+      }
     />
   )
 }
@@ -156,6 +229,10 @@ interface PropsActiva {
   resumen: ResumenCancionIpc
   leerVisita(): Promise<Cancion | null>
   obtenerSesion(): string | null
+  resumenes: SecuenciaResumen
+  refrescarResumen(): Promise<void>
+  /** Al volver de Ajustes se reabre en la pestaña Estilo (0175, A10). */
+  pestanaInicial: Pestana
 }
 
 type EscuchaEditor = { pista: Pista; velocidad: Velocidad }
@@ -165,22 +242,62 @@ type Prueba = EscuchaEditor & {
   grupo: string
 }
 
-function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva) {
+function EditorActivo({
+  carga,
+  resumen,
+  leerVisita,
+  obtenerSesion,
+  resumenes,
+  refrescarResumen,
+  pestanaInicial
+}: PropsActiva) {
   const { cancion, config } = carga
   const { id, metadatos } = cancion
   const { ir } = useNavegacion()
   const { trabajos, progreso } = useTrabajosVivos()
   const letraInicial = cancion.letra ?? VACIA
   const [edicion, despachar] = useReducer(reducirEditor, null, () =>
-    estadoInicial({ letra: letraInicial, estilo: cancion.estilo }, seleccionarInicial(letraInicial))
+    estadoInicial(
+      {
+        letra: letraInicial,
+        apariencia: {
+          seleccion: seleccionDeDisco(cancion.apariencia),
+          estilo: cancion.estilo,
+          reemplazos: cancion.apariencia?.reemplazos ?? null
+        }
+      },
+      seleccionarInicial(letraInicial)
+    )
   )
-  const { letra, estilo } = edicion.actual
+  const { letra, apariencia } = edicion.actual
   const cuentas = contador(letra)
-  const [pestana, setPestana] = useState<Pestana>('sincronia')
-  const [estiloPredeterminado, setEstiloPredeterminado] = useState(config.estilo_predeterminado)
+  const [pestana, setPestana] = useState<Pestana>(pestanaInicial)
+  const [anuncioLayout, setAnuncioLayout] = useState('')
+  const temporizadorAnuncio = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(temporizadorAnuncio.current), [])
+  /** Anuncio en la región `aria-live` del editor: una vez por cambio; se vacía para poder repetirse. */
+  function anunciar(texto: string) {
+    setAnuncioLayout(texto)
+    clearTimeout(temporizadorAnuncio.current)
+    temporizadorAnuncio.current = setTimeout(() => setAnuncioLayout(''), 4000)
+  }
+  const tema = useTemaEditor({ resumen, edicion, despachar, anunciar, refrescarResumen })
+  const estilo = tema.estiloVisible
+  // Estado de esta visita al editor: no se guarda ni entra en el historial (G7).
+  const [fondoDetenido, setFondoDetenido] = useState(false)
+  const movimientoReducido = useMovimientoReducido()
+  const hayMovimiento = estilo.fondo.tipo === 'degradado' && Boolean(estilo.fondo.movimiento)
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
+  // Fase 5 · 0214: aviso de «Letra lista» y cambio de modalidad desde el menú ⋯.
+  const [omitirAvisoLL, setOmitirAvisoLL] = useState(config.editor.omitir_aviso_letra_lista)
+  const [dialogoCambioLL, setDialogoCambioLL] = useState(false)
+  const esLetraLista = resumen.estado === 'lista' && resumen.modalidad === 'letra_lista'
+  // En Letra lista, «resaltado» y «diferencia» solo afectan al editor: no encienden el punto (LL7).
+  const avisosPestana = contraste.avisos.filter(
+    (a) => !(esLetraLista && !tema.editando && a !== 'letra')
+  )
   const [prueba, setPrueba] = useState<Prueba | null>(null)
   const abrirPendiente = useRef<AbortController | null>(null)
   const vuelta = useRef<(EscuchaEditor & { posicionMs: number }) | null>(null)
@@ -190,9 +307,36 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     contador(letraInicial).sincronizadas > 0 ? 1 : 0
   )
   const refSync = useRef<HTMLButtonElement>(null)
+  const refRaiz = useRef<HTMLDivElement>(null)
+  const refCabecera = useRef<HTMLElement>(null)
+  const refDock = useRef<HTMLDivElement>(null)
+  const refTransporte = useRef<HTMLDivElement>(null)
+  const refExtraSync = useRef<HTMLDivElement>(null)
   const focoInicialSync = useRef(contador(letraInicial).sincronizadas === 0)
+  const { preferencias, actualizar: actualizarPaneles } = usePreferenciasPaneles(
+    config.editor.paneles
+  )
+  const distribucion = useDistribucion({
+    raiz: refRaiz,
+    cabecera: refCabecera,
+    dock: refDock,
+    transporte: refTransporte,
+    extraSync: refExtraSync,
+    pestana,
+    sincronizando: edicion.sync.activo,
+    preferencias
+  })
+  const listaMinimizada = distribucion.lista.minimizado
+  const panelMinimizado = distribucion.panel.minimizado
+  const lineaTiempoMinimizada = distribucion.lineaTiempo.minimizado
+  const focoPendiente = useRef<NombreBotonLayout | null>(null)
+  const focoEnLineaTiempo = useRef(false)
   const [cerradoYaSync, setCerradoYaSync] = useState(false)
   const [posicion, setPosicion] = useState(0)
+  const [gestoVisible, setGestoVisible] = useState<GestoMarcador | null>(null)
+  const gestoActual = useRef<GestoMarcador | null>(null)
+  const [bucleArmado, setBucleArmado] = useState(false)
+  const bucle = useRef<{ previa: number; sonaba: boolean | null } | null>(null)
   const volumen = useVolumenCompartido(config.reproductor)
   const { motor, estado: audio } = useMotorAudio({
     cancionId: id,
@@ -215,6 +359,11 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         : null,
     minutos: eta == null ? undefined : Math.max(1, Math.round(eta / 60))
   }
+
+  const picos = usePicosVoz(
+    id,
+    pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+  )
 
   const pistaInicial = useRef<Pista>(
     carga.resumen.pasos?.separacion.estado === 'completado' && !carga.resumen.danada
@@ -288,8 +437,139 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       setFocoLinea((n) => n + 1)
     }
   })
+  // Espera que ve el público (reemplazo de la canción, tema o estilo propio).
+  const esperaDelPublico = esperaVisible(tema.control.vista, apariencia, estilo)
+  // «Ajustar los silencios» (0215): el botón de la línea de tiempo y el ítem del menú ⋯ comparten estado.
+  const silencios = useAjustarSilencios({
+    cancionId: id,
+    letra,
+    duracionMs,
+    espera: esperaDelPublico,
+    version: edicion.version,
+    despachar,
+    anunciar
+  })
+  const motivosAjuste = motivosSilencios({
+    letra,
+    separacionDisponible: separacion.disponible,
+    picos:
+      pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+        ? picos.estado.estado
+        : null,
+    borradorTema: tema.editando
+  })
+  // Indicadores de espera (0212): la vista previa y la prueba ven la espera efectiva de la canción.
+  const estiloPrevia = useMemo(
+    () => ({ ...estilo, espera: esperaDelPublico }),
+    [estilo, esperaDelPublico]
+  )
+  const ejemploEspera = useEjemploEspera({
+    letra,
+    seleccion: edicion.seleccion,
+    espera: esperaDelPublico,
+    sonando,
+    pausar: () => alternar(),
+    anunciar
+  })
+  const controlEspera = useControlEspera({
+    vista: tema.control.vista,
+    resumen,
+    apariencia,
+    estilo,
+    despachar,
+    anunciar,
+    ejemploActivo: ejemploEspera.ejemplo !== null,
+    alternarEjemplo: ejemploEspera.alternar
+  })
+  function irAPrimeraSinInicio() {
+    const primera = primeraSinInicio(letra)
+    if (primera) seleccionar(primera, true)
+  }
+  function intervaloDeSeleccion(letraVisible: Letra): IntervaloTiempo | null {
+    const inicio = letraVisible.lineas.find((l) => l.id === edicion.seleccion)?.inicio_ms
+    const fin = edicion.seleccion ? finEfectivo(letraVisible, edicion.seleccion, duracionMs) : null
+    if (inicio == null || fin == null) return null
+    return recortarIntervalo(
+      { inicioMs: inicio + letraVisible.offset_ms, finMs: fin + letraVisible.offset_ms },
+      crearVistaLineaTiempo(duracionMs)
+    )
+  }
+
+  function desarmarBucle(restaurar = true) {
+    const sesion = bucle.current
+    if (!sesion || !motor) return
+    bucle.current = null
+    setBucleArmado(false)
+    if (restaurar) motor.pausar()
+    motor.fijarBucle(null)
+    if (restaurar) motor.buscar(sesion.previa)
+    setPosicion(motor.posicionMs())
+  }
+
+  function aplicarLimitesBucle(letraVisible: Letra, provisional: boolean) {
+    const sesion = bucle.current
+    if (!sesion || !motor) return
+    const intervalo = intervaloDeSeleccion(letraVisible)
+    if (!intervalo) {
+      if (!provisional) {
+        desarmarBucle()
+        return
+      }
+      if (sesion.sonaba === null) {
+        sesion.sonaba = motor.estado().sonando
+        motor.pausar()
+        setPosicion(motor.posicionMs())
+      }
+      return
+    }
+    if (!motor.fijarBucle(intervalo)) return
+    setPosicion(motor.posicionMs())
+    if (sesion.sonaba !== null) {
+      if (sesion.sonaba) void motor.reproducir()
+      sesion.sonaba = null
+    }
+  }
+
+  function alternarBucle() {
+    if (bucle.current) {
+      desarmarBucle()
+      cancelarMarcador()
+      return
+    }
+    const intervalo = intervaloDeSeleccion(letra)
+    if (!motor || !intervalo) return
+    cancelarMarcador()
+    escucha?.cancelar()
+    const previa = motor.posicionMs()
+    motor.pausar()
+    if (!motor.fijarBucle(intervalo)) return
+    bucle.current = { previa, sonaba: null }
+    setBucleArmado(true)
+    motor.buscar(intervalo.inicioMs)
+    setPosicion(intervalo.inicioMs)
+    void motor.reproducir()
+  }
+
+  function cancelarMarcador() {
+    if (!gestoActual.current) return false
+    gestoActual.current = null
+    setGestoVisible(null)
+    aplicarLimitesBucle(letra, false)
+    return true
+  }
+
+  const actualizarTrasEdicion = useEffectEvent(() => {
+    if (gestoActual.current && !gestoMarcadorVigente(edicion, gestoActual.current)) {
+      cancelarMarcador()
+    }
+    aplicarLimitesBucle(gestoActual.current?.resultado?.letra ?? letra, !!gestoActual.current)
+  })
+  useLayoutEffect(() => actualizarTrasEdicion(), [edicion, duracionMs])
+
   function entrarSync() {
     if (abrirPendiente.current) return
+    desarmarBucle()
+    cancelarMarcador()
     escucha?.cancelar()
     setPestana('sincronia')
     sync.entrar()
@@ -310,36 +590,56 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   const {
     estado: guardado,
     cambiarLetra,
-    cambiarEstilo,
+    cambiarApariencia,
     vaciar,
     confirmarSinGuardar,
     dialogoSalida
-  } = useGuardadoEditor(
-    id,
-    metadatos.titulo,
+  } = useGuardadoEditor({
+    cancionId: id,
+    titulo: metadatos.titulo,
     obtenerSesion,
-    async () => {
+    borradorPendiente: tema.borradorModificado,
+    guardaBorrador: tema.pedirSalida,
+    resumenes,
+    alDesactualizada: async () => {
+      desarmarBucle()
+      cancelarMarcador()
       motor?.pausar()
       const actual = await leerVisita()
       const nueva = actual?.letra ?? VACIA
       const seleccion = nueva.lineas.some((l) => l.id === edicion.seleccion && l.tipo === 'linea')
         ? edicion.seleccion
         : seleccionarInicial(nueva)
-      despachar({ tipo: 'cargar', instantanea: { letra: nueva, estilo }, seleccion })
+      despachar({
+        tipo: 'cargar',
+        instantanea: { letra: nueva, apariencia, borrador: edicion.actual.borrador },
+        seleccion
+      })
       mostrarToast({ tipo: 'aviso', mensaje: E.recargada, persistente: true })
     },
-    (destino) => avisarBorradorAlSalir(destino, resumen.estado, edicion.cambiosEnVisita)
-  )
-  const previa = useRef(edicion.actual)
+    alSalirGuardado: (destino) =>
+      avisarBorradorAlSalir(destino, resumen.estado, edicion.cambiosEnVisita)
+  })
+  const previa = useRef({ actual: edicion.actual, version: edicion.version })
   useEffect(() => {
     const ultima = previa.current
-    previa.current = edicion.actual
-    if (edicion.version === 0) return
-    if (ultima.letra !== letra) cambiarLetra(letra)
-    if (ultima.estilo !== estilo) cambiarEstilo(estilo)
-  }, [edicion.actual, edicion.version, letra, estilo, cambiarLetra, cambiarEstilo])
+    previa.current = { actual: edicion.actual, version: edicion.version }
+    // Solo los pasos del historial se guardan; entrar en D3 o retirar un tema no escriben nada.
+    if (edicion.version === 0 || edicion.version === ultima.version) return
+    if (ultima.actual.letra !== letra) cambiarLetra(letra)
+    if (ultima.actual.apariencia !== apariencia) cambiarApariencia(aSeleccionIpc(apariencia))
+  }, [edicion.actual, edicion.version, letra, apariencia, cambiarLetra, cambiarApariencia])
 
   const probarInactivo = edicion.sync.activo || Boolean(audio?.error)
+  const exportarVideo = useExportarDesdeEditor({
+    cancionId: id,
+    hayPistas: separacion.disponible,
+    lineasConInicio: cuentas.sincronizadas,
+    inactivo: probarInactivo,
+    temaBorrador: tema.borradorModificado,
+    pausar: () => motor?.pausar(),
+    vaciar
+  })
   const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
   useLayoutEffect(() => {
     // El vaciado puede esperar una escritura o el diálogo. Usa el editor del último render.
@@ -351,6 +651,8 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         0,
         inicio == null ? obtenerTiempoAudio() : inicio + letra.offset_ms - 3000
       )
+      desarmarBucle()
+      cancelarMarcador()
       escucha?.cancelar()
       motor?.liberarAudio()
       return {
@@ -364,6 +666,25 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       }
     }
   })
+
+  async function cambiarModalidad(modalidad: 'karaoke' | 'letra_lista', omitir = false) {
+    try {
+      if (omitir) {
+        await guardarOmitirAviso()
+        setOmitirAvisoLL(true)
+      }
+      if (!(await vaciar())) return
+      await window.shinobi.biblioteca.marcarLista(id, { modalidad })
+      await refrescarResumen()
+      const mensaje = modalidad === 'letra_lista' ? LL.toastCambio : LL.toastKaraoke
+      mostrarToast({ tipo: 'exito', mensaje })
+      anunciar(mensaje)
+    } catch (error) {
+      avisarError(LL.errorCambiar, error)
+    } finally {
+      setDialogoCambioLL(false)
+    }
+  }
 
   async function abrirPrueba(): Promise<void> {
     if (probarInactivo || !cuentas.sincronizadas || prueba || abrirPendiente.current) return
@@ -394,6 +715,13 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   function buscar(ms: number) {
     if (!motor) return
     escucha?.cancelar()
+    if (bucle.current) {
+      const intervalo = intervaloDeSeleccion(gestoActual.current?.resultado?.letra ?? letra)
+      if (!intervalo || ms < intervalo.inicioMs || ms >= intervalo.finMs) {
+        desarmarBucle(false)
+        cancelarMarcador()
+      }
+    }
     motor.buscar(ms)
     setPosicion(motor.posicionMs())
   }
@@ -403,17 +731,24 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       return
     }
     escucha?.cancelar()
-    if (sonando) motor?.pausar()
+    if (bucle.current?.sonaba != null) return
+    if (motor?.estado().sonando) motor.pausar()
     else void motor?.reproducir()
   }
   function usarPista(pista: Pista) {
     if (pista === 'original' || separacion.disponible) void motor?.usarPista(pista)
   }
   function escuchar(id: string) {
+    desarmarBucle()
+    cancelarMarcador()
     escucha?.cancelar()
     if (!edicion.sync.activo) void motor?.reproducir({ desdeMs: desdeLinea(letra, id) })
   }
   function seleccionar(id: string, enfocar = false) {
+    if (id !== edicion.seleccion) {
+      desarmarBucle()
+      cancelarMarcador()
+    }
     if (edicion.sync.activo) sync.seleccionar(id)
     else despachar({ tipo: 'seleccionar', id })
     if (enfocar) {
@@ -425,7 +760,13 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
   function cambiarTiempo(campo: 'inicio' | 'fin', accion: AccionEditor) {
     const actualizado = reducirEditor(edicion, accion)
     despachar(accion)
-    if (!escucharAjustes || actualizado.version === edicion.version || !edicion.seleccion) return
+    if (
+      bucle.current ||
+      !escucharAjustes ||
+      actualizado.version === edicion.version ||
+      !edicion.seleccion
+    )
+      return
     const nueva = actualizado.actual.letra
     const ms =
       campo === 'inicio'
@@ -456,6 +797,147 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     despachar({ tipo: 'desplazar', deltaMs, ahora: performance.now() })
   const borrar = () => despachar({ tipo: 'borrar_tiempos', ahora: performance.now() })
 
+  type ZonaPaneles = 'lista' | 'panel' | 'linea_tiempo'
+  const ZONAS = {
+    lista: { nombre: E.layout.lista.nombre, femenino: true, boton: 'lista' },
+    panel: { nombre: E.layout.panel.nombre, femenino: false, boton: 'panel' },
+    linea_tiempo: { nombre: E.layout.timeline.nombre, femenino: true, boton: 'timeline' }
+  } as const
+  const ZONA_DE_DIVISOR = { lista: 'lista', panel: 'panel', dock: 'linea_tiempo' } as const
+
+  /** Minimiza o expande una zona por acción del usuario (se guarda al momento, spec 2.1). */
+  function alternarZona(zona: ZonaPaneles, origen: 'boton' | 'divisor') {
+    const info = ZONAS[zona]
+    const minimiza = !preferencias[zona].minimizado
+    actualizarPaneles(
+      { ...preferencias, [zona]: { ...preferencias[zona], minimizado: minimiza } },
+      'inmediato'
+    )
+    anunciar(
+      minimiza
+        ? E.layout.anuncio.minimizado(info.nombre, info.femenino)
+        : E.layout.anuncio.expandido(info.nombre, info.femenino)
+    )
+    // Con el botón el foco pasa al equivalente del otro modo; con Intro o doble clic se queda en el divisor.
+    if (origen === 'boton') {
+      focoPendiente.current = `${info.boton}-${minimiza ? 'expandir' : 'minimizar'}`
+    }
+  }
+
+  function restablecerDivisor(divisor: DivisorEditor) {
+    const defecto = preferenciasPanelesPredeterminadas()
+    const zona = ZONA_DE_DIVISOR[divisor]
+    if (preferencias[zona].minimizado) {
+      const info = ZONAS[zona]
+      anunciar(E.layout.anuncio.expandido(info.nombre, info.femenino))
+    }
+    actualizarPaneles({ ...preferencias, [zona]: defecto[zona] }, 'inmediato')
+  }
+
+  function restablecerDistribucion() {
+    actualizarPaneles(preferenciasPanelesPredeterminadas(), 'inmediato')
+    anunciar(E.layout.anuncio.restablecida)
+  }
+
+  function cambiarTamano(divisor: DivisorEditor, valor: number, origen: 'teclado' | 'arrastre') {
+    // En vivo solo cambia la variable CSS: ni estado, ni reducer, ni guardado.
+    if (origen === 'arrastre') {
+      aplicarTamanoVivo(refRaiz.current, distribucion, divisor, valor)
+      return
+    }
+    actualizarPaneles(preferenciaTrasAccion(preferencias, divisor, valor), 'teclado')
+  }
+
+  function propsDivisor(divisor: DivisorEditor) {
+    const zona = divisor === 'dock' ? distribucion.lineaTiempo : distribucion[divisor]
+    const valor = 'ancho' in zona ? zona.ancho : zona.alto
+    const femenino = divisor !== 'panel'
+    return {
+      nombre: divisor,
+      orientacion: divisor === 'dock' ? ('horizontal' as const) : ('vertical' as const),
+      controla: { lista: 'zona-lista', panel: 'zona-panel', dock: 'zona-linea-tiempo' }[divisor],
+      etiqueta: E.layout.divisor[divisor],
+      valor,
+      min: zona.min,
+      max: zona.max,
+      minimizado: zona.minimizado,
+      textoValor: zona.minimizado
+        ? E.layout.valorMinimizado(femenino)
+        : E.layout.valor(Math.round(valor)),
+      tooltip: E.layout.divisor.tooltip,
+      focoEditor: 'divisor',
+      alTecla: (tecla: string, mayus: boolean) => aplicarTecla(distribucion, divisor, tecla, mayus),
+      alArrastre: (inicio: number, delta: number) =>
+        aplicarArrastre(distribucion, divisor, inicio, delta),
+      alCambiar: (v: number, origen: 'teclado' | 'arrastre') => cambiarTamano(divisor, v, origen),
+      alConfirmar: (v: number) =>
+        actualizarPaneles(preferenciaTrasAccion(preferencias, divisor, v), 'inmediato'),
+      alRestablecer: () => restablecerDivisor(divisor),
+      alAlternar: () => alternarZona(ZONA_DE_DIVISOR[divisor], 'divisor')
+    }
+  }
+
+  function moverSeleccion(sentido: -1 | 1, enfocar: boolean) {
+    const id = lineaVecina(letra, edicion.seleccion, sentido)
+    if (id && id !== edicion.seleccion) {
+      desarmarBucle()
+      cancelarMarcador()
+    }
+    despachar({ tipo: 'mover_seleccion', sentido })
+    setPestana('sincronia')
+    if (enfocar) setFocoLinea((n) => n + 1)
+  }
+
+  // Foco tras cambiar de modo: el botón equivalente de la zona; nunca queda en `body`.
+  useLayoutEffect(() => {
+    const nombre = focoPendiente.current
+    if (!nombre) return
+    const boton = refRaiz.current?.querySelector<HTMLElement>(`[data-boton-layout="${nombre}"]`)
+    if (!boton) return
+    focoPendiente.current = null
+    boton.focus({ preventScroll: true })
+  })
+
+  // Línea de tiempo minimizada por falta de espacio: temporal, nunca toca la preferencia.
+  const porEspacio = distribucion.lineaTiempo.minimizadoPorEspacio
+  const porEspacioAntes = useRef(false)
+  useLayoutEffect(() => {
+    const ahora = porEspacio && !porEspacioAntes.current
+    porEspacioAntes.current = porEspacio
+    if (!ahora || preferencias.linea_tiempo.minimizado) return
+    anunciar(E.layout.anuncio.sinEspacio)
+    const activo = document.activeElement
+    if (focoEnLineaTiempo.current && (!activo || activo === document.body)) {
+      refRaiz.current
+        ?.querySelector<HTMLElement>('[data-boton-layout="timeline-expandir"]')
+        ?.focus({ preventScroll: true })
+    }
+    // Solo reacciona al cambio de estado por falta de espacio.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [porEspacio])
+
+  // Foco inicial en la lista: con la lista minimizada va a «Expandir lista de líneas».
+  function enfocarLista() {
+    if (listaMinimizada) {
+      refRaiz.current
+        ?.querySelector<HTMLElement>('[data-boton-layout="lista-expandir"]')
+        ?.focus({ preventScroll: true })
+    } else {
+      setFocoLinea((n) => n + 1)
+    }
+  }
+  useLayoutEffect(() => {
+    if (focoLinea === 0) return
+    const raizEditor = refRaiz.current
+    const destino = listaMinimizada
+      ? raizEditor?.querySelector<HTMLElement>('[data-boton-layout="lista-expandir"]')
+      : (raizEditor?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]') ??
+        raizEditor?.querySelector<HTMLElement>('#lineas-editor'))
+    destino?.focus({ preventScroll: true })
+    // Solo al entrar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useAtajosEditor(
     edicion.sync.activo,
     (accion, evento) => {
@@ -473,9 +955,7 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
           usarPista(accion.pista)
           break
         case 'mover_seleccion':
-          despachar(accion)
-          setPestana('sincronia')
-          setFocoLinea((n) => n + 1)
+          moverSeleccion(accion.sentido, !listaMinimizada)
           break
         case 'deshacer':
           despachar({ tipo: 'deshacer' })
@@ -506,6 +986,9 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
         case 'probar':
           void abrirPrueba()
           break
+        case 'exportar':
+          exportarVideo.exportar()
+          break
         case 'entrar_sync':
           entrarSync()
           break
@@ -516,6 +999,11 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
           sync.deshacer()
           break
         case 'escapar':
+          if (cancelarMarcador()) break
+          if (bucle.current) {
+            desarmarBucle()
+            break
+          }
           if (edicion.sync.activo) sync.terminar()
           else ir({ tipo: 'biblioteca' })
           break
@@ -539,6 +1027,11 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
       {E.botonProbar}
     </Boton>
   )
+  const motivoBucle = !letra.lineas.some((l) => l.id === edicion.seleccion && l.inicio_ms !== null)
+    ? E.timeline.sinInicio
+    : !intervaloDeSeleccion(letra)
+      ? E.timeline.fuera
+      : undefined
   const siguiente = letra.lineas.find((el) => el.id === edicion.sync.siguiente)
   const todasAlEntrar = contador(letraInicial).sincronizadas === contador(letraInicial).total
   const banner =
@@ -559,230 +1052,498 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
     ) : undefined
 
   return (
-    <div className={estilos.editor} data-pestana={pestana}>
+    <div
+      ref={refRaiz}
+      className={estilos.editor}
+      data-pestana={pestana}
+      data-compacto={distribucion.compacto}
+      data-bajo-minimo={distribucion.bajoMinimo ?? undefined}
+      onFocusCapture={(e) => {
+        focoEnLineaTiempo.current = !!(e.target as HTMLElement).closest('#zona-linea-tiempo')
+      }}
+    >
       <a
         className="saltar-al-contenido"
         href="#lineas-editor"
         onClick={(e) => {
           e.preventDefault()
           setPestana('sincronia')
-          setFocoLinea((n) => n + 1)
+          enfocarLista()
         }}
       >
         Saltar al contenido
       </a>
       <h1 className={estilos.soloLector}>Editor</h1>
-      <span className={estilos.soloLector} aria-live="polite">
-        {sync.anuncio}
-      </span>
-      <header role="banner">
-        <CabeceraCancion
-          resumen={resumen}
-          actual="editor"
-          guardado={guardado}
-          incompleta={cuentas.total - cuentas.sincronizadas}
-          historial={{
-            puedeDeshacer: puedeDeshacer(edicion),
-            puedeRehacer: puedeRehacer(edicion),
-            alDeshacer: () => despachar({ tipo: 'deshacer' }),
-            alRehacer: () => despachar({ tipo: 'rehacer' })
-          }}
-          menu={[
-            { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) },
-            ...(resumen.estado === 'lista'
-              ? [
-                  {
-                    id: 'borrador',
-                    etiqueta: E.menuBorrador,
-                    alSeleccionar: () => setDialogoBorrador(true)
-                  }
-                ]
-              : [])
-          ]}
-        />
-      </header>
-      {cuentas.total === 0 ? (
-        <AvisoEnLinea tipo="info" accion={<Boton onClick={irALetra}>{E.buscarLetra}</Boton>}>
-          {E.sinLetra}
-        </AvisoEnLinea>
-      ) : (
-        <div className={estilos.cuerpo}>
-          <ListaLineas
-            letra={letra}
-            seleccion={edicion.seleccion}
-            actual={sonando ? indiceLineaActual(letra, posicion) : -1}
-            foco={focoLinea}
-            revisionSeleccion={revisionSeleccion}
-            seleccionar={seleccionar}
-            escuchar={escuchar}
-            corregir={irALetra}
-            banner={banner}
+      <div className={estilos.soloLector} aria-live="polite" data-region="anuncios-editor">
+        <span>{sync.anuncio}</span>
+        <span data-anuncio-layout>{anuncioLayout}</span>
+      </div>
+      <div className={estilos.rejilla}>
+        <header role="banner" ref={refCabecera} className={estilos.cabecera}>
+          <CabeceraCancion
+            variante={distribucion.compacto ? 'editor-compacta' : 'editor'}
+            resumen={resumen}
+            actual="editor"
+            guardado={guardado}
+            incompleta={cuentas.total - cuentas.sincronizadas}
+            historial={{
+              puedeDeshacer: puedeDeshacer(edicion),
+              puedeRehacer: puedeRehacer(edicion),
+              alDeshacer: () => despachar({ tipo: 'deshacer' }),
+              alRehacer: () => despachar({ tipo: 'rehacer' })
+            }}
+            menu={[
+              { id: 'atajos', etiqueta: E.menuAtajos, alSeleccionar: () => setDialogoAtajos(true) },
+              exportarVideo.item,
+              {
+                id: 'restablecer-distribucion',
+                etiqueta: E.layout.restablecer,
+                alSeleccionar: restablecerDistribucion
+              },
+              {
+                id: 'ajustar-silencios',
+                etiqueta: SILENCIOS.menu,
+                noDisponible: edicion.sync.activo
+                  ? SILENCIOS.falta.ritmo
+                  : motivosAjuste.map(textoMotivo).join(' · ') || undefined,
+                alSeleccionar: () => void silencios.pedir()
+              },
+              ...(resumen.estado === 'lista'
+                ? [
+                    esLetraLista
+                      ? {
+                          id: 'a-lista',
+                          etiqueta: LL.menuALista,
+                          alSeleccionar: () => void cambiarModalidad('karaoke')
+                        }
+                      : {
+                          id: 'a-letra-lista',
+                          etiqueta: LL.menuALetraLista,
+                          alSeleccionar: () =>
+                            omitirAvisoLL
+                              ? void cambiarModalidad('letra_lista')
+                              : setDialogoCambioLL(true)
+                        },
+                    {
+                      id: 'borrador',
+                      etiqueta: E.menuBorrador,
+                      alSeleccionar: () => setDialogoBorrador(true)
+                    }
+                  ]
+                : [])
+            ]}
           />
-          <section
-            className={estilos.previa}
-            aria-label={E.previa}
-            aria-describedby="descripcion-previa"
-          >
-            <h2>{E.previa}</h2>
-            <p id="descripcion-previa" className={estilos.soloLector}>
-              {E.previaAria}
-            </p>
-            <div className={estilos.pantalla}>
-              <PantallaLetra
+        </header>
+        {cuentas.total === 0 ? (
+          <div className={estilos.zonaVacia}>
+            <AvisoEnLinea tipo="info" accion={<Boton onClick={irALetra}>{E.buscarLetra}</Boton>}>
+              {E.sinLetra}
+            </AvisoEnLinea>
+          </div>
+        ) : (
+          <div className={estilos.cuerpo}>
+            {listaMinimizada ? (
+              <RielLista
                 letra={letra}
-                estilo={estilo}
+                seleccion={edicion.seleccion}
+                sincronizando={edicion.sync.activo}
+                limiteInicio={limiteDeCampo(edicion, 'inicio')}
+                anterior={() => moverSeleccion(-1, false)}
+                siguiente={() => moverSeleccion(1, false)}
+                fijarInicio={() => fijar('inicio')}
+                expandir={() => alternarZona('lista', 'boton')}
+              />
+            ) : (
+              <ListaLineas
+                letra={letra}
+                seleccion={edicion.seleccion}
+                actual={sonando ? indiceLineaActual(letra, posicion) : -1}
+                foco={focoLinea}
+                revisionSeleccion={revisionSeleccion}
+                seleccionar={seleccionar}
+                escuchar={escuchar}
+                corregir={irALetra}
+                banner={banner}
+                minimizar={
+                  distribucion.bajoMinimo === 'ancho'
+                    ? undefined
+                    : () => alternarZona('lista', 'boton')
+                }
+              />
+            )}
+            <Divisor
+              {...propsDivisor('lista')}
+              className={`${estilos.franja} ${estilos.franjaLista}`}
+            />
+            <section
+              className={estilos.previa}
+              aria-label={E.previa}
+              aria-describedby="descripcion-previa"
+            >
+              <h2 className={distribucion.compacto ? estilos.soloLector : undefined}>{E.previa}</h2>
+              <p id="descripcion-previa" className={estilos.soloLector}>
+                {E.previaAria}
+              </p>
+              <div className={estilos.lienzo}>
+                <div className={estilos.pantalla} data-lienzo="previa">
+                  <PantallaLetra
+                    letra={gestoVisible?.resultado?.letra ?? letra}
+                    key={ejemploEspera.ejemplo ? 'ejemplo' : 'previa'}
+                    estilo={estiloPrevia}
+                    duracionMs={ejemploEspera.ejemplo?.duracionMs ?? duracionMs}
+                    titulo={metadatos.titulo}
+                    artista={metadatos.artista}
+                    idEstatico={edicion.seleccion}
+                    reproduciendo={ejemploEspera.ejemplo !== null || sonando}
+                    cuentaAtras={ejemploEspera.ejemplo ? null : sync.cuentaAtras}
+                    obtenerTiempoAudio={
+                      ejemploEspera.ejemplo ? ejemploEspera.obtenerTiempo : obtenerTiempoAudio
+                    }
+                    etiqueta={ejemploEspera.ejemplo ? ejemploEspera.etiqueta : undefined}
+                    fondoEstatico={fondoDetenido}
+                  />
+                </div>
+                <div className={estilos.accionPrueba}>
+                  {cuentas.sincronizadas > 0 ? (
+                    <Tooltip contenido={E.probarTooltip}>{botonProbar}</Tooltip>
+                  ) : (
+                    botonProbar
+                  )}
+                  {hayMovimiento && !movimientoReducido && (
+                    <BotonIcono
+                      icono={fondoDetenido ? Play : Pause}
+                      etiqueta={fondoDetenido ? E.fondoG.reanudar : E.fondoG.detener}
+                      activo={fondoDetenido}
+                      className={estilos.detenerFondo}
+                      onClick={() => setFondoDetenido((d) => !d)}
+                    />
+                  )}
+                </div>
+              </div>
+            </section>
+            <Divisor
+              {...propsDivisor('panel')}
+              className={`${estilos.franja} ${estilos.franjaPanel}`}
+            />
+            {panelMinimizado ? (
+              <RielPanel
+                letra={letra}
+                seleccion={edicion.seleccion}
                 duracionMs={duracionMs}
-                titulo={metadatos.titulo}
-                artista={metadatos.artista}
-                idEstatico={edicion.seleccion}
-                reproduciendo={sonando}
-                cuentaAtras={sync.cuentaAtras}
-                obtenerTiempoAudio={obtenerTiempoAudio}
+                sincronizando={edicion.sync.activo}
+                bucle={bucleArmado}
+                motivoBucle={motivoBucle}
+                alternarBucle={audio?.duracionMs != null ? alternarBucle : undefined}
+                fijarFin={() => fijar('fin')}
+                limiteFin={limiteDeCampo(edicion, 'fin')}
+                avisos={avisosPestana.length > 0}
+                editandoTema={tema.editando}
+                expandir={() => alternarZona('panel', 'boton')}
+              />
+            ) : (
+              <>
+                <div className={estilos.pestanas}>
+                  <div data-foco-editor="segmentado">
+                    <ControlSegmentado
+                      etiqueta="Panel del editor"
+                      valor={pestana}
+                      opciones={[
+                        { valor: 'sincronia', etiqueta: 'Sincronía' },
+                        {
+                          valor: 'estilo',
+                          etiqueta: 'Estilo',
+                          aviso: avisosPestana.length > 0 ? 'Hay avisos de contraste' : undefined,
+                          info: tema.editando,
+                          nombre: tema.editando ? E.tema.pestanaEditando : undefined,
+                          noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
+                        }
+                      ]}
+                      onCambio={(panel) => {
+                        cancelarMarcador()
+                        setPestana(panel)
+                      }}
+                    />
+                  </div>
+                  {distribucion.bajoMinimo !== 'ancho' && (
+                    <BotonLayout
+                      icono={PanelRightClose}
+                      etiqueta={E.layout.panel.minimizar}
+                      nombre="panel-minimizar"
+                      expandido
+                      controla="zona-panel"
+                      onClick={() => alternarZona('panel', 'boton')}
+                    />
+                  )}
+                </div>
+                <div id="zona-panel" className={estilos.panel}>
+                  {pestana === 'sincronia' ? (
+                    <section aria-label="Ajuste de sincronía">
+                      <PanelSincronia
+                        edicion={edicion}
+                        duracionMs={duracionMs}
+                        ayudaBluetooth={ayudaBluetooth}
+                        cerrarBluetooth={() => setAyudaBluetooth(false)}
+                        escucharAjustes={escucharAjustes}
+                        fijarEscucharAjustes={setEscucharAjustes}
+                        bucle={bucleArmado}
+                        motivoBucle={motivoBucle}
+                        alternarBucle={audio?.duracionMs != null ? alternarBucle : undefined}
+                        fijar={fijar}
+                        finAutomatico={() =>
+                          despachar({ tipo: 'fin_automatico', ahora: performance.now() })
+                        }
+                        escuchar={() => {
+                          if (edicion.seleccion) escuchar(edicion.seleccion)
+                        }}
+                        borrar={borrar}
+                        desplazar={desplazar}
+                        fijarDesplazamiento={(ms) =>
+                          despachar({ tipo: 'fijar_desplazamiento', ms, ahora: performance.now() })
+                        }
+                      />
+                    </section>
+                  ) : (
+                    <aside aria-label="Estilo">
+                      <PanelEstilo
+                        estilo={estilo}
+                        contraste={contraste}
+                        soloEditor={esLetraLista}
+                        inactivo={edicion.sync.activo}
+                        tema={tema.control}
+                        espera={controlEspera}
+                        alCambiar={(nuevo, clave, agruparGesto) =>
+                          despachar({
+                            tipo: tema.editando ? 'estilo_borrador' : 'estilo',
+                            estilo: nuevo,
+                            clave,
+                            ahora: Date.now(),
+                            agruparGesto
+                          })
+                        }
+                      />
+                    </aside>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        <div className={estilos.dock}>
+          {pestana === 'sincronia' && cuentas.total > 0 && (
+            <Divisor {...propsDivisor('dock')} className={estilos.franjaDock} />
+          )}
+          <div ref={refDock} className={estilos.cajaDock}>
+            <div ref={refTransporte}>
+              {audio?.error && (
+                <AvisoEnLinea
+                  tipo="error"
+                  accion={
+                    <Boton onClick={() => ir({ tipo: 'biblioteca' })}>{E.verBiblioteca}</Boton>
+                  }
+                >
+                  {E.errorAudio}
+                </AvisoEnLinea>
+              )}
+              <Transporte
+                estado={audio}
+                posicionMs={posicion}
+                duracionMs={duracionMs}
+                letra={letra}
+                separacion={separacion}
+                volumen={volumen.volumen}
+                silenciado={volumen.silenciado}
+                usarPista={usarPista}
+                reproducir={alternar}
+                buscar={buscar}
+                fijarVelocidad={(v) => motor?.fijarVelocidad(v)}
+                fijarVolumen={(v) =>
+                  volumen.cambiar({ volumen: v, silenciado: volumen.silenciado })
+                }
+                alternarSilencio={() =>
+                  volumen.cambiar({ volumen: volumen.volumen, silenciado: !volumen.silenciado })
+                }
+                entrarSync={entrarSync}
+                refSync={refSync}
+                acciones={
+                  <>
+                    {resumen.estado === 'borrador' && (
+                      <BotonLetraLista
+                        resumen={resumen}
+                        cancion={cancion}
+                        letra={letra}
+                        separacion={separacion}
+                        omitirAviso={omitirAvisoLL}
+                        alOmitirAviso={() => setOmitirAvisoLL(true)}
+                        vaciar={vaciar}
+                        alEnfocarPrimera={() => {
+                          const primera = primeraSinInicio(letra)
+                          if (primera) seleccionar(primera, true)
+                        }}
+                      />
+                    )}
+                    <BotonLista
+                      resumen={resumen}
+                      letra={letra}
+                      separacion={separacion}
+                      vaciar={vaciar}
+                      alEnfocarPrimera={() => {
+                        const primera = primeraSinInicio(letra)
+                        if (primera) seleccionar(primera, true)
+                      }}
+                    />
+                  </>
+                }
+                sincronizando={edicion.sync.activo}
               />
             </div>
-            <div className={estilos.accionPrueba}>
-              {cuentas.sincronizadas > 0 ? (
-                <Tooltip contenido={E.probarTooltip}>{botonProbar}</Tooltip>
-              ) : (
-                botonProbar
-              )}
-            </div>
-          </section>
-          <div className={estilos.pestanas} data-foco-editor="segmentado">
-            <ControlSegmentado
-              etiqueta="Panel del editor"
-              valor={pestana}
-              opciones={[
-                { valor: 'sincronia', etiqueta: 'Sincronía' },
-                {
-                  valor: 'estilo',
-                  etiqueta: 'Estilo',
-                  aviso: contraste.avisos.length > 0 ? 'Hay avisos de contraste' : undefined,
-                  noDisponible: edicion.sync.activo ? E.syncTitulo : undefined
-                }
-              ]}
-              onCambio={setPestana}
-            />
-          </div>
-          <div className={estilos.panel}>
-            {pestana === 'sincronia' ? (
-              <section aria-label="Ajuste de sincronía">
-                <PanelSincronia
-                  edicion={edicion}
+            {pestana === 'sincronia' && cuentas.total > 0 && (
+              <div ref={refExtraSync}>
+                {edicion.sync.activo && (
+                  <BannerSincronizar
+                    siguiente={
+                      siguiente
+                        ? E.syncSiguiente(
+                            siguiente.texto,
+                            numeroDeLinea(letra, siguiente.id),
+                            cuentas.total
+                          )
+                        : null
+                    }
+                    sonando={sonando}
+                    contando={sync.cuentaAtras !== null}
+                    hayMarca={sync.hayMarca}
+                    pronto={sync.pronto}
+                    marcar={(ts) => sync.marcar(ts, 'puntero')}
+                    soltar={(ts) => sync.soltar(ts, 'puntero')}
+                    deshacer={sync.deshacer}
+                    alternar={sync.alternar}
+                    terminar={sync.terminar}
+                  />
+                )}
+                <PistaSincronia
+                  botonSilencios={
+                    <BotonAjustarSilencios
+                      motivos={motivosAjuste}
+                      ritmo={edicion.sync.activo}
+                      buscando={silencios.buscando}
+                      alPulsar={() => void silencios.pedir()}
+                      alReintentar={picos.reintentar}
+                      alIrAPrimera={irAPrimeraSinInicio}
+                    />
+                  }
+                  resaltadas={silencios.resaltadas}
+                  onda={(vista) => (
+                    <PistaOndaVoz
+                      cancionId={id}
+                      vista={vista}
+                      separada={separacion.disponible}
+                      {...picos}
+                    />
+                  )}
+                  ondaGeneral={
+                    picos.estado.estado === 'lista' && (
+                      <LienzoPicosVoz
+                        cancionId={id}
+                        generacion={picos.estado.generacion}
+                        inicioMs={0}
+                        finMs={duracionMs}
+                        general
+                      />
+                    )
+                  }
+                  letra={gestoVisible?.resultado?.letra ?? letra}
+                  seleccion={edicion.seleccion}
                   duracionMs={duracionMs}
-                  ayudaBluetooth={ayudaBluetooth}
-                  cerrarBluetooth={() => setAyudaBluetooth(false)}
-                  escucharAjustes={escucharAjustes}
-                  fijarEscucharAjustes={setEscucharAjustes}
-                  ajustar={ajustar}
-                  fijar={fijar}
-                  finAutomatico={() =>
-                    despachar({ tipo: 'fin_automatico', ahora: performance.now() })
+                  inactiva={edicion.sync.activo}
+                  minimizada={lineaTiempoMinimizada}
+                  expandirNoDisponible={
+                    edicion.sync.activo
+                      ? E.syncTitulo
+                      : distribucion.lineaTiempo.minimizadoPorEspacio
+                        ? E.layout.timeline.sinEspacio
+                        : undefined
                   }
-                  escuchar={() => {
-                    if (edicion.seleccion) escuchar(edicion.seleccion)
+                  alternarMinimizada={() => alternarZona('linea_tiempo', 'boton')}
+                  sonando={sonando}
+                  posicionMs={posicion}
+                  obtenerTiempoAudio={obtenerTiempoAudio}
+                  buscar={buscar}
+                  seleccionar={seleccionar}
+                  iniciarMarcador={(borde) => {
+                    const gesto = iniciarGestoMarcador(edicion, borde, duracionMs)
+                    if (!gesto) return false
+                    gestoActual.current = gesto
+                    setGestoVisible(gesto)
+                    return true
                   }}
-                  borrar={borrar}
-                  desplazar={desplazar}
-                  fijarDesplazamiento={(ms) =>
-                    despachar({ tipo: 'fijar_desplazamiento', ms, ahora: performance.now() })
-                  }
-                />
-              </section>
-            ) : (
-              <aside aria-label="Estilo">
-                <PanelEstilo
-                  estilo={estilo}
-                  predeterminado={estiloPredeterminado}
-                  contraste={contraste}
-                  inactivo={edicion.sync.activo}
-                  alCambiar={(nuevo, clave, agruparGesto) =>
-                    despachar({
-                      tipo: 'estilo',
-                      estilo: nuevo,
-                      clave,
-                      ahora: Date.now(),
-                      agruparGesto
+                  moverMarcador={(ms) => {
+                    const actual = gestoActual.current
+                    if (!actual || !gestoMarcadorVigente(edicion, actual)) return
+                    const gesto = moverGestoMarcador(actual, ms)
+                    gestoActual.current = gesto
+                    setGestoVisible(gesto)
+                    aplicarLimitesBucle(gesto.resultado?.letra ?? letra, true)
+                  }}
+                  terminarMarcador={(confirmar) => {
+                    const gesto = gestoActual.current
+                    if (!gesto) return
+                    if (!confirmar || !gestoMarcadorVigente(edicion, gesto)) {
+                      cancelarMarcador()
+                      return
+                    }
+                    gestoActual.current = null
+                    setGestoVisible(null)
+                    cambiarTiempo(gesto.borde, {
+                      tipo: 'confirmar_marcador',
+                      gesto,
+                      ahora: performance.now()
                     })
+                    aplicarLimitesBucle(gesto.resultado?.letra ?? letra, false)
+                  }}
+                  ajustarMarcador={ajustar}
+                  bordeArrastrado={gestoVisible?.borde}
+                  limite={
+                    gestoVisible?.resultado?.limite
+                      ? textoLimite(
+                          gestoVisible.resultado.limite,
+                          letra.lineas
+                            .slice(letra.lineas.findIndex((l) => l.id === gestoVisible.id) + 1)
+                            .find((l) => l.inicio_ms !== null)?.tipo === 'pausa'
+                        )
+                      : null
                   }
-                  alCambiarPredeterminado={setEstiloPredeterminado}
                 />
-              </aside>
+              </div>
             )}
           </div>
         </div>
-      )}
-      {audio?.error && (
-        <AvisoEnLinea
-          tipo="error"
-          accion={<Boton onClick={() => ir({ tipo: 'biblioteca' })}>{E.verBiblioteca}</Boton>}
-        >
-          {E.errorAudio}
-        </AvisoEnLinea>
-      )}
-      <Transporte
-        estado={audio}
-        posicionMs={posicion}
-        duracionMs={duracionMs}
-        letra={letra}
-        separacion={separacion}
-        volumen={volumen.volumen}
-        silenciado={volumen.silenciado}
-        usarPista={usarPista}
-        reproducir={alternar}
-        buscar={buscar}
-        fijarVelocidad={(v) => motor?.fijarVelocidad(v)}
-        fijarVolumen={(v) => volumen.cambiar({ volumen: v, silenciado: volumen.silenciado })}
-        alternarSilencio={() =>
-          volumen.cambiar({ volumen: volumen.volumen, silenciado: !volumen.silenciado })
-        }
-        entrarSync={entrarSync}
-        refSync={refSync}
-        acciones={
-          <BotonLista
-            resumen={resumen}
-            letra={letra}
-            separacion={separacion}
-            vaciar={vaciar}
-            alEnfocarPrimera={() => {
-              const primera = primeraSinInicio(letra)
-              if (primera) seleccionar(primera, true)
-            }}
-          />
-        }
-        bannerSync={
-          edicion.sync.activo ? (
-            <BannerSincronizar
-              siguiente={
-                siguiente
-                  ? E.syncSiguiente(
-                      siguiente.texto,
-                      numeroDeLinea(letra, siguiente.id),
-                      cuentas.total
-                    )
-                  : null
-              }
-              sonando={sonando}
-              contando={sync.cuentaAtras !== null}
-              hayMarca={sync.hayMarca}
-              pronto={sync.pronto}
-              marcar={(ts) => sync.marcar(ts, 'puntero')}
-              soltar={(ts) => sync.soltar(ts, 'puntero')}
-              deshacer={sync.deshacer}
-              alternar={sync.alternar}
-              terminar={sync.terminar}
-            />
-          ) : undefined
-        }
-      />
+      </div>
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {silencios.abierta && (
+        <DialogoAjustarSilencios
+          abierta={silencios.abierta}
+          duracionMs={duracionMs}
+          mac={silencios.mac}
+          alConfirmar={() => void silencios.confirmar()}
+          alCancelar={silencios.cancelar}
+        />
+      )}
+      {exportarVideo.dialogo}
       {dialogoBorrador && (
         <DialogoVolverABorradorEditor
           resumen={resumen}
           alCerrar={() => setDialogoBorrador(false)}
         />
       )}
+      {dialogoCambioLL && (
+        <DialogoLetraLista
+          variante="cambio"
+          alCancelar={() => setDialogoCambioLL(false)}
+          alConfirmar={(omitir) => cambiarModalidad('letra_lista', omitir)}
+        />
+      )}
       {dialogoSalida}
+      {tema.dialogos}
       {prueba && (
         <Reproductor
           origen="editor"
@@ -795,7 +1556,9 @@ function EditorActivo({ carga, resumen, leerVisita, obtenerSesion }: PropsActiva
             duracionMs: metadatos.duracion_ms,
             gananciaDb: cancion.fuente.ganancia_db ?? 0,
             letra,
-            estilo,
+            estilo: estiloPrevia,
+            // LL8: «Probar» muestra lo que verá el público (una Letra lista, sin barrido).
+            modalidad: resumen.modalidad,
             lineasSinSincronizar: 0
           }}
           volumen={volumen}

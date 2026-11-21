@@ -196,3 +196,19 @@ Consultadas el 2026-11-06.
 - `license-checker-rseidelsohn`: https://www.npmjs.com/package/license-checker-rseidelsohn
 - Restricción de AppArmor en Ubuntu 24.04 (informes de usuarios, no documentación oficial): https://discourse.ubuntu.com/t/problem-runing-appimage-files-without-no-sandbox/78361 , https://forum.obsidian.md/t/obsidian-appimage-not-work-in-kubuntu-24-04/80969
 - Firma inválida frente a *ad hoc* en Apple Silicon (informes de terceros, poca autoridad): https://github.com/electron-userland/electron-builder/issues/5850 , https://flaviocopes.com/macos-open-anyway.md
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Sin cambios en el instalador**: ni dependencias ni recursos nuevos; una entrada más de renderer y de preload en el asar (`exportacion.html`, `preload/exportacion`).
+- **Licencias**: `THIRD_PARTY_NOTICES.md` acredita SVT-AV1 (BSD-3-Clause-Clear y AOM Patent License 1.0), libvpx (BSD-3-Clause y concesión de patentes de WebM) y libopus (BSD-3-Clause) dentro del FFmpeg de PyAV, que no se redistribuye (se instala desde PyPI).
+- `worker/scripts/inspeccionar_av.py` falla si una rueda de `av` no trae esos tres codificadores.
+
+## Revisión para 0.2.0 — alpha.2 (icono en las ventanas)
+
+Fecha: 2026-11-21. Origen: [feedback de alpha.1](../versiones/0.2.0/feedback-alpha-1.md) §1.2. Tarea 0247. El diseño del icono definitivo sigue en la tarea 0140 y no entra aquí.
+
+- **Ventanas.** La principal y la secundaria reciben `icon` cuando el sistema no lo toma del paquete: en desarrollo (`<app>/build/icon.png`, en los tres SO) y en Linux empaquetado (copia del PNG como recurso extra, `resources/icon.png`). En Windows y macOS empaquetados se deja sin `icon`: Electron usa el icono del ejecutable o del bundle, que pone electron-builder (documentación de `BaseWindowConstructorOptions`: «leave it undefined so the executable's icon will be used»). La ventana offscreen de exportación no lo necesita.
+- **AppUserModelId.** `com.shinobikaraoke.app` (= `appId` = `ID_APP_WINDOWS`) solo con `app.isPackaged`. En desarrollo se usa `com.shinobikaraoke.app.desarrollo`, para que Windows no agrupe una ventana de `electron.exe` con el acceso directo de la app instalada, que es lo que mostró el icono de Electron. Las compilaciones del canal de desarrollo están empaquetadas, así que usan el mismo id que la versión publicada (ADR 0020, fase 10, §4).
+- **Verificación del paquete.** `verificar-paquete.mjs` comprueba en Windows que los iconos (`RT_GROUP_ICON`) de `Shinobi Karaoke.exe` existen y no coinciden con los de `node_modules/electron/dist/electron.exe`. Usa `resedit` (MIT, ya presente como dependencia de electron-builder 26.18.0), que pasa a ser dependencia de desarrollo directa con versión fija. No se distribuye.

@@ -1,18 +1,29 @@
 import { useRef } from 'react'
-import { Play, TriangleAlert } from 'lucide-react'
-import { estiloPredeterminado, type Estilo } from '@shared/estilo'
+import { Film, ListPlus, Palette, Play, TriangleAlert } from 'lucide-react'
+import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
+import { useExportaciones } from '../../exportacion/contexto'
+import { EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
+import { lineaDeExportacion } from '../../exportacion/lineas'
 import { fondoCss } from '../../karaoke/estiloCss'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
+import { mostrarToast } from '../../componentes/gestorToasts'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { BIB_COLA, EDI_BLOQUEO, SES } from '../../sesion/textos'
+import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { LineaPaso } from './LineaPaso'
+import { SEL } from './textosSeleccion'
 import {
+  continuaHaciaEdicion,
   datosDeTarjeta,
   formatearDuracion,
+  lineaDeCola,
   textoAriaTarjeta,
+  temaDeTarjeta,
   tituloDeTarjeta,
   usaMiniatura,
   type TrabajoVivo
@@ -33,6 +44,14 @@ export interface AccionesTarjeta {
   resepararPistas(id: string): void
   mostrarEnCarpeta(id: string): void
   eliminar(id: string): void
+  /** «A la cola» / «Agregar al final»: `cola.agregar` al final. */
+  agregarAlFinal(id: string): void
+  /** «Reproducir a continuación»: `cola.agregar` al frente de las pendientes. */
+  agregarSiguiente(id: string): void
+  /** «Reproducir en otra pantalla…» (solo sin sesión): abre el diálogo de pantallas con esa canción. */
+  reproducirEnOtraPantalla(id: string): void
+  /** «Aplicar tema…» del menú ⋯: la cablea 0173; sin ella, el menú no ofrece la opción. */
+  aplicarTema?(id: string): void
 }
 
 const ETIQUETA_ACCION = {
@@ -50,21 +69,24 @@ interface TarjetaProps {
   alEnfocar(id: string): void
   /** Trabajo activo de la canción (en cola o en curso), con su progreso en vivo. */
   vivo?: TrabajoVivo | null
-  /** `config.estilo_predeterminado` vigente (para decidir la miniatura). */
-  estiloUsuario?: Estilo | null
+  /**
+   * Modo selección (0173): la tarjeta muestra su casilla, no tiene acción principal ni ⋯ y el clic,
+   * Espacio e Intro alternan la casilla. Sin él, la tarjeta es la de siempre.
+   */
+  seleccion?: SeleccionTarjeta
 }
 
-function Portada({
-  resumen,
-  accion,
-  estiloUsuario
-}: {
-  resumen: ResumenCancionIpc
-  accion: () => void
-  estiloUsuario?: Estilo | null
-}) {
+export interface SeleccionTarjeta {
+  marcada: boolean
+  /** `false` en las Dañadas con `cancion.json` ilegible: la casilla es `aria-disabled`. */
+  editable: boolean
+  /** `rango`: Mayús + clic (o Mayús + Espacio). */
+  alAlternar(rango: boolean): void
+}
+
+function Portada({ resumen, accion }: { resumen: ResumenCancionIpc; accion: () => void }) {
   const titulo = tituloDeTarjeta(resumen)
-  const miniatura = usaMiniatura(resumen, estiloUsuario)
+  const miniatura = usaMiniatura(resumen)
   const estilo = resumen.estilo ?? estiloPredeterminado()
   const fondo = resumen.danada ? undefined : fondoCss(estilo.fondo)
   const clases = [
@@ -114,42 +136,93 @@ export function TarjetaCancion({
   activa,
   alEnfocar,
   vivo,
-  estiloUsuario
+  seleccion
 }: TarjetaProps) {
   const titulo = tituloDeTarjeta(resumen)
   const raiz = useRef<HTMLElement>(null)
+  const { estado, haySesion } = useSesion()
+  const bloqueo = useAccionBloqueable()
+  const exportacion = useExportaciones()
+  const exportando = exportacion.activaDe(resumen.id)
+  const lineaExportacion = lineaDeExportacion(exportando)
   const esperaS = useCuentaAtras(vivo?.progreso ?? vivo?.trabajo.progreso, vivo?.trabajo.id)
   const d = datosDeTarjeta(resumen, vivo ? { ...vivo, esperaS } : vivo)
   const lista = resumen.estado === 'lista' && !resumen.danada
+  // En un borrador sin otro trabajo activo, la línea de exportación sustituye a «Falta…».
+  const lineaPaso = lineaExportacion && resumen.estado !== 'lista' && !vivo ? null : d.linea
   const duracion = formatearDuracion(resumen.duracionMs)
   const id = resumen.id
+  const tema = temaDeTarjeta(resumen)
+  const lineaCola = lineaDeCola(estado, id)
+  // La canción de la entrada activa no se puede eliminar ni volver a borrador (spec 02).
+  const esActiva = haySesion && estado?.activa?.cancionId === id
+  const continuaBloqueado = bloqueo.bloqueada && continuaHaciaEdicion(resumen)
+  const textoBloqueo = (nombre: string) => ({
+    bloqueado: true,
+    ariaEtiqueta: `${nombre}${EDI_BLOQUEO.aria}`
+  })
+  // Con sesión, la acción principal de una Lista es agregarla al final de la cola.
+  const principalEsCola = lista && haySesion
 
   const abrirMenu = () =>
     raiz.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.click()
   const alPortada = () => {
+    // En el modo selección el clic llega a la tarjeta y alterna la casilla.
+    if (seleccion) return
     if (resumen.danada) abrirMenu()
-    else if (lista) acciones.reproducir(id)
-    else acciones.continuar(id)
+    else if (lista) alReproducir()
+    else alContinuar()
   }
+  const alReproducir = () =>
+    principalEsCola ? acciones.agregarAlFinal(id) : acciones.reproducir(id)
+  const alContinuar = () =>
+    continuaBloqueado ? bloqueo.intentar(() => acciones.continuar(id)) : acciones.continuar(id)
   const alPrincipal = () => {
-    if (d.accion === 'reproducir') acciones.reproducir(id)
+    if (d.accion === 'reproducir') alReproducir()
     else if (d.accion === 'reintentar') acciones.reintentar(id)
-    else if (d.accion) acciones.continuar(id)
+    else if (d.accion) alContinuar()
+  }
+  const alEliminar = () => {
+    if (esActiva) mostrarToast({ tipo: 'info', mensaje: BIB_COLA.activaBloqueada })
+    else acciones.eliminar(id)
   }
 
   const items: ItemMenu[] = []
   if (lista) {
+    if (!haySesion) {
+      items.push({
+        id: 'reproducir',
+        etiqueta: 'Reproducir',
+        alSeleccionar: () => acciones.reproducir(id)
+      })
+      items.push({
+        id: 'otraPantalla',
+        etiqueta: SES.menuOtraPantalla,
+        alSeleccionar: () => acciones.reproducirEnOtraPantalla(id)
+      })
+    }
     items.push({
-      id: 'reproducir',
-      etiqueta: 'Reproducir',
-      alSeleccionar: () => acciones.reproducir(id)
+      id: 'siguiente',
+      etiqueta: BIB_COLA.menu.siguiente,
+      alSeleccionar: () => acciones.agregarSiguiente(id)
     })
-    items.push({ id: 'editar', etiqueta: 'Editar', alSeleccionar: () => acciones.editar(id) })
+    items.push({
+      id: 'final',
+      etiqueta: BIB_COLA.menu.final,
+      alSeleccionar: () => acciones.agregarAlFinal(id)
+    })
+    items.push({
+      id: 'editar',
+      etiqueta: 'Editar',
+      ...(bloqueo.bloqueada ? textoBloqueo('Editar') : null),
+      alSeleccionar: () => bloqueo.intentar(() => acciones.editar(id))
+    })
   } else if (!resumen.danada) {
     items.push({
       id: 'continuar',
       etiqueta: 'Continuar',
-      alSeleccionar: () => acciones.continuar(id)
+      ...(continuaBloqueado ? textoBloqueo('Continuar') : null),
+      alSeleccionar: alContinuar
     })
   }
   if (!resumen.danada) {
@@ -159,10 +232,31 @@ export function TarjetaCancion({
       alSeleccionar: () => acciones.editarDatos(id)
     })
   }
+  // Fase 6: «Exportar video…» en las Listas; «Ver exportación» si esa canción se está exportando.
+  if (!resumen.danada && (lista || exportando)) {
+    items.push({
+      id: 'exportar',
+      etiqueta: exportando ? EXP_MENU.ver : EXP_MENU.exportar,
+      icono: Film,
+      alSeleccionar: () =>
+        exportacion.abrir({
+          cancionId: id,
+          ...(exportando ? { trabajoId: exportando.trabajoId } : null)
+        })
+    })
+  }
+  if (!resumen.danada && acciones.aplicarTema) {
+    items.push({
+      id: 'aplicarTema',
+      etiqueta: 'Aplicar tema…',
+      alSeleccionar: () => acciones.aplicarTema?.(id)
+    })
+  }
   if (lista) {
     items.push({
       id: 'borrador',
       etiqueta: 'Volver a borrador',
+      noDisponible: esActiva ? BIB_COLA.activaBloqueada : undefined,
       alSeleccionar: () => acciones.volverABorrador(id)
     })
   }
@@ -184,11 +278,19 @@ export function TarjetaCancion({
     etiqueta: 'Mostrar en la carpeta',
     alSeleccionar: () => acciones.mostrarEnCarpeta(id)
   })
+  if (exportando) {
+    items.push({
+      id: 'cancelar-exportacion',
+      etiqueta: EXP_MENU.cancelar,
+      alSeleccionar: () => exportacion.pedirCancelar(exportando.trabajoId)
+    })
+  }
   items.push({
     id: 'eliminar',
     etiqueta: 'Eliminar…',
     separadorAntes: true,
     destructivo: true,
+    noDisponible: esActiva ? BIB_COLA.activaBloqueada : undefined,
     alSeleccionar: () => acciones.eliminar(id)
   })
 
@@ -201,12 +303,23 @@ export function TarjetaCancion({
       data-tarjeta={id}
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={activa ? 0 : -1}
-      aria-label={textoAriaTarjeta(resumen, d)}
+      aria-label={`${textoAriaTarjeta(resumen, d)}${lineaExportacion ? ` ${lineaExportacion.texto}.` : ''}${lineaCola ? ` ${lineaCola.replace(/^▶ /, '')}.` : ''}${seleccion?.marcada ? ' Seleccionada.' : ''}`}
+      data-seleccionada={seleccion?.marcada || undefined}
       onFocus={(e) => {
         if (e.target === e.currentTarget) alEnfocar(id)
       }}
+      onClick={(e) => {
+        if (seleccion) seleccion.alAlternar(e.shiftKey)
+      }}
       onKeyDown={(e) => {
         if (e.target !== e.currentTarget) return
+        if (seleccion) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            seleccion.alAlternar(e.shiftKey)
+          }
+          return
+        }
         if (e.key === 'Enter') {
           e.preventDefault()
           alPortada()
@@ -215,7 +328,7 @@ export function TarjetaCancion({
           alPrincipal()
         } else if (e.key === 'Delete') {
           e.preventDefault()
-          acciones.eliminar(id)
+          alEliminar()
         } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
           e.preventDefault()
           abrirMenu()
@@ -223,8 +336,20 @@ export function TarjetaCancion({
       }}
     >
       <div className={estilos.portadaEnvoltorio}>
-        <Portada resumen={resumen} accion={alPortada} estiloUsuario={estiloUsuario} />
-        {lista && (
+        <Portada resumen={resumen} accion={alPortada} />
+        {seleccion && (
+          <input
+            type="checkbox"
+            tabIndex={-1}
+            className={estilos.casillaTarjeta}
+            aria-label={SEL.casilla(titulo)}
+            aria-disabled={!seleccion.editable || undefined}
+            title={seleccion.editable ? undefined : SEL.noEditable}
+            checked={seleccion.marcada}
+            onChange={() => undefined}
+          />
+        )}
+        {lista && !seleccion && (
           <button
             type="button"
             tabIndex={-1}
@@ -232,9 +357,9 @@ export function TarjetaCancion({
             data-boton-redondo
             // Duplica la acción principal (y la portada): no se anuncia dos veces.
             aria-hidden="true"
-            onClick={() => acciones.reproducir(id)}
+            onClick={alReproducir}
           >
-            <Icono icono={Play} tamano={24} />
+            <Icono icono={principalEsCola ? ListPlus : Play} tamano={24} />
           </button>
         )}
       </div>
@@ -249,25 +374,51 @@ export function TarjetaCancion({
               : resumen.artista || duracion}
           </p>
         )}
+        {tema && (
+          <p className={`t-pequeno ${estilos.tema}`} title={tema.texto} data-linea-tema>
+            <Icono icono={tema.aviso ? TriangleAlert : Palette} tamano={14} />
+            <span>{tema.texto}</span>
+          </p>
+        )}
+        {lineaCola && (
+          <p className={`t-pequeno ${estilos.lineaCola}`} data-linea-cola>
+            {lineaCola}
+          </p>
+        )}
         <div className={estilos.filaEstado}>
-          <InsigniaEstado estado={d.insignia} />
-          <MenuContextual
-            etiqueta={`Más acciones de «${titulo}»`}
-            items={items}
-            tabIndexDisparador={-1}
-          />
+          <InsigniaEstado estado={d.insignia} ayuda={d.ayudaEstado} />
+          {!seleccion && (
+            <MenuContextual
+              etiqueta={`Más acciones de «${titulo}»`}
+              items={items}
+              tabIndexDisparador={-1}
+            />
+          )}
         </div>
-        {d.linea && <LineaPaso linea={d.linea} />}
-        {d.accion && (
+        {lineaPaso && <LineaPaso linea={lineaPaso} />}
+        {lineaExportacion && <LineaPaso linea={lineaExportacion} />}
+        {d.accion && !seleccion && (
           <div className={estilos.accion}>
             <Boton
               variante="secundario"
               tabIndex={-1}
               onClick={alPrincipal}
-              aria-label={`${ETIQUETA_ACCION[d.accion]} «${titulo}»`}
+              aria-label={
+                principalEsCola && d.accion === 'reproducir'
+                  ? BIB_COLA.botonAria(titulo)
+                  : `${ETIQUETA_ACCION[d.accion]} «${titulo}»${
+                      d.accion === 'continuar' && continuaBloqueado ? EDI_BLOQUEO.aria : ''
+                    }`
+              }
+              aria-disabled={d.accion === 'continuar' && continuaBloqueado ? true : undefined}
             >
-              {d.accion === 'reproducir' && <Icono icono={Play} tamano={16} />}
-              {ETIQUETA_ACCION[d.accion]}
+              {d.accion === 'reproducir' && (
+                <Icono icono={principalEsCola ? ListPlus : Play} tamano={16} />
+              )}
+              {principalEsCola && d.accion === 'reproducir'
+                ? BIB_COLA.boton
+                : ETIQUETA_ACCION[d.accion]}
+              {d.accion === 'continuar' && continuaBloqueado && bloqueo.candado}
             </Boton>
           </div>
         )}

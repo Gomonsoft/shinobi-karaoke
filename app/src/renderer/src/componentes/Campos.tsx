@@ -9,18 +9,21 @@ interface ComunesCampo {
   ayuda?: ReactNode
   /** Mensaje de error; marca el campo como inválido y se asocia con `aria-describedby`. */
   error?: string
+  /** La etiqueta sigue siendo el nombre accesible, pero no se pinta (otro título la encabeza). */
+  etiquetaOculta?: boolean
 }
 
 function Envoltorio({
   id,
   etiqueta,
+  etiquetaOculta,
   ayuda,
   error,
   children
 }: ComunesCampo & { id: string; children: ReactNode }) {
   return (
     <div className={estilos.campo}>
-      <label htmlFor={id} className={estilos.etiqueta}>
+      <label htmlFor={id} className={etiquetaOculta ? estilos.soloLector : estilos.etiqueta}>
         {etiqueta}
       </label>
       {children}
@@ -39,26 +42,40 @@ function Envoltorio({
   )
 }
 
-function describedBy(id: string, ayuda: unknown, error?: string) {
+function describedBy(id: string, ayuda: unknown, error?: string, extra?: string) {
   return (
-    [ayuda ? `${id}-ayuda` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') ||
+    [ayuda ? `${id}-ayuda` : null, error ? `${id}-error` : null, extra].filter(Boolean).join(' ') ||
     undefined
   )
 }
 
 export type CampoTextoProps = ComponentPropsWithRef<'input'> & ComunesCampo
 
-export function CampoTexto({ etiqueta, ayuda, error, id, className, ...resto }: CampoTextoProps) {
+export function CampoTexto({
+  etiqueta,
+  etiquetaOculta,
+  ayuda,
+  error,
+  id,
+  className,
+  ...resto
+}: CampoTextoProps) {
   const auto = useId()
   const idCampo = id ?? auto
   return (
-    <Envoltorio id={idCampo} etiqueta={etiqueta} ayuda={ayuda} error={error}>
+    <Envoltorio
+      id={idCampo}
+      etiqueta={etiqueta}
+      etiquetaOculta={etiquetaOculta}
+      ayuda={ayuda}
+      error={error}
+    >
       <input
         {...resto}
         id={idCampo}
         className={`${estilos.entrada} ${className ?? ''}`}
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy(idCampo, ayuda, error)}
+        aria-describedby={describedBy(idCampo, ayuda, error, resto['aria-describedby'])}
       />
     </Envoltorio>
   )

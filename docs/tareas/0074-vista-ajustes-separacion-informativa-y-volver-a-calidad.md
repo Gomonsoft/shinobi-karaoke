@@ -1,4 +1,5 @@
 # 0074 — Vista Ajustes: separación informativa, "Volver a Calidad" y Acerca de
+
 - Estado: Hecha
 - Paso del pipeline: transversal
 - Depende de: 0057 (`volverACalidad`, estado `volverACalidad`, `rapidoPendiente`), 0067 (estimación con `origen`); 0038 y 0054 (Hechas: Acerca de e información para soporte)
@@ -7,9 +8,11 @@
 - Cuándo: en paralelo con 0068–0073 en cuanto estén 0057 y 0067
 
 ## Objetivo
+
 La vista `{ tipo: 'ajustes' }` (hoy un marcador) con la sección "Separación de voz" **solo informativa**, la acción "Volver a Calidad…" cuando se usa Rápido y el bloque "Acerca de" (reutiliza los componentes de `vistas/acerca/`).
 
 ## Criterios de aceptación
+
 - [ ] `vistas/ajustes/`: se abre con ⚙ o Ctrl/Cmd+, y Esc vuelve a la Biblioteca.
 - [ ] **Separación de voz** (criterios 1 y 2), sin grupo de radio ni ningún control para elegir el modelo:
   - `aj.sep.equipo`, a partir de `estado().equipo` del runtime (`preguntas/0021` §4):
@@ -43,6 +46,7 @@ La vista `{ tipo: 'ajustes' }` (hoy un marcador) con la sección "Separación de
   - copiar información con Calidad y con Rápido.
 
 ## Notas de implementación
+
 - Vista `vistas/ajustes/` (`Ajustes.tsx`, `SeparacionAjustes.tsx`, `modelo.ts`, `textos.ts`, CSS, tests) y `App.tsx` (`case 'ajustes'`). Sección de separación solo informativa; Rápido: aviso con fecha, "Volver a Calidad…" con diálogo, barra en línea, cancelar, error + Reintentar, reenganche leyendo `estado().volverACalidad`, toast al terminar.
 - `AcercaDe`: créditos actualizados (MelBand RoFormer; UVR solo Rápido) e `infoSoporte` con "Modelo de separación" (`calidad` / `rapido (aceptado el AAAA-MM-DD)`) y "Dispositivo" (`sin instalar` sin motor); lo comparte el diálogo del primer arranque.
 - Cambios de contrato mínimos: `runtime.estimarSeparacion(duracionMs, modelo?)` (Ajustes necesita la estimación de Calidad estando en Rápido) y `requisitos` con `bytesCalidad` y `calidadDescargado`.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { crearControlCierre, hayAlgoEnCurso } from './cierre'
+import { crearControlCierre, hayAlgoEnCurso, motivoDeCierre } from './cierre'
 
 function preparar(enCurso: boolean) {
   const estado = { enCurso }
@@ -86,6 +86,82 @@ describe('hayAlgoEnCurso (0073)', () => {
     control.alSalir(e)
     expect(e.preventDefault).toHaveBeenCalledOnce()
     expect(deps.pedirConfirmacion).toHaveBeenCalledOnce()
+  })
+})
+
+describe('sesión y cola (0181)', () => {
+  const base = { instalando: () => false, hayTrabajos: () => false }
+
+  it('una sesión activa o una cola no vacía cuentan; sin ninguna, no se pregunta', () => {
+    expect(hayAlgoEnCurso({ ...base, sesionActiva: () => true, colaNoVacia: () => false })).toBe(
+      true
+    )
+    expect(hayAlgoEnCurso({ ...base, sesionActiva: () => false, colaNoVacia: () => true })).toBe(
+      true
+    )
+    expect(hayAlgoEnCurso({ ...base, sesionActiva: () => false, colaNoVacia: () => false })).toBe(
+      false
+    )
+    expect(hayAlgoEnCurso(base)).toBe(false)
+  })
+
+  it('el motivo distingue trabajos, sesión y cola', () => {
+    expect(
+      motivoDeCierre({
+        ...base,
+        hayTrabajos: () => true,
+        sesionActiva: () => true,
+        colaNoVacia: () => false
+      })
+    ).toEqual({ trabajos: true, sesion: true, cola: false })
+    expect(motivoDeCierre(base)).toEqual({ trabajos: false, sesion: false, cola: false })
+  })
+
+  it('la intención (cerrar la ventana o salir) llega a las dos comprobaciones', async () => {
+    const hayAlgo = vi.fn(() => true)
+    const pedir = vi.fn()
+    const control = crearControlCierre({
+      hayAlgoEnCurso: hayAlgo,
+      pedirConfirmacion: pedir,
+      pausar: async () => undefined,
+      cerrarVentana: vi.fn(),
+      salir: vi.fn()
+    })
+    control.alCerrarVentana({ preventDefault: vi.fn() })
+    expect(hayAlgo).toHaveBeenLastCalledWith('ventana')
+    expect(pedir).toHaveBeenLastCalledWith('ventana')
+    await control.confirmar()
+    control.alSalir({ preventDefault: vi.fn() })
+    expect(hayAlgo).toHaveBeenLastCalledWith('salir')
+    expect(pedir).toHaveBeenLastCalledWith('salir')
+  })
+})
+
+describe('exportaciones (0237)', () => {
+  const base = { instalando: () => false, hayTrabajos: () => false }
+
+  it('una exportación en curso o en cola cuenta como trabajo', () => {
+    expect(hayAlgoEnCurso({ ...base, exportando: () => true })).toBe(true)
+    expect(motivoDeCierre({ ...base, exportando: () => true })).toEqual({
+      trabajos: true,
+      sesion: false,
+      cola: false
+    })
+    expect(hayAlgoEnCurso({ ...base, exportando: () => false })).toBe(false)
+  })
+
+  it('al confirmar, pausar recibe la intención', async () => {
+    const pausar = vi.fn(async () => undefined)
+    const control = crearControlCierre({
+      hayAlgoEnCurso: () => true,
+      pedirConfirmacion: vi.fn(),
+      pausar,
+      cerrarVentana: vi.fn(),
+      salir: vi.fn()
+    })
+    control.alSalir({ preventDefault: vi.fn() })
+    await control.confirmar()
+    expect(pausar).toHaveBeenCalledWith('salir')
   })
 })
 

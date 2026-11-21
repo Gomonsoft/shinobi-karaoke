@@ -2,11 +2,18 @@
 
 
 class ErrorWorker(Exception):
-    def __init__(self, codigo: str, mensaje: str, reintentable: bool = False) -> None:
+    def __init__(
+        self,
+        codigo: str,
+        mensaje: str,
+        reintentable: bool = False,
+        detalle: dict | None = None,
+    ) -> None:
         super().__init__(mensaje)
         self.codigo = codigo
         self.mensaje = mensaje
         self.reintentable = reintentable
+        self.detalle = detalle
 
 
 class ArgumentosNoValidos(ErrorWorker):
@@ -37,4 +44,8 @@ CODIGOS_ERROR = (
     "PLATAFORMA_NO_SOPORTADA",
     "CANCELADO",
     "DEMO_FALLO",
+    "DESTINO_NO_DISPONIBLE",
+    "SIN_CODIFICADOR",
+    "ENTRADA_INCOMPLETA",
+    "CANCION_NO_DISPONIBLE",
 )

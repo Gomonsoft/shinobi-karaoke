@@ -22,6 +22,7 @@ const ATAJOS = [
   ['1 / 2 / 3', 'Escuchar Original / Voz / Instrumental'],
   ['Ctrl/Cmd + Z', 'Deshacer'],
   ['Ctrl/Cmd + Mayús + Z (Ctrl + Y)', 'Rehacer'],
+  ['Ctrl/Cmd + E', 'Exportar video'],
   ['F1 / ?', E.atajos]
 ] as const
 

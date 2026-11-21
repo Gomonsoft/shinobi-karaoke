@@ -3,8 +3,9 @@ import { Mic, Plus, Settings } from 'lucide-react'
 import { Boton } from '../componentes/Boton'
 import { BotonIcono } from '../componentes/BotonIcono'
 import { Icono } from '../componentes/Icono'
+import { IndicadorSesion } from '../sesion/IndicadorSesion'
 import { IndicadorActividad } from './IndicadorActividad'
-import { claveVista, VISTAS_SIN_BARRA, useNavegacion } from './estado'
+import { claveVista, vistaAjustesDesde, VISTAS_SIN_BARRA, useNavegacion } from './estado'
 import estilos from './marco.module.css'
 
 interface MarcoProps {
@@ -23,6 +24,7 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
   const conBarra = !VISTAS_SIN_BARRA.includes(vista.tipo)
   const clave = claveVista(vista)
   const primera = useRef(true)
+  const enEditor = vista.tipo === 'cancion' && vista.paso === 'editor'
 
   useEffect(() => {
     // En el arranque no se roba el foco; en los cambios de vista va al primer elemento lógico.
@@ -59,11 +61,12 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
           </button>
           <div className={estilos.contexto} />
           <div className={estilos.acciones}>
+            <IndicadorSesion />
             <IndicadorActividad />
             <BotonIcono
               icono={Settings}
               etiqueta="Ajustes"
-              onClick={() => ir({ tipo: 'ajustes' })}
+              onClick={() => ir(vistaAjustesDesde(vista))}
             />
             {vista.tipo === 'biblioteca' && !bibliotecaVacia && (
               <Boton variante="primario" onClick={() => ir({ tipo: 'anadir' })}>
@@ -78,7 +81,14 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
         id="contenido"
         ref={main}
         tabIndex={-1}
-        className={conBarra ? estilos.contenido : estilos.contenidoCompleto}
+        data-vista={enEditor ? 'editor' : undefined}
+        className={
+          enEditor
+            ? estilos.contenidoEditor
+            : conBarra
+              ? estilos.contenido
+              : estilos.contenidoCompleto
+        }
       >
         {children}
       </main>

@@ -6,6 +6,34 @@
   margin-bottom: var(--e-5);
 }
 
+.cabeceraEditor {
+  margin-bottom: 0;
+}
+
+/* Una fila de 48 px (spec 06-editor, subfase 2.1): el stepper solo muestra la etiqueta del paso actual. */
+.cabeceraCompacta {
+  margin-bottom: 0;
+  height: 3rem;
+  justify-content: center;
+}
+
+.cabeceraCompacta .fila {
+  gap: var(--e-3);
+}
+
+.navCompacta .pasos {
+  flex-wrap: nowrap;
+  gap: var(--e-1);
+}
+
+.cabeceraCompacta .paso {
+  padding: 0 var(--e-1);
+}
+
+.cabeceraCompacta .item:not(:has([aria-current='step'])) .etiqueta {
+  display: none;
+}
+
 .fila {
   display: flex;
   align-items: center;

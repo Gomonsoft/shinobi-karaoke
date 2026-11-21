@@ -162,10 +162,11 @@ export function preparar(
 
 export function lanzar(
   e: Entorno,
-  extra: Record<string, string> = {}
+  extra: Record<string, string> = {},
+  argumentos: string[] = []
 ): Promise<ElectronApplication> {
   return electron.launch({
-    args: ['.'],
+    args: [...argumentos, '.'],
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -196,7 +197,9 @@ export async function cerrar(app: ElectronApplication): Promise<void> {
 
 export const canciones = (datos: string): string[] => {
   const d = join(datos, 'biblioteca')
-  return existsSync(d) ? readdirSync(d).filter((x) => x !== '.importando') : []
+  return existsSync(d)
+    ? readdirSync(d).filter((x) => x !== '.importando' && !x.startsWith('temas.json'))
+    : []
 }
 export const carpeta = (datos: string, id: string): string => join(datos, 'biblioteca', id)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

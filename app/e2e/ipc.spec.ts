@@ -34,6 +34,7 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
         malo,
         enlace,
         claves: Object.keys(api).sort(),
+        clavesPicos: Object.keys(api.picos).sort(),
         ipcRenderer: typeof w.ipcRenderer,
         require: typeof w.require,
         process: typeof w.process
@@ -51,19 +52,30 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'alCambiarCancion',
       'alCambiarConfig',
       'alCambiarEstadoInfo',
+      'alCambiarPantallas',
+      'alCambiarSesion',
+      'alCambiarTemas',
+      'alPosicionSesion',
       'app',
       'avisos',
       'biblioteca',
+      'cola',
       'config',
+      'exportacion',
       'fuente',
       'letras',
+      'pantallas',
+      'picos',
       'runtime',
       'rutaDeArchivo',
       'separacion',
+      'sesion',
       'sistema',
+      'temas',
       'trabajos',
       'ventana'
     ])
+    expect(r.clavesPicos).toEqual(['leer', 'solicitar'])
     expect([r.ipcRenderer, r.require, r.process]).toEqual(['undefined', 'undefined', 'undefined'])
   } finally {
     await app.close()

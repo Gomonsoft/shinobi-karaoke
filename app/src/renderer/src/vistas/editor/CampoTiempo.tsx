@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { interpretarTiempo } from '@shared/letras/tiempos'
 import { CampoTexto } from '../../componentes/Campos'
 import { Tooltip } from '../../componentes/Tooltip'
@@ -6,23 +6,29 @@ import { E } from './textos'
 
 interface Props {
   etiqueta: string
+  /** Nombre accesible sin etiqueta visible (otro título ya encabeza el campo). */
+  etiquetaOculta?: boolean
+  /** Id de un texto de ayuda externo al campo. */
+  describedBy?: string
   valor: string
   aplicar(msMostrado: number): void
   interpretar?(texto: string): number | null
   errorFormato?: string
   inactivo?: boolean
-  automatico?: boolean
+  ayuda?: ReactNode
   limite?: { mensaje: string; clave: number }
 }
 
 export function CampoTiempo({
   etiqueta,
+  etiquetaOculta,
+  describedBy,
   valor,
   aplicar,
   interpretar = interpretarTiempo,
   errorFormato = E.formatoTiempo,
   inactivo,
-  automatico,
+  ayuda,
   limite
 }: Props) {
   const [borrador, setBorrador] = useState<{ base: string; texto: string; error: boolean } | null>(
@@ -47,9 +53,11 @@ export function CampoTiempo({
     >
       <CampoTexto
         etiqueta={etiqueta}
+        etiquetaOculta={etiquetaOculta}
+        aria-describedby={describedBy}
         value={edicion?.texto ?? valor}
         disabled={inactivo}
-        ayuda={automatico ? E.finAuto : undefined}
+        ayuda={ayuda}
         error={edicion?.error ? errorFormato : undefined}
         spellCheck={false}
         onChange={(e) => setBorrador({ base: valor, texto: e.currentTarget.value, error: false })}

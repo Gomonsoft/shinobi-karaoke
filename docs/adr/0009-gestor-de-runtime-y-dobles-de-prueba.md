@@ -129,3 +129,13 @@ Los ADR 0001 y 0004 deciden **qué** se instala en el primer arranque (Python 3.
 - yt-dlp EJS y runtimes JS (`--js-runtimes`): https://github.com/yt-dlp/yt-dlp/wiki/EJS
 - Deno en PyPI: https://pypi.org/project/deno/
 - Datos medidos: [tarea 0005](../tareas/0005-spike-separacion-y-runtime.md) §1, §4, §8, §9.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **Comandos nuevos** del worker: `exportar` y `capacidades-exportacion` (§4). `exportar` es el primer comando que recibe datos por **stdin** (fotogramas BGRA crudos, tamaño fijo, sin cabecera); el cliente del worker gana la opción `entrada: 'tuberia'`. JSON Lines por stdout sin cambios.
+- La exportación **no** pasa por `GestorTrabajos`: tiene su propia cola en `ServicioExportacion` (no es un paso de `cancion.json`), y reutiliza el cliente del worker, la cancelación del árbol y el cálculo de progreso.
+- Prioridad baja del proceso (`os.setPriority`) y `núcleos − 1` hilos para el codificador.
+- Sin dependencias nuevas: PyAV 19.0.2 ya trae `libsvtav1`, `libvpx` y `libopus` en las 6 ruedas (comprobado). `inspeccionar_av.py` pasa a exigirlos.
+- Pruebas: pytest de `exportar` con fotogramas y audio sintéticos (se ejecuta en la CI de los 3 SO).

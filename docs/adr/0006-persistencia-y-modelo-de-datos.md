@@ -238,3 +238,87 @@ Campo `esquema` en cada archivo; al leer una versión anterior, el proceso princ
 - Local Font Access API: https://developer.mozilla.org/en-US/docs/Web/API/Local_Font_Access_API
 - CSS `linear-gradient` y `background-clip: text`: https://developer.mozilla.org/en-US/docs/Web/CSS/gradient/linear-gradient , https://developer.mozilla.org/en-US/docs/Web/CSS/background-clip
 - SIL Open Font License: https://openfontlicense.org/
+
+## Revisión para 0.2.0 · Picos de voz
+
+La carpeta de canción admite una caché regenerable junto a la pista vocal. Main la invalida al cambiar la pista y publica solo un resultado completo. El worker escribe un temporal autorizado. La caché no se incluye en el esquema de `cancion.json`, no cambia el estado del pipeline y puede omitirse de copias de seguridad. Ver [ADR 0015](0015-linea-de-tiempo-y-picos-de-voz.md).
+
+## Revisión para 0.2.0 · Preferencias de paneles del editor
+
+Subfase 2.1, tarea 0155. Fecha: 2026-11-08. La distribución del editor es una preferencia **global** de la instalación, igual que `reproductor.volumen`. Vive en `config.json` y no en `cancion.json`. Es un campo nuevo con valores por defecto, así que `esquema` sigue en 1.
+
+```jsonc
+"editor": {
+  "paneles": {
+    "lista":        { "ancho": 300, "minimizado": false },  // entero, 256–480 px
+    "panel":        { "ancho": 360, "minimizado": false },  // entero, 300–480 px
+    "linea_tiempo": { "alto": null, "minimizado": false }   // null = por defecto (216, o 204 en compacto); entero, 176–960 px
+  }
+}
+```
+
+- **Unidades.** Píxeles CSS a zoom 100 % (1 rem = 16), redondeados a entero. Se guarda el tamaño **preferido** y nunca el efectivo. El alto es el de la sección de la línea de tiempo, sin el transporte.
+- **Límites absolutos.** Las constantes van en `app/src/shared/paneles.ts`, fuente única para el esquema y para el modelo de distribución. El mínimo de `alto` es el compacto (176). En modo normal el modelo aplica `max(188, alto)`. El máximo absoluto de `alto` (960) solo sirve para validar: el efectivo siempre deja 136 px a la zona superior.
+- **Lectura tolerante por campo.** Cada campo de `editor.paneles` lleva su propio respaldo (`.catch` de Zod con el valor por defecto). Un valor ausente, de otro tipo o fuera de rango se sustituye por el de ese campo sin aviso y **no** aparta `config.json` como `.danado`. La regla general de la revisión 2026-11-04 haría perder la instalación por una preferencia cosmética, y aquí no se aplica. El siguiente guardado reescribe el valor corregido.
+- **Escritura.** Se usa el canal existente `config.actualizar`. `configParcialRendererSchema` admite `editor.paneles` como objeto estricto y parcial, con los mismos rangos y enteros. Un valor fuera de rango se rechaza en el IPC (`ErrorDatosInvalidos`) y no se corrige. Se mantienen la validación de remitente y Zod del [ADR 0008](0008-seguridad-de-electron-y-protocolos-propios.md) sin canales nuevos.
+- **Frecuencia.** El renderer agrupa las escrituras (al soltar un arrastre, tras 500 ms sin teclas y al minimizar, expandir o restablecer). Main escribe al momento por la cola de `ServicioConfig`.
+- **Propiedad del contrato.** Solo la tarea 0155 modifica `shared/config.ts`, `shared/ipc.ts` y `shared/paneles.ts` en esta subfase.
+
+## Revisión para 0.2.0 · fase 3
+
+Temas y agrupación de la biblioteca. Fecha: 2026-11-09. Detalle, alternativas y fuentes en el [ADR 0016](0016-catalogo-de-temas-e-identidad-de-artista-y-album.md).
+
+- **Archivo nuevo `biblioteca/temas.json`** (con `.bak`), único escritor `ServicioTemas`. Contiene catálogo versionado (`esquema: 1`), ids UUID estables, asignaciones de artista y álbum por clave de identidad, `predeterminado` y el diario `borrado_pendiente`. El escaneo solo indexa carpetas, así que no lo trata como canción. Si el esquema es más nuevo, queda en solo lectura y no se sobrescribe. Si es ilegible, se aparta como `temas.json.danado`.
+- **`cancion.json` sigue en `esquema: 1`.** Se añade el campo opcional `apariencia: { modo: "propio" | "tema" | "heredar", tema_id?, base? }`, donde `base` es `{ tipo: "aleatorio" | "predeterminado_anterior", tema_id }` o `{ tipo: "incluido" }`, y `tema_nombre` opcional (nombre del tema de la instantánea, solo para el estado «Tema no disponible»). Si falta, equivale a `propio`. Con `propio`, `estilo` es la autoridad, como hasta ahora. Con `tema` o `heredar`, `estilo` pasa a ser la **instantánea de respaldo**, que main refresca en cada escritura de la canción. Las bibliotecas de 0.1.0 no se reescriben al abrir y conservan su apariencia. Si 0.1.0 abre un archivo de 0.2.0, pinta la instantánea.
+- **Creación de canciones**: `ServicioBiblioteca.construir` ya no copia `config.estilo_predeterminado`. Recibe de `ServicioTemas` la apariencia inicial: `heredar`, con `base` aleatoria (o `incluido` si el catálogo está vacío) cuando no hay predeterminado, y la instantánea resuelta en ese momento. La creación pasa por la cola de apariencia.
+- **`config.estilo_predeterminado`** queda como campo heredado. Se lee con tolerancia y siembra el primer tema del catálogo, que se marca como predeterminado. Después no es autoridad. Sale de `configParcialRendererSchema` cuando el editor deje de usarlo.
+- **Índice en memoria**: el resumen añade `album`, claves de identidad (`shared/identidad.ts`: NFC, espacios colapsados, `toLowerCase`, diacríticos conservados; el álbum se identifica con el par artista + álbum) y la apariencia resuelta. `estilo` en el resumen es el resuelto.
+- **Catálogo**: las asignaciones guardan también la grafía visible (`nombre_artista`, `nombre_album`) y el catálogo un campo `apartado` (fecha o `null`) para avisar una sola vez de un catálogo ilegible apartado.
+- **`config.biblioteca.agrupar`** (`"ninguno" | "artista" | "album"`, por defecto `"ninguno"`): preferencia global de la Biblioteca, con lectura tolerante (`.catch`) como `editor.paneles` y escrita con `config.actualizar`.
+- La regla general de esta revisión: un campo opcional con equivalencia por defecto no sube `esquema` de la canción. Un cambio que 0.1.0 no pueda leer, sí.
+
+## Revisión para 0.2.0 — fase 4
+
+Ventana secundaria y cola. Fecha: 2026-11-11. El detalle está en el [ADR 0017](0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §2, §8 y §12.
+
+- **La cola y la sesión no se persisten.** Viven en memoria de main mientras la app está abierta ([0049](../preguntas/0049-politica-cola-de-reproduccion.md)). No hay archivo nuevo ni migración. `cancion.json` no cambia.
+- **Campos nuevos en `config.reproductor`**. Tienen valores por defecto, así que `esquema` sigue en 1:
+
+```jsonc
+"reproductor": {
+  // … volumen, silenciado, voz_guia, voz_guia_silenciada (sin cambios)
+  "transicion_s": 4,                  // entero 1–30 (la spec 08 ofrece 2, 3, 4, 5, 8, 10, 15): cuenta entre canciones de la cola
+  "secundaria": {                     // última pantalla elegida para la ventana secundaria; null si no hay
+    "pantalla": { "id": 2779098405, "etiqueta": "DELL U2419H", "ancho": 1920, "alto": 1080 },
+    "pantalla_completa": true
+  }
+}
+```
+
+- **Lectura tolerante por campo**, como `editor.paneles`. Un valor ausente, de otro tipo o fuera de rango se sustituye por su valor por defecto (`4` o `null`) sin apartar `config.json`.
+- **Escritura**:
+  - `transicion_s` se escribe desde Ajustes con `config.actualizar`. `configParcialRendererSchema` admite enteros de 1 a 30 y rechaza los demás en el IPC;
+  - `secundaria` lo escribe solo main al abrir una sesión, así que no entra en el esquema parcial del renderer;
+  - la secundaria solo puede escribir `volumen`, `silenciado`, `voz_guia` y `voz_guia_silenciada`, con `sesion.guardarPreferencias`.
+- `pantalla.id` es el `Display.id` de Electron. Puede cambiar al reconectar el monitor, así que la etiqueta y el tamaño sirven de respaldo para reconocerla. Solo se usa para preseleccionar la pantalla y nunca abre la ventana sin una elección.
+
+## Revisión para 0.2.0 — fase 5
+
+Estilo ampliado, espera, Letra lista y ajuste de silencios. Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1, §3 y §5. **`cancion.esquema`, `estilo.version` y `temas.esquema` siguen en 1**; todos los campos nuevos son opcionales y su ausencia equivale al comportamiento de 0.1.0. No se reescribe nada al abrir.
+
+- **`estilo.fondo`** (degradado) admite `forma` (`lineal` por defecto, `radial`, `conico`), `centro` `{ x, y }` en [0, 1] y `movimiento` `{ periodo_s: 10–120, sentido: "horario" | "antihorario" } | null`. `angulo_grados` y `paradas` siguen obligatorios, así que 0.1.0 pinta un lineal estático con los mismos colores. `movimiento` en un sólido no es válido.
+- **`estilo.espera`** (opcional): `{ puntos, barra, cuenta, primera_entrada, umbral_ms: 1000–60000 }`. Si falta, vale `ESPERA_LEGADA` (puntos en la primera entrada y en huecos ≥ 4000 ms, como el MVP).
+- **`apariencia.reemplazos`** (opcional, solo con `tema` o `heredar`): lista blanca con un único campo, `espera` (bloque completo), fusionado por main después del tema. Con `propio` la espera vive en `estilo.espera`.
+- **`cancion.modalidad`** (opcional): `"karaoke"` (por defecto) o `"letra_lista"`. Solo tiene efecto con `estado: "lista"`. `marcarLista(id, { modalidad })` la fija o la cambia, y volver a borrador la retira.
+- **`config.editor.omitir_aviso_letra_lista`**: booleano, `false` por defecto, con lectura tolerante (`.catch`) como `editor.paneles`. Se escribe con `config.actualizar`.
+- **Comparaciones**: cualquier igualdad de estilos (`estilosIguales`, portada neutra, nombre del primer tema) compara la forma normalizada (`normalizarEstilo`), para que un estilo sin los campos nuevos sea igual a uno con sus valores por defecto explícitos.
+- **Pérdida aceptada**: si 0.1.0 reescribe una canción, descarta estos campos. Al volver a 0.2.0 se leen con su valor por defecto. Es la misma regla que `apariencia`.
+- «Ajustar los silencios» no añade datos: escribe `fin_ms` con `letras.guardarTiempos` y, si activa la cuenta, la espera con `guardarApariencia`.
+
+## Revisión para 0.2.0 — fase 6
+
+Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md).
+
+- **`config.exportacion`**: `{ formato, audio, proporcion, ancho, alto, fps, carpeta, factor_corrector }`, todos opcionales y con lectura tolerante por campo. Lo escribe solo main al aceptar una exportación (recordar opciones, provisional [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §5) y al terminarla (`factor_corrector`, entre 0,25 y 8). No entra en `configParcialRendererSchema`.
+- **Diario** `exportacion/en-curso.json` en el directorio de datos, con escritura atómica: `{ trabajoId, cancionId, titulo, temporal, destino, inicio }`. Existe solo mientras hay una exportación en curso; al arrancar, si existe, main borra el temporal y avisa una vez (§6).
+- La exportación **no escribe** en `cancion.json` ni en `biblioteca/`: la instantánea vive en memoria y los destinos dentro del directorio de datos se rechazan (único escritor).

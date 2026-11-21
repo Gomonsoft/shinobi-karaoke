@@ -1,5 +1,5 @@
 import { gananciaLineal, urlPista, type Pista } from './pistas'
-import { ctxOidoEn, msCancionEn, type Anclaje } from './reloj'
+import { ctxOidoEn, msBucleEn, msCancionEn, type Anclaje, type IntervaloBucle } from './reloj'
 
 export interface OpcionesMotor {
   cancionId: string
@@ -24,15 +24,44 @@ export interface EstadoMotor {
   volumen: number
 }
 
+interface Tramo {
+  anclaje: Anclaje
+  bucle: IntervaloBucle | null
+}
+
 interface Reproduccion {
   fuente: AudioBufferSourceNode
-  anclaje: Anclaje
+  tramos: Tramo[]
   finMs: number
   hastaMs?: number
 }
 
 function acotar(valor: number, maximo: number): number {
   return Math.max(0, Math.min(valor, maximo))
+}
+
+function intervaloAudible(bucle: IntervaloBucle, duracionMs: number): IntervaloBucle | null {
+  if (!Number.isFinite(bucle.inicioMs) || !Number.isFinite(bucle.finMs)) return null
+  const inicioMs = acotar(bucle.inicioMs, duracionMs)
+  const finMs = acotar(bucle.finMs, duracionMs)
+  return inicioMs < finMs ? { inicioMs, finMs } : null
+}
+
+function contiene(bucle: IntervaloBucle, ms: number): boolean {
+  return ms >= bucle.inicioMs && ms < bucle.finMs
+}
+
+function posicionEn(ctx: number, { anclaje, bucle }: Tramo): number {
+  const instante = Math.max(ctx, anclaje.ctxInicio)
+  return bucle ? msBucleEn(instante, anclaje, bucle) : msCancionEn(instante, anclaje)
+}
+
+function configurarBucle(fuente: AudioBufferSourceNode, bucle: IntervaloBucle | null): void {
+  if (bucle) {
+    fuente.loopStart = bucle.inicioMs / 1000
+    fuente.loopEnd = bucle.finMs / 1000
+  }
+  fuente.loop = bucle !== null
 }
 
 export class MotorAudio {
@@ -45,6 +74,7 @@ export class MotorAudio {
   private actual: EstadoMotor
   private carga: AbortController | null = null
   private reproduccion: Reproduccion | null = null
+  private bucle: IntervaloBucle | null = null
   private posicionEnPausa = 0
   private solicitudReproduccion = 0
   private audioLiberado = false
@@ -137,7 +167,12 @@ export class MotorAudio {
     }
 
     const duracionMs = buffer.duration * 1000
+    const bucle = this.bucle ? intervaloAudible(this.bucle, duracionMs) : null
+    if (this.bucle && !bucle) this.bucle = null
     this.posicionEnPausa = acotar(posicion, duracionMs)
+    if (!reproduccion && bucle && !contiene(bucle, this.posicionEnPausa)) {
+      this.posicionEnPausa = bucle.inicioMs
+    }
     if (reproduccion && this.actual.pista !== pista) {
       this.arrancar(buffer, this.posicionEnPausa, this.actual.velocidad, reproduccion.hastaMs)
     }
@@ -187,18 +222,23 @@ export class MotorAudio {
     hastaMs?: number
   ): void {
     this.detenerFuente()
-    this.posicionEnPausa = desde
     const contexto = this.contexto!
-    const finMs = Math.min(hastaMs ?? Infinity, buffer.duration * 1000)
+    const duracionMs = buffer.duration * 1000
+    const bucle =
+      hastaMs === undefined && this.bucle ? intervaloAudible(this.bucle, duracionMs) : null
+    if (bucle && !contiene(bucle, desde)) desde = bucle.inicioMs
+    this.posicionEnPausa = desde
+    const finMs = Math.min(hastaMs ?? Infinity, duracionMs)
     if (finMs <= desde) return
     const fuente = contexto.createBufferSource()
     fuente.buffer = buffer
     fuente.playbackRate.value = velocidad
+    configurarBucle(fuente, bucle)
     fuente.connect(this.ganancia!)
     const ctxInicio = contexto.currentTime
     this.reproduccion = {
       fuente,
-      anclaje: { ctxInicio, posInicioMs: desde, velocidad },
+      tramos: [{ anclaje: { ctxInicio, posInicioMs: desde, velocidad }, bucle }],
       finMs,
       hastaMs
     }
@@ -230,8 +270,59 @@ export class MotorAudio {
     this.publicar({ sonando: false })
   }
 
+  /** Establece límites en tiempo de audio. La escucha con hastaMs conserva su propio final. */
+  fijarBucle(intervalo: IntervaloBucle | null): boolean {
+    if (this.destruido) return false
+    const buffer = this.buffers.get(this.actual.pista)
+    const bucle = intervalo && buffer ? intervaloAudible(intervalo, buffer.duration * 1000) : null
+    if (intervalo && !bucle) return false
+    if (!intervalo && this.bucle) this.solicitudReproduccion++
+    this.bucle = intervalo
+    const reproduccion = this.reproduccion
+    if (!reproduccion) {
+      if (bucle && !contiene(bucle, this.posicionEnPausa)) this.posicionEnPausa = bucle.inicioMs
+      return true
+    }
+    if (reproduccion.hastaMs !== undefined) return true
+    const ultimo = reproduccion.tramos.at(-1)!
+    if (ultimo.bucle?.inicioMs === bucle?.inicioMs && ultimo.bucle?.finMs === bucle?.finMs)
+      return true
+
+    const ctxInicio = this.contexto!.currentTime
+    const posicion = this.posicionMs()
+    const posInicioMs = posicionEn(ctxInicio, ultimo)
+    if (bucle && (!contiene(bucle, posicion) || !contiene(bucle, posInicioMs))) {
+      this.arrancar(
+        buffer!,
+        contiene(bucle, posicion) ? posicion : bucle.inicioMs,
+        this.actual.velocidad
+      )
+      return true
+    }
+
+    // El audio que ya salió del quantum de render puede seguir en la cola de salida.
+    // Conserva sus tramos hasta que el reloj audible alcance el cambio de límites.
+    const ctxOido = this.contextoOidoEn(this.ahoraPerf())
+    const indice = reproduccion.tramos.findLastIndex((tramo) => tramo.anclaje.ctxInicio <= ctxOido)
+    if (indice > 0) reproduccion.tramos.splice(0, indice)
+    if (ultimo.anclaje.ctxInicio === ctxInicio) reproduccion.tramos.pop()
+    configurarBucle(reproduccion.fuente, bucle)
+    reproduccion.tramos.push({
+      anclaje: { ctxInicio, posInicioMs, velocidad: this.actual.velocidad },
+      bucle
+    })
+    return true
+  }
+
   buscar(ms: number): void {
     this.posicionEnPausa = acotar(ms, this.actual.duracionMs ?? 0)
+    if (this.bucle) {
+      const bucle = intervaloAudible(this.bucle, this.actual.duracionMs ?? 0)
+      if (!bucle || !contiene(bucle, this.posicionEnPausa)) {
+        this.bucle = null
+        this.solicitudReproduccion++
+      }
+    }
     if (this.reproduccion) {
       this.arrancar(
         this.buffers.get(this.actual.pista)!,
@@ -267,21 +358,25 @@ export class MotorAudio {
   }
 
   tiempoDeEvento(timeStampMs: number): number | null {
-    const contexto = this.contexto
     const reproduccion = this.reproduccion
-    if (!contexto || !reproduccion) return null
+    if (!this.contexto || !reproduccion) return null
+    const ctx = this.contextoOidoEn(timeStampMs)
+    const tramo =
+      reproduccion.tramos.findLast((actual) => actual.anclaje.ctxInicio <= ctx) ??
+      reproduccion.tramos[0]!
+    return Math.min(reproduccion.finMs, posicionEn(ctx, tramo))
+  }
+
+  private contextoOidoEn(timeStampMs: number): number {
+    const contexto = this.contexto!
     const marca = contexto.getOutputTimestamp?.()
-    const ctx = ctxOidoEn(
+    return ctxOidoEn(
       timeStampMs,
       marca?.contextTime !== undefined && marca.performanceTime !== undefined
         ? { contextTime: marca.contextTime, performanceTime: marca.performanceTime }
         : null,
       { ctx: contexto.currentTime, perf: this.ahoraPerf() },
       (contexto.outputLatency ?? 0) + (contexto.baseLatency ?? 0)
-    )
-    return Math.min(
-      reproduccion.finMs,
-      msCancionEn(Math.max(ctx, reproduccion.anclaje.ctxInicio), reproduccion.anclaje)
     )
   }
 
@@ -291,6 +386,7 @@ export class MotorAudio {
     this.posicionEnPausa = this.posicionMs()
     this.solicitudReproduccion++
     this.detenerFuente()
+    this.bucle = null
     this.carga?.abort()
     this.carga = null
     this.buffers.clear()
@@ -303,6 +399,7 @@ export class MotorAudio {
     this.destruido = true
     this.oyentes.clear()
     this.pausar()
+    this.bucle = null
     this.carga?.abort()
     this.carga = null
     this.buffers.clear()

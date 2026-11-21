@@ -47,7 +47,7 @@ export function BannerSincronizar({
       <p>{E.syncAyuda}</p>
       {siguiente ? <p>{siguiente}</p> : <p role="status">{E.syncFin}</p>}
       {pronto && <p className={estilos.syncPronto}>{E.syncPronto}</p>}
-      <div className={estilos.transporteFila}>
+      <div className={estilos.filaBanner}>
         <Boton
           ref={ref}
           variante="primario"

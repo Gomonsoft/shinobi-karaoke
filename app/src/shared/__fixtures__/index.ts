@@ -5,6 +5,7 @@
 import type { Cancion, PasoCancion } from '../cancion'
 import { estiloPredeterminado } from '../estilo'
 import type { ElementoLetra, Letra } from '../letra'
+import type { Apariencia, Catalogo, Tema } from '../temas'
 
 const AHORA = '2026-11-03T10:20:00Z'
 
@@ -256,3 +257,40 @@ export const FIXTURES = {
   conError,
   interrumpida
 } as const
+
+// ---------------------------------------------------------------- temas (fase 3, 0163)
+
+/** UUID v4 válido y determinista para las pruebas: `idDePrueba(1)`. */
+export const idDePrueba = (n: number): string =>
+  `a0000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+
+/** Tema de ejemplo (estilo de fábrica salvo que se sobrescriba). */
+export function temaDePrueba(sobrescribir: Partial<Tema> = {}): Tema {
+  return {
+    id: idDePrueba(1),
+    nombre: 'Noche ninja',
+    creado: '2026-11-09T10:00:00Z',
+    modificado: '2026-11-09T10:00:00Z',
+    revision: 1,
+    estilo: estiloPredeterminado(),
+    ...sobrescribir
+  }
+}
+
+/** Catálogo vacío y válido; `catalogoDePrueba({ temas: [...] })` para rellenarlo. */
+export function catalogoDePrueba(sobrescribir: Partial<Catalogo> = {}): Catalogo {
+  return {
+    esquema: 1,
+    claves: 1,
+    predeterminado: null,
+    temas: [],
+    asignaciones: { artistas: [], albumes: [] },
+    borrado_pendiente: null,
+    apartado: null,
+    ...sobrescribir
+  }
+}
+
+export function aparienciaDePrueba(sobrescribir: Partial<Apariencia> = {}): Apariencia {
+  return { modo: 'heredar', ...sobrescribir }
+}

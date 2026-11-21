@@ -1,4 +1,5 @@
 # 0103 — Cabecera del espacio de canción para el editor: indicador de guardado, insignia "Lista incompleta", ⟲ ⟳ y menú ⋯
+
 - Estado: Hecha
 - Paso del pipeline: 4 y 5
 - Depende de: 0101 (mismo archivo), 0100 (tooltips; el menú ⋯ usa el `MenuContextual` existente)
@@ -8,7 +9,9 @@
 - Paralelizable con: 0102, 0104 y las de dominio.
 
 ## Contexto para quien implementa
+
 `CabeceraCancion({ resumen, actual })` la usan Fuente, Progreso y Letra:
+
 - "‹ Biblioteca" llama a `ir({ tipo: 'biblioteca' })`;
 - la insignia de un borrador dice fijo "Borrador · guardado ✓";
 - el stepper navega con `ir(...)`.
@@ -16,6 +19,7 @@
 El editor necesita un indicador de guardado real, separado de la insignia; deshacer y rehacer; y un menú ⋯ con "Atajos de teclado (F1)" y "Volver a borrador…" en canciones Lista. El resto de vistas no debe cambiar de aspecto.
 
 ## Criterios de aceptación
+
 - [x] Props nuevas, todas **opcionales**:
   ```ts
   guardado?: 'guardado' | 'guardando' | 'error'           // indicador role="status" separado de la insignia
@@ -33,6 +37,7 @@ El editor necesita un indicador de guardado real, separado de la insignia; desha
 - [x] Tests: cada estado del indicador, la insignia incompleta en singular y plural, deshacer/rehacer desactivados y el menú.
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check

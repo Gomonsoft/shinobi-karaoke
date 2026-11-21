@@ -4,7 +4,7 @@ import { configPredeterminada, type Config } from '@shared/config'
 import type { ApiShinobi, EstadoRuntimeIpc, ProgresoRuntimeIpc } from '@shared/ipc'
 import { ContenedorToasts } from '../../componentes/Toasts'
 import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
-import { NavegacionContexto } from '../../navegacion/estado'
+import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { Ajustes } from './Ajustes'
 
 type Perfil = 'cuda' | 'cpu' | 'mps'
@@ -88,7 +88,12 @@ function montar(o: Opciones = {}) {
   ;(window as unknown as { shinobi: ApiShinobi }).shinobi = {
     runtime,
     sistema: {
-      info: vi.fn().mockResolvedValue({ version: '0.1.0', so: 'Darwin 25', plataforma: 'darwin' }),
+      info: vi.fn().mockResolvedValue({
+        version: '0.1.0',
+        compilacion: { canal: 'local', numero: null, commit: null },
+        so: 'Darwin 25',
+        plataforma: 'darwin'
+      }),
       textoLegal: vi.fn().mockResolvedValue('# Avisos de terceros'),
       abrirEnlace: vi.fn(),
       abrirCarpetaDatos: vi.fn()
@@ -125,10 +130,10 @@ function montar(o: Opciones = {}) {
   }
 }
 
-const abrir = async (o: Opciones = {}) => {
+const abrir = async (o: Opciones = {}, vista: Vista = { tipo: 'ajustes' }, ir = vi.fn()) => {
   const api = montar(o)
   render(
-    <NavegacionContexto.Provider value={{ vista: { tipo: 'ajustes' }, ir: vi.fn() }}>
+    <NavegacionContexto.Provider value={{ vista, ir }}>
       <Ajustes />
       <ContenedorToasts />
     </NavegacionContexto.Provider>
@@ -141,6 +146,32 @@ beforeEach(() => {
   Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
 })
 afterEach(() => cerrarTodosLosToasts())
+
+describe('Ajustes: volver a la vista de origen (A10)', () => {
+  it('desde la Biblioteca el botón dice «‹ Biblioteca» y vuelve a ella', async () => {
+    const ir = vi.fn()
+    await abrir({}, { tipo: 'ajustes', origen: { tipo: 'biblioteca' } }, ir)
+    fireEvent.click(screen.getByRole('button', { name: '‹ Biblioteca' }))
+    expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca' })
+  })
+
+  it('desde el editor dice «‹ Volver al editor» y reabre esa canción con la pestaña Estilo', async () => {
+    const ir = vi.fn()
+    await abrir({}, { tipo: 'ajustes', origen: { tipo: 'editor', id: 'c1' } }, ir)
+    fireEvent.click(screen.getByRole('button', { name: '‹ Volver al editor' }))
+    expect(ir).toHaveBeenCalledWith({
+      tipo: 'cancion',
+      id: 'c1',
+      paso: 'editor',
+      pestana: 'estilo'
+    })
+  })
+
+  it('sin API de temas no se muestra la sección Temas', async () => {
+    await abrir()
+    expect(screen.queryByRole('heading', { name: 'Temas' })).toBeNull()
+  })
+})
 
 describe('Ajustes: equipo', () => {
   it.each([

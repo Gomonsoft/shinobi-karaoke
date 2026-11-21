@@ -1,4 +1,5 @@
 # 0138 — README e `INSTALAR.md` en el estado "sin versión"
+
 - Estado: Hecha
 - Paso del pipeline: 0 (distribución)
 - Depende de: —
@@ -7,14 +8,17 @@
 - ¿Red?: no.
 
 ## Objetivo
+
 Publicar en el repositorio el estado de la Fase 7: **E0, sin ninguna versión publicada**, con la guía provisional.
 
 ## Archivos
+
 - `README.md`;
 - `INSTALAR.md` (nuevo, en la raíz);
 - `app/scripts/guia-instalacion.test.ts`.
 
 ## Contratos
+
 - Texto literal de `ux/09`. Se aplican los ajustes de las respuestas a las preguntas: en especial, **se quita la entrada de FUSE** y se ajusta la de macOS (ver el "Impacto en `ux/09`" de 0041 y 0042), una vez que el diseñador los incorpore a la spec. Si aún no lo ha hecho, se copia el texto vigente y se anota.
 - `{ARCHIVO_*}` y `{PAQUETE_DEB}`: valores de la respuesta a 0040.
 - **Ningún enlace de descarga** ni `releases/latest` (criterio 1 de `ux/09`).
@@ -24,6 +28,7 @@ Publicar en el repositorio el estado de la Fase 7: **E0, sin ninguna versión pu
 - Los enlaces a `github.com/Gomonsoft/shinobi-karaoke` responden 404 sin sesión mientras el repositorio sea privado (`preguntas/0035`). **No bloquea esta tarea**: E0 no promete descarga. Se comprueban sin sesión en 0142.
 
 ## Criterios de aceptación
+
 - [ ] Test sin red, sobre `README.md` e `INSTALAR.md`:
   - [ ] sin `releases/latest`, sin ⟦, sin `{` por sustituir (criterios 1 y 8);
   - [ ] la línea de requisitos y "Los Mac con procesador Intel no son compatibles por ahora." son idénticas en ambos (criterio 4);
@@ -35,11 +40,13 @@ Publicar en el repositorio el estado de la Fase 7: **E0, sin ninguna versión pu
 - [ ] El README enlaza `INSTALAR.md`.
 
 ## Verificación
+
 ```bash
 cd app && npx vitest run guia-instalacion
 ```
 
 ## Notas de implementación
+
 README quedó en estado E0, sin enlaces de descarga, con el enlace a `INSTALAR.md` y el rango de descarga del primer arranque actualizado a 1–6 GB. Se creó `INSTALAR.md` desde el texto de `ux/09`, retirando marcadores y comentarios. La spec aún conserva en una respuesta antigua la mención de FUSE; siguiendo el ajuste técnico de 0042 y el contrato de esta tarea, la guía solo indica probar el `.deb` o abrir una incidencia cuando AppImage no abre. La guía mantiene el aviso provisional y una línea de captura pendiente por sistema.
 
 Se añadió `app/scripts/guia-instalacion.test.ts`: comprueba estado E0, ausencia de enlaces de descarga y marcadores, consistencia de requisitos y compatibilidad Intel, encabezados y anclas internas, texto de macOS 14, avisos de macOS, referencias de seguridad y capturas pendientes.

@@ -1,55 +1,52 @@
 import { EventEmitter } from 'node:events'
+import { ControlPantallaCompleta, type VentanaPantallaCompleta } from './pantallaCompleta'
+import { GestorReposo, type BloqueadorReposo } from './reposo'
 
-type EventoVentana = 'enter-full-screen' | 'leave-full-screen' | 'closed'
 type EstadoVentana = 'normal' | 'maximizada' | 'pantalla_completa'
 
-export interface VentanaModo {
-  isFullScreen(): boolean
-  setFullScreen(activa: boolean): void
+export interface VentanaModo extends VentanaPantallaCompleta {
   isMaximized(): boolean
   maximize(): void
-  on(evento: EventoVentana, cb: () => void): void
-  removeListener(evento: string, cb: () => void): void
-}
-
-interface Bloqueador {
-  start(tipo: 'prevent-display-sleep'): number
-  stop(id: number): void
-  isStarted(id: number): boolean
 }
 
 interface Dependencias {
-  bloqueador: Bloqueador
+  /** Gestor compartido con la sesión (ADR 0017 §4). Si falta, se crea uno con `bloqueador`. */
+  reposo?: GestorReposo
+  bloqueador?: BloqueadorReposo
   fijarZoomActivo(activo: boolean): void
 }
 
 export class ControlModoReproductor {
   private ventana: VentanaModo | null = null
   private previo: EstadoVentana | null = null
-  private deseado: boolean | null = null
-  private transicion = false
   private restauracion: EstadoVentana | null = null
-  private bloqueo: number | null = null
-  private readonly suscriptores = new Set<(activa: boolean) => void>()
+  private readonly reposo: GestorReposo
+  private readonly pantallaCompleta = new ControlPantallaCompleta({
+    alEstabilizar: (deseado) => {
+      const ventana = this.ventana
+      const maximizar = !deseado && this.restauracion === 'maximizada'
+      this.restauracion = null
+      if (maximizar && ventana && !ventana.isMaximized()) ventana.maximize()
+    }
+  })
 
-  constructor(private readonly deps: Dependencias) {}
+  constructor(private readonly deps: Dependencias) {
+    const reposo = deps.reposo ?? (deps.bloqueador ? new GestorReposo(deps.bloqueador) : null)
+    if (!reposo) throw new Error('Hace falta un GestorReposo o un bloqueador')
+    this.reposo = reposo
+  }
 
   vincular(ventana: VentanaModo | null): void {
     if (this.ventana === ventana) return
     if (this.ventana) {
-      this.ventana.removeListener('enter-full-screen', this.alEntrar)
-      this.ventana.removeListener('leave-full-screen', this.alSalir)
       this.ventana.removeListener('closed', this.alCerrar)
       this.evitarReposo(false)
       this.deps.fijarZoomActivo(true)
     }
     this.ventana = ventana
     this.previo = null
-    this.deseado = null
-    this.transicion = false
     this.restauracion = null
-    ventana?.on('enter-full-screen', this.alEntrar)
-    ventana?.on('leave-full-screen', this.alSalir)
+    this.pantallaCompleta.vincular(ventana)
     ventana?.on('closed', this.alCerrar)
   }
 
@@ -70,26 +67,17 @@ export class ControlModoReproductor {
   }
 
   fijarPantallaCompleta(activa: boolean): void {
-    if (!this.ventana) return
-    this.deseado = activa
-    this.aplicarPendiente()
+    this.pantallaCompleta.fijar(activa)
   }
 
   estaEnPantallaCompleta(): boolean {
-    return this.ventana?.isFullScreen() ?? false
+    return this.pantallaCompleta.estaEnPantallaCompleta()
   }
 
+  /** El reproductor local retiene el reposo como titular `local`. */
   evitarReposo(activo: boolean): void {
-    const { bloqueador } = this.deps
-    const id = this.bloqueo
-    if (activo && this.ventana) {
-      if (id === null || !bloqueador.isStarted(id)) {
-        this.bloqueo = bloqueador.start('prevent-display-sleep')
-      }
-    } else {
-      if (id !== null && bloqueador.isStarted(id)) bloqueador.stop(id)
-      this.bloqueo = null
-    }
+    if (activo && this.ventana) this.reposo.retener('local')
+    else this.reposo.liberar('local')
   }
 
   reiniciar(): void {
@@ -104,37 +92,10 @@ export class ControlModoReproductor {
   }
 
   suscribir(cb: (activa: boolean) => void): () => void {
-    this.suscriptores.add(cb)
-    return () => this.suscriptores.delete(cb)
+    return this.pantallaCompleta.suscribir(cb)
   }
 
-  private readonly alEntrar = (): void => this.alCambiarPantalla(true)
-  private readonly alSalir = (): void => this.alCambiarPantalla(false)
   private readonly alCerrar = (): void => this.vincular(null)
-
-  private alCambiarPantalla(activa: boolean): void {
-    const ventana = this.ventana
-    // Si un suscriptor pide otro cambio, aplícalo después de difundir el estado real.
-    this.transicion = true
-    for (const cb of this.suscriptores) cb(activa)
-    if (this.ventana !== ventana) return
-    this.transicion = false
-    this.aplicarPendiente()
-  }
-
-  private aplicarPendiente(): void {
-    const ventana = this.ventana
-    if (!ventana || this.transicion || this.deseado === null) return
-    if (ventana.isFullScreen() !== this.deseado) {
-      this.transicion = true
-      ventana.setFullScreen(this.deseado)
-      return
-    }
-    const maximizar = !this.deseado && this.restauracion === 'maximizada'
-    this.deseado = null
-    this.restauracion = null
-    if (maximizar && !ventana.isMaximized()) ventana.maximize()
-  }
 }
 
 /** Simula solo la pantalla completa. El cierre y la maximización siguen siendo los reales. */

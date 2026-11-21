@@ -32,4 +32,28 @@ describe('filtrado', () => {
   it('cuenta por filtro (la lista incompleta cuenta en Listas)', () => {
     expect(contarPorFiltro(todas)).toEqual({ todas: 4, listas: 2, borradores: 1 })
   })
+
+  it('B4: busca por palabras en título, artista y álbum con espacios repetidos', () => {
+    const c = resumenPrueba({
+      id: 'q',
+      titulo: 'Bohemian',
+      artista: 'Queen',
+      album: 'Greatest Hits'
+    })
+    const otra = resumenPrueba({
+      id: 'r',
+      titulo: 'Fernando',
+      artista: 'ABBA',
+      album: 'Greatest Hits'
+    })
+    const ids = (q: string) => filtrarCanciones([c, otra], 'todas', q).map((x) => x.id)
+    expect(ids('queen   greatest')).toEqual(['q'])
+    expect(ids('HITS')).toEqual(['q', 'r'])
+    expect(ids('greatest bohemian')).toEqual(['q'])
+    expect(ids('queen fernando')).toEqual([])
+  })
+
+  it('mantiene visible la canción anclada aunque no coincida', () => {
+    expect(filtrarCanciones(todas, 'todas', 'zzz', 'c').map((x) => x.id)).toEqual(['c'])
+  })
 })

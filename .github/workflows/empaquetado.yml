@@ -1,14 +1,132 @@
-name: Empaquetado (manual)
+name: Empaquetado y publicación
 
 on:
+  # Ensayo; contra develop, además, compilación de desarrollo. Sin `inputs` (ADR 0020, fase 10).
   workflow_dispatch:
+  # Publicación de una versión.
+  push:
+    tags: ["v*"]
+  # Nocturna (UTC): compila la cabeza de develop si el canal está configurado y no la tiene ya.
+  schedule:
+    - cron: "23 4 * * *"
 
 permissions:
   contents: read
 
+concurrency:
+  group: empaquetado-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  comprobar-version:
+    name: Comprobar versión
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      etiqueta: ${{ steps.version.outputs.etiqueta }}
+      previa: ${{ steps.version.outputs.previa }}
+      version_pep440: ${{ steps.version.outputs.version_pep440 }}
+      sha: ${{ steps.sha.outputs.sha }}
+      numero: ${{ steps.contar.outputs.numero }}
+      compilacion: ${{ steps.version.outputs.compilacion }}
+      canal_app: ${{ steps.decision.outputs.canal_app }}
+      desarrollo: ${{ steps.decision.outputs.desarrollo }}
+      construir: ${{ steps.decision.outputs.construir }}
+      configurado: ${{ steps.decision.outputs.configurado }}
+    steps:
+      # El commit que se construye: la cabeza de develop en la nocturna (schedule corre con el
+      # archivo y el commit de main) y GITHUB_SHA en lo demás.
+      - name: Resolver el commit que se construye
+        id: sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/branches/develop" --jq .commit.sha)
+          else
+            sha="$GITHUB_SHA"
+          fi
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::No se pudo resolver el commit que se construye («$sha»)."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      # Solo lectura y sin secretos: el checkout se hace aquí, antes de decidir, porque la decisión
+      # es un script del repositorio (compilacion.mjs decidir) y N necesita el historial completo.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      # El valor del secreto no entra en este trabajo: solo si existe (true/false).
+      - name: Decidir qué se hace con este commit
+        id: decision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.sha.outputs.sha }}
+          REPO_COMPILACIONES: ${{ vars.COMPILACIONES_REPO }}
+          HAY_TOKEN: ${{ secrets.COMPILACIONES_TOKEN != '' }}
+        run: node app/scripts/compilacion.mjs decidir --salida-github
+      - name: Comprobar que app y worker dicen la misma versión
+        if: steps.decision.outputs.construir == 'true' && github.ref_type != 'tag'
+        id: version_manual
+        run: node app/scripts/version.mjs comprobar --salida-github
+      - name: Comprobar versión y etiqueta
+        if: steps.decision.outputs.construir == 'true' && github.ref_type == 'tag'
+        id: version_etiqueta
+        env:
+          ETIQUETA_EVENTO: ${{ github.ref_name }}
+        run: node app/scripts/version.mjs comprobar --etiqueta "$ETIQUETA_EVENTO" --salida-github
+      - name: Comprobar que la etiqueta apunta a un commit de main
+        if: steps.decision.outputs.construir == 'true' && github.ref_type == 'tag'
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::El commit de la etiqueta no está en main: fusiona antes de etiquetar."
+            exit 1
+          fi
+      - name: Avisar si la etiqueta de esta versión ya existe
+        if: steps.decision.outputs.construir == 'true' && github.ref_type != 'tag'
+        env:
+          ETIQUETA_PREVISTA: v${{ steps.version_manual.outputs.version }}
+        run: |
+          if [[ -n "$(git ls-remote --tags origin "refs/tags/$ETIQUETA_PREVISTA")" ]]; then
+            echo "**Aviso:** la etiqueta \`$ETIQUETA_PREVISTA\` ya existe en el remoto." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Contar la compilación
+        if: steps.decision.outputs.construir == 'true'
+        id: contar
+        run: node app/scripts/compilacion.mjs contar --salida-github
+      - name: Exponer la versión
+        if: steps.decision.outputs.construir == 'true'
+        id: version
+        env:
+          VERSION: ${{ steps.version_manual.outputs.version || steps.version_etiqueta.outputs.version }}
+          ETIQUETA: ${{ steps.version_manual.outputs.etiqueta || steps.version_etiqueta.outputs.etiqueta }}
+          PREVIA: ${{ steps.version_manual.outputs.previa || steps.version_etiqueta.outputs.previa }}
+          PEP440: ${{ steps.version_manual.outputs.version_pep440 || steps.version_etiqueta.outputs.version_pep440 }}
+          NUMERO: ${{ steps.contar.outputs.numero }}
+          COMMIT_CONTADO: ${{ steps.contar.outputs.commit }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          if [[ "$COMMIT_CONTADO" != "$SHA" ]]; then
+            echo "::error::El commit contado ($COMMIT_CONTADO) no es el que se construye ($SHA)."
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "etiqueta=$ETIQUETA"
+            echo "previa=$PREVIA"
+            echo "version_pep440=$PEP440"
+            echo "compilacion=$VERSION-$NUMERO"
+          } >> "$GITHUB_OUTPUT"
+
   construir:
     name: Construir (${{ matrix.os }})
+    needs: comprobar-version
+    if: needs.comprobar-version.outputs.construir == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -36,6 +154,8 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.comprobar-version.outputs.sha }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: app/.nvmrc
@@ -44,9 +164,20 @@ jobs:
         run: test "$(uname -m)" = arm64
       - run: npm ci
       - run: npm run licencias:comprobar
-      - run: npm run build
+      # Número, commit y canal los calcula comprobar-version una sola vez (ADR 0020, fase 10 §2).
+      - name: Compilar
+        env:
+          SHINOBI_COMPILACION_CANAL: ${{ needs.comprobar-version.outputs.canal_app }}
+          SHINOBI_COMPILACION_NUMERO: ${{ needs.comprobar-version.outputs.numero }}
+          SHINOBI_COMPILACION_COMMIT: ${{ needs.comprobar-version.outputs.sha }}
+        run: npm run build
       - run: npm run uv:descargar
       - run: npm run empaquetar
+      # `npm ci` no descarga el binario de Electron (se baja al primer uso) y la verificación
+      # compara el icono del .exe con el de `electron.exe` (0247).
+      - name: Descargar el Electron de referencia para comparar el icono
+        if: runner.os == 'Windows'
+        run: node node_modules/electron/install.js
       - name: Verificar contenido, fuses y firma
         env:
           CARPETA_PAQUETE: ${{ matrix.carpeta }}
@@ -72,6 +203,8 @@ jobs:
         env:
           ARCHIVOS_INSTALADORES: ${{ matrix.archivos }}
           SO_PAQUETE: ${{ matrix.so }}
+          COMMIT_CONSTRUIDO: ${{ needs.comprobar-version.outputs.sha }}
+          COMPILACION: ${{ needs.comprobar-version.outputs.compilacion }}
         run: |
           node --input-type=module <<'NODE'
           import { createHash } from 'node:crypto'
@@ -80,7 +213,7 @@ jobs:
           const version = JSON.parse(readFileSync('package.json', 'utf8')).version
           const so = process.env.SO_PAQUETE
           const instaladores = process.env.ARCHIVOS_INSTALADORES.split(' ')
-          const nombre = `shinobi-karaoke-${version}-${process.env.GITHUB_SHA.slice(0, 7)}-${so}`
+          const nombre = `shinobi-karaoke-${version}-${process.env.COMMIT_CONSTRUIDO.slice(0, 7)}-${so}`
           const sumas = `release/SHA256SUMS-${so}.txt`
           const archivos = instaladores.map((nombre) => `release/${nombre}`)
           const filas = []
@@ -95,6 +228,8 @@ jobs:
           }
           writeFileSync(sumas, hashes.join('\n') + '\n')
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            `Compilación \`${process.env.COMPILACION}\` (${so}).`,
+            '',
             '| Instalador | MB | SHA-256 | Nivel |',
             '|---|---:|---|---|',
             ...filas,
@@ -118,7 +253,8 @@ jobs:
 
   probar-instalador:
     name: Probar ${{ matrix.forma }} (${{ matrix.os }})
-    needs: construir
+    needs: [comprobar-version, construir]
+    if: needs.comprobar-version.outputs.construir == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     continue-on-error: ${{ matrix.informativa }}
@@ -164,8 +300,11 @@ jobs:
       SO_PAQUETE: ${{ matrix.so }}
       FORMA: ${{ matrix.forma }}
       ARCHIVO: ${{ matrix.archivo }}
+      COMMIT_CONSTRUIDO: ${{ needs.comprobar-version.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.comprobar-version.outputs.sha }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: app/.nvmrc
@@ -173,7 +312,7 @@ jobs:
         id: artefacto
         run: |
           version=$(node -p "require('./package.json').version")
-          echo "nombre=shinobi-karaoke-${version}-${GITHUB_SHA:0:7}-${SO_PAQUETE}" >> "$GITHUB_OUTPUT"
+          echo "nombre=shinobi-karaoke-${version}-${COMMIT_CONSTRUIDO:0:7}-${SO_PAQUETE}" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ steps.artefacto.outputs.nombre }}
@@ -327,3 +466,290 @@ jobs:
             ''
           ].join('\n'))
           NODE
+
+  preparar-publicacion:
+    name: Preparar publicación
+    needs: [comprobar-version, construir, probar-instalador]
+    if: github.event_name != 'schedule' && needs.comprobar-version.outputs.construir == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      ETIQUETA: ${{ needs.comprobar-version.outputs.etiqueta }}
+      PREVIA: ${{ needs.comprobar-version.outputs.previa }}
+      COMPILACION: ${{ needs.comprobar-version.outputs.compilacion }}
+      COMMIT_CONSTRUIDO: ${{ needs.comprobar-version.outputs.sha }}
+      ENSAYO: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.comprobar-version.outputs.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Identificar artefactos
+        id: artefactos
+        run: echo "patron=shinobi-karaoke-${VERSION}-${COMMIT_CONSTRUIDO:0:7}-*" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ${{ steps.artefactos.outputs.patron }}
+          merge-multiple: true
+          path: entrada
+      - name: Comprobar instaladores y sumas, y componer las notas
+        run: |
+          args=(--entrada entrada --salida publicacion --version "$VERSION" --etiqueta "$ETIQUETA" --previa "$PREVIA")
+          args+=(--compilacion "$COMPILACION" --sha "$COMMIT_CONSTRUIDO")
+          args+=(--ejecucion "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")
+          if [[ "$ENSAYO" == true ]]; then args+=(--ensayo); fi
+          node app/scripts/preparar-publicacion.mjs "${args[@]}"
+          (cd publicacion && sha256sum -c SHA256SUMS.txt)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publicacion-${{ needs.comprobar-version.outputs.version }}
+          path: publicacion/*
+          retention-days: 14
+          if-no-files-found: error
+
+  publicar:
+    name: Publicar en GitHub Releases
+    needs: [comprobar-version, preparar-publicacion]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      ETIQUETA: ${{ needs.comprobar-version.outputs.etiqueta }}
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      PREVIA: ${{ needs.comprobar-version.outputs.previa }}
+      BORRADOR: ${{ vars.PUBLICACION_BORRADOR }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: publicacion-${{ needs.comprobar-version.outputs.version }}
+          path: publicacion
+      - name: Comprobar que no existe una Release de esta etiqueta
+        run: |
+          if gh release view "$ETIQUETA" > /dev/null 2>&1; then
+            echo "::error::Ya existe una Release para $ETIQUETA; no se sobrescribe."
+            exit 1
+          fi
+      # Parte 2 de las notas (ADR 0020, fase 10 §3): «Qué cambió» generado por GitHub con los
+      # encabezados en español, «Todos los cambios» y «Compilación». Solo shell y jq: no ejecuta
+      # código del repositorio. Los textos salen de que-cambio.json (artefacto de preparar-publicacion).
+      - name: Componer las notas (parte 1, qué cambió, todos los cambios y compilación)
+        working-directory: publicacion
+        run: |
+          set -euo pipefail
+          q=que-cambio.json
+          anterior=$(gh release list --exclude-drafts --limit 100 --json tagName,publishedAt \
+            | jq -r --arg actual "$ETIQUETA" 'map(select(.tagName != $actual)) | sort_by(.publishedAt) | (last // {}) | .tagName // empty')
+          {
+            cat notas.md
+            printf '\n'
+            jq -r '.separador, "", .encabezado, ""' "$q"
+          } > parte-a.md
+          if [[ -n "$anterior" ]]; then
+            gh api -X POST "repos/$GH_REPO/releases/generate-notes" \
+              -f tag_name="$ETIQUETA" -f previous_tag_name="$anterior" --jq .body > generado.md
+            jq -rn --rawfile cuerpo generado.md --slurpfile q "$q" '
+              $q[0] as $t
+              | $cuerpo | split("\n")
+              | map(select(. as $linea | $t.quitar | any(. as $p | $linea | startswith($p)) | not))
+              | map(. as $linea | reduce $t.sustituciones[] as $s ($linea; split($s.buscar) | join($s.poner)))
+              | .[]' > lista.txt
+            lista=$(sed '/./,$!d' lista.txt)
+            if [[ -z "$lista" ]]; then lista=$(jq -r .sinPr "$q"); fi
+            printf '%s\n\n' "$lista" > parte-b.md
+            {
+              jq -r --arg anterior "$anterior" --arg etiqueta "$ETIQUETA" \
+                '.todosLosCambios | split("{ETIQUETA_ANTERIOR}") | join($anterior) | split("{ETIQUETA}") | join($etiqueta)' "$q"
+              printf '\n'
+              cat pie.md
+            } > parte-c.md
+          else
+            : > parte-b.md
+            {
+              jq -r .primeraVersion "$q"
+              printf '\n'
+              cat pie.md
+            } > parte-c.md
+          fi
+          # La lista generada puede llevar llaves de terceros: solo se revisa lo que compone el workflow.
+          if grep -nE '\{[A-Z][A-Z0-9_]*\}' parte-a.md parte-c.md; then
+            echo "::error::Quedan marcadores {…} sin sustituir en las notas."
+            exit 1
+          fi
+          cat parte-a.md parte-b.md parte-c.md > notas-final.md
+      - name: Crear la Release en borrador con sus recursos
+        working-directory: publicacion
+        run: |
+          args=("$ETIQUETA" --verify-tag --draft --title "Shinobi Karaoke $VERSION" --notes-file notas-final.md)
+          if [[ "$PREVIA" == true ]]; then args+=(--prerelease --latest=false); else args+=(--latest); fi
+          gh release create "${args[@]}" \
+            Shinobi-Karaoke-Windows-x64.exe \
+            Shinobi-Karaoke-Mac-chip-Apple.dmg \
+            Shinobi-Karaoke-Linux-x64.AppImage \
+            shinobi-karaoke-linux-x64.deb \
+            SHA256SUMS.txt
+      - name: Comprobar los recursos subidos
+        working-directory: publicacion
+        run: |
+          gh release view "$ETIQUETA" --json assets --jq '.assets[] | "\(.name) \(.size)"' | sort > subidos.txt
+          for archivo in Shinobi-Karaoke-Windows-x64.exe Shinobi-Karaoke-Mac-chip-Apple.dmg Shinobi-Karaoke-Linux-x64.AppImage shinobi-karaoke-linux-x64.deb SHA256SUMS.txt; do
+            echo "$archivo $(stat -c %s "$archivo")"
+          done | sort > locales.txt
+          diff locales.txt subidos.txt
+      - name: Publicar o dejar en borrador
+        id: estado
+        run: |
+          if [[ "$BORRADOR" == true ]]; then
+            echo "estado=borrador (pendiente de publicar a mano)" >> "$GITHUB_OUTPUT"
+          else
+            gh release edit "$ETIQUETA" --draft=false
+            echo "estado=publicada" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Resumir
+        env:
+          ESTADO: ${{ steps.estado.outputs.estado }}
+          SERVIDOR: ${{ github.server_url }}
+        run: |
+          tipo=estable
+          if [[ "$PREVIA" == true ]]; then tipo="previa (pre-release)"; fi
+          {
+            echo "## Release $ETIQUETA"
+            echo
+            echo "- Enlace: $SERVIDOR/$GH_REPO/releases/tag/$ETIQUETA"
+            echo "- Estado: $ESTADO"
+            echo "- Tipo: $tipo"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Canal de compilaciones de desarrollo (ADR 0020, fase 10 §4). Sin permisos de escritura.
+  preparar-desarrollo:
+    name: Preparar compilación de desarrollo
+    needs: [comprobar-version, construir, probar-instalador]
+    if: needs.comprobar-version.outputs.desarrollo != 'omitir' && needs.comprobar-version.outputs.construir == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      COMPILACION: ${{ needs.comprobar-version.outputs.compilacion }}
+      COMMIT_CONSTRUIDO: ${{ needs.comprobar-version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.comprobar-version.outputs.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Identificar artefactos
+        id: artefactos
+        run: echo "patron=shinobi-karaoke-${VERSION}-${COMMIT_CONSTRUIDO:0:7}-*" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ${{ steps.artefactos.outputs.patron }}
+          merge-multiple: true
+          path: entrada
+      # Solo lectura de un repositorio público, con el GITHUB_TOKEN. Sin canal configurado no se consulta.
+      - name: Buscar la compilación anterior del canal
+        if: needs.comprobar-version.outputs.configurado == 'true'
+        id: anterior
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO_COMPILACIONES: ${{ vars.COMPILACIONES_REPO }}
+        run: |
+          etiqueta=$(gh release list -R "$REPO_COMPILACIONES" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // empty')
+          anterior="${etiqueta#build-}"
+          if [[ -n "$anterior" && ! "$anterior" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning::La última Release del canal («$etiqueta») no tiene el formato build-<sha>; se omite «Cambios desde…»."
+            anterior=
+          fi
+          echo "sha=$anterior" >> "$GITHUB_OUTPUT"
+      - name: Renombrar los instaladores, generar las sumas y componer las notas
+        env:
+          ANTERIOR: ${{ steps.anterior.outputs.sha }}
+        run: |
+          node app/scripts/preparar-publicacion.mjs --canal desarrollo \
+            --entrada entrada --salida publicacion --version "$VERSION" \
+            --compilacion "$COMPILACION" --sha "$COMMIT_CONSTRUIDO" --anterior "$ANTERIOR" \
+            --ejecucion "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          (cd publicacion && sha256sum -c SHA256SUMS.txt)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compilacion-${{ needs.comprobar-version.outputs.compilacion }}
+          path: publicacion/*
+          retention-days: 14
+          if-no-files-found: error
+
+  # Único trabajo con el secreto del canal. Sin checkout, sin npm y sin node: solo gh y jq sobre
+  # el artefacto ya preparado. Un token caducado o sin permiso hace fallar el trabajo (ADR 0020 §6).
+  publicar-desarrollo:
+    name: Publicar en el canal de desarrollo
+    needs: [comprobar-version, preparar-desarrollo]
+    if: needs.comprobar-version.outputs.desarrollo == 'publicar'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.COMPILACIONES_TOKEN }}
+      GH_REPO: ${{ vars.COMPILACIONES_REPO }}
+      SHA: ${{ needs.comprobar-version.outputs.sha }}
+      COMPILACION: ${{ needs.comprobar-version.outputs.compilacion }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: compilacion-${{ needs.comprobar-version.outputs.compilacion }}
+          path: publicacion
+      - name: Comprobar si build-<sha> ya existe
+        id: existe
+        run: |
+          if error=$(gh release view "build-$SHA" 2>&1 > /dev/null); then
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$error" == *"release not found"* ]]; then
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No se pudo consultar el canal de desarrollo: $error"
+            exit 1
+          fi
+      - name: Avisar de que otra ejecución se adelantó
+        if: steps.existe.outputs.existe == 'true'
+        run: |
+          echo "::notice::build-$SHA ya existe en $GH_REPO; no se crea nada."
+          echo "Sin cambios: \`build-$SHA\` ya existe en el canal de desarrollo." >> "$GITHUB_STEP_SUMMARY"
+      - name: Crear la Release en borrador con sus recursos
+        if: steps.existe.outputs.existe != 'true'
+        working-directory: publicacion
+        run: |
+          mapfile -t instaladores < <(jq -r '.archivos[]' datos.json)
+          test "${#instaladores[@]}" -eq 4
+          gh release create "build-$SHA" --draft --title "$COMPILACION" --notes-file notas.md \
+            "${instaladores[@]}" SHA256SUMS.txt
+      - name: Comprobar los recursos subidos
+        if: steps.existe.outputs.existe != 'true'
+        working-directory: publicacion
+        run: |
+          gh release view "build-$SHA" --json assets --jq '.assets[] | "\(.name) \(.size)"' | sort > subidos.txt
+          { jq -r '.archivos[]' datos.json; echo SHA256SUMS.txt; } | while read -r archivo; do
+            echo "$archivo $(stat -c %s "$archivo")"
+          done | sort > locales.txt
+          diff locales.txt subidos.txt
+      - name: Publicar como la última compilación
+        if: steps.existe.outputs.existe != 'true'
+        run: gh release edit "build-$SHA" --draft=false --latest
+      - name: Resumir
+        if: steps.existe.outputs.existe != 'true'
+        env:
+          SERVIDOR: ${{ github.server_url }}
+        run: |
+          {
+            echo "## Compilación $COMPILACION publicada"
+            echo
+            echo "- Enlace: $SERVIDOR/$GH_REPO/releases/tag/build-$SHA"
+          } >> "$GITHUB_STEP_SUMMARY"

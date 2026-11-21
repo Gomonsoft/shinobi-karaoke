@@ -1,4 +1,5 @@
 # 0037 — Vista Primer arranque (B0–B6b) en lugar del marcador provisional
+
 - Estado: Hecha
 - Paso del pipeline: 0
 - Depende de: 0016, 0018, 0036, 0038 (Hecha)
@@ -6,9 +7,11 @@
 - Spec UX: docs/ux/01-primer-arranque.md (Parte B completa, incluidas B0, B6 y B6b y los criterios 14, 15, 15b y 15c; respuesta a `preguntas/0013` §2, §3 y §6; respuesta a `preguntas/0017`)
 
 ## Objetivo
+
 Sustituir el marcador "Primer arranque" de 0018 **y su botón provisional "Ir a la Biblioteca"** por la vista real, conectada a la API de 0036.
 
 ## Criterios de aceptación
+
 - [x] `vistas/primer-arranque/`: B0 Comprobando, B1 Bienvenida, B2 Instalando, B3 Todo listo, B4 Error (variante de B2), B5 Reanudar/Reparar (variante de B1), B6 No compatible (variante de B1) y **B6b Necesitas actualizar macOS** (variante de B6), con los wireframes, componentes, estados y microcopy **literales** de `ux/01` (claves `pa.*` en un módulo de textos, como `textosError.ts` de la Biblioteca). Iconos Lucide.
 - [x] `App` decide: `completa` → Biblioteca; `verificando` → **B0**; `en_curso`/`pendiente` con fases completadas o `error` → B5 "Continuamos donde lo dejamos" con `pa.boton.continuar` y "Faltan unos {n} MB por descargar."; `dañada` → B5 con `pa.reparar.*` y "Reparar"; resto → B1. Se elimina el botón provisional de 0018.
 - [x] B1: requisitos del perfil previsto (`runtime.requisitos`), descarga redondeada a una cifra decimal en GB (`pa.req.descarga`) o, sin perfil detectado, `pa.req.descarga.generica` con el **mayor `espacio_requerido` del manifiesto** (hoy 10 GB; lo da `runtime.requisitos`, 0031); espacio libre real; si no alcanza, fila en `error` con `pa.req.espacio.insuficiente` y primario "Comprobar de nuevo" (recalcula). Plataforma no soportada → B6 o B6b según `motivo` (ver abajo), nunca B4. Enlace "Licencias" abre el diálogo Acerca de de 0038.
@@ -38,11 +41,13 @@ Sustituir el marcador "Primer arranque" de 0018 **y su botón provisional "Ir a 
 - [x] `npm run dev` con un `SHINOBI_DATOS` vacío muestra B1; con la semilla (`instalacion.estado = completa`), la Biblioteca.
 
 ## Notas de implementación
+
 **Hecho.** `app/src/renderer/src/vistas/primer-arranque/`: `textos.ts` (claves `pa.*` literales + URL de Apple), `modelo.ts` (lógica pura: `decidirPantalla`, cifras, ETA, nombres de equipo, acumulado monótono del progreso), `PantallasInicio.tsx` (B0, B1, B5, B6/B6b), `PantallasInstalacion.tsx` (B2, B3, B4, diálogo de pausa), `PrimerArranque.tsx` (contenedor: estado, progreso, anuncios `aria-live`, solicitud de cierre, Esc) y `primerArranque.module.css`. `App.tsx` monta `PrimerArranque` en lugar del marcador; se elimina "Ir a la Biblioteca". "Licencias" monta `DialogoAcercaDe` (0038). "Copiar detalles" de B6/B6b usa `infoSoporte(sistema.info(), config.obtener())` + `Arquitectura` + la marca (`plataforma no compatible` / `macos por debajo del mínimo (N)`); en B2/B4 usa `runtime.detalles()`.
 
 **Hueco de integración cerrado (0035/0036) en `app/src/main/index.ts`:** `runtime.gestor.comprobarAlArrancar()` no se llamaba en ningún sitio. Ahora se llama al arrancar, reutilizando el `runtime` de `crearRuntimeReal`, **solo con el lanzador de producción** (`modoLanzador === 'produccion'`: empaquetada o `SHINOBI_LANZADOR=produccion`). En desarrollo y E2E no se llama: la config "completa" de los E2E no tiene venv y la comprobación barata la marcaría `dañada`. Si la config ya es `completa`, la comprobación barata se espera antes de abrir la ventana (ms); si no, se marca `servicio.fijarVerificando(true)` y corre en segundo plano (B0), con `fijarVerificando(false)` al terminar. Un error inesperado se registra y deja `instalacion.estado = "dañada"` (B5 Reparar).
 
 **Decisiones / deuda:**
+
 - "Salir" (B4, B6, B6b) y el cierre tras "Pausar y salir" usan `window.close()`: en Windows/Linux cierra la app; en macOS cierra la ventana pero la app queda en el Dock (`window-all-closed` no sale en darwin). Un `app.salir()` explícito en la IPC (preload/ipc, zona de 0050) lo resolvería; no se tocó por el trabajo en paralelo.
 - "Pausar y salir" desde el botón/Esc pausa con `runtime.pausar()` y cierra la ventana; desde la solicitud de cierre de main responde `app.confirmarCierre()`. La X durante B0 (y fuera de B2) se responde con `confirmarCierre()` sin diálogo.
 - Extras no presentes en `ux/01`: clave `listoTiempoIgual` ("tardará unos N minutos" cuando min y max redondean igual) y nombres de modo final de B3 ("Calidad (tarjeta gráfica NVIDIA)" / "Calidad (chip Apple)" / "Rápido").

@@ -19,6 +19,9 @@ import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { Tooltip } from '../../componentes/Tooltip'
 import { useNavegacion, type PasoCancion } from '../../navegacion/estado'
 import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { EDI_BLOQUEO } from '../../sesion/textos'
+import { Candado } from '../../sesion/useAccionBloqueable'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import type { TrabajoVivo } from '../biblioteca/tarjeta'
 import { pasosDeCancion, pasosDeNueva, type DatosPaso, type IndicadorPaso } from './pasos'
@@ -47,6 +50,11 @@ interface CabeceraCancionProps {
     alRehacer(): void
   }
   menu?: ItemMenu[]
+  /**
+   * `vista` (por defecto): cabecera de las vistas del espacio de canción. `editor`: sin margen
+   * inferior (lo da la rejilla). `editor-compacta`: una fila de 48 px con el stepper compacto.
+   */
+  variante?: 'vista' | 'editor' | 'editor-compacta'
 }
 
 const ESTADO_GUARDADO = {
@@ -55,24 +63,39 @@ const ESTADO_GUARDADO = {
   error: { texto: 'No se pudo guardar', icono: TriangleAlert }
 }
 
-function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
+function Paso({
+  datos,
+  onIr,
+  compacta
+}: {
+  datos: DatosPaso
+  onIr: () => void
+  compacta: boolean
+}) {
   const [forzar, setForzar] = useState(false)
+  const { abrirBloqueo } = useSesion()
   const Ic = ICONOS[datos.indicador]
+  const bloqueado = datos.bloqueadoPorSesion === true
   const boton = (
     <button
       type="button"
       className={`${estilos.paso} ${estilos[`ind_${datos.indicador}`]}`}
       aria-current={datos.actual ? 'step' : undefined}
-      aria-disabled={datos.navegable ? undefined : true}
-      aria-label={`Paso ${datos.numero}, ${datos.etiqueta}, ${datos.descripcion}${datos.actual && datos.indicador !== 'actual' ? ', paso actual' : ''}`}
+      aria-disabled={datos.navegable && !bloqueado ? undefined : true}
+      aria-label={`Paso ${datos.numero}, ${datos.etiqueta}, ${datos.descripcion}${datos.actual && datos.indicador !== 'actual' ? ', paso actual' : ''}${bloqueado ? EDI_BLOQUEO.aria : ''}`}
       onBlur={() => setForzar(false)}
       onClick={() => {
-        if (datos.navegable) onIr()
+        if (bloqueado) abrirBloqueo()
+        else if (datos.navegable) onIr()
         else setForzar(true)
       }}
     >
       <span className={estilos.circulo} aria-hidden="true">
-        <Icono icono={Ic} tamano={datos.indicador === 'actual' ? 10 : 14} />
+        {bloqueado ? (
+          <Candado />
+        ) : (
+          <Icono icono={Ic} tamano={datos.indicador === 'actual' ? 10 : 14} />
+        )}
       </span>
       <span className={estilos.etiqueta} aria-hidden="true">
         {datos.etiqueta}
@@ -80,10 +103,17 @@ function Paso({ datos, onIr }: { datos: DatosPaso; onIr: () => void }) {
       </span>
     </button>
   )
+  // En la cabecera compacta solo el paso actual muestra su etiqueta: las demás van en un tooltip.
+  const tooltip =
+    compacta && !datos.actual
+      ? datos.motivo
+        ? `${datos.etiqueta}. ${datos.motivo}`
+        : datos.etiqueta
+      : datos.motivo
   return (
     <li className={estilos.item}>
-      {datos.motivo ? (
-        <Tooltip contenido={datos.motivo} forzar={forzar}>
+      {tooltip ? (
+        <Tooltip contenido={tooltip} forzar={forzar}>
           {boton}
         </Tooltip>
       ) : (
@@ -103,10 +133,12 @@ export function CabeceraCancion({
   guardado,
   incompleta = 0,
   historial,
-  menu
+  menu,
+  variante = 'vista'
 }: CabeceraCancionProps) {
   const { ir } = useNavegacion()
   const { trabajos, progreso } = useTrabajosVivos()
+  const { haySesion } = useSesion()
 
   let pasos: DatosPaso[]
   if (resumen === null) {
@@ -116,22 +148,60 @@ export function CabeceraCancion({
       const t = trabajos.find((x) => x.cancionId === resumen.id && x.paso === paso)
       return t ? { trabajo: t, progreso: progreso[t.id] ?? null } : null
     }
-    pasos = pasosDeCancion(resumen, actual, {
-      fuente: vivo('fuente'),
-      separacion: vivo('separacion')
-    })
+    pasos = pasosDeCancion(
+      resumen,
+      actual,
+      {
+        fuente: vivo('fuente'),
+        separacion: vivo('separacion')
+      },
+      haySesion
+    )
   }
 
   const estado = guardado ? ESTADO_GUARDADO[guardado] : null
   const mac = /Mac/i.test(navigator.platform)
+  const compacta = variante === 'editor-compacta'
+  const pasosNav = (
+    <nav aria-label="Pasos de la canción" className={compacta ? estilos.navCompacta : undefined}>
+      <ol className={estilos.pasos}>
+        {pasos.map((p) => (
+          <Paso
+            key={p.paso}
+            datos={p}
+            compacta={compacta}
+            onIr={() => {
+              if (!resumen) return
+              if (actual === 'progreso' && p.paso === 'letra') marcarProgresoVisto(resumen.id)
+              ir({ tipo: 'cancion', id: resumen.id, paso: p.paso })
+            }}
+          />
+        ))}
+      </ol>
+    </nav>
+  )
+  const textoTitulo =
+    resumen === null
+      ? 'Nueva canción'
+      : resumen.artista !== ''
+        ? `«${resumen.titulo}» · ${resumen.artista}`
+        : `«${resumen.titulo}»`
   return (
-    <div className={estilos.cabecera}>
+    <div
+      className={[
+        estilos.cabecera,
+        variante === 'editor' && estilos.cabeceraEditor,
+        compacta && estilos.cabeceraCompacta
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div className={estilos.fila}>
         <Boton variante="fantasma" onClick={() => ir({ tipo: 'biblioteca' })}>
           <Icono icono={ChevronLeft} tamano={16} />
           Biblioteca
         </Boton>
-        <p className={estilos.titulo}>
+        <p className={estilos.titulo} title={compacta ? textoTitulo : undefined}>
           {resumen === null ? (
             'Nueva canción'
           ) : (
@@ -146,7 +216,9 @@ export function CabeceraCancion({
         {resumen !== null &&
           (resumen.estado === 'lista' ? (
             <span className={estilos.insigniaLista}>
-              <InsigniaEstado estado="lista" />
+              <InsigniaEstado
+                estado={resumen.modalidad === 'letra_lista' ? 'letra-lista' : 'lista'}
+              />
               {incompleta > 0 && (
                 <span className={estilos.incompleta}>
                   <span aria-hidden="true">·</span>
@@ -170,6 +242,7 @@ export function CabeceraCancion({
             {estado.texto}
           </span>
         )}
+        {compacta && pasosNav}
         {historial && (
           <div className={estilos.historial}>
             <BotonIcono
@@ -190,21 +263,7 @@ export function CabeceraCancion({
           <MenuContextual etiqueta="Más acciones del editor" items={menu} />
         )}
       </div>
-      <nav aria-label="Pasos de la canción">
-        <ol className={estilos.pasos}>
-          {pasos.map((p) => (
-            <Paso
-              key={p.paso}
-              datos={p}
-              onIr={() => {
-                if (!resumen) return
-                if (actual === 'progreso' && p.paso === 'letra') marcarProgresoVisto(resumen.id)
-                ir({ tipo: 'cancion', id: resumen.id, paso: p.paso })
-              }}
-            />
-          ))}
-        </ol>
-      </nav>
+      {!compacta && pasosNav}
     </div>
   )
 }

@@ -66,4 +66,4 @@ Queda para el arquitecto: los puntos 1 y 2 y cómo trasladar estas decisiones a 
 **El modelo Rápido se ofrece solo tras un fallo de Calidad; no es elegible desde Ajustes.**
 - Ajustes informa del modelo en uso y, si es Rápido, permite **volver a Calidad**.
 - `separacion.modo` pasa a ser estado interno: el renderer no lo fija. Solo lo cambian `aceptarYUsarRapido` tras una oferta vigente y `volverACalidad` (tarea 0057).
-- Aplicado en ADR 0004 y 0009 (Revisiones), `arquitectura.md`, `plan.md`, `backlog.md`, tareas 0056 y 0057 y pregunta 0019.
+- Aplicado en ADR 0004 y 0009 (Revisiones), `arquitectura.md`, [plan del MVP](../versiones/0.1.0/plan-1.md), [backlog del MVP](../versiones/0.1.0/backlog.md), tareas 0056 y 0057 y pregunta 0019.

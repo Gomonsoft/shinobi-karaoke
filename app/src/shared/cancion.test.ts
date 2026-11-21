@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { cancionSchema, resumirErroresZod } from './cancion'
-import { FIXTURES, conError, lista, listaConPalabras } from './__fixtures__'
+import {
+  FIXTURES,
+  aparienciaDePrueba,
+  conError,
+  idDePrueba,
+  lista,
+  listaConPalabras
+} from './__fixtures__'
 
 describe('cancionSchema', () => {
   it.each(Object.entries(FIXTURES))('la fixture %s es válida', (_nombre, f) => {
@@ -71,5 +78,19 @@ describe('cancionSchema', () => {
     const r = cancionSchema.safeParse(null)
     expect(r.success).toBe(false)
     if (!r.success) expect(resumirErroresZod(r.error)).toBeTruthy()
+  })
+})
+
+describe('apariencia en cancionSchema', () => {
+  it('es opcional: sin el campo valida y no se añade', () => {
+    const r = cancionSchema.parse(lista())
+    expect('apariencia' in r).toBe(false)
+  })
+  it('acepta tema, heredar con base y rechaza combinaciones inválidas', () => {
+    const con = (apariencia: unknown) => cancionSchema.safeParse({ ...lista(), apariencia }).success
+    expect(con({ modo: 'tema', tema_id: idDePrueba(1) })).toBe(true)
+    expect(con(aparienciaDePrueba({ base: { tipo: 'incluido' } }))).toBe(true)
+    expect(con({ modo: 'tema' })).toBe(false)
+    expect(con({ modo: 'heredar', tema_id: idDePrueba(1) })).toBe(false)
   })
 })

@@ -14,6 +14,7 @@ import { Miniatura } from './Miniatura'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { TEXTO, TEXTO_YT as YT } from './textos'
 import estilos from './anadir.module.css'
+import { copiarDetalles } from '../../soporte/detalles'
 
 interface Carga {
   estado: 'cargando' | 'listo' | 'error'
@@ -128,7 +129,7 @@ export function ResumenFuente({ id }: { id: string }) {
         mensaje: 'No se pudo volver a intentar la descarga.',
         accion: {
           etiqueta: TEXTO.copiarDetalles,
-          alAccionar: () => void navigator.clipboard?.writeText(detallesDeError(err))
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
         }
       })
     }

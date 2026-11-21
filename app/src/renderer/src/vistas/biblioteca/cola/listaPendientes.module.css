@@ -1,0 +1,163 @@
+/*
+ * Lista «A continuación» del panel de la cola (sistema-visual, fase 4): fila de 48 px, asa de
+ * arrastre, fila arrastrada al 40 %, fantasma bajo el puntero y línea de destino de 2 px.
+ */
+.bloque {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+}
+.encabezado {
+  margin: 0;
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  font-weight: 600;
+  color: var(--texto-2);
+  text-transform: uppercase;
+}
+.encabezado:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+.vacia {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: var(--t-cuerpo);
+  line-height: var(--t-cuerpo-lh);
+}
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.fila {
+  position: relative;
+  min-height: 3rem;
+  box-sizing: border-box;
+  padding: 0 var(--e-1);
+  border-radius: var(--r-s);
+  color: var(--texto-1);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.fila:hover {
+  background: var(--fondo-2);
+}
+.fila:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+.arrastrando {
+  opacity: 0.4;
+}
+.linea {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 3rem;
+}
+.posicion {
+  flex: none;
+  width: 1.5rem;
+  text-align: right;
+  font-family: var(--fuente-tiempo);
+  font-size: var(--t-tiempo);
+  color: var(--texto-3);
+}
+.asa {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 2rem;
+  color: var(--texto-3);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.asa:active {
+  cursor: grabbing;
+}
+.texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.titulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-cuerpo);
+  line-height: var(--t-cuerpo-lh);
+}
+.etiquetaSiguiente {
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  font-weight: 600;
+  color: var(--info);
+}
+.duracion {
+  flex: none;
+  font-family: var(--fuente-tiempo);
+  font-size: var(--t-tiempo);
+  color: var(--texto-2);
+}
+.aviso {
+  margin: 0 0 var(--e-1) 3.5rem;
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+  color: var(--aviso);
+}
+.avisoNoDisponible {
+  color: var(--aviso);
+}
+.destinoAntes::before,
+.destinoDespues::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--acento-texto);
+  pointer-events: none;
+}
+.destinoAntes::before {
+  top: -1px;
+}
+.destinoDespues::after {
+  bottom: -1px;
+}
+.fantasma {
+  position: fixed;
+  z-index: 1000;
+  max-width: 18rem;
+  padding: var(--e-2) var(--e-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--r-s);
+  background: var(--fondo-3);
+  box-shadow: var(--elevacion);
+  color: var(--texto-1);
+  pointer-events: none;
+}
+.soloLectores {
+  composes: soloLector from '../../../componentes/componentes.module.css';
+}
+/* Sin animación al reordenar con movimiento reducido (y, de momento, sin ella en general). */
+@media (prefers-reduced-motion: no-preference) {
+  .fila {
+    transition: background var(--transicion);
+  }
+}

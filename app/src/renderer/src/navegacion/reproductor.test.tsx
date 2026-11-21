@@ -7,7 +7,7 @@ import { ContenedorToasts } from '../componentes/Toasts'
 import { cerrarTodosLosToasts } from '../componentes/gestorToasts'
 import { Biblioteca, reiniciarFiltroDeSesion } from '../vistas/biblioteca/Biblioteca'
 import { fixtures } from '../vistas/biblioteca/fixturesApi'
-import { resumenPrueba } from '../vistas/biblioteca/resumenPrueba'
+import { cancionIpcPrueba, resumenPrueba } from '../vistas/biblioteca/resumenPrueba'
 import { BibliotecaContexto, useBiblioteca } from '../vistas/biblioteca/useBiblioteca'
 import { NavegacionContexto } from './estado'
 import { CapaReproductor, ProveedorReproductor, useReproductor } from './reproductor'
@@ -32,7 +32,9 @@ function AccesoDirecto() {
   return <button onClick={() => abrir('otra')}>Abrir otra canción</button>
 }
 
-function montar(obtener: ApiShinobi['biblioteca']['obtener'] = async () => cancion) {
+function montar(
+  obtener: ApiShinobi['biblioteca']['obtener'] = async () => cancionIpcPrueba(cancion)
+) {
   let emitirAviso: ((a: AvisoTrabajoIpc) => void) | undefined
   let emitirMenu: ((accion: 'anadir' | 'ajustes') => void) | undefined
   const ir = vi.fn()

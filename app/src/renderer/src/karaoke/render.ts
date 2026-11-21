@@ -1,3 +1,4 @@
+import { CUENTA_MS, ESPERA_LEGADA, UMBRAL_PRIMERA_ENTRADA_MS, type Espera } from '@shared/espera'
 import { finEfectivo, type ElementoLetra, type Letra } from '@shared/letra'
 
 export interface LineaRender {
@@ -7,15 +8,28 @@ export interface LineaRender {
   palabras: { texto: string; progreso: number }[] | null
 }
 
+export interface EsperaFotograma {
+  origenMs: number
+  destinoMs: number
+  restanteMs: number
+  fraccion: number
+  primera: boolean
+  puntos: 0 | 1 | 2 | 3
+  cuenta: 1 | 2 | 3 | null
+  barra: boolean
+  /** Identifica el hueco (`origen:destino`); solo cambia al empezar una espera. */
+  clave: string
+}
+
 export interface FotogramaLetra {
   titulo: { titulo: string; artista: string } | null
   actual: LineaRender | null
   siguiente: LineaRender | null
-  puntos: 0 | 1 | 2 | 3
+  espera: EsperaFotograma | null
   claveTransicion: string
 }
 
-type ContextoRender = { duracionMs: number; titulo: string; artista: string }
+type ContextoRender = { duracionMs: number; titulo: string; artista: string; espera?: Espera }
 type LineaConInicio = ElementoLetra & { inicio_ms: number }
 type Indice = { lineas: LineaConInicio[]; fines: Map<string, number> }
 
@@ -69,6 +83,33 @@ function dibujar(
   }
 }
 
+function esperaEn(
+  cfg: Espera,
+  t: number,
+  previaFin: number | null,
+  destino: number
+): EsperaFotograma | null {
+  if (!cfg.puntos && !cfg.barra && !cfg.cuenta) return null
+  const primera = previaFin === null
+  if (primera && !cfg.primera_entrada) return null
+  const origen = primera ? destino - UMBRAL_PRIMERA_ENTRADA_MS : previaFin
+  if (!primera && destino - origen < cfg.umbral_ms) return null
+  const restante = destino - t
+  const cuentaActiva = restante <= CUENTA_MS
+  const digito = Math.ceil(restante / 1000) as 1 | 2 | 3
+  return {
+    origenMs: origen,
+    destinoMs: destino,
+    restanteMs: restante,
+    fraccion: progreso(t, origen, destino),
+    primera,
+    puntos: cfg.puntos && cuentaActiva ? digito : 0,
+    cuenta: cfg.cuenta && cuentaActiva ? digito : null,
+    barra: cfg.barra,
+    clave: `${origen}:${destino}`
+  }
+}
+
 export function fotogramaEn(letra: Letra, tLetraMs: number, ctx: ContextoRender): FotogramaLetra {
   const { duracionMs, titulo, artista } = ctx
   const indice = indicePara(letra, duracionMs)
@@ -79,7 +120,7 @@ export function fotogramaEn(letra: Letra, tLetraMs: number, ctx: ContextoRender)
       titulo: { titulo, artista },
       actual: null,
       siguiente: null,
-      puntos: 0,
+      espera: null,
       claveTransicion: 'titulo'
     }
   }
@@ -96,10 +137,10 @@ export function fotogramaEn(letra: Letra, tLetraMs: number, ctx: ContextoRender)
   const siguiente = lineas[izq]
   const fin = previa ? finPara(letra, previa.id, duracionMs, indice) : 0
   const actual = previa && tLetraMs < fin ? previa : null
-  const restante = siguiente ? siguiente.inicio_ms - tLetraMs : Infinity
-  const hayEntrada = siguiente && (!previa || siguiente.inicio_ms - fin >= 4000)
-  const puntos =
-    !actual && hayEntrada && restante <= 3000 ? (Math.ceil(restante / 1000) as 1 | 2 | 3) : 0
+  const espera =
+    !actual && siguiente
+      ? esperaEn(ctx.espera ?? ESPERA_LEGADA, tLetraMs, previa ? fin : null, siguiente.inicio_ms)
+      : null
 
   return {
     titulo: null,
@@ -109,7 +150,7 @@ export function fotogramaEn(letra: Letra, tLetraMs: number, ctx: ContextoRender)
         )
       : null,
     siguiente: siguiente ? dibujar(siguiente, 0, () => 0) : null,
-    puntos,
+    espera,
     claveTransicion: actual ? `actual:${actual.id}` : `espera:${siguiente?.id ?? ''}`
   }
 }
@@ -130,7 +171,7 @@ export function fotogramaEstatico(letra: Letra, id: string | null): FotogramaLet
     titulo: null,
     actual: actual ? dibujar(actual, 0.5, (_p, i) => progreso(mitad, i, i + 1)) : null,
     siguiente: siguiente ? dibujar(siguiente, 0, () => 0) : null,
-    puntos: 0,
+    espera: null,
     claveTransicion: `pausa:${actual?.id ?? ''}`
   }
 }

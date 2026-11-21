@@ -1,4 +1,5 @@
 # 0092 — Dominio: operaciones puras de tiempos del editor (`shared/letras/tiempos.ts`)
+
 - Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: — (usa `shared/letra.ts`, ya hecho). **Puede empezar ya.**
@@ -9,7 +10,9 @@
 - Paralelizable con: 0090, 0091, 0094–0102.
 
 ## Contexto para quien implementa
+
 Ya existen en `app/src/shared/letra.ts` (léelo entero):
+
 - `Letra = { origen, lrclib_id, offset_ms, lineas: ElementoLetra[] }`, con `ElementoLetra = { id, tipo: 'linea'|'pausa', texto, inicio_ms: number|null, fin_ms: number|null, palabras: Palabra[]|null }`;
 - `moverInicioLinea(letra, id, nuevoInicioMs)`:
   - lanza `RangeError` si el id no existe, no es una línea, o si el nuevo inicio no es un entero ≥ 0 **estrictamente** entre los inicios del elemento anterior y del siguiente con inicio (las pausas con tiempo cuentan);
@@ -22,6 +25,7 @@ Ya existen en `app/src/shared/letra.ts` (léelo entero):
 - `validarInvariantesLetra(lineas)`: debe quedar vacío tras cualquier operación de esta tarea.
 
 **Tiempo guardado y tiempo mostrado** (`ux/06` "Datos que usa"):
+
 - tiempo mostrado = `inicio_ms + offset_ms`, con mínimo 0;
 - marcar o fijar en la posición `t` del audio guarda `t − offset_ms`, con mínimo 0;
 - un desplazamiento de +250 ms hace que la letra salga 250 ms más tarde.
@@ -29,9 +33,11 @@ Ya existen en `app/src/shared/letra.ts` (léelo entero):
 Las funciones de esta tarea trabajan con **tiempo guardado** (de letra) salvo las de conversión y formato.
 
 ## Objetivo
-Toda la lógica de edición de tiempos del editor en funciones puras, sin DOM ni audio, que respeten los invariantes del ADR 0006. La usan el *reducer* (0093) y la vista (0105–0107).
+
+Toda la lógica de edición de tiempos del editor en funciones puras, sin DOM ni audio, que respeten los invariantes del ADR 0006. La usan el _reducer_ (0093) y la vista (0105–0107).
 
 ## Criterios de aceptación
+
 - [x] API exportada (nombres y firmas exactos):
   ```ts
   export type Limite =
@@ -115,6 +121,7 @@ Toda la lógica de edición de tiempos del editor en funciones puras, sin DOM ni
   - formatos e interpretación (válidos e inválidos).
 
 ## Verificación
+
 ```bash
 cd app
 npm run lint && npm run typecheck && npm run format:check
@@ -123,5 +130,6 @@ npm run test:cobertura   # shared/** sin bajar la cobertura actual
 ```
 
 ## Notas de implementación
+
 - `shared/letras/tiempos.ts` ofrece operaciones inmutables de ajuste, límites, marcas que limpian tiempos posteriores, desplazamiento, consultas y formato. Reutiliza `finEfectivo`, `moverInicioLinea`, `borrarTiemposLinea` y el contrato de la 0090.
 - Vitest cubre los casos concretos y 500 operaciones deterministas sobre letras congeladas. Pasaron lint, TypeScript, formato, Vitest (1550 pasadas, 12 omitidas), cobertura (98,89 % de líneas en `shared`, 100 % en `tiempos.ts`), build y Playwright (69 pasadas, 2 omitidas).

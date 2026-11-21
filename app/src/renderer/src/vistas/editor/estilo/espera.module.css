@@ -1,0 +1,33 @@
+.nota {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.umbral {
+  display: grid;
+  gap: var(--e-1);
+}
+.spin {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--e-2);
+}
+.spin input {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--objetivo-minimo);
+  padding-inline: var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+  font: inherit;
+  text-align: center;
+}
+/* El mensaje de rango no mueve la fila: ocupa su propio renglón bajo el campo. */
+.rango {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}

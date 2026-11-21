@@ -26,7 +26,27 @@ export const CODIGOS_ERROR = [
   'DEMO_FALLO',
   'PROCESO_TERMINADO',
   'ARCHIVO_SIN_LETRA',
-  'LETRA_DESACTUALIZADA'
+  'LETRA_DESACTUALIZADA',
+  'CONFIRMACION_OBSOLETA',
+  'TEMA_NO_ENCONTRADO',
+  'TEMA_NOMBRE_DUPLICADO',
+  'TEMAS_SOLO_LECTURA',
+  'BORRADO_PENDIENTE',
+  'EDICION_BLOQUEADA',
+  'SESION_EN_CURSO',
+  'SESION_NO_ACTIVA',
+  'GUARDADO_PENDIENTE',
+  'PANTALLA_NO_DISPONIBLE',
+  'CANCION_NO_DISPONIBLE',
+  'CANCION_EN_REPRODUCCION',
+  'ENTRADA_NO_ENCONTRADA',
+  'COLA_LLENA',
+  'DESTINO_NO_DISPONIBLE',
+  'SIN_CODIFICADOR',
+  'ENTRADA_INCOMPLETA',
+  'DESTINO_OCUPADO',
+  'PERFIL_NO_SOPORTADO',
+  'LIMPIEZA_FALLIDA'
 ] as const
 
 /**
@@ -38,11 +58,39 @@ export const CODIGOS_ERROR = [
  * la interfaz lo muestra con `let.error.archivo`).
  * `LETRA_DESACTUALIZADA`: la letra guardada ya no tiene los mismos elementos que envía
  * el editor (0090/0091); el editor recarga.
+ * Fase 3 (ADR 0016 §11): `CONFIRMACION_OBSOLETA` (el impacto confirmado ya no coincide; el nuevo va en
+ * `detalles`), `TEMA_NO_ENCONTRADO`, `TEMA_NOMBRE_DUPLICADO`, `TEMAS_SOLO_LECTURA` (catálogo de un esquema
+ * más nuevo) y `BORRADO_PENDIENTE` (tema en borrado: no admite otra operación).
+ * Fase 4 (ADR 0017 §11): sesión y cola. `EDICION_BLOQUEADA` (hay una sesión en la ventana secundaria),
+ * `SESION_EN_CURSO`, `SESION_NO_ACTIVA`, `GUARDADO_PENDIENTE`, `PANTALLA_NO_DISPONIBLE`,
+ * `CANCION_EN_REPRODUCCION`, `ENTRADA_NO_ENCONTRADA` y `COLA_LLENA`.
+ * Fase 6 (ADR 0019 §10): el worker emite `DESTINO_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `ENTRADA_INCOMPLETA` y
+ * también `CANCION_NO_DISPONIBLE` (comando `exportar`), que por eso deja de ser solo de main. Solo de main:
+ * `DESTINO_OCUPADO` (otra exportación usa ese destino), `PERFIL_NO_SOPORTADO` (el equipo no puede crear ese
+ * perfil, p. ej. `capturePage` devuelve otro tamaño) y `LIMPIEZA_FALLIDA` (no se pudo borrar el temporal;
+ * lleva la ruta para «Mostrar en la carpeta»). Desde 0237 `LIMPIEZA_FALLIDA` ya no es el código de un trabajo:
+ * tras cancelar o fallar se indica con `ExportacionIpc.limpiezaFallida` (ADR 0019 §10).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',
   'ARCHIVO_SIN_LETRA',
-  'LETRA_DESACTUALIZADA'
+  'LETRA_DESACTUALIZADA',
+  'CONFIRMACION_OBSOLETA',
+  'TEMA_NO_ENCONTRADO',
+  'TEMA_NOMBRE_DUPLICADO',
+  'TEMAS_SOLO_LECTURA',
+  'BORRADO_PENDIENTE',
+  'EDICION_BLOQUEADA',
+  'SESION_EN_CURSO',
+  'SESION_NO_ACTIVA',
+  'GUARDADO_PENDIENTE',
+  'PANTALLA_NO_DISPONIBLE',
+  'CANCION_EN_REPRODUCCION',
+  'ENTRADA_NO_ENCONTRADA',
+  'COLA_LLENA',
+  'DESTINO_OCUPADO',
+  'PERFIL_NO_SOPORTADO',
+  'LIMPIEZA_FALLIDA'
 ] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]

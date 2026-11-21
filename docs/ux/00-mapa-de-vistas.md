@@ -15,8 +15,113 @@
 | 6 | **Editor** (sincronía + estilo + vista previa) | [06-editor.md](06-editor.md) | Paso 4 del espacio de canción | Letra ("Ir al editor"), stepper, "Continuar"/"Editar" desde la biblioteca |
 | 7 | **Reproductor** a pantalla completa | [07-reproductor.md](07-reproductor.md) | Superpuesta (la Biblioteca o el Editor siguen montados debajo), pantalla completa | "Reproducir" en la biblioteca (tarjeta, menú ⋯, toast «lista para cantar»); "Probar a pantalla completa" o F en el editor |
 | 8 | **Ajustes y Acerca de** | [08-ajustes-y-acerca.md](08-ajustes-y-acerca.md) | Vista secundaria | Botón ⚙ de la barra superior |
+| 7b | **Reproductor en otra pantalla** (0.2.0, fase 4) | [07 · Fase 4](07-reproductor.md#fase-4-de-020--ventana-secundaria-y-cola) | **Segunda ventana** de rol fijo, en la pantalla elegida | «Abrir en otra pantalla…» de la Biblioteca o de su panel de cola |
+| 2b | **Panel «Cola de reproducción»** (0.2.0, fase 4) | [02 · Fase 4](02-biblioteca.md#fase-4-de-020--ventana-secundaria-y-cola) | Panel lateral de la Biblioteca | Al abrir una sesión, «Cola {n}» de la cabecera, indicador de sesión de la barra superior |
 
 Diálogos transversales (definidos en las specs que los originan): aviso legal de YouTube (03), confirmar cierre con trabajos (04), eliminar canción (02), volver a borrador (02/06), atajos de teclado (06/07).
+
+### 0.2.0, fase 3 · Temas y biblioteca
+- **Biblioteca** (02): «Agrupar por» Sin agrupar / Artista / Álbum, búsqueda en título, artista y álbum, modo selección con «Aplicar tema…» y [Tema…] en los encabezados de artista y álbum.
+- **Editor › Estilo** (06): sección «Tema» (Temas definidos / Tema personalizado, procedencia, editar, guardar como, renombrar, duplicar, eliminar, tema del álbum o artista).
+- **Ajustes › Temas** (08): tema predeterminado y lista completa del catálogo. Es el único lugar con todos los temas; el aspecto de un tema se edita solo desde el editor.
+- Diálogos nuevos, definidos en 06 y reutilizados en 02 y 08: confirmar impacto (guardar en el tema, tema de grupo, cambiar o quitar el predeterminado), nombre del tema (nuevo, duplicar, renombrar), eliminar tema, descartar cambios del tema, salir con un borrador de tema (también al cerrar la ventana). En 02: tema de artista o álbum y «Aplicar tema» (con resultado por canción).
+
+```mermaid
+flowchart LR
+    BIB[2 · Biblioteca] -- "[Tema…] de grupo / Aplicar tema…" --> DLG{{Diálogos de tema}}
+    EDI[6 · Editor › Estilo] -- "Guardar en el tema… / Eliminar / Tema del álbum…" --> DLG
+    EDI -- "Administrar temas…" --> AJ[8 · Ajustes › Temas]
+    AJ -- "‹ Volver al editor (si vino del editor)" --> EDI
+    AJ -- "‹ Biblioteca (si vino de la Biblioteca)" --> BIB
+    AJ -- "Renombrar / Duplicar / Eliminar / Predeterminado" --> DLG
+```
+- **Ajustes vuelve a su origen**: «Volver» y Esc regresan a la Biblioteca o al editor de la canción desde la que se abrió (⚙, Ctrl/Cmd + , o «Administrar temas…»).
+- Salir del editor con un borrador de tema pide confirmar antes que cualquier otra cosa (`tema.dialogo.salir`).
+- Atajos nuevos de la Biblioteca (modo selección): Ctrl/Cmd + A selecciona las visibles, Espacio/Intro alternan, Esc termina. En vistas agrupadas, Ctrl/Cmd + Inicio/Fin van a la primera y última tarjeta.
+
+### 0.2.0, fase 4 · Ventana secundaria y cola
+- **Reproductor en otra pantalla** (07 · Fase 4): **segunda ventana** de rol fijo que solo muestra el reproductor y es la única que suena durante la **sesión**. Estados propios: cuenta entre canciones (contador central y tarjeta «A continuación»), en espera, fin de la cola, fallo de una entrada, reanudación. Esc no cierra la sesión.
+- **Biblioteca** (02 · Fase 4): botón «Abrir en otra pantalla…» y «Reproducir en otra pantalla…» del menú de una Lista (los únicos puntos de inicio de una sesión), diálogo de pantallas, **panel «Cola de reproducción»** a la derecha (activa, pendientes, controles de operación, cola conservada), tarjetas con «A la cola» durante la sesión.
+- **Barra superior**: **indicador de sesión** (a la izquierda del de actividad) visible con sesión o cola; lleva a la Biblioteca con el panel abierto.
+- **Editor y Letra** (06 · Fase 4): bloqueados durante la sesión con el diálogo «No se puede editar mientras el reproductor está abierto en otra ventana». La escucha de la vista de progreso, también.
+- **Ajustes › Reproductor** (08 · Fase 4): «Cuenta entre canciones» (4 s por defecto).
+- Diálogos nuevos: abrir en otra pantalla / cambiar de pantalla (02), «Hay canciones en cola» al cerrar (02, en la ventana donde se pide el cierre), vaciar pendientes y eliminar cola (02), salir de la app con sesión o cola (02, combinado con el de trabajos de 04), bloqueo de edición (06).
+
+```mermaid
+flowchart LR
+    BIB[2 · Biblioteca] -- "Abrir en otra pantalla…" --> DP{{Elegir pantalla}}
+    DP -- "Abrir reproductor" --> SES[Sesión<br/>panel de cola en 2 + ventana secundaria 7]
+    SES -- "fin natural con pendientes" --> CUENTA[7 · Cuenta + «A continuación»]
+    CUENTA -- "llega a 0 / Empezar ya" --> SES
+    CUENTA -- "Detener cuenta" --> ESP[7 · En espera]
+    ESP -- "Iniciar" --> SES
+    SES -- "fin sin pendientes" --> FIN[7 · Fin de la cola]
+    FIN -- "se añade una canción" --> CUENTA
+    SES -- "entrada no disponible" --> FALLO[7 · Fallo]
+    FALLO -- "Pasar a la siguiente canción" --> CUENTA
+    SES -- "Siguiente" --> CUENTA
+    SES -- "Cerrar con pendientes" --> CIERRE{{Hay canciones en cola}}
+    CIERRE -- "Cancelar" --> SES
+    CIERRE -- "Cerrar y conservar cola" --> CONS[2 · Cola conservada<br/>última reproducida]
+    CIERRE -- "Cerrar y eliminar cola" --> BIB
+    SES -- "Cerrar sin pendientes" --> BIB
+    SES -. "caída de la secundaria" .-> CONS
+    CONS -- "Abrir en otra pantalla…<br/>(reanuda en el segundo o espera)" --> DP
+    BIB -- "Editar / Continuar a Letra o Editor<br/>(durante la sesión)" --> BLQ{{No se puede editar…}}
+    BLQ -- "Entendido" --> BIB
+```
+- **Una sola sesión** y un solo transporte audible: durante la sesión no se abre el reproductor local ni suena nada en la principal.
+- La cola vive **en memoria** mientras la app está abierta: se puede preparar antes de abrir la sesión, conservar al cerrarla y se pierde al salir de la app (con confirmación).
+
+### 0.2.0, fase 5 · Estilo, espera y Letra lista
+No hay vistas nuevas. Cambios dentro de las existentes ([06](06-editor.md#fase-5-de-020--estilo-espera-y-letra-lista), [07](07-reproductor.md#fase-5-de-020--estilo-espera-y-letra-lista), [02](02-biblioteca.md#fase-5-de-020--estilo-espera-y-letra-lista)):
+- **Editor › Estilo**: forma del degradado (lineal, radial, cónico), centro, movimiento con velocidad; sección «Indicadores de espera» (puntos, barra, cuenta 3·2·1, silencio mínimo, «Cambiar solo en esta canción», «Ver un ejemplo»). Bajo la vista previa, «Detener el movimiento del fondo».
+- **Editor › Sincronía**: «Ajustar los silencios» en la fila de la línea de tiempo (y en el menú ⋯). La elección de indicadores hueco a hueco no entra en esta fase (propuesta 015).
+- **Editor › dock**: «Marcar como letra lista» junto a «Marcar como lista»; menú ⋯ con «Cambiar a «Letra lista»…» / «Cambiar a «Lista»».
+- **Reproductor** (local y secundaria): fondo en movimiento ligado a la canción, indicadores de espera en los huecos y modo Letra lista sin barrido.
+- **Biblioteca**: insignia «Letra lista» (cuenta como Lista: mismo filtro, acciones y cola).
+- Diálogos nuevos (en 06): «¿Marcar como letra lista?» (primera activación, con «No volver a mostrar este aviso») y «¿Ajustar los silencios?» (recuentos y lista de líneas).
+
+```mermaid
+flowchart LR
+    EDI[6 · Editor<br/>borrador] -- "Marcar como lista" --> BIB[2 · Biblioteca<br/>✓ Lista]
+    EDI -- "Marcar como letra lista" --> AV{{¿Marcar como letra lista?<br/>solo la primera vez}}
+    AV -- "Confirmar" --> BIBL[2 · Biblioteca<br/>Letra lista]
+    AV -- "Cancelar" --> EDI
+    BIBL -- "Reproducir / A la cola" --> REP[7 · Reproductor<br/>sin barrido]
+    BIB -- "Reproducir / A la cola" --> REPK[7 · Reproductor<br/>con barrido]
+    EDI -- "Ajustar los silencios" --> AJ{{¿Ajustar los silencios?}}
+    AJ -- "Ajustar (un paso de deshacer)" --> EDI
+```
+- «Lista» y «Letra lista» se cambian entre sí desde el menú ⋯ del editor sin pasar por borrador.
+
+### 0.2.0, fase 6 · Exportación de video
+- **Exportar a video** ([10](10-exportacion.md)): **diálogo** (no una vista) con cinco estados: formulario (audio, proporción, resolución, FPS, formato MKV o WebM, destino, estimación, muestra con la marca de agua), exportando (subpasos, cancelar, seguir en segundo plano), en cola, éxito («Mostrar en la carpeta») y fallo (causa, «Copiar detalles», «Cambiar opciones», «Reintentar»). Se abre encima de la Biblioteca o del Editor, que siguen montados.
+- **Biblioteca** ([02 · Fase 6](02-biblioteca.md#fase-6-de-020--exportación)): «Exportar video…» en el ⋯ de las Listas (incluidas «Letra lista» e incompletas); «Ver exportación» y «Cancelar exportación…» mientras se exporta; línea «⟳ Exportando video {n} %» en la tarjeta.
+- **Editor** ([06 · Fase 6](06-editor.md#fase-6-de-020--exportación)): «Exportar video…» en el ⋯ de la cabecera y **Ctrl/Cmd + E**, también en borradores con pistas y alguna línea sincronizada.
+- **Panel de actividad** (04): las exportaciones son un trabajo más, con [Ir] (reabre el diálogo) y [✕]. El diálogo de cierre de la app las incluye.
+- **Sesión en otra pantalla**: exportar convive con el evento ([ADR 0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §9): sin candado, solo una nota informativa en el diálogo; abrir una sesión con una exportación en marcha no la detiene. Un perfil que el equipo no puede producir se marca **dentro** del diálogo como «no disponible en este equipo», sin candado.
+
+```mermaid
+flowchart LR
+    BIB[2 · Biblioteca<br/>⋯ de una Lista] -- "Exportar video…" --> FORM{{10 · Exportar video<br/>formulario}}
+    EDI[6 · Editor<br/>⋯ / Ctrl+Cmd+E] -- "vacía el guardado" --> FORM
+    FORM -- "Cancelar / Esc" --> ORIGEN([vuelve al origen])
+    FORM -- "Exportar" --> PROG{{10 · Exportando}}
+    FORM -- "Exportar (otra en curso)" --> COLA{{10 · En cola}}
+    COLA -- "termina la anterior" --> PROG
+    PROG -- "Seguir en segundo plano / Esc" --> ACT[Panel de actividad<br/>+ línea en la tarjeta]
+    ACT -- "Ir / Ver exportación" --> PROG
+    PROG -- "Cancelar exportación (confirmar)" --> CANC([temporal borrado<br/>archivo previo intacto])
+    PROG -- "termina" --> OK{{10 · Video exportado<br/>Mostrar en la carpeta}}
+    PROG -- "falla" --> ERR{{10 · No se pudo exportar<br/>Reintentar / Cambiar opciones}}
+    ERR -- "Cambiar opciones" --> FORM
+    ERR -- "Reintentar" --> PROG
+    ACT -. "diálogo cerrado" .-> TOAST[Toast: exportado / error]
+    TOAST -- "Ver" --> ERR
+```
+- Atajo nuevo: **Ctrl/Cmd + E** (solo Editor).
+- Errores nuevos (detalle en spec 10 §"Errores"; códigos finales del ADR 0019 §10): `SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA` y `ERROR_INTERNO` («Algo salió mal al crear el video»). No hay código de bloqueo por sesión.
 
 ## 2. Estructura de la ventana
 
@@ -59,6 +164,7 @@ Los pasos no navegables tienen `aria-disabled` y muestran *tooltip* con el motiv
 | `paso.motivo.sinFuente` | Pasos 2–4 con la fuente `pendiente`, `error` o `interrumpido` | Primero añade el audio |
 | `paso.motivo.descargando` | Pasos 3–4 con la fuente `en_curso` (descargando de YouTube) | Espera a que termine la descarga |
 | `paso.motivo.sinLetra` | Paso 4 con la fuente completada y sin letra (0 líneas) | Primero elige una letra |
+| `paso.motivo.sesion` | Pasos 3–4 durante una sesión en otra pantalla (0.2.0, fase 4; spec 06) | No se puede editar mientras el reproductor está abierto en otra ventana |
 
 ## 3. Navegación
 
@@ -170,6 +276,11 @@ sequenceDiagram
 | Ctrl/Cmd + , | Ajustes | Todas salvo primer arranque y reproductor |
 | F1 / ? | Atajos de teclado | Editor, Reproductor |
 | Ctrl/Cmd + + / − / 0 | Zoom de la interfaz | Todas salvo reproductor |
+| Alt + ↑ / ↓ · Alt + Inicio / Fin · Supr | Mover una pendiente una posición · al principio / al final · quitarla (0.2.0, fase 4) | Panel de la cola (fila enfocada) |
+| Mayús + N | Siguiente canción de la cola (0.2.0, fase 4) | Ventana secundaria |
+| Ctrl/Cmd + W | Cerrar el reproductor (con confirmación si hay pendientes) (0.2.0, fase 4) | Ventana secundaria |
+
+En la ventana secundaria, **Esc** no sale: pasa de pantalla completa a ventana (spec 07 · Fase 4). En la principal, ninguna acción de la sesión tiene atajo de una sola tecla.
 
 ## 7. Índice de textos de error
 Los códigos estables de `arquitectura.md §3` se traducen así (detalle y acciones en cada spec):
@@ -193,5 +304,20 @@ Los códigos estables de `arquitectura.md §3` se traducen así (detalle y accio
 | canción dañada | 02 | "No se puede abrir esta canción" |
 | fuente del sistema no instalada | — (no aplica en el MVP: solo fuentes incluidas, ver respuesta a 0004) | — |
 | Cualquier código desconocido | todas | "Algo salió mal" + "Copiar detalles" |
+
+| `CONFIRMACION_OBSOLETA` | 02, 06, 08 | Aviso en el diálogo: «Mientras confirmabas cambió qué canciones usan este tema…» (`tema.obsoleto`) |
+| `TEMA_NOMBRE_DUPLICADO` | 06, 08 | «Ya tienes un tema con ese nombre.» (en el campo) |
+| `TEMA_NO_ENCONTRADO` | 02, 06, 08 | «Este tema ya no existe…» (`tema.error.noExiste`) |
+| `TEMAS_SOLO_LECTURA` | 02, 06, 08 | «Tus temas se guardaron con una versión más nueva…» |
+| `BORRADO_PENDIENTE` | 02, 06, 08 | «La eliminación de este tema quedó a medias…» |
+| sesión activa (bloqueo) | 02, 04, 06 | «No se puede editar mientras el reproductor está abierto en otra ventana» (`edi.bloqueo.titulo`) |
+| no se pudo abrir la secundaria | 02 | «No se pudo abrir el reproductor en esa pantalla…» (`ses.error.abrir`) |
+| entrada de la cola no disponible | 02, 07 | Principal: «No se puede reproducir «{título}»» + causa (`cola.causa.*`); público: «Esta canción no se puede reproducir ahora.» |
+| secundaria caída / sin respuesta | 02 | «El reproductor se cerró de forma inesperada…» · «El reproductor no responde.» |
+| pantalla desconectada | 02 | «Se desconectó «{pantalla}»…» |
+
+Códigos estables en el [ADR 0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §11: `EDICION_BLOQUEADA`, `SESION_EN_CURSO`, `GUARDADO_PENDIENTE`, `PANTALLA_NO_DISPONIBLE`, `CANCION_NO_DISPONIBLE`, `ENTRADA_NO_ENCONTRADA`, `COLA_LLENA` (texto `cola.llena`, spec 02) y `CONFIRMACION_OBSOLETA` (al confirmar el cierre: el diálogo se actualiza y pide confirmar otra vez).
+
+Todo «Copiar detalles» termina con la línea de versión común `Versión: {identificador}` (número de compilación, canal y commit): [08 · Fase 10](08-ajustes-y-acerca.md#línea-de-versión-en-los-detalles-copiados) (0.2.0).
 
 Tono del microcopy: tuteo, frases cortas, sin jerga técnica (no se dice "worker", "modelo ONNX", "venv"); cada error dice **qué pasó** y **qué puede hacer** el usuario.

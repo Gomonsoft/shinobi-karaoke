@@ -1,5 +1,19 @@
 import { z } from 'zod'
 import { estiloPredeterminado, estiloSchema } from './estilo'
+import {
+  AUDIOS_EXPORTACION,
+  AUDIO_PREDETERMINADO,
+  FORMATOS_ID,
+  FORMATO_PREDETERMINADO,
+  FPS,
+  FPS_PREDETERMINADO,
+  PROPORCION_PREDETERMINADA,
+  RESOLUCION_PREDETERMINADA,
+  acotarFactorCorrector,
+  FACTOR_CORRECTOR,
+  proporcionDe
+} from './exportacion'
+import { LIMITES_PANELES } from './paneles'
 
 export const VERSION_ESQUEMA_CONFIG = 1
 
@@ -61,27 +75,165 @@ const separacionSchema = z
 export const VOLUMEN_VOZ_PREDETERMINADO = 0.3
 export const VOZ_SILENCIADA_PREDETERMINADA = true
 
-const reproductorSchema = z
+/** Duración de la cuenta entre canciones (ADR 0006, rev. fase 4): entero de 1 a 30 s, 4 por defecto. */
+export const TRANSICION_S = { min: 1, max: 30, defecto: 4 } as const
+
+/** Última pantalla elegida para la ventana secundaria (ADR 0006, rev. fase 4); solo la escribe main. */
+export const pantallaSecundariaGuardadaSchema = z.object({
+  id: z.number().int(),
+  etiqueta: z.string().max(200),
+  ancho: z.number().int().positive(),
+  alto: z.number().int().positive()
+})
+
+const secundariaSchema = z
   .object({
-    volumen: z.number().min(0).max(1).default(0.8),
-    silenciado: z.boolean().default(false),
-    /** Volumen propio de la voz guía, aplicado antes del volumen general. */
-    voz_guia: z.number().min(0).max(1).default(VOLUMEN_VOZ_PREDETERMINADO),
-    voz_guia_silenciada: z.boolean().default(VOZ_SILENCIADA_PREDETERMINADA)
+    pantalla: pantallaSecundariaGuardadaSchema,
+    pantalla_completa: z.boolean()
   })
-  .prefault({})
+  .nullable()
+  .catch(null)
+
+/** Campos de volumen y voz guía: los únicos que escribe la secundaria (`sesion.guardarPreferencias`). */
+const camposPreferenciasSecundaria = {
+  volumen: z.number().min(0).max(1),
+  silenciado: z.boolean(),
+  voz_guia: z.number().min(0).max(1),
+  voz_guia_silenciada: z.boolean()
+}
+
+/** Parcial estricto de la secundaria: sin `transicion_s` ni `secundaria` (ADR 0017 §10). */
+export const preferenciasSecundariaSchema = z.strictObject({
+  volumen: camposPreferenciasSecundaria.volumen.optional(),
+  silenciado: camposPreferenciasSecundaria.silenciado.optional(),
+  voz_guia: camposPreferenciasSecundaria.voz_guia.optional(),
+  voz_guia_silenciada: camposPreferenciasSecundaria.voz_guia_silenciada.optional()
+})
+export type PreferenciasSecundaria = z.infer<typeof preferenciasSecundariaSchema>
+
+export const reproductorSchema = z
+  .object({
+    volumen: camposPreferenciasSecundaria.volumen.default(0.8),
+    silenciado: camposPreferenciasSecundaria.silenciado.default(false),
+    /** Volumen propio de la voz guía, aplicado antes del volumen general. */
+    voz_guia: camposPreferenciasSecundaria.voz_guia.default(VOLUMEN_VOZ_PREDETERMINADO),
+    voz_guia_silenciada: camposPreferenciasSecundaria.voz_guia_silenciada.default(
+      VOZ_SILENCIADA_PREDETERMINADA
+    ),
+    /** Cuenta entre canciones de la cola, en segundos; lectura tolerante. */
+    transicion_s: z
+      .number()
+      .int()
+      .min(TRANSICION_S.min)
+      .max(TRANSICION_S.max)
+      .catch(TRANSICION_S.defecto),
+    secundaria: secundariaSchema
+  })
+  .prefault(() => ({ transicion_s: TRANSICION_S.defecto, secundaria: null }))
+export type ConfigReproductor = z.infer<typeof reproductorSchema>
+
+/** Objeto cuyo valor, si no es un objeto, se lee como `{}` (cada hoja toma su defecto). */
+function objetoTolerante<T extends z.ZodRawShape>(forma: T) {
+  return z.preprocess(
+    (v) => (typeof v === 'object' && v !== null && !Array.isArray(v) ? v : {}),
+    z.object(forma)
+  )
+}
+
+const enteroEnRango = (min: number, max: number) => z.number().int().min(min).max(max)
+
+/**
+ * Preferencias de paneles del editor (ADR 0006, rev. 0.2.0). Lectura tolerante campo a campo:
+ * un valor inválido se sustituye por el defecto de ese campo sin apartar el config.
+ */
+const panelesSchema = objetoTolerante({
+  lista: objetoTolerante({
+    ancho: enteroEnRango(LIMITES_PANELES.lista.min, LIMITES_PANELES.lista.max).catch(
+      LIMITES_PANELES.lista.defecto
+    ),
+    minimizado: z.boolean().catch(false)
+  }),
+  panel: objetoTolerante({
+    ancho: enteroEnRango(LIMITES_PANELES.panel.min, LIMITES_PANELES.panel.max).catch(
+      LIMITES_PANELES.panel.defecto
+    ),
+    minimizado: z.boolean().catch(false)
+  }),
+  linea_tiempo: objetoTolerante({
+    alto: enteroEnRango(LIMITES_PANELES.linea_tiempo.min, LIMITES_PANELES.linea_tiempo.max)
+      .nullable()
+      .catch(null),
+    minimizado: z.boolean().catch(false)
+  })
+})
+
+const editorSchema = objetoTolerante({
+  paneles: panelesSchema,
+  /** No volver a avisar al activar «Letra lista» (ADR 0018 §5). */
+  omitir_aviso_letra_lista: z.boolean().catch(false)
+})
+
+export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album'] as const
+export type AgruparBiblioteca = (typeof AGRUPACIONES_BIBLIOTECA)[number]
+
+/** Preferencias de la Biblioteca (ADR 0016 §9): lectura tolerante, como `editor.paneles`. */
+const bibliotecaSchema = objetoTolerante({
+  agrupar: z.enum(AGRUPACIONES_BIBLIOTECA).catch('ninguno')
+})
+
+/**
+ * Preferencias de exportación (ADR 0019 §6 y §11; ADR 0006, rev. fase 6). Solo las escribe main.
+ * Lectura tolerante por campo; si `ancho × alto` no es una resolución del catálogo, se vuelve a la
+ * resolución y la proporción por defecto (la proporción siempre se deduce de la resolución).
+ */
+const exportacionSchema = z.preprocess(
+  (v) => {
+    const o = typeof v === 'object' && v !== null && !Array.isArray(v) ? { ...v } : {}
+    const { ancho, alto } = o as { ancho?: unknown; alto?: unknown }
+    const valida =
+      typeof ancho === 'number' && typeof alto === 'number' && proporcionDe(ancho, alto) !== null
+    return valida ? o : { ...o, ancho: undefined, alto: undefined }
+  },
+  z
+    .object({
+      formato: z.enum(FORMATOS_ID).catch(FORMATO_PREDETERMINADO),
+      audio: z.enum(AUDIOS_EXPORTACION).catch(AUDIO_PREDETERMINADO),
+      ancho: z.number().int().catch(RESOLUCION_PREDETERMINADA.ancho),
+      alto: z.number().int().catch(RESOLUCION_PREDETERMINADA.alto),
+      fps: z
+        .number()
+        .refine((n): n is (typeof FPS)[number] => (FPS as readonly number[]).includes(n))
+        .catch(FPS_PREDETERMINADO),
+      /** Última carpeta usada; `null` = la de vídeos del sistema. */
+      carpeta: z.string().min(1).max(4096).nullable().catch(null),
+      factor_corrector: z
+        .number()
+        .finite()
+        .transform(acotarFactorCorrector)
+        .catch(FACTOR_CORRECTOR.defecto)
+    })
+    .transform((c) => ({
+      ...c,
+      proporcion: proporcionDe(c.ancho, c.alto) ?? PROPORCION_PREDETERMINADA
+    }))
+)
+export type ConfigExportacion = z.infer<typeof exportacionSchema>
 
 export const configSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CONFIG).default(VERSION_ESQUEMA_CONFIG),
   instalacion: instalacionSchema,
   separacion: separacionSchema,
   reproductor: reproductorSchema,
+  editor: editorSchema,
+  biblioteca: bibliotecaSchema,
+  exportacion: exportacionSchema,
   aviso_youtube_aceptado: z.iso.datetime().nullable().default(null),
   ultima_comprobacion_ytdlp: z.iso.datetime().nullable().default(null),
   estilo_predeterminado: estiloSchema.default(() => estiloPredeterminado())
 })
 
 export type Config = z.infer<typeof configSchema>
+export type PreferenciasPaneles = Config['editor']['paneles']
 
 /** Configuración por defecto (la de una instalación nueva). */
 export function configPredeterminada(): Config {
