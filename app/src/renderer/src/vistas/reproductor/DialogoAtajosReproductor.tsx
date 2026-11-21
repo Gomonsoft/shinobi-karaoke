@@ -4,7 +4,8 @@ import { R } from './textos'
 import estilos from './reproductor.module.css'
 
 const ATAJOS = [
-  ['Espacio / K', 'Reproducir / pausa'],
+  ['Espacio / K', 'Reproducir / pausa', 'local'],
+  ['Espacio / K', R.cola.atajos.alternar, 'sesion'],
   ['← / →', 'Retroceder / avanzar 5 s'],
   ['J / L', 'Retroceder / avanzar 10 s'],
   ['↑ / ↓', 'Volumen +10 % / −10 %'],
@@ -13,7 +14,10 @@ const ATAJOS = [
   ['Mayús + ↑ / ↓', 'Voz guía +10 % / −10 %', 'voz'],
   ['Inicio / 0', 'Volver al principio'],
   ['F', 'Pantalla completa / ventana'],
-  ['Esc', 'Cerrar el diálogo o salir del reproductor'],
+  ['Esc', 'Cerrar el diálogo o salir del reproductor', 'local'],
+  ['Mayús + N', R.cola.atajos.siguiente, 'sesion'],
+  ['Ctrl/Cmd + W', R.cola.atajos.cerrar, 'sesion'],
+  ['Esc', R.cola.atajos.esc, 'sesion'],
   [', / .', 'Desplazamiento de toda la letra −/+ 100 ms', 'editor'],
   ['F1 / ?', R.atajos.titulo]
 ] as const
@@ -22,11 +26,14 @@ export function DialogoAtajosReproductor({
   abierto,
   vozDisponible,
   puedeDesplazar,
+  sesion = false,
   alCerrar
 }: {
   abierto: boolean
   vozDisponible: boolean
   puedeDesplazar: boolean
+  /** Ventana secundaria: añade los atajos de la cola y no ofrece los del reproductor local. */
+  sesion?: boolean
   alCerrar(): void
 }) {
   return (
@@ -45,10 +52,14 @@ export function DialogoAtajosReproductor({
           </tr>
         </thead>
         <tbody>
-          {ATAJOS.filter(([, , modo]) =>
-            modo === 'voz' ? vozDisponible : modo !== 'editor' || puedeDesplazar
-          ).map(([tecla, accion]) => (
-            <tr key={tecla}>
+          {ATAJOS.filter(([, , modo]) => {
+            if (modo === 'voz') return vozDisponible
+            if (modo === 'editor') return puedeDesplazar
+            if (modo === 'sesion') return sesion
+            if (modo === 'local') return !sesion
+            return true
+          }).map(([tecla, accion, modo]) => (
+            <tr key={`${tecla}-${modo ?? ''}`}>
               <th scope="row">{tecla}</th>
               <td>{accion}</td>
             </tr>

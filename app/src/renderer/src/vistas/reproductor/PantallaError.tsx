@@ -15,7 +15,7 @@ export function PantallaError({
 }: {
   error: NonNullable<EstadoMotorReproductor['errorPrincipal']>
   modo: ModoAudio
-  origen: OrigenReproductor
+  origen: Exclude<OrigenReproductor, 'sesion'>
   alSalir(): void
 }) {
   const volver = useRef<HTMLButtonElement>(null)

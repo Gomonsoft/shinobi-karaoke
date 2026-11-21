@@ -1,4 +1,4 @@
-export type OrigenReproductor = 'biblioteca' | 'editor'
+export type OrigenReproductor = 'biblioteca' | 'editor' | 'sesion'
 
 export type AccionReproductor =
   | { tipo: 'alternar' }
@@ -12,6 +12,10 @@ export type AccionReproductor =
   | { tipo: 'salir' }
   | { tipo: 'desplazar'; deltaMs: 100 | -100 }
   | { tipo: 'atajos' }
+  /** Solo en la ventana secundaria (spec 07, fase 4). */
+  | { tipo: 'siguiente' }
+  | { tipo: 'cerrar' }
+  | { tipo: 'esc' }
 
 type Tecla = Pick<
   KeyboardEvent,
@@ -47,10 +51,21 @@ export function accionDeTeclaReproductor(
     focoEnBoton: boolean
   }
 ): AccionReproductor | null {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return null
+  if (e.isComposing) return null
   const tecla = e.key.toLowerCase()
+  if (
+    origen === 'sesion' &&
+    (e.ctrlKey || e.metaKey) &&
+    !e.altKey &&
+    !e.shiftKey &&
+    tecla === 'w'
+  ) {
+    return { tipo: 'cerrar' }
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return null
   if (tecla === '?') return { tipo: 'atajos' }
   if (e.shiftKey) {
+    if (origen === 'sesion' && tecla === 'n') return { tipo: 'siguiente' }
     if (vozDisponible && (tecla === 'arrowup' || tecla === 'arrowdown')) {
       return { tipo: 'nivel_voz', delta: tecla === 'arrowup' ? 0.1 : -0.1 }
     }
@@ -61,5 +76,7 @@ export function accionDeTeclaReproductor(
   if (tecla === ',' || tecla === '.') {
     return origen === 'editor' ? { tipo: 'desplazar', deltaMs: tecla === ',' ? -100 : 100 } : null
   }
+  // Esc nunca cierra la sesión: solo sale de la pantalla completa.
+  if (origen === 'sesion' && tecla === 'escape') return { tipo: 'esc' }
   return ACCIONES.get(tecla) ?? null
 }

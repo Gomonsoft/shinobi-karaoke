@@ -1,6 +1,6 @@
 # 0182 — Reproductor en la ventana secundaria
 
-- Estado: Pendiente
+- Estado: Hecha (integración en Electron pendiente de 0181)
 - Paso del pipeline: 6
 - Depende de: [0177](0177-contratos-compartidos-de-sesion-cola-y-roles.md), [0179](0179-roles-de-ventana-remitente-por-rol-y-documento-secundario.md) (entrada del documento). Para integrarse en Electron necesita [0181](0181-servicio-de-sesion-e-ipc-en-main.md); hasta entonces avanza con la `ApiReproductor` falsa de 0177.
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §7, §8 y §10, [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-4) §3–§4
@@ -54,3 +54,18 @@ Sustituir el documento provisional de la secundaria por el reproductor de la ses
 - [ ] El reproductor local (`Reproductor.test.tsx`, `Reproductor.estados.test.tsx` y `e2e/reproductor.spec.ts`) sigue en verde.
 
 ## Notas de implementación
+
+Hecho contra la `ApiReproductor` falsa de 0177; falta la integración real con main (0181) y la verificación E2E/capturas (0190).
+
+- **Qué se hizo**
+  - `Reproductor.tsx` con `origen: 'sesion'` y la prop `sesion`: sin `inert`, `aria-modal`, toasts, `CuentaFinal`, pantalla final ni `rep.incompleta`. Informa `lista`, `reproduciendo`, `pausada`, `posicion` (500 ms), `fin` (una vez) y `error`; reanudación sin silencio previo con indicador `rep.cola.reanudada`. Abrir atajos no pausa la canción en sesión.
+  - `Controles.tsx`: «Cerrar reproductor», ⏭ y ⏮ = Reiniciar.
+  - `atajos.ts`: Mayús+N, Ctrl/Cmd+W y Esc (solo sale de pantalla completa).
+  - `vistas/reproductor/sesion/`: `CuentaTransicion`, `TarjetaSiguiente`, `PantallaEspera`, `PantallaFinCola`, `PantallaFallo`, `PantallaEstadoSesion` (S1–S4, anuncios, franjas, teclado) y `cuenta.ts` (`RelojCuenta`, congelado local con `cierrePendiente`).
+  - `secundaria/`: `AppSecundaria.tsx`, `DialogoCierreSesion.tsx`, `useVolumenSecundaria.ts`, `textos.ts` (`ses.cierre*` duplicados, provisional hasta 0183), `env.d.ts` y `main.tsx` (entrada real; 0179 deja uno provisional: al fusionar, prevalece este).
+- **Probar**: `npx vitest run --project renderer src/renderer/src/secundaria src/renderer/src/vistas/reproductor`.
+- **Deuda y desviaciones**
+  - Pregunta [0068](../preguntas/0068-ids-y-conteo-en-el-estado-reducido-de-la-secundaria.md): el estado reducido no lleva `candidataId`, id de la entrada fallida ni nº de pendientes; «Empezar ya», «Iniciar» y «Pasar» desde un fallo de candidata no actúan hasta resolverlo.
+  - En S1/S2 la franja inferior no incluye la voz guía (solo volumen, ⌨ y ⛶).
+  - `useVolumenSecundaria` duplica la lógica de `useVolumenCompartido` (inyectando la API).
+  - Capturas P16 y E2E: 0190.
