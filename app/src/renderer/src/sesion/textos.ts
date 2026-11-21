@@ -124,7 +124,9 @@ export const SES = {
       'El reproductor de la otra pantalla se cerrará. La cola se conservará mientras Shinobi Karaoke siga abierto.',
     cerrar: 'Cerrar',
     /** `ses.salir.extra`: se añade a `cierre.cuerpo`. */
-    extra: 'El reproductor de la otra pantalla se cerrará y la cola se perderá.'
+    extra: 'El reproductor de la otra pantalla se cerrará y la cola se perderá.',
+    /** Variante macOS (cerrar ventana) de `extra`: la cola se conserva. */
+    extraMac: 'El reproductor de la otra pantalla se cerrará.'
   },
   rec: {
     monitor: (pantalla: string, nueva: string): string =>

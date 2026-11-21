@@ -102,7 +102,66 @@ test.describe('sesión en main', () => {
       expect(cuentas).toHaveLength(1)
       expect((await estado()).pendientes.map((p) => p.cancionId)).toEqual([idSemilla(21)])
     } finally {
-      await app.close()
+      // Con sesión, `app.close()` pediría confirmación (0189): se sale sin preguntar.
+      await app.evaluate(({ app: a }) => a.exit(0)).catch(() => undefined)
+    }
+  })
+
+  test('salir con sesión pide ses.salir; «Salir» cierra las dos ventanas y la cola no sobrevive', async () => {
+    const datos = crearTemporal('sesion-salir')
+    await sembrar(datos)
+    const entorno = {
+      ...process.env,
+      SHINOBI_DATOS: datos,
+      SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
+      SHINOBI_SILENCIAR_AUDIO: '1',
+      SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1',
+      SHINOBI_PANTALLAS_SIMULADAS: PANTALLAS,
+      SHINOBI_PANTALLA_COMPLETA_SIMULADA: '1'
+    }
+    const lanzar = () => electron.launch({ args: ['.'], cwd: process.cwd(), env: entorno })
+    const app = await lanzar()
+    try {
+      const principal = await app.firstWindow()
+      await expect(principal.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      const nueva = app.waitForEvent('window')
+      await principal.evaluate(
+        async ([primera, segunda]) => {
+          const w = window as unknown as Ventana
+          await w.shinobi.sesion.abrir({
+            pantallaId: 2,
+            pantallaCompleta: false,
+            inicio: { tipo: 'cancion', cancionId: primera, donde: 'ahora' }
+          })
+          await w.shinobi.cola.agregar(segunda, 'final')
+        },
+        [idSemilla(20), idSemilla(21)] as const
+      )
+      await nueva
+
+      // Cmd/Ctrl + Q equivale a `app.quit()`: main pregunta en la principal.
+      void app.evaluate(({ app: a }) => a.quit()).catch(() => undefined)
+      const dialogo = principal.getByRole('dialog', { name: '¿Salir de Shinobi Karaoke?' })
+      await expect(dialogo).toBeVisible()
+      await expect(dialogo.getByRole('button', { name: 'Cancelar' })).toBeFocused()
+      const cerrada = app.waitForEvent('close')
+      await dialogo.getByRole('button', { name: 'Salir' }).click()
+      await cerrada
+    } finally {
+      await app.close().catch(() => undefined)
+    }
+
+    const otra = await lanzar()
+    try {
+      const principal = await otra.firstWindow()
+      await expect(principal.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      const estado = await principal.evaluate(() =>
+        (window as unknown as Ventana).shinobi.sesion.estado()
+      )
+      expect(estado.sesion).toBeNull()
+      expect(estado.pendientes).toEqual([])
+    } finally {
+      await otra.close()
     }
   })
 })
