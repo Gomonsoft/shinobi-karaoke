@@ -54,3 +54,7 @@ Detalle en [`01-pipeline.md`](01-pipeline.md).
 ## Alcance 0.2.0
 
 La alfa incorpora edición de tiempos con marcadores en la línea de tiempo, temas reutilizables y animaciones de fondo mediante degradados en movimiento. La autorización se aplica a esta versión y las exclusiones anteriores describen el MVP 0.1.0. El [plan de la alfa](versiones/0.2.0/plan-2.md) recoge el alcance completo y sus fases. El 2026-11-21 el usuario autorizó además la fase 10, «Detalles de release» (canal de compilaciones de desarrollo, número de compilación visible, notas en dos partes y README con descarga directa), para `0.2.0-alpha.2`.
+
+## Alcance 0.2.1
+
+Autorizado por el usuario el 2026-11-21 tras probar 0.2.0-alpha.1: correcciones pendientes de exportación, retirada de los tiempos por palabra importados, del atajo S y del desplazamiento de toda la letra, doble clic para escuchar una línea, pestaña «Funciones», acciones de «Letra lista», agrupación por fecha de añadido, barra de espera como barra de carga y un editor preciso de línea con tiempos por palabra hechos a mano. El [plan de 0.2.1](versiones/0.2.1/plan-3.md) recoge las fases 7 a 9.

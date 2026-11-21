@@ -3,7 +3,8 @@
 | Versión | Estado | Documentación |
 |---|---|---|
 | 0.1.0 MVP | Fases 0–8 cerradas para validación funcional | [Plan](versiones/0.1.0/plan-1.md) · [Backlog](versiones/0.1.0/backlog.md) |
-| 0.2.0-alfa | En curso | [Plan](versiones/0.2.0/plan-2.md) · [Backlog](versiones/0.2.0/backlog.md) |
+| 0.2.0-alfa | `0.2.0-alpha.2` lista para publicar | [Plan](versiones/0.2.0/plan-2.md) · [Backlog](versiones/0.2.0/backlog.md) |
+| 0.2.1 | Aprobada, por desglosar | [Plan](versiones/0.2.1/plan-3.md) |
 | Versiones futuras | Por priorizar | Sin compromisos de alcance |
 
 ## Publicación pendiente del MVP

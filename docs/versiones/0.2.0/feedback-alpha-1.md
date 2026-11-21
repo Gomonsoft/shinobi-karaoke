@@ -1,6 +1,6 @@
 # Feedback de 0.2.0-alpha.1 y propuesta de fases 7 a 9
 
-Prueba del usuario del 2026-11-21 en Windows 11 con la app instalada (RTX 4070, una pantalla de 3440 × 1440). Este documento reúne lo reportado, lo que se comprobó en el código y en la carpeta de datos, y una propuesta de fases para añadir al [plan](plan-2.md). **Es una propuesta: el plan y el alcance no cambian hasta que el usuario la apruebe.**
+Prueba del usuario del 2026-11-21 en Windows 11 con la app instalada (RTX 4070, una pantalla de 3440 × 1440). Este documento reúne lo reportado, lo que se comprobó en el código y en la carpeta de datos, y una propuesta de fases para añadir al [plan](plan-2.md). **Aprobada el 2026-11-21:** las fases 7 a 9 pasan a la versión 0.2.1 ([plan](../0.2.1/plan-3.md)). Las correcciones de exportación, registro, icono en las ventanas y distribución ya salieron en 0.2.0-alpha.2.
 
 Canciones usadas: Final Ruin, A Pesar de Mí, Arrópame, Dedos Rotos y Funerales (José Madero), Valiente (Paty Cantú) y Assassins Creed Unity (Zarcort, solo «Letra lista»).
 
