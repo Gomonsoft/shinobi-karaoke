@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises'
-import { release, type as tipoSO } from 'node:os'
+import { release, setPriority, type as tipoSO } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
   app,
@@ -80,6 +80,11 @@ import { ServicioPicos } from './picos/servicio'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
 import { RegistroVentanas } from './ventana/registro'
+import {
+  crearVentanaExportacion,
+  type OpcionesExportacion,
+  type VentanaExportacion
+} from './exportacion/ventana'
 import { GestorReposo } from './ventana/reposo'
 import { ServicioSesion } from './sesion/servicio'
 import { listarPantallas, observarPantallas, type ScreenLike } from './sesion/pantallas'
@@ -306,6 +311,9 @@ function crearVentanaSecundaria(opciones: OpcionesVentanaSecundaria): VentanaSec
   return ventana as unknown as VentanaSecundariaLike
 }
 
+/** Ventana offscreen de exportación vigente (la crea 0237; hasta entonces, solo las pruebas). */
+let ventanaExportacionVigente: VentanaExportacion | null = null
+
 // El esquema de medios debe registrarse como privilegiado antes de `app.ready` (0012).
 protocol.registerSchemesAsPrivileged([
   { scheme: ESQUEMA_APP, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -353,6 +361,36 @@ if (instanciaUnica)
   void app.whenReady().then(async () => {
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
+
+    /**
+     * Crea la ventana offscreen de exportación (ADR 0019 §2): rol `exportacion`, `exportacion.html`
+     * y su propio preload. Hay una a la vez; la gobierna el servicio de exportación (0237).
+     */
+    async function crearExportacion(opciones: OpcionesExportacion): Promise<VentanaExportacion> {
+      const urlDev = process.env.ELECTRON_RENDERER_URL
+      return crearVentanaExportacion(opciones, {
+        publicar: (v) => {
+          ventanaExportacionVigente = v
+        },
+        crear: (o) => new BrowserWindow(o) as never,
+        url:
+          !app.isPackaged && urlDev
+            ? `${urlDev}/exportacion.html`
+            : `${ORIGEN_APP}/exportacion.html`,
+        preload: join(__dirname, '../preload/exportacion.js'),
+        registrarRol: (v) => ventanas.registrar(v as never, 'exportacion'),
+        // Prioridad baja: el equipo sigue usable mientras se exporta.
+        bajarPrioridad: (pid) => setPriority(pid, 10),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'exportacion', mensaje)
+      })
+    }
+
+    // Solo para las pruebas E2E de la captura (0234): nunca en la app empaquetada.
+    if (!app.isPackaged && process.env.SHINOBI_PRUEBA_EXPORTACION === '1') {
+      ;(globalThis as { __shinobiExportacion?: unknown }).__shinobiExportacion = {
+        crear: crearExportacion
+      }
+    }
     try {
       servicioConfig = await ServicioConfig.abrir(rutaDatos(), { registro })
     } catch (e) {
@@ -697,6 +735,7 @@ if (instanciaUnica)
         ipcMain,
         {
           biblioteca: servicioBiblioteca,
+          ventanaExportacion: () => ventanaExportacionVigente,
           ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
           sesion: servicioSesion,

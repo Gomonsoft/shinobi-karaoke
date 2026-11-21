@@ -31,6 +31,13 @@ export interface PantallaLetraProps {
   /** `true`: el fondo se queda en la fase 0 aunque el estilo tenga movimiento. */
   fondoEstatico?: boolean
   /**
+   * Exportación (ADR 0019 §2): pinta el instante de audio indicado, sin `requestAnimationFrame`
+   * ni reloj. Fondo, barrido y entradas dependen solo de este valor y de la letra.
+   */
+  tiempoFijoMs?: number
+  /** `reducido` quita las animaciones de entrada y el fondo en movimiento. Por defecto, el del sistema. */
+  movimiento?: 'completo' | 'reducido'
+  /**
    * Se llama una vez al empezar (o al buscar dentro de) un hueco con indicadores de 2 s o más,
    * con los segundos que faltan. El contenedor lo anuncia en su región `aria-live`.
    */
@@ -112,6 +119,8 @@ export function PantallaLetra({
   className,
   barrido = true,
   fondoEstatico = false,
+  tiempoFijoMs,
+  movimiento,
   alAnunciarEspera
 }: PantallaLetraProps) {
   const raiz = useRef<HTMLDivElement>(null)
@@ -119,14 +128,16 @@ export function PantallaLetra({
   const barridos = useRef<MedicionBarrido[]>([])
   const ultimaLinea = useRef<LineaRender | null>(null)
   const nodoSiguiente = useRef<HTMLDivElement>(null)
-  const reducido = useMovimientoReducido()
+  const reducidoSistema = useMovimientoReducido()
+  const reducido = movimiento ? movimiento === 'reducido' : reducidoSistema
+  const fijo = tiempoFijoMs !== undefined
   const anunciada = useRef<string | null>(null)
   const anunciar = useRef(alAnunciarEspera)
   const fondo = useMemo(() => normalizarEstilo(estilo).fondo, [estilo])
   const animarFondo =
     fondo.tipo === 'degradado' && !!fondo.movimiento && !fondoEstatico && !reducido
   const [vivo, setVivo] = useState<{ fotograma: FotogramaLetra; sube: boolean } | null>(null)
-  const fotograma = reproduciendo
+  const fotogramaVivo = reproduciendo
     ? (vivo?.fotograma ??
       fotogramaEn(letra, -letra.offset_ms, {
         duracionMs,
@@ -135,6 +146,15 @@ export function PantallaLetra({
         espera: estilo.espera
       }))
     : fotogramaEstatico(letra, idEstatico)
+  // Con tiempo fijo no hay reloj ni estado: el fotograma sale solo del instante (exportación).
+  const fotograma = fijo
+    ? fotogramaEn(letra, tiempoFijoMs - letra.offset_ms, {
+        duracionMs,
+        titulo,
+        artista,
+        espera: estilo.espera
+      })
+    : fotogramaVivo
   const { actual, siguiente, espera } = fotograma
 
   useLayoutEffect(() => {
@@ -146,7 +166,7 @@ export function PantallaLetra({
   }, [actual])
 
   useEffect(() => {
-    if (!obtenerTiempoAudio) return
+    if (!obtenerTiempoAudio || fijo) return
     const pintarFondo = (tAudioMs: number) => {
       if (animarFondo && !document.hidden) {
         raiz.current?.style.setProperty('--k-fondo', fondoCssEn(fondo, tAudioMs))
@@ -225,7 +245,8 @@ export function PantallaLetra({
     artista,
     estilo.espera,
     fondo,
-    animarFondo
+    animarFondo,
+    fijo
   ])
 
   useLayoutEffect(() => {
@@ -261,11 +282,26 @@ export function PantallaLetra({
     }
   }, [actual, siguiente, estilo.letra.fuente.familia, cuentaAtras, fotograma.claveTransicion])
 
+  // Tiempo fijo (exportación): en el mismo paso síncrono se escriben fondo, hueco y barrido.
+  useLayoutEffect(() => {
+    if (tiempoFijoMs === undefined) return
+    const nodo = raiz.current!
+    nodo.style.setProperty(
+      '--k-fondo',
+      fondoCssEn(fondo, tiempoFijoMs, { estatico: reducido || fondoEstatico })
+    )
+    // Sin hueco, la variable se quita: no puede quedar el valor de un fotograma anterior.
+    if (espera) nodo.style.setProperty('--k-fraccion', String(espera.fraccion))
+    else nodo.style.removeProperty('--k-fraccion')
+    if (actual) aplicarProgreso(barridos.current, actual)
+  })
+
   return (
     <div
       ref={raiz}
       aria-hidden="true"
       className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} foco-doble ${className ?? ''}`}
+      data-movimiento={reducido ? 'reducido' : 'completo'}
       style={variablesEstilo(estilo) as CSSProperties}
     >
       {cuentaAtras ? (
@@ -301,6 +337,9 @@ export function PantallaLetra({
               key={espera.cuenta}
               className={`${estilos.cuentaEspera} ${reducido ? '' : estilos.entraNumero}`}
               data-indicador="cuenta"
+              {...(fijo && {
+                'data-nace-ms': espera.destinoMs - espera.cuenta * 1000 + letra.offset_ms
+              })}
               aria-hidden="true"
             >
               {espera.cuenta}
@@ -311,7 +350,11 @@ export function PantallaLetra({
               key={actual.id}
               ref={nodoActual}
               data-linea={actual.id}
-              className={`${estilos.actual} ${reproduciendo && vivo?.sube && !reducido ? estilos.transicion : ''}`}
+              className={`${estilos.actual} ${(fijo || (reproduciendo && vivo?.sube)) && !reducido ? estilos.transicion : ''}`}
+              {...(fijo && {
+                'data-nace-ms':
+                  (letra.lineas.find((l) => l.id === actual.id)?.inicio_ms ?? 0) + letra.offset_ms
+              })}
             >
               <TextoActual linea={actual} barrido={barrido} />
             </div>

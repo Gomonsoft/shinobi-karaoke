@@ -220,6 +220,10 @@ function verificarAsar(asar, listar, leer) {
       `Falta ${requerido} en app.asar`
     )
   }
+  // Ventana offscreen de exportación (ADR 0019 §2): su documento y su preload.
+  for (const requerido of ['/out/renderer/exportacion.html', '/out/preload/exportacion.js']) {
+    exigir(conjunto.has(requerido), `Falta ${requerido} en app.asar`)
+  }
   for (const ruta of entradas) {
     const partes = ruta.split('/').filter(Boolean)
     const i = partes.indexOf('node_modules')

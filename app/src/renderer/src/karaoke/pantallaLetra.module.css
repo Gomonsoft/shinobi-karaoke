@@ -168,9 +168,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .transicion,
-  .entraNumero {
-    animation: none;
-  }
+/* El movimiento lo decide el componente (`data-movimiento`): el del sistema o el que fija la exportación. */
+.raiz[data-movimiento='reducido'] :is(.transicion, .entraNumero) {
+  animation: none;
 }
