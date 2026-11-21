@@ -98,7 +98,7 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 | [0187 · Tarjetas y menús](../../tareas/0187-tarjetas-y-menus-de-la-biblioteca-durante-la-sesion.md) | Pendiente | 0183, 0184 | «A la cola», ⋯ de Lista, toasts, línea de cola, bloqueos de la tarjeta |
 | [0188 · Ajustes › Reproductor](../../tareas/0188-ajustes-cuenta-entre-canciones.md) | Hecha | 0177 | Selector «Cuenta entre canciones» |
 | [0189 · Salir con sesión o cola](../../tareas/0189-salir-de-la-app-con-sesion-o-cola.md) | Pendiente | 0181, 0183 | `ses.salir`, variante con trabajos y variante de macOS |
-| [0190 · Verificación, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Pendiente | 0177–0189 | E2E sin red, capturas, verificación manual en dos pantallas e informe |
+| [0190 · Pruebas de integración, capturas e informe](../../tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md) | Pendiente | 0177–0189 | Una spec `sesion-flujo` (≤ 4 pruebas), capturas, CI en verde, guía manual ejecutada por el usuario e informe |
 
 **Decisiones.**
 
@@ -140,7 +140,7 @@ Decisiones: [ADR 0016](../../adr/0016-catalogo-de-temas-e-identidad-de-artista-y
 - `Biblioteca.tsx`: 0184 (cabecera), 0185 (colocación del panel y botón «Cola») y 0187 (menú). Son pocas líneas cada una y se integran en ese orden.
 - `vistas/ajustes/`: 0188.
 - `navegacion/{DialogoCierre,textosCierre}`: 0189.
-- `e2e/`: cada tarea puede añadir su propio `*.spec.ts`. 0190 reúne y completa la batería.
+- `e2e/`: cada tarea puede añadir su propio `*.spec.ts`. 0190 añade solo `sesion-flujo.spec.ts` (ver [estrategia de pruebas](../../pruebas.md)).
 
 ## Fases siguientes
 

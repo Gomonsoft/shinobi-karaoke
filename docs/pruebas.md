@@ -47,3 +47,39 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 - **`qa`**: mantiene los críticos y esta estrategia, clasifica fallos del CI, escribe las guías manuales y propone qué pruebas de feedback necesita cada tarea. Ver `.claude/agents/qa.md`.
 - **`arquitecto`**: en cada tarea indica en «Pruebas de feedback» los tests mínimos y qué va a la guía manual.
 - **`programador`**: escribe y ejecuta las pruebas de feedback de su tarea (niveles 1 y 2).
+
+## Inventario
+
+Clasificación de las specs de `app/e2e/` (actualizada el 2026-11-20). Las secundarias solo las ejecuta un agente si su tarea las crea o modifica; el CI las ejecuta todas. Las marcadas *opt-in* se saltan salvo con la variable indicada.
+
+| Spec | Nivel | Feature que cubre |
+|---|---|---|
+| `criticos/flujo-principal.spec.ts` | **Crítica** (`@critico`) | Flujo principal completo sin red: Biblioteca vacía → importar WAV → separación falsa → pegar letra → sincronizar y marcar como lista → reproductor hasta la pantalla final → salir |
+| `humo.spec.ts` | Secundaria | Arranque de la app y título de la ventana |
+| `ventana.spec.ts` | Secundaria | Tamaño mínimo de la ventana y viewport (DPR 1) |
+| `ipc.spec.ts` | Secundaria | Puente `window.shinobi` y aislamiento del renderer respecto a Node |
+| `seguridad.spec.ts` | Secundaria | Navegación bloqueada, lista blanca de enlaces, instancia única y aislamiento de la ventana secundaria (`window.shinobiReproductor`) |
+| `medios.spec.ts` | Secundaria | Protocolos `shinobi-media://` y `shinobi-app://`, lista blanca y miniaturas |
+| `navegacion.spec.ts` | Secundaria | Atajos globales (Ctrl/Cmd + ,), Esc y zoom del menú |
+| `primer-arranque.spec.ts` | Secundaria | Primer arranque (B1–B5): espacio, errores de red, pausa, CUDA → CPU, reparación y modelo Rápido |
+| `biblioteca.spec.ts` | Secundaria | Biblioteca con la semilla (insignias y líneas de estado) y estado vacío |
+| `biblioteca-acciones.spec.ts` | Secundaria | Filtros, búsqueda, volver a borrador, eliminar, papelera con fallo y editar datos |
+| `menu-contextual.spec.ts` | Secundaria | El menú ⋯ de la tarjeta cabe entero a 1024 × 640 |
+| `importar-archivo.spec.ts` | Secundaria | Importar archivo local: formulario, cancelar, archivo no válido, arrastrar y cerrar a medias |
+| `importar-youtube.spec.ts` | Secundaria | Importar desde YouTube con el doble de yt-dlp: aviso legal, errores, bloqueos, interrupción y cancelación |
+| `youtube-red.spec.ts` | Secundaria, *opt-in* (`SHINOBI_TESTS_RED=1`) | Descarga real de un vídeo CC BY |
+| `separacion.spec.ts` | Secundaria | Separación con el separador falso: fases, cola de trabajos, cancelar, panel de actividad, cierre con trabajos y avisos |
+| `separacion-errores.spec.ts` | Secundaria | Errores de separación: memoria, SIGKILL, oferta y descarga del modelo Rápido, modelo que falta y Re-separar |
+| `separacion-motor-incompleto.spec.ts` | Secundaria | Motor incompleto a mitad de sesión y reparación desde B5 |
+| `letras.spec.ts` | Secundaria | Letras con el doble de LRCLIB: búsqueda, banners de error, pegar, importar .lrc/.txt, sustituir y edición |
+| `letras-red.spec.ts` | Secundaria, *opt-in* (`SHINOBI_TESTS_RED=1`) | Búsqueda real en LRCLIB |
+| `editor.spec.ts` | Secundaria | Editor: sincronizar al ritmo, ajuste fino, deshacer, estilo, marcar como lista, autoguardado, marcadores, bucle, línea de tiempo y perfil opt-in |
+| `editor-layout.spec.ts` | Secundaria | Layout del editor: alto completo, divisores accesibles, modos minimizados, zoom y anchos |
+| `reproductor.spec.ts` | Secundaria | Reproductor local: barrido por renglón, controles y atajos, pantalla final, pistas ausentes, toast y prueba desde el editor |
+| `temas-editor.spec.ts` | Secundaria | Sección Tema del editor (T1–T23): asignar, editar, guardar como, eliminar con fallo y tema no disponible |
+| `temas-biblioteca.spec.ts` | Secundaria | Biblioteca de la fase 3: agrupación, búsqueda por álbum, temas de artista y álbum, plegado y foco |
+| `temas-ajustes.spec.ts` | Secundaria | Ajustes › Temas: predeterminado, borrado pendiente, `temas.json` ilegible y solo lectura |
+| `temas-migracion.spec.ts` | Secundaria | Migración de una biblioteca de esquema 1 al catálogo de temas |
+| `temas-capturas.spec.ts` | Secundaria, *opt-in* (`SHINOBI_CAPTURAS_3=1`) | Capturas de revisión de la fase 3 (solo para el diseñador) |
+
+Las specs `e2e/sesion-*.spec.ts` de la fase 4 ([0190](tareas/0190-verificacion-e2e-capturas-e-informe-de-la-fase-4.md)) serán secundarias.

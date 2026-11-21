@@ -29,4 +29,4 @@ Test-manuales/
 | Versión | Guía | Estado |
 |---|---|---|
 | — | [Flujo principal](flujo-principal.md) | Lista |
-| 0.2.0 | [Fase 4 · Ventana secundaria y cola](0.2.0/fase-4-ventana-secundaria-y-cola.md) | En preparación |
+| 0.2.0 | [Fase 4 · Ventana secundaria y cola](0.2.0/fase-4-ventana-secundaria-y-cola.md) | Lista |
