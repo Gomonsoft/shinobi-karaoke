@@ -1,6 +1,6 @@
 # 0206 — Derivación de los comodines de espera en el fotograma
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4–6
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, [0005](../adr/0005-letras-y-formato-de-sincronia.md#revisión-para-020--fase-5), [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md) §4
@@ -58,3 +58,10 @@ Calcular en el modelo puro del render qué ayudas de espera tocan en cada instan
 - Manual: nada.
 
 ## Notas de implementación
+
+- `render.ts`: `ContextoRender.espera?` (si falta, `ESPERA_LEGADA`) y `FotogramaLetra.espera` (`EsperaFotograma | null`) en lugar de `puntos`. Función `esperaEn`: primera entrada desde `inicio₁ − UMBRAL_PRIMERA_ENTRADA_MS` sin umbral; entre versos solo si hueco ≥ `umbral_ms` y sin línea activa; sin siguiente o sin casillas, `null`. `clave = origen:destino`. `fotogramaEstatico` devuelve `espera: null`.
+- `PantallaLetra.tsx`: pasa `estilo.espera` al contexto (también en las dependencias del efecto), pinta los puntos con `espera?.puntos` y vuelve a pintar si cambian `puntos` o `cuenta`. No pinta barra ni cuenta (0213).
+- Pruebas: `render.test.ts` adaptado al nombre del campo y bloque «espera ampliada» (tabla legada, barra/cuenta en hueco de 10 s, hueco de 2 s con umbral 1000, sin siguiente/sin primera entrada/sin casillas, clave estable).
+- Comprobado: typecheck, lint, format:check y test:cambios en verde. `test:e2e:criticos` falla en este worktree en la importación del audio («Leyendo el audio…» no termina), antes de llegar a la pantalla de letra; no relacionado con el cambio, queda para el CI.
+- Deuda: ninguna.
+
