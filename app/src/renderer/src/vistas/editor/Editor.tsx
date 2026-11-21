@@ -51,6 +51,11 @@ import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
+import { esperaEfectiva } from './esperaEfectiva'
+import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
+import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
+import { S as SILENCIOS } from './silencios/textos'
+import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
 import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { RielLista } from './RielLista'
@@ -415,6 +420,29 @@ function EditorActivo({
       setFocoLinea((n) => n + 1)
     }
   })
+  // «Ajustar los silencios» (0215): el botón de la línea de tiempo y el ítem del menú ⋯ comparten estado.
+  const silencios = useAjustarSilencios({
+    cancionId: id,
+    letra,
+    duracionMs,
+    espera: esperaEfectiva(apariencia, estilo),
+    version: edicion.version,
+    despachar,
+    anunciar
+  })
+  const motivosAjuste = motivosSilencios({
+    letra,
+    separacionDisponible: separacion.disponible,
+    picos:
+      pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+        ? picos.estado.estado
+        : null,
+    borradorTema: tema.editando
+  })
+  function irAPrimeraSinInicio() {
+    const primera = primeraSinInicio(letra)
+    if (primera) seleccionar(primera, true)
+  }
   function intervaloDeSeleccion(letraVisible: Letra): IntervaloTiempo | null {
     const inicio = letraVisible.lineas.find((l) => l.id === edicion.seleccion)?.inicio_ms
     const fin = edicion.seleccion ? finEfectivo(letraVisible, edicion.seleccion, duracionMs) : null
@@ -998,6 +1026,14 @@ function EditorActivo({
                 etiqueta: E.layout.restablecer,
                 alSeleccionar: restablecerDistribucion
               },
+              {
+                id: 'ajustar-silencios',
+                etiqueta: SILENCIOS.menu,
+                noDisponible: edicion.sync.activo
+                  ? SILENCIOS.falta.ritmo
+                  : motivosAjuste.map(textoMotivo).join(' · ') || undefined,
+                alSeleccionar: () => void silencios.pedir()
+              },
               ...(resumen.estado === 'lista'
                 ? [
                     {
@@ -1275,6 +1311,17 @@ function EditorActivo({
                   />
                 )}
                 <PistaSincronia
+                  botonSilencios={
+                    <BotonAjustarSilencios
+                      motivos={motivosAjuste}
+                      ritmo={edicion.sync.activo}
+                      buscando={silencios.buscando}
+                      alPulsar={() => void silencios.pedir()}
+                      alReintentar={picos.reintentar}
+                      alIrAPrimera={irAPrimeraSinInicio}
+                    />
+                  }
+                  resaltadas={silencios.resaltadas}
                   onda={(vista) => (
                     <PistaOndaVoz
                       cancionId={id}
@@ -1362,6 +1409,15 @@ function EditorActivo({
         </div>
       </div>
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {silencios.abierta && (
+        <DialogoAjustarSilencios
+          abierta={silencios.abierta}
+          duracionMs={duracionMs}
+          mac={silencios.mac}
+          alConfirmar={() => void silencios.confirmar()}
+          alCancelar={silencios.cancelar}
+        />
+      )}
       {dialogoBorrador && (
         <DialogoVolverABorradorEditor
           resumen={resumen}

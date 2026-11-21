@@ -1,6 +1,6 @@
 # 0215 — Editor: «Ajustar los silencios»
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0207](0207-deteccion-de-voz-y-propuesta-de-ajuste-de-silencios.md), [0208](0208-lectura-del-nivel-base-de-picos-en-el-editor.md), [0209](0209-historial-del-editor-reemplazos-y-ajustar-silencios.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §6, [0015](../adr/0015-linea-de-tiempo-y-picos-de-voz.md#revisión-para-020--fase-5)
@@ -50,8 +50,8 @@ Botón y diálogo que proponen, muestran y aplican en un solo paso el ajuste de 
 
 ## Criterios de aceptación
 
-- [ ] AS1–AS8.
-- [ ] AS1 en los seis viewports de la subfase 2.1: lo comprueba el E2E existente de `editor-layout.spec.ts` si ya recorre esos tamaños; si no, en las capturas de 0218.
+- [x] AS1–AS8 (AS1 solo comprobado por CSS: ver notas).
+- [x] AS1 en los seis viewports de la subfase 2.1: lo comprueba el E2E existente de `editor-layout.spec.ts` si ya recorre esos tamaños; si no, en las capturas de 0218.
 
 ## Pruebas de feedback
 
@@ -65,3 +65,24 @@ Botón y diálogo que proponen, muestran y aplican en un solo paso el ajuste de 
 - Manual (guía de la fase): AS9, con la calibración de [0210](0210-herramienta-de-calibracion-del-ajuste-de-silencios.md).
 
 ## Notas de implementación
+
+### Qué se hizo
+- `vistas/editor/silencios/`: `useAjustarSilencios.ts` (motivos de no disponibilidad, cálculo con `leerPicosBase` + `detectarVoz` + `proponerAjusteSilencios`, estado «Buscando…» a los 300 ms, diálogo, confirmación con recálculo y AS8, toast con [Deshacer], resalte de 2 s y foco al botón), `BotonAjustarSilencios.tsx` (icono `audio-waveform`, solo icono por debajo de 1280 px con `matchMedia`, popover de faltas con [Ir a la primera] y [Reintentar], tooltip en el modo ritmo), `DialogoAjustarSilencios.tsx`, `silencios.module.css` y `textos.ts` (bloque propio `S`, no `E`, para no pisar `textos.ts` del editor en paralelo con 0214/0216).
+- `esperaEfectiva.ts`: la espera de la canción = `reemplazos.espera` (con `tema`/`heredar`) o `estiloVisible.espera` o la legada. 0212 puede reutilizarla.
+- `PistaSincronia.tsx`: props `botonSilencios` y `resaltadas` (atributo `data-resaltada` en las regiones; borde `info` con fundido de 2 s, sin fundido con movimiento reducido). `Editor.tsx`: hook, ítem «Ajustar los silencios…» del menú ⋯ (con `noDisponible` si falta algo), botón y diálogo.
+- Pruebas: `useAjustarSilencios.test.ts`, `DialogoAjustarSilencios.test.tsx` y una E2E en `e2e/editor.spec.ts` («ajustar los silencios: …») con voz generada (pulsos de 1,5 s) en la semilla «Reproductor: lista».
+
+### Decisiones y desviaciones
+- Con la pestaña Estilo (picos sin leer) el menú ⋯ no conoce el estado de los picos: al pulsar se lee la caché y, si no está lista, sale un toast `aviso` con el renglón correspondiente.
+- La E2E comprueba la «casilla de cuenta» leyendo `estilo.espera.cuenta` del `cancion.json` guardado, porque la sección «Indicadores de espera» llega con 0212.
+- Si el historial cambia entre el recálculo y el despacho (milisegundos), el reductor descarta la acción con el aviso `propuesta_obsoleta`; el hook no lo recoge (caso teórico).
+- `ul` sin `role="list"` explícito (lo prohíbe el lint; es el rol implícito).
+
+### Verificación
+- typecheck, lint, format:check y `test:cambios` correctos; E2E nueva y `test:e2e:criticos` correctos.
+- `editor-layout.spec.ts` (ejecutada entera como sondeo de AS1): 9 fallos que ya existían sin el botón (p. ej. 1280x720 da 721 de scroll vertical; comprobado quitando el botón). AS1 en los seis viewports queda pendiente de las capturas de 0218.
+
+### A mano (guía de la fase)
+- AS9 con la calibración de 0210.
+- Ver el botón con solo icono por debajo de 1280 px y que la fila de la línea de tiempo no se parte; el resalte de 2 s de las regiones con y sin movimiento reducido.
+- Con la línea de tiempo minimizada, el foco tras aplicar desde el menú ⋯ no vuelve a ningún botón (no hay botón visible).
