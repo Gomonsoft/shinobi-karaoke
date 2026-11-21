@@ -1,6 +1,6 @@
 # 0209 — Historial del editor: reemplazos de espera y acción «ajustar silencios»
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md), [0207](0207-deteccion-de-voz-y-propuesta-de-ajuste-de-silencios.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3 y §6.3, [0010](../adr/0010-editor-motor-de-audio-reloj-y-guardado.md#revisión-para-020--fase-5)
@@ -32,12 +32,12 @@ Preparar el estado del editor para que la espera de la canción y el ajuste de s
 
 ## Criterios de aceptación
 
-- [ ] Ajustar con una propuesta de 3 líneas y espera nueva crea un paso. Deshacer devuelve letra y apariencia anteriores. Rehacer las vuelve a aplicar.
-- [ ] Con `heredar`, la espera nueva queda en `reemplazos`. Con `propio`, en `estilo.espera`.
-- [ ] Una propuesta calculada con otra `version` no se aplica y deja el aviso `propuesta_obsoleta`.
-- [ ] Con la sincronización al ritmo activa o con un borrador de tema, la acción no cambia el estado.
-- [ ] El guardado del lote incluye `reemplazos` y los tiempos.
-- [ ] Las pruebas existentes del reducer pasan.
+- [x] Ajustar con una propuesta de 3 líneas y espera nueva crea un paso. Deshacer devuelve letra y apariencia anteriores. Rehacer las vuelve a aplicar.
+- [x] Con `heredar`, la espera nueva queda en `reemplazos`. Con `propio`, en `estilo.espera`.
+- [x] Una propuesta calculada con otra `version` no se aplica y deja el aviso `propuesta_obsoleta`.
+- [x] Con la sincronización al ritmo activa o con un borrador de tema, la acción no cambia el estado.
+- [x] El guardado del lote incluye `reemplazos` y los tiempos.
+- [x] Las pruebas existentes del reducer pasan.
 
 ## Pruebas de feedback
 
@@ -47,3 +47,10 @@ Preparar el estado del editor para que la espera de la canción y el ajuste de s
 - Manual: nada.
 
 ## Notas de implementación
+
+- `AparienciaEditor.reemplazos` (obligatorio, `null` por defecto) en `vistas/editor/estado.ts`; `aSeleccionIpc` lo envía completo con `tema` y `heredar`. `Editor.tsx` lo carga de `cancion.apariencia.reemplazos` (una línea).
+- Acciones `espera` (agrupa por clave en 1 s) y `ajustar_silencios` (un paso con letra y apariencia; con `versionCalculo` distinto deja `aviso: { tipo: 'propuesta_obsoleta' }`). Ninguna actúa con sincronización activa ni con borrador.
+- `useTemaEditor.aplicar` conserva los reemplazos con `tema` y `heredar` y los pone a `null` con `propio`. `GuardadoEditor` no necesitó cambios; se añadió su prueba de lote.
+- `Aviso` ganó la variante `propuesta_obsoleta` con `limite`/`id` opcionales a `undefined` para no tocar a los consumidores del aviso de límite.
+- Pruebas: `estado.apariencia.test.ts`, `guardado.test.ts`; ajustadas las expectativas con `reemplazos: null` en `Editor.temas.test.tsx`.
+- Deuda: `reemplazos` no se retira al elegir otro tema (se conservan); decisión de 0212. El E2E crítico no pudo completarse en este entorno (se queda en «Leyendo el audio…» al importar).

@@ -1,3 +1,4 @@
+import type { Espera } from '@shared/espera'
 import type { Estilo } from '@shared/estilo'
 import type { SeleccionApariencia } from '@shared/ipc'
 import { finEfectivo, type Letra } from '@shared/letra'
@@ -16,6 +17,7 @@ import {
   type Limite,
   type ResultadoTiempos
 } from '@shared/letras/tiempos'
+import type { PropuestaSilencios } from '@shared/silencios'
 import { tiempoAudioALetra } from './lineaTiempo'
 
 /** Selección de apariencia de la canción (ADR 0016): estilo propio, tema asignado o herencia. */
@@ -29,7 +31,11 @@ export type SeleccionEditor =
 export interface AparienciaEditor {
   seleccion: SeleccionEditor
   estilo: Estilo
+  /** Reemplazos de la canción sobre el tema (ADR 0018 §3): solo con `tema` o `heredar`. */
+  reemplazos: ReemplazosEditor | null
 }
+
+export type ReemplazosEditor = { espera?: Espera }
 
 /** Borrador de un tema en memoria (D3): nunca se escribe hasta confirmar el impacto. */
 export interface BorradorTema {
@@ -55,15 +61,16 @@ export const CLAVE_BORRADOR = 'borrador:'
 
 export const aparienciaPropia = (estilo: Estilo): AparienciaEditor => ({
   seleccion: { modo: 'propio' },
-  estilo
+  estilo,
+  reemplazos: null
 })
 
 export function aSeleccionIpc(apariencia: AparienciaEditor): SeleccionApariencia {
-  const { seleccion, estilo } = apariencia
+  const { seleccion, estilo, reemplazos } = apariencia
   if (seleccion.modo === 'propio') return { modo: 'propio', estilo }
   return seleccion.modo === 'tema'
-    ? { modo: 'tema', temaId: seleccion.temaId }
-    : { modo: 'heredar' }
+    ? { modo: 'tema', temaId: seleccion.temaId, reemplazos }
+    : { modo: 'heredar', reemplazos }
 }
 
 const mismoJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
@@ -78,6 +85,8 @@ export interface EntradaHistorial {
 }
 
 export type Aviso =
+  // `limite` e `id` ausentes: los consumidores del aviso de límite lo leen sin discriminar.
+  | { tipo: 'propuesta_obsoleta'; limite?: undefined; id?: undefined }
   | { tipo: 'limite'; limite: Limite; id: string | null }
   | {
       tipo: 'consecuencias'
@@ -134,6 +143,15 @@ export type AccionEditor =
     }
   /** Elegir tema, heredar, personalizar o volver a «Temas definidos»: un paso de deshacer. */
   | { tipo: 'apariencia'; apariencia: AparienciaEditor; clave: string; ahora: number }
+  /** Espera de la canción: `estilo.espera` con `propio`, `reemplazos.espera` con `tema` o `heredar`. */
+  | { tipo: 'espera'; espera: Espera | null; clave: string; ahora: number }
+  /** Aplica la propuesta de ajuste de silencios como un solo paso (ADR 0018 §6.3). */
+  | {
+      tipo: 'ajustar_silencios'
+      propuesta: PropuestaSilencios
+      versionCalculo: number
+      ahora: number
+    }
   /** Entrar en D3 (no es un paso del historial). */
   | { tipo: 'entrar_borrador'; borrador: BorradorTema }
   /** Salir de D3 (guardar, descartar o guardar como nuevo): retira los pasos del borrador. */
@@ -236,6 +254,16 @@ function cambiarTiempos(
   return r.cambiado
     ? guardarPaso(siguiente, { ...e.actual, letra: r.letra }, clave, ahora, { agruparGesto })
     : siguiente
+}
+
+/** La apariencia con la espera cambiada donde corresponde al modo; `null` quita el reemplazo. */
+function conEspera(ap: AparienciaEditor, espera: Espera | null): AparienciaEditor {
+  if (ap.seleccion.modo === 'propio') {
+    const estilo = { ...ap.estilo, espera: espera ?? undefined }
+    if (!espera) delete estilo.espera
+    return { ...ap, estilo }
+  }
+  return { ...ap, reemplazos: espera ? { espera } : null }
 }
 
 function esLinea(letra: Letra, id: string | null): id is string {
@@ -430,6 +458,27 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
             a.ahora,
             { agruparGesto: a.agruparGesto }
           )
+    case 'espera': {
+      const nueva = conEspera(apariencia, a.espera)
+      return e.sync.activo || borrador !== null || mismoJson(apariencia, nueva)
+        ? e
+        : guardarPaso(e, { ...e.actual, apariencia: nueva }, `espera:${a.clave}`, a.ahora)
+    }
+    case 'ajustar_silencios': {
+      if (e.sync.activo || borrador !== null) return e
+      if (a.versionCalculo !== e.version) {
+        return { ...e, aviso: { tipo: 'propuesta_obsoleta', n: (e.aviso?.n ?? 0) + 1 } }
+      }
+      const { propuesta } = a
+      if (propuesta.lineasCambiadas === 0 && !propuesta.espera) return e
+      const nueva = propuesta.espera ? conEspera(apariencia, propuesta.espera) : apariencia
+      return guardarPaso(
+        e,
+        { ...e.actual, letra: propuesta.letra, apariencia: nueva },
+        unica('ajustar_silencios'),
+        a.ahora
+      )
+    }
     case 'apariencia':
       return e.sync.activo || borrador !== null || mismoJson(apariencia, a.apariencia)
         ? e
