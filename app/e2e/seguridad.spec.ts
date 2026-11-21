@@ -143,3 +143,51 @@ test('la secundaria solo ve window.shinobiReproductor, no navega y second-instan
     await app.close()
   }
 })
+
+test('la ventana de exportación solo ve window.shinobiExportacion y no navega', async () => {
+  const datos = crearTemporal('seguridad-exportacion')
+  const config = configPredeterminada()
+  config.instalacion.estado = 'completa'
+  mkdirSync(datos, { recursive: true })
+  writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  const env = { ...process.env, SHINOBI_DATOS: datos, SHINOBI_PRUEBA_EXPORTACION: '1' }
+  const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env })
+  try {
+    const principal = await app.firstWindow()
+    await expect(principal.getByRole('banner')).toBeVisible()
+    const visto = await app.evaluate(async ({ BrowserWindow }) => {
+      const g = globalThis as unknown as {
+        __shinobiExportacion: { crear(o: unknown): Promise<{ destruir(): void }> }
+      }
+      const ventana = await g.__shinobiExportacion.crear({
+        ancho: 640,
+        alto: 480,
+        trabajoId: '00000000-0000-4000-8000-000000000001',
+        inicial: { instantanea: {}, fps: 30, total: 1 }
+      })
+      try {
+        const wc = BrowserWindow.getAllWindows()
+          .map((v) => v.webContents)
+          .find((c) => c.getURL().endsWith('/exportacion.html'))!
+        await wc.executeJavaScript("setTimeout(() => { location.href = '/index.html' }, 0); 0")
+        await new Promise((r) => setTimeout(r, 500))
+        return (await wc.executeJavaScript(`JSON.stringify({
+          principal: typeof window.shinobi,
+          secundaria: typeof window.shinobiReproductor,
+          exportacion: Object.keys(window.shinobiExportacion).sort(),
+          url: location.pathname
+        })`)) as string
+      } finally {
+        ventana.destruir()
+      }
+    })
+    expect(JSON.parse(visto)).toEqual({
+      principal: 'undefined',
+      secundaria: 'undefined',
+      exportacion: ['alFotograma', 'inicial', 'listo'],
+      url: '/exportacion.html'
+    })
+  } finally {
+    await app.close()
+  }
+})

@@ -43,6 +43,7 @@ import {
   type SeleccionApariencia,
   type TemaIpc
 } from '../../shared'
+import type { InicialExportacionIpc } from '../../shared/exportacion'
 import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
@@ -194,7 +195,15 @@ export type SesionIpc = Pick<
   | 'vaciar'
 >
 
+/** Lo que la ventana offscreen de exportación (0234) ofrece a sus dos canales. */
+export interface VentanaExportacionIpc {
+  inicial(): InicialExportacionIpc
+  confirmarListo(carga: { trabajoId: string; n: number }): void
+}
+
 export interface DependenciasIpc {
+  /** Ventana offscreen vigente; hasta 0237 la crean solo las pruebas. */
+  ventanaExportacion?: () => VentanaExportacionIpc | null
   /** Sesión en vivo y cola (ADR 0017). */
   sesion?: SesionIpc
   /** El editor tiene un guardado que termina tarde (`app.guardadoPendiente`). */
@@ -356,6 +365,12 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     (typeof CANALES.exportacion)[keyof typeof CANALES.exportacion],
     ManejadorIpc
   >
+
+  const ventanaExportacion = (): VentanaExportacionIpc => {
+    const ventana = deps.ventanaExportacion?.()
+    if (!ventana) throw new Error('No hay ventana de exportación.')
+    return ventana
+  }
 
   /** Defensa de ADR 0017 §9: durante la sesión no se edita la lista. */
   const sinSesion = (): void => {
@@ -684,6 +699,12 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.cola.vaciar]: envolver(CANALES.cola.vaciar, (p) => sesion().vaciar(p.contexto)),
     // Fase 6: los servicios llegan con 0237; hasta entonces fallan con ERROR_INTERNO.
     ...sinServicioExportacion,
+    [CANALES.exportacion.inicial]: envolver(CANALES.exportacion.inicial, () =>
+      ventanaExportacion().inicial()
+    ),
+    [CANALES.exportacion.listo]: envolver(CANALES.exportacion.listo, (carga) =>
+      ventanaExportacion().confirmarListo(carga)
+    ),
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),

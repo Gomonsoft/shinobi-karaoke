@@ -22,6 +22,8 @@ const ENTRADAS_ASAR = [
   '/out/main/index.js',
   '/out/preload/index.js',
   '/out/renderer/index.html',
+  '/out/renderer/exportacion.html',
+  '/out/preload/exportacion.js',
   '/node_modules/yaml/index.js',
   '/node_modules/zod/index.js'
 ]
@@ -100,6 +102,11 @@ describe('verificar-paquete', () => {
     await expect(verificar()).rejects.toThrow(
       '/out/preload/index.js requiere "./chunks/canales.js"'
     )
+  })
+
+  it('exige el documento y el preload de la ventana de exportación', async () => {
+    listaAsar = listaAsar.filter((ruta) => !ruta.includes('exportacion'))
+    await expect(verificar()).rejects.toThrow('/out/renderer/exportacion.html')
   })
 
   it('falla con la ruta concreta cuando falta uv', async () => {
