@@ -1,17 +1,12 @@
-/**
- * Anfitrión provisional de la ventana de exportación (0234): pinta un fondo rojo y el número `n`.
- * Lo sustituye `AppExportacion` (0235).
- */
-const api = window.shinobiExportacion
+import { createRoot } from 'react-dom/client'
+import { AppExportacion } from './AppExportacion'
+import '../estilos/base.css'
+import { instalarFuentesIncluidas } from '../estilos/fuentesIncluidas'
 
-async function iniciar(): Promise<void> {
-  const raiz = document.getElementById('root')!
-  raiz.style.cssText = 'width:100vw;height:100vh;background:#f00;color:#fff;font:48px sans-serif'
-  api.alFotograma(({ trabajoId, n }) => {
-    raiz.textContent = String(n)
-    requestAnimationFrame(() => requestAnimationFrame(() => void api.listo(trabajoId, n)))
-  })
-  await api.inicial()
-}
+instalarFuentesIncluidas()
 
-void iniciar()
+const raiz = document.getElementById('root')
+if (!raiz) throw new Error('No se encontró #root')
+
+// Sin StrictMode: el anfitrión pide `inicial` una sola vez y esta ventana no tiene usuario.
+createRoot(raiz).render(<AppExportacion />)

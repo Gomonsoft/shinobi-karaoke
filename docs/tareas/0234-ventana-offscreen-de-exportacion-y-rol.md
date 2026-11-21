@@ -47,3 +47,4 @@ Cómo probarlo: `npx vitest run src/main/exportacion` y `npx playwright test e2e
 
 Deuda / observaciones: `e2e/seguridad.spec.ts › la secundaria…` falla por tiempo en este entorno (macOS) también sobre la base `97ec2b2`; no es de esta tarea. La captura se probó sin Retina real (DPR 1 forzado por `deviceScaleFactor`).
 
+Nota posterior (hecha en 0235): `capturar()` asienta el cuadro con doble captura porque a 3840 × 2160 una de cada ~200 capturas devolvía el cuadro anterior; consulta abierta en [0127](../preguntas/0127-captura-offscreen-con-cuadro-obsoleto.md).

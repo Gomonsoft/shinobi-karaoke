@@ -89,6 +89,20 @@ describe('crearVentanaExportacion', () => {
     await expect(mal.capturar()).rejects.toMatchObject({ codigo: 'PERFIL_NO_SOPORTADO' })
   })
 
+  it('capturar repite hasta que dos capturas seguidas son iguales (cuadro obsoleto)', async () => {
+    const { wc, deps } = montar()
+    const tam = 640 * 480 * 4
+    const colas = [Buffer.alloc(tam, 1), Buffer.alloc(tam, 2), Buffer.alloc(tam, 2)]
+    wc.capturePage = () =>
+      Promise.resolve({
+        getSize: () => ({ width: 640, height: 480 }),
+        toBitmap: () => colas.shift()!
+      })
+    const v = await crearVentanaExportacion(opciones, deps)
+    expect((await v.capturar())[0]).toBe(2)
+    expect(colas).toHaveLength(0)
+  })
+
   it('bloquea la navegación', async () => {
     const { wc, deps } = montar()
     await crearVentanaExportacion(opciones, deps)

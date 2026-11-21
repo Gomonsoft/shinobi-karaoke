@@ -2,11 +2,13 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { configPredeterminada } from '../src/shared/config'
+import { estiloPredeterminado } from '../src/shared/estilo'
+import { instantaneaDePrueba } from '../src/shared/__fixtures__/exportacion'
 import { crearTemporal } from './temporales'
 
 /**
  * Captura real de la ventana offscreen (0234, ADR 0019 §2): tamaño exacto a escala 1 y BGRA.
- * El anfitrión provisional pinta rojo puro; los bytes del primer píxel deben ser `00 00 FF FF`.
+ * La instantánea lleva un fondo rojo puro: los bytes del primer píxel deben ser `00 00 FF FF`.
  */
 for (const [ancho, alto] of [
   [640, 480],
@@ -21,6 +23,9 @@ for (const [ancho, alto] of [
     writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
     const env = { ...process.env, SHINOBI_DATOS: datos, SHINOBI_PRUEBA_EXPORTACION: '1' }
     const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env })
+    const estilo = estiloPredeterminado()
+    estilo.fondo = { tipo: 'solido', color: '#FF0000' }
+    const instantanea = instantaneaDePrueba({ estilo })
     try {
       const principal = await app.firstWindow()
       await expect(principal.getByRole('banner')).toBeVisible()
@@ -39,7 +44,7 @@ for (const [ancho, alto] of [
           const ventana = await g.__shinobiExportacion.crear({
             ...medidas,
             trabajoId: '00000000-0000-4000-8000-000000000001',
-            inicial: { instantanea: {}, fps: 30, total: 1 }
+            inicial: { instantanea: medidas.instantanea, fps: 30, total: 1 }
           })
           try {
             await ventana.lista
@@ -50,10 +55,10 @@ for (const [ancho, alto] of [
             ventana.destruir()
           }
         },
-        { ancho, alto }
+        { ancho, alto, instantanea }
       )
       expect(resultado.longitud).toBe(ancho * alto * 4)
-      expect(resultado.pixel).toEqual([0x00, 0x00, 0xff, 0xff])
+      expect(resultado.pixel.join(',')).toBe('0,0,255,255')
     } finally {
       await app.close()
     }

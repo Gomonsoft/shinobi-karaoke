@@ -7,6 +7,9 @@ import { CANALES } from '../../shared/canales'
 import type { InicialExportacionIpc } from '../../shared/exportacion'
 import { bloquearNavegacionTotal } from '../seguridad'
 
+/** Capturas extra para asentar un cuadro (ver `capturar`). */
+const REINTENTOS_CAPTURA = 4
+
 /** Tiempo máximo que main espera a que el renderer confirme un fotograma (ADR 0019 §2). */
 export const PLAZO_FOTOGRAMA_MS = 10_000
 
@@ -139,6 +142,22 @@ export async function crearVentanaExportacion(
     marcarLista = res
   })
 
+  const capturarUna = async (): Promise<Buffer> => {
+    const imagen = await wc.capturePage()
+    const { width, height } = imagen.getSize()
+    if (width !== ancho || height !== alto) {
+      throw errorConCodigo(
+        'PERFIL_NO_SOPORTADO',
+        `La captura es de ${width}×${height} y se esperaba ${ancho}×${alto}.`
+      )
+    }
+    const bytes = imagen.toBitmap()
+    if (bytes.length !== ancho * alto * 4) {
+      throw errorConCodigo('ERROR_INTERNO', 'La captura no tiene el tamaño esperado.')
+    }
+    return bytes
+  }
+
   const rechazarPendiente = (error: Error): void => {
     const p = pendiente
     if (!p) return
@@ -181,20 +200,18 @@ export async function crearVentanaExportacion(
       })
     },
     async capturar() {
-      const imagen = await wc.capturePage()
-      const { width, height } = imagen.getSize()
-      if (width !== ancho || height !== alto) {
-        throw errorConCodigo(
-          'PERFIL_NO_SOPORTADO',
-          `La captura es de ${width}×${height} y se esperaba ${ancho}×${alto}.`
-        )
+      // A veces (≈ 1 de cada 200 a 3840 × 2160) `capturePage` entrega el cuadro anterior al
+      // fotograma confirmado, porque el compositor va por detrás de `requestAnimationFrame`.
+      // Dos capturas seguidas iguales indican un cuadro asentado; si difieren, se repite.
+      let previa = await capturarUna()
+      for (let intento = 0; intento < REINTENTOS_CAPTURA; intento++) {
+        const actual = await capturarUna()
+        if (actual.equals(previa)) return actual
+        previa = actual
       }
-      const bytes = imagen.toBitmap()
-      if (bytes.length !== ancho * alto * 4) {
-        throw errorConCodigo('ERROR_INTERNO', 'La captura no tiene el tamaño esperado.')
-      }
-      return bytes
+      return previa
     },
+
     confirmarListo(carga) {
       if (carga.trabajoId !== trabajoId) {
         throw errorConCodigo('ARGUMENTOS_NO_VALIDOS', 'Trabajo de exportación ajeno.')
