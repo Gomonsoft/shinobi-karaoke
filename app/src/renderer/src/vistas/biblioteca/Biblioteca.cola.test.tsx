@@ -289,7 +289,8 @@ describe('agregar a la cola (S4)', () => {
     const t = await tarjeta('Despacito')
     fireEvent.click(within(t).getByRole('button', { name: BIB_COLA.botonAria('Despacito') }))
     expect(await screen.findByText(COLA.toast.cuenta('Despacito', 3))).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: COLA.toast.detener }))
+    // El panel también tiene su [Detener cuenta]: el del toast es el último del documento.
+    fireEvent.click(screen.getAllByRole('button', { name: COLA.toast.detener }).at(-1)!)
     await waitFor(() =>
       expect(r.sesion.llamadas).toContainEqual(['sesion.detenerTransicion', TRANSICION_ID])
     )

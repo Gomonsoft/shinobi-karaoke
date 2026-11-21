@@ -526,3 +526,15 @@
   margin: 0;
   color: var(--texto-2);
 }
+
+/* Biblioteca con el panel de cola a la derecha (fase 4). */
+.conPanel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-5);
+}
+
+.principal {
+  flex: 1;
+  min-width: 0;
+}

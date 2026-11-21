@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { EstadoSesionIpc, ListaPantallasIpc, PosicionSesionIpc } from '@shared/sesion'
 import { crearAcciones, type AccionesSesion } from './acciones'
+import { DialogoCierreSesion } from '../vistas/biblioteca/cola/DialogoCierreSesion'
 import { DialogoBloqueo } from './DialogoBloqueo'
 import { aplicarEstado, edicionBloqueada, haySesion } from './estadoSesion'
 
@@ -154,6 +155,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   return (
     <SesionContexto.Provider value={valor}>
       {children}
+      <DialogoCierreSesion />
       <DialogoBloqueo
         abierto={bloqueo}
         alCerrar={() => setBloqueo(false)}
