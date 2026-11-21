@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Icono SK con kunais · propuestas</title>
+    <style>
+      :root {
+        --fondo: #f4f1ec;
+        --tinta: #1b1b1f;
+        --suave: #5d5a55;
+        --tarjeta: #ffffff;
+        --borde: #ddd6cc;
+        --muestra-oscura: #17171b;
+        --muestra-clara: #ebe6de;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fondo: #141417;
+          --tinta: #f2eee8;
+          --suave: #a8a39b;
+          --tarjeta: #1d1d22;
+          --borde: #33333b;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 32px 16px 64px;
+        background: var(--fondo);
+        color: var(--tinta);
+        font: 16px/1.5 system-ui, 'Segoe UI', sans-serif;
+      }
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 28px;
+      }
+      .entrada {
+        margin: 0 0 28px;
+        color: var(--suave);
+        max-width: 70ch;
+      }
+      .rejilla {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+      }
+      article {
+        background: var(--tarjeta);
+        border: 1px solid var(--borde);
+        border-radius: 16px;
+        padding: 20px;
+      }
+      article h2 {
+        margin: 14px 0 4px;
+        font-size: 19px;
+      }
+      article p {
+        margin: 0 0 8px;
+        color: var(--suave);
+        font-size: 14.5px;
+      }
+      .grande {
+        display: block;
+        width: 100%;
+        max-width: 280px;
+        height: auto;
+        margin: 0 auto;
+      }
+      .tamanos {
+        display: flex;
+        align-items: flex-end;
+        gap: 14px;
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 10px;
+      }
+      .tamanos.oscura {
+        background: var(--muestra-oscura);
+      }
+      .tamanos.clara {
+        background: var(--muestra-clara);
+      }
+      .tamanos span {
+        font-size: 11px;
+        color: #8d8982;
+        margin-left: auto;
+      }
+      dl {
+        margin: 10px 0 0;
+        font-size: 14px;
+      }
+      dt {
+        font-weight: 600;
+        float: left;
+        margin-right: 6px;
+      }
+      dd {
+        margin: 0 0 4px;
+        color: var(--suave);
+      }
+      .notas {
+        margin-top: 28px;
+        padding: 20px;
+        border: 1px solid var(--borde);
+        border-radius: 16px;
+        background: var(--tarjeta);
+      }
+      .notas h2 {
+        margin: 0 0 8px;
+        font-size: 19px;
+      }
+      .notas li {
+        margin-bottom: 4px;
+      }
+      .paleta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 13px;
+      }
+      .paleta li {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .paleta i {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        border: 1px solid var(--borde);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Piezas compartidas: el kunai corto, el kunai largo, los fondos y las cuatro propuestas. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="rojo" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#E23A45" />
+          <stop offset="1" stop-color="#A3121F" />
+        </linearGradient>
+        <radialGradient id="rojoVivo" cx="0.35" cy="0.3" r="0.9">
+          <stop offset="0" stop-color="#F0434E" />
+          <stop offset="1" stop-color="#B4141F" />
+        </radialGradient>
+
+        <!-- Kunai corto: punta arriba, de y = -50 a y = 43. -->
+        <g id="k">
+          <path d="M0 -50 L14 -20 L0 -4 L-14 -20 Z" fill="currentColor" />
+          <path d="M0 -48 L0 -8" stroke="var(--filo)" stroke-width="1.2" />
+          <rect x="-5" y="-8" width="10" height="35" rx="2" fill="var(--mango)" />
+          <path
+            d="M-5 -3 L5 1 M-5 3 L5 7 M-5 9 L5 13 M-5 15 L5 19 M-5 21 L5 25"
+            stroke="var(--venda)"
+            stroke-width="1.8"
+          />
+          <circle cx="0" cy="35" r="9" fill="none" stroke="currentColor" stroke-width="5.5" />
+        </g>
+
+        <!-- Kunai largo: mismo filo y misma anilla, mango más largo. De y = -80 a y = 73. -->
+        <g id="kl">
+          <path d="M0 -80 L14 -50 L0 -34 L-14 -50 Z" fill="currentColor" />
+          <path d="M0 -78 L0 -38" stroke="var(--filo)" stroke-width="1.2" />
+          <rect x="-5" y="-38" width="10" height="95" rx="2" fill="var(--mango)" />
+          <path
+            d="M-5 -32 L5 -28 M-5 -24 L5 -20 M-5 -16 L5 -12 M-5 -8 L5 -4 M-5 0 L5 4 M-5 8 L5 12 M-5 16 L5 20 M-5 24 L5 28 M-5 32 L5 36 M-5 40 L5 44 M-5 48 L5 52"
+            stroke="var(--venda)"
+            stroke-width="1.8"
+          />
+          <circle cx="0" cy="65" r="9" fill="none" stroke="currentColor" stroke-width="5.5" />
+        </g>
+
+        <!-- La K: un kunai largo de asta y dos cortos que salen de su centro. -->
+        <g id="letraK">
+          <use href="#kl" transform="translate(300 262) scale(2)" />
+          <use href="#k" transform="translate(372 184) rotate(40) scale(2)" />
+          <use href="#k" transform="translate(372 336) rotate(140) scale(2)" />
+        </g>
+
+        <!-- A · Segmentos: la S son cinco kunais que siguen el trazo de la letra. -->
+        <symbol id="propA" viewBox="0 0 512 512">
+          <rect width="512" height="512" rx="112" fill="url(#rojo)" />
+          <g style="color: #fff6ec; --mango: #1b1b1f; --venda: #fff6ec; --filo: #d8cbbb">
+            <use href="#k" transform="translate(150 112) rotate(-90) scale(1.8)" />
+            <use href="#k" transform="translate(70 184) rotate(180) scale(1.5)" />
+            <use href="#k" transform="translate(146 256) rotate(90) scale(1.8)" />
+            <use href="#k" transform="translate(226 328) rotate(180) scale(1.5)" />
+            <use href="#k" transform="translate(150 400) rotate(-90) scale(1.8)" />
+            <use href="#letraK" />
+          </g>
+        </symbol>
+
+        <!-- B · Zigzag: la S son tres kunais, con uno largo en diagonal. -->
+        <symbol id="propB" viewBox="0 0 512 512">
+          <rect width="512" height="512" rx="112" fill="url(#rojo)" />
+          <g style="color: #fff6ec; --mango: #1b1b1f; --venda: #fff6ec; --filo: #d8cbbb">
+            <use href="#k" transform="translate(150 112) rotate(-90) scale(1.8)" />
+            <use href="#kl" transform="translate(148 258) rotate(149) scale(1.85)" />
+            <use href="#k" transform="translate(146 400) rotate(90) scale(1.8)" />
+            <use href="#letraK" />
+          </g>
+        </symbol>
+
+        <!-- C · Cuerda: la S es la cuerda atada a la anilla de un kunai. -->
+        <symbol id="propC" viewBox="0 0 512 512">
+          <rect width="512" height="512" rx="112" fill="url(#rojoVivo)" />
+          <g style="color: #fff6ec; --mango: #1b1b1f; --venda: #fff6ec; --filo: #d8cbbb">
+            <path
+              d="M214 150 C214 96 78 92 78 172 C78 252 222 244 222 336 C222 420 92 420 82 366"
+              fill="none"
+              stroke="#1b1b1f"
+              stroke-width="30"
+              stroke-linecap="round"
+            />
+            <path
+              d="M214 150 C214 96 78 92 78 172 C78 252 222 244 222 336 C222 420 92 420 82 366"
+              fill="none"
+              stroke="#fff6ec"
+              stroke-width="20"
+              stroke-linecap="round"
+            />
+            <path
+              d="M214 150 C214 96 78 92 78 172 C78 252 222 244 222 336 C222 420 92 420 82 366"
+              fill="none"
+              stroke="#1b1b1f"
+              stroke-width="20"
+              stroke-dasharray="3 15"
+              opacity="0.35"
+            />
+            <use href="#k" transform="translate(236 104) rotate(28) scale(1.25)" />
+            <use href="#letraK" />
+          </g>
+        </symbol>
+
+        <!-- D · Sello: el zigzag en negro sobre rojo vivo, dentro de un círculo. -->
+        <symbol id="propD" viewBox="0 0 512 512">
+          <circle cx="256" cy="256" r="256" fill="#17171b" />
+          <circle cx="256" cy="256" r="236" fill="url(#rojoVivo)" />
+          <g
+            transform="translate(256 256) scale(0.82) translate(-256 -256)"
+            style="color: #17171b; --mango: #fff6ec; --venda: #17171b; --filo: #4a2024"
+          >
+            <use href="#k" transform="translate(150 112) rotate(-90) scale(1.8)" />
+            <use href="#kl" transform="translate(148 258) rotate(149) scale(1.85)" />
+            <use href="#k" transform="translate(146 400) rotate(90) scale(1.8)" />
+            <use href="#letraK" />
+          </g>
+        </symbol>
+      </defs>
+    </svg>
+
+    <main>
+      <h1>Icono «SK» con kunais</h1>
+      <p class="entrada">
+        Cuatro bocetos para el icono de Shinobi Karaoke: kunais sobre fondo rojo que forman las letras
+        S y K. Cada uno se muestra grande y en los tamaños reales del sistema (48, 32 y 16 px), que es
+        donde un icono se gana o se pierde. Son vectores hechos a mano en este archivo; el elegido se
+        afina y se exporta a <code>build/icon.png</code> e <code>icon.ico</code>.
+      </p>
+
+      <div class="rejilla">
+        <article>
+          <svg class="grande" viewBox="0 0 512 512" role="img" aria-label="Propuesta A, Segmentos">
+            <use href="#propA" />
+          </svg>
+          <div class="tamanos oscura">
+            <svg width="48" height="48"><use href="#propA" /></svg>
+            <svg width="32" height="32"><use href="#propA" /></svg>
+            <svg width="16" height="16"><use href="#propA" /></svg>
+            <span>48 · 32 · 16 sobre oscuro</span>
+          </div>
+          <div class="tamanos clara">
+            <svg width="48" height="48"><use href="#propA" /></svg>
+            <svg width="32" height="32"><use href="#propA" /></svg>
+            <svg width="16" height="16"><use href="#propA" /></svg>
+            <span>sobre claro</span>
+          </div>
+          <h2>A · Segmentos</h2>
+          <p>
+            La S son cinco kunais que siguen el trazo de la letra, cada punta apuntando hacia donde va
+            el siguiente. La K es un kunai largo con dos cortos que salen de su centro.
+          </p>
+          <dl>
+            <dt>A favor</dt>
+            <dd>La S más legible; recuerda a un marcador digital.</dd>
+            <dt>En contra</dt>
+            <dd>Ocho piezas: a 16 px se vuelve ruido.</dd>
+          </dl>
+        </article>
+
+        <article>
+          <svg class="grande" viewBox="0 0 512 512" role="img" aria-label="Propuesta B, Zigzag">
+            <use href="#propB" />
+          </svg>
+          <div class="tamanos oscura">
+            <svg width="48" height="48"><use href="#propB" /></svg>
+            <svg width="32" height="32"><use href="#propB" /></svg>
+            <svg width="16" height="16"><use href="#propB" /></svg>
+            <span>48 · 32 · 16 sobre oscuro</span>
+          </div>
+          <div class="tamanos clara">
+            <svg width="48" height="48"><use href="#propB" /></svg>
+            <svg width="32" height="32"><use href="#propB" /></svg>
+            <svg width="16" height="16"><use href="#propB" /></svg>
+            <span>sobre claro</span>
+          </div>
+          <h2>B · Zigzag</h2>
+          <p>
+            La S se reduce a tres kunais: dos horizontales y uno largo en diagonal, como un corte. Las
+            dos letras quedan con tres piezas cada una.
+          </p>
+          <dl>
+            <dt>A favor</dt>
+            <dd>Simétrica y con movimiento; aguanta mejor los tamaños pequeños.</dd>
+            <dt>En contra</dt>
+            <dd>La S angular puede leerse como Z invertida si se mira deprisa.</dd>
+          </dl>
+        </article>
+
+        <article>
+          <svg class="grande" viewBox="0 0 512 512" role="img" aria-label="Propuesta C, Cuerda">
+            <use href="#propC" />
+          </svg>
+          <div class="tamanos oscura">
+            <svg width="48" height="48"><use href="#propC" /></svg>
+            <svg width="32" height="32"><use href="#propC" /></svg>
+            <svg width="16" height="16"><use href="#propC" /></svg>
+            <span>48 · 32 · 16 sobre oscuro</span>
+          </div>
+          <div class="tamanos clara">
+            <svg width="48" height="48"><use href="#propC" /></svg>
+            <svg width="32" height="32"><use href="#propC" /></svg>
+            <svg width="16" height="16"><use href="#propC" /></svg>
+            <span>sobre claro</span>
+          </div>
+          <h2>C · Cuerda</h2>
+          <p>
+            La S es la cuerda atada a la anilla de un kunai, y la K sigue hecha de kunais. La cuerda
+            recuerda además al cable de un micrófono.
+          </p>
+          <dl>
+            <dt>A favor</dt>
+            <dd>S perfectamente legible a cualquier tamaño; une ninja y karaoke.</dd>
+            <dt>En contra</dt>
+            <dd>La S ya no está hecha de kunais, solo cuelga de uno.</dd>
+          </dl>
+        </article>
+
+        <article>
+          <svg class="grande" viewBox="0 0 512 512" role="img" aria-label="Propuesta D, Sello">
+            <use href="#propD" />
+          </svg>
+          <div class="tamanos oscura">
+            <svg width="48" height="48"><use href="#propD" /></svg>
+            <svg width="32" height="32"><use href="#propD" /></svg>
+            <svg width="16" height="16"><use href="#propD" /></svg>
+            <span>48 · 32 · 16 sobre oscuro</span>
+          </div>
+          <div class="tamanos clara">
+            <svg width="48" height="48"><use href="#propD" /></svg>
+            <svg width="32" height="32"><use href="#propD" /></svg>
+            <svg width="16" height="16"><use href="#propD" /></svg>
+            <span>sobre claro</span>
+          </div>
+          <h2>D · Sello</h2>
+          <p>
+            El zigzag de la propuesta B en negro sobre rojo vivo, dentro de un círculo con borde
+            oscuro, como un sello o un emblema de clan.
+          </p>
+          <dl>
+            <dt>A favor</dt>
+            <dd>Mucho contraste; el círculo funciona bien en macOS y como avatar.</dd>
+            <dt>En contra</dt>
+            <dd>Las letras quedan más pequeñas; en una barra de tareas oscura el borde se pierde.</dd>
+          </dl>
+        </article>
+      </div>
+
+      <section class="notas">
+        <h2>Para decidir</h2>
+        <ul>
+          <li>
+            Mira primero las filas de 32 y 16 px: es el tamaño de la barra de tareas y de la pestaña
+            de la ventana.
+          </li>
+          <li>
+            Se pueden combinar: por ejemplo la S de C con el círculo de D, o los colores de D con las
+            letras de A.
+          </li>
+          <li>
+            Es habitual tener dos dibujos: el completo para 48 px o más y uno simplificado (solo la K,
+            o un kunai) para 16 y 24 px. El archivo <code>.ico</code> admite un dibujo por tamaño.
+          </li>
+          <li>
+            El rojo de los botones de descarga del README es <code>#C8303B</code>; conviene que el
+            icono y esos botones compartan tono.
+          </li>
+        </ul>
+        <ul class="paleta">
+          <li><i style="background: #e23a45"></i>#E23A45 rojo claro</li>
+          <li><i style="background: #a3121f"></i>#A3121F rojo profundo</li>
+          <li><i style="background: #c8303b"></i>#C8303B rojo del README</li>
+          <li><i style="background: #fff6ec"></i>#FFF6EC acero claro</li>
+          <li><i style="background: #17171b"></i>#17171B tinta</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
