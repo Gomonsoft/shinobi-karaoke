@@ -11,7 +11,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 2.1 | Estabilización del editor y paneles adaptables | Cerrada · [informe](informe-fase-2.1.md) |
 | 3 | Temas y agrupación de biblioteca | Implementada · [informe](informe-fase-3.md) |
 | 4 | Ventana secundaria y cola | En curso · [backlog](backlog.md#fase-4--ventana-secundaria-y-cola) |
-| 5 | Degradados, ayudas de espera y Letra lista | Pendiente |
+| 5 | Degradados, ayudas de espera, Letra lista y ajuste de silencios | Pendiente |
 | 6 | Exportación de video | Pendiente · prueba técnica |
 
 ```mermaid
@@ -162,7 +162,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 ## Fase 5 · Estilo, espera y Letra lista
 
-**Objetivo.** Ampliar fondos, orientar la próxima entrada vocal y ofrecer un modo de letra sincronizada sin barrido.
+**Objetivo.** Ampliar fondos, orientar la próxima entrada vocal, ofrecer un modo de letra sincronizada sin barrido y ajustar los fines de línea a los silencios de la voz.
 
 ### 8. Degradados y movimiento · M
 
@@ -200,6 +200,18 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Riesgo.** Confundir contraste de legibilidad con color de progreso o perder elegibilidad al editar la letra. Revalidar con los contratos de tiempos y medios de Lista.
 
+### 13. Ajustar los silencios · M
+
+**Decisión final.** Botón «Ajustar los silencios» en el Editor, con la misma precondición que «Letra lista»: todas las líneas de texto tienen inicio. Un aviso explica qué va a pasar y cuántas líneas cambian antes de aplicar. Para cada línea se busca, entre su inicio y el de la siguiente, el primer silencio en la pista de voz; si lo hay, el fin de la línea pasa al último instante con voz antes de ese silencio. Si no hay silencio, la línea sigue hasta la siguiente como hasta ahora. Los fines fijados a mano **también se ajustan si procede**: el aviso indica cuántos fines manuales cambiarán, sin impedirlo. El ajuste se aplica como una sola operación deshacible del historial del editor. Usa los picos de voz existentes (ADR 0015), sin decodificar otra vez. El umbral y la duración mínima del silencio son provisionales: se parte de que el modelo «Calidad» deja silencios muy claros y se afinan después con 6 canciones sincronizadas a mano por el usuario (solo en su equipo; los tests del repositorio usan audio generado con silencios conocidos). Decisión del usuario del 2026-11-20.
+
+**Discusión.** El fin independiente de la fase 1 permite que el inicio de una línea no sea el fin de la anterior. Muchos artistas dejan silencios intencionados entre enunciados (ejemplo del usuario: «Arrópame», de José Madero), y la pista de voz separada los hace detectables. Con fines reales, los comodines de espera (feature 9) aparecen justo en esos silencios.
+
+**Aceptación.** Con audio generado con silencios conocidos, el fin de cada línea queda al final de la voz (± 1 bloque de picos más el margen) y las líneas sin silencio no cambian. Se respeta `inicio < fin ≤ inicio de la siguiente`. El aviso muestra el número de líneas y de fines manuales afectados. Deshacer devuelve todos los fines anteriores en un paso. Sin picos de voz disponibles o con líneas sin inicio, el botón explica por qué no se puede usar.
+
+**ADRs y specs.** Revisar 0005 (`finEfectivo`) y 0015 (picos). [Editor](../../ux/06-editor.md).
+
+**Riesgo.** Restos de instrumental, reverberación y respiraciones en la voz separada; umbral sin calibrar hasta tener las canciones de referencia.
+
 ## Fase 6 · Exportación
 
 **Objetivo.** Generar un video local con la letra y el estilo reproducidos con tiempos deterministas.
@@ -232,6 +244,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 | 10 · Ventana secundaria | Media | 4 |
 | 11 · Cola | Media | 4 |
 | 12 · Letra lista | Media | 5 |
+| 13 · Ajustar los silencios | Media | 5 |
 
 ## Decisiones y verificaciones pendientes
 
