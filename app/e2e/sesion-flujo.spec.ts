@@ -34,6 +34,11 @@ interface Api {
   shinobiReproductor: { sesion: { informar(i: unknown): Promise<{ aplicado: boolean }> } }
 }
 
+/** Sale sin pasar por la confirmación de cierre (con la sesión abierta `app.close()` la espera). */
+async function cerrar(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ app: a }) => a.exit(0)).catch(() => undefined)
+}
+
 interface Entorno {
   app: ElectronApplication
   principal: Page
@@ -167,7 +172,7 @@ test.describe('sesión: flujo con dos ventanas', () => {
       await expect.poll(async () => (await e.estado()).pendientes.length).toBe(1)
       await expect(e.principal.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
     } finally {
-      await e.app.close()
+      await cerrar(e.app)
     }
   })
 
@@ -192,7 +197,7 @@ test.describe('sesión: flujo con dos ventanas', () => {
       await expect.poll(async () => (await e.estado()).sesion?.fase).toBe('transicion')
       await expect.poll(sonando(e), { timeout: 15_000 }).toBe(A)
     } finally {
-      await e.app.close()
+      await cerrar(e.app)
     }
   })
 
@@ -225,7 +230,7 @@ test.describe('sesión: flujo con dos ventanas', () => {
       const reanudada = (await e.estado()).activa!.posicionMs
       expect(Math.abs(reanudada - interrumpida)).toBeLessThanOrEqual(1000)
     } finally {
-      await e.app.close()
+      await cerrar(e.app)
     }
   })
 
@@ -252,7 +257,7 @@ test.describe('sesión: flujo con dos ventanas', () => {
       expect(v.reposo).toBe(false)
       expect(v.principalSilenciada).toBe(false)
     } finally {
-      await e.app.close()
+      await cerrar(e.app)
     }
   })
 })

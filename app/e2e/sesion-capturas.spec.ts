@@ -134,11 +134,16 @@ async function lanzar(
   }
 }
 
+/** Cierra la aplicación sin pasar por el diálogo de cierre de la sesión. */
+async function cerrar(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ app: a }) => a.exit(0)).catch(() => undefined)
+}
+
 const fase = (e: Entorno) => async () => (await e.estado()).sesion?.fase ?? null
 
 test.describe('capturas de revisión de la fase 4', () => {
   test.skip(!CAPTURAS, 'se generan solo con SHINOBI_CAPTURAS_4=1')
-  test.describe.configure({ timeout: 240_000 })
+  test.describe.configure({ timeout: 600_000 })
 
   const fallos: string[] = []
   test.beforeAll(() => mkdirSync(DIR, { recursive: true }))
@@ -152,6 +157,7 @@ test.describe('capturas de revisión de la fase 4', () => {
       await accion()
     } catch (e) {
       fallos.push(`${nombre}: ${String(e).split('\n')[0]}`)
+      console.log(`FALLO ${nombre}: ${String(e).split('\n')[0]}`)
     }
   }
   const foto = async (p: Page, nombre: string): Promise<void> => {
@@ -181,7 +187,7 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(una.principal, nombre('dialogo-una-pantalla'))
         })
       } finally {
-        await una.app.close()
+        await cerrar(una.app)
       }
 
       const e = await lanzar(f.dpr)
@@ -196,6 +202,7 @@ test.describe('capturas de revisión de la fase 4', () => {
 
         // Sesión en marcha con una pendiente y una canción que fallará después.
         const sec = await e.abrir({ tipo: 'cancion', cancionId: A, donde: 'ahora' })
+        await e.agregar(A)
         await e.agregar(BORRADOR)
         await e.agregar(B)
         await expect.poll(fase(e), { timeout: 30_000 }).toBe('reproduciendo')
@@ -203,7 +210,6 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(e.principal, nombre('tarjetas-sesion'))
         })
         await intentar('sesion', async () => {
-          await e.principal.getByRole('button', { name: /^Mostrar la cola/ }).click()
           await foto(e.principal, nombre('sesion'))
         })
         await intentar('cuenta', async () => {
@@ -212,6 +218,8 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(e.principal, nombre('cuenta'))
         })
         await intentar('fallo', async () => {
+          await expect.poll(fase(e), { timeout: 30_000 }).toBe('reproduciendo')
+          await e.fin(sec)
           await expect.poll(fase(e), { timeout: 30_000 }).toBe('error')
           await foto(e.principal, nombre('fallo'))
         })
@@ -234,21 +242,25 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(e.principal, nombre('monitor-desconectado'))
         })
       } finally {
-        await e.app.close()
+        await cerrar(e.app)
       }
 
       // Espera, fin de cola, cola conservada y caída (cada una con su sesión).
       const w = await lanzar(f.dpr)
       try {
         await dimensionar(w)
-        await w.agregar(A)
-        await w.abrir({ tipo: 'cola' })
+        const secW = await w.abrir({ tipo: 'cancion', cancionId: A, donde: 'ahora' })
+        await w.agregar(B)
+        await expect.poll(fase(w), { timeout: 30_000 }).toBe('reproduciendo')
         await intentar('espera', async () => {
-          await expect.poll(fase(w), { timeout: 30_000 }).toBe('espera')
+          await w.fin(secW)
+          await expect.poll(fase(w)).toBe('transicion')
+          await secW.getByRole('button', { name: COLA.detener }).click()
+          await expect.poll(fase(w)).toBe('espera')
           await foto(w.principal, nombre('espera'))
         })
       } finally {
-        await w.app.close()
+        await cerrar(w.app)
       }
 
       const g = await lanzar(f.dpr)
@@ -269,7 +281,7 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(g.principal, nombre('cola-conservada'))
         })
       } finally {
-        await g.app.close()
+        await cerrar(g.app)
       }
 
       const c = await lanzar(f.dpr)
@@ -288,7 +300,7 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(c.principal, nombre('caida'))
         })
       } finally {
-        await c.app.close()
+        await cerrar(c.app)
       }
     })
   }
@@ -304,6 +316,7 @@ test.describe('capturas de revisión de la fase 4', () => {
       try {
         const sec = await e.abrir({ tipo: 'cancion', cancionId: A, donde: 'ahora' })
         await e.tamano('secundaria', f.ancho, f.alto)
+        await e.agregar(A)
         await e.agregar(BORRADOR)
         await e.agregar(B)
         await expect.poll(fase(e), { timeout: 30_000 }).toBe('reproduciendo')
@@ -316,6 +329,8 @@ test.describe('capturas de revisión de la fase 4', () => {
           await sec.emulateMedia({ reducedMotion: 'no-preference' })
         })
         await intentar('fallo', async () => {
+          await expect.poll(fase(e), { timeout: 30_000 }).toBe('reproduciendo')
+          await e.fin(sec)
           await expect.poll(fase(e), { timeout: 30_000 }).toBe('error')
           await foto(sec, nombre('fallo'))
         })
@@ -334,6 +349,7 @@ test.describe('capturas de revisión de la fase 4', () => {
           await expect
             .poll(async () => (await e.estado()).activa?.posicionMs ?? 0, { timeout: 20_000 })
             .toBeGreaterThan(3000)
+          await e.agregar(B)
           await sec.keyboard.press('Control+w')
           await sec.getByRole('button', { name: 'Cerrar y conservar cola' }).click()
           await expect.poll(async () => (await e.estado()).sesion).toBeNull()
@@ -342,20 +358,24 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(nueva, nombre('reanudada'))
         })
       } finally {
-        await e.app.close()
+        await cerrar(e.app)
       }
 
       const v = await lanzar(1)
       try {
-        await v.agregar(A)
-        const sec = await v.abrir({ tipo: 'cola' })
+        const sec = await v.abrir({ tipo: 'cancion', cancionId: A, donde: 'ahora' })
         await v.tamano('secundaria', f.ancho, f.alto)
+        await v.agregar(B)
+        await expect.poll(fase(v), { timeout: 30_000 }).toBe('reproduciendo')
         await intentar('espera', async () => {
-          await expect.poll(fase(v), { timeout: 30_000 }).toBe('espera')
+          await v.fin(sec)
+          await expect.poll(fase(v)).toBe('transicion')
+          await sec.getByRole('button', { name: COLA.detener }).click()
+          await expect.poll(fase(v)).toBe('espera')
           await foto(sec, nombre('espera'))
         })
       } finally {
-        await v.app.close()
+        await cerrar(v.app)
       }
 
       const z = await lanzar(1)
@@ -367,7 +387,7 @@ test.describe('capturas de revisión de la fase 4', () => {
           await foto(sec, nombre('espera-vacia'))
         })
       } finally {
-        await z.app.close()
+        await cerrar(z.app)
       }
     })
   }
@@ -382,7 +402,7 @@ test.describe('capturas de revisión de la fase 4', () => {
         const sel = e.principal.getByText('Cuenta entre canciones').first()
         await sel.scrollIntoViewIfNeeded()
         await foto(e.principal, 'ajustes-1280x800-100-reproductor')
-        await e.principal.getByRole('button', { name: /^Volver/ }).click()
+        await e.principal.getByRole('button', { name: /Biblioteca$/ }).click()
       })
       await e.abrir({ tipo: 'cancion', cancionId: A, donde: 'ahora' })
       await expect.poll(fase(e), { timeout: 30_000 }).toBe('reproduciendo')
@@ -392,12 +412,13 @@ test.describe('capturas de revisión de la fase 4', () => {
         await tarjeta.getByRole('button', { name: /^Más acciones de/ }).click()
         await e.principal
           .getByRole('menuitem', { name: /^(Editar|Continuar)/ })
+          .first()
           .dispatchEvent('click')
         await expect(e.principal.getByText(EDI_BLOQUEO.titulo).first()).toBeVisible()
         await foto(e.principal, 'editor-1280x800-100-dialogo-bloqueo')
       })
     } finally {
-      await e.app.close()
+      await cerrar(e.app)
     }
   })
 })
