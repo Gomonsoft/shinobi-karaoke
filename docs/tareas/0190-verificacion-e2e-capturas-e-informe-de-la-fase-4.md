@@ -1,6 +1,6 @@
 # 0190 — Pruebas de integración, capturas e informe de la fase 4
 
-- Estado: Pendiente
+- Estado: En curso
 - Paso del pipeline: 4 y 6
 - Depende de: [0177](0177-contratos-compartidos-de-sesion-cola-y-roles.md)–[0189](0189-salir-de-la-app-con-sesion-o-cola.md)
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §13 (estrategia de pruebas), [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-4), [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md#revisión-para-020--fase-4)
@@ -74,3 +74,10 @@ Actualizar el estado de la fase en [plan-2](../versiones/0.2.0/plan-2.md) y en e
 - [ ] El informe escrito con cada criterio trazado, y el plan y el backlog actualizados.
 
 ## Notas de implementación
+
+### Pruebas de integración y capturas (2026-11-20; falta el informe y la guía manual)
+
+- `app/e2e/sesion-flujo.spec.ts`: 4 pruebas, ~20 s en total, estable en 3 pasadas. (1) roles y ventanas: la secundaria tiene `shinobiReproductor` y no `shinobi`, no tiene el foco, la principal queda silenciada y el reposo retenido y sigue operable (encola); (2) fin y cuenta: avance extremo a extremo con `transicion_s` = 2, fin de cola sin cerrar la ventana y añadir arranca la cuenta (los duplicados de `fin` ya los cubre `sesion-main.spec.ts`); (3) Esc no cierra, Ctrl + W → «Cerrar y conservar cola», la cola se conserva y `reanudar` vuelve en su segundo (± 1 s); (4) caída con `forcefullyCrashRenderer`: incidencia visible, cola conservada, reposo liberado y principal sin silenciar. Se quita el silencio de E2E de la principal al empezar para poder comprobar que la sesión lo restaura.
+- No se comprueba que la secundaria esté dentro de la pantalla 2 simulada: con una sola pantalla real macOS la recoloca (x = 0). La colocación la cubre `ventanaSecundaria.test.ts`; con pantallas reales, la guía manual.
+- `app/e2e/sesion-capturas.spec.ts` (opt-in, `SHINOBI_CAPTURAS_4=1`): ejecutada una vez; 24 capturas tomadas en `docs/ux/revision-fase-4/` y 8 estados pendientes por fallos del guion (ver su README). No se repitió la ejecución. Hay que corregir el guion y repetirlo antes del informe.
+- Defectos de código de features: ninguno encontrado.
