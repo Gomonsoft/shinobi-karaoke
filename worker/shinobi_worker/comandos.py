@@ -110,6 +110,12 @@ def exportar(args: dict[str, Any]) -> None:
     comando(args)
 
 
+def capacidades_exportacion(args: dict[str, Any]) -> None:
+    from .capacidades_exportacion import capacidades_exportacion as comando
+
+    comando(args)
+
+
 COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "version": version,
     "demo": demo,
@@ -120,4 +126,5 @@ COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "separar": separar,
     "generar-picos": generar_picos,
     "exportar": exportar,
+    "capacidades-exportacion": capacidades_exportacion,
 }
