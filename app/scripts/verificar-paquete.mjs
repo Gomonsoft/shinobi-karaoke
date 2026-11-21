@@ -199,7 +199,8 @@ function verificarFuses(wire) {
 function verificarPreloads(asar, entradas, leer) {
   const preloads = entradas.filter((ruta) => /^\/out\/preload\/[^/]+\.js$/.test(ruta))
   for (const ruta of preloads) {
-    const codigo = leer(asar, ruta.slice(1)).toString('utf8')
+    // @electron/asar busca con el separador del sistema: en Windows `out/preload/x.js` no existe, `out\\preload\\x.js` sí.
+    const codigo = leer(asar, ruta.slice(1).split('/').join(sep)).toString('utf8')
     for (const m of codigo.matchAll(/\brequire\(\s*(["'`])([^"'`]+)\1\s*\)/g)) {
       exigir(
         m[2] === 'electron',
