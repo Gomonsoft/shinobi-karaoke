@@ -8,7 +8,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { Maximize, PanelRightClose, X } from 'lucide-react'
+import { Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import type { ResumenCancionIpc } from '@shared/ipc'
@@ -32,6 +32,7 @@ import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { evaluarContraste } from '../../karaoke/contraste'
 import type { Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
@@ -267,6 +268,10 @@ function EditorActivo({
   }
   const tema = useTemaEditor({ resumen, edicion, despachar, anunciar, refrescarResumen })
   const estilo = tema.estiloVisible
+  // Estado de esta visita al editor: no se guarda ni entra en el historial (G7).
+  const [fondoDetenido, setFondoDetenido] = useState(false)
+  const movimientoReducido = useMovimientoReducido()
+  const hayMovimiento = estilo.fondo.tipo === 'degradado' && Boolean(estilo.fondo.movimiento)
   const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
@@ -1066,6 +1071,7 @@ function EditorActivo({
                     reproduciendo={sonando}
                     cuentaAtras={sync.cuentaAtras}
                     obtenerTiempoAudio={obtenerTiempoAudio}
+                    fondoEstatico={fondoDetenido}
                   />
                 </div>
                 <div className={estilos.accionPrueba}>
@@ -1073,6 +1079,15 @@ function EditorActivo({
                     <Tooltip contenido={E.probarTooltip}>{botonProbar}</Tooltip>
                   ) : (
                     botonProbar
+                  )}
+                  {hayMovimiento && !movimientoReducido && (
+                    <BotonIcono
+                      icono={fondoDetenido ? Play : Pause}
+                      etiqueta={fondoDetenido ? E.fondoG.reanudar : E.fondoG.detener}
+                      activo={fondoDetenido}
+                      className={estilos.detenerFondo}
+                      onClick={() => setFondoDetenido((d) => !d)}
+                    />
                   )}
                 </div>
               </div>
