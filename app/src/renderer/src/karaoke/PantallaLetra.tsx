@@ -1,12 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { LoaderCircle } from 'lucide-react'
-import type { Estilo } from '@shared/estilo'
+import { normalizarEstilo, type Estilo } from '@shared/estilo'
 import type { Letra } from '@shared/letra'
 import { Icono } from '../componentes/Icono'
 import estilosComponentes from '../componentes/componentes.module.css'
 import { recorteBarrido } from './barrido'
-import { variablesEstilo } from './estiloCss'
+import { fondoCss, fondoCssEn, variablesEstilo } from './estiloCss'
 import { fotogramaEn, fotogramaEstatico, type FotogramaLetra, type LineaRender } from './render'
+import { useMovimientoReducido } from './useMovimientoReducido'
 import estilos from './pantallaLetra.module.css'
 
 export interface PantallaLetraProps {
@@ -25,9 +26,16 @@ export interface PantallaLetraProps {
   cargando?: boolean
   textoCargando?: string
   className?: string
+  /** `false`: sin capa de resaltado ni resaltado por palabra (modo Letra lista). */
+  barrido?: boolean
+  /** `true`: el fondo se queda en la fase 0 aunque el estilo tenga movimiento. */
+  fondoEstatico?: boolean
+  /**
+   * Se llama una vez al empezar (o al buscar dentro de) un hueco con indicadores de 2 s o más,
+   * con los segundos que faltan. El contenedor lo anuncia en su región `aria-live`.
+   */
+  alAnunciarEspera?: (segundos: number) => void
 }
-
-const MEDIA_REDUCIDA = '(prefers-reduced-motion: reduce)'
 
 type MedicionBarrido = { capa: HTMLElement; cajas: DOMRectReadOnly[] }
 
@@ -65,7 +73,8 @@ function aplicarProgreso(barridos: readonly MedicionBarrido[], linea: LineaRende
   })
 }
 
-function Barrido({ texto }: { texto: string }) {
+function Barrido({ texto, barrido }: { texto: string; barrido: boolean }) {
+  if (!barrido) return <>{texto}</>
   return (
     <span className={estilos.barrido} data-barrido="">
       {texto}
@@ -76,12 +85,12 @@ function Barrido({ texto }: { texto: string }) {
   )
 }
 
-function TextoActual({ linea }: { linea: LineaRender }) {
-  if (!linea.palabras) return <Barrido texto={linea.texto} />
+function TextoActual({ linea, barrido }: { linea: LineaRender; barrido: boolean }) {
+  if (!barrido || !linea.palabras) return <Barrido texto={linea.texto} barrido={barrido} />
   return linea.palabras.map((palabra, i) => (
     <span key={i} className={estilos.palabra}>
       {i > 0 && ' '}
-      <Barrido texto={palabra.texto} />
+      <Barrido texto={palabra.texto} barrido />
     </span>
   ))
 }
@@ -100,16 +109,22 @@ export function PantallaLetra({
   avisoTitulo,
   cargando,
   textoCargando,
-  className
+  className,
+  barrido = true,
+  fondoEstatico = false,
+  alAnunciarEspera
 }: PantallaLetraProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const nodoActual = useRef<HTMLDivElement>(null)
   const barridos = useRef<MedicionBarrido[]>([])
   const ultimaLinea = useRef<LineaRender | null>(null)
   const nodoSiguiente = useRef<HTMLDivElement>(null)
-  const [reducido, setReducido] = useState(
-    () => window.matchMedia?.(MEDIA_REDUCIDA).matches ?? false
-  )
+  const reducido = useMovimientoReducido()
+  const anunciada = useRef<string | null>(null)
+  const anunciar = useRef(alAnunciarEspera)
+  const fondo = useMemo(() => normalizarEstilo(estilo).fondo, [estilo])
+  const animarFondo =
+    fondo.tipo === 'degradado' && !!fondo.movimiento && !fondoEstatico && !reducido
   const [vivo, setVivo] = useState<{ fotograma: FotogramaLetra; sube: boolean } | null>(null)
   const fotograma = reproduciendo
     ? (vivo?.fotograma ??
@@ -120,25 +135,35 @@ export function PantallaLetra({
         espera: estilo.espera
       }))
     : fotogramaEstatico(letra, idEstatico)
-  const { actual, siguiente } = fotograma
+  const { actual, siguiente, espera } = fotograma
 
-  useEffect(() => {
-    const media = window.matchMedia?.(MEDIA_REDUCIDA)
-    const cambio = () => setReducido(media?.matches ?? false)
-    media?.addEventListener?.('change', cambio)
-    return () => media?.removeEventListener?.('change', cambio)
-  }, [])
+  useLayoutEffect(() => {
+    anunciar.current = alAnunciarEspera
+  })
 
   useLayoutEffect(() => {
     ultimaLinea.current = actual
   }, [actual])
 
   useEffect(() => {
-    if (!reproduciendo || !obtenerTiempoAudio) return
+    if (!obtenerTiempoAudio) return
+    const pintarFondo = (tAudioMs: number) => {
+      if (animarFondo && !document.hidden) {
+        raiz.current?.style.setProperty('--k-fondo', fondoCssEn(fondo, tAudioMs))
+      }
+    }
+    // La fase 0 vuelve en la limpieza; se pinta ya para no mostrarla ni un fotograma.
+    const restaurar = () => {
+      if (animarFondo) raiz.current?.style.setProperty('--k-fondo', fondoCss(fondo))
+    }
+    pintarFondo(obtenerTiempoAudio())
+    if (!reproduciendo) return restaurar
     let raf: number
     let anterior: FotogramaLetra | null = null
     const avanzar = () => {
-      const f = fotogramaEn(letra, obtenerTiempoAudio() - letra.offset_ms, {
+      const tAudio = obtenerTiempoAudio()
+      pintarFondo(tAudio)
+      const f = fotogramaEn(letra, tAudio - letra.offset_ms, {
         duracionMs,
         titulo,
         artista,
@@ -152,6 +177,15 @@ export function PantallaLetra({
         const sube = f.actual !== null && f.actual.id === anterior?.siguiente?.id
         setVivo({ fotograma: f, sube })
       }
+      const hueco = f.espera
+      if (!hueco) anunciada.current = null
+      else if (hueco.clave !== anunciada.current) {
+        anunciada.current = hueco.clave
+        if (!hueco.primera && hueco.destinoMs - hueco.origenMs >= 2000) {
+          anunciar.current?.(Math.round(hueco.restanteMs / 1000))
+        }
+      }
+      if (hueco) raiz.current?.style.setProperty('--k-fraccion', String(hueco.fraccion))
       if (f.actual && nodoActual.current?.dataset.linea === f.actual.id) {
         ultimaLinea.current = f.actual
         aplicarProgreso(barridos.current, f.actual)
@@ -160,8 +194,21 @@ export function PantallaLetra({
       raf = requestAnimationFrame(avanzar)
     }
     raf = requestAnimationFrame(avanzar)
-    return () => cancelAnimationFrame(raf)
-  }, [reproduciendo, obtenerTiempoAudio, letra, duracionMs, titulo, artista, estilo.espera])
+    return () => {
+      cancelAnimationFrame(raf)
+      restaurar()
+    }
+  }, [
+    reproduciendo,
+    obtenerTiempoAudio,
+    letra,
+    duracionMs,
+    titulo,
+    artista,
+    estilo.espera,
+    fondo,
+    animarFondo
+  ])
 
   useLayoutEffect(() => {
     const contenedor = raiz.current!
@@ -200,7 +247,7 @@ export function PantallaLetra({
     <div
       ref={raiz}
       aria-hidden="true"
-      className={`${estilos.raiz} foco-doble ${className ?? ''}`}
+      className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} foco-doble ${className ?? ''}`}
       style={variablesEstilo(estilo) as CSSProperties}
     >
       {cuentaAtras ? (
@@ -223,6 +270,24 @@ export function PantallaLetra({
         </div>
       ) : (
         <>
+          {espera?.barra && (
+            <div
+              className={estilos.barra}
+              data-indicador="barra"
+              aria-hidden="true"
+              style={{ '--k-fraccion': espera.fraccion } as CSSProperties}
+            />
+          )}
+          {espera?.cuenta && (
+            <div
+              key={espera.cuenta}
+              className={`${estilos.cuentaEspera} ${reducido ? '' : estilos.entraNumero}`}
+              data-indicador="cuenta"
+              aria-hidden="true"
+            >
+              {espera.cuenta}
+            </div>
+          )}
           {actual && (
             <div
               key={actual.id}
@@ -230,7 +295,7 @@ export function PantallaLetra({
               data-linea={actual.id}
               className={`${estilos.actual} ${reproduciendo && vivo?.sube && !reducido ? estilos.transicion : ''}`}
             >
-              <TextoActual linea={actual} />
+              <TextoActual linea={actual} barrido={barrido} />
             </div>
           )}
           {siguiente && (
