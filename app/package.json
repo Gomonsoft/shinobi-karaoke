@@ -1,6 +1,6 @@
 {
   "name": "shinobi-karaoke",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "description": "Software libre y gratuito para crear y reproducir karaokes",
   "license": "GPL-3.0-or-later",
   "author": {
@@ -23,6 +23,8 @@
     "uv:descargar": "node scripts/descargar-uv.mjs",
     "licencias": "node scripts/licencias-js.mjs",
     "licencias:comprobar": "node scripts/licencias-js.mjs --comprobar",
+    "version:subir": "node scripts/version.mjs subir",
+    "version:comprobar": "node scripts/version.mjs comprobar",
     "paquete:verificar": "node scripts/verificar-paquete.mjs",
     "empaquetar": "electron-builder --publish never",
     "empaquetar:dir": "electron-builder --dir --publish never",

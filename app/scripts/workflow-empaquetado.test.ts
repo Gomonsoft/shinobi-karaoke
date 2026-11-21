@@ -10,7 +10,9 @@ interface Paso {
 }
 
 interface Trabajo {
-  needs?: string
+  needs?: string | string[]
+  if?: string
+  env?: Record<string, string>
   permissions?: Record<string, string>
   'timeout-minutes'?: number
   steps: Paso[]
@@ -23,17 +25,37 @@ interface Trabajo {
 const flujo = parse(
   readFileSync(new URL('../../.github/workflows/empaquetado.yml', import.meta.url), 'utf8')
 ) as {
-  on: Record<string, unknown>
+  on: { workflow_dispatch: unknown; push: { tags: string[] } }
   permissions: Record<string, string>
+  concurrency: Record<string, unknown>
   jobs: Record<string, Trabajo>
 }
 
 describe('workflow manual de empaquetado', () => {
-  it('solo admite ejecución manual y concede lectura del repositorio', () => {
-    expect(Object.keys(flujo.on)).toEqual(['workflow_dispatch'])
+  it('se dispara a mano o con etiquetas v* y solo publicar escribe', () => {
+    expect(Object.keys(flujo.on).sort()).toEqual(['push', 'workflow_dispatch'])
+    expect(flujo.on.push).toEqual({ tags: ['v*'] })
     expect(flujo.permissions).toEqual({ contents: 'read' })
-    for (const trabajo of Object.values(flujo.jobs)) {
+    expect(flujo.concurrency).toEqual({
+      group: 'empaquetado-${{ github.ref }}',
+      'cancel-in-progress': false
+    })
+    for (const [nombre, trabajo] of Object.entries(flujo.jobs)) {
+      if (nombre === 'publicar') continue
       if (trabajo.permissions) expect(trabajo.permissions).toEqual({ contents: 'read' })
+    }
+  })
+
+  it('comprueba la versión antes de construir y no interpola datos del evento en run', () => {
+    const comprobar = flujo.jobs['comprobar-version']!
+    expect(comprobar['timeout-minutes']).toBe(10)
+    expect(comprobar.steps.some(({ run }) => run?.includes('npm ci'))).toBe(false)
+    expect(flujo.jobs.construir!.needs).toBe('comprobar-version')
+    expect(comprobar.steps.find(({ uses }) => uses?.startsWith('actions/checkout@'))?.with).toEqual(
+      { 'fetch-depth': 0 }
+    )
+    for (const trabajo of Object.values(flujo.jobs)) {
+      for (const { run } of trabajo.steps) expect(run ?? '').not.toContain('${{')
     }
   })
 
@@ -103,5 +125,46 @@ describe('workflow manual de empaquetado', () => {
     expect(paso).toContain('Get-FileHash -LiteralPath $config')
     expect(paso).toContain("throw 'El ejecutable sigue instalado'")
     expect(paso).toContain("throw 'La desinstalación alteró los datos'")
+  })
+
+  it('prepara la publicación sin permisos de escritura y sube publicacion-…', () => {
+    const preparar = flujo.jobs['preparar-publicacion']!
+    expect(preparar.needs).toEqual(['comprobar-version', 'construir', 'probar-instalador'])
+    expect(preparar.permissions).toEqual({ contents: 'read' })
+    const subida = preparar.steps.find(({ uses }) => uses?.startsWith('actions/upload-artifact@'))
+    expect(subida?.with).toMatchObject({
+      name: 'publicacion-${{ needs.comprobar-version.outputs.version }}',
+      'retention-days': 14,
+      'if-no-files-found': 'error'
+    })
+    const descarga = preparar.steps.find(({ uses }) =>
+      uses?.startsWith('actions/download-artifact@')
+    )
+    expect(descarga?.with).toMatchObject({ 'merge-multiple': true })
+  })
+
+  it('publicar es el único con escritura, solo con etiqueta y sin ejecutar código del repositorio', () => {
+    const publicar = flujo.jobs.publicar!
+    expect(publicar.permissions).toEqual({ contents: 'write' })
+    expect(publicar.if).toBe("github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')")
+    expect(publicar.needs).toEqual(['comprobar-version', 'preparar-publicacion'])
+    const acciones = publicar.steps.flatMap(({ uses }) => (uses ? [uses] : []))
+    expect(acciones).toHaveLength(1)
+    expect(acciones[0]).toMatch(/^actions\/download-artifact@[a-f0-9]{40}$/)
+    expect(publicar.steps.some(({ run }) => run?.includes('npm') || run?.includes('node '))).toBe(
+      false
+    )
+    const escritores = Object.entries(flujo.jobs).filter(
+      ([, t]) => t.permissions?.contents === 'write'
+    )
+    expect(escritores.map(([n]) => n)).toEqual(['publicar'])
+    expect(publicar.env).toMatchObject({ BORRADOR: '${{ vars.PUBLICACION_BORRADOR }}' })
+  })
+
+  it('no usa acciones de terceros', () => {
+    const acciones = Object.values(flujo.jobs).flatMap(({ steps }) =>
+      steps.flatMap(({ uses }) => (uses ? [uses] : []))
+    )
+    for (const accion of acciones) expect(accion.startsWith('actions/')).toBe(true)
   })
 })
