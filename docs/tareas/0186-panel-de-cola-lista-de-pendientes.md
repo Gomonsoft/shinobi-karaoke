@@ -1,6 +1,6 @@
 # 0186 — Panel de la cola: lista de pendientes
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0183](0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md). Puede avanzar en paralelo con [0185](0185-panel-de-cola-sesion-controles-recuperacion-y-cierre.md) como componente aislado. Se integra en el hueco del panel cuando 0185 lo deja.
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §6 (operaciones por id, deshacer y vaciar)
@@ -43,3 +43,14 @@ Crear la lista «A continuación ({n})» con reordenación por arrastre, teclado
 - [ ] Con movimiento reducido no hay animación al reordenar.
 
 ## Notas de implementación
+
+- **Qué se hizo.** Lista «A continuación ({n})» como componente aislado en `vistas/biblioteca/cola/`: encabezado `h3` con `tabindex="-1"`, [Vaciar…] (≥ 2 pendientes, diálogo con foco en «Cancelar», `cola.vaciar(false)`), lista `role="list"` con *roving tabindex*, filas de 48 px (posición, asa decorativa, «título — artista», duración y ⋯), «Siguiente», `cola.noDisponible`, `bib.lista.incompleta` y nombre `cola.aria.fila`. Ratón (arrastre por el asa con eventos de puntero), teclado (Alt+↑/↓, Alt+Inicio/Fin, flechas, Supr, Menú/Mayús+F10) y ⋯ pasan por `ordenCola.ts` y producen la misma llamada `cola.mover(entradaId, antesDe)`. Quitar → toast con [Deshacer] → `cola.agregar(cancionId, { antesDe, siRevision })` con lo que devolvió `quitar`. El foco sigue a la fila movida (y se anuncia `cola.anuncio.movida`) o, al desaparecer la enfocada (propia o ajena), pasa a la siguiente, la anterior o el encabezado; no se roba el foco si estaba fuera de la lista.
+- **Archivos.** `app/src/renderer/src/vistas/biblioteca/cola/`: `ListaPendientes.tsx`, `FilaPendiente.tsx`, `useArrastreCola.ts`, `ordenCola.ts`, `listaPendientes.module.css` y las pruebas `ListaPendientes.test.tsx` y `ordenCola.test.ts`. Lee el estado de `useSesion()` (0183); no toca `Biblioteca.tsx` ni el panel de 0185.
+- **Cómo montarla (0185).** `<ListaPendientes etiquetarSiguiente={fase === 'transicion' || fase === 'espera'} duracionDe={…} lineasSinSincronizarDe={…} />` dentro del hueco del panel. Ver la pregunta [0080](../preguntas/0080-duracion-y-lineas-sin-sincronizar-en-las-filas-de-la-cola.md).
+- **Cómo probarlo.** `cd app && npx vitest run src/renderer/src/vistas/biblioteca/cola`; luego `npm run typecheck`, `npm run lint` y `npm run format:check`. Las pruebas usan el doble `sesion/pruebas.ts`.
+- **Deuda técnica.**
+  - Duración y líneas sin sincronizar llegan por props opcionales (pregunta 0080, provisional).
+  - «Agregar otra vez al final» muestra `cola.toast.final` con [Deshacer] (quita esa entrada); la spec no lo pide expresamente para el ⋯ de una pendiente.
+  - Los errores de las operaciones se descartan en silencio: el estado que llega por eventos es la fuente de verdad.
+  - El arrastre y su desplazamiento automático se prueban con `getBoundingClientRect` simulado; solo el E2E o la verificación manual (0190) lo ejercitan con layout real.
+  - La regla de movimiento reducido se cumple porque no hay animación de reordenación (solo un fundido de fondo del *hover* bajo `no-preference`), con una prueba que lo vigila.
