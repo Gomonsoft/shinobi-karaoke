@@ -142,7 +142,10 @@ describe('errores', () => {
       'PANTALLA_NO_DISPONIBLE',
       'CANCION_EN_REPRODUCCION',
       'ENTRADA_NO_ENCONTRADA',
-      'COLA_LLENA'
+      'COLA_LLENA',
+      'DESTINO_OCUPADO',
+      'PERFIL_NO_SOPORTADO',
+      'LIMPIEZA_FALLIDA'
     ])
   })
 })

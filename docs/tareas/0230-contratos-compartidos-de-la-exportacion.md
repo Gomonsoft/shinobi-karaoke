@@ -1,6 +1,6 @@
 # 0230 — Contratos compartidos de la exportación
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: fase 4 integrada; [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md) y [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md) de la fase 5 (estilo ampliado y `cancion.modalidad`, [ADR 0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §1 y §5)
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) §5, §6, §10 y §11, [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md#revisión-para-020--fase-6), [0006](../adr/0006-persistencia-y-modelo-de-datos.md#revisión-para-020--fase-6)
@@ -28,11 +28,11 @@ Publicar los tipos, esquemas, canales y funciones puras de la exportación para 
 
 ## Criterios de aceptación
 
-- [ ] `combinaciones()` da 48 combinaciones, todas con dimensiones pares y dentro de los techos de 0050.
-- [ ] `nombrePropuesto` cubre caracteres prohibidos, artista vacío, nombres largos y puntos finales.
-- [ ] Los esquemas rechazan resoluciones o FPS fuera del catálogo, rutas en `iniciar` y `n` negativo en `listo`.
-- [ ] `ROLES_POR_CANAL` cubre todos los canales y la ventana de exportación solo tiene `exportacion.inicial` y `exportacion.listo`.
-- [ ] Un `config.json` sin `exportacion` o con valores inválidos se lee con los valores por defecto.
+- [x] `combinaciones()` da 48 combinaciones, todas con dimensiones pares y dentro de los techos de 0050.
+- [x] `nombrePropuesto` cubre caracteres prohibidos, artista vacío, nombres largos y puntos finales.
+- [x] Los esquemas rechazan resoluciones o FPS fuera del catálogo, rutas en `iniciar` y `n` negativo en `listo`.
+- [x] `ROLES_POR_CANAL` cubre todos los canales y la ventana de exportación solo tiene `exportacion.inicial` y `exportacion.listo`.
+- [x] Un `config.json` sin `exportacion` o con valores inválidos se lee con los valores por defecto.
 
 ## Pruebas de feedback
 
@@ -42,3 +42,26 @@ Publicar los tipos, esquemas, canales y funciones puras de la exportación para 
 - Manual: nada.
 
 ## Notas de implementación
+
+**Qué se hizo.** Contratos completos de la exportación en `shared/` y los dos preloads.
+
+- `shared/exportacion.ts`: `FORMATOS`, `RESOLUCIONES`, `FPS`, `combinaciones()` (48), `esCombinacionValida`, `PARAMETROS_CODIFICACION` / `parametrosDe` (claves `preset` o `cpu_used` y `crf`, las que lee el worker), `MEMORIA_MINIMA` / `memoriaMinimaDe` (8 GiB en 2160 líneas), `estimarBytes`, `estimarSegundos` (+ `acotarFactorCorrector`), `nombrePropuesto`, `perfilCompatibleConSesion` (tabla `BLOQUEOS_CON_SESION` vacía), `totalFotogramas`, `tiempoDeFotograma` y los tipos IPC (`InstantaneaExportacion`, `ExportacionIpc`, `PerfilIpc`, `DestinoIpc`, `ProgresoExportacionIpc`, `InicialExportacionIpc`...).
+- `shared/ipc.ts`: esquemas Zod y entradas de `CONTRATO` de los 10 canales; `destinoPropuesto` con `desdeDestinoId?`; `iniciar` y `estimar` validan el catálogo (`strictObject` + `refine`, sin rutas); `ApiShinobi.exportacion` y `ApiExportacion`. `canales.ts`: grupo `exportacion` (con `:`, como el resto), eventos `exportacionCambio`, `exportacionProgreso`, `exportacionFotograma`, rol `exportacion` (solo `inicial` y `listo`).
+- `errores.ts`: `DESTINO_OCUPADO`, `PERFIL_NO_SOPORTADO`, `LIMPIEZA_FALLIDA` (solo main). `protocolo.ts`: `detalle` opcional en `mensajeErrorSchema`. `config.ts`: `exportacion` con lectura tolerante por campo (la proporción se deduce de ancho × alto; resolución fuera del catálogo vuelve a 1920 × 1080); no entra en `configParcialRendererSchema`.
+- Preload: `window.shinobi.exportacion` en `preload/index.ts` y `preload/exportacion.ts` (`window.shinobiExportacion`: `inicial`, `listo`, `alFotograma`).
+- `shared/__fixtures__/exportacion.ts`: fixtures y `crearApiExportacionFalsa()` (llamadas registradas, emisores de `alCambiar` y `alProgreso`).
+
+**Ajustes mínimos fuera de la propiedad de archivos** (para que compile y no se rompan los tests; sus dueños los reemplazan):
+- `main/ipc/handlers.ts` (0237): los 10 canales nuevos se registran con un manejador que responde `ERROR_INTERNO` hasta que exista el servicio; `rolDe` se acota a `principal | secundaria`.
+- `main/seguridad.ts` (0234): `RUTAS_POR_ROL.exportacion = ['/exportacion.html']`, exigido por el tipo `Record<RolVentana, ...>`.
+- `main/sesion/servicio.ts`: `solicitarCierre` acota el rol a `Exclude<RolVentana, 'exportacion'>`.
+- Tests existentes actualizados: `separacion.test.ts` (lista de códigos solo-main) y `config.test.ts` (valor por defecto).
+
+**Cómo probarlo.** `npm run test:cambios` (`exportacion.test.ts` y `exportacionIpc.test.ts`); `npm run test:e2e:criticos`.
+
+**Deuda y decisiones.**
+- No se tocó `electron.vite.config.ts`: el tercer preload y la tercera entrada HTML los compila 0234. Tampoco hay `env.d.ts` de `window.shinobiExportacion` (lo añade 0234/0235).
+- Los canales usan `exportacion:perfiles`... (con dos puntos, como el resto del código) en vez de los puntos del ADR.
+- `MEMORIA_MINIMA` es 8 GiB exactos como en el ADR; un equipo de «8 GB» de Windows o Linux puede informar menos de 8 GiB y quedar sin 4K. Si la guía manual lo muestra, bajar el umbral (cambio de tabla).
+- `nombrePropuesto` con título vacío usa «Sin título»; el corte a 120 caracteres puede quitar « (karaoke)» en títulos muy largos, como dice la spec.
+- Sin preguntas nuevas.

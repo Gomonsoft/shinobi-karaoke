@@ -4,8 +4,27 @@ import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
 import { cancionSchema, ESTADOS_PASO, MODALIDADES, NOMBRES_PASO } from './cancion'
 import { CODIGOS_ERROR } from './errores'
 import { estiloSchema } from './estilo'
+import {
+  AUDIOS_EXPORTACION,
+  FASES_EXPORTACION,
+  FORMATOS_ID,
+  MOTIVOS_PERFIL_NO_SOPORTADO,
+  PROPORCIONES,
+  RESULTADOS_EXPORTACION,
+  ESTADOS_EXPORTACION,
+  esCombinacionValida,
+  type DestinoIpc,
+  type EstimacionExportacionIpc,
+  type ExportacionIpc,
+  type FotogramaExportacionIpc,
+  type InicialExportacionIpc,
+  type InstantaneaExportacion,
+  type PerfilesIpc,
+  type ProgresoExportacionIpc
+} from './exportacion'
 import { claveTexto } from './identidad'
 import { esperaSchema } from './espera'
+import { letraSchema } from './letra'
 import { nombreTemaSchema, type Procedencia } from './temas'
 import { AGRUPACIONES_BIBLIOTECA, TRANSICION_S, configSchema, reproductorSchema } from './config'
 import { LIMITES_PANELES } from './paneles'
@@ -789,6 +808,152 @@ export type EstimacionSeparacion = z.infer<typeof estimacionSeparacionSchema>
 
 export type EstimacionCancion = z.infer<typeof estimacionCancionSchema>
 
+// --- Exportación de video (ADR 0019 §10) ---------------------------------------
+
+const formatoExportacionSchema = z.enum(FORMATOS_ID)
+const audioExportacionSchema = z.enum(AUDIOS_EXPORTACION)
+const fpsExportacionSchema = z.union([z.literal(24), z.literal(30), z.literal(60)])
+const trabajoExportacionIdSchema = z.uuid()
+
+const perfilExportacionForma = {
+  formato: formatoExportacionSchema,
+  ancho: z.int(),
+  alto: z.int(),
+  fps: fpsExportacionSchema
+}
+/** Catálogos cerrados: no se aceptan dimensiones ni FPS libres. */
+const perfilValido = (p: { formato: string; ancho: number; alto: number; fps: number }) =>
+  esCombinacionValida(p as never)
+const perfilNoValido = 'Combinación de resolución y FPS fuera del catálogo'
+
+export const estimarExportacionSchema = z
+  .strictObject({
+    cancionId: idCancionSchema,
+    ...perfilExportacionForma,
+    audio: audioExportacionSchema
+  })
+  .refine(perfilValido, perfilNoValido)
+
+/** `destinoId`: UUID de un solo uso; el renderer nunca envía rutas. */
+export const iniciarExportacionSchema = z
+  .strictObject({
+    cancionId: idCancionSchema,
+    ...perfilExportacionForma,
+    audio: audioExportacionSchema,
+    destinoId: z.uuid()
+  })
+  .refine(perfilValido, perfilNoValido)
+export type IniciarExportacion = z.infer<typeof iniciarExportacionSchema>
+
+/** `desdeDestinoId`: conserva carpeta y nombre del destino anterior y cambia la extensión (0124). */
+export const destinoPropuestoSchema = z.strictObject({
+  cancionId: idCancionSchema,
+  formato: formatoExportacionSchema,
+  desdeDestinoId: z.uuid().optional()
+})
+export type DestinoPropuestoPeticion = z.infer<typeof destinoPropuestoSchema>
+
+export const elegirDestinoSchema = z.strictObject({ destinoId: z.uuid() })
+export const trabajoExportacionSchema = z.strictObject({ trabajoId: trabajoExportacionIdSchema })
+export const MAX_FOTOGRAMAS = 10_000_000
+export const listoExportacionSchema = z.strictObject({
+  trabajoId: trabajoExportacionIdSchema,
+  n: z.int().min(0).max(MAX_FOTOGRAMAS)
+})
+
+export const perfilesIpcSchema = z.object({
+  formatos: z.array(z.object({ id: formatoExportacionSchema, extension: z.enum(['mkv', 'webm']) })),
+  perfiles: z.array(
+    z.object({
+      formato: formatoExportacionSchema,
+      proporcion: z.enum(PROPORCIONES),
+      ancho: z.int(),
+      alto: z.int(),
+      fps: fpsExportacionSchema,
+      soportado: z.boolean(),
+      motivo: z.enum(MOTIVOS_PERFIL_NO_SOPORTADO).nullable()
+    })
+  )
+}) satisfies z.ZodType<PerfilesIpc>
+
+export const estimacionExportacionSchema = z.object({
+  bytes: z.number().nonnegative().nullable(),
+  segundos: z.number().nonnegative().nullable()
+}) satisfies z.ZodType<EstimacionExportacionIpc>
+
+export const destinoIpcSchema = z.object({
+  destinoId: z.uuid(),
+  ruta: z.string().min(1),
+  existe: z.boolean(),
+  libreBytes: z.number().nonnegative().nullable(),
+  carpetaRecordadaNoDisponible: z.boolean()
+}) satisfies z.ZodType<DestinoIpc>
+
+export const instantaneaExportacionSchema = z.object({
+  titulo: z.string(),
+  artista: z.string(),
+  duracionMs: z.int().positive(),
+  letra: letraSchema,
+  estilo: estiloSchema,
+  modalidad: z.enum(MODALIDADES),
+  gananciaDb: z.number(),
+  vozDisponible: z.boolean()
+}) satisfies z.ZodType<InstantaneaExportacion>
+
+export const progresoExportacionSchema = z.object({
+  trabajoId: trabajoExportacionIdSchema,
+  fase: z.enum(FASES_EXPORTACION),
+  valor: z.number().min(0).max(1).nullable(),
+  fotograma: z.int().nonnegative(),
+  total: z.int().nonnegative(),
+  posicionMs: z.number().nonnegative(),
+  duracionMs: z.number().nonnegative(),
+  etaSegundos: z.number().nonnegative().nullable()
+}) satisfies z.ZodType<ProgresoExportacionIpc>
+
+export const exportacionIpcSchema = z.object({
+  trabajoId: trabajoExportacionIdSchema,
+  cancionId: idCancionSchema,
+  titulo: z.string(),
+  artista: z.string(),
+  formato: formatoExportacionSchema,
+  ancho: z.int(),
+  alto: z.int(),
+  fps: fpsExportacionSchema,
+  audio: audioExportacionSchema,
+  estado: z.enum(ESTADOS_EXPORTACION),
+  posicion: z.int().min(1).nullable(),
+  resultado: z.enum(RESULTADOS_EXPORTACION).nullable(),
+  error: z
+    .object({
+      codigo: z.enum(CODIGOS_ERROR),
+      mensaje: z.string(),
+      posicionMs: z.number().nonnegative().nullable(),
+      detalles: z.string().optional()
+    })
+    .nullable(),
+  progreso: progresoExportacionSchema.nullable(),
+  archivo: z.string(),
+  carpeta: z.string(),
+  bytes: z.number().nonnegative().nullable(),
+  fotogramas: z.int().nonnegative().nullable(),
+  duracionMs: z.number().nonnegative()
+}) satisfies z.ZodType<ExportacionIpc>
+
+export const inicialExportacionSchema = z.object({
+  trabajoId: trabajoExportacionIdSchema,
+  instantanea: instantaneaExportacionSchema,
+  ancho: z.int(),
+  alto: z.int(),
+  fps: fpsExportacionSchema,
+  total: z.int().positive().max(MAX_FOTOGRAMAS)
+}) satisfies z.ZodType<InicialExportacionIpc>
+
+export const fotogramaExportacionSchema = z.object({
+  trabajoId: trabajoExportacionIdSchema,
+  n: z.int().min(0).max(MAX_FOTOGRAMAS)
+}) satisfies z.ZodType<FotogramaExportacionIpc>
+
 // --- Errores y contrato ----------------------------------------------------
 
 export const errorIpcSchema = z.object({
@@ -979,7 +1144,34 @@ export const CONTRATO = {
   [CANALES.cola.agregar]: { args: z.tuple([agregarColaSchema]), res: agregarColaResSchema },
   [CANALES.cola.mover]: { args: z.tuple([moverColaSchema]), res: estadoSesionIpcSchema },
   [CANALES.cola.quitar]: { args: z.tuple([quitarColaSchema]), res: quitarColaResSchema },
-  [CANALES.cola.vaciar]: { args: z.tuple([vaciarColaSchema]), res: estadoSesionIpcSchema }
+  [CANALES.cola.vaciar]: { args: z.tuple([vaciarColaSchema]), res: estadoSesionIpcSchema },
+  // --- Fase 6 (ADR 0019 §10) ---
+  [CANALES.exportacion.perfiles]: { args: vacio, res: perfilesIpcSchema },
+  [CANALES.exportacion.estimar]: {
+    args: z.tuple([estimarExportacionSchema]),
+    res: estimacionExportacionSchema
+  },
+  [CANALES.exportacion.destinoPropuesto]: {
+    args: z.tuple([destinoPropuestoSchema]),
+    res: destinoIpcSchema
+  },
+  // `null` si el usuario cancela el diálogo del sistema.
+  [CANALES.exportacion.elegirDestino]: {
+    args: z.tuple([elegirDestinoSchema]),
+    res: destinoIpcSchema.nullable()
+  },
+  [CANALES.exportacion.iniciar]: {
+    args: z.tuple([iniciarExportacionSchema]),
+    res: z.object({ trabajoId: trabajoExportacionIdSchema })
+  },
+  [CANALES.exportacion.cancelar]: { args: z.tuple([trabajoExportacionSchema]), res: z.void() },
+  [CANALES.exportacion.estado]: { args: vacio, res: z.array(exportacionIpcSchema) },
+  [CANALES.exportacion.mostrarEnCarpeta]: {
+    args: z.tuple([trabajoExportacionSchema]),
+    res: z.void()
+  },
+  [CANALES.exportacion.inicial]: { args: vacio, res: inicialExportacionSchema },
+  [CANALES.exportacion.listo]: { args: z.tuple([listoExportacionSchema]), res: z.void() }
 } as const
 
 export type CanalInvocable = keyof typeof CONTRATO
@@ -1068,6 +1260,24 @@ export interface ApiShinobi {
     mover(entradaId: string, antesDe: string | null): Promise<EstadoSesionIpc>
     quitar(entradaId: string): Promise<{ estado: EstadoSesionIpc; antesDe: string | null }>
     vaciar(contexto: boolean): Promise<EstadoSesionIpc>
+  }
+  /** Exportación de video; solo la principal (ADR 0019 §10). */
+  exportacion: {
+    /** Las 48 combinaciones con `soportado` y `motivo`; la primera vez espera el sondeo del equipo. */
+    perfiles(): Promise<PerfilesIpc>
+    estimar(peticion: z.infer<typeof estimarExportacionSchema>): Promise<EstimacionExportacionIpc>
+    /** Con `desdeDestinoId` conserva carpeta y nombre del destino anterior y cambia la extensión. */
+    destinoPropuesto(peticion: DestinoPropuestoPeticion): Promise<DestinoIpc>
+    /** Diálogo «Guardar» del sistema; `null` si se cancela. */
+    elegirDestino(destinoId: string): Promise<DestinoIpc | null>
+    iniciar(peticion: IniciarExportacion): Promise<{ trabajoId: string }>
+    /** También quita de la cola. */
+    cancelar(trabajoId: string): Promise<void>
+    /** En curso, en cola y terminadas en esta sesión de la app. */
+    estado(): Promise<ExportacionIpc[]>
+    mostrarEnCarpeta(trabajoId: string): Promise<void>
+    alCambiar(cb: (exportacion: ExportacionIpc) => void): () => void
+    alProgreso(cb: (progreso: ProgresoExportacionIpc) => void): () => void
   }
   trabajos: {
     /** Trabajos en curso y en cola (los terminados solo llegan por `alCambiar`). */
@@ -1233,6 +1443,18 @@ export interface ApiReproductor {
   alComando(cb: (comando: ComandoSecundariaIpc) => void): () => void
   alEstado(cb: (estado: EstadoSecundariaIpc) => void): () => void
   alPreferencias(cb: (preferencias: ConfigReproductor) => void): () => void
+}
+
+/**
+ * API de la ventana de exportación (`window.shinobiExportacion`, ADR 0019 §10). Solo lo necesario
+ * para pintar fotogramas: sin biblioteca, temas ni configuración.
+ */
+export interface ApiExportacion {
+  /** Al cargar el documento: instantánea, perfil y total de fotogramas. */
+  inicial(): Promise<InicialExportacionIpc>
+  /** Confirma que el fotograma `n` está pintado (tras dos `requestAnimationFrame`). */
+  listo(trabajoId: string, n: number): Promise<void>
+  alFotograma(cb: (peticion: FotogramaExportacionIpc) => void): () => void
 }
 
 /** Respuesta de los canales compartidos: el estado del rol que llama. */
