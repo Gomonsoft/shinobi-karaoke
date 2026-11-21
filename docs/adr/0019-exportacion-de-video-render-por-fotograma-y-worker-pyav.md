@@ -248,7 +248,7 @@ Se añade 2560 × 1440 a la propuesta de la spec por ser una resolución habitua
 |---|---|---|---|
 | 480–1200 | *preset* 8, CRF 32 | `cpu-used` 8, CRF 32 | — |
 | 1440 | *preset* 8, CRF 34 | `cpu-used` 8, CRF 33 | — |
-| 2160 | *preset* 10, CRF 35 | `cpu-used` 8, CRF 34 | 8 GB (`motivo: memoria` por debajo) |
+| 2160 | *preset* 10, CRF 35 | `cpu-used` 8, CRF 34 | 7 GiB según `os.totalmem()` (equipos de «8 GB»; `motivo: memoria` por debajo) |
 
 Los *presets* 10 y superiores de SVT-AV1 avisan de que pueden producir artefactos fuera de usos automáticos; por eso se usa el 8 hasta 1440 líneas, donde el coste extra (+30–50 % de tiempo de codificación) no alarga la exportación. 2160 líneas usa el 10 para que el codificador no pase a ser el cuello de botella. Ajustar CRF o *preset* es un cambio de tabla validado en la guía manual (M1, calidad visual).
 
@@ -256,7 +256,7 @@ Los *presets* 10 y superiores de SVT-AV1 avisan de que pueden producir artefacto
 
 - `exportacion.perfiles()` devuelve las 48 combinaciones con `soportado: boolean` y `motivo: 'codificador' | 'memoria' | 'no_comprobado' | null`.
 - `codificador`: el sondeo `capacidades-exportacion` no encontró el codificador o no abrió con esa resolución.
-- `memoria`: la memoria total del equipo (`os.totalmem()`) es menor que la mínima de la tabla de parámetros para esa resolución.
+- `memoria`: la memoria total del equipo (`os.totalmem()`) es menor que la mínima de la tabla de parámetros para esa resolución. El umbral es **7 GiB** (7 × 2³⁰ B) y no 8 GiB: un equipo vendido con 8 GB informa menos en Windows y Linux por la memoria reservada por el *firmware* y la gráfica integrada (típicamente 7,4–7,9 GiB). Revisión del 2026-11-20 tras las notas de la tarea 0230.
 - `no_comprobado`: el sondeo falló (p. ej. motor de audio no instalado). Con `RUNTIME_NO_DISPONIBLE`, el diálogo muestra el estado F de la spec.
 - **Tiempo de respuesta**: la primera apertura del diálogo en cada arranque espera el sondeo (~1–2 s, estado «Cargando perfiles» de la spec). Las siguientes responden al momento desde memoria. No se sondea al arrancar la app, para no lanzar Python sin necesidad.
 - Ninguna combinación queda excluida **por ser lenta**: la exportación no es en tiempo real, así que un equipo lento tarda más pero produce el mismo archivo. La nota `exp.nota.costoso` de la spec avisa de los perfiles caros.
@@ -265,6 +265,7 @@ Los *presets* 10 y superiores de SVT-AV1 avisan de que pueden producir artefacto
 
 - **Destino elegido en main**. El renderer nunca envía una ruta.
   - `exportacion.destinoPropuesto({ cancionId, formato })` calcula la carpeta (la última usada si existe y se puede escribir; si no, `app.getPath('videos')`; si no, `app.getPath('home')`) y el nombre `exp.nombre` saneado (spec 10). Devuelve `{ destinoId, ruta, existe, libreBytes, carpetaRecordadaNoDisponible }`.
+  - Con `desdeTrabajoId` (`destinoPropuesto({ cancionId, formato, desdeTrabajoId })`), main propone la misma carpeta y el mismo nombre que usó esa exportación terminada en esta sesión de la app, con la extensión del formato pedido, para «Reintentar» y «Cambiar opciones» ([0133](../preguntas/0133-reintentar-una-exportacion-con-el-mismo-destino.md)). Es excluyente con `desdeDestinoId`. Si el trabajo no existe, devuelve el propuesto normal.
   - Con `desdeDestinoId` (`destinoPropuesto({ cancionId, formato, desdeDestinoId })`), main conserva la carpeta y el nombre del destino anterior (elegido con [Cambiar…]) y solo cambia la extensión al formato nuevo; vuelve a calcular `existe` y `libreBytes` y emite un `destinoId` nuevo (el anterior caduca). Si el anterior ya no es válido, devuelve el propuesto normal. Así cambiar de formato no pierde la elección del usuario ([0124](../preguntas/0124-destino-conservado-al-cambiar-de-formato.md)).
   - `exportacion.elegirDestino({ destinoId })` abre `dialog.showSaveDialog` sobre la ventana principal con esa ruta y el filtro de la extensión. Main fuerza la extensión del formato si el usuario escribió otra.
   - `destinoId` es un UUID de un solo uso que main asocia en memoria a la ruta absoluta. Caduca a los 30 min o al usarse.
@@ -274,7 +275,7 @@ Los *presets* 10 y superiores de SVT-AV1 avisan de que pueden producir artefacto
 - **Éxito**: el worker ya hizo `fsync`. Main hace `fs.rename(temporal, destino)`, que sustituye de forma atómica en macOS y Linux y con `MoveFileEx(REPLACE_EXISTING)` en Windows. Si el `rename` falla (p. ej. el destino está abierto en otro programa en Windows: `EBUSY`/`EPERM`), el error es `DESTINO_NO_DISPONIBLE`, se borra el temporal y el archivo anterior sigue intacto.
 - **Cancelación o fallo**: main mata el árbol del worker (como los demás trabajos), destruye la ventana offscreen, borra el temporal y el diario. Si el borrado del temporal falla, `LIMPIEZA_FALLIDA` con la ruta para «Mostrar en la carpeta» (toast `exp.toast.limpieza`); el diario se conserva para reintentar al arrancar.
 - **Diario** (0131 §5): antes de lanzar el worker, main escribe `exportacion/en-curso.json` en el directorio de datos con `{ trabajoId, cancionId, titulo, temporal, destino, inicio }` (escritura atómica, ADR 0006). Al arrancar, si existe: borra el temporal si sigue ahí, borra el diario y emite **una vez** el aviso `interrumpida` con el título (toast `exp.toast.interrumpida`). Al terminar, cancelar o fallar se borra.
-- **«Mostrar en la carpeta»** (0131 §10): `exportacion.mostrarEnCarpeta({ trabajoId })` → `shell.showItemInFolder(ruta)`, que selecciona el archivo en Windows y macOS y abre la carpeta en Linux (la selección depende del gestor de archivos). Si ya no existe: `DESTINO_NO_DISPONIBLE` → toast `exp.toast.noExiste`.
+- **«Mostrar en la carpeta»** (0131 §10): `exportacion.mostrarEnCarpeta({ trabajoId } | { avisoId })` → `shell.showItemInFolder(ruta)`. Con un trabajo terminado con éxito muestra el destino; con `limpiezaFallida` o con un aviso de limpieza muestra el temporal que no se pudo borrar. `shell.showItemInFolder` que selecciona el archivo en Windows y macOS y abre la carpeta en Linux (la selección depende del gestor de archivos). Si ya no existe: `DESTINO_NO_DISPONIBLE` → toast `exp.toast.noExiste`.
 - **Preferencias** (0130 §5, provisional): `config.exportacion = { formato, audio, proporcion, ancho, alto, fps, carpeta }`, con lectura tolerante por campo (ADR 0006, revisión de fase 6). Se escriben en main al aceptar `iniciar`, nunca desde el renderer.
 
 ### 7. Contrapresión y memoria
@@ -319,19 +320,27 @@ Según 0050, la competencia por recursos no es motivo de bloqueo. Por eso:
 |---|---|---|---|
 | `exportacion.perfiles` | principal | — | `{ formatos: FormatoIpc[], perfiles: PerfilIpc[] }` con `soportado` y `motivo` |
 | `exportacion.estimar` | principal | `{ cancionId, formato, ancho, alto, fps, audio }` | `{ bytes: number \| null, segundos: number \| null }` |
-| `exportacion.destinoPropuesto` | principal | `{ cancionId, formato, desdeDestinoId?: uuid }` | `DestinoIpc` (`destinoId`, `ruta`, `existe`, `libreBytes`, `carpetaRecordadaNoDisponible`) |
+| `exportacion.destinoPropuesto` | principal | `{ cancionId, formato, desdeDestinoId?: uuid, desdeTrabajoId?: uuid }` (excluyentes) | `DestinoIpc` (`destinoId`, `ruta`, `existe`, `libreBytes`, `carpetaRecordadaNoDisponible`) |
 | `exportacion.elegirDestino` | principal | `{ destinoId: uuid }` | `DestinoIpc \| null` (cancelado) |
 | `exportacion.iniciar` | principal | `{ cancionId, formato, ancho, alto, fps, audio: 'instrumental' \| 'instrumental_voz', destinoId: uuid }` | `{ trabajoId: uuid }` |
 | `exportacion.cancelar` | principal | `{ trabajoId: uuid }` | `void` (también quita de la cola) |
 | `exportacion.estado` | principal | — | `ExportacionIpc[]` (en curso, en cola y terminadas de esta sesión de la app) |
-| `exportacion.mostrarEnCarpeta` | principal | `{ trabajoId: uuid }` | `void` |
+| `exportacion.mostrarEnCarpeta` | principal | `{ trabajoId: uuid } \| { avisoId: uuid }` | `void` |
+| `exportacion.avisosPendientes` | principal | — | `AvisoExportacionIpc[]` (los entrega y los da por vistos) |
 | `exportacion.inicial` | exportacion | — | `{ trabajoId, instantanea, ancho, alto, fps, total }` |
 | `exportacion.listo` | exportacion | `{ trabajoId: uuid, n: int ≥ 0 }` | `void` |
 
-Eventos: a la principal, `exportacion:cambio` (alta, posición, estado y resultado) y `exportacion:progreso` (`{ trabajoId, fase, valor, fotograma, total, posicionMs, duracionMs, etaSegundos }`, como mucho 4 por segundo); a la ventana de exportación, solo `exportacion:fotograma` (`{ trabajoId, n }`).
+Eventos: a la principal, `exportacion:cambio` (alta, posición, estado y resultado), `exportacion:aviso` (`AvisoExportacionIpc`) y `exportacion:progreso` (`{ trabajoId, fase, valor, fotograma, total, posicionMs, duracionMs, etaSegundos }`, como mucho 4 por segundo); a la ventana de exportación, solo `exportacion:fotograma` (`{ trabajoId, n }`).
 
 - Validación Zod con los catálogos cerrados (formatos, resoluciones y FPS del §5: no se aceptan dimensiones libres), `idCancionSchema`, UUID y enteros acotados.
-- El renderer no recibe rutas salvo la del destino elegido, que muestra el diálogo. `ExportacionIpc` lleva el nombre de archivo, la carpeta para mostrar y los datos del resultado.
+- El renderer no recibe rutas salvo la del destino elegido, que muestra el diálogo. `ExportacionIpc` lleva el nombre de archivo, la carpeta para mostrar y los datos del resultado, más (revisión 2026-11-20, [0132](../preguntas/0132-avisos-de-limpieza-e-interrupcion-de-la-exportacion.md)):
+  - `destinoExistia: boolean`: había un archivo con ese nombre al iniciar. Sirve para `exp.error.conservado` y para B3;
+  - `iniciadaEn` y `terminadaEn` (ISO, `null` mientras no apliquen). «Tardó…» es su diferencia y la calcula el renderer;
+  - `limpiezaFallida: boolean`: el temporal no se pudo borrar tras cancelar o fallar. El `resultado` y `error.codigo` siguen siendo los reales (`cancelado` o el código del fallo). `LIMPIEZA_FALLIDA` no se usa como código de un trabajo, solo como causa en `AvisoExportacionIpc`.
+- **Avisos fuera de un trabajo en marcha** (`AvisoExportacionIpc = { avisoId, tipo: 'interrumpida' | 'limpieza_fallida', cancionId, titulo }`). Main los guarda en memoria hasta entregarlos y los emite con `exportacion:aviso`. La principal llama a `exportacion.avisosPendientes()` al montarse, así que un aviso emitido antes de que se suscribiera no se pierde. Cada aviso se entrega una sola vez.
+  - `interrumpida`: al arrancar, `recuperarAlArrancar()` encontró el diario de una exportación sin terminar (toast `exp.toast.interrumpida` con [Exportar video…] para `cancionId`).
+  - `limpieza_fallida` al arrancar: además, el temporal de esa exportación no se pudo borrar. [Mostrar en la carpeta] usa `avisoId`.
+  - Tras cancelar o fallar en esta sesión, la limpieza fallida va en `ExportacionIpc.limpiezaFallida`, no como aviso.
 - Ninguna variable `SHINOBI_*` de exportación actúa en la app empaquetada.
 
 **Códigos de error** (0131 §3): `SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA`, `ERROR_INTERNO`, más `ENTRADA_INCOMPLETA` y `PROCESO_TERMINADO` que main traduce (cancelación propia → `cancelado`; caída → `ERROR_INTERNO`; muerto por el sistema → `MEMORIA_INSUFICIENTE`, como en la separación). `EXPORTACION_BLOQUEADA` no existe en esta fase (§9). Todos los errores de ejecución llevan `posicionMs` (fotograma alcanzado × 1000 / FPS).

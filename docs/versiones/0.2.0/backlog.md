@@ -265,7 +265,7 @@ Resumen: render por índice de fotograma en una ventana offscreen con el mismo `
 - `main/exportacion/ventana.ts`, `main/ventana/registro.ts`, `main/seguridad.ts`, `electron.vite.config.ts`, `renderer/exportacion.html` y el script de verificación del paquete: 0234.
 - `karaoke/PantallaLetra.tsx`, su CSS y `karaoke/animacionesPorFotograma.ts`, y `renderer/src/exportacion/{main.tsx,AppExportacion.tsx,MarcaDeAgua.tsx}`: 0235 (después de 0213, que toca el mismo `PantallaLetra`).
 - `main/exportacion/{destinos,diario}.ts`: 0236.
-- `main/exportacion/servicio.ts`, `main/ipc/handlers.ts`, `main/index.ts` y `main/cierre.ts`: 0237.
+- `main/exportacion/servicio.ts`, `main/ipc/handlers.ts`, `main/index.ts` y `main/cierre.ts`: 0237. Por las respuestas a [0132](../../preguntas/0132-avisos-de-limpieza-e-interrupcion-de-la-exportacion.md) y [0133](../../preguntas/0133-reintentar-una-exportacion-con-el-mismo-destino.md), 0237 amplía también `shared/exportacion.ts`, `shared/ipc.ts`, `shared/canales.ts`, `preload/index.ts` y los fixtures, y ajusta `renderer/src/exportacion/{estado.ts,dialogo/DialogoSeguimiento.tsx,dialogo/MuestraExportacion.tsx}` (excepción explícita).
 - `renderer/src/exportacion/dialogo/**` y `textos.ts`: 0238; `renderer/src/exportacion/estado.ts` y los estados B–D: 0239.
 - `vistas/biblioteca/` (menú y línea de la tarjeta, eliminar), `vistas/editor/` (⋯ y atajo), panel de actividad y `navegacion/{DialogoCierre,textosCierre}`: 0240.
 - `e2e/`: 0234 añade `exportacion-captura.spec.ts` y amplía `seguridad.spec.ts`; 0241 añade `exportacion.spec.ts` y `exportacion-capturas.spec.ts` (opt-in).
