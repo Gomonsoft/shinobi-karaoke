@@ -1,5 +1,5 @@
 # 0254 — README e `INSTALAR.md` con descarga directa, y enlaces como sexto sitio de la versión
-- Estado: Pendiente
+- Estado: Hecha (README en E0 a la espera de 0140/0144; E½ preparado)
 - Paso del pipeline: 0 (distribución)
 - Depende de: — (puede ir en paralelo con todo; la versión real de los enlaces la pone 0255 con `version:subir`)
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §5
@@ -38,3 +38,12 @@ Pasar el README de E0 («Todavía no hay ninguna versión publicada») a E½: un
 - Manual (guía, P17–P19 de la spec 09, criterio 30): tras publicar, abrir el README sin sesión en tema claro y oscuro, pulsar cada botón y anotar el aviso literal de Chrome y de Edge.
 
 ## Notas de implementación
+
+- **Decisión (pregunta [0144](../preguntas/0144-readme-en-e0-o-e-medio-antes-de-publicar.md), provisional):** no existe ninguna etiqueta ni *Release* y 0140 sigue abierta; la spec 09 y 0141 fijan que E½ empieza con la primera *pre-release* pública. El `README.md` **se queda en E0** (sin enlaces que den 404) y los textos de E½ quedan listos en `docs/versiones/0.2.0/plantillas/estado-e-medio.md` (bloques «README» e «INSTALAR.md», con `{VERSION}`). Para pasar a E½: aplicar la plantilla con la versión de la *Release* (pasos en la propia plantilla), tras comprobar sin sesión que los 4 enlaces descargan.
+- **Botones:** `docs/imagenes/descarga/descargar-{windows,mac,deb,appimage}.svg` (360×64, `#C8303B`, `role="img"`, `<title>` con el texto alternativo, sin scripts ni recursos externos). La segunda línea del botón de Mac lleva `textLength="280"` para que quepa con DejaVu Sans (margen ≥ 16 px); sin medirlo en render real: queda para P19.
+- **`INSTALAR.md`:** nueva sección «Si el navegador bloquea la descarga» (Chrome y Edge, sin marcadores), enlazada desde el índice y desde el paso 1 de Windows. Mantiene el aviso E0; el aviso E½ está en la plantilla.
+- **`app/scripts/version.mjs` (sexto sitio):** `subir` reescribe en `README.md` e `INSTALAR.md` los patrones `github.com/Gomonsoft/shinobi-karaoke/releases/(download|tag)/v<semver>`, `**Última versión: <semver>, versión preliminar` y `[Novedades de <semver>]` (patrones acotados, `PATRONES_ENLACES`); `comprobar` falla nombrando el archivo si alguna cita no coincide con `app/package.json`; sin citas (E0) o sin archivo no hace nada. `--salida-github` sin cambios. Tipos en `version.d.mts`.
+- **Pruebas:** `version.test.ts` (3 casos nuevos: subir sobre un README de ejemplo, comprobar con enlace desfasado, E0) y `guia-instalacion.test.ts` (acepta README en E0 o en E½ idéntico a la plantilla; valida la plantilla: 4 enlaces con nombres de §4, sin `latest`, textos alternativos exactos, pasos, aviso «solo desde aquí», SVG válidos, enlaces internos y sección del navegador).
+- **Condicionado:** a 0140/0144 (pasar el README a E½), y a que exista `Gomonsoft/shinobi-karaoke-builds` público (§1.5, criterio 28): la mención en «Desarrollo» **no se ha añadido**; el texto está en la spec y se añade cuando el usuario cree el repositorio (0143). 0255 debe, al subir a `0.2.0-alpha.2`, ejecutar `version:subir` (que ya mantiene los enlaces si el README está en E½) y decidir con la sesión principal cuándo aplicar la plantilla.
+- **Manual (P17–P19, criterio 30):** tras publicar, abrir el README sin sesión en tema claro y oscuro, pulsar cada botón y anotar el aviso literal de Chrome y Edge.
+- **Deuda:** `npm run test:cambios` no es fiable ahora mismo (23 errores de otros programadores a medias); `prettier --check .` solo falla por `app/electron-builder.yml` (ajeno).

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="64" viewBox="0 0 360 64" role="img">
+  <title>Descargar AppImage para otras distribuciones de Linux</title>
+  <rect width="360" height="64" rx="8" fill="#C8303B"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M32 21V35M26 30L32 36L38 30M25 42H39"/>
+  </g>
+  <g fill="#FFFFFF" font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif">
+    <text x="56" y="28" font-size="19" font-weight="600">Descargar AppImage</text>
+    <text x="56" y="48" font-size="14">Otras distribuciones de Linux</text>
+  </g>
+</svg>

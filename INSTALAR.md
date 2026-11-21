@@ -6,7 +6,7 @@
 
 Elige tu sistema: [Windows](#windows) · [Mac](#mac-con-chip-apple) · [Linux](#linux)
 
-También aquí: [Por qué aparece un aviso](#por-qué-mi-equipo-me-avisa) · [Después de instalar](#después-de-instalar) · [¿Sigue sin abrirse?](#sigue-sin-abrirse) · [Desinstalar](#desinstalar)
+También aquí: [Por qué aparece un aviso](#por-qué-mi-equipo-me-avisa) · [Si el navegador bloquea la descarga](#si-el-navegador-bloquea-la-descarga) · [Después de instalar](#después-de-instalar) · [¿Sigue sin abrirse?](#sigue-sin-abrirse) · [Desinstalar](#desinstalar)
 
 **Requisitos:** Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 4 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez
 
@@ -22,9 +22,22 @@ Si tu sistema dice que ha **detectado software malicioso**, o mueve la app a la 
 
 Linux no pide esta firma. Si en el futuro firmamos los instaladores de algún sistema, quitaremos de aquí sus pasos.
 
+## Si el navegador bloquea la descarga
+
+Antes incluso de abrir el archivo, el navegador puede detener la descarga porque pocas personas han descargado todavía este instalador y no está firmado. **Mira qué palabra usa:**
+
+- **«Poco común», «no se descarga con frecuencia» o «sospechoso»:** el navegador no conoce el archivo, nada más. Si lo has descargado desde la [página oficial del proyecto](https://github.com/Gomonsoft/shinobi-karaoke/releases), puedes conservarlo.
+- **«Peligroso», «virus» o «malware»:** el navegador ha encontrado algo malo en el archivo. **No lo conserves** y [cuéntanoslo](https://github.com/Gomonsoft/shinobi-karaoke/issues).
+
+**En Chrome:** abre el panel de descargas (el icono de la flecha hacia abajo, arriba a la derecha; o pulsa Ctrl + J, en Mac Cmd + Mayús + J). Junto al archivo bloqueado, pulsa el botón para descargarlo igualmente, por ejemplo **Descargar archivo sospechoso** o **Conservar**. Si Chrome te pide confirmarlo, vuelve a pulsarlo.
+
+**En Edge:** en el panel de descargas, sitúa el puntero sobre el archivo y pulsa **…** → **Conservar**. Si aparece **Mostrar más**, púlsalo y elige **Conservar de todos modos**.
+
+Conservar el archivo no lo abre ni lo instala: después sigue los pasos de tu sistema.
+
 ## Windows
 
-1. Abre el archivo que has descargado (`Shinobi-Karaoke-Windows-x64.exe`). Si tu navegador avisa de que el archivo no se descarga con frecuencia, elige conservarlo.
+1. Abre el archivo que has descargado (`Shinobi-Karaoke-Windows-x64.exe`). Si tu navegador no te deja descargarlo, mira [Si el navegador bloquea la descarga](#si-el-navegador-bloquea-la-descarga).
 2. Si aparece la ventana **Windows protegió su PC**, pulsa **Más información**.
 3. Pulsa **Ejecutar de todas formas**.
 4. El instalador no pregunta nada: se instala solo, sin permisos de administrador, y abre Shinobi Karaoke al terminar. Después la encontrarás en el menú Inicio y en el escritorio.

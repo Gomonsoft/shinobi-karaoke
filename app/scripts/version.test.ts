@@ -124,3 +124,54 @@ describe('subir y comprobar sobre copias de los archivos reales', () => {
     expect(() => comprobarVersiones(raiz, { etiqueta: 'v9.9.9' })).toThrow(/no coincide/)
   })
 })
+
+describe('sexto sitio: enlaces del README e INSTALAR.md', () => {
+  const BASE = 'https://github.com/Gomonsoft/shinobi-karaoke/releases'
+  const readmeEjemplo = (v: string): string =>
+    [
+      '# Ejemplo',
+      '',
+      `**Última versión: ${v}, versión preliminar.** Prueba. [Novedades de ${v}](${BASE}/tag/v${v})`,
+      `[![A](x.svg)](${BASE}/download/v${v}/Shinobi-Karaoke-Windows-x64.exe)`,
+      `[![B](x.svg)](${BASE}/download/v${v}/Shinobi-Karaoke-Mac-chip-Apple.dmg)`,
+      `[![C](x.svg)](${BASE}/download/v${v}/shinobi-karaoke-linux-x64.deb)`,
+      `[![D](x.svg)](${BASE}/download/v${v}/Shinobi-Karaoke-Linux-x64.AppImage)`,
+      `Solo desde su [página de versiones](${BASE}). Otra versión citada: 0.1.0 y v0.1.0.`
+    ].join('\n')
+
+  it('subir cambia los 5 enlaces y la línea de versión sin tocar nada más', () => {
+    const raiz = copiaDelRepositorio()
+    const actual = comprobarVersiones(raiz)
+    writeFileSync(join(raiz, 'README.md'), readmeEjemplo(actual))
+    writeFileSync(join(raiz, 'INSTALAR.md'), `Aviso [versiones](${BASE}/tag/v${actual}) fin`)
+    subirVersion(raiz, '99.0.0-alpha.2')
+    expect(leer(raiz, 'README.md')).toBe(readmeEjemplo('99.0.0-alpha.2'))
+    expect(leer(raiz, 'INSTALAR.md')).toBe(`Aviso [versiones](${BASE}/tag/v99.0.0-alpha.2) fin`)
+    expect(comprobarVersiones(raiz)).toBe('99.0.0-alpha.2')
+  })
+
+  it('comprobar falla nombrando el archivo con un enlace desfasado', () => {
+    const raiz = copiaDelRepositorio()
+    const actual = comprobarVersiones(raiz)
+    expect(() => comprobarVersiones(raiz)).not.toThrow()
+    writeFileSync(join(raiz, 'README.md'), readmeEjemplo(actual))
+    expect(() => comprobarVersiones(raiz)).not.toThrow()
+    writeFileSync(
+      join(raiz, 'README.md'),
+      readmeEjemplo(actual).replace(`download/v${actual}/shinobi`, 'download/v0.0.9/shinobi')
+    )
+    expect(() => comprobarVersiones(raiz)).toThrow(/README\.md.*0\.0\.9/)
+    writeFileSync(join(raiz, 'README.md'), readmeEjemplo(actual))
+    writeFileSync(join(raiz, 'INSTALAR.md'), `[Novedades de 0.0.9](${BASE}/tag/v${actual})`)
+    expect(() => comprobarVersiones(raiz)).toThrow(/INSTALAR\.md/)
+  })
+
+  it('sin ningún enlace (estado E0) no comprueba ni cambia nada', () => {
+    const raiz = copiaDelRepositorio()
+    const e0 = `Todavía no hay versión. Ver ${BASE} y 0.0.1.`
+    writeFileSync(join(raiz, 'README.md'), e0)
+    expect(() => comprobarVersiones(raiz)).not.toThrow()
+    subirVersion(raiz, '99.0.0-alpha.1')
+    expect(leer(raiz, 'README.md')).toBe(e0)
+  })
+})
