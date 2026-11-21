@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { linea, letra } from '@shared/__fixtures__'
 import { NavegacionContexto } from '../../navegacion/estado'
@@ -10,11 +10,13 @@ import type {
 } from '../../karaoke/motorReproductor'
 import {
   apiEditorFalsa,
+  cancionLista,
   cancionSeparando,
   cancionSincronizadaLrclib,
   cancionSinSincronizar
 } from './fixturesApi'
 import { Editor } from './Editor'
+import { LL } from './textosLetraLista'
 
 const motor = vi.hoisted(() => ({
   usarPista: vi.fn(async () => undefined),
@@ -436,4 +438,26 @@ it('guarda el desplazamiento desde la prueba con pistas y lo deshace en un paso'
   fireEvent.keyDown(probar, { key: 'z', ctrlKey: true })
   await screen.findByRole('option', { name: /^Línea 1, 00:02.00/ })
   expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
+})
+
+it('cambia entre Lista y Letra lista desde el menú ⋯ sin salir ni tocar el historial', async () => {
+  const { llamadas, ir } = montar(cancionLista())
+  await screen.findByRole('button', { name: 'Más acciones del editor' })
+  expect(screen.getByText('Lista')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Más acciones del editor' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: LL.menuALetraLista }))
+  const dialogo = await screen.findByRole('dialog', { name: LL.dialogoTitulo })
+  fireEvent.click(within(dialogo).getByRole('button', { name: LL.confirmarCambio }))
+  expect(await screen.findByText('Letra lista')).toBeVisible()
+  expect(screen.getAllByText(LL.toastCambio).length).toBeGreaterThan(0)
+  expect(llamadas.find((l) => l.metodo === 'biblioteca.marcarLista')?.args[1]).toEqual({
+    modalidad: 'letra_lista'
+  })
+  expect(ir).not.toHaveBeenCalled()
+  expect(screen.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Más acciones del editor' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: LL.menuALista }))
+  expect(await screen.findByText('Lista')).toBeVisible()
+  expect(screen.getAllByText(LL.toastKaraoke).length).toBeGreaterThan(0)
 })

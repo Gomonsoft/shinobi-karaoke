@@ -1,6 +1,6 @@
 # 0214 — Editor: «Marcar como letra lista», aviso, insignia y cambio de modalidad
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md), [0203](0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §4 y §5
@@ -53,3 +53,16 @@ Marcar una canción como Letra lista desde el editor, con el aviso de la primera
 - Manual (guía de la fase): que el aviso se entienda a la primera.
 
 ## Notas de implementación
+
+- **Qué se hizo**:
+  - `BotonLetraLista.tsx` (nuevo): botón secundario a la izquierda de «Marcar como lista», solo en borrador. Popover `edi.falta.titulo.letra` con los renglones de siempre más `FIN_NO_VALIDO` (de `motivosParaNoEstarLetraLista`). Al confirmar: vaciar → `marcarLista(id, { modalidad: 'letra_lista' })` → Biblioteca, con el toast de `mensajeListaMarcada` (0217).
+  - `BotonLista.tsx`: se extrae `RenglonesFaltas` (compartido) y se exporta `avisarError`.
+  - `DialogoLetraLista.tsx` (nuevo): foco inicial en confirmar, Cancelar no escribe; confirmar con la casilla escribe `editor.omitir_aviso_letra_lista` (si falla, se registra y se sigue).
+  - `Editor.tsx`: ítems del ⋯ «Cambiar a «Letra lista»…» / «Cambiar a «Lista»» (`cambiarModalidad`, sin historial, toast + anuncio), estado local del aviso omitido y punto de la pestaña sin los avisos informativos.
+  - `CabeceraCancion.tsx`: insignia `✓ Letra lista` (la insignia ya existía por 0217; «Falta/Faltan n líneas» se mantiene tal cual).
+  - `PanelEstilo.tsx`: prop `soloEditor`; `resaltado` y `diferencia` pasan a `info` con `edi.contraste.soloEditor` salvo en D3.
+  - Textos en `textosLetraLista.ts` (archivo propio para no chocar con `textos.ts` de 0212/0215). `fixturesApi.ts`: el doble de `marcarLista` acepta modalidad y `config.actualizar` guarda la casilla.
+- **Archivos de pruebas**: `BotonLetraLista.test.tsx`, `Editor.test.tsx` (cambio por el ⋯), `PanelEstilo.test.tsx` (LL7).
+- **Cómo probarlo**: borrador completo → «Marcar como letra lista» (aviso, casilla, Biblioteca con su toast); en una Lista, ⋯ → «Cambiar a «Letra lista»…».
+- **Manual**: que el aviso se entienda a la primera; LL1 (la fila del dock no se parte a 1024 × 576 ni 1280 × 720) y LL3 tras reiniciar; con sesión en vivo el cambio responde `EDICION_BLOQUEADA` y se muestra el toast de error genérico.
+- **Deuda**: el E2E crítico solo corre con la sandbox desactivada (necesita red/uv).

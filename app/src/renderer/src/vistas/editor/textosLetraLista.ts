@@ -13,8 +13,6 @@ export const LL = {
   menuALista: 'Cambiar a «Lista»',
   toastCambio: 'Esta canción se reproducirá sin barrido (letra lista).',
   toastKaraoke: 'Esta canción se reproducirá con barrido (lista).',
-  /** `bib.toast.letraLista` (spec 02): se muestra al volver a la Biblioteca. */
-  toastLista: (titulo: string): string => `«${titulo}» tiene la letra lista para cantar.`,
   errorMarcar: 'No se pudo marcar la canción como letra lista.',
   errorCambiar: 'No se pudo cambiar la modalidad de la canción.',
   contrasteSoloEditor: 'Solo afecta al editor: esta canción se reproduce sin barrido.'

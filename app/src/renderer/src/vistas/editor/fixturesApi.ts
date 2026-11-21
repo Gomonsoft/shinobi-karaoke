@@ -3,6 +3,7 @@ import {
   configPredeterminada,
   letraSchema,
   numerosLineasSinInicio,
+  puedeMarcarseLetraLista,
   puedeMarcarseLista,
   type Cancion,
   type CodigoError
@@ -234,11 +235,16 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         }
         return publicar()
       },
-      async marcarLista(id) {
-        registrar('biblioteca.marcarLista', id)
+      async marcarLista(id, opciones) {
+        registrar('biblioteca.marcarLista', id, opciones)
         exigirId(id)
-        if (!puedeMarcarseLista(cancion)) throw error('ARGUMENTOS_NO_VALIDOS')
+        const letraLista = opciones?.modalidad === 'letra_lista'
+        if (!(letraLista ? puedeMarcarseLetraLista(cancion) : puedeMarcarseLista(cancion))) {
+          throw error('ARGUMENTOS_NO_VALIDOS')
+        }
         cancion.estado = 'lista'
+        if (letraLista) cancion.modalidad = 'letra_lista'
+        else delete cancion.modalidad
         cancion.pasos.edicion = {
           estado: 'completado',
           actualizado: cancion.modificada,
@@ -294,6 +300,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async actualizar(cambio) {
         registrar('config.actualizar', cambio)
         if (cambio.reproductor) Object.assign(config.reproductor, cambio.reproductor)
+        if (cambio.editor?.omitir_aviso_letra_lista !== undefined) {
+          config.editor.omitir_aviso_letra_lista = cambio.editor.omitir_aviso_letra_lista
+        }
         const paneles = cambio.editor?.paneles
         if (paneles) {
           Object.assign(config.editor.paneles.lista, paneles.lista)

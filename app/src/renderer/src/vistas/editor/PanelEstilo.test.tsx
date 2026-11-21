@@ -13,6 +13,7 @@ import { vistaTema } from './aparienciaVista'
 import type { ControlTema } from './SeccionTema'
 import { PanelEstilo } from './PanelEstilo'
 import { E } from './textos'
+import { LL } from './textosLetraLista'
 
 const accionesVacias = (): ControlTema['acciones'] =>
   Object.fromEntries(
@@ -59,7 +60,15 @@ function controlPropio(estilo: Estilo): ControlTema {
   }
 }
 
-function Montaje({ inicial, inactivo }: { inicial: Estilo; inactivo: boolean }) {
+function Montaje({
+  inicial,
+  inactivo,
+  soloEditor
+}: {
+  inicial: Estilo
+  inactivo: boolean
+  soloEditor?: boolean
+}) {
   const [estado, despachar] = useReducer(
     reducirEditor,
     estadoInicial(
@@ -77,6 +86,7 @@ function Montaje({ inicial, inactivo }: { inicial: Estilo; inactivo: boolean }) 
       <PanelEstilo
         estilo={estilo}
         contraste={evaluarContraste(estilo)}
+        soloEditor={soloEditor}
         inactivo={inactivo}
         tema={controlPropio(estilo)}
         alCambiar={(estilo, clave, agruparGesto) =>
@@ -92,8 +102,8 @@ function Montaje({ inicial, inactivo }: { inicial: Estilo; inactivo: boolean }) 
   )
 }
 
-function montar(inicial = estiloPredeterminado(), inactivo = false) {
-  return render(<Montaje inicial={inicial} inactivo={inactivo} />)
+function montar(inicial = estiloPredeterminado(), inactivo = false, soloEditor = false) {
+  return render(<Montaje inicial={inicial} inactivo={inactivo} soloEditor={soloEditor} />)
 }
 
 function estiloActual(): Estilo {
@@ -111,6 +121,16 @@ afterEach(() => {
 })
 
 describe('panel Estilo', () => {
+  it('en Letra lista presenta resaltado y diferencia como informativos (LL7), la letra no', () => {
+    montar(estiloPredeterminado(), false, true)
+    cambiarCampo(E.colorResaltado, '#F2F3F7')
+    expect(screen.getByText(E.contrasteDiferencia)).toBeVisible()
+    expect(screen.getByText(LL.contrasteSoloEditor)).toBeVisible()
+    cambiarCampo(E.colorLetra, '#5A1E6E')
+    expect(screen.getByText(E.contrasteLetra)).toBeVisible()
+    expect(screen.queryByText(LL.contrasteSoloEditor)).not.toBeInTheDocument()
+  })
+
   it('aplica los avisos del sistema visual y sus acciones deshacibles', () => {
     montar()
     expect(screen.getByRole('status')).toHaveTextContent(E.contrasteOk)

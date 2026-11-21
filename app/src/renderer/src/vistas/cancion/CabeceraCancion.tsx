@@ -216,7 +216,9 @@ export function CabeceraCancion({
         {resumen !== null &&
           (resumen.estado === 'lista' ? (
             <span className={estilos.insigniaLista}>
-              <InsigniaEstado estado="lista" />
+              <InsigniaEstado
+                estado={resumen.modalidad === 'letra_lista' ? 'letra-lista' : 'lista'}
+              />
               {incompleta > 0 && (
                 <span className={estilos.incompleta}>
                   <span aria-hidden="true">·</span>
