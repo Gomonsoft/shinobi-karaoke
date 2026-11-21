@@ -34,8 +34,15 @@ export function useAhora(activo: boolean, cadaMs = 250): number {
   return ahora
 }
 
-/** Pone el foco en el primer elemento que cumpla `selector`, reintentando unos fotogramas. */
+let cancelarEnfoquePendiente: (() => void) | null = null
+
+/**
+ * Pone el foco en el primer elemento que cumpla `selector`, reintentando unos fotogramas. Solo
+ * hay un enfoque pendiente a la vez: uno nuevo sustituye al anterior, para que un reintento
+ * viejo no le robe el foco a la acción más reciente.
+ */
 export function enfocarCuando(selector: string, intentos = 20): () => void {
+  cancelarEnfoquePendiente?.()
   let cancelado = false
   let marco = 0
   const probar = (restantes: number): void => {
@@ -43,13 +50,17 @@ export function enfocarCuando(selector: string, intentos = 20): () => void {
     const nodo = document.querySelector<HTMLElement>(selector)
     if (nodo) {
       nodo.focus()
+      if (cancelarEnfoquePendiente === cancelar) cancelarEnfoquePendiente = null
       return
     }
     if (restantes > 0) marco = requestAnimationFrame(() => probar(restantes - 1))
   }
   marco = requestAnimationFrame(() => probar(intentos))
-  return () => {
+  const cancelar = () => {
     cancelado = true
     cancelAnimationFrame(marco)
+    if (cancelarEnfoquePendiente === cancelar) cancelarEnfoquePendiente = null
   }
+  cancelarEnfoquePendiente = cancelar
+  return cancelar
 }
