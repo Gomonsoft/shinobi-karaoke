@@ -240,8 +240,8 @@ Resumen: render por índice de fotograma en una ventana offscreen con el mismo `
 | [0231 · Worker `exportar`](../../tareas/0231-worker-comando-exportar.md) | Hecha | — | Fotogramas por stdin, mezcla, AV1/VP9 + Opus, progreso, errores, verificación; pytest en los 3 SO |
 | [0232 · Capacidades y licencias](../../tareas/0232-capacidades-de-exportacion-y-licencias-de-codecs.md) | Hecha | — | `capacidades-exportacion`, `inspeccionar_av.py` exige los códecs, `THIRD_PARTY_NOTICES.md` |
 | [0233 · Tubería y bucle](../../tareas/0233-cliente-del-worker-con-tuberia-y-bucle-de-fotogramas.md) | Hecha | 0230 | Cliente del worker con stdin y prioridad baja; bucle con ≤ 2 fotogramas pendientes |
-| [0234 · Ventana offscreen](../../tareas/0234-ventana-offscreen-de-exportacion-y-rol.md) | Pendiente | 0230 | `exportacion.html`, rol, remitente, captura BGRA a escala 1, verificación del paquete |
-| [0235 · Render por fotograma](../../tareas/0235-render-por-fotograma-y-marca-de-agua.md) | Pendiente | 0230, 0234, 0204, 0206, 0213 | `PantallaLetra` con `tiempoFijoMs`, animaciones por fotograma, anfitrión y marca de agua |
+| [0234 · Ventana offscreen](../../tareas/0234-ventana-offscreen-de-exportacion-y-rol.md) | Hecha | 0230 | `exportacion.html`, rol, remitente, captura BGRA a escala 1, verificación del paquete |
+| [0235 · Render por fotograma](../../tareas/0235-render-por-fotograma-y-marca-de-agua.md) | Hecha | 0230, 0234, 0204, 0206, 0213 | `PantallaLetra` con `tiempoFijoMs`, animaciones por fotograma, anfitrión y marca de agua |
 | [0236 · Destinos y diario](../../tareas/0236-destinos-temporal-y-diario-de-exportacion.md) | Hecha | 0230 | Destino en main, temporal junto al destino, `rename`, limpieza y diario tras caída |
 | [0237 · Servicio e IPC](../../tareas/0237-servicio-de-exportacion-e-ipc.md) | Pendiente | 0231–0234, 0236, 0202, 0203 | `ServicioExportacion`: cola, perfiles, instantánea, orquestación, cancelación, suspensión, cierre e IPC |
 | [0238 · Diálogo: formulario](../../tareas/0238-dialogo-de-exportacion-formulario.md) | Hecha | 0230 | A, E y F con formato, perfiles no soportados, destino, estimación, notas y muestra |
