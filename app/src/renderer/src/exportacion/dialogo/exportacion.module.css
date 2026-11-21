@@ -1,0 +1,236 @@
+/* Diálogo «Exportar video» (docs/ux/10; sistema-visual, fase 6). Solo tokens del sistema. */
+
+.cuerpo {
+  display: grid;
+  gap: var(--e-4);
+  /* Cabecera (título) y acciones quedan fijas; el cuerpo hace scroll vertical. */
+  max-height: calc(90vh - 11rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.cabecera {
+  margin: 0;
+  color: var(--texto-2);
+}
+.columnas {
+  display: grid;
+  grid-template-columns: minmax(22.5rem, 1fr) 16rem;
+  gap: var(--e-5);
+  align-items: start;
+}
+.formulario {
+  display: grid;
+  gap: var(--e-4);
+  min-width: 0;
+}
+.lateral {
+  position: sticky;
+  top: 0;
+}
+/* Con el diálogo estrecho (< 720 px de ancho; el cuerpo mide ≈ 41 rem), la muestra pasa arriba. */
+@container dialogo (max-width: 41rem) {
+  .columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lateral {
+    order: -1;
+    position: static;
+  }
+  .lateral .muestra {
+    max-height: 10rem;
+    margin-inline: auto;
+  }
+}
+.contenedor {
+  container: dialogo / inline-size;
+}
+
+.fila {
+  display: grid;
+  gap: var(--e-1);
+}
+.etiquetaFila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.texto2 {
+  color: var(--texto-2);
+}
+.pista {
+  margin: 0;
+  color: var(--texto-2);
+}
+.anuncio {
+  margin: 0;
+  color: var(--info);
+}
+
+/* ---------- Selector de resolución ---------- */
+.selectorEnvoltorio {
+  position: relative;
+}
+.selectorEnvoltorio .listaResolucion {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + var(--e-1));
+  right: 0;
+  left: 0;
+  max-height: 14rem;
+}
+.listaResolucion [data-activa] {
+  background: var(--fondo-3-hover);
+}
+
+/* ---------- Ayuda del formato ---------- */
+.ayudaFormato {
+  position: relative;
+}
+.popover {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + var(--e-1));
+  right: 0;
+  display: grid;
+  gap: var(--e-2);
+  width: min(26rem, 80vw);
+  padding: var(--e-3) var(--e-4);
+  border-radius: var(--r-m);
+  background: var(--fondo-3);
+  box-shadow: var(--elevacion);
+}
+.popover h3 {
+  margin: 0;
+  font-size: var(--t-cuerpo);
+  font-weight: 600;
+}
+.popover p {
+  margin: 0;
+}
+
+/* ---------- Destino ---------- */
+.filaDestino {
+  display: flex;
+  gap: var(--e-2);
+}
+.rutaDestino {
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.notas {
+  display: grid;
+  gap: var(--e-2);
+}
+.estimacion {
+  margin: 0;
+}
+
+/* ---------- Muestra ---------- */
+.muestraEnvoltorio {
+  display: grid;
+  gap: var(--e-1);
+}
+.etiquetaMuestra {
+  margin: 0;
+  color: var(--texto-2);
+  font-weight: 400;
+}
+.muestra {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--r-s);
+  background: var(--fondo-0);
+}
+.muestraInterior {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}
+.marca {
+  position: absolute;
+  padding: 0.35em 0.7em;
+  border-radius: var(--r-pildora);
+  background: rgb(0 0 0 / 50%);
+  color: #fff;
+  font-family: 'Atkinson Hyperlegible Next', var(--fuente-interfaz), sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+/* ---------- Esqueleto de carga ---------- */
+.esqueleto {
+  height: 2.25rem;
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+}
+
+/* ---------- Progreso, éxito y fallo ---------- */
+.resumen {
+  margin: 0;
+  color: var(--texto-2);
+}
+.subpasos {
+  display: grid;
+  gap: var(--e-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.subpaso {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: var(--e-1) var(--e-2);
+  align-items: start;
+}
+.subpasoDetalle {
+  display: grid;
+  grid-column: 2;
+  gap: var(--e-1);
+}
+.subpasoFila {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-3);
+}
+.pendiente {
+  color: var(--texto-3);
+}
+.hecho {
+  color: var(--exito);
+}
+.fallo {
+  color: var(--error);
+}
+.enCurso {
+  color: var(--info);
+}
+.confirmacion {
+  display: grid;
+  gap: var(--e-2);
+}
+.exito {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: var(--e-1) var(--e-2);
+}
+.exito > div {
+  display: grid;
+  gap: var(--e-1);
+}
+.nombreArchivo {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.tiempo {
+  font-family: var(--fuente-tiempo);
+  font-variant-numeric: tabular-nums;
+}
