@@ -4,7 +4,7 @@ import { registrarBorradorAlCerrar } from './salida'
 import { cuerpoCierre, listaBreve } from './textosCierre'
 import type { Vista } from './estado'
 
-let solicitar: () => void
+let solicitar: (m?: unknown) => void
 const confirmarCierre = vi.fn().mockResolvedValue(undefined)
 
 function instalar(trabajos: string[], titulos: Record<string, string>) {
@@ -12,7 +12,7 @@ function instalar(trabajos: string[], titulos: Record<string, string>) {
   ;(window as unknown as { shinobi: unknown }).shinobi = {
     app: {
       confirmarCierre,
-      alSolicitudCierre: (cb: () => void) => {
+      alSolicitudCierre: (cb: (m?: unknown) => void) => {
         solicitar = cb
         return () => undefined
       }
@@ -26,9 +26,9 @@ function instalar(trabajos: string[], titulos: Record<string, string>) {
   }
 }
 
-async function pedir(vista: Vista = { tipo: 'biblioteca' }) {
+async function pedir(vista: Vista = { tipo: 'biblioteca' }, motivo?: unknown) {
   render(<DialogoCierre vista={vista} />)
-  await act(async () => solicitar())
+  await act(async () => solicitar(motivo))
 }
 
 describe('textos de cierre', () => {
@@ -40,6 +40,54 @@ describe('textos de cierre', () => {
   it('singular y plural', () => {
     expect(cuerpoCierre(1, ['A'])).toMatch(/^Hay 1 trabajo sin terminar \(«A»\)\./)
     expect(cuerpoCierre(2, [])).toMatch(/^Hay 2 trabajos sin terminar\./)
+  })
+})
+
+const motivo = (sesion: boolean, cola: boolean, variante = 'salir', trabajos = false) => ({
+  trabajos,
+  sesion,
+  cola,
+  variante
+})
+
+describe('DialogoCierre con sesión o cola (S13)', () => {
+  const biblio = { tipo: 'biblioteca' } as const
+  it('con sesión pregunta ses.salir con el foco en Cancelar', async () => {
+    instalar([], {})
+    await pedir(biblio, motivo(true, true))
+    expect(screen.getByRole('dialog', { name: '¿Salir de Shinobi Karaoke?' })).toBeInTheDocument()
+    expect(screen.getByText(/se cerrará y la cola se perderá\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+    expect(confirmarCierre).not.toHaveBeenCalled()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Salir' })))
+    expect(confirmarCierre).toHaveBeenCalledOnce()
+  })
+  it('cancelar no cambia nada', async () => {
+    instalar([], {})
+    await pedir(biblio, motivo(true, true))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(confirmarCierre).not.toHaveBeenCalled()
+  })
+  it('sin sesión y con cola: solo la cola se perderá', async () => {
+    instalar([], {})
+    await pedir(biblio, motivo(false, true))
+    expect(screen.getByText('La cola se perderá.')).toBeInTheDocument()
+  })
+  it('con sesión y trabajos: un solo diálogo, el de trabajos con ses.salir.extra', async () => {
+    instalar(['a'], { a: 'A' })
+    await pedir(biblio, motivo(true, true, 'salir', true))
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByText(/Hay 1 trabajo sin terminar.*la cola se perderá\./)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Seguir trabajando' })).toHaveFocus()
+  })
+  it('macOS, cerrar ventana: la cola se conserva', async () => {
+    instalar([], {})
+    await pedir(biblio, motivo(true, false, 'cerrarVentanaMac'))
+    expect(screen.getByRole('dialog', { name: '¿Cerrar la ventana?' })).toBeInTheDocument()
+    expect(screen.getByText(/La cola se conservará/)).toBeInTheDocument()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Cerrar' })))
+    expect(confirmarCierre).toHaveBeenCalledOnce()
   })
 })
 
