@@ -1,6 +1,6 @@
 # 0217 — Biblioteca: insignia «Letra lista», toast y portadas quietas
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 5
 - Depende de: [0201](0201-contratos-de-cancion-apariencia-config-e-ipc-de-la-fase-5.md) (con dobles); [0203](0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md) para los datos reales
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §5
@@ -40,3 +40,10 @@ Distinguir las canciones Letra lista en la Biblioteca sin cambiar sus acciones, 
 - Manual: nada.
 
 ## Notas de implementación
+
+- Insignia: `EstadoInsignia` gana `letra-lista` (icono `Captions`, color `exito`) y la prop `ayuda` (`title`). `datosDeTarjeta` la elige con `estado === 'lista'` y `modalidad === 'letra_lista'`; `textoEstado` pasa a «Letra lista, sin barrido» (aria) y `ayudaEstado` lleva `bib.estado.letraLista.ayuda`. Incompleta, filtro (por `estado`), menú, acción y cola no cambian.
+- Toast: el aviso lo emite el editor (`BotonLista`) al volver; se añadió `mensajeListaMarcada(resumen)` en `vistas/biblioteca/tarjeta.ts` (`bib.toast.lista` / `bib.toast.letraLista` según `modalidad` del resumen devuelto por `marcarLista`) y `BotonLista.tsx` lo usa (2 líneas). La navegación no necesita llevar la modalidad. 0211 debe seguir pasando por ahí al marcar con modalidad.
+- Portadas (LB6): ya usaban `fondoCss` sin geometría (fase 0); sin cambios, cubierto indirectamente por la prueba.
+- Muestrario: añadida la insignia nueva.
+- Pruebas: `tarjeta.test.tsx` (insignia, aria, incompleta, mensajes) y `Biblioteca.test.tsx` (filtro Listas, `title`, insignia sigue a `cancion:cambiada`). Críticos en verde.
+- Deuda: sin test de la portada con degradado animado (no hay lógica nueva).

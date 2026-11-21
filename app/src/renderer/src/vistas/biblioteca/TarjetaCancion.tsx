@@ -358,7 +358,7 @@ export function TarjetaCancion({
           </p>
         )}
         <div className={estilos.filaEstado}>
-          <InsigniaEstado estado={d.insignia} />
+          <InsigniaEstado estado={d.insignia} ayuda={d.ayudaEstado} />
           {!seleccion && (
             <MenuContextual
               etiqueta={`Más acciones de «${titulo}»`}

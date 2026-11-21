@@ -108,6 +108,7 @@ export function Muestrario() {
 
 const ESTADOS_INSIGNIA: EstadoInsignia[] = [
   'lista',
+  'letra-lista',
   'borrador',
   'en-curso',
   'en-cola',
