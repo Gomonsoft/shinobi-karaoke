@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { Mic, Search, SquareCheck } from 'lucide-react'
+import { ListMusic, Mic, MonitorUp, Search, SquareCheck } from 'lucide-react'
 import { vistaAlContinuar } from '@shared/derivados'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
@@ -10,6 +10,9 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { useReproductor } from '../../navegacion/reproductor'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { ATRIBUTO_BOTON_COLA } from '../../sesion/foco'
+import { BIB_COLA, COLA, SES } from '../../sesion/textos'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCatalogoTemas } from '../../temas/useCatalogoTemas'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
@@ -17,6 +20,9 @@ import { BarraSeleccion } from './BarraSeleccion'
 import { CasillaGrupo } from './CasillaGrupo'
 import { DialogoAplicarTema, type SalidaLote } from './DialogoAplicarTema'
 import { EncabezadoGrupo } from './EncabezadoGrupo'
+import { PanelColaHost } from './cola/PanelColaHost'
+import { ID_PANEL_COLA } from './cola/PanelCola'
+import { DialogoPantallasPedido } from './sesion/DialogoPantallas'
 import { TemaGrupo } from './TemaGrupo'
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
 import { agruparCanciones, idGrupoDe, textoAnuncioResultados } from './agrupacion'
@@ -27,6 +33,7 @@ import { procedenciaCorta } from '../../temas/textos'
 import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
 import { SEL, TEMAS_NO_DISPONIBLES } from './textosSeleccion'
+import { useAgregarACola } from './useAgregarACola'
 import { esSeleccionable, reiniciarSeleccionDeSesion, useSeleccion } from './useSeleccion'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
 import {
@@ -137,6 +144,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
+  const sesion = useSesion()
+  const { edicionBloqueada, abrirBloqueo } = sesion
+  const agregarACola = useAgregarACola()
   const [activa, setActiva] = useState<string | null>(null)
   const [filtro, setFiltroEstado] = useState<FiltroBiblioteca>(filtroDeSesion)
   const [busqueda, setBusqueda] = useState('')
@@ -536,13 +546,27 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           fuenteEnCola,
           progresoVisto: progresoVisto(id)
         })
+        // Con sesión abierta, Letra y Editor no se abren: se explica en `edi.bloqueo` (spec 06, E1).
+        if (edicionBloqueada && (paso === 'letra' || paso === 'editor')) {
+          abrirBloqueo()
+          return
+        }
         // Fuente sin completar: resumen de la fuente de esa canción (wireframe E), no una vista nueva.
         ir({ tipo: 'cancion', id, paso: paso === 'anadir' ? 'fuente' : paso })
       } catch {
         mostrarToast({ tipo: 'error', mensaje: 'No se pudo abrir la canción.' })
       }
     },
-    [ir]
+    [ir, edicionBloqueada, abrirBloqueo]
+  )
+
+  const { abrirDialogoPantallas } = sesion
+  const tituloDe = useCallback(
+    (id: string) => {
+      const r = canciones.find((c) => c.id === id)
+      return r ? tituloDeTarjeta(r) : ''
+    },
+    [canciones]
   )
 
   const acciones = useMemo<AccionesTarjeta>(
@@ -550,6 +574,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       reproducir: abrir,
       continuar: (id) => void continuar(id),
       editar: (id) => ir({ tipo: 'cancion', id, paso: 'editor' }),
+      agregarAlFinal: (id) => void agregarACola(id, tituloDe(id), 'final'),
+      agregarSiguiente: (id) => void agregarACola(id, tituloDe(id), 'siguiente'),
+      reproducirEnOtraPantalla: (id) => abrirDialogoPantallas({ inicio: { cancionId: id } }),
       editarDatos: (id) => void abrirEditarDatos(id),
       volverABorrador: (id) => setDialogo({ tipo: 'borrador', id }),
       reintentar: (id) => void reintentarPaso(id),
@@ -570,6 +597,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       reintentarPaso,
       cancelarTrabajo,
       resepararPistas,
+      agregarACola,
+      tituloDe,
+      abrirDialogoPantallas,
       temasUsables
     ]
   )
@@ -759,6 +789,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     )
   }
 
+  const pendientesCola = sesion.estado?.pendientes.length ?? 0
   const cuentas = contarPorFiltro(canciones)
   const filtrando = filtro !== 'todas' || busqueda.trim() !== ''
   const texto = busqueda.trim()
@@ -771,6 +802,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       )
     : undefined
   const pasoActivo = vivoDialogo?.trabajo.paso ?? enCursoPaso
+  // Una canción pendiente o con entradas en la cola avisa en sus diálogos (spec 02, S11).
+  const estaEnCola =
+    dialogo !== null && (sesion.estado?.pendientes.some((e) => e.cancionId === dialogo.id) ?? false)
   const avisoTrabajo =
     pasoActivo === 'separacion'
       ? ' Se cancelará la separación en curso.'
@@ -779,203 +813,243 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         : ''
 
   return (
-    <section ref={seccion} aria-labelledby="titulo-vista">
-      <h1 id="titulo-vista" className="t-titulo" tabIndex={-1} data-foco-inicial>
-        Biblioteca
-      </h1>
-      <p role="status" className={estilos.soloLector}>
-        {anuncio}
-      </p>
-      <div className={estilos.barraHerramientas}>
-        <ControlSegmentado
-          etiqueta="Filtrar canciones"
-          valor={filtro}
-          onCambio={setFiltro}
-          opciones={[
-            { valor: 'todas', etiqueta: `Todas ${cuentas.todas}` },
-            { valor: 'listas', etiqueta: `Listas ${cuentas.listas}` },
-            { valor: 'borradores', etiqueta: `Borradores ${cuentas.borradores}` }
-          ]}
-        />
-        <div className={estilos.controlAgrupar}>
-          <span className="t-pequeno" aria-hidden="true">
-            Agrupar por
-          </span>
+    <div className={estilos.conPanel}>
+      <section ref={seccion} aria-labelledby="titulo-vista" className={estilos.principal}>
+        <div className={estilos.cabecera}>
+          <h1 id="titulo-vista" className="t-titulo" tabIndex={-1} data-foco-inicial>
+            Biblioteca
+          </h1>
+          <div className={estilos.cabeceraAcciones}>
+            {!sesion.haySesion && (
+              <Boton
+                aria-label={SES.abrirAria}
+                onClick={() => sesion.abrirDialogoPantallas({ inicio: 'cola' })}
+              >
+                <Icono icono={MonitorUp} tamano={16} />
+                {SES.abrir}
+              </Boton>
+            )}
+            <Boton
+              variante="fantasma"
+              {...{ [ATRIBUTO_BOTON_COLA]: '' }}
+              aria-expanded={sesion.panelAbierto}
+              aria-controls={ID_PANEL_COLA}
+              aria-label={COLA.botonAria(pendientesCola, sesion.panelAbierto)}
+              onClick={() => (sesion.panelAbierto ? sesion.cerrarPanel() : sesion.abrirPanel())}
+            >
+              <Icono icono={ListMusic} tamano={16} />
+              {COLA.boton(pendientesCola)}
+            </Boton>
+          </div>
+        </div>
+        <p role="status" className={estilos.soloLector}>
+          {anuncio}
+        </p>
+        <div className={estilos.barraHerramientas}>
           <ControlSegmentado
-            etiqueta="Agrupar por"
-            valor={agrupar}
-            onCambio={setAgrupacion}
+            etiqueta="Filtrar canciones"
+            valor={filtro}
+            onCambio={setFiltro}
             opciones={[
-              { valor: 'ninguno', etiqueta: 'Sin agrupar' },
-              { valor: 'artista', etiqueta: 'Artista' },
-              { valor: 'album', etiqueta: 'Álbum' }
+              { valor: 'todas', etiqueta: `Todas ${cuentas.todas}` },
+              { valor: 'listas', etiqueta: `Listas ${cuentas.listas}` },
+              { valor: 'borradores', etiqueta: `Borradores ${cuentas.borradores}` }
             ]}
           />
+          <div className={estilos.controlAgrupar}>
+            <span className="t-pequeno" aria-hidden="true">
+              Agrupar por
+            </span>
+            <ControlSegmentado
+              etiqueta="Agrupar por"
+              valor={agrupar}
+              onCambio={setAgrupacion}
+              opciones={[
+                { valor: 'ninguno', etiqueta: 'Sin agrupar' },
+                { valor: 'artista', etiqueta: 'Artista' },
+                { valor: 'album', etiqueta: 'Álbum' }
+              ]}
+            />
+          </div>
+          {!sel.activo && (
+            <Boton ref={botonSeleccionar} onClick={entrarSeleccion}>
+              <Icono icono={SquareCheck} tamano={16} />
+              {SEL.boton}
+            </Boton>
+          )}
+          <div className={estilos.busqueda}>
+            <Icono icono={Search} tamano={16} className={estilos.busquedaIcono} />
+            <input
+              ref={campoBusqueda}
+              type="search"
+              className={estilos.campoBusqueda}
+              placeholder="Buscar título, artista o álbum"
+              aria-label="Buscar título, artista o álbum"
+              value={busqueda}
+              onChange={(e) => cambiarBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && busqueda !== '') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  cambiarBusqueda('')
+                }
+              }}
+            />
+          </div>
         </div>
-        {!sel.activo && (
-          <Boton ref={botonSeleccionar} onClick={entrarSeleccion}>
-            <Icono icono={SquareCheck} tamano={16} />
-            {SEL.boton}
-          </Boton>
-        )}
-        <div className={estilos.busqueda}>
-          <Icono icono={Search} tamano={16} className={estilos.busquedaIcono} />
-          <input
-            ref={campoBusqueda}
-            type="search"
-            className={estilos.campoBusqueda}
-            placeholder="Buscar título, artista o álbum"
-            aria-label="Buscar título, artista o álbum"
-            value={busqueda}
-            onChange={(e) => cambiarBusqueda(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && busqueda !== '') {
-                e.preventDefault()
-                e.stopPropagation()
-                cambiarBusqueda('')
-              }
+        {sel.activo && (
+          <BarraSeleccion
+            ref={botonAplicar}
+            seleccionadas={seleccionadas.length}
+            fuera={fuera}
+            motivoInactivo={motivoAplicar}
+            alAplicar={abrirAplicarLote}
+            alSeleccionarVisibles={() => sel.anadir(seleccionablesVisibles())}
+            alQuitar={sel.vaciar}
+            alTerminar={() => {
+              focoPendiente.current = { en: 'seleccionar' }
+              sel.salir()
             }}
           />
-        </div>
-      </div>
-      {sel.activo && (
-        <BarraSeleccion
-          ref={botonAplicar}
-          seleccionadas={seleccionadas.length}
-          fuera={fuera}
-          motivoInactivo={motivoAplicar}
-          alAplicar={abrirAplicarLote}
-          alSeleccionarVisibles={() => sel.anadir(seleccionablesVisibles())}
-          alQuitar={sel.vaciar}
-          alTerminar={() => {
-            focoPendiente.current = { en: 'seleccionar' }
-            sel.salir()
-          }}
-        />
-      )}
-      {visibles.length === 0 ? (
-        <div className={estilos.sinResultados} role="status">
-          <p>{textoSinResultados(filtro, texto)}</p>
-          {texto !== '' && (
-            <div className={estilos.accionesVacio}>
-              <Boton
-                variante="fantasma"
-                onClick={() => {
-                  cambiarBusqueda('')
-                  campoBusqueda.current?.focus()
-                }}
-              >
-                Borrar búsqueda
-              </Boton>
-              {filtro !== 'todas' && (
-                <Boton variante="fantasma" onClick={() => setFiltro('todas')}>
-                  Ver todas
+        )}
+        {visibles.length === 0 ? (
+          <div className={estilos.sinResultados} role="status">
+            <p>{textoSinResultados(filtro, texto)}</p>
+            {texto !== '' && (
+              <div className={estilos.accionesVacio}>
+                <Boton
+                  variante="fantasma"
+                  onClick={() => {
+                    cambiarBusqueda('')
+                    campoBusqueda.current?.focus()
+                  }}
+                >
+                  Borrar búsqueda
                 </Boton>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
-        <div ref={rejilla} onKeyDown={teclasRejilla}>
-          {agrupar === 'ninguno' ? (
-            <div role="list" aria-label="Canciones" className={estilos.rejilla} data-grupo-tarjetas>
-              {visibles.map(renderTarjeta)}
-            </div>
-          ) : (
-            grupos.map((g) => {
-              const plegado = plegados.has(g.id)
-              const idRegion = `${idBase}-${g.id}`
-              return (
-                <div key={g.id} className={estilos.grupo} data-grupo={g.id}>
-                  <EncabezadoGrupo
-                    grupo={g}
-                    plegado={plegado}
-                    filtrando={filtrando}
-                    idRegion={idRegion}
-                    alAlternar={() => alternarPlegado(g.id)}
-                    casilla={
-                      sel.activo ? (
-                        <CasillaGrupo
-                          nombreGrupo={g.nombre}
-                          ids={g.canciones.filter(esSeleccionable).map((c) => c.id)}
-                          seleccion={sel.ids}
-                          alAlternar={(ids, marcar) => (marcar ? sel.anadir(ids) : sel.quitar(ids))}
-                        />
-                      ) : undefined
-                    }
-                    tema={g.asignable ? <TemaGrupo grupo={g} catalogo={catalogo} /> : undefined}
-                  />
-                  <div
-                    id={idRegion}
-                    role="list"
-                    aria-label={g.nombre}
-                    className={estilos.rejilla}
-                    data-grupo-tarjetas
-                    hidden={plegado}
-                  >
-                    {!plegado && g.canciones.map(renderTarjeta)}
+                {filtro !== 'todas' && (
+                  <Boton variante="fantasma" onClick={() => setFiltro('todas')}>
+                    Ver todas
+                  </Boton>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+          <div ref={rejilla} onKeyDown={teclasRejilla}>
+            {agrupar === 'ninguno' ? (
+              <div
+                role="list"
+                aria-label="Canciones"
+                className={estilos.rejilla}
+                data-grupo-tarjetas
+              >
+                {visibles.map(renderTarjeta)}
+              </div>
+            ) : (
+              grupos.map((g) => {
+                const plegado = plegados.has(g.id)
+                const idRegion = `${idBase}-${g.id}`
+                return (
+                  <div key={g.id} className={estilos.grupo} data-grupo={g.id}>
+                    <EncabezadoGrupo
+                      grupo={g}
+                      plegado={plegado}
+                      filtrando={filtrando}
+                      idRegion={idRegion}
+                      alAlternar={() => alternarPlegado(g.id)}
+                      casilla={
+                        sel.activo ? (
+                          <CasillaGrupo
+                            nombreGrupo={g.nombre}
+                            ids={g.canciones.filter(esSeleccionable).map((c) => c.id)}
+                            seleccion={sel.ids}
+                            alAlternar={(ids, marcar) =>
+                              marcar ? sel.anadir(ids) : sel.quitar(ids)
+                            }
+                          />
+                        ) : undefined
+                      }
+                      tema={g.asignable ? <TemaGrupo grupo={g} catalogo={catalogo} /> : undefined}
+                    />
+                    <div
+                      id={idRegion}
+                      role="list"
+                      aria-label={g.nombre}
+                      className={estilos.rejilla}
+                      data-grupo-tarjetas
+                      hidden={plegado}
+                    >
+                      {!plegado && g.canciones.map(renderTarjeta)}
+                    </div>
                   </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      )}
-      {dialogo?.tipo === 'datos' && (
-        <DialogoEditarDatos
-          inicial={dialogo.inicial}
-          alCancelar={() => setDialogo(null)}
-          alGuardar={async (datos) => {
-            const antes = resumenDe(dialogo.id)
-            const nuevo = await window.shinobi.biblioteca.actualizarMetadatos(dialogo.id, datos)
-            setDialogo(null)
-            if (antes && nuevo) alEditarDatos(antes, nuevo)
+                )
+              })
+            )}
+          </div>
+        )}
+        {dialogo?.tipo === 'datos' && (
+          <DialogoEditarDatos
+            inicial={dialogo.inicial}
+            alCancelar={() => setDialogo(null)}
+            alGuardar={async (datos) => {
+              const antes = resumenDe(dialogo.id)
+              const nuevo = await window.shinobi.biblioteca.actualizarMetadatos(dialogo.id, datos)
+              setDialogo(null)
+              if (antes && nuevo) alEditarDatos(antes, nuevo)
+            }}
+          />
+        )}
+        {dialogo?.tipo === 'borrador' && dialogoResumen && (
+          <DialogoConfirmar
+            titulo="¿Volver a borrador?"
+            cuerpo={`«${tituloDeTarjeta(dialogoResumen)}» dejará de poder reproducirse hasta que la marques como lista otra vez. No se pierde nada.${estaEnCola ? ` ${BIB_COLA.dialogoBorrador}` : ''}`}
+            etiquetaConfirmar="Volver a borrador"
+            alCancelar={() => setDialogo(null)}
+            alConfirmar={() => confirmarBorrador(dialogo.id)}
+          />
+        )}
+        {dialogo?.tipo === 'cancelar' && dialogoResumen && (
+          <>
+            <DialogoCancelarDescarga
+              abierto={dialogo.paso === 'fuente'}
+              titulo={tituloDeTarjeta(dialogoResumen)}
+              alSeguir={() => setDialogo(null)}
+              alConfirmar={() => void cancelarEnCurso(dialogo.trabajoId)}
+            />
+            <DialogoCancelarSeparacion
+              abierto={dialogo.paso === 'separacion'}
+              alSeguir={() => setDialogo(null)}
+              alConfirmar={() => void cancelarEnCurso(dialogo.trabajoId)}
+            />
+          </>
+        )}
+        {dialogo?.tipo === 'eliminar' && dialogoResumen && (
+          <DialogoConfirmar
+            titulo={`¿Eliminar «${tituloDeTarjeta(dialogoResumen)}»?`}
+            cuerpo={`Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí.${avisoTrabajo}${estaEnCola ? ` ${BIB_COLA.dialogoEliminar}` : ''}`}
+            etiquetaConfirmar="Eliminar"
+            destructivo
+            alCancelar={() => setDialogo(null)}
+            alConfirmar={() => confirmarEliminar(dialogo.id)}
+          />
+        )}
+        <DialogoPantallasPedido
+          buscar={(id) => {
+            const r = resumenDe(id)
+            return r ? { titulo: tituloDeTarjeta(r), artista: r.artista } : undefined
           }}
         />
-      )}
-      {dialogo?.tipo === 'borrador' && dialogoResumen && (
-        <DialogoConfirmar
-          titulo="¿Volver a borrador?"
-          cuerpo={`«${tituloDeTarjeta(dialogoResumen)}» dejará de poder reproducirse hasta que la marques como lista otra vez. No se pierde nada.`}
-          etiquetaConfirmar="Volver a borrador"
-          alCancelar={() => setDialogo(null)}
-          alConfirmar={() => confirmarBorrador(dialogo.id)}
-        />
-      )}
-      {dialogo?.tipo === 'cancelar' && dialogoResumen && (
-        <>
-          <DialogoCancelarDescarga
-            abierto={dialogo.paso === 'fuente'}
-            titulo={tituloDeTarjeta(dialogoResumen)}
-            alSeguir={() => setDialogo(null)}
-            alConfirmar={() => void cancelarEnCurso(dialogo.trabajoId)}
+        {aplicarTema && (
+          <DialogoAplicarTema
+            canciones={aplicarTema.ids.flatMap((id) => resumenDe(id) ?? [])}
+            catalogo={catalogo}
+            desdeTarjeta={aplicarTema.desdeTarjeta}
+            alCerrar={cerrarAplicarTema}
           />
-          <DialogoCancelarSeparacion
-            abierto={dialogo.paso === 'separacion'}
-            alSeguir={() => setDialogo(null)}
-            alConfirmar={() => void cancelarEnCurso(dialogo.trabajoId)}
-          />
-        </>
-      )}
-      {dialogo?.tipo === 'eliminar' && dialogoResumen && (
-        <DialogoConfirmar
-          titulo={`¿Eliminar «${tituloDeTarjeta(dialogoResumen)}»?`}
-          cuerpo={`Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí.${avisoTrabajo}`}
-          etiquetaConfirmar="Eliminar"
-          destructivo
-          alCancelar={() => setDialogo(null)}
-          alConfirmar={() => confirmarEliminar(dialogo.id)}
-        />
-      )}
-      {aplicarTema && (
-        <DialogoAplicarTema
-          canciones={aplicarTema.ids.flatMap((id) => resumenDe(id) ?? [])}
-          catalogo={catalogo}
-          desdeTarjeta={aplicarTema.desdeTarjeta}
-          alCerrar={cerrarAplicarTema}
-        />
-      )}
-    </section>
+        )}
+      </section>
+      <PanelColaHost canciones={canciones} />
+    </div>
   )
 }

@@ -199,6 +199,9 @@ describe('menú ⋯', () => {
     await abrirMenu('Canción lista')
     expect(opciones()).toEqual([
       'Reproducir',
+      'Reproducir en otra pantalla…',
+      'Reproducir a continuación',
+      'Agregar al final',
       'Editar',
       'Editar datos',
       'Aplicar tema…',

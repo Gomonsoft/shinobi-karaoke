@@ -1,6 +1,6 @@
 # 0187 — Tarjetas y menús de la Biblioteca durante la sesión
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0183](0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md) y [0184](0184-dialogo-abrir-el-reproductor-en-otra-pantalla.md) (para «Reproducir en otra pantalla…»)
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §5 (eliminada y borrador), §6 (`cola.agregar`) y §9
@@ -42,3 +42,17 @@ Adaptar las tarjetas, los menús y los diálogos de la Biblioteca a la cola y a 
 - [ ] Con `CANCION_NO_DISPONIBLE` en `cola.agregar`, por ejemplo porque la canción pasó a borrador entre medias, se muestra el toast de error y no hay entrada.
 
 ## Notas de implementación
+
+**Qué se hizo.**
+- `TarjetaCancion.tsx`: con sesión, la acción principal, la portada, Intro/Espacio y el botón redondo de una Lista son «A la cola» (`cola.agregar` al final); el ⋯ sigue la tabla de la spec (sin sesión: Reproducir · Reproducir en otra pantalla… · a continuación · al final; con sesión, sin las dos primeras). Línea `bib.cola.sonando` / `bib.cola.enCola` (`lineaDeCola` en `tarjeta.ts`, incluida en el nombre accesible). «Editar» y «Continuar» (y la portada y el botón del borrador) usan `useAccionBloqueable`. «Eliminar…» y «Volver a borrador» de la activa quedan `aria-disabled` con `bib.cola.activaBloqueada` (Supr muestra ese texto en un toast).
+- `useAgregarACola.ts`: `cola.agregar` con toasts `cola.toast.final|siguiente|cuenta`, [Deshacer] (`cola.quitar` de su `entradaId`), [Iniciar ahora] en espera sin candidata, [Detener cuenta] en la cuenta del fin de cola, `COLA_LLENA` → `cola.llena`, `CANCION_NO_DISPONIBLE` → `ses.error.noDisponible`, y apertura del panel con la primera entrada de una cola vacía.
+- `Biblioteca.tsx`: cablea las acciones nuevas; `continuar` decide con el destino real y abre `edi.bloqueo` si es Letra o Editor; los diálogos de eliminar y volver a borrador de una pendiente añaden `bib.cola.dialogo.*`.
+- `MenuContextual.tsx` (aditivo): `ItemMenu.bloqueado` y `ariaEtiqueta` (aria-disabled con candado de 14 px, enfocable y que ejecuta la acción).
+- Prueba nueva `Biblioteca.cola.test.tsx` (S10, S11, E1, S4, errores) y ajuste de `Biblioteca.acciones.test.tsx` (nuevas opciones del ⋯).
+
+**Decisiones.**
+- El borrador solo muestra candado en «Continuar» cuando el destino es seguro (fuente y pistas completas); en los demás casos el bloqueo se decide al pulsar, con el destino real.
+- Selección múltiple: el código no excluía canciones por la sesión (la nota era solo de la spec), así que `BarraSeleccion.tsx` no cambia.
+- Panel al añadir: se abre si no había pendientes ni activa.
+
+**Cómo probarlo.** `npm run test -- src/renderer/src/vistas/biblioteca`.

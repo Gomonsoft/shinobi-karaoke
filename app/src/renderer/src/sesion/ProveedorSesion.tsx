@@ -9,8 +9,20 @@ import {
 } from 'react'
 import type { EstadoSesionIpc, ListaPantallasIpc, PosicionSesionIpc } from '@shared/sesion'
 import { crearAcciones, type AccionesSesion } from './acciones'
+import { DialogoCierreSesion } from '../vistas/biblioteca/cola/DialogoCierreSesion'
 import { DialogoBloqueo } from './DialogoBloqueo'
 import { aplicarEstado, edicionBloqueada, haySesion } from './estadoSesion'
+
+/**
+ * Qué empieza al abrir el diálogo de pantallas (0184): la cola (`'cola'`, `'reanudar'`: cola
+ * conservada), una canción concreta (`{ cancionId }`, «Reproducir en otra pantalla…») o `'mover'`
+ * (sesión abierta: «Cambiar de pantalla…» / «Mover a…», sin «Empezará con»).
+ */
+export type InicioDialogoPantallas = 'cola' | 'reanudar' | 'mover' | { cancionId: string }
+
+export interface PeticionDialogoPantallas {
+  inicio: InicioDialogoPantallas
+}
 
 export interface Sesion {
   /** `null` hasta la primera lectura. */
@@ -27,6 +39,10 @@ export interface Sesion {
   panelAbierto: boolean
   abrirPanel(): void
   cerrarPanel(): void
+  /** Diálogo «Abrir el reproductor en otra pantalla» pedido (lo pinta la Biblioteca). */
+  dialogoPantallas: PeticionDialogoPantallas | null
+  abrirDialogoPantallas(peticion: PeticionDialogoPantallas): void
+  cerrarDialogoPantallas(): void
   /** Abre el diálogo `edi.bloqueo`; el foco vuelve al elemento que lo tenía. */
   abrirBloqueo(): void
   acciones: AccionesSesion
@@ -47,6 +63,9 @@ export const sesionVacia: Sesion = {
   panelAbierto: false,
   abrirPanel: () => {},
   cerrarPanel: () => {},
+  dialogoPantallas: null,
+  abrirDialogoPantallas: () => {},
+  cerrarDialogoPantallas: () => {},
   abrirBloqueo: () => {},
   acciones: sinAcciones
 }
@@ -72,6 +91,7 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
   const [pantallas, setPantallas] = useState<ListaPantallasIpc | null>(null)
   const [panelAbierto, setPanelAbierto] = useState(false)
   const [bloqueo, setBloqueo] = useState(false)
+  const [dialogoPantallas, setDialogoPantallas] = useState<PeticionDialogoPantallas | null>(null)
 
   const aplicar = useCallback((nuevo: EstadoSesionIpc) => {
     const ahora = Date.now()
@@ -123,15 +143,19 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
       panelAbierto,
       abrirPanel: () => setPanelAbierto(true),
       cerrarPanel: () => setPanelAbierto(false),
+      dialogoPantallas,
+      abrirDialogoPantallas: (peticion) => setDialogoPantallas(peticion),
+      cerrarDialogoPantallas: () => setDialogoPantallas(null),
       abrirBloqueo: () => setBloqueo(true),
       acciones
     }),
-    [estado, recibidoEn, hay, posicion, pantallas, panelAbierto, acciones]
+    [estado, recibidoEn, hay, posicion, pantallas, panelAbierto, dialogoPantallas, acciones]
   )
 
   return (
     <SesionContexto.Provider value={valor}>
       {children}
+      <DialogoCierreSesion />
       <DialogoBloqueo
         abierto={bloqueo}
         alCerrar={() => setBloqueo(false)}

@@ -1,6 +1,6 @@
 # 0185 — Panel de la cola: sesión, controles, recuperación y cierre
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0183](0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md), [0184](0184-dialogo-abrir-el-reproductor-en-otra-pantalla.md) (el diálogo y la cabecera). Para integrarse en Electron necesita [0181](0181-servicio-de-sesion-e-ipc-en-main.md).
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §3, §6–§8 y §11
@@ -58,3 +58,22 @@ Crear el panel «Cola de reproducción» de la Biblioteca. Esta tarea cubre la e
 - [ ] El panel se puede usar entero con el teclado, y ninguna acción de la sesión tiene un atajo de una sola tecla.
 
 ## Notas de implementación
+
+**Qué se hizo** (`app/src/renderer/src/vistas/biblioteca/cola/`).
+- `PanelCola.tsx`: `complementary` con `data-panel-cola`, [Ocultar] (foco al botón «Cola»), estado de la pantalla (`cola.pantalla` + `cola.modo`, o `cola.pantalla.desconocida` en Wayland), [⛶], ⋯ (Mostrar · Cambiar de pantalla…), [✕ Cerrar reproductor], `ses.cierre.esperando` con los controles `aria-disabled` si el cierre se pidió en la secundaria, P5/P6 (con «Última reproducida» y diálogo «Eliminar cola…») y `ListaPendientes` (0186) con `duracionDe` y `lineasSinSincronizarDe` resueltas con los resúmenes de la biblioteca (0080; la Biblioteca pasa `canciones`, que es la compartida o la propia).
+- `BloqueActiva.tsx`: P1 (progreso de solo lectura con `sesion:posicion`, Pausa/Reanudar, Siguiente con `desdeEntradaId` de la activa, Reiniciar, ⋯ «Agregar otra vez al final», aviso de incompleta), P2 (reloj local sobre `recibidoEn`), P3 (causa, [Pasar…]/[Descartar], [Copiar detalles]) y P4 (espera y fin de la cola, [Otra vez]).
+- `BannersRecuperacion.tsx`: pantalla perdida ([Mover a…]), de vuelta ([Llevar el reproductor allí], ✕), caída ([Volver a abrir], ✕) y sin respuesta ([Esperar] 10 s, [Cerrar y volver a abrir]). Sin banners de pantalla en Wayland.
+- `DialogoCierreSesion.tsx`: `ses.cierre` para `cierrePendiente.origen === 'principal'`, con `CONFIRMACION_OBSOLETA`, y focos y anuncios tras conservar o eliminar.
+- `PanelColaHost.tsx`: monta el panel y lo abre solo al empezar una sesión, al volver con cola conservada y ante una incidencia (sin mover el foco); anuncia la entrada que empieza.
+- Cabecera de `Biblioteca.tsx`: botón «Cola {n}» (`data-boton-cola`, `aria-expanded`, `aria-controls`) y colocación del panel (`.conPanel`, sticky, 360 o 320 px).
+
+**Decisiones y desviaciones.**
+- `DialogoCierreSesion` se monta dentro de `ProveedorSesion` (una línea en `sesion/`), no en la Biblioteca: así el diálogo también aparece cuando «Cerrar el reproductor…» se pulsa desde `edi.bloqueo` en Letra o el Editor.
+- «Mover a…» y «Cambiar de pantalla…» abren el diálogo de pantallas en modo `mover` (0184), no un menú aparte.
+- Textos nuevos provisionales: «Cerrar aviso» (✕ de los banners).
+- La región `aria-live` de los anuncios del proveedor usa `aria-live` sin `role="status"` para no chocar con las consultas de las pruebas de 0186.
+- El hueco del panel no tiene otra deuda: la lista de 0186 está integrada.
+
+**Cómo probarlo.** `npm run test:cambios`, o `npx vitest run src/renderer/src/vistas/biblioteca`. Pendiente de E2E/captura (0190): a 1024 × 576 con el panel abierto, la rejilla queda en 2 columnas sin scroll horizontal (el CSS lo prevé: panel de 320 px y rejilla `auto-fill`); y todo lo que necesita dos pantallas reales (manual).
+
+**Deuda.** Integración real con main en 0181; el foco tras un cierre pedido desde la secundaria no se gestiona (no hay origen local).

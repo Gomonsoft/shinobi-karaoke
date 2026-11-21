@@ -1,5 +1,7 @@
 import type { EventoProgresoIpc, ResumenCancionIpc, TrabajoIpc } from '@shared/ipc'
+import type { EstadoSesionIpc } from '@shared/sesion'
 import type { EstadoInsignia } from '../../componentes/InsigniaEstado'
+import { BIB_COLA } from '../../sesion/textos'
 import { textoReintentoRed } from '../../trabajos/useCuentaAtras'
 import { textoDeError } from '../progreso/textos'
 import { lineaDeTema } from './textosTema'
@@ -288,4 +290,24 @@ export function textoAriaTarjeta(r: ResumenCancionIpc, d: DatosTarjeta): string 
  */
 export function usaMiniatura(r: ResumenCancionIpc): boolean {
   return !r.danada && r.miniatura !== null && r.apariencia.neutra
+}
+
+/**
+ * «Continuar» de un borrador que lleva sí o sí a Letra o al Editor (fuente y pistas completas):
+ * con una sesión abierta queda bloqueado (spec 06, E1). Los demás destinos se deciden al pulsar.
+ */
+export function continuaHaciaEdicion(r: ResumenCancionIpc): boolean {
+  return (
+    !r.danada &&
+    r.estado !== 'lista' &&
+    r.pasos?.fuente.estado === 'completado' &&
+    r.pasos.separacion.estado === 'completado'
+  )
+}
+
+/** Línea de cola de la tarjeta (`bib.cola.sonando` / `bib.cola.enCola`); `null` si no aplica. */
+export function lineaDeCola(estado: EstadoSesionIpc | null, cancionId: string): string | null {
+  if (!estado) return null
+  if (estado.sesion && estado.activa?.cancionId === cancionId) return BIB_COLA.sonando
+  return estado.pendientes.some((e) => e.cancionId === cancionId) ? BIB_COLA.enCola : null
 }

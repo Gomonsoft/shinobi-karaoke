@@ -1,6 +1,6 @@
 # 0184 — Diálogo «Abrir el reproductor en otra pantalla»
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 6
 - Depende de: [0183](0183-estado-de-sesion-en-la-principal-bloqueo-de-edicion-e-indicador.md). Para integrarse en Electron necesita [0181](0181-servicio-de-sesion-e-ipc-en-main.md).
 - ADRs: [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) §2, §5 (apertura) y §11 (`pantallas.listar`, `sesion.abrir`), respuesta [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md)
@@ -39,3 +39,20 @@ Construir el diálogo de apertura y el botón de la cabecera de la Biblioteca, y
 - [ ] Solo con teclado: ↑ y ↓ cambian la pantalla y Esc cancela.
 
 ## Notas de implementación
+
+**Qué se hizo.**
+- `useSesion` expone `abrirDialogoPantallas({ inicio })`, `cerrarDialogoPantallas` y `dialogoPantallas`. `inicio` es `'cola'`, `'reanudar'`, `'mover'` (variante «Cambiar de pantalla…» / «Mover a…» sin «Empezará con», con `sesion.moverAPantalla`) o `{ cancionId }` («Reproducir en otra pantalla…»). El estado vive en `ProveedorSesion` (único cambio en `sesion/`) y el diálogo lo pinta la Biblioteca con `DialogoPantallasPedido`.
+- `DialogoPantallas.tsx`: grupo de radio con la lista en vivo (`pantallas` del contexto), aviso `ses.pantalla.desaparecida` (también si desaparece la preseleccionada), nota de una pantalla, casilla «Pantalla completa» con su regla por defecto y `ses.completa.misma`, notas `ses.audio` y `ses.bloqueo.nota`, `ses.empieza.*` (`empieza.ts`, función pura probada), Wayland (sin lista ni casilla, `pantallaCompleta: false`), «Abriendo…», errores en línea (`abrir`, `guardando`, `noDisponible`, con [Reintentar] sobre la misma selección; `PANTALLA_NO_DISPONIBLE` recarga la lista; `SESION_EN_CURSO` cierra y abre el panel). Al abrir con éxito se abre el panel y se pide el foco con `enfocarPanelColaCuandoEste`.
+- `preseleccion.ts`: preselección (guardada por `id` o por etiqueta y tamaño; si no, la primera que no es la de la ventana principal) y valor por defecto de la casilla.
+- Cabecera de `Biblioteca.tsx`: contenedor `.cabecera` con «Abrir en otra pantalla…» (oculto con sesión y con la biblioteca vacía). 0185 añade «Cola {n}» en `.cabeceraAcciones`.
+- `montarConSesion.tsx` (solo pruebas): monta la Biblioteca con los dobles de sesión; lo reutilizan 0185 y 0187.
+
+**Cómo probarlo.** `npm test -- src/renderer/src/vistas/biblioteca`. No hay E2E propio (se delega al CI).
+
+**Decisiones provisionales.**
+- La función de preselección vive en `vistas/biblioteca/sesion/preseleccion.ts` y no en `shared/` (propiedad de 0177). `ListaPantallasIpc` no lleva la preselección: se calcula aquí con `config.reproductor.secundaria` leído con `config.obtener()`.
+- Variante «mover»: título `ses.cambiar` y botón `ses.mover`; no hay texto específico para el botón en la spec y no se muestra la casilla (`sesion.moverAPantalla` solo recibe la pantalla).
+- Wayland: `sesion.abrir` recibe la primera pantalla de la lista (o 0) como `pantallaId`; main la ignora con `colocacion: 'sistema'`.
+- Las flechas ↑/↓ las resuelve el grupo de radio nativo (jsdom no lo emula; la prueba comprueba que es un solo grupo). Se verifica en E2E (0190).
+
+**Deuda.** La integración real con main llega con 0181.
