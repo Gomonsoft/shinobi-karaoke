@@ -11,7 +11,7 @@ import { useReproductor } from '../../navegacion/reproductor'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
 import { useSesion } from '../../sesion/ProveedorSesion'
-import { SES } from '../../sesion/textos'
+import { BIB_COLA, SES } from '../../sesion/textos'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCatalogoTemas } from '../../temas/useCatalogoTemas'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
@@ -30,6 +30,7 @@ import { procedenciaCorta } from '../../temas/textos'
 import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
 import { SEL, TEMAS_NO_DISPONIBLES } from './textosSeleccion'
+import { useAgregarACola } from './useAgregarACola'
 import { esSeleccionable, reiniciarSeleccionDeSesion, useSeleccion } from './useSeleccion'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
 import {
@@ -141,6 +142,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
   const sesion = useSesion()
+  const { edicionBloqueada, abrirBloqueo } = sesion
+  const agregarACola = useAgregarACola()
   const [activa, setActiva] = useState<string | null>(null)
   const [filtro, setFiltroEstado] = useState<FiltroBiblioteca>(filtroDeSesion)
   const [busqueda, setBusqueda] = useState('')
@@ -540,13 +543,27 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           fuenteEnCola,
           progresoVisto: progresoVisto(id)
         })
+        // Con sesión abierta, Letra y Editor no se abren: se explica en `edi.bloqueo` (spec 06, E1).
+        if (edicionBloqueada && (paso === 'letra' || paso === 'editor')) {
+          abrirBloqueo()
+          return
+        }
         // Fuente sin completar: resumen de la fuente de esa canción (wireframe E), no una vista nueva.
         ir({ tipo: 'cancion', id, paso: paso === 'anadir' ? 'fuente' : paso })
       } catch {
         mostrarToast({ tipo: 'error', mensaje: 'No se pudo abrir la canción.' })
       }
     },
-    [ir]
+    [ir, edicionBloqueada, abrirBloqueo]
+  )
+
+  const { abrirDialogoPantallas } = sesion
+  const tituloDe = useCallback(
+    (id: string) => {
+      const r = canciones.find((c) => c.id === id)
+      return r ? tituloDeTarjeta(r) : ''
+    },
+    [canciones]
   )
 
   const acciones = useMemo<AccionesTarjeta>(
@@ -554,6 +571,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       reproducir: abrir,
       continuar: (id) => void continuar(id),
       editar: (id) => ir({ tipo: 'cancion', id, paso: 'editor' }),
+      agregarAlFinal: (id) => void agregarACola(id, tituloDe(id), 'final'),
+      agregarSiguiente: (id) => void agregarACola(id, tituloDe(id), 'siguiente'),
+      reproducirEnOtraPantalla: (id) => abrirDialogoPantallas({ inicio: { cancionId: id } }),
       editarDatos: (id) => void abrirEditarDatos(id),
       volverABorrador: (id) => setDialogo({ tipo: 'borrador', id }),
       reintentar: (id) => void reintentarPaso(id),
@@ -574,6 +594,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       reintentarPaso,
       cancelarTrabajo,
       resepararPistas,
+      agregarACola,
+      tituloDe,
+      abrirDialogoPantallas,
       temasUsables
     ]
   )
@@ -775,6 +798,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       )
     : undefined
   const pasoActivo = vivoDialogo?.trabajo.paso ?? enCursoPaso
+  // Una canción pendiente o con entradas en la cola avisa en sus diálogos (spec 02, S11).
+  const estaEnCola =
+    dialogo !== null && (sesion.estado?.pendientes.some((e) => e.cancionId === dialogo.id) ?? false)
   const avisoTrabajo =
     pasoActivo === 'separacion'
       ? ' Se cancelará la separación en curso.'
@@ -954,7 +980,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       {dialogo?.tipo === 'borrador' && dialogoResumen && (
         <DialogoConfirmar
           titulo="¿Volver a borrador?"
-          cuerpo={`«${tituloDeTarjeta(dialogoResumen)}» dejará de poder reproducirse hasta que la marques como lista otra vez. No se pierde nada.`}
+          cuerpo={`«${tituloDeTarjeta(dialogoResumen)}» dejará de poder reproducirse hasta que la marques como lista otra vez. No se pierde nada.${estaEnCola ? ` ${BIB_COLA.dialogoBorrador}` : ''}`}
           etiquetaConfirmar="Volver a borrador"
           alCancelar={() => setDialogo(null)}
           alConfirmar={() => confirmarBorrador(dialogo.id)}
@@ -978,7 +1004,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       {dialogo?.tipo === 'eliminar' && dialogoResumen && (
         <DialogoConfirmar
           titulo={`¿Eliminar «${tituloDeTarjeta(dialogoResumen)}»?`}
-          cuerpo={`Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí.${avisoTrabajo}`}
+          cuerpo={`Se moverá a la papelera de tu sistema, con sus pistas y su letra. Podrás recuperarla desde allí.${avisoTrabajo}${estaEnCola ? ` ${BIB_COLA.dialogoEliminar}` : ''}`}
           etiquetaConfirmar="Eliminar"
           destructivo
           alCancelar={() => setDialogo(null)}

@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import type { ApiShinobi, ResumenCancionIpc } from '@shared/ipc'
 import type { EstadoSesionIpc, ListaPantallasIpc } from '@shared/sesion'
+import { ContenedorToasts } from '../../componentes/Toasts'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { ReproductorContexto } from '../../navegacion/reproductor'
 import { instalarApiSesion } from '../../sesion/pruebas'
@@ -20,6 +22,8 @@ export function montarConSesion(
     biblioteca?: Partial<ApiShinobi['biblioteca']>
     /** `config.reproductor.secundaria` guardado. */
     config?: unknown
+    /** Se pinta dentro del proveedor, junto a la Biblioteca (p. ej. una sonda del contexto). */
+    hijos?: ReactNode
   } = {}
 ) {
   reiniciarFiltroDeSesion()
@@ -42,6 +46,8 @@ export function montarConSesion(
       <ReproductorContexto.Provider value={{ abrir, abierto: null }}>
         <ProveedorSesion>
           <Biblioteca />
+          {opciones.hijos}
+          <ContenedorToasts />
         </ProveedorSesion>
       </ReproductorContexto.Provider>
     </NavegacionContexto.Provider>

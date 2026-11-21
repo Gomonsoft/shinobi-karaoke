@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Palette, Play, TriangleAlert } from 'lucide-react'
+import { ListPlus, Palette, Play, TriangleAlert } from 'lucide-react'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { fondoCss } from '../../karaoke/estiloCss'
@@ -7,12 +7,18 @@ import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { InsigniaEstado } from '../../componentes/InsigniaEstado'
 import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
+import { mostrarToast } from '../../componentes/gestorToasts'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { BIB_COLA, EDI_BLOQUEO, SES } from '../../sesion/textos'
+import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { LineaPaso } from './LineaPaso'
 import { SEL } from './textosSeleccion'
 import {
+  continuaHaciaEdicion,
   datosDeTarjeta,
   formatearDuracion,
+  lineaDeCola,
   textoAriaTarjeta,
   temaDeTarjeta,
   tituloDeTarjeta,
@@ -35,6 +41,12 @@ export interface AccionesTarjeta {
   resepararPistas(id: string): void
   mostrarEnCarpeta(id: string): void
   eliminar(id: string): void
+  /** «A la cola» / «Agregar al final»: `cola.agregar` al final. */
+  agregarAlFinal(id: string): void
+  /** «Reproducir a continuación»: `cola.agregar` al frente de las pendientes. */
+  agregarSiguiente(id: string): void
+  /** «Reproducir en otra pantalla…» (solo sin sesión): abre el diálogo de pantallas con esa canción. */
+  reproducirEnOtraPantalla(id: string): void
   /** «Aplicar tema…» del menú ⋯: la cablea 0173; sin ella, el menú no ofrece la opción. */
   aplicarTema?(id: string): void
 }
@@ -125,12 +137,24 @@ export function TarjetaCancion({
 }: TarjetaProps) {
   const titulo = tituloDeTarjeta(resumen)
   const raiz = useRef<HTMLElement>(null)
+  const { estado, haySesion } = useSesion()
+  const bloqueo = useAccionBloqueable()
   const esperaS = useCuentaAtras(vivo?.progreso ?? vivo?.trabajo.progreso, vivo?.trabajo.id)
   const d = datosDeTarjeta(resumen, vivo ? { ...vivo, esperaS } : vivo)
   const lista = resumen.estado === 'lista' && !resumen.danada
   const duracion = formatearDuracion(resumen.duracionMs)
   const id = resumen.id
   const tema = temaDeTarjeta(resumen)
+  const lineaCola = lineaDeCola(estado, id)
+  // La canción de la entrada activa no se puede eliminar ni volver a borrador (spec 02).
+  const esActiva = haySesion && estado?.activa?.cancionId === id
+  const continuaBloqueado = bloqueo.bloqueada && continuaHaciaEdicion(resumen)
+  const textoBloqueo = (nombre: string) => ({
+    bloqueado: true,
+    ariaEtiqueta: `${nombre}${EDI_BLOQUEO.aria}`
+  })
+  // Con sesión, la acción principal de una Lista es agregarla al final de la cola.
+  const principalEsCola = lista && haySesion
 
   const abrirMenu = () =>
     raiz.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.click()
@@ -138,28 +162,59 @@ export function TarjetaCancion({
     // En el modo selección el clic llega a la tarjeta y alterna la casilla.
     if (seleccion) return
     if (resumen.danada) abrirMenu()
-    else if (lista) acciones.reproducir(id)
-    else acciones.continuar(id)
+    else if (lista) alReproducir()
+    else alContinuar()
   }
+  const alReproducir = () =>
+    principalEsCola ? acciones.agregarAlFinal(id) : acciones.reproducir(id)
+  const alContinuar = () =>
+    continuaBloqueado ? bloqueo.intentar(() => acciones.continuar(id)) : acciones.continuar(id)
   const alPrincipal = () => {
-    if (d.accion === 'reproducir') acciones.reproducir(id)
+    if (d.accion === 'reproducir') alReproducir()
     else if (d.accion === 'reintentar') acciones.reintentar(id)
-    else if (d.accion) acciones.continuar(id)
+    else if (d.accion) alContinuar()
+  }
+  const alEliminar = () => {
+    if (esActiva) mostrarToast({ tipo: 'info', mensaje: BIB_COLA.activaBloqueada })
+    else acciones.eliminar(id)
   }
 
   const items: ItemMenu[] = []
   if (lista) {
+    if (!haySesion) {
+      items.push({
+        id: 'reproducir',
+        etiqueta: 'Reproducir',
+        alSeleccionar: () => acciones.reproducir(id)
+      })
+      items.push({
+        id: 'otraPantalla',
+        etiqueta: SES.menuOtraPantalla,
+        alSeleccionar: () => acciones.reproducirEnOtraPantalla(id)
+      })
+    }
     items.push({
-      id: 'reproducir',
-      etiqueta: 'Reproducir',
-      alSeleccionar: () => acciones.reproducir(id)
+      id: 'siguiente',
+      etiqueta: BIB_COLA.menu.siguiente,
+      alSeleccionar: () => acciones.agregarSiguiente(id)
     })
-    items.push({ id: 'editar', etiqueta: 'Editar', alSeleccionar: () => acciones.editar(id) })
+    items.push({
+      id: 'final',
+      etiqueta: BIB_COLA.menu.final,
+      alSeleccionar: () => acciones.agregarAlFinal(id)
+    })
+    items.push({
+      id: 'editar',
+      etiqueta: 'Editar',
+      ...(bloqueo.bloqueada ? textoBloqueo('Editar') : null),
+      alSeleccionar: () => bloqueo.intentar(() => acciones.editar(id))
+    })
   } else if (!resumen.danada) {
     items.push({
       id: 'continuar',
       etiqueta: 'Continuar',
-      alSeleccionar: () => acciones.continuar(id)
+      ...(continuaBloqueado ? textoBloqueo('Continuar') : null),
+      alSeleccionar: alContinuar
     })
   }
   if (!resumen.danada) {
@@ -180,6 +235,7 @@ export function TarjetaCancion({
     items.push({
       id: 'borrador',
       etiqueta: 'Volver a borrador',
+      noDisponible: esActiva ? BIB_COLA.activaBloqueada : undefined,
       alSeleccionar: () => acciones.volverABorrador(id)
     })
   }
@@ -206,6 +262,7 @@ export function TarjetaCancion({
     etiqueta: 'Eliminar…',
     separadorAntes: true,
     destructivo: true,
+    noDisponible: esActiva ? BIB_COLA.activaBloqueada : undefined,
     alSeleccionar: () => acciones.eliminar(id)
   })
 
@@ -218,7 +275,7 @@ export function TarjetaCancion({
       data-tarjeta={id}
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={activa ? 0 : -1}
-      aria-label={`${textoAriaTarjeta(resumen, d)}${seleccion?.marcada ? ' Seleccionada.' : ''}`}
+      aria-label={`${textoAriaTarjeta(resumen, d)}${lineaCola ? ` ${lineaCola.replace(/^▶ /, '')}.` : ''}${seleccion?.marcada ? ' Seleccionada.' : ''}`}
       data-seleccionada={seleccion?.marcada || undefined}
       onFocus={(e) => {
         if (e.target === e.currentTarget) alEnfocar(id)
@@ -243,7 +300,7 @@ export function TarjetaCancion({
           alPrincipal()
         } else if (e.key === 'Delete') {
           e.preventDefault()
-          acciones.eliminar(id)
+          alEliminar()
         } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
           e.preventDefault()
           abrirMenu()
@@ -272,9 +329,9 @@ export function TarjetaCancion({
             data-boton-redondo
             // Duplica la acción principal (y la portada): no se anuncia dos veces.
             aria-hidden="true"
-            onClick={() => acciones.reproducir(id)}
+            onClick={alReproducir}
           >
-            <Icono icono={Play} tamano={24} />
+            <Icono icono={principalEsCola ? ListPlus : Play} tamano={24} />
           </button>
         )}
       </div>
@@ -295,6 +352,11 @@ export function TarjetaCancion({
             <span>{tema.texto}</span>
           </p>
         )}
+        {lineaCola && (
+          <p className={`t-pequeno ${estilos.lineaCola}`} data-linea-cola>
+            {lineaCola}
+          </p>
+        )}
         <div className={estilos.filaEstado}>
           <InsigniaEstado estado={d.insignia} />
           {!seleccion && (
@@ -312,10 +374,22 @@ export function TarjetaCancion({
               variante="secundario"
               tabIndex={-1}
               onClick={alPrincipal}
-              aria-label={`${ETIQUETA_ACCION[d.accion]} «${titulo}»`}
+              aria-label={
+                principalEsCola && d.accion === 'reproducir'
+                  ? BIB_COLA.botonAria(titulo)
+                  : `${ETIQUETA_ACCION[d.accion]} «${titulo}»${
+                      d.accion === 'continuar' && continuaBloqueado ? EDI_BLOQUEO.aria : ''
+                    }`
+              }
+              aria-disabled={d.accion === 'continuar' && continuaBloqueado ? true : undefined}
             >
-              {d.accion === 'reproducir' && <Icono icono={Play} tamano={16} />}
-              {ETIQUETA_ACCION[d.accion]}
+              {d.accion === 'reproducir' && (
+                <Icono icono={principalEsCola ? ListPlus : Play} tamano={16} />
+              )}
+              {principalEsCola && d.accion === 'reproducir'
+                ? BIB_COLA.boton
+                : ETIQUETA_ACCION[d.accion]}
+              {d.accion === 'continuar' && continuaBloqueado && bloqueo.candado}
             </Boton>
           </div>
         )}

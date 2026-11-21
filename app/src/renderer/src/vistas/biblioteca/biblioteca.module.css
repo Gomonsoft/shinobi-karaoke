@@ -520,3 +520,9 @@
 .simboloExito {
   color: var(--exito);
 }
+
+/* Línea de cola de la tarjeta (`bib.cola.sonando` / `bib.cola.enCola`). */
+.lineaCola {
+  margin: 0;
+  color: var(--texto-2);
+}
