@@ -175,3 +175,15 @@
     opacity: 0.5;
   }
 }
+
+/* Selector nativo de «Reproductor» (fase 4). */
+.selector {
+  align-self: flex-start;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+  font: inherit;
+}

@@ -2,12 +2,13 @@ import { Boton } from '../../componentes/Boton'
 import { useNavegacion, vistaDeOrigen } from '../../navegacion/estado'
 import { AcercaDe } from '../acerca/AcercaDe'
 import estilos from './ajustes.module.css'
+import { ReproductorAjustes } from './ReproductorAjustes'
 import { SeparacionAjustes } from './SeparacionAjustes'
 import { TemasAjustes } from './TemasAjustes'
 import { AJ } from './textos'
 
 /**
- * Vista Ajustes (`ux/08`): separación de voz (solo informativa), temas y Acerca de. «Volver» y Esc
+ * Vista Ajustes (`ux/08`): separación de voz (solo informativa), temas, reproductor y Acerca de. «Volver» y Esc
  * regresan a la vista de origen (Biblioteca o editor de la canción, con la pestaña Estilo).
  */
 export function Ajustes() {
@@ -18,6 +19,8 @@ export function Ajustes() {
   const conTemas = typeof window.shinobi.temas?.catalogo === 'function'
   // Sin API de runtime (pruebas de otras vistas) solo se muestra Acerca de.
   const conRuntime = typeof window.shinobi.runtime?.estado === 'function'
+  // Sin API de configuración (pruebas de otras vistas) no se muestra «Reproductor».
+  const conConfig = typeof window.shinobi.config?.obtener === 'function'
   return (
     <section className={estilos.vista} aria-labelledby="titulo-vista">
       <Boton variante="fantasma" onClick={() => ir(vistaDeOrigen(origen))}>
@@ -40,6 +43,12 @@ export function Ajustes() {
       {conTemas && (
         <>
           <TemasAjustes enfocarAlAbrir={enTemas} />
+          <hr className={estilos.separador} />
+        </>
+      )}
+      {conConfig && (
+        <>
+          <ReproductorAjustes />
           <hr className={estilos.separador} />
         </>
       )}
