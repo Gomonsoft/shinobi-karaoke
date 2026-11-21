@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { Mic, Search, SquareCheck } from 'lucide-react'
+import { Mic, MonitorUp, Search, SquareCheck } from 'lucide-react'
 import { vistaAlContinuar } from '@shared/derivados'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
@@ -10,6 +10,8 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { useReproductor } from '../../navegacion/reproductor'
 import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { progresoVisto } from '../../navegacion/progresoVisto'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { SES } from '../../sesion/textos'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCatalogoTemas } from '../../temas/useCatalogoTemas'
 import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
@@ -17,6 +19,7 @@ import { BarraSeleccion } from './BarraSeleccion'
 import { CasillaGrupo } from './CasillaGrupo'
 import { DialogoAplicarTema, type SalidaLote } from './DialogoAplicarTema'
 import { EncabezadoGrupo } from './EncabezadoGrupo'
+import { DialogoPantallasPedido } from './sesion/DialogoPantallas'
 import { TemaGrupo } from './TemaGrupo'
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
 import { agruparCanciones, idGrupoDe, textoAnuncioResultados } from './agrupacion'
@@ -137,6 +140,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
+  const sesion = useSesion()
   const [activa, setActiva] = useState<string | null>(null)
   const [filtro, setFiltroEstado] = useState<FiltroBiblioteca>(filtroDeSesion)
   const [busqueda, setBusqueda] = useState('')
@@ -780,9 +784,22 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
 
   return (
     <section ref={seccion} aria-labelledby="titulo-vista">
-      <h1 id="titulo-vista" className="t-titulo" tabIndex={-1} data-foco-inicial>
-        Biblioteca
-      </h1>
+      <div className={estilos.cabecera}>
+        <h1 id="titulo-vista" className="t-titulo" tabIndex={-1} data-foco-inicial>
+          Biblioteca
+        </h1>
+        <div className={estilos.cabeceraAcciones}>
+          {!sesion.haySesion && (
+            <Boton
+              aria-label={SES.abrirAria}
+              onClick={() => sesion.abrirDialogoPantallas({ inicio: 'cola' })}
+            >
+              <Icono icono={MonitorUp} tamano={16} />
+              {SES.abrir}
+            </Boton>
+          )}
+        </div>
+      </div>
       <p role="status" className={estilos.soloLector}>
         {anuncio}
       </p>
@@ -968,6 +985,12 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           alConfirmar={() => confirmarEliminar(dialogo.id)}
         />
       )}
+      <DialogoPantallasPedido
+        buscar={(id) => {
+          const r = resumenDe(id)
+          return r ? { titulo: tituloDeTarjeta(r), artista: r.artista } : undefined
+        }}
+      />
       {aplicarTema && (
         <DialogoAplicarTema
           canciones={aplicarTema.ids.flatMap((id) => resumenDe(id) ?? [])}

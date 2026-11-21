@@ -11,6 +11,21 @@
   display: contents;
 }
 
+/* ---------- Cabecera de la vista (fase 4) ---------- */
+.cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+}
+
+.cabeceraAcciones {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+
 /* ---------- Tarjeta ---------- */
 .tarjeta {
   display: flex;
