@@ -57,7 +57,8 @@ beforeEach(async () => {
     await writeFile(join(datos, 'biblioteca', id, 'pistas', 'voz.flac'), 'v')
   }
 })
-afterEach(() => rm(raiz, { recursive: true, force: true }))
+// El servicio puede seguir escribiendo el diario cuando acaba la prueba: `rm` reintenta ante ENOTEMPTY.
+afterEach(() => rm(raiz, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }))
 
 function cancionDe(id: string, extra: Partial<Cancion> = {}, titulo?: string): Cancion {
   const base = lista()
