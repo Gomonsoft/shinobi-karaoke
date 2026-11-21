@@ -1,5 +1,5 @@
 # 0251 — Workflow: commit objetivo, número de compilación, canal y disparador nocturno
-- Estado: Pendiente
+- Estado: Hecha (implementación; el ensayo en GitHub lo hace la sesión principal)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0248 (`compilacion.mjs` y las variables de build)
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §1 y §2; [0013](../adr/0013-workflow-de-empaquetado-y-prueba-de-la-app-empaquetada.md), «Revisión para 0.2.0 — fase 10»
@@ -33,3 +33,19 @@ Preparar `.github/workflows/empaquetado.yml` para construir un commit que no tie
 - Manual: el ensayo de arriba lo hace la sesión principal (no se puede en local). El `schedule` real solo se comprueba cuando el archivo esté en `main` (guía de la versión).
 
 ## Notas de implementación
+
+**Hecho.**
+- `compilacion.mjs` gana `decidir` (función pura con la tabla del ADR §1), `consultarCanal` (con `gh(ruta)` inyectable: 200 / 404 / otro código), `resolverDecision` y la orden `decidir --salida-github`, que lee `GITHUB_EVENT_NAME`, `GITHUB_REF`, `SHA`, `REPO_COMPILACIONES` y `HAY_TOKEN`, escribe `desarrollo`, `construir`, `canal_app` y `configurado`, y deja el motivo en `GITHUB_STEP_SUMMARY` cuando no se construye. `contar` no cambia.
+- `empaquetado.yml`: `schedule` (`23 4 * * *`), sin `inputs`. `comprobar-version` resuelve `sha` sin checkout (`gh api …/branches/develop` en `schedule`), hace `checkout` de `ref: sha` con `fetch-depth: 0`, decide, y solo si `construir` ejecuta los pasos de versión y `contar`. Salidas nuevas: `sha`, `numero`, `compilacion`, `canal_app`, `desarrollo`, `construir` y `configurado` (añadida: la necesita `preparar-desarrollo` para saber si leer la última compilación del canal). `construir`, `probar-instalador` y `preparar-publicacion` llevan `if` con `construir`, hacen `checkout` de `sha` y nombran los artefactos con `COMMIT_CONSTRUIDO` (salida `sha`), nunca con `GITHUB_SHA`. `npm run build` recibe `SHINOBI_COMPILACION_CANAL/NUMERO/COMMIT`; el resumen de cada SO lleva el número de compilación.
+- Archivos: `.github/workflows/empaquetado.yml`, `app/scripts/compilacion.mjs` (+ `.d.mts`, `.test.ts`), `app/scripts/workflow-empaquetado.test.ts`.
+
+**Desviación del contrato (consciente).** El contrato pide `checkout` solo «si `construir`». Pero la decisión es un script del repositorio y hay que tener el código para ejecutarlo, así que `comprobar-version` hace **siempre** un `checkout` de solo lectura de `sha` (sin secretos: el trabajo solo ve `HAY_TOKEN` = `true/false`). Los pasos de versión (`version.mjs comprobar`, ancestro en `main`, `contar`) sí quedan condicionados a `construir`, de modo que una nocturna sin canal o sin cambios no ejecuta nada que pueda fallar.
+
+**Cómo probarlo.** `cd app && npx vitest run scripts/compilacion.test.ts scripts/workflow-empaquetado.test.ts` (tabla completa de `decidir`, `consultarCanal` con `gh` simulado y estructura del YAML). Verificado además: parseo YAML de todo el archivo y `bash -n` de los `run:` de shell.
+
+**Sin verificar en local (ensayo con `workflow_dispatch`, sesión principal).**
+1. `gh workflow run empaquetado.yml --ref alpha-2`: el resumen de cada SO muestra «Compilación `<versión>-<N>`»; el artefacto se llama `shinobi-karaoke-<versión>-<sha7 de alpha-2>-<so>`; `comprobar-version` expone `desarrollo = ensayo`.
+2. Que `gh api repos/<repo>` sobre un repositorio inexistente imprima `(HTTP 404)` (la rama «no configurado» depende de ese formato de error).
+3. `--ref develop` sin canal: verde con `desarrollo = ensayo`.
+4. El `schedule` real solo cuando el archivo esté en `main`.
+5. `actionlint` no estaba instalado y no se ejecutó un binario descargado: expresiones y `needs` revisados a mano.

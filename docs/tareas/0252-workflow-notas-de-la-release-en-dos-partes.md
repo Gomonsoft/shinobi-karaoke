@@ -1,5 +1,5 @@
 # 0252 — Workflow: notas de la *Release* en dos partes
-- Estado: Pendiente
+- Estado: Hecha (implementación; el ensayo en GitHub lo hace la sesión principal)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0251 (mismo archivo y salidas `sha` y `compilacion`)
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §3
@@ -40,3 +40,14 @@ Las notas de cada versión llevan arriba lo escrito a mano y, debajo y siempre, 
 - Manual (guía de la versión): con la *Release* `v0.2.0-alpha.2` publicada, sus notas tienen las dos partes, la frase de la primera publicación y el enlace a la ejecución.
 
 ## Notas de implementación
+
+**Hecho.**
+- `.github/publicacion/cabecera.md`: «tu navegador y tu sistema pueden avisarte».
+- `.github/publicacion/que-cambio.json` (nuevo): separador, encabezado «## Qué cambió», líneas que se quitan (`## What's Changed`, `**Full Changelog**`), sustitución de `## New Contributors`, plantillas de «Todos los cambios» y «Compilación» y las frases «sin PR» y «primera versión publicada».
+- `preparar-publicacion.mjs`: `--compilacion`, `--sha` y `--ejecucion` (se dan juntos; si no se dan, no hay `pie.md`, como la llamada de siempre); escribe `pie.md` con `{NUMERO}`, `{HASH}`, `{SHA_COMPLETO}` y `{RUN_URL}` resueltos y copia `que-cambio.json` al artefacto; con etiqueta (sin `--ensayo`) falla si no hay notas a mano o si alguna línea empieza por `> Borrador` (en el ensayo lo avisa en el resumen); falla con cualquier `{MAYÚSCULAS}` o `⟦` sin resolver; `datos.json` ya no lleva `generar_notas`; el resumen muestra la parte 1 y el pie con «“Qué cambió” se genera al publicar».
+- `publicar`: el paso «Componer las notas…» (solo `gh` y `jq`, sin checkout ni node) busca la *Release* publicada anterior (`gh release list --exclude-drafts --limit 100 --json tagName,publishedAt`, la más reciente distinta de la actual), llama a `generate-notes` con `previous_tag_name`, aplica con `jq` las sustituciones literales (`split(…) | join(…)`), recorta con `sed '/./,$!d'`, añade «Todos los cambios» y el pie y escribe `notas-final.md`; la *Release* se crea con `--notes-file notas-final.md` y sin `--generate-notes`. Los marcadores se comprueban en lo que compone el workflow, no en la lista de GitHub (puede traer llaves de terceros).
+- Archivos: `app/scripts/preparar-publicacion.mjs` (+ `.d.mts`, `.test.ts`), `.github/publicacion/{cabecera.md,que-cambio.json}`, `.github/workflows/empaquetado.yml`, `app/scripts/workflow-empaquetado.test.ts`, `docs/workflow.md`.
+
+**Las tres variantes.** Son pruebas en `workflow-empaquetado.test.ts` («publicar: composición de la parte 2…»): ejecutan el `run:` real del paso con un `gh` de mentira y un body de GitHub de ejemplo, y comparan el resultado exacto: (1) con anterior: `## Qué cambió`, lista, `### Personas que colaboran por primera vez`, «Todos los cambios» con `compare/v0.2.0-alpha.1...v0.2.0-alpha.2` y «Compilación»; (2) sin PR: la frase «No hay solicitudes de cambio (PR)…» más «Todos los cambios»; (3) primera versión: «Es la primera versión publicada…» sin «Todos los cambios». **Esas tres pruebas necesitan `jq` y Linux o macOS: en este equipo (Windows, sin `jq`) se omiten y NO se ejecutaron.** Correrán en el CI (`ubuntu-latest`, `macos-latest`); la salida esperada literal está en el propio test. Si fallan allí, el fallo es del `jq`/shell del paso, no de la infraestructura.
+
+**Sin verificar en local (ensayo y primera publicación).** El resumen del ensayo con la parte 1 y «Compilación» con el enlace a la ejecución; que `gh api -X POST …/generate-notes` devuelva el body esperado con el `GITHUB_TOKEN` de `publicar`; el comportamiento real de la API con una *Release* anterior que es *pre-release*; y, con `v0.2.0-alpha.2` publicada, que sus notas tengan las dos partes y la frase de la primera versión (guía de la versión). Ojo: `docs/versiones/0.2.0/notas/0.2.0-alpha.2.md` **no existe todavía** y ahora es obligatorio para etiquetar (el ensayo solo lo avisa).

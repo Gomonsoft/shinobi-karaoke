@@ -1,5 +1,5 @@
 # 0253 — Workflow: canal de compilaciones de desarrollo (`shinobi-karaoke-builds`)
-- Estado: Pendiente
+- Estado: Hecha (implementación; el ensayo en GitHub lo hace la sesión principal)
 - Paso del pipeline: 0 (distribución)
 - Depende de: 0251, 0252 (mismo archivo y mismo `preparar-publicacion.mjs`)
 - ADRs: [0020](../adr/0020-publicacion-en-github-releases-y-politica-de-versiones.md), «Revisión para 0.2.0 — fase 10», §4 y §6
@@ -56,3 +56,17 @@ Publicar cada compilación de `develop` como una *Release* en `Gomonsoft/shinobi
 - Manual (guía de la versión): descargar sin sesión un instalador de `…/shinobi-karaoke-builds/releases/latest`, comprobar su SHA-256 con el cuerpo e instalarlo encima de la versión publicada. «Acerca de» muestra el canal `desarrollo`.
 
 ## Notas de implementación
+
+**Hecho.**
+- `preparar-publicacion.mjs --canal desarrollo --entrada … --salida … --version … --compilacion <versión>-<N> --sha … --anterior <sha|''> --ejecucion …`: comprueba los 4 instaladores y sus sumas, los copia renombrados (`nombreDesarrollo`, pura), genera `SHA256SUMS.txt` con los nombres nuevos, compone `notas.md` desde `.github/publicacion/cuerpo-desarrollo.md` (texto de la spec 09 §3b: `{FECHA}` larga en UTC, MB decimales con coma, SHA-256, enlaces al commit y al árbol, ejecución, «Cambios desde…» con `compare/<anterior completo>...<sha completo>` o «Es la primera compilación de este canal.») y falla con cualquier `{…}` sin resolver; escribe `datos.json` (`etiqueta: build-<sha>`, `titulo`, `version`, `sha`, `archivos`) y el resumen. Valida que `--sha` y `--anterior` tengan 40 hexadecimales y que `--compilacion` sea `<versión>-<N>`.
+- `empaquetado.yml`: `preparar-desarrollo` (`contents: read`; `if desarrollo != 'omitir' && construir`; checkout de `sha`; lee con el `GITHUB_TOKEN` la última *Release* del repositorio de compilaciones solo si `configurado`; sube `compilacion-<versión>-<N>`, 14 días) y `publicar-desarrollo` (`contents: read`; `if desarrollo == 'publicar'`; `GH_TOKEN` = `secrets.COMPILACIONES_TOKEN` y `GH_REPO` = `vars.COMPILACIONES_REPO` solo aquí; sin checkout, npm ni node; si `build-<sha>` ya existe avisa y sale en verde; `gh release create --draft`, compara nombres y tamaños, `gh release edit --draft=false --latest`, enlace en el resumen; cualquier error de `gh` distinto de «release not found» hace fallar el trabajo).
+- `docs/versiones/0.2.0/compilaciones-README.md`: copia literal del README de §3b para el commit inicial.
+- `docs/workflow.md`: apartado «Canal de compilaciones de desarrollo», paso 7 de «Publicar una versión» (subir `develop` a la siguiente previa en un PR propio) y los ajustes (`COMPILACIONES_REPO`, `COMPILACIONES_TOKEN`, protección de `develop`).
+- Archivos: `app/scripts/preparar-publicacion.mjs` (+ `.d.mts`, `.test.ts`), `.github/publicacion/cuerpo-desarrollo.md`, `.github/workflows/empaquetado.yml`, `app/scripts/workflow-empaquetado.test.ts`, `docs/workflow.md`, `docs/versiones/0.2.0/compilaciones-README.md`.
+- `workflow-empaquetado.test.ts` comprueba: `COMPILACIONES_TOKEN` completo solo en `publicar-desarrollo` y como `!= ''` en `comprobar-version` (2 apariciones en todo el archivo); sin checkout ni `node`/`npm` en `publicar-desarrollo`; único trabajo nuevo con el token; permisos de la raíz `contents: read`.
+
+**Decisiones menores.** (a) «Última compilación» con `gh release list -R … --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // empty'` en vez de `gh release view`, porque una lista vacía no es un error. (b) Los nombres de los instaladores se leen de `datos.json` (`jq`) en `publicar-desarrollo`; la etiqueta, el título y el SHA llegan por `env` desde las salidas de `comprobar-version`, no del artefacto. (c) Un borrador `build-<sha>` huérfano de una ejecución anterior que falló a medias no lo ve `gh release view`, así que `create` haría otro borrador con la misma etiqueta: caso raro, sin tratar (se borra a mano).
+
+**Sin verificar en local.** El ensayo `gh workflow run empaquetado.yml --ref alpha-2` (0255): `preparar-desarrollo` sube `compilacion-<versión>-<N>` con los cuatro nombres de §3b y un `notas.md` sin marcadores, y `publicar-desarrollo` aparece omitido. La publicación real (crear `build-<sha>`, *Latest*, segunda ejecución sin crear nada, token caducado que falla) requiere que el usuario configure el canal (0143): queda como caso de la guía. También: `gh release create` sin `--target` y con `GH_REPO` sin clon local, y que `gh release view` imprima «release not found» (el «no existe» depende de ese texto).
+
+**Pasos manuales del usuario** (0143, también en `docs/workflow.md`): crear `Gomonsoft/shinobi-karaoke-builds` (público, commit inicial con `compilaciones-README.md`), token *fine-grained* con Contents: Read and write solo en ese repositorio, secreto `COMPILACIONES_TOKEN`, variable `COMPILACIONES_REPO` y protección de `develop`.

@@ -1,5 +1,5 @@
 # 0246 — E2E de captura en Windows y comprobación en Linux (cierre de 0242)
-- Estado: Pendiente
+- Estado: En curso (implementada; falta el CI de `alpha-2` para cerrar 0242)
 - Paso del pipeline: 6 (exportación)
 - Depende de: 0244
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md), «Revisión para 0.2.0 — alpha.2», puntos 4 y 5; [0007](../adr/0007-herramientas-de-desarrollo-y-calidad.md) (CI)
@@ -30,3 +30,14 @@ El defecto de 0244 no se detectó porque `exportacion-captura.spec.ts` solo corr
 - Manual: ninguno nuevo.
 
 ## Notas de implementación
+
+**Hecho.**
+- `.github/workflows/ci.yml`, trabajo `app`: dos pasos solo con `runner.os == 'Windows'` (`npm run build` y `npx playwright test e2e/exportacion-captura.spec.ts --workers=1`). Solo esa spec; macOS no se añade.
+- `app/e2e/exportacion-captura.spec.ts`: casos 640 × 480, **1920 × 1080** y 3840 × 2160 (no se añadió 2560 × 1440). Fuera de Linux, en el caso de 3840 × 2160 una aserción lee `screen.getPrimaryDisplay().workAreaSize` con `app.evaluate` y falla con un mensaje explicativo si 3840 × 2160 deja de ser mayor que el área de trabajo en ancho o en alto (no se omite).
+
+**Pendiente (necesita el CI de `alpha-2`; no se ejecutó Playwright en esta sesión).**
+1. Que `app (windows-latest)` ejecute la spec y pase con 0244; comprobar el sentido de la prueba revirtiendo 0244 en una rama (el caso 3840 × 2160 debe fallar en Windows).
+2. Que 1920 × 1080 pase en Windows y Linux.
+3. Mirar en el CI de Linux si 3840 × 2160 sale exacta. Si sale exacta: quitar `omitirSiEntornoSinSuperficie` de la spec, pedir a `qa` que retire la regla 10 de `docs/pruebas.md` y la nota del inventario, y cerrar 0242 («resuelta por 0244»). Si no: dejar la omisión y anotar en 0242 el resultado y el enlace a la ejecución. **0242 y `docs/pruebas.md` no se han tocado.**
+
+Cuando esos tres puntos estén anotados, esta tarea pasa a `Hecha`.
