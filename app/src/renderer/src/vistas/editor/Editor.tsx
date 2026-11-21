@@ -59,6 +59,11 @@ import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
+import { useControlEspera, useEjemploEspera, esperaVisible } from './estilo/useEspera'
+import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
+import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
+import { S as SILENCIOS } from './silencios/textos'
+import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
 import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { RielLista } from './RielLista'
@@ -431,6 +436,54 @@ function EditorActivo({
       setFocoLinea((n) => n + 1)
     }
   })
+  // Espera que ve el público (reemplazo de la canción, tema o estilo propio).
+  const esperaDelPublico = esperaVisible(tema.control.vista, apariencia, estilo)
+  // «Ajustar los silencios» (0215): el botón de la línea de tiempo y el ítem del menú ⋯ comparten estado.
+  const silencios = useAjustarSilencios({
+    cancionId: id,
+    letra,
+    duracionMs,
+    espera: esperaDelPublico,
+    version: edicion.version,
+    despachar,
+    anunciar
+  })
+  const motivosAjuste = motivosSilencios({
+    letra,
+    separacionDisponible: separacion.disponible,
+    picos:
+      pestana === 'sincronia' && cuentas.total > 0 && prueba === null && separacion.disponible
+        ? picos.estado.estado
+        : null,
+    borradorTema: tema.editando
+  })
+  // Indicadores de espera (0212): la vista previa y la prueba ven la espera efectiva de la canción.
+  const estiloPrevia = useMemo(
+    () => ({ ...estilo, espera: esperaDelPublico }),
+    [estilo, esperaDelPublico]
+  )
+  const ejemploEspera = useEjemploEspera({
+    letra,
+    seleccion: edicion.seleccion,
+    espera: esperaDelPublico,
+    sonando,
+    pausar: () => alternar(),
+    anunciar
+  })
+  const controlEspera = useControlEspera({
+    vista: tema.control.vista,
+    resumen,
+    apariencia,
+    estilo,
+    despachar,
+    anunciar,
+    ejemploActivo: ejemploEspera.ejemplo !== null,
+    alternarEjemplo: ejemploEspera.alternar
+  })
+  function irAPrimeraSinInicio() {
+    const primera = primeraSinInicio(letra)
+    if (primera) seleccionar(primera, true)
+  }
   function intervaloDeSeleccion(letraVisible: Letra): IntervaloTiempo | null {
     const inicio = letraVisible.lineas.find((l) => l.id === edicion.seleccion)?.inicio_ms
     const fin = edicion.seleccion ? finEfectivo(letraVisible, edicion.seleccion, duracionMs) : null
@@ -1033,6 +1086,14 @@ function EditorActivo({
                 etiqueta: E.layout.restablecer,
                 alSeleccionar: restablecerDistribucion
               },
+              {
+                id: 'ajustar-silencios',
+                etiqueta: SILENCIOS.menu,
+                noDisponible: edicion.sync.activo
+                  ? SILENCIOS.falta.ritmo
+                  : motivosAjuste.map(textoMotivo).join(' · ') || undefined,
+                alSeleccionar: () => void silencios.pedir()
+              },
               ...(resumen.estado === 'lista'
                 ? [
                     esLetraLista
@@ -1113,14 +1174,18 @@ function EditorActivo({
                 <div className={estilos.pantalla} data-lienzo="previa">
                   <PantallaLetra
                     letra={gestoVisible?.resultado?.letra ?? letra}
-                    estilo={estilo}
-                    duracionMs={duracionMs}
+                    key={ejemploEspera.ejemplo ? 'ejemplo' : 'previa'}
+                    estilo={estiloPrevia}
+                    duracionMs={ejemploEspera.ejemplo?.duracionMs ?? duracionMs}
                     titulo={metadatos.titulo}
                     artista={metadatos.artista}
                     idEstatico={edicion.seleccion}
-                    reproduciendo={sonando}
-                    cuentaAtras={sync.cuentaAtras}
-                    obtenerTiempoAudio={obtenerTiempoAudio}
+                    reproduciendo={ejemploEspera.ejemplo !== null || sonando}
+                    cuentaAtras={ejemploEspera.ejemplo ? null : sync.cuentaAtras}
+                    obtenerTiempoAudio={
+                      ejemploEspera.ejemplo ? ejemploEspera.obtenerTiempo : obtenerTiempoAudio
+                    }
+                    etiqueta={ejemploEspera.ejemplo ? ejemploEspera.etiqueta : undefined}
                     fondoEstatico={fondoDetenido}
                   />
                 </div>
@@ -1231,6 +1296,7 @@ function EditorActivo({
                         soloEditor={esLetraLista}
                         inactivo={edicion.sync.activo}
                         tema={tema.control}
+                        espera={controlEspera}
                         alCambiar={(nuevo, clave, agruparGesto) =>
                           despachar({
                             tipo: tema.editando ? 'estilo_borrador' : 'estilo',
@@ -1341,6 +1407,17 @@ function EditorActivo({
                   />
                 )}
                 <PistaSincronia
+                  botonSilencios={
+                    <BotonAjustarSilencios
+                      motivos={motivosAjuste}
+                      ritmo={edicion.sync.activo}
+                      buscando={silencios.buscando}
+                      alPulsar={() => void silencios.pedir()}
+                      alReintentar={picos.reintentar}
+                      alIrAPrimera={irAPrimeraSinInicio}
+                    />
+                  }
+                  resaltadas={silencios.resaltadas}
                   onda={(vista) => (
                     <PistaOndaVoz
                       cancionId={id}
@@ -1428,6 +1505,15 @@ function EditorActivo({
         </div>
       </div>
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {silencios.abierta && (
+        <DialogoAjustarSilencios
+          abierta={silencios.abierta}
+          duracionMs={duracionMs}
+          mac={silencios.mac}
+          alConfirmar={() => void silencios.confirmar()}
+          alCancelar={silencios.cancelar}
+        />
+      )}
       {dialogoBorrador && (
         <DialogoVolverABorradorEditor
           resumen={resumen}
@@ -1455,7 +1541,7 @@ function EditorActivo({
             duracionMs: metadatos.duracion_ms,
             gananciaDb: cancion.fuente.ganancia_db ?? 0,
             letra,
-            estilo,
+            estilo: estiloPrevia,
             // LL8: «Probar» muestra lo que verá el público (una Letra lista, sin barrido).
             modalidad: resumen.modalidad,
             lineasSinSincronizar: 0

@@ -920,3 +920,78 @@ test('perfil opt-in: una hora de voz, zoom y reproducción', async () => {
     }
   )
 })
+
+const T20 = 'Reproductor: lista'
+ID[T20] = idSemilla(20)
+
+test('ajustar los silencios: propone, aplica con la cuenta y se deshace en un paso', async () => {
+  test.setTimeout(90_000)
+  await conEditor(
+    'ajustar-silencios',
+    async (v, datos) => {
+      await abrir(v, T20)
+      await v.getByRole('radio', { name: 'Sincronía' }).click()
+      await esperarOnda(v)
+      const fines = () => soloLineas(datos, T20).map((l) => l.fin_ms)
+      const antes = fines()
+
+      await v.getByRole('button', { name: 'Ajustar los silencios' }).click()
+      const dialogo = v.getByRole('dialog', { name: '¿Ajustar los silencios?' })
+      await expect(dialogo.getByText('Cambiará el fin de 4 de 5 líneas.')).toBeVisible()
+      await expect(dialogo.getByText(/1 de ellas tenía un fin fijado/)).toBeVisible()
+      await expect(
+        dialogo.getByText(/Quedarán 2 silencios de 4,0 s o más. Se activará/)
+      ).toBeVisible()
+      await dialogo.getByRole('button', { name: 'Ver las líneas' }).click()
+      await expect(dialogo.getByRole('listitem').filter({ hasText: 'silencio largo' })).toHaveCount(
+        2
+      )
+      await dialogo.getByRole('button', { name: 'Ajustar los silencios' }).click()
+      await expect(
+        v.getByText(/Se ajustó el fin de 4 líneas\. Se activó la cuenta 3·2·1/).first()
+      ).toBeVisible()
+
+      // La voz generada acaba en 3,5 s, 11,5 s, 19,5 s y 27,5 s; el margen de cola es de 100 ms.
+      const esperado = [3600, null, 11600, 19600, 27600]
+      await expect
+        .poll(() =>
+          fines().every((f, i) =>
+            esperado[i] === null ? f === antes[i] : Math.abs(f! - esperado[i]!) <= 30
+          )
+        )
+        .toBe(true)
+      await expect.poll(() => leerCancion(datos, idDe(T20)).estilo.espera?.cuenta).toBe(true)
+
+      await v.keyboard.press('ControlOrMeta+z')
+      await expect.poll(fines).toEqual(antes)
+      await expect
+        .poll(() => leerCancion(datos, idDe(T20)).estilo.espera?.cuenta ?? false)
+        .toBe(false)
+    },
+    (datos) => {
+      const raiz = join(datos, 'biblioteca', idDe(T20))
+      // Voz de 1,5 s cada 8 s desde el segundo 2: [2,0–3,5), [10,0–11,5), [18,0–19,5), [26,0–27,5).
+      writeFileSync(
+        join(raiz, 'pistas', 'voz.flac'),
+        pulsosFlac({ segundos: 30, periodoMs: 8000, duracionPulsoMs: 1500, desfaseMs: 2000 })
+      )
+      const cancion = leerCancion(datos, idDe(T20))
+      const nueva = (id: string, inicio: number, fin: number | null) => ({
+        id,
+        tipo: 'linea',
+        texto: `Línea ${id}`,
+        inicio_ms: inicio,
+        fin_ms: fin,
+        palabras: null
+      })
+      cancion.letra.lineas = [
+        nueva('s1', 2000, 3000),
+        nueva('s2', 6000, null),
+        nueva('s3', 10000, null),
+        nueva('s4', 16000, null),
+        nueva('s5', 24000, null)
+      ]
+      writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
+    }
+  )
+})

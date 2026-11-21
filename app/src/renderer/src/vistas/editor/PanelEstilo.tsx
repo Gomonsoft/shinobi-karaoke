@@ -21,6 +21,7 @@ import { buscarFuente } from '@shared/fuentes'
 import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from './SeccionTema'
 import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
 import { paradasRepartidas } from './estilo/paradas'
+import { SeccionEspera, type ControlEspera } from './estilo/SeccionEspera'
 import { E } from './textos'
 import { LL } from './textosLetraLista'
 import estilos from './panelEstilo.module.css'
@@ -34,6 +35,8 @@ export interface PanelEstiloProps {
   inactivo: boolean
   alCambiar(estilo: Estilo, clave: string, agruparGesto?: boolean): void
   tema: ControlTema
+  /** Sección «Indicadores de espera» (0212); sin él no se muestra. */
+  espera?: ControlEspera
 }
 
 type OrigenColor = 'hex' | 'nativo' | 'sugerido'
@@ -139,7 +142,8 @@ function PanelEstiloActivo({
   soloEditor = false,
   inactivo,
   alCambiar,
-  tema
+  tema,
+  espera
 }: PanelEstiloProps) {
   const id = useId()
   const secuencia = useRef(0)
@@ -336,6 +340,7 @@ function PanelEstiloActivo({
           </section>
         </>
       )}
+      {espera && <SeccionEspera control={espera} inactivo={inactivo} />}
       <div className={estilos.bloque}>
         <div role="status">
           {contraste.nivel === 'aviso' ? (

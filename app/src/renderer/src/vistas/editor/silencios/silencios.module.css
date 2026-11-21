@@ -1,0 +1,50 @@
+.obsoleto {
+  margin: 0 0 var(--e-3);
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-m);
+  background: var(--aviso-tenue);
+  color: var(--texto-1);
+}
+.recuentos {
+  display: grid;
+  gap: var(--e-2);
+  margin: var(--e-3) 0;
+  padding-inline-start: var(--e-4);
+}
+.aviso {
+  vertical-align: text-bottom;
+  color: var(--aviso);
+}
+.lista {
+  max-height: calc(8 * 2.25rem);
+  margin: var(--e-2) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: var(--t-pequeno, 0.875rem);
+}
+.lista li {
+  padding-block: var(--e-1);
+  overflow-wrap: anywhere;
+}
+.nota {
+  margin: var(--e-3) 0 0;
+  color: var(--texto-2);
+}
+
+/* Botón de la fila de la línea de tiempo: a la derecha, antes de «Minimizar». */
+.boton {
+  margin-inline-start: auto;
+  gap: var(--e-2);
+}
+.icono {
+  inline-size: 36px;
+  padding-inline: 0;
+}
+.faltas {
+  display: grid;
+  gap: var(--e-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

@@ -1,6 +1,6 @@
 # 0212 — Editor: sección «Indicadores de espera»
 
-- Estado: Pendiente
+- Estado: Hecha
 - Paso del pipeline: 4
 - Depende de: [0202](0202-resolucion-de-apariencia-con-reemplazos-de-espera.md), [0203](0203-main-marcar-letra-lista-guardar-reemplazos-y-modalidad-en-la-sesion.md), [0209](0209-historial-del-editor-reemplazos-y-ajustar-silencios.md) y [0213](0213-pantalla-de-letra-fondo-en-movimiento-indicadores-y-sin-barrido.md) (para ver los indicadores en la vista previa y en el ejemplo). Se integra en `PanelEstilo.tsx` después de [0211](0211-editor-controles-de-degradado-y-movimiento.md).
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) §3, [0016](../adr/0016-catalogo-de-temas-e-identidad-de-artista-y-album.md#revisión-para-020--fase-5)
@@ -42,9 +42,9 @@ Configurar los indicadores de espera de la canción o del tema, con herencia y c
 
 ## Criterios de aceptación
 
-- [ ] IE1–IE6. IE1 en su parte de interfaz; la del render la cubren 0206 y 0213.
-- [ ] IE7 a 300, 360 y 480 px.
-- [ ] IE3, en el editor: el umbral de 6,0 s se refleja en la vista previa en un hueco de 5,9 s frente a uno de 6,0 s.
+- [x] IE1–IE6. IE1 en su parte de interfaz; la del render la cubren 0206 y 0213.
+- [x] IE7 a 300, 360 y 480 px (solo por CSS y por el E2E existente de `temas-editor.spec.ts`; la comprobación visual queda para las capturas de 0218).
+- [x] IE3, en el editor: el umbral de 6,0 s se refleja en la vista previa en un hueco de 5,9 s frente a uno de 6,0 s.
 
 ## Pruebas de feedback
 
@@ -56,3 +56,23 @@ Configurar los indicadores de espera de la canción o del tema, con herencia y c
 - Manual (guía de la fase): sensación del ejemplo y legibilidad a 5 m.
 
 ## Notas de implementación
+
+### Qué se hizo
+- `vistas/editor/estilo/SeccionEspera.tsx`: casillas, «Antes de la primera línea» (inactiva sin indicadores), `spinbutton` «Silencio mínimo» (↑/↓ y [−]/[+] de 0,5 s, Re Pág/Av Pág de 5 s, coma o punto, redondeo a la décima, límite 1–60 s con `edi.espera.umbral.rango`), resumen, procedencia, «Cambiar solo en esta canción», «Usar los del tema», aviso de D3 y «Ver un ejemplo». El foco se mueve a la primera casilla o a «Cambiar solo…» tras cambiar de modo.
+- `estilo/useEspera.ts`: `esperaVisible` (D3: la del borrador; resto: `esperaEfectiva` de 0215), `useControlEspera` (traduce a las acciones `espera` y `estilo_borrador` del historial, con los anuncios) y `useEjemploEspera` (reloj local de la vista previa; Esc, teclas de transporte, cambio de selección o empezar a sonar lo detienen; pausa antes si sonaba).
+- `estilo/ejemploEspera.ts`: letra sintética de dos líneas con hueco de 6 s (la seleccionada y la siguiente; con la última, la anterior y ella).
+- `PanelEstilo.tsx`: prop `espera?` y una línea para montar la sección entre «Letra» y el aviso de contraste. `Editor.tsx`: los hooks, `espera={controlEspera}` y la vista previa y la prueba a pantalla completa con el estilo con la espera efectiva (`estiloPrevia`), de modo que el reemplazo de la canción se ve también en la previa.
+- Textos en bloque propio `estilo/textosEspera.ts` (`T_ESPERA`), no en `textos.ts`, para no chocar con 0214/0216.
+- Pruebas: `SeccionEspera.test.tsx`, `ejemploEspera.test.ts`, `useEspera.test.ts`.
+
+### Decisiones y desviaciones
+- En el ejemplo el umbral se acota a 6 s (`min(umbral, 6 s)`) para que el hueco simulado siempre enseñe los indicadores aunque el silencio mínimo sea mayor.
+- «Antes de la primera línea» no se simula en el ejemplo (el reloj empieza en la primera línea simulada).
+- Una ráfaga de cambios del umbral en < 1 s es un paso (clave fija `espera.umbral` y la ventana del historial); cada casilla es un paso propio.
+- Sin E2E propia (según la tarea). Se comprobó que `temas-editor.spec.ts` (panel Estilo a 300/360/480 px) y los críticos siguen pasando.
+
+### A mano (guía de la fase)
+- Sensación del ejemplo y legibilidad de la cuenta y la barra a 5 m.
+- IE7 visual a 300, 360 y 480 px (la fila «Silencio mínimo» no se parte, sin scroll de página).
+- IE5/IE4 con `main` real: editar en D3 con una canción con propios y otra sin ellos.
+- Esc durante el ejemplo no debe volver a la Biblioteca (el oyente en captura lo consume).
