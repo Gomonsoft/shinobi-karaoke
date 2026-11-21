@@ -49,11 +49,55 @@ Licencias de lo que se usa: SVT-AV1 (BSD-3-Clause-Clear + Alliance for Open Medi
 
 ### 2. Codificación (MacBook Air M1, 8 GB, macOS 26.5)
 
-PENDIENTE_MATRIZ
+Fotogramas sintéticos «tipo karaoke» (degradado, dos renglones, barrido que avanza, marca de agua), 20 s de video y audio Opus 192 kbit/s, codificador con todos los núcleos. Equipo **sin ventilador**: tras ~1 h de carga sostenida bajó la frecuencia y las mismas pruebas fueron hasta 3 veces más lentas, así que las cifras son orientativas (± 30 % entre ejecuciones; peor tras mucho rato). FPS de codificación = fotogramas por segundo de reloj, incluida la generación sintética.
+
+| Resolución × FPS | AV1 *preset* 10 | AV1 *preset* 8 | VP9 `realtime` | VP9 `good` (`cpu-used` 5) | Pico de memoria del worker (AV1 / VP9) |
+|---|---|---|---|---|---|
+| 640 × 480 × 30 | 563 fps | 483 | 495 | 161 | 290 / 210 MB |
+| 1280 × 720 × 30 | 338 | 271 | 308 | 87 | 470 / 290 MB |
+| 1920 × 1080 × 30 | 186 | 123 | 126 | 29 | 820 / 450 MB |
+| 1920 × 1080 × 60 | 219 | 128 | 113 | 23 | 820 / 450 MB |
+| 3840 × 2160 × 30 | 39 | 27 | 39 | — | 1,6 / 1,1 GB |
+| 3840 × 2160 × 60 | 18 (con el equipo ya caliente) | — | 13 (ídem) | — | 1,3 / 1,2 GB |
+| 2880 × 2160 × 30 | 28 | 21 | 24 | 13 | 1,3 / 0,9 GB |
+
+- **Todos los archivos se verificaron** leyéndolos: número exacto de fotogramas, fin del video = `N / FPS` y fin del audio a ≤ 1 ms de la duración, en los dos contenedores.
+- **VP9 `good`** es 4–7 veces más lento que `realtime` con un tamaño parecido para este contenido: se descarta.
+- **Tamaño**: el contenido de karaoke es casi estático y comprime muchísimo: 1,8–3,7 MB por minuto (incluidos 1,44 MB/min de Opus) con fondo fijo y hasta ~5 MB/min a 1080p con el fondo en movimiento simulado. VP9 da archivos un 5–35 % mayores que AV1.
+- SVT-AV1 avisa de que sus *presets* ≥ 10 están pensados para uso automático y «pueden producir artefactos»: ver la tabla de parámetros de §5.
 
 ### 3. Render offscreen y captura por fotograma
 
-PENDIENTE_ELECTRON
+Página que imita `PantallaLetra` (degradado con `cqh`, texto con sombra, barrido con `clip-path`, entrada de línea con Web Animations **pausada y fijada por `n`**, fondo opcionalmente en movimiento con el ángulo calculado del tiempo, marca de agua). Ventana `offscreen: { useSharedTexture: false, deviceScaleFactor: 1 }`, `show: false`, `setFrameRate(240)`. Por fotograma: `executeJavaScript('renderizar(n)')` (pinta y espera 2 × `requestAnimationFrame`), captura, `toBitmap()` y escritura en el stdin de `codificar.py`.
+
+**Captura sola** (sin codificar):
+
+| | Render (ida y vuelta) | `capturePage()` | `toBitmap()` | Total | Evento `paint` tras `invalidate()` |
+|---|---|---|---|---|---|
+| 1280 × 720 | 5,2 ms | 5,1 ms | 0,7 ms | 91 fps | — |
+| 1920 × 1080 | 5,0 ms | 5,6 ms | 1,3 ms | 84 fps | 120 fps |
+| 3840 × 2160 | 4,1 ms | 17–37 ms | 6–11 ms | 36 fps | 61 fps |
+
+- `capturePage()` devuelve **exactamente** `ancho × alto` (también 3840 × 2160 en una pantalla Retina) y el formato es **BGRA** (rojo puro → `00 00 FF FF`).
+- El evento `paint` evita la copia de `capturePage` y es 1,5–1,7 veces más rápido, pero la asociación entre el evento y `n` depende del ritmo de composición. Se queda como optimización posible (ver Consecuencias), no como base.
+- **Retardo del bucle de eventos de main** durante la exportación: p99 13–19 ms a 1080p y 25–33 ms a 4K, con picos de hasta 140 ms a 4K/60. El audio de una sesión no pasa por main (se mezcla en el renderer de la secundaria), así que esto solo retrasa unos milisegundos los comandos de cola.
+- **Memoria de main**: 150–500 MB de RSS en total durante la prueba.
+
+**De extremo a extremo** (render + captura + tubería + PyAV), AV1 salvo que se indique:
+
+| Perfil | Fotogramas por segundo | Tiempo / duración de la canción | Pico del worker |
+|---|---|---|---|
+| 1280 × 720 × 30 | 72 | 0,4 × | 360 MB |
+| 1920 × 1080 × 30 | 21–34 (VP9: 23) | 0,9–1,4 × | 450–540 MB |
+| 1920 × 1080 × 60 | 35 | 1,7 × | 500 MB |
+| 3840 × 2160 × 30 | 6 | 5 × | 0,9 GB |
+| 3840 × 2160 × 60 (equipo caliente) | 3–7 | 9–19 × | 0,5–1,2 GB |
+
+- **Cuello de botella**: el transporte de mapas de bits, no el codificador. La tubería Node → Python mide **~1,05 GB/s** en este equipo (un fotograma 4K son 33 MB: ≥ 31 ms), y a 4K `capturePage` + `toBitmap` ocupan 25–50 ms de main por fotograma. Con 2 fotogramas en vuelo (contrapresión por bytes pendientes) la misma prueba a 1080p30 pasó de 21 a 34 fps.
+- **Conversión BGRA → YUV** en el worker: 44 ms por fotograma 4K con `from_ndarray` + `reformat` de un hilo; leyendo stdin directamente en el plano de un `VideoFrame` reutilizable y con `reformat(threads=0)` baja a ~15 ms. La tarea del worker usa esa forma.
+- Todas las salidas pasaron la verificación (fotogramas, duración de video y audio).
+
+**Conclusión de la prueba**: la arquitectura funciona en Electron 45.2.2 y PyAV 19.0.2 sin dependencias nuevas, con tiempos deterministas. Los perfiles hasta 1080p30 van en torno al tiempo real en un M1; 4K/60 tarda de 5 a 20 veces la duración de la canción (20–80 min para 4 min). Es caro pero viable porque la exportación no es en tiempo real: se ofrece con la nota de perfil costoso de la spec y una estimación que se corrige en cada equipo.
 
 ### 4. Lo que no se ha podido medir aquí
 
@@ -169,7 +213,7 @@ Componentes nuevos:
 - **Argumentos** (JSON, como los demás comandos): `temporal`, `formato` (`mkv_av1` | `webm_vp9`), `ancho`, `alto`, `fps`, `total_fotogramas`, `duracion_ms`, `audio: { instrumental, voz | null, ganancia_db }`.
 - **Entrada**: stdin binario; cada fotograma son exactamente `ancho × alto × 4` bytes BGRA sin cabecera. Si stdin se cierra antes de `total_fotogramas`, termina con `ENTRADA_INCOMPLETA` y borra el temporal (es lo que ocurre al cancelar o si main cae).
 - **Audio** (fase `preparando`): decodifica con PyAV y remuestrea a 48 kHz estéreo float. Mezcla = `instrumental × 10^(ganancia_db/20)` y, con «Instrumental y voz», `+ voz × 10^(ganancia_db/20)` al 100 % (0130 §2, provisional). **No** se aplican el volumen ni la voz guía del reproductor. Si el pico supera 0,999, toda la mezcla se multiplica por una ganancia constante `0,999 / pico` (sin recortes ni compresor). Memoria: ~92 MB para 4 min y ~230 MB para 10 min, como los dos `AudioBuffer` del reproductor. Si falta una pista: `CANCION_NO_DISPONIBLE`.
-- **Video**: `VideoFrame.from_ndarray(..., 'bgra')` → `reformat('yuv420p', BT.709, rango limitado)` → codificador. Metadatos de color BT.709 en el flujo. GOP de 5 s (para poder saltar en el video).
+- **Video**: stdin se lee con `readinto` directamente en el plano de un `VideoFrame` BGRA reutilizable (sin `from_ndarray`) → `reformat('yuv420p', BT.709, rango limitado, threads=0)` → codificador. Metadatos de color BT.709 en el flujo. GOP de 5 s (para poder saltar en el video).
   - `mkv_av1`: `libsvtav1`, *preset* y CRF de la tabla de §5.
   - `webm_vp9`: `libvpx-vp9`, `deadline=realtime`, `cpu-used=8`, `row-mt=1`, CRF de la tabla de §5 con `b=0`.
 - **Audio en el contenedor**: Opus (`libopus`) a 48 kHz, estéreo, 192 kbit/s, intercalado con el video por tiempo de presentación.
@@ -198,7 +242,15 @@ Componentes nuevos:
 
 Se añade 2560 × 1440 a la propuesta de la spec por ser una resolución habitual de monitor (0050: «resoluciones más comunes hasta 4K»). Todas las dimensiones son pares (requisito de 4:2:0).
 
-**Parámetros por resolución** (PENDIENTE_PARAMETROS).
+**Parámetros por resolución** (`PARAMETROS_CODIFICACION` en `shared/exportacion.ts`; el codificador no es el cuello de botella, ver la prueba, así que se prima la calidad del texto):
+
+| Líneas | `mkv_av1` (SVT-AV1) | `webm_vp9` (libvpx-vp9, `realtime`) | Memoria total mínima del equipo |
+|---|---|---|---|
+| 480–1200 | *preset* 8, CRF 32 | `cpu-used` 8, CRF 32 | — |
+| 1440 | *preset* 8, CRF 34 | `cpu-used` 8, CRF 33 | — |
+| 2160 | *preset* 10, CRF 35 | `cpu-used` 8, CRF 34 | 8 GB (`motivo: memoria` por debajo) |
+
+Los *presets* 10 y superiores de SVT-AV1 avisan de que pueden producir artefactos fuera de usos automáticos; por eso se usa el 8 hasta 1440 líneas, donde el coste extra (+30–50 % de tiempo de codificación) no alarga la exportación. 2160 líneas usa el 10 para que el codificador no pase a ser el cuello de botella. Ajustar CRF o *preset* es un cambio de tabla validado en la guía manual (M1, calidad visual).
 
 **Soporte por combinación** (0131 §2):
 
@@ -285,8 +337,8 @@ Eventos: a la principal, `exportacion:cambio` (alta, posición, estado y resulta
 
 ### 11. Estimación y espacio (0131 §4)
 
-- **Tamaño**: `bytes ≈ (tasa_video(formato, resolución, fps, fondo) + 24 kB/s de Opus) × duración`, con la tabla de §2 de la prueba. `fondo` es `movil` si el estilo resuelto tiene movimiento (fase 5) y `fijo` si no. Margen ×1,3 para no quedarse corto.
-- **Tiempo**: `segundos ≈ factor(formato, resolución, fps) × duración × corrección`, con el factor medido en la prueba (M1) y una `corrección` que main aprende como en la separación: tras cada exportación guarda en `config.exportacion.factor_corrector` la media móvil de real / estimado (entre 0,25 y 8). Las primeras exportaciones de un equipo lento pueden quedarse cortas; la spec lo asume (M4: ± 50 %).
+- **Tamaño**: `bytes ≈ (video_MB_min × k_fps × k_fondo × k_formato + 1,44) × minutos × 1,3`, donde `video_MB_min` es 2 (≤ 768 líneas), 3 (1080–1200), 4 (1440) y 6 (2160); `k_fps` = 1 con 24/30 y 1,3 con 60; `k_fondo` = 1,5 si el estilo resuelto tiene movimiento (fase 5); `k_formato` = 1 en AV1 y 1,3 en VP9; 1,44 MB/min es el Opus; ×1,3 de margen. Valores conservadores a partir de la prueba (§2), en `shared/exportacion.ts`.
+- **Tiempo**: `segundos ≈ factor(resolución, fps) × duración × corrección`, con el factor de la prueba (M1, valores conservadores): 0,6 (≤ 768 líneas a 24/30), 1,2 (1080–1200 a 24/30), 2 (1440 a 24/30), 6 (2160 a 24/30) y el doble a 60 FPS; VP9 ×1,2. Lleva una `corrección` que main aprende como en la separación: tras cada exportación guarda en `config.exportacion.factor_corrector` la media móvil de real / estimado (entre 0,25 y 8). Las primeras exportaciones de un equipo lento pueden quedarse cortas; la spec lo asume (M4: ± 50 %).
 - **Espacio libre**: `fs.statfs` de la carpeta de destino en `destinoPropuesto`/`elegirDestino`. Si el tamaño estimado lo supera, la spec avisa sin bloquear (`exp.aviso.espacio`).
 - **Progreso** (0131 §11): por **fotogramas codificados** (el worker informa del fotograma que ha escrito), convertidos a `posicionMs` para «mm:ss de mm:ss». Las tres fases de la spec se corresponden con `preparando` (instantánea, ventana, fuentes y audio), `codificando` y `finalizando`. Main suaviza y calcula el tiempo restante con el módulo de progreso existente; al menos un evento cada 2 s.
 
@@ -323,7 +375,8 @@ Eventos: a la principal, `exportacion:cambio` (alta, posición, estado y resulta
   - un archivo existente nunca se pierde por cancelar o fallar;
   - se puede exportar durante un evento.
 - **Negativas / riesgos**:
-  - main copia mapas de bits grandes por fotograma; a 4K domina el tiempo (ver la prueba);
+  - main copia mapas de bits grandes por fotograma y la tubería mueve ~1 GB/s: a 4K domina el tiempo y 4K/60 tarda de 5 a 20 veces la duración de la canción en un M1 (ver la prueba). Optimizaciones posibles sin cambiar la arquitectura, si la guía manual lo pide: capturar con el evento `paint` (1,5–1,7 veces más rápido, exige comprobar la asociación con `n`, p. ej. con un píxel de control solo en pruebas) y sustituir la tubería por un anillo de ranuras en un archivo compartido leído con `mmap`;
+  - los equipos sin ventilador bajan la frecuencia en exportaciones largas: la estimación inicial puede quedarse corta hasta que el factor corrector aprenda;
   - los dos formatos libres no los abre QuickTime ni muchos televisores antiguos ([propuesta 008](../propuestas/008-formato-de-video-de-maxima-compatibilidad.md));
   - los resultados de la GPU (suavizado de texto, degradados) pueden variar un poco entre equipos: no afecta a los tiempos;
   - `capturePage` en ventanas offscreen depende de Chromium: una regresión de Electron se detectaría en la E2E de la exportación;

@@ -180,17 +180,29 @@ def codificar(args) -> dict:
     t_conv = t_cod = t_lectura = 0.0
     tam_fotograma = args.ancho * args.alto * 4
     if args.stdin:
-        entrada = sys.stdin.buffer
+        entrada = sys.stdin.buffer.raw if hasattr(sys.stdin.buffer, "raw") else sys.stdin.buffer
+
+        # Fotograma BGRA reutilizable: stdin se lee directamente en su plano (sin from_ndarray).
+        destino = av.VideoFrame(args.ancho, args.alto, "bgra")
+        directo = destino.planes[0].line_size == args.ancho * 4
 
         def fuente():
+            nonlocal t_lectura
+            bufer = bytearray(tam_fotograma)
+            vista = memoryview(destino.planes[0]).cast("B") if directo else memoryview(bufer)
             for _ in range(total):
                 tl = time.perf_counter()
-                datos = entrada.read(tam_fotograma)
-                nonlocal t_lectura
+                leidos = 0
+                while leidos < tam_fotograma:  # readinto sin copias intermedias
+                    n = entrada.readinto(vista[leidos:])
+                    if not n:
+                        raise SystemExit(f"fotograma incompleto: {leidos} B")
+                    leidos += n
                 t_lectura += time.perf_counter() - tl
-                if len(datos) != tam_fotograma:
-                    raise SystemExit(f"fotograma incompleto: {len(datos)} B")
-                yield np.frombuffer(datos, dtype=np.uint8).reshape(args.alto, args.ancho, 4)
+                if directo:
+                    yield destino
+                else:
+                    yield np.frombuffer(bufer, dtype=np.uint8).reshape(args.alto, args.ancho, 4)
 
         fotogramas = fuente()
     else:
@@ -199,8 +211,10 @@ def codificar(args) -> dict:
     t_inicio_cod = time.perf_counter()
     for n, bgra in enumerate(fotogramas):
         tc = time.perf_counter()
-        vf = av.VideoFrame.from_ndarray(bgra, format="bgra")
-        vf = vf.reformat(format="yuv420p", dst_colorspace="ITU709", dst_color_range="MPEG")
+        vf = bgra if isinstance(bgra, av.VideoFrame) else av.VideoFrame.from_ndarray(bgra, format="bgra")
+        vf = vf.reformat(
+            format="yuv420p", dst_colorspace="ITU709", dst_color_range="MPEG", threads=args.hilos_conv
+        )
         vf.pts = n
         t_conv += time.perf_counter() - tc
         tc = time.perf_counter()
@@ -276,6 +290,7 @@ def main() -> None:
     ap.add_argument("--segundos", type=float, default=10)
     ap.add_argument("--nivel-voz", type=float, default=0.3)
     ap.add_argument("--hilos", type=int, default=0)
+    ap.add_argument("--hilos-conv", type=int, default=0, help="hilos de swscale (0 = automático)")
     ap.add_argument("--stdin", action="store_true")
     ap.add_argument("--fondo-movil", action="store_true")
     ap.add_argument("--salida", type=Path, required=True)

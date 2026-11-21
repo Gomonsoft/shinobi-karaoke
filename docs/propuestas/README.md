@@ -25,3 +25,5 @@ Ideas de mejora **todavía sin definir ni autorizar**. No forman parte del alcan
 | [006](006-exportar-varias-canciones-a-video.md) | Exportar varias canciones a video de una vez | Diseño de la fase 6 de 0.2.0 | Idea |
 | [015](015-comodin-de-espera-hueco-a-hueco.md) | Comodín de espera hueco a hueco | ADR 0018, pregunta 0100 | Idea |
 | [016](016-ajustar-el-fin-de-una-linea-con-la-voz.md) | Ajustar el fin de una sola línea con la voz | ADR 0018 | Idea |
+| [007](007-codificacion-de-video-por-hardware.md) | Codificar el video con la GPU cuando el equipo la tenga | ADR 0019 (prueba técnica de la fase 6) | Idea |
+| [008](008-formato-de-video-de-maxima-compatibilidad.md) | Formato de video de máxima compatibilidad (MP4 con H.264 y AAC) | ADR 0019 (fase 6) | Idea |

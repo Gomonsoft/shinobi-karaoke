@@ -8,7 +8,7 @@
   /* Aproximación de PantallaLetra: degradado, unidades cqh, sombra, barrido con clip-path */
   .raiz {
     position: relative; container-type: size; width: 100%; height: 100%; overflow: hidden;
-    background: linear-gradient(135deg, #2b1055 0%, #7597de 60%, #f4a261 100%);
+    background: linear-gradient(var(--angulo, 135deg), #2b1055 0%, #7597de 60%, #f4a261 100%);
     color: #ffffff; font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700;
     line-height: 1.2; text-shadow: 0 0.04em 0.12em rgb(0 0 0 / 55%);
     --k-tamano: max(32px, 7.5cqh);
@@ -52,6 +52,10 @@
     const t = (n * 1000) / fps;
     const i = Math.floor(t / DURACION_LINEA) % LINEAS.length;
     const progreso = (t % DURACION_LINEA) / DURACION_LINEA;
+    // Fondo en movimiento (peor caso de la fase 5): ángulo función pura del tiempo, periodo 20 s.
+    if (location.search.includes('movil')) {
+      document.getElementById('raiz').style.setProperty('--angulo', `${(t / 20000) * 360}deg`);
+    }
     if (i !== lineaPintada) {
       document.getElementById('texto').textContent = LINEAS[i];
       document.getElementById('res').textContent = LINEAS[i];

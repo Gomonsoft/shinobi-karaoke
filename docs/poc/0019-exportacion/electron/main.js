@@ -26,6 +26,7 @@ const MODO = arg('modo', 'captura')
 const PERFIL = arg('perfil', 'av1')
 const SALIDA = arg('salida', '/tmp/poc-0019.mkv')
 const SIN_CODIFICAR = process.argv.includes('--sin-codificar')
+const EN_VUELO = Number(arg('en-vuelo', 0))
 const TOTAL = Math.round(SEGUNDOS * FPS)
 const RAIZ = path.resolve(__dirname, '..', '..', '..', '..')
 const PYTHON = process.env.SHINOBI_POC_PYTHON || path.join(RAIZ, 'worker', '.venv', 'bin', 'python')
@@ -49,7 +50,7 @@ async function principal() {
   const wc = ventana.webContents
   wc.setAudioMuted(true)
   wc.setFrameRate(240)
-  await ventana.loadFile(path.join(__dirname, 'pagina.html'))
+  await ventana.loadFile(path.join(__dirname, 'pagina.html'), process.argv.includes('--movil') ? { search: 'movil=1' } : undefined)
   await wc.executeJavaScript('document.fonts.ready.then(() => true)')
 
   // Formato de píxel: un fondo rojo puro debe dar B=0 G=0 R=255 A=255 (BGRA) o R,G,B,A (RGBA).
@@ -121,7 +122,9 @@ async function principal() {
       a = performance.now()
       const sigue = hijo.stdin.write(buf)
       t.escritura += performance.now() - a
-      if (!sigue) {
+      // --en-vuelo K: contrapresión por bytes pendientes (ADR 0019 §7) en vez de esperar cada drain.
+      const limite = EN_VUELO > 0 ? EN_VUELO * ANCHO * ALTO * 4 : 0
+      if (EN_VUELO > 0 ? hijo.stdin.writableLength > limite : !sigue) {
         a = performance.now()
         await new Promise((r) => hijo.stdin.once('drain', r))
         t.drenaje += performance.now() - a
@@ -139,6 +142,8 @@ async function principal() {
   const ms = (v) => Math.round((v / TOTAL) * 100) / 100
   const resultado = {
     modo: MODO,
+    en_vuelo: EN_VUELO,
+    fondo_movil: process.argv.includes('--movil'),
     resolucion: `${ANCHO}x${ALTO}`,
     fps: FPS,
     fotogramas: TOTAL,

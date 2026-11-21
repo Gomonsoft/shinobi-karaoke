@@ -12,7 +12,7 @@ La alfa parte del [MVP 0.1.0](../0.1.0/plan-1.md). Primero corrige el fin y el r
 | 3 | Temas y agrupación de biblioteca | Implementada · [informe](informe-fase-3.md) |
 | 4 | Ventana secundaria y cola | En curso · [backlog](backlog.md#fase-4--ventana-secundaria-y-cola) |
 | 5 | Degradados, ayudas de espera, Letra lista y ajuste de silencios | En curso · [backlog](backlog.md#fase-5--estilo-espera-letra-lista-y-ajuste-de-silencios) |
-| 6 | Exportación de video | Pendiente · prueba técnica |
+| 6 | Exportación de video | Desglosada · prueba técnica hecha ([ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)) · [backlog](backlog.md#fase-6--exportación) |
 
 ```mermaid
 flowchart LR
@@ -248,4 +248,4 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 ## Decisiones y verificaciones pendientes
 
-Las preguntas de producto de [temas](../../preguntas/0047-temas-asignados-edicion-y-borrado.md), [evento y Letra lista](../../preguntas/0048-escucha-editor-durante-evento.md) y [cola](../../preguntas/0049-politica-cola-de-reproduccion.md) tienen respuesta. El [estudio de exportación](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) debe confirmar la combinación de contenedor y códecs, la matriz de perfiles y la coexistencia con un evento.
+Las preguntas de producto de [temas](../../preguntas/0047-temas-asignados-edicion-y-borrado.md), [evento y Letra lista](../../preguntas/0048-escucha-editor-durante-evento.md) y [cola](../../preguntas/0049-politica-cola-de-reproduccion.md) tienen respuesta. El [estudio de exportación](../../preguntas/0050-perfiles-y-concurrencia-exportacion.md) está hecho ([ADR 0019](../../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md)): MKV con AV1 y Opus por defecto y WebM con VP9 y Opus como alternativa, 8 resoluciones con 24, 30 y 60 FPS, y exportación permitida durante un evento. Falta la verificación en Windows, Linux y dos pantallas reales (guía manual de la fase 6).
