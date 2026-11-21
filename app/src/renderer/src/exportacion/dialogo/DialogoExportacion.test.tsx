@@ -29,7 +29,6 @@ function montar(
           abrir: () => undefined,
           cerrar: alCerrar,
           iniciada,
-          existia: () => false,
           pedirCancelar: () => undefined
         }}
       >
@@ -279,7 +278,7 @@ describe('DialogoExportacion · formulario (A)', () => {
     })
     expect(iniciada).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Exportar' }))
-    await waitFor(() => expect(iniciada).toHaveBeenCalledWith('t-1', ID, false))
+    await waitFor(() => expect(iniciada).toHaveBeenCalledWith('t-1', ID))
   })
 
   it('durante la validación el primario dice «Exportando…»', async () => {

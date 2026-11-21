@@ -181,7 +181,7 @@ describe('resultado con el diálogo abierto (C y D)', () => {
     )
     expect(screen.queryByText('«Canción de prueba»: video exportado.')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar en la carpeta' }))
-    expect(api.llamadas).toContainEqual(['mostrarEnCarpeta', ID_TRABAJO])
+    expect(api.llamadas).toContainEqual(['mostrarEnCarpeta', { trabajoId: ID_TRABAJO }])
     expect(screen.getByText('Video exportado.')).toBeInTheDocument()
   })
 
@@ -267,6 +267,40 @@ describe('resultado con el diálogo abierto (C y D)', () => {
         audio: 'instrumental_voz'
       })
     )
+    // El destino sale del trabajo fallido: mismo nombre aunque se hubiera cambiado a mano (0133).
+    expect(api.llamadas.find((l) => l[0] === 'destinoPropuesto')?.[1]).toMatchObject({
+      cancionId: CANCION,
+      formato: 'webm_vp9',
+      desdeTrabajoId: ID_TRABAJO
+    })
+  })
+
+  it('«Tardó…» sale de los datos de main, aunque este diálogo no lanzó la exportación', async () => {
+    const hecha = doble({
+      ...exportacionCompletada(),
+      iniciadaEn: '2026-11-20T10:00:00.000Z',
+      terminadaEn: '2026-11-20T10:07:12.000Z'
+    })
+    await montar(crearApiExportacionFalsa({ estado: [hecha] }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }))
+    expect(await screen.findByRole('dialog', { name: 'Video exportado' })).toHaveTextContent(
+      'Tardó 7 min 12 s.'
+    )
+  })
+
+  it('el archivo conservado sale de `destinoExistia`, no de lo que lanzó este diálogo', async () => {
+    const fallo = doble({
+      estado: 'terminada',
+      resultado: 'error',
+      progreso: null,
+      destinoExistia: true,
+      error: { codigo: 'SIN_ESPACIO', mensaje: 'x', posicionMs: 5000 }
+    })
+    await montar(crearApiExportacionFalsa({ estado: [fallo] }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'El archivo que ya había con ese nombre no se ha tocado.'
+    )
   })
 
   it('«Cambiar opciones» vuelve al formulario con las opciones anteriores', async () => {
@@ -325,27 +359,30 @@ describe('resultado con el diálogo cerrado', () => {
         estado: 'terminada',
         resultado: 'cancelada',
         progreso: null,
-        error: { codigo: 'LIMPIEZA_FALLIDA', mensaje: 'x', posicionMs: null }
+        limpiezaFallida: true
       })
     )
+    // El resultado real mantiene su aviso normal y se suma el de la limpieza.
+    // (toast y anuncio de la región educada)
+    expect(screen.getAllByText('Exportación cancelada.')).toHaveLength(2)
     expect(
       screen.getByText('No se pudo borrar un archivo temporal. Puedes borrarlo a mano.')
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar en la carpeta' }))
-    expect(api.llamadas).toContainEqual(['mostrarEnCarpeta', ID_TRABAJO])
+    expect(api.llamadas).toContainEqual(['mostrarEnCarpeta', { trabajoId: ID_TRABAJO }])
   })
 
   it('tras una caída avisa una sola vez, con el título y la acción de exportar', async () => {
-    const api = crearApiExportacionFalsa()
+    const aviso = {
+      avisoId: 'a0000000-0000-4000-8000-000000000001',
+      tipo: 'interrumpida' as const,
+      cancionId: CANCION,
+      titulo: 'Canción de prueba'
+    }
+    // Pendiente desde antes de montar; el mismo aviso llegando también por el evento no se repite.
+    const api = crearApiExportacionFalsa({ avisosPendientes: [aviso] })
     await montar(api)
-    const caida = doble({
-      estado: 'terminada',
-      resultado: 'error',
-      progreso: null,
-      error: { codigo: 'PROCESO_TERMINADO', mensaje: 'x', posicionMs: null }
-    })
-    await emitir(api, caida)
-    await emitir(api, caida)
+    act(() => api.emitirAviso(aviso))
     expect(
       screen.getAllByText(
         'La exportación de «Canción de prueba» no terminó porque Shinobi Karaoke se cerró.'
@@ -354,6 +391,23 @@ describe('resultado con el diálogo cerrado', () => {
     expect(screen.queryByText(/no se pudo exportar el video/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Exportar video…' }))
     expect(await screen.findByRole('dialog', { name: 'Exportar video' })).toBeInTheDocument()
+  })
+
+  it('aviso de limpieza fallida al arrancar: «Mostrar en la carpeta» usa el avisoId', async () => {
+    const aviso = {
+      avisoId: 'a0000000-0000-4000-8000-000000000002',
+      tipo: 'limpieza_fallida' as const,
+      cancionId: CANCION,
+      titulo: 'Canción de prueba'
+    }
+    const api = crearApiExportacionFalsa()
+    await montar(api)
+    act(() => api.emitirAviso(aviso))
+    expect(
+      screen.getByText('No se pudo borrar un archivo temporal. Puedes borrarlo a mano.')
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar en la carpeta' }))
+    expect(api.llamadas).toContainEqual(['mostrarEnCarpeta', { avisoId: aviso.avisoId }])
   })
 
   it('con la ventana sin foco guarda los avisos hasta que vuelve', async () => {

@@ -19,6 +19,10 @@ export interface EntradaDiario {
 export interface Interrumpida {
   titulo: string
   cancionId: string
+  /** Temporal que dejó la exportación (para «Mostrar en la carpeta» si no se pudo borrar). */
+  temporal: string
+  /** El temporal sigue ahí porque no se pudo borrar (aviso `limpieza_fallida`, 0132). */
+  limpiezaFallida: boolean
 }
 
 function validar(json: unknown): EntradaDiario {
@@ -72,8 +76,16 @@ export class DiarioExportacion {
       return null
     }
     // Si el temporal no se puede borrar no se reintenta: el aviso es único (V26).
-    await this.borrarArchivo(r.datos.temporal).catch(() => undefined)
+    let limpiezaFallida = false
+    await this.borrarArchivo(r.datos.temporal).catch(() => {
+      limpiezaFallida = true
+    })
     await this.borrar()
-    return { titulo: r.datos.titulo, cancionId: r.datos.cancionId }
+    return {
+      titulo: r.datos.titulo,
+      cancionId: r.datos.cancionId,
+      temporal: r.datos.temporal,
+      limpiezaFallida
+    }
   }
 }

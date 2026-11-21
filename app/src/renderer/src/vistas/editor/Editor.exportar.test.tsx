@@ -36,7 +36,6 @@ function montar(cancion = cancionSincronizadaLrclib()) {
     abrir,
     cerrar: vi.fn(),
     iniciada: vi.fn(),
-    existia: () => false,
     pedirCancelar: vi.fn()
   }
   render(

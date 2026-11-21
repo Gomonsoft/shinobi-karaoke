@@ -137,6 +137,34 @@ describe('sesión y cola (0181)', () => {
   })
 })
 
+describe('exportaciones (0237)', () => {
+  const base = { instalando: () => false, hayTrabajos: () => false }
+
+  it('una exportación en curso o en cola cuenta como trabajo', () => {
+    expect(hayAlgoEnCurso({ ...base, exportando: () => true })).toBe(true)
+    expect(motivoDeCierre({ ...base, exportando: () => true })).toEqual({
+      trabajos: true,
+      sesion: false,
+      cola: false
+    })
+    expect(hayAlgoEnCurso({ ...base, exportando: () => false })).toBe(false)
+  })
+
+  it('al confirmar, pausar recibe la intención', async () => {
+    const pausar = vi.fn(async () => undefined)
+    const control = crearControlCierre({
+      hayAlgoEnCurso: () => true,
+      pedirConfirmacion: vi.fn(),
+      pausar,
+      cerrarVentana: vi.fn(),
+      salir: vi.fn()
+    })
+    control.alSalir({ preventDefault: vi.fn() })
+    await control.confirmar()
+    expect(pausar).toHaveBeenCalledWith('salir')
+  })
+})
+
 it('pide vaciado con guardado pendiente y permite el cierre confirmado si el renderer agotó su plazo', async () => {
   const pedirConfirmacion = vi.fn()
   const cierreConfirmado = { preventDefault: vi.fn() }

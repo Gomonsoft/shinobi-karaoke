@@ -52,6 +52,7 @@ import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
 import type { ServicioSesion } from '../sesion/servicio'
+import type { ServicioExportacion } from '../exportacion/servicio'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -195,6 +196,24 @@ export type SesionIpc = Pick<
   | 'vaciar'
 >
 
+/** Subconjunto de `ServicioExportacion` (0237) que usa la IPC; ausente, sus canales responden `ERROR_INTERNO`. */
+export type ExportacionServicioIpc = Pick<
+  ServicioExportacion,
+  | 'perfiles'
+  | 'estimar'
+  | 'destinoPropuesto'
+  | 'elegirDestino'
+  | 'iniciar'
+  | 'cancelar'
+  | 'cancelarTodas'
+  | 'estado'
+  | 'mostrarEnCarpeta'
+  | 'avisosPendientes'
+  | 'suscribir'
+  | 'suscribirProgreso'
+  | 'suscribirAviso'
+>
+
 /** Lo que la ventana offscreen de exportación (0234) ofrece a sus dos canales. */
 export interface VentanaExportacionIpc {
   inicial(): InicialExportacionIpc
@@ -202,7 +221,9 @@ export interface VentanaExportacionIpc {
 }
 
 export interface DependenciasIpc {
-  /** Ventana offscreen vigente; hasta 0237 la crean solo las pruebas. */
+  /** Exportación de video (ADR 0019). */
+  exportacion?: ExportacionServicioIpc
+  /** Ventana offscreen vigente (0234). */
   ventanaExportacion?: () => VentanaExportacionIpc | null
   /** Sesión en vivo y cola (ADR 0017). */
   sesion?: SesionIpc
@@ -349,22 +370,15 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.sesion
   }
 
-  /** Hasta 0237 los canales de exportación existen (el contrato está completo) y fallan con `ERROR_INTERNO`. */
-  const sinServicioExportacion = Object.fromEntries(
-    Object.values(CANALES.exportacion).map((canal) => [
-      canal,
-      (): Promise<RespuestaIpc<never>> => {
-        deps.registrar?.('error', `${canal}: el servicio de exportación no está disponible.`)
-        return Promise.resolve({
-          ok: false,
-          error: { codigo: 'ERROR_INTERNO', mensaje: 'Algo salió mal.' }
-        })
-      }
-    ])
-  ) as unknown as Record<
-    (typeof CANALES.exportacion)[keyof typeof CANALES.exportacion],
-    ManejadorIpc
-  >
+  const exportacion = (): ExportacionServicioIpc => {
+    if (!deps.exportacion) throw new Error('El servicio de exportación no está disponible.')
+    return deps.exportacion
+  }
+
+  /** Remitente por rol (ADR 0019 §10): la principal usa los canales de exportación; la ventana offscreen, solo los suyos. */
+  const exigirRol = (ctx: ContextoIpc, rol: RolVentana): void => {
+    if (ctx.rol !== rol) throw errorConCodigo('ARGUMENTOS_NO_VALIDOS', 'Origen no permitido.')
+  }
 
   const ventanaExportacion = (): VentanaExportacionIpc => {
     const ventana = deps.ventanaExportacion?.()
@@ -588,7 +602,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.runtime.requisitos]: envolver(CANALES.runtime.requisitos, (opciones) =>
       runtime.requisitos(opciones.recalcularEspacio)
     ),
-    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, () => runtime.instalar()),
+    // «Reparar el motor» cancela antes las exportaciones, como un trabajo más (ADR 0019 §8).
+    [CANALES.runtime.instalar]: envolver(CANALES.runtime.instalar, async () => {
+      await deps.exportacion?.cancelarTodas()
+      runtime.instalar()
+    }),
     [CANALES.runtime.pausar]: envolver(CANALES.runtime.pausar, () => runtime.pausar()),
     [CANALES.runtime.detalles]: envolver(CANALES.runtime.detalles, () => runtime.detalles()),
     [CANALES.runtime.estimarSeparacion]: envolver(CANALES.runtime.estimarSeparacion, (ms, modelo) =>
@@ -697,14 +715,62 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.cola.quitar]: envolver(CANALES.cola.quitar, (p) => sesion().quitar(p.entradaId)),
     [CANALES.cola.vaciar]: envolver(CANALES.cola.vaciar, (p) => sesion().vaciar(p.contexto)),
-    // Fase 6: los servicios llegan con 0237; hasta entonces fallan con ERROR_INTERNO.
-    ...sinServicioExportacion,
-    [CANALES.exportacion.inicial]: envolver(CANALES.exportacion.inicial, () =>
-      ventanaExportacion().inicial()
+    [CANALES.exportacion.perfiles]: envolverCtx(CANALES.exportacion.perfiles, (ctx) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().perfiles()
+    }),
+    [CANALES.exportacion.estimar]: envolverCtx(CANALES.exportacion.estimar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().estimar(p)
+    }),
+    [CANALES.exportacion.destinoPropuesto]: envolverCtx(
+      CANALES.exportacion.destinoPropuesto,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().destinoPropuesto(p)
+      }
     ),
-    [CANALES.exportacion.listo]: envolver(CANALES.exportacion.listo, (carga) =>
-      ventanaExportacion().confirmarListo(carga)
+    [CANALES.exportacion.elegirDestino]: envolverCtx(
+      CANALES.exportacion.elegirDestino,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().elegirDestino(p.destinoId)
+      }
     ),
+    [CANALES.exportacion.iniciar]: envolverCtx(CANALES.exportacion.iniciar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().iniciar(p)
+    }),
+    [CANALES.exportacion.cancelar]: envolverCtx(CANALES.exportacion.cancelar, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().cancelar(p.trabajoId)
+    }),
+    [CANALES.exportacion.estado]: envolverCtx(CANALES.exportacion.estado, (ctx) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().estado()
+    }),
+    [CANALES.exportacion.mostrarEnCarpeta]: envolverCtx(
+      CANALES.exportacion.mostrarEnCarpeta,
+      (ctx, ref) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().mostrarEnCarpeta(ref)
+      }
+    ),
+    [CANALES.exportacion.avisosPendientes]: envolverCtx(
+      CANALES.exportacion.avisosPendientes,
+      (ctx) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().avisosPendientes()
+      }
+    ),
+    [CANALES.exportacion.inicial]: envolverCtx(CANALES.exportacion.inicial, (ctx) => {
+      exigirRol(ctx, 'exportacion')
+      return ventanaExportacion().inicial()
+    }),
+    [CANALES.exportacion.listo]: envolverCtx(CANALES.exportacion.listo, (ctx, carga) => {
+      exigirRol(ctx, 'exportacion')
+      return ventanaExportacion().confirmarListo(carga)
+    }),
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),
@@ -779,7 +845,13 @@ export function registrarIpc(
     aPrincipal(CANALES.eventos.runtimeProgreso, p)
   )
   const bajaRtCambio = deps.runtime.alCambiar((e) => aPrincipal(CANALES.eventos.runtimeCambio, e))
+  const bajasExportacion = [
+    deps.exportacion?.suscribir((e) => aPrincipal(CANALES.eventos.exportacionCambio, e)),
+    deps.exportacion?.suscribirProgreso((p) => aPrincipal(CANALES.eventos.exportacionProgreso, p)),
+    deps.exportacion?.suscribirAviso((a) => aPrincipal(CANALES.eventos.exportacionAviso, a))
+  ]
   return () => {
+    for (const baja of bajasExportacion) baja?.()
     bajaPantallaCompleta?.()
     bajaRtProgreso()
     bajaRtCambio()

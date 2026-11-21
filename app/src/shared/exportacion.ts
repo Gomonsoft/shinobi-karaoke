@@ -167,10 +167,11 @@ const GIB = 1024 ** 3
 
 /**
  * Memoria total mínima del equipo por resolución (clave `{ancho}x{alto}`); `null` = sin mínimo.
- * Solo las de 2160 líneas piden 8 GB (`motivo: memoria`, ADR 0019 §5).
+ * Solo las de 2160 líneas piden 7 GiB (equipos de «8 GB» que informan menos; `motivo: memoria`,
+ * ADR 0019 §5, revisión del 2026-11-20).
  */
 export const MEMORIA_MINIMA: Readonly<Record<string, number | null>> = Object.fromEntries(
-  RESOLUCIONES.map((r) => [`${r.ancho}x${r.alto}`, r.alto >= 2160 ? 8 * GIB : null])
+  RESOLUCIONES.map((r) => [`${r.ancho}x${r.alto}`, r.alto >= 2160 ? 7 * GIB : null])
 )
 
 export function memoriaMinimaDe(ancho: number, alto: number): number | null {
@@ -412,6 +413,28 @@ export interface ExportacionIpc {
   bytes: number | null
   fotogramas: number | null
   duracionMs: number
+  /** Había un archivo con ese nombre al iniciar (`exp.error.conservado`, B3; 0132). */
+  destinoExistia: boolean
+  /** ISO; `null` mientras no haya empezado (en cola). «Tardó…» es `terminadaEn − iniciadaEn`. */
+  iniciadaEn: string | null
+  /** ISO; `null` mientras no haya terminado. */
+  terminadaEn: string | null
+  /** El temporal no se pudo borrar tras cancelar o fallar; `resultado` y `error` siguen siendo los reales. */
+  limpiezaFallida: boolean
+}
+
+export const TIPOS_AVISO_EXPORTACION = ['interrumpida', 'limpieza_fallida'] as const
+export type TipoAvisoExportacion = (typeof TIPOS_AVISO_EXPORTACION)[number]
+
+/**
+ * Aviso que no nace de un trabajo en marcha (ADR 0019 §10, revisión 0132): se detectó al arrancar.
+ * Main lo guarda hasta `avisosPendientes()` y lo emite con `exportacion:aviso`; cada uno se entrega una vez.
+ */
+export interface AvisoExportacionIpc {
+  avisoId: string
+  tipo: TipoAvisoExportacion
+  cancionId: string
+  titulo: string
 }
 
 export interface InicialExportacionIpc {

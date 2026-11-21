@@ -11,7 +11,7 @@ import estilosComponentes from '../../componentes/componentes.module.css'
 import { NavegacionContexto } from '../../navegacion/estado'
 import { textoEtaLargo } from '../../vistas/progreso/modelo'
 import { useExportaciones } from '../contexto'
-import { porcentajeDe, type ExportacionVista } from '../estado'
+import { duracionDe, porcentajeDe, type ExportacionVista } from '../estado'
 import {
   codigoDeError,
   EXP,
@@ -175,7 +175,8 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
   }, [existe, terminadaCancelada, alCerrar])
   if (!e || terminadaCancelada) return null
 
-  const existia = ctx.existia(trabajoId)
+  const existia = e.destinoExistia
+  const tardo = duracionDe(e)
   const cabecera = (
     <p id={idCabecera} className={estilos.cabecera}>
       «{e.titulo}»{e.artista ? ` · ${e.artista}` : ''}
@@ -206,7 +207,7 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
 
   async function mostrarEnCarpeta(): Promise<void> {
     try {
-      await window.shinobi.exportacion.mostrarEnCarpeta(trabajoId)
+      await window.shinobi.exportacion.mostrarEnCarpeta({ trabajoId })
     } catch {
       mostrarToast({ tipo: 'aviso', mensaje: EXP_TOAST.noExiste })
     }
@@ -365,9 +366,7 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
             {cabecera}
             <p className={estilos.nombreArchivo}>{e.archivo}</p>
             <p>{partes.join(' · ')}</p>
-            {e.tardoMs !== null && (
-              <p>{EXP_PROGRESO.okTardo(formatearDuracionTrabajo(e.tardoMs))}</p>
-            )}
+            {tardo !== null && <p>{EXP_PROGRESO.okTardo(formatearDuracionTrabajo(tardo))}</p>}
             <p className={estilos.pista}>{EXP_PROGRESO.okEn(e.carpeta)}</p>
           </div>
         </div>
@@ -405,14 +404,20 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
   const cambiarOpciones = () => {
     ctx.abrir({
       cancionId: e.cancionId,
-      opciones: { audio: e.audio, formato: e.formato, ancho: e.ancho, alto: e.alto, fps: e.fps }
+      opciones: { audio: e.audio, formato: e.formato, ancho: e.ancho, alto: e.alto, fps: e.fps },
+      desdeTrabajoId: e.trabajoId
     })
   }
   const reintentar = async () => {
     setReintentando(true)
     try {
       const api = window.shinobi.exportacion
-      const destino = await api.destinoPropuesto({ cancionId: e.cancionId, formato: e.formato })
+      // Misma carpeta y nombre que el intento fallido, aunque se hubieran cambiado a mano (0133).
+      const destino = await api.destinoPropuesto({
+        cancionId: e.cancionId,
+        formato: e.formato,
+        desdeTrabajoId: e.trabajoId
+      })
       const { trabajoId: nuevo } = await api.iniciar({
         cancionId: e.cancionId,
         formato: e.formato,
@@ -422,7 +427,7 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
         audio: e.audio,
         destinoId: destino.destinoId
       })
-      ctx.iniciada(nuevo, e.cancionId, destino.existe)
+      ctx.iniciada(nuevo, e.cancionId)
     } catch (err) {
       setReintentando(false)
       mostrarError(`${EXP_PROGRESO.noSeReintento} ${textoErrorExp(codigoDeError(err)).titulo}`)

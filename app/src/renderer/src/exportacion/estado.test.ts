@@ -6,7 +6,7 @@ import {
   progresoDePrueba
 } from '@shared/__fixtures__/exportacion'
 import { EXP_ANUNCIO } from './dialogo/textosProgreso'
-import { clasificarAviso, crearAlmacenExportaciones, hitoDe } from './estado'
+import { clasificarAviso, crearAlmacenExportaciones, duracionDe, hitoDe } from './estado'
 
 const textos = {
   inicio: EXP_ANUNCIO.inicio,
@@ -57,13 +57,15 @@ describe('almacén de exportaciones', () => {
     expect(lista[0]!.estado).toBe('terminada')
   })
 
-  it('mide lo que tardó desde que la vio en curso', () => {
-    let t = 1000
-    const almacen = crearAlmacenExportaciones(() => t)
-    almacen.cambio(exportacionDePrueba())
-    t = 433_000
-    almacen.cambio(exportacionCompletada())
-    expect(almacen.obtener()[0]!.tardoMs).toBe(432_000)
+  it('«Tardó…» sale de las fechas de main, también si no vio empezar la exportación', () => {
+    expect(
+      duracionDe({
+        iniciadaEn: '2026-11-20T10:00:00.000Z',
+        terminadaEn: '2026-11-20T10:07:12.000Z'
+      })
+    ).toBe(432_000)
+    expect(duracionDe({ iniciadaEn: null, terminadaEn: '2026-11-20T10:07:12.000Z' })).toBeNull()
+    expect(duracionDe({ iniciadaEn: 'x', terminadaEn: 'y' })).toBeNull()
   })
 
   it('avisa a los suscriptores solo cuando algo cambia', () => {
@@ -80,36 +82,42 @@ describe('avisos e hitos', () => {
   it('clasifica el resultado de una exportación', () => {
     const almacen = crearAlmacenExportaciones()
     const previa = almacen.cambio(exportacionDePrueba())
-    expect(clasificarAviso(previa, exportacionCompletada())).toEqual({ tipo: 'ok' })
-    expect(clasificarAviso(previa, exportacionFallida())).toEqual({ tipo: 'error' })
+    expect(clasificarAviso(previa, exportacionCompletada())).toEqual([{ tipo: 'ok' }])
+    expect(clasificarAviso(previa, exportacionFallida())).toEqual([{ tipo: 'error' }])
     const cancelada = exportacionDePrueba({
       estado: 'terminada',
       resultado: 'cancelada',
       progreso: null
     })
-    expect(clasificarAviso(previa, cancelada)).toEqual({ tipo: 'cancelada' })
+    expect(clasificarAviso(previa, cancelada)).toEqual([{ tipo: 'cancelada' }])
     const enCola = crearAlmacenExportaciones()
     enCola.cambio(exportacionEnCola())
     const colaPrevia = enCola.cambio(exportacionEnCola())
-    expect(clasificarAviso(colaPrevia, cancelada)).toEqual({ tipo: 'quitada' })
-    expect(clasificarAviso(previa, exportacionDePrueba())).toBeNull()
+    expect(clasificarAviso(colaPrevia, cancelada)).toEqual([{ tipo: 'quitada' }])
+    expect(clasificarAviso(previa, exportacionDePrueba())).toEqual([])
   })
 
-  it('reconoce la limpieza fallida y la exportación interrumpida', () => {
-    const limpieza = exportacionDePrueba({
+  it('la limpieza fallida se suma al aviso del resultado real', () => {
+    const cancelada = exportacionDePrueba({
       estado: 'terminada',
       resultado: 'cancelada',
       progreso: null,
-      error: { codigo: 'LIMPIEZA_FALLIDA', mensaje: 'x', posicionMs: null }
+      limpiezaFallida: true
     })
-    expect(clasificarAviso(undefined, limpieza)).toEqual({ tipo: 'limpieza' })
-    const interrumpida = exportacionDePrueba({
+    expect(clasificarAviso(undefined, cancelada)).toEqual([
+      { tipo: 'cancelada' },
+      { tipo: 'limpieza' }
+    ])
+    const fallida = { ...exportacionFallida(), limpiezaFallida: true }
+    expect(clasificarAviso(undefined, fallida)).toEqual([{ tipo: 'error' }, { tipo: 'limpieza' }])
+    // Un código de trabajo `PROCESO_TERMINADO` ya no se interpreta como «interrumpida» (0132).
+    const proceso = exportacionDePrueba({
       estado: 'terminada',
       resultado: 'error',
       progreso: null,
       error: { codigo: 'PROCESO_TERMINADO', mensaje: 'x', posicionMs: null }
     })
-    expect(clasificarAviso(undefined, interrumpida)).toEqual({ tipo: 'interrumpida' })
+    expect(clasificarAviso(undefined, proceso)).toEqual([{ tipo: 'error' }])
   })
 
   it('solo anuncia hitos: inicio, subpasos, 25/50/75 %, éxito y cancelación', () => {

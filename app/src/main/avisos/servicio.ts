@@ -93,6 +93,18 @@ export class ServicioAvisos {
 
   avisar(aviso: AvisoTrabajoIpc): void {
     this.deps.difundirAviso(aviso)
+    this.alertarSistema(aviso.texto, () => this.abrir(aviso.cancionId, aviso.destino))
+  }
+
+  /**
+   * Solo la parte del sistema (notificación, parpadeo o Dock), sin evento al renderer: lo usa la
+   * exportación de video (0237), cuyo toast sale del propio estado de la exportación.
+   */
+  avisarSistema(texto: string): void {
+    this.alertarSistema(texto, () => this.deps.ventana()?.traer())
+  }
+
+  private alertarSistema(texto: string, alClic: () => void): void {
     const ventana = this.deps.ventana()
     if (!ventana || ventana.enfocada()) return
     this.pendientes++
@@ -106,8 +118,8 @@ export class ServicioAvisos {
     try {
       this.deps.notificador.mostrar({
         titulo: 'Shinobi Karaoke',
-        cuerpo: aviso.texto,
-        alClic: () => this.abrir(aviso.cancionId, aviso.destino),
+        cuerpo: texto,
+        alClic,
         // Sin error visible: queda el parpadeo.
         alFallar: () => this.deps.registrar?.('aviso', 'la notificación del sistema falló')
       })

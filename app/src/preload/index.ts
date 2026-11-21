@@ -92,7 +92,9 @@ const api: ApiShinobi = {
     iniciar: (peticion) => invocar(CANALES.exportacion.iniciar, peticion),
     cancelar: (trabajoId) => invocar(CANALES.exportacion.cancelar, { trabajoId }),
     estado: () => invocar(CANALES.exportacion.estado),
-    mostrarEnCarpeta: (trabajoId) => invocar(CANALES.exportacion.mostrarEnCarpeta, { trabajoId }),
+    mostrarEnCarpeta: (referencia) => invocar(CANALES.exportacion.mostrarEnCarpeta, referencia),
+    avisosPendientes: () => invocar(CANALES.exportacion.avisosPendientes),
+    alAviso: (cb) => suscribir(CANALES.eventos.exportacionAviso, cb),
     alCambiar: (cb) => suscribir(CANALES.eventos.exportacionCambio, cb),
     alProgreso: (cb) => suscribir(CANALES.eventos.exportacionProgreso, cb)
   },
