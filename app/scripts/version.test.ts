@@ -113,7 +113,8 @@ describe('subir y comprobar sobre copias de los archivos reales', () => {
       expect(() => comprobarVersiones(raiz)).toThrow(/app\/package-lock\.json/)
     } else {
       const propio = ruta === 'worker/uv.lock' ? 'name = "shinobi-worker"\nversion = "' : ''
-      writeFileSync(join(raiz, ruta), texto.replace(propio + version, propio + '9.9.9'))
+      const valor = ruta.startsWith('worker/') ? aPep440(version) : version
+      writeFileSync(join(raiz, ruta), texto.replace(propio + valor, propio + '9.9.9'))
       expect(() => comprobarVersiones(raiz)).toThrow(ruta.split(' ')[0]!)
     }
   })
