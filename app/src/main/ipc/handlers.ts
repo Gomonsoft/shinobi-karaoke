@@ -42,6 +42,7 @@ import {
   type SeleccionApariencia,
   type TemaIpc
 } from '../../shared'
+import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
 import type { EventoCancion, ResumenCancion } from '../biblioteca'
 import { resueltaDeResolucion } from '../biblioteca/resumen'
@@ -487,10 +488,10 @@ export interface IpcMainLike {
 }
 
 export interface OpcionesRegistro {
-  /** Debe devolver true solo para los eventos que vienen de nuestra ventana. */
-  remitenteValido?: (evento: unknown) => boolean
-  /** Envía un evento a todos los renderers. */
-  difundir: (canal: string, carga: unknown) => void
+  /** Debe devolver true solo si el evento viene de una ventana con permiso en ese canal. */
+  remitenteValido?: (evento: unknown, canal: string) => boolean
+  /** Envía un evento a la ventana con ese rol (ADR 0017 §11); no hace nada si no existe. */
+  enviarA: (rol: RolVentana, canal: string, carga: unknown) => void
 }
 
 /** Registra los canales y reenvía los eventos de los servicios. Devuelve la función para deshacerlo. */
@@ -503,7 +504,7 @@ export function registrarIpc(
   const canales = Object.keys(manejadores) as Exclude<CanalInvocable, CanalDeSesionPendiente>[]
   for (const canal of canales) {
     ipc.handle(canal, (evento, ...args) => {
-      if (opciones.remitenteValido && !opciones.remitenteValido(evento)) {
+      if (opciones.remitenteValido && !opciones.remitenteValido(evento, canal)) {
         return {
           ok: false,
           error: { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Origen no permitido.' }
@@ -512,23 +513,24 @@ export function registrarIpc(
       return manejadores[canal](args)
     })
   }
+  // Todos los eventos actuales son de la principal; 0181 añade los de la sesión y la secundaria.
+  const aPrincipal = (canal: string, carga: unknown): void =>
+    opciones.enviarA('principal', canal, carga)
   const bajaPantallaCompleta = deps.ventana?.suscribir((activa) =>
-    opciones.difundir(CANALES.eventos.pantallaCompleta, activa)
+    aPrincipal(CANALES.eventos.pantallaCompleta, activa)
   )
   const bajaCancion = deps.biblioteca.suscribir((e) =>
-    opciones.difundir(CANALES.eventos.cancion, eventoParaRenderer(e))
+    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e))
   )
-  const bajaConfig = deps.config.suscribir((c) => opciones.difundir(CANALES.eventos.config, c))
-  const bajaTrabajo = deps.trabajos.suscribir((t) => opciones.difundir(CANALES.eventos.trabajo, t))
+  const bajaConfig = deps.config.suscribir((c) => aPrincipal(CANALES.eventos.config, c))
+  const bajaTrabajo = deps.trabajos.suscribir((t) => aPrincipal(CANALES.eventos.trabajo, t))
   const bajaProgreso = deps.trabajos.suscribirProgreso((p) =>
-    opciones.difundir(CANALES.eventos.trabajoProgreso, p)
+    aPrincipal(CANALES.eventos.trabajoProgreso, p)
   )
   const bajaRtProgreso = deps.runtime.alProgreso((p) =>
-    opciones.difundir(CANALES.eventos.runtimeProgreso, p)
+    aPrincipal(CANALES.eventos.runtimeProgreso, p)
   )
-  const bajaRtCambio = deps.runtime.alCambiar((e) =>
-    opciones.difundir(CANALES.eventos.runtimeCambio, e)
-  )
+  const bajaRtCambio = deps.runtime.alCambiar((e) => aPrincipal(CANALES.eventos.runtimeCambio, e))
   return () => {
     bajaPantallaCompleta?.()
     bajaRtProgreso()

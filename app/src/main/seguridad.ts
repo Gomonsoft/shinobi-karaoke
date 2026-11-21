@@ -2,6 +2,7 @@
  * Endurecimiento de Electron (ADR 0008, tarea 0021): política de navegación, permisos y
  * remitente IPC. Las funciones son puras o reciben dobles para poder probarlas sin Electron.
  */
+import { ROLES_POR_CANAL, type NombreCanalInvocable, type RolVentana } from '../shared/canales'
 import { enlacePermitido } from '../shared/ipc'
 
 export const PERMISOS_PERMITIDOS: readonly string[] = ['clipboard-sanitized-write']
@@ -102,24 +103,59 @@ export function instalarPermisos(sesion: SesionLike, origenRenderer: string): vo
 }
 
 interface EventoIpcLike {
-  sender?: unknown
+  sender?: { mainFrame?: unknown } | null
   senderFrame?: { url?: string } | null
 }
 
-/** Valida que el evento IPC venga del frame principal del renderer. */
+/** Registro de roles de ventana (`RegistroVentanas`), reducido a lo que usa el remitente. */
+export interface RegistroRoles {
+  rolDe(webContents: unknown): RolVentana | null
+}
+
+/** Rutas del documento que puede cargar cada rol (ADR 0017 §11 punto 5). */
+const RUTAS_POR_ROL: Record<RolVentana, readonly string[]> = {
+  principal: ['/index.html', '/'],
+  secundaria: ['/reproductor.html']
+}
+
+function rutaDeDocumento(url: string): string | null {
+  try {
+    return new URL(url).pathname
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Valida un evento IPC (ADR 0008 punto 7, revisión de la fase 4): `webContents` registrado, rol
+ * con permiso en el canal, *frame* principal, origen del renderer y documento propio del rol.
+ */
 export function remitenteIpcValido(
   evento: unknown,
-  ventanas: readonly { mainFrame?: unknown }[],
+  canal: string,
+  registro: RegistroRoles,
   origenRenderer: string
 ): boolean {
   const e = evento as EventoIpcLike | null
   if (!e || !e.sender || !e.senderFrame) return false
-  const wc = ventanas.find((v) => v === e.sender)
-  if (!wc) return false
-  if (e.senderFrame !== wc.mainFrame) return false
-  return (
-    typeof e.senderFrame.url === 'string' && esOrigenRenderer(e.senderFrame.url, origenRenderer)
-  )
+  const rol = registro.rolDe(e.sender)
+  if (!rol) return false
+  if (!Object.hasOwn(ROLES_POR_CANAL, canal)) return false
+  if (!ROLES_POR_CANAL[canal as NombreCanalInvocable].includes(rol)) return false
+  if (e.senderFrame !== e.sender.mainFrame) return false
+  const url = e.senderFrame.url
+  if (typeof url !== 'string' || !esOrigenRenderer(url, origenRenderer)) return false
+  const ruta = rutaDeDocumento(url)
+  return ruta !== null && RUTAS_POR_ROL[rol].includes(ruta)
+}
+
+/** La secundaria no navega nunca, ni siquiera a enlaces permitidos (ADR 0008, fase 4). */
+export function bloquearNavegacionTotal(wc: Pick<WebContentsLike, 'on'>): void {
+  for (const nombre of ['will-navigate', 'will-redirect', 'will-frame-navigate']) {
+    wc.on(nombre, ((detalles: { preventDefault(): void }) => {
+      detalles.preventDefault()
+    }) as never)
+  }
 }
 
 /** Espera `trabajo` como máximo `plazoMs`; devuelve `true` si terminó a tiempo. */

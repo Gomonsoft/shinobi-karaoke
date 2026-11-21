@@ -40,6 +40,7 @@ import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
 import { RegistroArchivo } from './registro'
 import {
+  bloquearNavegacionTotal,
   conPlazo,
   instalarPermisos,
   instalarPoliticaNavegacion,
@@ -71,6 +72,11 @@ import { crearPuertoModelos, entornoSeparadorFalso, ServicioSeparacion } from '.
 import { ServicioPicos } from './picos/servicio'
 import { puertosDeElectron, puertosDePruebas, ServicioAvisos, ventanaDeElectron } from './avisos'
 import { ControlModoReproductor, simularPantallaCompleta } from './ventana/modoReproductor'
+import { RegistroVentanas } from './ventana/registro'
+import { GestorReposo } from './ventana/reposo'
+
+/** Roles de las ventanas de la app (ADR 0017 §1). */
+const ventanas = new RegistroVentanas<BrowserWindow>()
 
 /** Servicio de configuración (0008); lo usarán los demás servicios y la IPC (0011). */
 export let servicioConfig: ServicioConfig | null = null
@@ -81,9 +87,9 @@ export let servicioBiblioteca: ServicioBiblioteca | null = null
 /** Catálogo de temas (ADR 0016, 0168). */
 export let servicioTemas: ServicioTemas | null = null
 
-/** Envía un evento a todas las ventanas. */
-function difundir(canal: string, carga: unknown): void {
-  for (const v of BrowserWindow.getAllWindows()) v.webContents.send(canal, carga)
+/** Envía un evento a la ventana principal (los eventos de datos y trabajos son solo suyos). */
+function aPrincipal(canal: string, carga: unknown): void {
+  ventanas.enviarA('principal', canal, carga)
 }
 
 /** Importación de archivo local (0042). */
@@ -128,7 +134,17 @@ function instalarMenuDesarrollo(): void {
     label: 'Desarrollo',
     submenu: [
       { label: 'Lanzar demo (cola pesada, 30 s)', click: () => lanzar('pesada', 30) },
-      { label: 'Lanzar demo (cola ligera, 15 s)', click: () => lanzar('ligera', 15) }
+      { label: 'Lanzar demo (cola ligera, 15 s)', click: () => lanzar('ligera', 15) },
+      // Solo pruebas (0179): secundaria vacía con el rol `secundaria` para el E2E de seguridad.
+      ...(process.env.SHINOBI_VENTANA_SECUNDARIA_PRUEBA === '1'
+        ? [
+            {
+              id: 'dev-secundaria-prueba',
+              label: 'Abrir secundaria de prueba',
+              click: () => crearVentanaSecundariaPrueba()
+            }
+          ]
+        : [])
     ]
   }
   const actual = Menu.getApplicationMenu()
@@ -147,8 +163,11 @@ function origenRenderer(): string {
 
 let guardadoEditorPendiente = false
 
+/** Bloqueo de reposo compartido entre el reproductor local y la sesión (ADR 0017 §4). */
+export const gestorReposo = new GestorReposo(powerSaveBlocker)
+
 const modoReproductor = new ControlModoReproductor({
-  bloqueador: powerSaveBlocker,
+  reposo: gestorReposo,
   fijarZoomActivo: (activo) => {
     const menu = Menu.getApplicationMenu()
     for (const id of Object.values(IDS_ZOOM)) {
@@ -166,10 +185,7 @@ const controlCierre = crearControlCierre({
       hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
       guardadoPendiente: () => guardadoEditorPendiente
     }),
-  pedirConfirmacion: () => {
-    for (const v of BrowserWindow.getAllWindows())
-      v.webContents.send(CANALES.eventos.solicitudCierre)
-  },
+  pedirConfirmacion: () => aPrincipal(CANALES.eventos.solicitudCierre, undefined),
   // Tras confirmar, los trabajos se cancelan como `interrumpido` y no queda ningún proceso hijo.
   // Sin `cancelarTodos()`: en macOS cerrar la ventana no sale de la app y el gestor debe seguir vivo.
   pausar: async () => {
@@ -179,7 +195,7 @@ const controlCierre = crearControlCierre({
       ...(g?.listar().map((t) => g.cancelar(t.id, 'cierre')) ?? [])
     ])
   },
-  cerrarVentana: () => BrowserWindow.getAllWindows()[0]?.close(),
+  cerrarVentana: () => ventanas.principal()?.close(),
   salir: () => app.quit()
 })
 
@@ -215,6 +231,8 @@ function crearVentana(): BrowserWindow {
   ajustarMinimo()
   ventana.once('ready-to-show', ajustarMinimo)
 
+  ventanas.registrar(ventana, 'principal')
+
   const simular = !app.isPackaged && process.env.SHINOBI_PANTALLA_COMPLETA_SIMULADA === '1'
   modoReproductor.vincular(simular ? simularPantallaCompleta(ventana) : ventana)
   ventana.webContents.on('render-process-gone', () => modoReproductor.reiniciar())
@@ -242,6 +260,37 @@ function crearVentana(): BrowserWindow {
     void ventana.loadURL(`${ORIGEN_APP}/index.html`)
   }
   return ventana
+}
+
+/**
+ * Secundaria vacía solo para pruebas (E2E de seguridad, 0179): rol `secundaria`, preload propio y
+ * sin sesión. Solo sin empaquetar y con `SHINOBI_VENTANA_SECUNDARIA_PRUEBA=1`. La sustituye 0180.
+ */
+function crearVentanaSecundariaPrueba(): void {
+  if (ventanas.secundaria()) return
+  const ventana = new BrowserWindow({
+    width: 640,
+    height: 360,
+    title: 'Shinobi Karaoke · Reproductor',
+    backgroundColor: '#000000',
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/secundaria.js'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+      autoplayPolicy: 'no-user-gesture-required'
+    }
+  })
+  ventanas.registrar(ventana, 'secundaria')
+  ventana.setMenu(null)
+  bloquearNavegacionTotal(ventana.webContents)
+  ventana.once('ready-to-show', () => ventana.showInactive())
+  const urlDev = process.env.ELECTRON_RENDERER_URL
+  void ventana.loadURL(
+    !app.isPackaged && urlDev ? `${urlDev}/reproductor.html` : `${ORIGEN_APP}/reproductor.html`
+  )
 }
 
 // El esquema de medios debe registrarse como privilegiado antes de `app.ready` (0012).
@@ -280,7 +329,7 @@ app.on('web-contents-created', (_e, wc) => {
 })
 
 app.on('second-instance', () => {
-  const ventana = BrowserWindow.getAllWindows()[0]
+  const ventana = ventanas.principal()
   if (!ventana) return
   if (ventana.isMinimized()) ventana.restore()
   ventana.show()
@@ -312,8 +361,8 @@ if (instanciaUnica)
         puerto: biblioteca.puerto(),
         estiloInicial: servicioConfig?.obtener().estilo_predeterminado ?? estiloPredeterminado(),
         registro,
-        alCambiar: (catalogo) => difundir(CANALES.eventos.temasCambiado, catalogo),
-        alProgreso: (progreso) => difundir(CANALES.eventos.temasProgreso, progreso)
+        alCambiar: (catalogo) => aPrincipal(CANALES.eventos.temasCambiado, catalogo),
+        alProgreso: (progreso) => aPrincipal(CANALES.eventos.temasProgreso, progreso)
       })
       biblioteca.conectarTemas(servicioTemas)
       servicioBiblioteca = biblioteca
@@ -428,10 +477,7 @@ if (instanciaUnica)
           config: servicioConfig,
           dirDatos: rutaDatos(),
           actualizarYtDlp,
-          alEstadoInfo: (ev) => {
-            for (const v of BrowserWindow.getAllWindows())
-              v.webContents.send(CANALES.eventos.estadoInfo, ev)
-          },
+          alEstadoInfo: (ev) => aPrincipal(CANALES.eventos.estadoInfo, ev),
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'youtube', mensaje)
         })
       }
@@ -539,7 +585,7 @@ if (instanciaUnica)
       const pruebas = puertosDePruebas({ env: process.env, empaquetada: app.isPackaged })
       const puertos = pruebas ?? puertosDeElectron({ Notification, dock: app.dock })
       const ventanaPrincipal = () => {
-        const v = BrowserWindow.getAllWindows()[0]
+        const v = ventanas.principal()
         if (!v) return null
         const real = ventanaDeElectron(v)
         return pruebas ? pruebas.ventana(real) : real
@@ -549,14 +595,8 @@ if (instanciaUnica)
         ventana: ventanaPrincipal,
         notificador: puertos.notificador,
         dock: puertos.dock,
-        difundirAviso: (a) => {
-          for (const v of BrowserWindow.getAllWindows())
-            v.webContents.send(CANALES.eventos.avisoTrabajo, a)
-        },
-        difundirAbrir: (e) => {
-          for (const v of BrowserWindow.getAllWindows())
-            v.webContents.send(CANALES.eventos.abrirCancion, e)
-        },
+        difundirAviso: (a) => aPrincipal(CANALES.eventos.avisoTrabajo, a),
+        difundirAbrir: (e) => aPrincipal(CANALES.eventos.abrirCancion, e),
         obtenerCancion: (id) => biblioteca.obtener(id),
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'avisos', mensaje)
       })
@@ -671,13 +711,9 @@ if (instanciaUnica)
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'ipc', mensaje)
         },
         {
-          remitenteValido: (evento) =>
-            remitenteIpcValido(
-              evento,
-              BrowserWindow.getAllWindows().map((v) => v.webContents),
-              origenRenderer()
-            ),
-          difundir
+          remitenteValido: (evento, canal) =>
+            remitenteIpcValido(evento, canal, ventanas, origenRenderer()),
+          enviarA: (rol, canal, carga) => ventanas.enviarA(rol, canal, carga)
         }
       )
     }
@@ -686,7 +722,8 @@ if (instanciaUnica)
         plantillaMenu(
           process.platform,
           (accion) => {
-            BrowserWindow.getFocusedWindow()?.webContents.send(CANALES.eventos.menu, accion)
+            // La secundaria no recibe acciones del menú (ADR 0017 §1).
+            aPrincipal(CANALES.eventos.menu, accion)
           },
           // Durante el primer arranque no se puede salir de él por menú ni atajos (ux/01 criterio 1).
           () => runtime?.servicio.completa() ?? false
@@ -696,7 +733,14 @@ if (instanciaUnica)
     if (!app.isPackaged) instalarMenuDesarrollo()
     crearVentana()
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) crearVentana()
+      // Aunque siga abierta la secundaria, se recrea la principal si falta (ADR 0017 §1).
+      const principal = ventanas.principal()
+      if (!principal) crearVentana()
+      else {
+        if (principal.isMinimized()) principal.restore()
+        principal.show()
+        principal.focus()
+      }
     })
   })
 
@@ -705,6 +749,7 @@ app.on('before-quit', (evento) => {
   if (escriturasVolcadas) return
   controlCierre.alSalir(evento)
   if (evento.defaultPrevented) return
+  gestorReposo.liberarTodo()
   // Se espera a las escrituras pendientes (0010) antes de salir de verdad.
   evento.preventDefault()
   escriturasVolcadas = true

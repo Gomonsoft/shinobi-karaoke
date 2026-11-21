@@ -74,3 +74,61 @@ test('navegación bloqueada, enlaces por la lista blanca e instancia única', as
     await app.close()
   }
 })
+
+test('la secundaria solo ve window.shinobiReproductor, no navega y second-instance enfoca la principal', async () => {
+  const datos = crearTemporal('seguridad-secundaria')
+  const config = configPredeterminada()
+  config.instalacion.estado = 'completa'
+  mkdirSync(datos, { recursive: true })
+  writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  const env = { ...process.env, SHINOBI_DATOS: datos, SHINOBI_VENTANA_SECUNDARIA_PRUEBA: '1' }
+  const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env })
+  try {
+    const principal = await app.firstWindow()
+    await expect(principal.getByRole('banner')).toBeVisible()
+    const nueva = app.waitForEvent('window')
+    await app.evaluate(({ Menu }) => {
+      Menu.getApplicationMenu()?.getMenuItemById('dev-secundaria-prueba')?.click()
+    })
+    const secundaria = await nueva
+    await secundaria.waitForLoadState('domcontentloaded')
+    expect(secundaria.url()).toMatch(/\/reproductor\.html$/)
+
+    // Superficie mínima: solo `shinobiReproductor`, nunca `shinobi`.
+    type ConApi = { shinobi?: unknown; shinobiReproductor?: unknown }
+    expect(
+      await secundaria.evaluate(() => ({
+        shinobi: typeof (window as unknown as ConApi).shinobi,
+        reproductor: typeof (window as unknown as ConApi).shinobiReproductor
+      }))
+    ).toEqual({ shinobi: 'undefined', reproductor: 'object' })
+    expect(
+      await principal.evaluate(() => typeof (window as unknown as ConApi).shinobiReproductor)
+    ).toBe('undefined')
+
+    // La secundaria no navega ni siquiera al documento de la principal.
+    const urlAntes = secundaria.url()
+    await secundaria.evaluate("setTimeout(() => { location.href = '/index.html' }, 0); undefined")
+    await secundaria.waitForTimeout(500)
+    expect(secundaria.url()).toBe(urlAntes)
+
+    // `second-instance` enfoca la principal aunque la secundaria esté abierta.
+    await app.evaluate(({ app: electronApp, BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((v) => !v.webContents.getURL().endsWith('/reproductor.html'))
+        ?.minimize()
+      electronApp.emit('second-instance', {}, [], '', {})
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()
+            .filter((v) => !v.webContents.getURL().endsWith('/reproductor.html'))
+            .map((v) => v.isMinimized())
+        )
+      )
+      .toEqual([false])
+  } finally {
+    await app.close()
+  }
+})
