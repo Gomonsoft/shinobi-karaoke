@@ -88,6 +88,8 @@ interface Opciones {
   /** Cuánto espera `capturar` por fotograma (puerta). */
   puertaCaptura?: () => Promise<void>
   ventanaFalla?: boolean
+  /** La ventana doble nunca asienta la captura. */
+  sinAsentar?: boolean
 }
 
 function montar(o: Opciones = {}) {
@@ -198,12 +200,17 @@ function montar(o: Opciones = {}) {
       pintar: async () => undefined,
       capturar: async () => {
         await Promise.race([o.puertaCaptura?.() ?? Promise.resolve(), rota])
-        return Buffer.alloc(opciones.ancho * opciones.alto * 4)
+        return {
+          imagen: Buffer.alloc(opciones.ancho * opciones.alto * 4),
+          asentada: !o.sinAsentar,
+          intentos: o.sinAsentar ? 5 : 2
+        }
       },
       confirmarListo: () => undefined,
       destruir
     }
   })
+  const registrar = vi.fn()
   const servicio = new ServicioExportacion({
     biblioteca: {
       obtener: (id) => canciones[id] ?? null,
@@ -223,7 +230,7 @@ function montar(o: Opciones = {}) {
     nucleos: () => 8,
     plataforma: 'linux',
     ahora: () => ahoraMs,
-    registrar: () => undefined
+    registrar
   })
   const cambios: ExportacionIpc[] = []
   servicio.suscribir((e) => cambios.push(e))
@@ -243,6 +250,7 @@ function montar(o: Opciones = {}) {
     cambios,
     canciones,
     crearVentana,
+    registrar,
     ultimo: (id: string) => cambios.filter((c) => c.trabajoId === id).at(-1)
   }
 }
@@ -317,6 +325,19 @@ describe('éxito', () => {
       fps: 24,
       carpeta: videos
     })
+  })
+
+  it('anota en el registro los fotogramas no asentados y calla si todo se asienta', async () => {
+    const m = montar({ sinAsentar: true })
+    const { trabajoId } = await iniciar(m)
+    await hasta(() => m.ultimo(trabajoId)?.estado === 'terminada')
+    expect(m.ultimo(trabajoId)).toMatchObject({ resultado: 'completada', fotogramas: 24 })
+    expect(m.registrar).toHaveBeenCalledTimes(1)
+    expect(m.registrar).toHaveBeenCalledWith('aviso', expect.stringContaining('24 de 24'))
+    const limpio = montar()
+    const r = await iniciar(limpio)
+    await hasta(() => limpio.ultimo(r.trabajoId)?.estado === 'terminada')
+    expect(limpio.registrar).not.toHaveBeenCalled()
   })
 
   it('lanza el worker con la tubería, la prioridad baja y los parámetros del perfil', async () => {

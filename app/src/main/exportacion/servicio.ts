@@ -717,7 +717,8 @@ export class ServicioExportacion<V = unknown> {
       errorWorker: null,
       resultado: null,
       codificados: 0,
-      escritos: 0
+      escritos: 0,
+      noAsentados: 0
     }
     let ultimaEmision = 0
     let ultimoProgreso: ProgresoExportacionIpc = t.progreso ?? this.progresoInicial(t)
@@ -856,7 +857,11 @@ export class ServicioExportacion<V = unknown> {
           ancho: t.ancho,
           alto: t.alto,
           pintar: (n) => v.pintar(n),
-          capturar: () => v.capturar(),
+          capturar: async () => {
+            const c = await v.capturar()
+            if (!c.asentada) s.noAsentados++
+            return c.imagen
+          },
           destino,
           señal: bucle.signal,
           alFotograma: () => {
@@ -873,6 +878,12 @@ export class ServicioExportacion<V = unknown> {
     } finally {
       clearInterval(latido)
       t.control.signal.removeEventListener('abort', alCancelar)
+      if (s.noAsentados > 0) {
+        deps.registrar?.(
+          'aviso',
+          `exportación ${t.id} (${t.formato} ${t.ancho}×${t.alto} a ${t.fps} fps): ${s.noAsentados} de ${t.total} fotogramas no se asentaron tras 5 capturas`
+        )
+      }
       // Antes de tocar el temporal: sin proceso vivo y sin la ventana (en Windows no se borra un archivo abierto).
       s.ventana?.destruir()
       if (s.stdin && !s.stdin.writableEnded) s.stdin.destroy()
@@ -1061,6 +1072,8 @@ interface EstadoEjecucion {
   resultado: Record<string, unknown> | null
   codificados: number
   escritos: number
+  /** Fotogramas cuya captura no se asentó (ADR 0019 §2). */
+  noAsentados: number
 }
 
 interface SalidaTrabajo {
