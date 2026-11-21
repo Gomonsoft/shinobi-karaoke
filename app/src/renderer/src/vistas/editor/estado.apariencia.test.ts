@@ -24,7 +24,7 @@ describe('apariencia y borrador de tema (0170, 0171)', () => {
   const asignar = (e: ReturnType<typeof inicial>, temaId: string, ahora: number) =>
     reducirEditor(e, {
       tipo: 'apariencia',
-      apariencia: { seleccion: { modo: 'tema', temaId }, estilo: base },
+      apariencia: { seleccion: { modo: 'tema', temaId }, estilo: base, reemplazos: null },
       clave: 'tema',
       ahora
     })
@@ -33,9 +33,17 @@ describe('apariencia y borrador de tema (0170, 0171)', () => {
     let e = asignar(inicial(), TEMA, 0)
     e = asignar(e, OTRO, 10)
     expect(e.pasado).toHaveLength(2)
-    expect(aSeleccionIpc(e.actual.apariencia)).toEqual({ modo: 'tema', temaId: OTRO })
+    expect(aSeleccionIpc(e.actual.apariencia)).toEqual({
+      modo: 'tema',
+      temaId: OTRO,
+      reemplazos: null
+    })
     e = reducirEditor(e, { tipo: 'deshacer' })
-    expect(aSeleccionIpc(e.actual.apariencia)).toEqual({ modo: 'tema', temaId: TEMA })
+    expect(aSeleccionIpc(e.actual.apariencia)).toEqual({
+      modo: 'tema',
+      temaId: TEMA,
+      reemplazos: null
+    })
     e = reducirEditor(e, { tipo: 'deshacer' })
     expect(aSeleccionIpc(e.actual.apariencia)).toEqual({ modo: 'propio', estilo: base })
   })

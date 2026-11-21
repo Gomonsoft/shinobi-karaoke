@@ -154,7 +154,7 @@ describe('sección Tema del panel Estilo (0170)', () => {
       () =>
         expect(llamadasApariencia(llamadas).at(-1)?.args).toEqual([
           expect.any(String),
-          { modo: 'tema', temaId: NEON }
+          { modo: 'tema', temaId: NEON, reemplazos: null }
         ]),
       { timeout: 3000 }
     )
@@ -162,7 +162,11 @@ describe('sección Tema del panel Estilo (0170)', () => {
     // Ctrl/Cmd + Z revierte la asignación y la reenvía.
     fireEvent.click(boton(/^Deshacer/))
     await waitFor(
-      () => expect(llamadasApariencia(llamadas).at(-1)?.args[1]).toEqual({ modo: 'heredar' }),
+      () =>
+        expect(llamadasApariencia(llamadas).at(-1)?.args[1]).toEqual({
+          modo: 'heredar',
+          reemplazos: null
+        }),
       { timeout: 3000 }
     )
     expect(screen.getByText('Tema predeterminado anterior')).toBeVisible()

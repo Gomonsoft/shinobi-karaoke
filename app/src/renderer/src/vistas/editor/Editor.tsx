@@ -248,7 +248,8 @@ function EditorActivo({
         letra: letraInicial,
         apariencia: {
           seleccion: seleccionDeDisco(cancion.apariencia),
-          estilo: cancion.estilo
+          estilo: cancion.estilo,
+          reemplazos: cancion.apariencia?.reemplazos ?? null
         }
       },
       seleccionarInicial(letraInicial)
