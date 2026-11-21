@@ -36,6 +36,7 @@ Siempre, antes de dar una tarea por terminada: `npm run typecheck`, `npm run lin
 5. Lo que solo se puede comprobar a mano (hardware, varios monitores, sensación visual) **no es una tarea de agente**: se añade a la guía manual de la fase en `Test-manuales/`.
 6. Las capturas de revisión visual solo se toman cuando la spec UX las pide para una revisión del diseñador.
 7. **Reintentos de foco con `requestAnimationFrame`**: los que viven a nivel de módulo (p. ej. `enfocarCuando`) sobreviven al test que los lanzó y pueden robar el foco al siguiente. Mantén un solo enfoque pendiente a la vez y no dependas en una prueba de reintentos de otra.
+8. **Specs con sesión de reproducción abierta**: no cierres la app con `app.close()` (main pide confirmación de salida, 0189, y la prueba agota el tiempo en el `finally`, también en macOS). Usa `salirSinConfirmar(app)` de `e2e/salir.ts`.
 
 ## Regresión en el CI
 

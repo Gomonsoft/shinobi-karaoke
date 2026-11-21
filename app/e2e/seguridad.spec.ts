@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { configPredeterminada } from '../src/shared/config'
+import { salirSinConfirmar } from './salir'
 import { crearTemporal } from './temporales'
 
 const ejecutarElectron = promisify(execFile)
@@ -140,6 +141,7 @@ test('la secundaria solo ve window.shinobiReproductor, no navega y second-instan
       )
       .toEqual([false])
   } finally {
-    await app.close()
+    // Con la sesión abierta, `app.close()` esperaría la confirmación de salida (0189).
+    await salirSinConfirmar(app)
   }
 })
