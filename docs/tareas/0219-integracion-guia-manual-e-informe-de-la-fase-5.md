@@ -1,6 +1,6 @@
 # 0219 — Pruebas de integración, guía manual e informe de la fase 5
 
-- Estado: Pendiente
+- Estado: En curso (hecha la spec E2E; faltan la guía manual de `qa` y el informe de la sesión principal)
 - Paso del pipeline: 4–6
 - Depende de: [0200](0200-esquema-del-estilo-ampliado-y-normalizacion.md)–[0218](0218-capturas-de-revision-de-la-fase-5.md)
 - ADRs: [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md)
@@ -51,3 +51,15 @@ Cerrar la fase: integración real entre procesos con un E2E mínimo, CI en verde
 - Manual: la guía de arriba.
 
 ## Notas de implementación
+
+### Spec E2E (programador, 2026-11-20)
+
+- `app/e2e/fase5.spec.ts`, 4 pruebas, sin red, estable en 2 pasadas (~18 s) y con `@critico` en verde:
+  1. Letra lista de punta a punta: editor → «Marcar como letra lista» con «No volver a mostrar» → Biblioteca con `[data-resaltada]` e insignia → «Reproducir» sin `[data-barrido]` → al reabrir el editor, la vista previa sí tiene barrido (LL3, LL4, LB1, LB3, R12).
+  2. Sesión con secundaria real: la Letra lista suena sin `[data-barrido]`. Cambiarla a Lista durante la sesión **se rechaza** (`EDICION_BLOQUEADA`, `sinSesion()` de `marcarLista`), así que no cambia nada: la prueba afirma ese rechazo y que `cancion.json` conserva `letra_lista` (R13). Sin barrido en origen `sesion` (solo cableado, sin test).
+  3. `--k-fondo` idéntico a 12,3 s en la vista previa del editor y en «Probar a pantalla completa» con un cónico en movimiento, y distinto de la fase 0 (G6, R1, R2).
+  4. Movimiento reducido emulado: fase 0 en vista previa y reproductor tras buscar 12,3 s, nota `edi.fondo.mov.reducido` visible y sin el botón «Detener el movimiento del fondo» (G8, R3).
+- La prueba de sesión se cierra con `salirSinConfirmar`.
+- G2 (píxel a píxel con 0.1.0) no se compara: pasa a la guía manual.
+- Fila del inventario añadida a `docs/pruebas.md`.
+- Pendiente: CI en verde del PR borrador, guía manual de `qa` (casos en el Contrato), informe y preguntas 0100/0110.
