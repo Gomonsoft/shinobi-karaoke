@@ -390,3 +390,41 @@ jobs:
             ''
           ].join('\n'))
           NODE
+
+  preparar-publicacion:
+    name: Preparar publicación
+    needs: [comprobar-version, construir, probar-instalador]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.comprobar-version.outputs.version }}
+      ETIQUETA: ${{ needs.comprobar-version.outputs.etiqueta }}
+      PREVIA: ${{ needs.comprobar-version.outputs.previa }}
+      ENSAYO: ${{ github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/.nvmrc
+      - name: Identificar artefactos
+        id: artefactos
+        run: echo "patron=shinobi-karaoke-${VERSION}-${GITHUB_SHA:0:7}-*" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ${{ steps.artefactos.outputs.patron }}
+          merge-multiple: true
+          path: entrada
+      - name: Comprobar instaladores y sumas, y componer las notas
+        run: |
+          args=(--entrada entrada --salida publicacion --version "$VERSION" --etiqueta "$ETIQUETA" --previa "$PREVIA")
+          if [[ "$ENSAYO" == true ]]; then args+=(--ensayo); fi
+          node app/scripts/preparar-publicacion.mjs "${args[@]}"
+          (cd publicacion && sha256sum -c SHA256SUMS.txt)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publicacion-${{ needs.comprobar-version.outputs.version }}
+          path: publicacion/*
+          retention-days: 14
+          if-no-files-found: error

@@ -124,4 +124,20 @@ describe('workflow manual de empaquetado', () => {
     expect(paso).toContain("throw 'El ejecutable sigue instalado'")
     expect(paso).toContain("throw 'La desinstalación alteró los datos'")
   })
+
+  it('prepara la publicación sin permisos de escritura y sube publicacion-…', () => {
+    const preparar = flujo.jobs['preparar-publicacion']!
+    expect(preparar.needs).toEqual(['comprobar-version', 'construir', 'probar-instalador'])
+    expect(preparar.permissions).toEqual({ contents: 'read' })
+    const subida = preparar.steps.find(({ uses }) => uses?.startsWith('actions/upload-artifact@'))
+    expect(subida?.with).toMatchObject({
+      name: 'publicacion-${{ needs.comprobar-version.outputs.version }}',
+      'retention-days': 14,
+      'if-no-files-found': 'error'
+    })
+    const descarga = preparar.steps.find(({ uses }) =>
+      uses?.startsWith('actions/download-artifact@')
+    )
+    expect(descarga?.with).toMatchObject({ 'merge-multiple': true })
+  })
 })
