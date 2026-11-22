@@ -858,6 +858,11 @@ test('con la barra vertical de main a 1024 px de ancho no se salta a la disposic
     })
     test.skip(r.ancho !== 1024, `el viewport CSS mide ${r.ancho} de ancho`)
     expect(r.scrollMain).toBeGreaterThan(0)
+    // macOS usa barras superpuestas que no ocupan ancho: sin barra no hay nada que comprobar.
+    test.skip(
+      process.platform === 'darwin' && r.barra === 0,
+      'macOS: barra de desplazamiento superpuesta'
+    )
     expect(r.barra, 'la barra vertical ocupa ancho').toBeGreaterThan(0)
     expect(r.bajo).toBe('alto')
     expect(r.scrollH).toBeLessThanOrEqual(0)

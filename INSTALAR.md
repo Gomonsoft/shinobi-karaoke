@@ -6,7 +6,7 @@
 
 Elige tu sistema: [Windows](#windows) · [Mac](#mac-con-chip-apple) · [Linux](#linux)
 
-También aquí: [Por qué aparece un aviso](#por-qué-mi-equipo-me-avisa) · [Si el navegador bloquea la descarga](#si-el-navegador-bloquea-la-descarga) · [Después de instalar](#después-de-instalar) · [¿Sigue sin abrirse?](#sigue-sin-abrirse) · [Desinstalar](#desinstalar)
+También aquí: [Por qué aparece un aviso](#por-qué-mi-equipo-me-avisa) · [Si el navegador bloquea la descarga](#si-el-navegador-bloquea-la-descarga) · [Después de instalar](#después-de-instalar) · [Actualizar](#actualizar-a-una-versión-nueva) · [¿Sigue sin abrirse?](#sigue-sin-abrirse) · [Desinstalar](#desinstalar)
 
 **Requisitos:** Windows 10/11 de 64 bits, Mac con chip Apple y macOS 14 o posterior, o Linux de 64 bits · 8 GB de RAM · entre 4 y 10 GB libres según tu equipo (más unos 100 MB por canción) · conexión a internet la primera vez
 
@@ -105,6 +105,25 @@ La primera vez que abras Shinobi Karaoke, verás **Hola. Vamos a preparar tu est
 Pulsa **Preparar Shinobi Karaoke**. Puedes seguir usando el equipo mientras tanto. Si se corta la conexión o pulsas **Pausar y salir**, continuará donde lo dejó la próxima vez que abras la app. Si algo falla, la app te explica qué ha pasado y qué puedes hacer; nunca descarga un modelo distinto sin preguntarte antes.
 
 Cuando veas **Todo listo**, pulsa **Empezar** y ya podrás añadir tu primera canción. Esa pantalla también te dice cuánto tardará una canción en tu equipo.
+
+## Actualizar a una versión nueva
+
+Shinobi Karaoke **no se actualiza solo**. Cuando hay una versión nueva, verás un punto en el botón de **Ajustes** (el engranaje) y, en **Ajustes → Acerca de**, la línea **Hay una versión nueva**.
+
+1. Pulsa **Ver novedades** para leer qué cambia.
+2. Pulsa **Descargar**. Se abre tu navegador con el instalador de tu sistema (en Linux, el mismo tipo de archivo que ya usas: `.deb` o AppImage). Si en su lugar se abre la página de la versión, descarga desde ella el archivo de tu sistema.
+3. Cierra Shinobi Karaoke.
+4. Abre el archivo descargado e instálalo como la primera vez: [Windows](#windows), [Mac](#mac-con-chip-apple) o [Linux](#linux). En Mac, al arrastrar la app a **Aplicaciones**, elige **Reemplazar**. Con el AppImage, sustituye el archivo antiguo por el nuevo.
+
+La versión nueva se instala encima de la anterior: **tus canciones se conservan** y el motor de audio se reutiliza, salvo que la versión lo cambie (en ese caso, la app descarga solo la parte que haga falta). Tu navegador y tu sistema pueden volver a avisarte, como la primera vez.
+
+Si la versión nueva es **preliminar**, haz antes una copia de tus canciones.
+
+### Qué comprueba la app y cómo desactivarlo
+
+Como mucho una vez al día, la app pregunta a GitHub, donde se publican las versiones, cuál es la última. **No envía datos tuyos ni de tus canciones**: solo el nombre y la versión de la app y los datos técnicos de cualquier petición web. GitHub ve tu dirección IP y el idioma de tu equipo, como cualquier web que visitas. Sin conexión no pasa nada: la app no muestra ningún error.
+
+Para desactivarlo, entra en **Ajustes → Acerca de** y desmarca **Avisarme cuando haya una versión nueva**. Podrás seguir buscando a mano con **Buscar actualizaciones**.
 
 ## ¿Sigue sin abrirse?
 
