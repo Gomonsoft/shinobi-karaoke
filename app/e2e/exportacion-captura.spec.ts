@@ -51,14 +51,14 @@ async function comprobarMarcadoPorCaptura(
     const api = (globalThis as unknown as { shinobi: ApiShinobi }).shinobi.exportacion
     const { perfiles } = await api.perfiles()
     return perfiles
-      .filter((p) => p.alto === 2160 && p.fps === 30)
+      .filter((p) => p.ancho === 3840 && p.alto === 2160 && p.fps === 30)
       .map((p) => `${p.formato} ${p.ancho}x${p.alto} ${p.soportado} ${p.motivo}`)
   })
+  // Solo el tamaño que la ventana no llega a tomar. 2880×2160 sí se captura en Xvfb: el recorte
+  // es de la pantalla virtual de 3840 de ancho, no de la altura.
   expect(marcados, `Registro de la app: ${registroDe(datos)}`).toEqual([
     'mkv_av1 3840x2160 false captura',
-    'mkv_av1 2880x2160 false captura',
-    'webm_vp9 3840x2160 false captura',
-    'webm_vp9 2880x2160 false captura'
+    'webm_vp9 3840x2160 false captura'
   ])
 }
 
