@@ -99,17 +99,33 @@ const marca = (ms: number): string => {
   return `[${dos(Math.floor(s / 60))}:${dos(s % 60)}.${dos(c)}]`
 }
 
-/** LRC inventado: cada verso dura 2 s y una marca vacía cierra su fin. */
-function lrcSobreVoz(primerInicioMs: number): string {
-  return Array.from({ length: 6 }, (_, i) => {
-    const inicio = primerInicioMs + i * 5000
-    return `${marca(inicio)}Verso inventado ${i + 1}\n${marca(inicio + 2000)}`
-  }).join('\n')
+/** LRC inventado: cada verso es `[inicio, fin)` y una marca vacía cierra su fin. */
+function lrcDeTramos(tramos: [number, number][]): string {
+  return tramos
+    .map(([inicio, fin], i) => `${marca(inicio)}Verso inventado ${i + 1}\n${marca(fin)}`)
+    .join('\n')
 }
+
+/** Seis versos de 2 s, uno cada 5 s desde `primerInicioMs` (el ritmo de la voz sintética). */
+const versosPeriodicos = (primerInicioMs: number): [number, number][] =>
+  Array.from({ length: 6 }, (_, i) => [primerInicioMs + i * 5000, primerInicioMs + i * 5000 + 2000])
+
+/**
+ * Versos de otra versión de la canción: ritmo y duraciones que no se pueden alinear con la voz
+ * periódica moviéndolos (una letra con el mismo ritmo desplazada sí encajaría).
+ */
+const VERSOS_OTRA_VERSION: [number, number][] = [
+  [4300, 5800],
+  [8800, 10_300],
+  [13_700, 15_200],
+  [17_900, 19_400],
+  [23_600, 25_100],
+  [27_100, 28_600]
+]
 
 /** Tres candidatos con tiempos: encaja con la voz, va 0,8 s adelantado y cae en los silencios. */
 function candidatosConVoz(duracionS: number): RegistroFixture[] {
-  const registro = (id: number, titulo: string, primerInicioMs: number): RegistroFixture => ({
+  const registro = (id: number, titulo: string, versos: [number, number][]): RegistroFixture => ({
     id,
     trackName: titulo,
     artistName: 'Artista inventado',
@@ -117,13 +133,17 @@ function candidatosConVoz(duracionS: number): RegistroFixture[] {
     duration: duracionS,
     instrumental: false,
     plainLyrics: Array.from({ length: 6 }, (_, i) => `Verso inventado ${i + 1}`).join('\n'),
-    syncedLyrics: lrcSobreVoz(primerInicioMs),
+    syncedLyrics: lrcDeTramos(versos),
     hasWordSync: false
   })
   return [
-    registro(IDS_CON_VOZ.noCoincide, 'Tema con voz (otra versión)', 4300),
-    registro(IDS_CON_VOZ.desfasada, 'Tema con voz (adelantada)', 2000 - DESFASE_CON_VOZ_MS),
-    registro(IDS_CON_VOZ.coincide, 'Tema con voz', 2000)
+    registro(IDS_CON_VOZ.noCoincide, 'Tema con voz (otra versión)', VERSOS_OTRA_VERSION),
+    registro(
+      IDS_CON_VOZ.desfasada,
+      'Tema con voz (adelantada)',
+      versosPeriodicos(2000 - DESFASE_CON_VOZ_MS)
+    ),
+    registro(IDS_CON_VOZ.coincide, 'Tema con voz', versosPeriodicos(2000))
   ]
 }
 

@@ -554,7 +554,7 @@ test.describe('comprobar la letra con la voz (feature 4)', () => {
       // La que no encaja lista sus motivos con tramos en m:ss.
       await otra.click()
       const bloque = v.getByRole('region', { name: CC.titulo })
-      await expect(bloque).toContainText(/líneas caen donde no hay voz/)
+      await expect(bloque).toContainText(/líneas? caen? donde no hay voz/)
       await expect(bloque).toContainText(CC.noCoincideAyuda)
 
       // La desfasada se guarda con la corrección: tiempos intactos, offset y desfase anotados.
