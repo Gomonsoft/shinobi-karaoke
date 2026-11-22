@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { ESPERA_LEGADA, esperaSchema, type Espera } from './espera'
 import { FUENTE_PREDETERMINADA, familiaValida } from './fuentes'
+import { PANTALLA_PREDETERMINADA, pantallaSchema, type Pantalla } from './pantalla'
 
 export const colorHex = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Usa el formato #RRGGBB')
 
@@ -53,15 +54,32 @@ export const fuenteLetraSchema = z.object({
   origen: z.literal('incluida')
 })
 
+/**
+ * Reservado para 0.2.3 (varios cantantes): colores por ranura. Opcional, tolerante al leer (un color
+ * inválido se descarta) y conservado al escribir; 0.2.2 no lo usa ni lo muestra.
+ */
+const colorParte = colorHex.optional().catch(undefined)
+export const coloresPartesSchema = z.object({
+  c1: colorParte,
+  c2: colorParte,
+  c3: colorParte,
+  c4: colorParte,
+  todos: colorParte,
+  coro: colorParte
+})
+
 export const estiloSchema = z.object({
   version: z.literal(1),
   fondo: fondoSchema,
   letra: z.object({
     fuente: fuenteLetraSchema,
     color: colorHex,
-    color_resaltado: colorHex
+    color_resaltado: colorHex,
+    colores_partes: coloresPartesSchema.optional().catch(undefined)
   }),
-  espera: esperaSchema.optional()
+  espera: esperaSchema.optional(),
+  /** Letra en pantalla (ADR 0022 §1); ausente = `PANTALLA_PREDETERMINADA`. */
+  pantalla: pantallaSchema.optional().catch(undefined)
 })
 
 export type Estilo = z.infer<typeof estiloSchema>
@@ -72,9 +90,10 @@ type FondoNormalizado =
   | Extract<Fondo, { tipo: 'solido' }>
   | (FondoDegradado & Required<Pick<FondoDegradado, 'forma' | 'centro' | 'movimiento'>>)
 
-export type EstiloNormalizado = Omit<Estilo, 'fondo' | 'espera'> & {
+export type EstiloNormalizado = Omit<Estilo, 'fondo' | 'espera' | 'pantalla'> & {
   fondo: FondoNormalizado
   espera: Espera
+  pantalla: Pantalla
 }
 
 /** Rellena los campos opcionales con sus valores por defecto. Pura; no usar para escribir. */
@@ -89,7 +108,12 @@ export function normalizarEstilo(estilo: Estilo): EstiloNormalizado {
           centro: copia.fondo.centro ?? { x: 0.5, y: 0.5 },
           movimiento: copia.fondo.movimiento ?? null
         }
-  return { ...copia, fondo, espera: copia.espera ?? { ...ESPERA_LEGADA } }
+  return {
+    ...copia,
+    fondo,
+    espera: copia.espera ?? { ...ESPERA_LEGADA },
+    pantalla: copia.pantalla ?? { ...PANTALLA_PREDETERMINADA }
+  }
 }
 
 /** Estilo de karaoke predeterminado (ux/sistema-visual.md §8). */

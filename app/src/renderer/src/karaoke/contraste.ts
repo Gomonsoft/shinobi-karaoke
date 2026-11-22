@@ -1,5 +1,7 @@
 import { normalizarEstilo, type Estilo, type Fondo } from '@shared/estilo'
+import { pasadasEfectivas, type Pantalla } from '@shared/pantalla'
 import { aHex, canalesRgb, SUGERIDOS_LETRA } from './colores'
+import { objetivoOpacidad } from './pantalla'
 
 function lineal(canal: number): number {
   const s = canal / 255
@@ -118,4 +120,52 @@ export function sugerirResaltado(estilo: Estilo): string {
   }))
   candidatos.sort((a, b) => Number(b.distinguible) - Number(a.distinguible) || b.ratio - a.ratio)
   return candidatos[0]!.color
+}
+
+/** Gris neutro con la misma luminancia relativa WCAG que `hex` (inversa de la curva sRGB; ADR 0022 §4). */
+export function grisDeLetra(hex: string): string {
+  const y = luminancia(hex)
+  const codificado = y <= 0.0031308 ? 12.92 * y : 1.055 * y ** (1 / 2.4) - 0.055
+  const canal = Math.min(255, Math.max(0, Math.round(codificado * 255)))
+  return aHex([canal, canal, canal])
+}
+
+/** Opacidad mínima por puesto atenuado que da 3:1 contra cada muestra del fondo (puesto -> α, paso 0,01). */
+export type SuelosOpacidad = Record<number, number>
+
+function componer(color: string, alfa: number, fondo: string): string {
+  const c = canalesRgb(color)
+  const b = canalesRgb(fondo)
+  return aHex(c.map((canal, i) => alfa * canal + (1 - alfa) * b[i]!))
+}
+
+function suelo(color: string, muestras: readonly string[]): number {
+  for (let centesimas = 1; centesimas <= 100; centesimas++) {
+    const alfa = centesimas / 100
+    if (muestras.every((muestra) => ratio(componer(color, alfa, muestra), muestra) >= 3))
+      return alfa
+  }
+  return 1
+}
+
+/**
+ * Se calcula una vez por estilo resuelto, nunca por fotograma. `colorLetra` es el color con el que
+ * se pintan las líneas (en 0.2.2, `estilo.letra.color`); es un parámetro para que 0.2.3 pueda pasar
+ * el de una parte. Las ya cantadas usan el gris de ese color.
+ */
+export function suelosDeOpacidad(
+  estilo: Estilo,
+  pantalla: Pantalla,
+  colorLetra: string = estilo.letra.color
+): SuelosOpacidad {
+  const muestras = muestrasFondo(normalizarEstilo(estilo).fondo)
+  const pasadas = pasadasEfectivas(pantalla)
+  const futuras = pantalla.lineas - 1 - pasadas
+  const gris = grisDeLetra(colorLetra)
+  const suelos: SuelosOpacidad = {}
+  for (let puesto = -pasadas; puesto <= futuras; puesto++) {
+    if (objetivoOpacidad(puesto, pasadas, futuras) >= 1) continue
+    suelos[puesto] = suelo(puesto < 0 ? gris : colorLetra, muestras)
+  }
+  return suelos
 }

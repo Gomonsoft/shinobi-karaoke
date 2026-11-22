@@ -101,7 +101,8 @@ export function aparienciaDeResolucion(
     temaNombre: r.temaNombre,
     neutra: r.neutra,
     alHeredar: { ...r.alHeredar },
-    procedenciaEspera: r.procedenciaEspera
+    procedenciaEspera: r.procedenciaEspera,
+    procedenciaPantalla: r.procedenciaPantalla
   }
 }
 
@@ -113,7 +114,8 @@ export function resueltaDeResolucion(r: ResolucionCancion): ResueltaIpc {
     temaId: r.temaId,
     temaNombre: r.temaNombre,
     alHeredar: { ...r.alHeredar },
-    procedenciaEspera: r.procedenciaEspera
+    procedenciaEspera: r.procedenciaEspera,
+    procedenciaPantalla: r.procedenciaPantalla
   }
 }
 
@@ -183,7 +185,8 @@ export function resumenDanadaPorJson(id: string): ResumenCancion {
       temaNombre: null,
       neutra: false,
       alHeredar: { ...DESTINO_HEREDAR_PROVISIONAL },
-      procedenciaEspera: 'propio'
+      procedenciaEspera: 'propio',
+      procedenciaPantalla: 'propio'
     },
     miniatura: null,
     pasos: null,

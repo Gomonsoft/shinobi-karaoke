@@ -352,7 +352,8 @@ describe('resumen y canción con apariencia', () => {
       temaNombre: 'Noche ninja',
       neutra: true,
       alHeredar: { procedencia: 'album', temaId: id, temaNombre: 'Noche ninja' },
-      procedenciaEspera: 'predeterminado'
+      procedenciaEspera: 'predeterminado',
+      procedenciaPantalla: 'predeterminado'
     },
     miniatura: null,
     pasos: null,
@@ -383,7 +384,8 @@ describe('resumen y canción con apariencia', () => {
       temaId: null,
       temaNombre: null,
       alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
-      procedenciaEspera: 'propio'
+      procedenciaEspera: 'propio',
+      procedenciaPantalla: 'propio'
     }
     expect(ok(cancionIpcSchema, { ...lista(), resuelta })).toBe(true)
     expect(ok(cancionIpcSchema, lista())).toBe(false)

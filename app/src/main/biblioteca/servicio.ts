@@ -429,6 +429,10 @@ export class ServicioBiblioteca {
           seleccion.reemplazos === undefined
             ? previa.apariencia?.reemplazos
             : (seleccion.reemplazos ?? undefined)
+        const reemplazoPantalla =
+          seleccion.reemplazo_pantalla === undefined
+            ? previa.apariencia?.reemplazo_pantalla
+            : (seleccion.reemplazo_pantalla ?? undefined)
         const catalogo = this.temas?.datos() ?? null
         if (!catalogo) {
           throw new ErrorBiblioteca('TEMAS_SOLO_LECTURA', 'Los temas están en solo lectura.')
@@ -444,13 +448,15 @@ export class ServicioBiblioteca {
             modo: 'tema',
             tema_id: seleccion.temaId,
             ...(base ? { base } : {}),
-            ...(reemplazos ? { reemplazos } : {})
+            ...(reemplazos ? { reemplazos } : {}),
+            ...(reemplazoPantalla ? { reemplazo_pantalla: reemplazoPantalla } : {})
           }
         } else {
           c.apariencia = {
             modo: 'heredar',
             ...(base ? { base } : {}),
-            ...(reemplazos ? { reemplazos } : {})
+            ...(reemplazos ? { reemplazos } : {}),
+            ...(reemplazoPantalla ? { reemplazo_pantalla: reemplazoPantalla } : {})
           }
         }
       }

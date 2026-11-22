@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   aparienciaDePrueba,
   borradorRecienCreado,
@@ -6,8 +7,9 @@ import {
   idDePrueba,
   temaDePrueba
 } from './__fixtures__'
-import { ESTILO_PREDETERMINADO, estiloPredeterminado, type Estilo } from './estilo'
+import { ESTILO_PREDETERMINADO, estiloPredeterminado, estiloSchema, type Estilo } from './estilo'
 import { ESPERA_LEGADA } from './espera'
+import { PANTALLA_PREDETERMINADA, type Pantalla } from './pantalla'
 import { migrarCancion } from './migraciones'
 import {
   aparienciaSchema,
@@ -249,6 +251,7 @@ describe('resolverApariencia', () => {
       estilo: instantanea,
       procedencia: 'propio',
       procedenciaEspera: 'propio',
+      procedenciaPantalla: 'propio',
       temaId: null,
       temaNombre: null
     })
@@ -259,6 +262,7 @@ describe('resolverApariencia', () => {
       estilo: temas[0]!.estilo,
       procedencia: 'cancion',
       procedenciaEspera: 'cancion',
+      procedenciaPantalla: 'cancion',
       temaId: T1,
       temaNombre: 'Uno'
     })
@@ -269,6 +273,7 @@ describe('resolverApariencia', () => {
       estilo: instantanea,
       procedencia: 'respaldo',
       procedenciaEspera: 'respaldo',
+      procedenciaPantalla: 'respaldo',
       temaId: FALTA,
       temaNombre: 'Viejo'
     })
@@ -325,6 +330,7 @@ describe('resolverApariencia', () => {
       estilo: ESTILO_PREDETERMINADO,
       procedencia: 'incluido',
       procedenciaEspera: 'incluido',
+      procedenciaPantalla: 'incluido',
       temaId: null,
       temaNombre: null
     })
@@ -444,5 +450,100 @@ describe('resolverApariencia con reemplazos de espera (0202)', () => {
     expect(r.procedencia).toBe('respaldo')
     expect(r.estilo).toEqual(fusionado)
     expect(r.procedenciaEspera).toBe('cancion')
+  })
+})
+
+describe('estilosIguales y pantalla (0287)', () => {
+  it('la pantalla ausente es igual a la predeterminada explícita', () => {
+    const a = estiloPredeterminado()
+    expect(estilosIguales(a, { ...a, pantalla: { ...PANTALLA_PREDETERMINADA } })).toBe(true)
+    expect(estilosIguales(a, { ...a, pantalla: { ...PANTALLA_PREDETERMINADA, lineas: 3 } })).toBe(
+      false
+    )
+  })
+})
+
+describe('reemplazo_pantalla (ADR 0022 §1)', () => {
+  const pantalla: Pantalla = { lineas: 3, pasadas: 0, transicion: 'fundido' }
+  const A = idDePrueba(1)
+  const indice = crearIndiceCatalogo(
+    catalogoDePrueba({ predeterminado: A, temas: [temaDePrueba({ id: A, nombre: 'A' })] })
+  )
+  const meta = { artista: 'X', album: null }
+  const cancion = (apariencia: Apariencia): Parameters<typeof resolverApariencia>[0] => ({
+    metadatos: meta,
+    estilo: estiloPredeterminado(),
+    apariencia
+  })
+
+  it('heredar y tema fusionan la pantalla y la procedencia es la de la canción', () => {
+    for (const ap of [
+      { modo: 'heredar', reemplazo_pantalla: pantalla },
+      { modo: 'tema', tema_id: A, reemplazo_pantalla: pantalla }
+    ] as Apariencia[]) {
+      const r = resolverApariencia(cancion(ap), indice)
+      expect(r.estilo).toEqual({ ...temaDePrueba().estilo, pantalla })
+      expect(r.procedenciaPantalla).toBe('cancion')
+    }
+  })
+  it('sin reemplazo la procedencia es la del estilo y el estilo no se copia', () => {
+    const r = resolverApariencia(cancion({ modo: 'heredar' }), indice)
+    expect(r.procedenciaPantalla).toBe('predeterminado')
+    expect(r.estilo).toBe(indice.porId.get(A)!.estilo)
+    expect(resolverApariencia(cancion({ modo: 'propio' }), null).procedenciaPantalla).toBe('propio')
+  })
+  it('respaldo: se vuelve a aplicar y es idempotente', () => {
+    const ap: Apariencia = { modo: 'tema', tema_id: A, reemplazo_pantalla: pantalla }
+    const fusionado = resolverApariencia(cancion(ap), indice).estilo
+    const r = resolverApariencia({ metadatos: meta, estilo: fusionado, apariencia: ap }, null)
+    expect(r.procedencia).toBe('respaldo')
+    expect(r.estilo).toEqual(fusionado)
+    expect(r.procedenciaPantalla).toBe('cancion')
+  })
+  it('congelar al borrar el tema: el estilo resuelto ya lleva la pantalla y propio no la admite', () => {
+    const ap: Apariencia = { modo: 'heredar', reemplazo_pantalla: pantalla }
+    const congelado = resolverApariencia(cancion(ap), indice).estilo
+    expect(congelado.pantalla).toEqual(pantalla)
+    const propio = aparienciaSchema.safeParse({ modo: 'propio', reemplazo_pantalla: pantalla })
+    expect(propio.success).toBe(false)
+  })
+  it('lectura tolerante: campos inválidos caen a su valor por defecto', () => {
+    const r = aparienciaSchema.parse({
+      modo: 'heredar',
+      reemplazo_pantalla: { lineas: 40, pasadas: 1, transicion: 'ninguna' }
+    })
+    expect(r.reemplazo_pantalla).toEqual({ lineas: 5, pasadas: 1, transicion: 'ninguna' })
+    expect(
+      aparienciaSchema.parse({ modo: 'heredar', reemplazo_pantalla: 7 }).reemplazo_pantalla
+    ).toBeUndefined()
+  })
+  it('reemplazos desconocidos ya no dañan la apariencia al leer', () => {
+    const r = aparienciaSchema.safeParse({ modo: 'heredar', reemplazos: { futuro: 1 } })
+    expect(r.success).toBe(true)
+  })
+  it('copia congelada del aparienciaSchema de 0.2.1: acepta la canción de 0.2.2 y descarta el campo', () => {
+    // 0.2.1: reemplazos estricto, `reemplazo_pantalla` desconocido (se descarta sin error).
+    const reemplazos021 = z.strictObject({ espera: z.object({}).loose().optional() })
+    const apariencia021 = z.object({
+      modo: z.enum(['propio', 'tema', 'heredar']),
+      tema_id: z.uuid().nullable().optional(),
+      reemplazos: reemplazos021.optional()
+    })
+    const escrito = JSON.parse(
+      JSON.stringify({ modo: 'tema', tema_id: A, reemplazo_pantalla: pantalla })
+    )
+    const leido = apariencia021.safeParse(escrito)
+    expect(leido.success).toBe(true)
+    expect(leido.data).not.toHaveProperty('reemplazo_pantalla')
+  })
+  it('un tema con colores_partes lo conserva al volver a leerse', () => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.colores_partes = { c2: '#4ADEDE' }
+    const t = temaDePrueba({ id: A, estilo })
+    const leido = catalogoSchema.parse(
+      JSON.parse(JSON.stringify(catalogoDePrueba({ predeterminado: A, temas: [t] })))
+    )
+    expect(leido.temas[0]!.estilo.letra.colores_partes).toEqual({ c2: '#4ADEDE' })
+    expect(estiloSchema.parse(leido.temas[0]!.estilo)).toEqual(leido.temas[0]!.estilo)
   })
 })

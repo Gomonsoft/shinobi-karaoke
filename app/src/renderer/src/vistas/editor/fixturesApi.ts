@@ -215,7 +215,8 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           temaId: apariencia.temaId,
           temaNombre: apariencia.temaNombre,
           alHeredar: structuredClone(apariencia.alHeredar),
-          procedenciaEspera: apariencia.procedenciaEspera
+          procedenciaEspera: apariencia.procedenciaEspera,
+          procedenciaPantalla: apariencia.procedenciaPantalla
         }
         return { ...structuredClone(cancion), resuelta }
       },

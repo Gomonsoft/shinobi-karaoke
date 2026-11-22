@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { estiloPredeterminado, type Fondo } from '@shared/estilo'
-import { aDegradado, aSolido, canalesRgb, repartirParadas, variarLuminosidad30 } from './colores'
-import { deltaE76, evaluarContraste, muestrasFondo, ratio, sugerirResaltado } from './contraste'
+import {
+  aDegradado,
+  aHex,
+  aSolido,
+  canalesRgb,
+  repartirParadas,
+  variarLuminosidad30
+} from './colores'
+import {
+  deltaE76,
+  evaluarContraste,
+  grisDeLetra,
+  luminancia,
+  muestrasFondo,
+  ratio,
+  sugerirResaltado,
+  suelosDeOpacidad
+} from './contraste'
+import { objetivoOpacidad } from './pantalla'
 
 function comprobarColor(real: string, esperado: string): void {
   const a = canalesRgb(real)
@@ -132,5 +149,70 @@ describe('muestras por tramos', () => {
     }
     expect(evaluarContraste(estiloCon(fondo)).avisos).not.toContain('letra')
     expect(evaluarContraste(estiloCon({ ...fondo, forma: 'conico' })).avisos).toContain('letra')
+  })
+})
+
+describe('gris de la letra y suelos de opacidad (ADR 0022 §4)', () => {
+  it('el gris tiene la luminancia de la letra (± 1 por canal en los ejemplos del sistema visual)', () => {
+    comprobarColor(grisDeLetra('#FFFFFF'), '#FFFFFF')
+    comprobarColor(grisDeLetra('#FFD400'), '#D8D8D8')
+    comprobarColor(grisDeLetra('#111111'), '#111111')
+    expect(luminancia(grisDeLetra('#FFD400'))).toBeCloseTo(luminancia('#FFD400'), 2)
+  })
+
+  it('con #F2E8D5 y letra #111111 cada puesto atenuado llega a 3:1 con su suelo (F1-R24)', () => {
+    const estilo = estiloPredeterminado()
+    estilo.fondo = { tipo: 'solido', color: '#F2E8D5' }
+    estilo.letra.color = '#111111'
+    const pantalla = { lineas: 7, pasadas: 2, transicion: 'desplazamiento' } as const
+    const suelos = suelosDeOpacidad(estilo, pantalla)
+    expect(
+      Object.keys(suelos)
+        .map(Number)
+        .sort((a, b) => a - b)
+    ).toEqual([-2, -1, 2, 3, 4])
+    for (const [puesto, alfa] of Object.entries(suelos)) {
+      const color = Number(puesto) < 0 ? grisDeLetra('#111111') : '#111111'
+      expect(alfa).toBeGreaterThan(0)
+      expect(alfa).toBeLessThanOrEqual(1)
+      const compuesto = aHex(
+        canalesRgb(color).map((c, i) => alfa * c + (1 - alfa) * canalesRgb('#F2E8D5')[i]!)
+      )
+      expect(ratio(compuesto, '#F2E8D5')).toBeGreaterThanOrEqual(3)
+      if (alfa > 0.01) {
+        const menos = aHex(
+          canalesRgb(color).map(
+            (c, i) => (alfa - 0.01) * c + (1 - alfa + 0.01) * canalesRgb('#F2E8D5')[i]!
+          )
+        )
+        expect(ratio(menos, '#F2E8D5')).toBeLessThan(3)
+      }
+    }
+  })
+
+  it('con el tema Shinobi el suelo no actúa (queda por debajo del objetivo)', () => {
+    const pantalla = { lineas: 7, pasadas: 2, transicion: 'desplazamiento' } as const
+    const suelos = suelosDeOpacidad(estiloPredeterminado(), pantalla)
+    for (const [puesto, alfa] of Object.entries(suelos)) {
+      expect(alfa).toBeLessThanOrEqual(objetivoOpacidad(Number(puesto), 2, 4) + 1e-9)
+    }
+    // el puesto −2 queda cerca de 3,1:1 en la zona más clara: el suelo está justo por debajo de 0,40
+    expect(suelos[-2]).toBeGreaterThan(0.3)
+  })
+
+  it('si la letra no llega a 3:1 al 100 %, el suelo es 1 y los avisos de siempre cubren el caso', () => {
+    const estilo = estiloPredeterminado()
+    estilo.fondo = { tipo: 'solido', color: '#777777' }
+    estilo.letra.color = '#808080'
+    const suelos = suelosDeOpacidad(estilo, { lineas: 5, pasadas: 1, transicion: 'ninguna' })
+    expect(Object.values(suelos).every((v) => v === 1)).toBe(true)
+  })
+
+  it('el color de los suelos es un parámetro: otro color cambia el resultado', () => {
+    const estilo = estiloPredeterminado()
+    const pantalla = { lineas: 5, pasadas: 1, transicion: 'ninguna' } as const
+    const conLetra = suelosDeOpacidad(estilo, pantalla)
+    const conOscuro = suelosDeOpacidad(estilo, pantalla, '#444444')
+    expect(conOscuro[2]).toBeGreaterThan(conLetra[2]!)
   })
 })
