@@ -203,6 +203,34 @@ describe('ServicioActualizaciones', () => {
     s2.detener()
   })
 
+  it('un cambio de configuración antes de iniciar no consulta (D1)', async () => {
+    const fetch = ok()
+    const s = crear(fetch)
+    await s.marcarVista('0.0.1')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetch).not.toHaveBeenCalled()
+    s.iniciar()
+    await vi.advanceTimersByTimeAsync(RETRASO_ARRANQUE_MS + 1)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    s.detener()
+  })
+
+  it('la manual no espera las 24 h del reintento automático', async () => {
+    let falla = true
+    const fetch = vi.fn<FetchConsulta>(async () => {
+      if (falla) throw new Error('net::ERR_NAME_NOT_RESOLVED')
+      return json([rel('v0.2.2-alpha.2')])
+    })
+    const s = crear(fetch)
+    s.iniciar()
+    await vi.advanceTimersByTimeAsync(RETRASO_ARRANQUE_MS + 1)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    falla = false
+    expect((await s.comprobar()).resultado).toBe('nueva')
+    expect(fetch).toHaveBeenCalledTimes(2)
+    s.detener()
+  })
+
   it('con la última comprobación a más de 24 h, consulta con el temporizador horario', async () => {
     const fetch = ok()
     const s = crear(fetch)

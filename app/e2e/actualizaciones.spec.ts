@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test'
 import { sembrar } from '../src/main/biblioteca/semilla'
-import { AJACT } from '../src/renderer/src/vistas/acerca/textosActualizaciones'
+import { AJACT, PA_ACTUALIZACIONES } from '../src/renderer/src/vistas/acerca/textosActualizaciones'
 import { salirSinConfirmar } from './salir'
 import { crearTemporal } from './temporales'
 
@@ -167,4 +167,57 @@ test.describe('Aviso de versión nueva', () => {
       doble.servidor.close()
     }
   })
+
+  for (const [ancho, alto] of [
+    [1280, 800],
+    [1024, 576]
+  ] as const) {
+    test(`primer arranque: la mención del aviso se ve y no hay scroll a ${ancho}x${alto} (F3-P1)`, async () => {
+      const datos = crearTemporal('actualizaciones-pa')
+      const carpeta = crearTemporal('actualizaciones-pa-esc')
+      mkdirSync(carpeta, { recursive: true })
+      const escenario = join(carpeta, 'escenario.json')
+      writeFileSync(
+        escenario,
+        JSON.stringify({
+          fases: {
+            motor: { ms: 500 },
+            componentes: { ms: 500 },
+            diagnostico: { ms: 150 },
+            modelo: { ms: 500 }
+          }
+        })
+      )
+      const doble = await iniciarDoble()
+      const app = await electron.launch({
+        args: ['.'],
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          SHINOBI_DATOS: datos,
+          SHINOBI_LANZADOR: 'produccion',
+          SHINOBI_RUNTIME_FALSO: escenario,
+          SHINOBI_GITHUB_URL: doble.url,
+          SHINOBI_ACTUALIZACIONES_CANAL: 'publicada'
+        }
+      })
+      try {
+        const v = await app.firstWindow()
+        await app.evaluate(
+          ({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0]!.setContentSize(w!, h!),
+          [ancho, alto]
+        )
+        await expect(v.getByText('Hola. Vamos a preparar tu estudio de karaoke.')).toBeVisible()
+        await expect(v.getByText(PA_ACTUALIZACIONES)).toBeVisible()
+        const m = await v.evaluate(() => ({
+          alto: document.documentElement.scrollHeight,
+          ventana: window.innerHeight
+        }))
+        expect(m.alto).toBeLessThanOrEqual(m.ventana)
+      } finally {
+        await app.close()
+        doble.servidor.close()
+      }
+    })
+  }
 })

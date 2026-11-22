@@ -53,6 +53,8 @@ El `.deb` se instala como cualquier otro programa y te pedirá tu contraseña. E
 
 Si ya tienes canciones, haz una copia antes de instalar otra versión: en la app, entra en **Ajustes → Abrir carpeta de datos** y copia la carpeta **biblioteca** a otro sitio.
 
+**¿Ya la tienes instalada?** La app te avisa cuando hay una versión nueva, en **Ajustes → Acerca de**, y te lleva a su descarga. No se actualiza sola: mira [cómo actualizar](INSTALAR.md#actualizar-a-una-versión-nueva).
+
 > **Descarga Shinobi Karaoke solo desde aquí o desde su [página de versiones](https://github.com/Gomonsoft/shinobi-karaoke/releases).** Es gratis: si te lo cobran o te lo envían por otro camino, no lo abras.
 ```
 

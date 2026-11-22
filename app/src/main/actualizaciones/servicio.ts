@@ -173,7 +173,8 @@ export class ServicioActualizaciones {
 
   /** Consulta automática si procede: aviso activo, 24 h desde la última con respuesta y desde el último intento. */
   evaluar(): void {
-    if (!this.consulta || this.automatica || this.manual) return
+    // Antes de mostrar la ventana (+10 s) no hay consulta automática, aunque cambie la configuración.
+    if (!this.iniciado || !this.consulta || this.automatica || this.manual) return
     const { avisar, ultima_comprobacion } = this.o.config.obtener().actualizaciones
     if (!avisar) return
     const ahora = this.ahora()

@@ -11,6 +11,15 @@
   text-align: center;
 }
 
+/* Ventanas bajas (mínimo de diseño 1024 x 576): menos aire para que la bienvenida, con la mención
+   del aviso de versión (ux/01 · Feature 3), quepa sin scroll. */
+@media (max-height: 700px) {
+  .pantalla {
+    gap: var(--e-3);
+    padding-top: 0;
+  }
+}
+
 .logo {
   display: inline-flex;
   align-items: center;
