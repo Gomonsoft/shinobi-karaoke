@@ -49,6 +49,16 @@ it('es un diálogo no modal con el título como nombre, 760 × 440 junto a la li
   expect(v.style.top).toBe('60px')
 })
 
+it('con un tamaño recomendado se abre a ese tamaño y lo recorta al área si no cabe', () => {
+  const { unmount } = montar({ tamanoRecomendadoRem: { ancho: 60, alto: 30 } })
+  expect(ventana().style.width).toBe('960px')
+  expect(ventana().style.height).toBe('480px')
+  unmount()
+  montar({ tamanoRecomendadoRem: { ancho: 60, alto: 40 } })
+  // El área mide 600 px de alto: 600 − 16 por lado.
+  expect(ventana().style.height).toBe('568px')
+})
+
 it('Tab cicla dentro de la ventana y un clic fuera no la cierra', () => {
   montar()
   const asa = screen.getByRole('button', { name: 'Cambiar el tamaño de la ventana' })

@@ -821,7 +821,7 @@ Minimizar **nunca oculta**: cada panel queda como una barra compacta con sus con
 - **Minimizada por falta de espacio** (paso 4 de «Qué cede primero»): la fila es la misma, el botón «Expandir línea de tiempo» queda `aria-disabled="true"` con el tooltip `edi.layout.timeline.sinEspacio`, y no se guarda como preferencia. Al haber espacio otra vez, vuelve sola al estado preferido. Si el foco estaba dentro de la línea de tiempo, pasa al botón «Expandir línea de tiempo» y se anuncia `edi.layout.anuncio.sinEspacio`.
 
 **Cómo se minimiza y se expande**
-- Botón icono en la cabecera de cada panel: lista `[«]` (`panel-left-close` / `panel-left-open`), panel `[»]` (`panel-right-close` / `panel-right-open`), línea de tiempo `[⌄]` / `[⌃]` (`chevron-down` / `chevron-up`). Son 32 × 32 px, con tooltip y `aria-expanded` + `aria-controls`.
+- Botón icono en la cabecera de cada panel: lista `[«]` (`panel-left-close` / `panel-left-open`), panel `[»]` (`panel-right-close` / `panel-right-open`), línea de tiempo `[⌄]` / `[⌃]` (`chevron-down` / `chevron-up`). Los tres van en la **esquina superior derecha** de su panel, también el de la línea de tiempo (expandida y minimizada). Son 32 × 32 px, con tooltip y `aria-expanded` + `aria-controls`.
 - **Intro** en el divisor correspondiente alterna el estado. Con el panel minimizado, su divisor sigue enfocable: Intro, una flecha que agrande o un arrastre lo expanden (arrastrando, el tamaño parte del mínimo y sigue al puntero).
 - Doble clic en el divisor: expande con el tamaño por defecto.
 - No hay atajo de una tecla para minimizar (evita choques con los atajos de sincronía).
@@ -1924,14 +1924,14 @@ Qué ve el usuario:
 ```text
 Líneas   [ verso anterior ]  [ ⇢ Is this the real life? ⇠ ]  [ verso siguiente ]
                            ↑ −0,5 s                       ↑ +0,5 s
-                           empieza aquí                    se pausa aquí
+                           empieza aquí                    Mayús + L se pausa aquí; el doble clic sigue
 ```
 
 | Aspecto | Comportamiento |
 |---|---|
 | Gesto | Doble clic sobre el **cuerpo** de una región (no sobre un tirador: el doble clic en un tirador no reproduce, para no confundirse con un arrastre). El primer clic selecciona la línea como hoy. Tooltip de la región: `edi.timeline.region.tooltip`. |
 | Tramo | Desde `máx(0, inicio mostrado − 500 ms)` hasta `mín(duración, fin efectivo mostrado + 500 ms)`. Los 500 ms son una constante con nombre compartida por la antelación y el margen final (`MARGEN_ESCUCHA_LINEA_MS = 500` en `app/src/shared/escucha.ts`, junto a `MARGEN_ESCUCHA_PALABRA_MS = 250` de «▶ Palabra»; [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §6). Suena con la pista de escucha y la velocidad actuales. |
-| Final del tramo | Se **pausa** al llegar al final del tramo y el cabezal se queda ahí **(decisión provisional, [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) §1)**. Así se escucha solo esa línea y un nuevo doble clic la repite. |
+| Final del tramo | **Doble clic:** no se pausa; la canción sigue sonando después de la línea (corrección del usuario al probar 0.2.1, 2026-11-22; sustituye la decisión provisional de [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) §1). **Mayús + L** y «Escuchar la línea» (panel y menú de la fila): se **pausa** al llegar al final del tramo y el cabezal se queda ahí, para escuchar solo esa línea. |
 | Con la reproducción en curso | Se interrumpe sin pausa intermedia y salta al tramo. |
 | Con «Bloquear enunciado» en la **misma** línea | El bucle sigue activo: el cabezal salta a `máx(0, inicio audible − 500 ms)`, la primera vuelta incluye esos 500 ms y las siguientes empiezan en el inicio, como siempre. No se pausa al final (manda el bucle). |
 | Con «Bloquear enunciado» en **otra** línea | El doble clic cambia la selección, así que el bucle termina (regla de la fase 2), pero **no** se restaura la posición previa: suena el tramo de la línea nueva. |
@@ -2121,7 +2121,7 @@ Ya no existen: **S** (Sincronizar al ritmo), **,** y **.** (desplazamiento). La 
 
 **S, doble clic y desplazamiento**
 - E8-6. S no hace nada con el foco en la lista, en la línea de tiempo, en el panel ni en el transporte; el botón «Sincronizar al ritmo» entra en el modo; el botón y el banner no mencionan S y el diálogo de atajos no tiene esa fila.
-- E8-7. Doble clic en el cuerpo de una región reproduce desde `máx(0, inicio mostrado − 500 ms)` (± 20 ms, test con reloj simulado) y se pausa en `fin efectivo + 500 ms`; con la reproducción en curso salta sin pausa; con el inicio a 0,3 s empieza en 0. El valor viene de una constante con nombre (comprobado en el código).
+- E8-7. Doble clic en el cuerpo de una región reproduce desde `máx(0, inicio mostrado − 500 ms)` (± 20 ms, test con reloj simulado) y la canción sigue sin pausa; Mayús + L sí se pausa en `fin efectivo + 500 ms`; con la reproducción en curso salta sin pausa; con el inicio a 0,3 s empieza en 0. El valor viene de una constante con nombre (comprobado en el código).
 - E8-8. Con «Bloquear enunciado» en la misma línea, el doble clic reinicia el bucle desde 0,5 s antes y el bucle sigue; en otra línea, el bucle termina y suena el tramo de la nueva sin volver a la posición anterior. El doble clic sobre un tirador no reproduce.
 - E8-9. Mayús + L hace lo mismo que el doble clic sobre la línea seleccionada; sobre una línea sin inicio no hace nada y muestra `edi.escucharLinea.sinInicio`. L y el doble clic en la lista conservan su comportamiento (2 s antes, sin pausa al final).
 - E8-10. No hay sección de desplazamiento en el panel (el texto «Desplazamiento de toda la letra» no aparece en ningún sitio del editor) y `,` / `.` no hacen nada en el editor ni en «Probar a pantalla completa». Con una canción de prueba con `offset_ms: 1500`, la lista, los ticks, las regiones, la vista previa y el reproductor muestran los tiempos desplazados 1,5 s y marcar en `t` guarda `t − 1500` (los mismos tests de antes, sin la interfaz).
@@ -2207,7 +2207,7 @@ Para que no haya dos formas de editar lo mismo a la vez, la **línea abierta que
 | Aspecto | Valor |
 |---|---|
 | Superficie | `fondo-1`, borde 1 px `borde-control`, radio `r-l`, sombra de menús y diálogos (sistema-visual §4). Barra de título de 40 px en `fondo-2`. |
-| Tamaño inicial | 760 × 440 px CSS (en `rem`). **Mínimo** 560 × 360. **Máximo**: el área del editor (bajo la barra de la app) menos 16 px por cada lado. |
+| Tamaño inicial | 960 × 640 px CSS (en `rem`; corrección del usuario, 2026-11-22: a 760 × 440 abría demasiado compacta), recortado al máximo si no cabe: a 1280 × 720 ocupa el alto disponible y todos los controles se ven sin desplazamiento interior. **Mínimo** 560 × 360. **Máximo**: el área del editor (bajo la barra de la app) menos 16 px por cada lado. |
 | Posición inicial | Arriba, alineada con el borde superior de la zona superior del editor + 12 px; a la izquierda, junto al borde derecho de la lista de líneas + 12 px (para no tapar la lista); si no cabe, se desplaza a la izquierda hasta caber, y si aun así no cabe se centra. Nunca tapa la cabecera del editor. |
 | Mover | Arrastrando la barra de título (asa `⠿` y título; cursor `move`). Con teclado: el asa es un botón «Mover la ventana» (`edi.preciso.mover`); con el foco en ella, las flechas la mueven 16 px (Mayús: 64 px) e Inicio la devuelve a la posición inicial. Siempre queda entera dentro del área del editor (se detiene en los bordes). |
 | Cambiar el tamaño | Asa de 16 × 16 en la esquina inferior derecha (objetivo 24 × 24, cursor `nwse-resize`). Con teclado: botón «Cambiar el tamaño de la ventana» (`edi.preciso.tamano`); flechas ±16 px (Mayús: 64), Inicio = tamaño inicial. Entre mínimo y máximo. |
@@ -2423,7 +2423,7 @@ Con el foco en la ventana no actúan: L, Mayús + L, P, Supr, F, Ctrl/Cmd + E, I
 
 **Abrir y ventana**
 - P1. P, el botón de la fila de título de la lista, el del panel Sincronía, el del riel y «Editor preciso de línea…» del menú contextual de una fila abren la ventana para la línea seleccionada; con una línea sin inicio o en el modo sincronizar son `aria-disabled` con su motivo y P no abre nada.
-- P2. La ventana abre a 760 × 440 px junto a la lista sin tapar la cabecera, con el foco en la primera palabra sin marcar; se mueve arrastrando la barra de título y con las flechas sobre «Mover la ventana», cambia de tamaño entre 560 × 360 y el área del editor, nunca sale del área del editor y recuerda posición, tamaño y margen tras reiniciar; «Restablecer distribución de paneles» la devuelve a los valores iniciales.
+- P2. La ventana abre a 960 × 640 px (o al espacio disponible si es menor; a 1280 × 720 sin desplazamiento interior) junto a la lista sin tapar la cabecera, con el foco en la primera palabra sin marcar; se mueve arrastrando la barra de título y con las flechas sobre «Mover la ventana», cambia de tamaño entre 560 × 360 y el área del editor, nunca sale del área del editor y recuerda posición, tamaño y margen tras reiniciar; «Restablecer distribución de paneles» la devuelve a los valores iniciales.
 - P3. Es no modal: con la ventana abierta, la vista previa, el transporte, la lista y las pestañas responden al ratón; F6 lleva el foco al editor y de vuelta; Tab no sale de la ventana. Al cerrar, el foco vuelve al elemento que la abrió.
 - P4. En los seis viewports de la subfase 2.1, la ventana a su tamaño inicial (o recortada) no produce scroll de página y sus filas de controles no se parten a 560 px de ancho.
 

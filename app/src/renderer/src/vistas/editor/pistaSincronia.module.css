@@ -31,9 +31,9 @@
   flex: none;
   white-space: nowrap;
 }
-/* El grupo de la derecha (silencios y minimizar) se alinea con el botón de silencios. */
+/* Minimizar va en la esquina superior derecha, como el plegado de la lista y del panel. */
 .controles > :last-child:not(:first-child) {
-  margin-inline-start: var(--e-2);
+  margin-inline-start: auto;
 }
 .controles h2 {
   margin: 0;

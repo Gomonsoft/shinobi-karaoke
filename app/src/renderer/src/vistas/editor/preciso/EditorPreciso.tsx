@@ -89,6 +89,12 @@ export interface CambiosPreciso {
   textoNuevo: string | null
 }
 
+/**
+ * Tamaño con el que se abre la primera vez: caben todos los controles sin desplazamiento interior.
+ * En pantallas pequeñas (1280 × 720) la ventana lo recorta al espacio del editor.
+ */
+const TAMANO_RECOMENDADO_REM = { ancho: 60, alto: 40 }
+
 export interface EditorPrecisoApi extends VentanaFlotanteApi {
   /** Cambios pendientes (campo de texto incluido) o `null` si el borrador no difiere de lo cargado. */
   obtenerCambios(): CambiosPreciso | null
@@ -658,6 +664,7 @@ export function EditorPreciso(props: EditorPrecisoProps) {
       limites={props.limites}
       referencia={props.referencia}
       preferencia={props.preferencia}
+      tamanoRecomendadoRem={TAMANO_RECOMENDADO_REM}
       alCambiarPreferencia={props.alCambiarPreferencia}
       alSalirDelFoco={props.alSalirDelFoco}
     >

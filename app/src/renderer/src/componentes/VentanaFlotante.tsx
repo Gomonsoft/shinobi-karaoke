@@ -58,6 +58,8 @@ export interface VentanaFlotanteProps {
   referencia?: Area | null
   /** Preferencia guardada, con `x` e `y` relativas a la esquina superior izquierda de `limites`. */
   preferencia?: Geometria | null
+  /** Tamaño inicial recomendado en `rem` (por defecto, el de diseño). Se recorta al área si no cabe. */
+  tamanoRecomendadoRem?: { ancho: number; alto: number }
   /** Al soltar un arrastre, tras una ráfaga de teclado o con el doble clic de la barra. */
   alCambiarPreferencia?(g: Geometria): void
   /** F6 con el foco dentro: el contenedor lleva el foco al editor. */
@@ -93,6 +95,7 @@ export function VentanaFlotante({
   limites,
   referencia = null,
   preferencia = null,
+  tamanoRecomendadoRem,
   alCambiarPreferencia,
   alSalirDelFoco,
   etiquetaMover = 'Mover la ventana',
@@ -117,7 +120,11 @@ export function VentanaFlotante({
     setDeseada(preferencia)
   }
 
-  const { inicial, minimo } = tamanosDiseno(rem)
+  const diseno = tamanosDiseno(rem)
+  const minimo = diseno.minimo
+  const inicial = tamanoRecomendadoRem
+    ? { ancho: tamanoRecomendadoRem.ancho * rem, alto: tamanoRecomendadoRem.alto * rem }
+    : diseno.inicial
   const tamanoInicial = acotarTamano(inicial, limites, minimo)
   const geoInicial: Geometria = {
     ...posicionInicial(limites, referencia, tamanoInicial),

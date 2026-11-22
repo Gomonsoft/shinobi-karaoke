@@ -995,10 +995,11 @@ function EditorActivo({
     if (!edicion.sync.activo) void motor?.reproducir({ desdeMs: desdeLinea(letra, id) })
   }
   /**
-   * Doble clic en una región y Mayús + L (spec 06, 8.4): de 0,5 s antes a 0,5 s después de la línea,
-   * con pausa al final. Devuelve `false` si la línea queda fuera del audio (no suena).
+   * Mayús + L (spec 06, 8.4): de 0,5 s antes a 0,5 s después de la línea, con pausa al final.
+   * El doble clic en una región (`seguir`) empieza igual, 0,5 s antes, pero no se pausa: la canción
+   * sigue. Devuelve `false` si la línea queda fuera del audio (no suena).
    */
-  function escucharTramoLinea(id: string): boolean {
+  function escucharTramoLinea(id: string, seguir = false): boolean {
     if (!motor || edicion.sync.activo) return true
     if (!letra.lineas.some((l) => l.id === id && l.inicio_ms !== null)) {
       mostrarToast({ tipo: 'info', mensaje: E.escucharLineaSinInicio })
@@ -1022,7 +1023,7 @@ function EditorActivo({
     }
     // Otra línea: el bucle termina sin restaurar la posición y suena el tramo nuevo.
     if (sesionBucle) desarmarBucle(false)
-    void motor.reproducir(tramo)
+    void motor.reproducir(seguir ? { desdeMs: tramo.desdeMs } : tramo)
     return true
   }
   function seleccionar(id: string, enfocar = false) {
@@ -1770,7 +1771,7 @@ function EditorActivo({
                   obtenerTiempoAudio={obtenerTiempoAudio}
                   buscar={buscar}
                   seleccionar={seleccionar}
-                  escucharLinea={escucharTramoLinea}
+                  escucharLinea={(id) => escucharTramoLinea(id, true)}
                   ocupadaId={precisoId}
                   iniciarMarcador={(borde) => {
                     const gesto = iniciarGestoMarcador(edicion, borde, duracionMs)

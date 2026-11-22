@@ -286,15 +286,6 @@ export function PistaSincronia({
         className={`${estilos.timeline} ${estilos.minimizada}`}
         aria-label={E.layout.region(E.layout.timeline.nombre, true)}
       >
-        <BotonLayout
-          icono={ChevronUp}
-          etiqueta={E.layout.timeline.expandir}
-          nombre="timeline-expandir"
-          expandido={false}
-          controla="zona-linea-tiempo"
-          noDisponible={expandirNoDisponible}
-          onClick={alternarMinimizada}
-        />
         <h2>{E.timeline.titulo}</h2>
         <VistaGeneral
           informativa
@@ -308,6 +299,15 @@ export function PistaSincronia({
           obtenerTiempoAudio={obtenerTiempoAudio}
           sonando={sonando}
           posicionMs={posicionMs}
+        />
+        <BotonLayout
+          icono={ChevronUp}
+          etiqueta={E.layout.timeline.expandir}
+          nombre="timeline-expandir"
+          expandido={false}
+          controla="zona-linea-tiempo"
+          noDisponible={expandirNoDisponible}
+          onClick={alternarMinimizada}
         />
       </section>
     )

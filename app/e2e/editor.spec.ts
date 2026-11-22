@@ -458,7 +458,7 @@ test.describe('línea de tiempo del editor', () => {
     )
   })
 
-  test('doble clic en el cuerpo de una región escucha la línea con 0,5 s de margen y se pausa', async () => {
+  test('doble clic en el cuerpo de una región reproduce desde 0,5 s antes y la canción sigue', async () => {
     await conEditor(
       'timeline-doble-clic',
       async (v) => {
@@ -466,13 +466,12 @@ test.describe('línea de tiempo del editor', () => {
         const region = v.locator('#zona-linea-tiempo button[aria-pressed]').first()
         await expect(region).toHaveAttribute('title', /Doble clic: escuchar esta línea/)
         await region.dblclick()
-        // La línea va de 2,0 s a 4,0 s: suena desde 1,5 s hasta 4,5 s y el cabezal se queda ahí.
+        // La línea va de 2,0 s a 4,0 s: suena desde 1,5 s y no se pausa al pasar su final (4,5 s).
         await expect(v.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible()
-        await expect(v.getByRole('button', { name: 'Reproducir', exact: true })).toBeVisible({
-          timeout: 8000
-        })
-        const final = Number(await tiempoEditor(v).inputValue())
-        expect(Math.abs(final - 4500)).toBeLessThan(300)
+        await expect
+          .poll(async () => Number(await tiempoEditor(v).inputValue()), { timeout: 8000 })
+          .toBeGreaterThan(5200)
+        await expect(v.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible()
       },
       (datos) => tiemposCortos(datos, 0, 4000)
     )

@@ -72,3 +72,13 @@
   align-items: flex-start;
   gap: var(--e-3);
 }
+/* Ventanas bajas (portátil de 1280 × 720): menos aire para que todo quepa sin desplazamiento interior. */
+@media (max-height: 760px) {
+  .contenido {
+    gap: var(--e-2);
+  }
+  .detalle,
+  .pie {
+    padding-top: var(--e-2);
+  }
+}
