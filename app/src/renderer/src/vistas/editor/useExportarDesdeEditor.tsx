@@ -4,6 +4,7 @@ import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
 import type { ItemMenu } from '../../componentes/MenuContextual'
 import { useExportaciones } from '../../exportacion/contexto'
+import type { ExportacionVista } from '../../exportacion/estado'
 import { EXP_GUARDADO, EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
 
 interface Opciones {
@@ -22,7 +23,7 @@ interface Opciones {
 }
 
 /**
- * «Exportar video…» del editor (spec 06 · Fase 6): ítem del ⋯, Ctrl/Cmd + E y su secuencia de
+ * «Exportar video…» del editor (spec 06 · Fase 6 y 8.6): botón de la pestaña «Funciones», Ctrl/Cmd + E y su secuencia de
  * apertura (pausa, vaciado del guardado, diálogo `edi.exp.guardado` si falla). La instantánea
  * es de lo guardado, así que se exporta después de vaciar.
  */
@@ -34,7 +35,16 @@ export function useExportarDesdeEditor({
   temaBorrador,
   pausar,
   vaciar
-}: Opciones): { exportar(): void; item: ItemMenu; dialogo: ReactNode } {
+}: Opciones): {
+  exportar(): void
+  /** Exportación de esta canción en curso o en cola (el botón pasa a «Ver exportación»). */
+  activa: ExportacionVista | undefined
+  /** Por qué no se puede exportar ahora (`exp.motivo.*`); `undefined` si se puede. */
+  motivo: string | undefined
+  /** Ítem equivalente de menú; ya no se usa en el ⋯ del editor (lo conserva la prueba de puntos de entrada). */
+  item: ItemMenu
+  dialogo: ReactNode
+} {
   const { abrir, activaDe } = useExportaciones()
   const activa = activaDe(cancionId)
   const [preguntando, setPreguntando] = useState(false)
@@ -90,6 +100,8 @@ export function useExportarDesdeEditor({
 
   return {
     exportar,
+    activa,
+    motivo,
     item: {
       id: 'exportar',
       etiqueta: activa ? EXP_MENU.ver : EXP_MENU.exportarEditor,

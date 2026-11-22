@@ -48,6 +48,7 @@ function crear() {
     guardarTiempos: vi.fn(async () => resumen),
     guardar: vi.fn(async () => resumen),
     editarTexto: vi.fn(async () => resumen),
+    editarTextoLinea: vi.fn(async () => resumen),
     leerArchivo: vi.fn(async () => ({}))
   }
   const biblioteca = {
@@ -112,6 +113,11 @@ describe('defensas de la sesión (ADR 0017 §9 y §11)', () => {
         }
       ]),
     () => m[CANALES.letras.editarTexto]([{ cancionId: resumenEdicion, texto: 'a' }]),
+    () =>
+      m[CANALES.letras.editarTextoLinea]([
+        { cancionId: resumenEdicion, id: 'l1', texto: 'a' },
+        '00000000-0000-4000-8000-000000000009'
+      ]),
     () => m[CANALES.biblioteca.marcarLista]([resumenEdicion]),
     () => m[CANALES.biblioteca.guardarApariencia]([resumenEdicion, { modo: 'heredar' }])
   ]
@@ -128,6 +134,7 @@ describe('defensas de la sesión (ADR 0017 §9 y §11)', () => {
     expect(letras.guardarTiempos).not.toHaveBeenCalled()
     expect(letras.guardar).not.toHaveBeenCalled()
     expect(letras.editarTexto).not.toHaveBeenCalled()
+    expect(letras.editarTextoLinea).not.toHaveBeenCalled()
     expect(biblioteca.marcarLista).not.toHaveBeenCalled()
     expect(biblioteca.guardarApariencia).not.toHaveBeenCalled()
   })

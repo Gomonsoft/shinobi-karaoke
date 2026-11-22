@@ -19,6 +19,7 @@ describe('gesto de marcadores', () => {
   function estadoParaGesto(offset_ms = 0) {
     const conPalabras = {
       ...linea('1', 'Dos palabras', 1000),
+      origen_palabras: 'manual' as const,
       palabras: [
         { texto: 'Dos', inicio_ms: 1000, fin_ms: 1400 },
         { texto: 'palabras', inicio_ms: 1400, fin_ms: 1800 }
@@ -44,10 +45,8 @@ describe('gesto de marcadores', () => {
     expect(primera.resultado?.letra.lineas[0]?.inicio_ms).toBe(1500)
     expect(segunda.resultado?.letra.lineas[0]).toMatchObject({
       inicio_ms: 1200,
-      palabras: [
-        { inicio_ms: 1200, fin_ms: 1600 },
-        { inicio_ms: 1600, fin_ms: 2000 }
-      ]
+      // Mover el inicio descarta las palabras: ya no se desplazan con la línea (ADR 0021 §4).
+      palabras: null
     })
     expect(e.actual.letra.lineas[0]?.inicio_ms).toBe(1000)
     expect(e.version).toBe(0)
@@ -126,7 +125,7 @@ describe('gesto de marcadores', () => {
     expect(gestoMarcadorVigente(e, gesto)).toBe(true)
     for (const invalida of [
       reducirEditor(e, { tipo: 'seleccionar', id: '2' }),
-      reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 0 }),
+      reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: 10, ahora: 0 }),
       reducirEditor(e, { tipo: 'entrar_sync', desdeId: '1' }),
       reducirEditor(e, { tipo: 'cargar', instantanea: externa.actual, seleccion: '1' })
     ]) {
@@ -199,27 +198,11 @@ describe('sesión de sincronía', () => {
       fondo: { tipo: 'solido', color: '#112233' } as const
     }
     expect(reducirEditor(e, { tipo: 'estilo', estilo, clave: 'fondo.tipo', ahora: 2 })).toBe(e)
-    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 2 })
-    expect(e.actual.letra.offset_ms).toBe(100)
     expect(reducirEditor(e, { tipo: 'salir_sync' }).seleccion).toBe('2')
   })
 })
 
 describe('historial de la visita', () => {
-  it('agrupa todo el desplazamiento de una prueba y mantiene las pruebas como pasos separados', () => {
-    let e = reducirEditor(editor(), { tipo: 'desplazar', deltaMs: 100, ahora: 0 })
-    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 1, grupo: 'primera' })
-    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 100, ahora: 15_000, grupo: 'primera' })
-    e = reducirEditor(e, { tipo: 'desplazar', deltaMs: -100, ahora: 15_001, grupo: 'segunda' })
-    expect(e.actual.letra.offset_ms).toBe(200)
-    expect(e.pasado).toHaveLength(3)
-    e = reducirEditor(e, { tipo: 'deshacer' })
-    expect(e.actual.letra.offset_ms).toBe(300)
-    e = reducirEditor(e, { tipo: 'deshacer' })
-    expect(e.actual.letra.offset_ms).toBe(100)
-    expect(reducirEditor(e, { tipo: 'rehacer' }).actual.letra.offset_ms).toBe(300)
-  })
-
   it('agrupa ajustes y cambios de color, deshace y rehace sin mutar', () => {
     let e = editor()
     e.actual.letra.lineas[0]!.inicio_ms = 1000
@@ -269,11 +252,12 @@ describe('historial de la visita', () => {
     let e = editor()
     e.actual.letra.lineas[0]!.inicio_ms = 1000
     e.actual.letra.lineas[0]!.palabras = [{ texto: 'Verso', inicio_ms: 1000, fin_ms: 2400 }]
+    e.actual.letra.lineas[0]!.origen_palabras = 'manual'
     e = reducirEditor(e, { tipo: 'seleccionar', id: '2' })
     e = reducirEditor(e, { tipo: 'fijar_inicio', ms: 2000, ahora: 0 })
     expect(e.aviso).toMatchObject({ tipo: 'consecuencias', palabrasDescartadas: ['1'] })
     for (let i = 0; i < 205; i++) {
-      e = reducirEditor(e, { tipo: 'desplazar', deltaMs: 10, ahora: i * 1200 })
+      e = reducirEditor(e, { tipo: 'ajustar_inicio', deltaMs: i % 2 ? -10 : 10, ahora: i * 1200 })
     }
     expect(e.pasado).toHaveLength(200)
   })
@@ -299,7 +283,8 @@ it('edita un fin sin mover la pausa ni la línea vecina y permite deshacerlo', (
   })
   const fijado = reducirEditor(inicial, fijar(1700))
   expect(fijado.actual.letra.lineas).toEqual([
-    { ...l.lineas[0], fin_ms: 1700 },
+    // Fijar el fin descarta las palabras de la línea.
+    { ...l.lineas[0], fin_ms: 1700, palabras: null },
     ...l.lineas.slice(1)
   ])
 
@@ -310,4 +295,37 @@ it('edita un fin sin mover la pausa ni la línea vecina y permite deshacerlo', (
   expect(
     reducirEditor(fijado, { tipo: 'fin_automatico', ahora: 10 }).actual.letra.lineas[0]?.fin_ms
   ).toBeNull()
+})
+
+it('aplicar_preciso escribe texto, límites y palabras en un solo paso y Ctrl+Z lo devuelve todo', () => {
+  const l = letra([linea('a', 'Sol y mar', 1000, { fin_ms: 3000 }), linea('b', 'Otra', 5000)])
+  const inicial = estadoInicial(
+    { letra: l, apariencia: aparienciaPropia(estiloPredeterminado()) },
+    'a'
+  )
+  const e = reducirEditor(inicial, {
+    tipo: 'aplicar_preciso',
+    id: 'a',
+    duracionMs: 30_000,
+    ahora: 0,
+    borrador: {
+      texto: 'Sol y mar azul',
+      inicio_ms: 1000,
+      fin_ms: 3000,
+      quitar: false,
+      palabras: [
+        { texto: 'Sol', inicio_ms: 1000, fin_ms: 1500, marcada: true },
+        { texto: 'y', inicio_ms: 1500, fin_ms: 1800, marcada: true },
+        { texto: 'mar', inicio_ms: 1800, fin_ms: 2400, marcada: true },
+        { texto: 'azul', inicio_ms: 2400, fin_ms: 3000, marcada: true }
+      ]
+    }
+  })
+  expect(e.pasado).toHaveLength(1)
+  expect(e.actual.letra.lineas[0]).toMatchObject({
+    texto: 'Sol y mar azul',
+    origen_palabras: 'manual'
+  })
+  const deshecho = reducirEditor(e, { tipo: 'deshacer' })
+  expect(deshecho.actual.letra).toBe(l)
 })

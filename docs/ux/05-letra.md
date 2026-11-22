@@ -218,3 +218,13 @@ Usuario/tarea principal: "Quiero la letra de esta canción, a ser posible ya sin
 - "KB" es jerga y el número no ayuda a nadie: una letra real ocupa 2–10 KB, así que quien llega al límite ha pegado otra cosa (una página entera, un libro, un archivo binario). El mensaje dice qué pasó y qué hacer.
 - El límite no es solo de bytes: los conversores también rechazan más de 5000 renglones (`ErrorLetraDemasiadoGrande('elementos')`), y para ese caso "máximo 512 KB" era falso.
 - Textos: `let.pegar.demasiado` en B y `let.error.demasiadoLarga` en C (antes C mostraba el toast genérico "No se pudo guardar la letra."). Al importar un archivo que supera el límite se mantiene `let.error.archivo`. Criterio 21.
+
+## 0.2.1 — Sin tiempos por palabra importados
+
+Origen: [ADR 0021](../adr/0021-sincronia-simplificada-y-editor-preciso-de-linea.md) §5 y respuesta a [0149](../preguntas/0149-indicador-por-palabra-en-la-vista-letra.md). Desde 0.2.1 una letra de LRCLIB o un LRC mejorado se guarda **solo con los tiempos de línea**; los tiempos por palabra solo nacen en el [editor preciso](06-editor.md#fase-9-de-021--editor-preciso-de-línea).
+
+**Sustituye**: la insignia ◆ del wireframe y de la fila «Insignia de sincronía», la frase «Una letra por palabra se conserva y se resalta por palabra en el reproductor…», la clave `let.sync.palabra` y la fila «Todas con inicio y al menos una con palabras» de §1.
+- **Insignia de los candidatos**: un resultado con sincronía por palabra se muestra como ◇ «Sincronizada por línea» (`let.sync.linea`, `info`). Solo quedan dos insignias visibles: ◇ «Sincronizada por línea» y ▭ «Solo texto». La búsqueda sigue **ordenando** primero esos resultados (traen fines de línea): el criterio 3 no cambia, aunque la insignia sea la misma que la de línea.
+- **Resumen de C** (§1): «sincronizada por palabra» (`let.actual.sync.palabra`) solo cuando todas las líneas tienen inicio y al menos una tiene tiempos por palabra **hechos a mano** (`origen_palabras: "manual"`). Una letra con palabras importadas (canciones de 0.2.0) se describe como «sincronizada por línea».
+- **Claves**: `let.sync.palabra` deja de usarse; `let.actual.sync.palabra` se conserva con la condición nueva.
+- **Criterio 2**: la insignia es «línea» o «texto». Criterio nuevo L21-1: un resultado con `hasWordSync` muestra ◇ «Sincronizada por línea», queda primero en el orden si su duración es igual de cercana, y al elegirlo `cancion.json` no tiene `palabras`; el resumen de C de una canción de 0.2.0 con palabras importadas dice «sincronizada por línea».

@@ -29,7 +29,13 @@ import { claveTexto } from './identidad'
 import { esperaSchema } from './espera'
 import { letraSchema } from './letra'
 import { nombreTemaSchema, type Procedencia } from './temas'
-import { AGRUPACIONES_BIBLIOTECA, TRANSICION_S, configSchema, reproductorSchema } from './config'
+import {
+  AGRUPACIONES_BIBLIOTECA,
+  TRANSICION_S,
+  configSchema,
+  precisoParcialSchema,
+  reproductorSchema
+} from './config'
 import { LIMITES_PANELES } from './paneles'
 import { MODELOS_SEPARACION, perfilSchema, plataformaSchema } from './manifiesto'
 import {
@@ -81,12 +87,14 @@ import {
   archivoLetraLeidoSchema,
   busquedaLetraSchema,
   editarTextoLetraSchema,
+  editarTextoLineaSchema,
   guardarLetraSchema,
   guardarTiemposSchema,
   resultadoBusquedaLetraSchema,
   type ArchivoLetraLeido,
   type BusquedaLetra,
   type EditarTextoLetra,
+  type EditarTextoLinea,
   type GuardarLetra,
   type GuardarTiempos,
   type ResultadoBusquedaLetra
@@ -458,6 +466,8 @@ export const resumenCancionSchema = z.object({
   /** Modalidad efectiva (`modalidadEfectiva`): `karaoke` salvo lista con `letra_lista`. */
   modalidad: z.enum(MODALIDADES),
   modificada: z.string(),
+  /** Fecha de añadido (ISO); `null` si la guardada no es válida (ADR 0016, revisión de 0.2.1). */
+  creada: z.string().nullable(),
   /**
    * Estilo **resuelto** (ADR 0016 §9). Sigue siendo `nullable` solo para la canción dañada por
    * JSON, que no tiene estilo que resolver; en cualquier otra es siempre un estilo completo.
@@ -613,7 +623,9 @@ export const configParcialRendererSchema = z.strictObject({
                 .optional(),
               minimizado: z.boolean().optional()
             })
-            .optional()
+            .optional(),
+          // Ventana del editor preciso de línea (0273): geometría y margen del bucle.
+          preciso: precisoParcialSchema.optional()
         })
         .optional()
     })
@@ -931,6 +943,13 @@ export const progresoExportacionSchema = z.object({
   etaSegundos: z.number().nonnegative().nullable()
 }) satisfies z.ZodType<ProgresoExportacionIpc>
 
+/** Detalle opcional del error de un trabajo (ADR 0019 §10, revisión 0.2.1; 0146 §2–§4). */
+export const detalleErrorExportacionSchema = z.union([
+  z.strictObject({ causa: z.literal('captura'), reintentable: z.boolean() }),
+  z.strictObject({ campo: z.literal('destino') }),
+  z.strictObject({ trabajoId: trabajoExportacionIdSchema })
+])
+
 export const exportacionIpcSchema = z.object({
   trabajoId: trabajoExportacionIdSchema,
   cancionId: idCancionSchema,
@@ -949,7 +968,8 @@ export const exportacionIpcSchema = z.object({
       codigo: z.enum(CODIGOS_ERROR),
       mensaje: z.string(),
       posicionMs: z.number().nonnegative().nullable(),
-      detalles: z.string().optional()
+      detalles: z.string().optional(),
+      detalle: detalleErrorExportacionSchema.optional()
     })
     .nullable(),
   progreso: progresoExportacionSchema.nullable(),
@@ -1122,6 +1142,10 @@ export const CONTRATO = {
   [CANALES.letras.guardar]: { args: z.tuple([guardarLetraSchema]), res: resumenCancionSchema },
   [CANALES.letras.editarTexto]: {
     args: z.tuple([editarTextoLetraSchema]),
+    res: resumenCancionSchema
+  },
+  [CANALES.letras.editarTextoLinea]: {
+    args: z.tuple([editarTextoLineaSchema, idSesionEdicionSchema]),
     res: resumenCancionSchema
   },
   [CANALES.letras.guardarTiempos]: {
@@ -1342,6 +1366,8 @@ export interface ApiShinobi {
     guardar(letra: GuardarLetra): Promise<ResumenCancionIpc>
     /** Aplica el diff del texto sobre la letra guardada. */
     editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancionIpc>
+    /** Cambia solo el texto de una línea (conserva id, inicio y fin; quita sus palabras). */
+    editarTextoLinea(peticion: EditarTextoLinea, sesionId: string): Promise<ResumenCancionIpc>
     /** Sustituye tiempos y desplazamiento sin tocar el texto; LETRA_DESACTUALIZADA si la letra cambió. */
     guardarTiempos(peticion: GuardarTiempos, sesionId: string): Promise<ResumenCancionIpc>
     /** Abre la visita y devuelve la canción que sirve como referencia del historial. */

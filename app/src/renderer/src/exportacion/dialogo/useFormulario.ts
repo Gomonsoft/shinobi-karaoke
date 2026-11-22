@@ -25,7 +25,7 @@ import {
   type CambioAutomatico,
   type OpcionesExportacion
 } from './modelo'
-import { codigoDeError, EXP } from './textos'
+import { codigoDeError, EXP, trabajoIdDeError } from './textos'
 
 /** Tiempo que se muestran los anuncios junto al control (spec 10). */
 export const DURACION_ANUNCIO_MS = 4000
@@ -39,6 +39,17 @@ export interface AnunciosFormulario {
 export interface ErrorFormulario {
   codigo: CodigoError
   mensaje: string
+  /** `CANCION_EXPORTANDOSE`: la exportación que ya existe (`detalle.trabajoId`). */
+  trabajoId?: string
+}
+
+function errorDe(err: unknown): ErrorFormulario {
+  const trabajoId = trabajoIdDeError(err)
+  return {
+    codigo: codigoDeError(err),
+    mensaje: mensajeDe(err),
+    ...(trabajoId ? { trabajoId } : {})
+  }
 }
 
 export type CargaFormulario =
@@ -146,7 +157,7 @@ export function useFormulario(
           })
         }
         if (!exportable.vozDisponible) base.audio = 'instrumental'
-        const { opciones: inicial } = normalizar(p, base)
+        const { opciones: inicial, cambio } = normalizar(p, base)
         const d = await api.exportacion.destinoPropuesto({
           cancionId,
           formato: inicial.formato,
@@ -158,6 +169,12 @@ export function useFormulario(
         setOpciones(inicial)
         setDestino(d)
         setCarga({ tipo: 'listo' })
+        // Una resolución que ya no se ofrece (p. ej. `captura`) se avisa al sustituirla (V31, V33).
+        if (cambio.resolucion)
+          anunciar(
+            'resolucion',
+            EXP.anuncioResolucion(cambio.resolucion.ancho, cambio.resolucion.alto)
+          )
       } catch (err) {
         if (activo) setCarga({ tipo: 'error', codigo: codigoDeError(err), mensaje: mensajeDe(err) })
       }
@@ -165,7 +182,7 @@ export function useFormulario(
     return () => {
       activo = false
     }
-    // Las opciones iniciales solo cuentan al abrir.
+    // Las opciones iniciales solo cuentan al abrir (`anunciar` es estable).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancionId])
 
@@ -270,7 +287,7 @@ export function useFormulario(
         })
         return trabajoId
       } catch (err) {
-        if (vivo.current) setError({ codigo: codigoDeError(err), mensaje: mensajeDe(err) })
+        if (vivo.current) setError(errorDe(err))
         return null
       } finally {
         if (vivo.current) setIniciando(false)

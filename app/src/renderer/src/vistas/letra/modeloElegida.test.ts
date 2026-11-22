@@ -1,13 +1,14 @@
 import type { ElementoLetra } from '@shared/letra'
 import { hayMarcasDeTiempo, sincroniaActual, tieneLineas } from './modeloElegida'
 
-const l = (inicio: number | null, palabras = false): ElementoLetra => ({
+const l = (inicio: number | null, palabras = false, manual = false): ElementoLetra => ({
   id: String(Math.random()),
   tipo: 'linea',
   texto: 'x',
   inicio_ms: inicio,
   fin_ms: null,
-  palabras: palabras ? [{ texto: 'x', inicio_ms: 0, fin_ms: 1 }] : null
+  palabras: palabras ? [{ texto: 'x', inicio_ms: 0, fin_ms: 1 }] : null,
+  ...(manual ? { origen_palabras: 'manual' as const } : {})
 })
 const pausa: ElementoLetra = {
   id: 'p',
@@ -23,7 +24,9 @@ describe('sincroniaActual', () => {
     expect(sincroniaActual([l(null), pausa, l(null)])).toBe('ninguna')
     expect(sincroniaActual([l(1), pausa, l(null)])).toBe('parte')
     expect(sincroniaActual([l(1), pausa, l(2)])).toBe('linea')
-    expect(sincroniaActual([l(1), l(2, true)])).toBe('palabra')
+    expect(sincroniaActual([l(1), l(2, true, true)])).toBe('palabra')
+    // Las palabras importadas no cuentan (0149).
+    expect(sincroniaActual([l(1), l(2, true)])).toBe('linea')
     expect(sincroniaActual([])).toBe('ninguna')
   })
 })

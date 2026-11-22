@@ -88,3 +88,59 @@ describe('agruparCanciones', () => {
     expect(Math.min(medir(), medir(), medir())).toBeLessThan(16)
   })
 })
+
+describe('agruparCanciones por fecha de añadido (B8-4 a B8-6)', () => {
+  const cancion = (id: string, creada: string | null, modificada = '2026-01-01T00:00:00Z') =>
+    conIdentidad(id, 'X', null, { creada, modificada })
+  const local = (a: number, m: number, d: number, h = 12) => new Date(a, m - 1, d, h).toISOString()
+
+  it('B8-4: miércoles 18-11-2026, siete canciones en siete grupos y en orden', () => {
+    const todas = [
+      cancion('sin', null),
+      cancion('dic', local(2025, 12, 15)),
+      cancion('oct', local(2026, 10, 20)),
+      cancion('mes', local(2026, 11, 3)),
+      cancion('semana', local(2026, 11, 16, 0)),
+      cancion('ayer', local(2026, 11, 17)),
+      cancion('hoy', local(2026, 11, 18, 9))
+    ]
+    const g = agruparCanciones(todas, todas, 'fecha', new Date(2026, 10, 18, 10))
+    expect(g.map((x) => [x.nombre, x.canciones.length])).toEqual([
+      ['Hoy', 1],
+      ['Ayer', 1],
+      ['Esta semana', 1],
+      ['Este mes', 1],
+      ['Octubre de 2026', 1],
+      ['Diciembre de 2025', 1],
+      ['Sin agrupar', 1]
+    ])
+    expect(g.every((x) => !x.asignable)).toBe(true)
+  })
+
+  it('B8-4: el lunes 02-11 el día 1 es «Ayer», el 31-10 es octubre y no hay «Esta semana»', () => {
+    const todas = [cancion('a', local(2026, 11, 1)), cancion('b', local(2026, 10, 31))]
+    const g = agruparCanciones(todas, todas, 'fecha', new Date(2026, 10, 2, 10))
+    expect(nombres(g)).toEqual(['Ayer', 'Octubre de 2026'])
+  })
+
+  it('B8-6: una fecha futura es «Hoy»', () => {
+    const todas = [cancion('a', local(2027, 5, 5))]
+    expect(nombres(agruparCanciones(todas, todas, 'fecha', new Date(2026, 10, 18, 10)))).toEqual([
+      'Hoy'
+    ])
+  })
+
+  it('B8-5: por `creada` descendente; «Sin agrupar», por `modificada`; recuento con filtro', () => {
+    const todas = [
+      cancion('v', local(2026, 11, 18, 8)),
+      cancion('n', local(2026, 11, 18, 9)),
+      cancion('s1', null, '2026-02-01T00:00:00Z'),
+      cancion('s2', null, '2026-03-01T00:00:00Z')
+    ]
+    const g = agruparCanciones(todas, todas, 'fecha', new Date(2026, 10, 18, 10))
+    expect(g[0]!.canciones.map((c) => c.id)).toEqual(['n', 'v'])
+    expect(g[1]!.canciones.map((c) => c.id)).toEqual(['s2', 's1'])
+    const filtradas = agruparCanciones([todas[0]!], todas, 'fecha', new Date(2026, 10, 18, 10))
+    expect([filtradas[0]!.canciones.length, filtradas[0]!.total]).toEqual([1, 2])
+  })
+})

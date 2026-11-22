@@ -48,3 +48,12 @@ en el Dock.
 
 Pendiente: comprobar el icono en NSIS y sus accesos directos y en el menú de Linux,
 y anotar los tamaños de los cuatro instaladores en 0136 cuando se ejecute su workflow.
+
+### Icono definitivo (2026-11-21, sesión principal)
+
+El usuario eligió el icono definitivo entre las propuestas de `docs/propuestas/diseno/` (`icono-kunais-sk.html`, primera ronda; `icono-sello-sk.html`, segunda): **H · Emblema** para 32 px o más y **Mini 1 · Shuriken** para 16, 20 y 24 px.
+
+- Fuentes vectoriales: `app/build/icon.svg` y `app/build/icon-mini.svg`.
+- `node scripts/icono.mjs` (desde `app/`) regenera `build/icon.png` (1024) y `build/icon.ico` (16, 20, 24, 32, 40, 48, 64, 128 y 256).
+- Comprobado en Windows: `empaquetar:dir` usa `icon.ico`, el `.exe` lleva los 9 tamaños y `verificar-paquete.mjs` pasa.
+- Pendiente: que el diseñador actualice el icono descrito en `docs/ux/sistema-visual.md` §1.1, y comprobarlo a ojo en la barra de tareas, en el DMG de macOS y en el menú de Linux (el `.icns` y los PNG de Linux los genera electron-builder desde `icon.png`).

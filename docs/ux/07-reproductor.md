@@ -8,6 +8,7 @@
 - Revisión: 2026-11-06, puesta al día para la Fase 6 (ver "Cambios de esta revisión" al final).
 - 0.2.0, fase 4 (2026-11-11): reproductor en otra pantalla (ventana secundaria), transición con cuenta entre canciones de la cola, en espera, fin de la cola, fallo de una entrada, reanudación y recuperación. Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola). Preguntas: [0048](../preguntas/0048-escucha-editor-durante-evento.md) y [0049](../preguntas/0049-politica-cola-de-reproduccion.md) (respondidas), [0058](../preguntas/0058-interfaz-de-la-sesion-en-vivo-y-la-cola.md) (arquitecto → UX, respondida), [0059](../preguntas/0059-conductas-de-la-sesion-en-vivo-ante-incidencias.md) (usuario, respondida: 1B, 2A, 3B, 4A), [0060](../preguntas/0060-letra-y-controles-de-sonido-durante-la-sesion.md) (usuario, respondida: 1A, 2A) y [0061](../preguntas/0061-reproductor-en-otra-pantalla-con-wayland.md) (arquitecto → UX, respondida).
 - 0.2.0, fase 5 (2026-11-20): degradados radial y cónico con movimiento ligado a la canción, indicadores de espera (puntos, barra y cuenta 3·2·1) y modo Letra lista sin barrido. Ver [Fase 5 de 0.2.0 — estilo, espera y Letra lista](#fase-5-de-020--estilo-espera-y-letra-lista).
+- 0.2.1, fases 8 y 9 (2026-11-21): barrido progresivo en lugar de las palabras importadas, barrido palabra a palabra con las hechas a mano, sin `,` / `.` en la prueba desde el editor y barra de espera como barra de carga. Ver [Fase 8 de 0.2.1](#fase-8-de-021--sin-palabras-importadas-ni-desplazamiento-y-barra-de-carga).
 
 ## Objetivo
 Cantar: instrumental + letra sincronizada con el estilo de la canción, **a pantalla completa, sin distracciones y legible a unos 5 m** (salón, televisor de 55", proyector). Empieza al instante y se sale con una tecla.
@@ -659,3 +660,50 @@ Esta sección **amplía** la spec y vale igual para el reproductor local, la pru
 - R14. Capturas en `docs/ux/revision-0.2.0-fase-5/` con nombre `reproductor-{ancho}x{alto}-{estado}.png` a 1920 × 1080 y 1280 × 720: `hueco-tres-indicadores`, `hueco-cuenta`, `hueco-barra`, `letra-lista`, `fondo-radial`, `fondo-conico`.
 
 **Verificación manual** (guía de la fase 5): legibilidad de la cuenta y la barra a 5 m en una TV de 55" y en un proyector, con fondos degradados claros y oscuros; sensación de las velocidades del movimiento y que no maree; el movimiento fluido en la secundaria de un equipo modesto con dos pantallas; que la Letra lista se lea bien sin barrido en una canción rápida.
+
+## Fase 8 de 0.2.1 — sin palabras importadas ni desplazamiento, y barra de carga
+
+Origen: [plan 0.2.1, fases 8 y 9](../versiones/0.2.1/plan-3.md#fase-8--sincronía-y-editor-más-simples) y palabras del usuario: «la barra no debería ser encogida al centro sino ser una barra de carga con los colores de letra, tanto de contraste de barrido como el otro». Editor: [06 · Fase 8](06-editor.md#fase-8-de-021--sincronía-y-editor-más-simples) y [06 · Fase 9](06-editor.md#fase-9-de-021--editor-preciso-de-línea). Valores: [sistema visual · 0.2.1](sistema-visual.md#021--sincronía-editor-preciso-y-barra-de-carga-fases-8-y-9). Vale igual para el reproductor local, la prueba desde el editor, la ventana secundaria, la vista previa del editor y el video ([10](10-exportacion.md), mismo render).
+
+**Sustituye**: la fila «Resaltado» de «Letra»; la fila «, / .» de «Atajos de teclado»; la viñeta «Desplazamiento» de «Prueba desde el editor» y la frase «(1 s para el desplazamiento)» de «Indicador breve»; la frase del historial de deshacer «(más el paso del desplazamiento, si lo hubo)»; la fila «Barra» de «Indicadores de espera» (fase 5) y su mención «se encoge hacia el centro» del wireframe; la frase «Los tiempos de palabras importadas se mantienen…» de la primera fase de 0.2.0 (ahora, «los tiempos por palabra hechos a mano»); los criterios 9, 14 (desplazamiento), 29, 30 (paso del desplazamiento), R6 y R10.
+
+### Resaltado
+- **Por palabra** solo si la línea tiene tiempos por palabra **hechos a mano** en el editor preciso (06 · Fase 9): cada palabra se llena entre su inicio y su fin, el barrido espera entre palabras y el espacio que sigue a una palabra se pinta al empezar la siguiente.
+- En cualquier otro caso, **también con palabras importadas** (LRCLIB, LRC mejorado), barrido progresivo entre el inicio y el fin efectivo de la línea. Las palabras importadas tampoco cuentan para el fin automático ([0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §1).
+- En **Letra lista**, sin barrido (sin cambios).
+
+### Prueba desde el editor sin desplazamiento
+- **,** y **.** no hacen nada en el reproductor (tampoco desde el editor). Se retiran el indicador `rep.offset` y la fila del diálogo de atajos. Los cambios de la prueba ya no crean ningún paso de deshacer.
+- `letra.offset_ms` se sigue aplicando a la letra como siempre (decisión D3).
+
+### Barra de espera como barra de carga
+
+```
+│                                                                          │
+│                ▕██████████████░░░░░░░░░░░░░░░░░░░░░░▏                    │ ← barra de carga (ancho fijo)
+│                                  2                                       │    relleno: color de lo ya cantado
+│                                 ●●                                       │    pista: color de la letra
+│                         Caught in a landslide                            │
+```
+
+| Aspecto | Comportamiento |
+|---|---|
+| **Forma** | Barra de **ancho fijo**: una **pista** con el color de la letra y un **relleno** con el color de lo ya cantado que crece **de izquierda a derecha**, de 0 al empezar el hueco hasta el 100 % justo en el inicio de la línea siguiente («avanza hasta la entrada del verso»). Avance lineal con el tiempo de la canción, como el barrido. |
+| **Tamaño y posición** | Ancho **40 % del ancho del área**, centrada (el mismo ancho con el que empezaba la barra anterior). Grosor `máx(6 px, 1 % del alto)` (≈ 11 px en 1080p; antes `máx(4 px, 0,8 %)`, más fina porque no tenía pista). Extremos redondeados (pista y relleno). Misma posición reservada: centro a `45 % − 0,9 × S`. La sombra de §10 se aplica a la pista. |
+| **Aparece y desaparece** | Aparece al empezar el hueco con el relleno a 0 y desaparece al instante en el inicio de la línea. En la **primera entrada** empieza al terminar la pantalla de título (4 s antes de la primera línea). |
+| **Buscar, pausar** | Derivada del tiempo: al buscar dentro de un hueco aparece con el relleno de ese instante; en pausa se congela. |
+| **Letra lista** | Pista con el **color de la letra al 35 % de opacidad** y relleno con el **color de la letra** al 100 % **(decisión provisional, [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) §8)**. Justificación: en Letra lista el color de lo ya cantado no aparece en ningún momento (fase 5); el mismo color con dos intensidades conserva la lectura de «barra que se llena» y el relleno, que es lo que informa, tiene el contraste de la letra. En el editor la vista previa sigue usando los colores de karaoke (06 · 8.7). |
+| **Movimiento reducido** | Sin cambios: el relleno avanza de forma continua (es contenido, como el barrido; sistema-visual §4). No hay animaciones de entrada ni salida. |
+| **Coherencia** | Una sola función de render para editor, reproductor, secundaria y video: en el mismo instante del mismo hueco, la barra tiene el mismo ancho de relleno relativo en todos (± 1 px a la misma resolución). |
+| **Contraste** | Los cubre el aviso de contraste existente: la pista con «Letra vs fondo», el relleno con «Resaltado vs fondo» y su diferencia con «Resaltado vs letra» (ΔE ≥ 25). En Letra lista, solo cuenta el de la letra. Sin avisos nuevos. |
+
+### Criterios de aceptación de la fase 8 (reproductor)
+- R8-1. Una línea con palabras importadas (Final Ruin) se pinta con barrido progresivo entre su inicio y su fin efectivo en el reproductor local, la secundaria y el video (test del modelo de render), y una con palabras hechas a mano se pinta palabra a palabra con sus tiempos.
+- R8-2. Con el reproductor abierto desde el editor, `,` y `.` no cambian nada ni muestran indicador; el diálogo de atajos no tiene esa fila; al volver, el historial de deshacer del editor no tiene pasos nuevos.
+- R8-3. En un hueco de 8 s entre líneas (umbral 4 s, barra activa), la pista mide el 40 % del ancho durante todo el hueco y el relleno mide 0 al empezar, el 50 % de la pista a los 4 s y el 100 % en el inicio de la línea siguiente, creciendo desde el borde izquierdo (test del modelo de render ± 1 px); en la primera entrada empieza al terminar la pantalla de título. Sustituye a R6.
+- R8-4. La pista usa `letra.color` y el relleno `color_resaltado`; en Letra lista, la pista es `letra.color` al 35 % y el relleno `letra.color`, y ningún píxel tiene `color_resaltado` (captura a mitad de un hueco).
+- R8-5. Con movimiento reducido emulado, el relleno sigue avanzando de forma continua. Sustituye a R10 en lo que se refiere a la barra.
+- R8-6. En el mismo tiempo de canción, la vista previa del editor, el reproductor y un fotograma exportado dan el mismo modelo de barra (pista, relleno y posición relativos; test compartido).
+- R8-7. Capturas en `docs/ux/revision-0.2.1-fase-8/` con nombre `reproductor-{ancho}x{alto}-{estado}.png` a 1920 × 1080 y 1280 × 720: `barra-carga-inicio`, `barra-carga-mitad`, `barra-carga-letra-lista`, `palabras-importadas-progresivo`.
+
+**Verificación manual** (guía de 0.2.1): la barra de carga se entiende a 5 m en una TV de 55" con fondos claros y oscuros y con un tema de colores parecidos; en Letra lista se distingue el relleno de la pista.

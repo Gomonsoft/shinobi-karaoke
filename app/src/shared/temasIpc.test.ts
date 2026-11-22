@@ -341,6 +341,7 @@ describe('resumen y canción con apariencia', () => {
     estado: 'borrador',
     modalidad: 'karaoke',
     modificada: '2026-11-09T10:00:00.000Z',
+    creada: '2026-11-09T10:00:00.000Z',
     estilo,
     album: 'Jazz',
     claves: { artista: 'a', album: '["a","jazz"]' },

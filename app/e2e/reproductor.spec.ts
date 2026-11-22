@@ -361,7 +361,7 @@ test.describe('reproductor sin red', () => {
     }
   })
 
-  test('editor: prueba original, desplazamiento, salida y deshacer', async () => {
+  test('editor: prueba original, «,» y «.» sin efecto y salida sin pasos de deshacer', async () => {
     const { app, datos, ventana } = await iniciar('reproductor-editor')
     try {
       await ventana
@@ -385,24 +385,15 @@ test.describe('reproductor sin red', () => {
       await expect(capa.getByText(R.original)).toBeVisible()
       await expect(capa.getByRole('slider', { name: R.aria.vozguia })).toHaveCount(0)
       await ventana.keyboard.press('.')
-      await ventana.keyboard.press('.')
-      await expect(capa.getByText(R.offset(200))).toBeVisible()
+      await ventana.keyboard.press(',')
+      await expect(capa.getByText(/Desplazamiento/)).toHaveCount(0)
       await ventana.keyboard.press('Escape')
       await expect(ventana.getByRole('heading', { level: 1, name: 'Editor' })).toBeVisible()
       await expect(probar).toBeFocused()
-      await expect
-        .poll(() => {
-          const ruta = join(datos, 'biblioteca', idSemilla(18), 'cancion.json')
-          return JSON.parse(readFileSync(ruta, 'utf8')).letra.offset_ms as number
-        })
-        .toBe(200)
-      await ventana.keyboard.press('ControlOrMeta+z')
-      await expect
-        .poll(() => {
-          const ruta = join(datos, 'biblioteca', idSemilla(18), 'cancion.json')
-          return JSON.parse(readFileSync(ruta, 'utf8')).letra.offset_ms as number
-        })
-        .toBe(0)
+      // La prueba no crea pasos de deshacer ni escribe el desplazamiento (R8-2).
+      await expect(ventana.getByRole('button', { name: /^Deshacer/ })).toBeDisabled()
+      const ruta = join(datos, 'biblioteca', idSemilla(18), 'cancion.json')
+      expect(JSON.parse(readFileSync(ruta, 'utf8')).letra.offset_ms).toBe(0)
     } finally {
       await app.close()
     }

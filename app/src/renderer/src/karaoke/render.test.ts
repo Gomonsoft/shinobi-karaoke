@@ -62,6 +62,7 @@ describe('modelo de render', () => {
   it('resalta cada palabra según sus tiempos y muestra media línea en pausa', () => {
     const l = letra([
       linea('a', 'Sol y mar', 1000, {
+        origen_palabras: 'manual',
         palabras: [
           { texto: 'Sol', inicio_ms: 1000, fin_ms: 1500 },
           { texto: 'y', inicio_ms: 1500, fin_ms: 2000 },
@@ -73,6 +74,22 @@ describe('modelo de render', () => {
       1, 0.5, 0
     ])
     expect(fotogramaEstatico(l, 'a').actual?.palabras?.map((p) => p.progreso)).toEqual([1, 0.5, 0])
+  })
+
+  it('barre de forma progresiva las líneas con palabras importadas', () => {
+    const l = letra([
+      linea('a', 'Sol y mar', 1000, {
+        fin_ms: 3000,
+        origen_palabras: 'importada',
+        palabras: [
+          { texto: 'Sol', inicio_ms: 1000, fin_ms: 1500 },
+          { texto: 'y', inicio_ms: 1500, fin_ms: 2000 },
+          { texto: 'mar', inicio_ms: 2000, fin_ms: 2500 }
+        ]
+      })
+    ])
+    expect(fotogramaEn(l, 2000, contexto).actual).toMatchObject({ progreso: 0.5, palabras: null })
+    expect(fotogramaEstatico(l, 'a').actual).toMatchObject({ progreso: 0.5, palabras: null })
   })
 
   it.each([500, 3000, 5900, 20_000])('avisa la primera entrada a %i ms', (inicio) => {

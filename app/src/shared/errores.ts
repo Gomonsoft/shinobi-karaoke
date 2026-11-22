@@ -46,7 +46,8 @@ export const CODIGOS_ERROR = [
   'ENTRADA_INCOMPLETA',
   'DESTINO_OCUPADO',
   'PERFIL_NO_SOPORTADO',
-  'LIMPIEZA_FALLIDA'
+  'LIMPIEZA_FALLIDA',
+  'CANCION_EXPORTANDOSE'
 ] as const
 
 /**
@@ -70,6 +71,8 @@ export const CODIGOS_ERROR = [
  * perfil, p. ej. `capturePage` devuelve otro tamaño) y `LIMPIEZA_FALLIDA` (no se pudo borrar el temporal;
  * lleva la ruta para «Mostrar en la carpeta»). Desde 0237 `LIMPIEZA_FALLIDA` ya no es el código de un trabajo:
  * tras cancelar o fallar se indica con `ExportacionIpc.limpiezaFallida` (ADR 0019 §10).
+ * 0.2.1 (ADR 0019 §10, revisión): `CANCION_EXPORTANDOSE` (esa canción ya tiene una exportación en curso o
+ * en cola; lleva `detalle.trabajoId`).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',
@@ -90,7 +93,8 @@ export const CODIGOS_SOLO_MAIN = [
   'COLA_LLENA',
   'DESTINO_OCUPADO',
   'PERFIL_NO_SOPORTADO',
-  'LIMPIEZA_FALLIDA'
+  'LIMPIEZA_FALLIDA',
+  'CANCION_EXPORTANDOSE'
 ] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]

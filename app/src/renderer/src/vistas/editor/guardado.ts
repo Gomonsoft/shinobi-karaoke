@@ -10,8 +10,12 @@ interface Opciones {
   cancionId: string
   api: {
     guardarTiempos(peticion: GuardarTiempos): Promise<unknown>
+    /** Solo el texto de una línea (ADR 0021 §7); se llama antes de `guardarTiempos`. */
+    editarTextoLinea?(peticion: { cancionId: string; id: string; texto: string }): Promise<unknown>
     guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<unknown>
   }
+  /** Letra con la que arranca la visita: los textos confirmados en disco. */
+  letraInicial?: Letra
   debounceMs?: number
   maxEsperaMs?: number
   reintentoMs?: number
@@ -35,15 +39,40 @@ export class GuardadoEditor {
   private maximo: Temporizador | undefined
   private reintento: Temporizador | undefined
   private destruido = false
+  /** Texto de cada línea tal y como está escrito (id → texto). */
+  private textos = new Map<string, string>()
   private actual: EstadoGuardado['estado'] = 'guardado'
   private readonly reloj: NonNullable<Opciones['temporizador']>
 
   constructor(private readonly opciones: Opciones) {
     // Envueltos: `window.setTimeout` llamado como método de otro objeto lanza "Illegal invocation".
+    if (opciones.letraInicial) this.sincronizarTextos(opciones.letraInicial)
     this.reloj = opciones.temporizador ?? {
       setTimeout: ((f: () => void, ms?: number) => setTimeout(f, ms)) as typeof setTimeout,
       clearTimeout: ((t?: Temporizador) => clearTimeout(t)) as typeof clearTimeout
     }
+  }
+
+  /** La letra del disco cambió fuera del editor (recarga): sus textos son los confirmados. */
+  sincronizarTextos(letra: Letra): void {
+    this.textos = new Map(
+      letra.lineas.filter((l) => l.tipo === 'linea').map((l) => [l.id, l.texto])
+    )
+  }
+
+  /** Texto antes que tiempos: `editarTextoLinea` por cada línea cuyo texto difiere de lo escrito. */
+  private async guardarLetra(letra: Letra): Promise<void> {
+    const { cancionId, api } = this.opciones
+    if (api.editarTextoLinea) {
+      for (const linea of letra.lineas) {
+        if (linea.tipo !== 'linea') continue
+        const escrito = this.textos.get(linea.id)
+        if (escrito === undefined || escrito === linea.texto) continue
+        await api.editarTextoLinea({ cancionId, id: linea.id, texto: linea.texto })
+        this.textos.set(linea.id, linea.texto)
+      }
+    }
+    await api.guardarTiempos(aPeticionTiempos(cancionId, letra))
   }
 
   cambiarLetra(letra: Letra): void {
@@ -105,9 +134,7 @@ export class GuardadoEditor {
     const { cancionId, api } = this.opciones
     const { letra, apariencia: seleccion } = lote
     const [tiempos, apariencia] = await Promise.allSettled([
-      letra
-        ? Promise.resolve().then(() => api.guardarTiempos(aPeticionTiempos(cancionId, letra)))
-        : undefined,
+      letra ? Promise.resolve().then(() => this.guardarLetra(letra)) : undefined,
       seleccion
         ? Promise.resolve().then(() => api.guardarApariencia(cancionId, seleccion))
         : undefined

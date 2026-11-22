@@ -1,4 +1,5 @@
 import { gananciaLineal, urlPista, type Pista } from './pistas'
+import { estirarEnWorker } from './estiramientoCliente'
 import { ctxOidoEn, msBucleEn, msCancionEn, type Anclaje, type IntervaloBucle } from './reloj'
 
 export interface OpcionesMotor {
@@ -9,6 +10,13 @@ export interface OpcionesMotor {
   fetch?: typeof fetch
   ahoraPerf?: () => number
   maxBuffers?: number
+  /** Estiramiento con el tono conservado (por defecto, el worker de la tarea 0274). */
+  estirar?: (
+    canales: Float32Array[],
+    sampleRate: number,
+    velocidad: 0.5 | 0.75,
+    signal: AbortSignal
+  ) => Promise<Float32Array[]>
 }
 
 export type Velocidad = 0.5 | 0.75 | 1
@@ -22,6 +30,25 @@ export interface EstadoMotor {
   velocidad: Velocidad
   duracionMs: number | null
   volumen: number
+  /** `false` solo si el estiramiento del tramo falló: la velocidad baja el tono (nota de la ventana). */
+  tonoConservado: boolean
+}
+
+/** Tramo de la pista estirado, con el tono conservado, para una velocidad. */
+interface Estirado {
+  origen: AudioBuffer
+  buffer: AudioBuffer
+  velocidad: 0.5 | 0.75
+  /** Límites del tramo alineados a muestra, en ms de la pista. */
+  inicioMs: number
+  finMs: number
+}
+
+interface ClaveEstirado {
+  origen: AudioBuffer
+  inicioMs: number
+  finMs: number
+  velocidad: number
 }
 
 interface Tramo {
@@ -34,6 +61,11 @@ interface Reproduccion {
   tramos: Tramo[]
   finMs: number
   hastaMs?: number
+  /** Buffer estirado que suena (los tiempos del nodo van en su base), si lo hay. */
+  estirado?: Estirado
+  /** Fuente anterior y contexto del relevo pendiente al estirado (en el paso por el inicio del bucle). */
+  previa?: AudioBufferSourceNode
+  cambioCtx?: number
 }
 
 function acotar(valor: number, maximo: number): number {
@@ -56,10 +88,24 @@ function posicionEn(ctx: number, { anclaje, bucle }: Tramo): number {
   return bucle ? msBucleEn(instante, anclaje, bucle) : msCancionEn(instante, anclaje)
 }
 
-function configurarBucle(fuente: AudioBufferSourceNode, bucle: IntervaloBucle | null): void {
+/** Segundos del buffer estirado que corresponden a `ms` de la pista. */
+function segundosEstirado(ms: number, e: Estirado): number {
+  return Math.max(0, Math.min(e.buffer.duration, (ms - e.inicioMs) / (1000 * e.velocidad)))
+}
+
+function dentroDe(bucle: IntervaloBucle, e: Estirado): boolean {
+  const holgura = 1000 / e.buffer.sampleRate
+  return bucle.inicioMs >= e.inicioMs - holgura && bucle.finMs <= e.finMs + holgura
+}
+
+function configurarBucle(
+  fuente: AudioBufferSourceNode,
+  bucle: IntervaloBucle | null,
+  estirado?: Estirado
+): void {
   if (bucle) {
-    fuente.loopStart = bucle.inicioMs / 1000
-    fuente.loopEnd = bucle.finMs / 1000
+    fuente.loopStart = estirado ? segundosEstirado(bucle.inicioMs, estirado) : bucle.inicioMs / 1000
+    fuente.loopEnd = estirado ? segundosEstirado(bucle.finMs, estirado) : bucle.finMs / 1000
   }
   fuente.loop = bucle !== null
 }
@@ -75,6 +121,11 @@ export class MotorAudio {
   private carga: AbortController | null = null
   private reproduccion: Reproduccion | null = null
   private bucle: IntervaloBucle | null = null
+  private tramoTono: IntervaloBucle | null = null
+  private estirado: Estirado | null = null
+  private preparando: { clave: ClaveEstirado; carga: AbortController } | null = null
+  private fallido: ClaveEstirado | null = null
+  private previoBucle = false
   private posicionEnPausa = 0
   private solicitudReproduccion = 0
   private audioLiberado = false
@@ -91,7 +142,8 @@ export class MotorAudio {
       sonando: false,
       velocidad: 1,
       duracionMs: null,
-      volumen: acotar(opciones.volumen, 1)
+      volumen: acotar(opciones.volumen, 1),
+      tonoConservado: true
     }
   }
 
@@ -184,6 +236,7 @@ export class MotorAudio {
       sonando: this.reproduccion !== null,
       error: null
     })
+    this.prepararEstirado()
   }
 
   pistaCargando(): Pista | null {
@@ -226,22 +279,34 @@ export class MotorAudio {
     const duracionMs = buffer.duration * 1000
     const bucle =
       hastaMs === undefined && this.bucle ? intervaloAudible(this.bucle, duracionMs) : null
-    if (bucle && !contiene(bucle, desde)) desde = bucle.inicioMs
+    // Con `conservarBucle` se puede empezar antes del bucle: suena el margen y luego envuelve.
+    if (bucle && !contiene(bucle, desde) && !(this.previoBucle && desde < bucle.inicioMs)) {
+      desde = bucle.inicioMs
+    }
+    if (!bucle || desde >= bucle.inicioMs) this.previoBucle = false
     this.posicionEnPausa = desde
     const finMs = Math.min(hastaMs ?? Infinity, duracionMs)
     if (finMs <= desde) return
+    const estirado = this.estiradoUsable(buffer, velocidad, desde, hastaMs, bucle)
     const fuente = contexto.createBufferSource()
-    fuente.buffer = buffer
-    fuente.playbackRate.value = velocidad
-    configurarBucle(fuente, bucle)
+    fuente.buffer = estirado?.buffer ?? buffer
+    fuente.playbackRate.value = estirado ? 1 : velocidad
+    configurarBucle(fuente, bucle, estirado)
     fuente.connect(this.ganancia!)
     const ctxInicio = contexto.currentTime
     this.reproduccion = {
       fuente,
       tramos: [{ anclaje: { ctxInicio, posInicioMs: desde, velocidad }, bucle }],
       finMs,
-      hastaMs
+      hastaMs,
+      estirado
     }
+    this.alTerminar(fuente, finMs)
+    fuente.start(ctxInicio, estirado ? segundosEstirado(desde, estirado) : desde / 1000)
+    if (hastaMs !== undefined) fuente.stop(ctxInicio + (finMs - desde) / (1000 * velocidad))
+  }
+
+  private alTerminar(fuente: AudioBufferSourceNode, finMs: number): void {
     fuente.onended = () => {
       if (this.reproduccion?.fuente !== fuente) return
       fuente.disconnect()
@@ -249,17 +314,169 @@ export class MotorAudio {
       this.posicionEnPausa = finMs
       this.publicar({ sonando: false })
     }
-    fuente.start(ctxInicio, desde / 1000)
-    if (hastaMs !== undefined) fuente.stop(ctxInicio + (finMs - desde) / (1000 * velocidad))
   }
 
   private detenerFuente(): void {
     if (!this.reproduccion) return
-    const { fuente } = this.reproduccion
+    const { fuente, previa } = this.reproduccion
     this.reproduccion = null
-    fuente.onended = null
-    fuente.stop()
-    fuente.disconnect()
+    for (const nodo of previa ? [previa, fuente] : [fuente]) {
+      nodo.onended = null
+      nodo.stop()
+      nodo.disconnect()
+    }
+  }
+
+  /** El estirado se usa solo si la reproducción empieza y termina dentro del tramo. */
+  private estiradoUsable(
+    origen: AudioBuffer,
+    velocidad: Velocidad,
+    desdeMs: number,
+    hastaMs: number | undefined,
+    bucle: IntervaloBucle | null
+  ): Estirado | undefined {
+    const e = this.estirado
+    if (!e || e.origen !== origen || e.velocidad !== velocidad) return undefined
+    const holgura = 1000 / e.buffer.sampleRate
+    if (bucle) return dentroDe(bucle, e) && desdeMs >= e.inicioMs - holgura ? e : undefined
+    return hastaMs !== undefined && desdeMs >= e.inicioMs - holgura && hastaMs <= e.finMs + holgura
+      ? e
+      : undefined
+  }
+
+  /** Tramo de la ventana del editor preciso, en tiempo de audio; `null` al cerrarla. */
+  fijarTramoConTono(intervalo: IntervaloBucle | null): void {
+    if (this.destruido) return
+    const valido =
+      intervalo && Number.isFinite(intervalo.inicioMs) && Number.isFinite(intervalo.finMs)
+    this.tramoTono = valido && intervalo.inicioMs < intervalo.finMs ? { ...intervalo } : null
+    if (!this.tramoTono) this.invalidarEstirado()
+    this.prepararEstirado()
+  }
+
+  private invalidarEstirado(): void {
+    this.preparando?.carga.abort()
+    this.preparando = null
+    this.estirado = null
+    this.fallido = null
+    if (!this.actual.tonoConservado) this.publicar({ tonoConservado: true })
+  }
+
+  private claveActual(): ClaveEstirado | null {
+    const origen = this.buffers.get(this.actual.pista)
+    const tramo = this.tramoTono
+    if (!origen || !tramo || this.actual.velocidad === 1 || this.audioLiberado) return null
+    const sr = origen.sampleRate
+    const inicio = Math.round((acotar(tramo.inicioMs, origen.duration * 1000) * sr) / 1000)
+    const fin = Math.round((acotar(tramo.finMs, origen.duration * 1000) * sr) / 1000)
+    if (fin <= inicio) return null
+    return {
+      origen,
+      inicioMs: (inicio / sr) * 1000,
+      finMs: (fin / sr) * 1000,
+      velocidad: this.actual.velocidad
+    }
+  }
+
+  private mismaClave(a: ClaveEstirado | null, b: ClaveEstirado | null): boolean {
+    return (
+      !!a &&
+      !!b &&
+      a.origen === b.origen &&
+      a.inicioMs === b.inicioMs &&
+      a.finMs === b.finMs &&
+      a.velocidad === b.velocidad
+    )
+  }
+
+  /** Deja listo el buffer estirado del tramo para (pista, tramo, velocidad); descarta el que no cuadra. */
+  private prepararEstirado(): void {
+    const clave = this.claveActual()
+    if (this.estirado && !this.mismaClave(this.estirado, clave)) this.estirado = null
+    if (this.preparando && !this.mismaClave(this.preparando.clave, clave)) {
+      this.preparando.carga.abort()
+      this.preparando = null
+    }
+    if (this.fallido && !this.mismaClave(this.fallido, clave)) this.fallido = null
+    if (!clave) {
+      if (!this.actual.tonoConservado) this.publicar({ tonoConservado: true })
+      return
+    }
+    if (this.estirado || this.preparando || this.fallido) return
+    if (!this.actual.tonoConservado) this.publicar({ tonoConservado: true })
+    void this.estirarClave(clave)
+  }
+
+  private async estirarClave(clave: ClaveEstirado): Promise<void> {
+    const carga = new AbortController()
+    this.preparando = { clave, carga }
+    const sr = clave.origen.sampleRate
+    const inicio = Math.round((clave.inicioMs * sr) / 1000)
+    const fin = Math.round((clave.finMs * sr) / 1000)
+    const velocidad = clave.velocidad as 0.5 | 0.75
+    try {
+      const canales = Array.from({ length: clave.origen.numberOfChannels }, (_, c) =>
+        clave.origen.getChannelData(c).slice(inicio, fin)
+      )
+      const estirar = this.opciones.estirar ?? estirarEnWorker
+      const salida = await estirar(canales, sr, velocidad, carga.signal)
+      if (carga.signal.aborted) return
+      const esperado = Math.round((fin - inicio) / velocidad)
+      if (
+        salida.length !== canales.length ||
+        salida.some((canal) => Math.abs(canal.length - esperado) > 1)
+      ) {
+        throw new Error('El estiramiento devolvió una duración inesperada.')
+      }
+      const buffer = this.prepararContexto().createBuffer(salida.length, salida[0]!.length, sr)
+      salida.forEach((canal, c) => buffer.copyToChannel(canal as Float32Array<ArrayBuffer>, c))
+      this.preparando = null
+      this.estirado = { ...clave, buffer, velocidad }
+      this.cambiarAEstirado()
+    } catch (e) {
+      if (carga.signal.aborted) return
+      this.preparando = null
+      this.fallido = clave
+      console.warn('No se pudo estirar el tramo con el tono conservado; se usa la velocidad.', e)
+      this.publicar({ tonoConservado: false })
+    }
+  }
+
+  /**
+   * Si suena el bucle con `playbackRate` y el estirado ya está listo, relevo en el siguiente
+   * paso por el inicio del bucle: la fuente nueva arranca justo cuando la anterior termina
+   * la vuelta, con un anclaje nuevo (misma fórmula del reloj).
+   */
+  private cambiarAEstirado(): void {
+    const r = this.reproduccion
+    const e = this.estirado
+    const contexto = this.contexto
+    if (!r || !e || !contexto || r.estirado || r.hastaMs !== undefined) return
+    const ultimo = r.tramos.at(-1)!
+    const bucle = ultimo.bucle
+    const ahora = contexto.currentTime
+    if (!bucle || !dentroDe(bucle, e) || ultimo.anclaje.velocidad !== e.velocidad) return
+    if (r.cambioCtx !== undefined && r.cambioCtx > ahora) return
+    const velocidad = e.velocidad
+    const vuelta = (bucle.finMs - bucle.inicioMs) / (1000 * velocidad)
+    let ctxCambio = ahora + (bucle.finMs - posicionEn(ahora, ultimo)) / (1000 * velocidad)
+    if (ctxCambio - ahora < 0.02) ctxCambio += vuelta
+    const fuente = contexto.createBufferSource()
+    fuente.buffer = e.buffer
+    fuente.playbackRate.value = 1
+    configurarBucle(fuente, bucle, e)
+    fuente.connect(this.ganancia!)
+    fuente.start(ctxCambio, segundosEstirado(bucle.inicioMs, e))
+    r.fuente.stop(ctxCambio)
+    r.previa = r.fuente
+    r.fuente = fuente
+    r.estirado = e
+    r.cambioCtx = ctxCambio
+    r.tramos.push({
+      anclaje: { ctxInicio: ctxCambio, posInicioMs: bucle.inicioMs, velocidad },
+      bucle
+    })
+    this.alTerminar(fuente, r.finMs)
   }
 
   pausar(): void {
@@ -277,10 +494,15 @@ export class MotorAudio {
     const bucle = intervalo && buffer ? intervaloAudible(intervalo, buffer.duration * 1000) : null
     if (intervalo && !bucle) return false
     if (!intervalo && this.bucle) this.solicitudReproduccion++
+    if (intervalo?.inicioMs !== this.bucle?.inicioMs) this.previoBucle = false
     this.bucle = intervalo
     const reproduccion = this.reproduccion
     if (!reproduccion) {
-      if (bucle && !contiene(bucle, this.posicionEnPausa)) this.posicionEnPausa = bucle.inicioMs
+      if (bucle && !contiene(bucle, this.posicionEnPausa)) {
+        if (!(this.previoBucle && this.posicionEnPausa < bucle.inicioMs)) {
+          this.posicionEnPausa = bucle.inicioMs
+        }
+      }
       return true
     }
     if (reproduccion.hastaMs !== undefined) return true
@@ -290,6 +512,18 @@ export class MotorAudio {
 
     const ctxInicio = this.contexto!.currentTime
     const posicion = this.posicionMs()
+    const pendiente = reproduccion.cambioCtx !== undefined && reproduccion.cambioCtx > ctxInicio
+    const estirado = reproduccion.estirado
+    if (pendiente || (estirado && !(bucle && dentroDe(bucle, estirado)))) {
+      // El relevo pendiente no se puede deshacer y el estirado no cubre los límites nuevos.
+      this.arrancar(
+        buffer!,
+        bucle && !contiene(bucle, posicion) ? bucle.inicioMs : posicion,
+        this.actual.velocidad
+      )
+      this.cambiarAEstirado()
+      return true
+    }
     const posInicioMs = posicionEn(ctxInicio, ultimo)
     if (bucle && (!contiene(bucle, posicion) || !contiene(bucle, posInicioMs))) {
       this.arrancar(
@@ -297,6 +531,7 @@ export class MotorAudio {
         contiene(bucle, posicion) ? posicion : bucle.inicioMs,
         this.actual.velocidad
       )
+      this.cambiarAEstirado()
       return true
     }
 
@@ -306,19 +541,28 @@ export class MotorAudio {
     const indice = reproduccion.tramos.findLastIndex((tramo) => tramo.anclaje.ctxInicio <= ctxOido)
     if (indice > 0) reproduccion.tramos.splice(0, indice)
     if (ultimo.anclaje.ctxInicio === ctxInicio) reproduccion.tramos.pop()
-    configurarBucle(reproduccion.fuente, bucle)
+    configurarBucle(reproduccion.fuente, bucle, estirado)
     reproduccion.tramos.push({
       anclaje: { ctxInicio, posInicioMs, velocidad: this.actual.velocidad },
       bucle
     })
+    this.cambiarAEstirado()
     return true
   }
 
-  buscar(ms: number): void {
+  /**
+   * Con `conservarBucle`, buscar antes del inicio del bucle no lo suelta: suena ese tramo previo
+   * una vez y después envuelve (escucha del margen previo sin rearmar el bucle). Buscar después
+   * de su final sigue soltándolo.
+   */
+  buscar(ms: number, opciones: { conservarBucle?: boolean } = {}): void {
     this.posicionEnPausa = acotar(ms, this.actual.duracionMs ?? 0)
+    this.previoBucle = false
     if (this.bucle) {
       const bucle = intervaloAudible(this.bucle, this.actual.duracionMs ?? 0)
-      if (!bucle || !contiene(bucle, this.posicionEnPausa)) {
+      if (bucle && opciones.conservarBucle && this.posicionEnPausa < bucle.inicioMs) {
+        this.previoBucle = true
+      } else if (!bucle || !contiene(bucle, this.posicionEnPausa)) {
         this.bucle = null
         this.solicitudReproduccion++
       }
@@ -344,6 +588,7 @@ export class MotorAudio {
       )
     }
     this.publicar({ velocidad, sonando: this.reproduccion !== null })
+    this.prepararEstirado()
   }
 
   fijarVolumen(valor: number): void {
@@ -387,6 +632,7 @@ export class MotorAudio {
     this.solicitudReproduccion++
     this.detenerFuente()
     this.bucle = null
+    this.invalidarEstirado()
     this.carga?.abort()
     this.carga = null
     this.buffers.clear()
@@ -400,6 +646,8 @@ export class MotorAudio {
     this.oyentes.clear()
     this.pausar()
     this.bucle = null
+    this.tramoTono = null
+    this.invalidarEstirado()
     this.carga?.abort()
     this.carga = null
     this.buffers.clear()

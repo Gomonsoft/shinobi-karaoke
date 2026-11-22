@@ -322,3 +322,14 @@ Exportación de video. Fecha: 2026-11-20. Detalle en el [ADR 0019](0019-exportac
 - **`config.exportacion`**: `{ formato, audio, proporcion, ancho, alto, fps, carpeta, factor_corrector }`, todos opcionales y con lectura tolerante por campo. Lo escribe solo main al aceptar una exportación (recordar opciones, provisional [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) §5) y al terminarla (`factor_corrector`, entre 0,25 y 8). No entra en `configParcialRendererSchema`.
 - **Diario** `exportacion/en-curso.json` en el directorio de datos, con escritura atómica: `{ trabajoId, cancionId, titulo, temporal, destino, inicio }`. Existe solo mientras hay una exportación en curso; al arrancar, si existe, main borra el temporal y avisa una vez (§6).
 - La exportación **no escribe** en `cancion.json` ni en `biblioteca/`: la instantánea vive en memoria y los destinos dentro del directorio de datos se rechazan (único escritor).
+
+## Revisión para 0.2.1
+
+Fecha: 2026-11-21. Detalle en el [ADR 0021](0021-sincronia-simplificada-y-editor-preciso-de-linea.md) §1 y en la revisión del [ADR 0016](0016-catalogo-de-temas-e-identidad-de-artista-y-album.md#revisión-para-021--agrupar-por-fecha-de-añadido). **`cancion.esquema` sigue en 1** y no se reescribe nada al abrir.
+
+- **`letra.lineas[].origen_palabras`** (opcional): `"manual"` en las líneas con palabras hechas en el editor preciso; ausente con palabras = importadas (no se pintan). Un valor fuera del catálogo se lee como ausente. Con `palabras: null`, main lo quita al escribir.
+- **Reglas de las palabras manuales**: tantas como tokens del texto (`tokenizarLinea`), en orden, de al menos 20 ms, sin solaparse, dentro de `[inicio, fin]` de la línea. Las valida main al escribir; el esquema solo exige las reglas de palabras de siempre, para que unas palabras dañadas no dejen la canción como dañada (ADR 0021 §1).
+- **`config.editor.paneles.preciso`** (opcional, lectura tolerante): posición, tamaño y margen del bucle de la ventana del editor preciso (ADR 0021 §9). «Restablecer distribución de paneles» lo devuelve a sus valores por defecto.
+- **`creada`** pasa a lectura tolerante: una fecha no válida se lee como `CREADA_POR_DEFECTO` (`1970-01-01T00:00:00.000Z`, en `shared/cancion.ts`) en lugar de dar la canción por dañada. No se reescribe al abrir; si main escribe la canción por otro motivo, guarda ese valor. El resumen la expone como `creada: string | null` (`null` si es la de por defecto).
+- **`config.biblioteca.agrupar`** admite `"fecha"`. 0.2.0 lo lee como `"ninguno"` (`.catch`).
+- **Pérdida aceptada**: si 0.2.0 o 0.1.0 reescriben una canción, descartan `origen_palabras`; al volver a 0.2.1 esas palabras cuentan como importadas y dejan de pintarse, pero siguen en el archivo.

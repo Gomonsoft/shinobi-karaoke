@@ -1,5 +1,3 @@
-import { formatearDesplazamiento } from '@shared/letras/tiempos'
-
 export const R = {
   salir: 'Salir',
   pausa: '❚❚ En pausa',
@@ -17,7 +15,6 @@ export const R = {
     n === 1
       ? '⚠ Falta 1 línea por sincronizar: no se verá.'
       : `⚠ Faltan ${n} líneas por sincronizar: no se verán.`,
-  offset: (ms: number): string => `Desplazamiento: ${formatearDesplazamiento(ms)}`,
   ind: {
     reproducir: '▶',
     pausa: '❚❚',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { configPredeterminada, configSchema } from './config'
+import { configPredeterminada, configSchema, precisoParcialSchema } from './config'
 import { configParcialRendererSchema } from './ipc'
 import { ESTILO_PREDETERMINADO } from './estilo'
 import { LIMITES_PANELES, preferenciasPanelesPredeterminadas } from './paneles'
@@ -38,7 +38,8 @@ describe('configSchema (lectura tolerante)', () => {
         paneles: {
           lista: { ancho: 300, minimizado: false },
           panel: { ancho: 360, minimizado: false },
-          linea_tiempo: { alto: null, minimizado: false }
+          linea_tiempo: { alto: null, minimizado: false },
+          preciso: { geometria: null, margen_ms: 500 }
         },
         omitir_aviso_letra_lista: false
       },
@@ -209,7 +210,8 @@ describe('editor.paneles (lectura tolerante campo a campo)', () => {
     expect(c.editor.paneles).toEqual({
       lista: { ancho: 300, minimizado: true },
       panel: { ancho: 360, minimizado: false },
-      linea_tiempo: { alto: null, minimizado: true }
+      linea_tiempo: { alto: null, minimizado: true },
+      preciso: { geometria: null, margen_ms: 500 }
     })
     expect(c.reproductor.volumen).toBe(0.4)
   })
@@ -226,6 +228,40 @@ describe('editor.paneles (lectura tolerante campo a campo)', () => {
     expect(c.editor.paneles.lista.ancho).toBe(256)
     expect(c.editor.paneles.panel.ancho).toBe(480)
     expect(c.editor.paneles.linea_tiempo.alto).toBe(960)
+  })
+})
+
+describe('editor.paneles.preciso (0273)', () => {
+  const preciso = (p: unknown) =>
+    configSchema.parse({ editor: { paneles: { preciso: p } } }).editor.paneles.preciso
+  const geo = { x: 40, y: -8, ancho: 700, alto: 400 }
+  it('una configuración de 0.2.0 sin el campo da «sin preferencia»', () => {
+    expect(configSchema.parse({ editor: { paneles: {} } }).editor.paneles.preciso).toEqual({
+      geometria: null,
+      margen_ms: 500
+    })
+  })
+  it('conserva la geometría y el margen válidos', () => {
+    expect(preciso({ geometria: geo, margen_ms: 1000 })).toEqual({
+      geometria: geo,
+      margen_ms: 1000
+    })
+  })
+  it('lectura tolerante por campo', () => {
+    expect(preciso({ geometria: { ...geo, ancho: 100 }, margen_ms: 1000 })).toEqual({
+      geometria: null,
+      margen_ms: 1000
+    })
+    expect(preciso({ geometria: geo, margen_ms: 300 })).toEqual({ geometria: geo, margen_ms: 500 })
+    expect(preciso('x')).toEqual({ geometria: null, margen_ms: 500 })
+  })
+  it('el parcial del renderer del campo es estricto', () => {
+    const ok = (v: unknown) => precisoParcialSchema.safeParse(v).success
+    expect(ok({ geometria: geo, margen_ms: 0 })).toBe(true)
+    expect(ok({ geometria: null })).toBe(true)
+    expect(ok({ margen_ms: 250 })).toBe(false)
+    expect(ok({ geometria: { ...geo, alto: 300 } })).toBe(false)
+    expect(ok({ otro: 1 })).toBe(false)
   })
 })
 
@@ -282,7 +318,7 @@ describe('biblioteca.agrupar (lectura tolerante, ADR 0016 §9)', () => {
     expect(c.biblioteca).toEqual({ agrupar: 'ninguno' })
     expect(c.reproductor.volumen).toBe(0.3)
   })
-  it.each(['ninguno', 'artista', 'album'])('conserva "%s"', (agrupar) => {
+  it.each(['ninguno', 'artista', 'album', 'fecha'])('conserva "%s"', (agrupar) => {
     expect(configSchema.parse({ biblioteca: { agrupar } }).biblioteca.agrupar).toBe(agrupar)
   })
   it('el renderer solo puede escribir el enum, sin `.catch` ni claves extra', () => {

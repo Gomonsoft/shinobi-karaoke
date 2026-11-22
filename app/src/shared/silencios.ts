@@ -1,5 +1,11 @@
 import type { Espera } from './espera'
-import { finEfectivo, type ElementoLetra, type Letra } from './letra'
+import {
+  finEfectivo,
+  tienePalabrasManuales,
+  sinPalabras,
+  type ElementoLetra,
+  type Letra
+} from './letra'
 
 /**
  * Parámetros de «Ajustar los silencios» (ADR 0018 §6.1 y §6.4). Valores provisionales:
@@ -152,7 +158,7 @@ function hayVoz(intervalos: readonly [number, number][], a: number, b: number): 
   return intervalos.some(([ini, fin]) => fin > a && ini < b)
 }
 
-/** Propone nuevos fines para las líneas sin palabras (ADR 0018 §6.1). Pura: no muta la entrada. */
+/** Propone nuevos fines para las líneas sin palabras hechas a mano (ADR 0018 §6.1; las importadas se descartan al aplicar). Pura: no muta la entrada. */
 export function proponerAjusteSilencios(
   letra: Letra,
   voz: Pick<VozDetectada, 'intervalos'>,
@@ -166,7 +172,7 @@ export function proponerAjusteSilencios(
   let huecosLargos = 0
 
   lineas.forEach((el, i) => {
-    if (el.tipo !== 'linea' || el.inicio_ms === null || el.palabras !== null) return
+    if (el.tipo !== 'linea' || el.inicio_ms === null || tienePalabrasManuales(el)) return
     const inicio = el.inicio_ms
     const siguiente = letra.lineas.slice(i + 1).find((e) => e.inicio_ms !== null)
     const limiteLetra = siguiente ? siguiente.inicio_ms! : duracionMs - offset
@@ -190,7 +196,7 @@ export function proponerAjusteSilencios(
     const eraFijado = el.fin_ms !== null
     if (eraFijado) finesFijadosCambiados++
     cambios.push({ id: el.id, finAntes: el.fin_ms, finDespues: fin, eraFijado, huecoMs })
-    el.fin_ms = fin
+    lineas[i] = { ...sinPalabras(el), fin_ms: fin }
   })
 
   return {

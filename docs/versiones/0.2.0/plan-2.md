@@ -233,7 +233,7 @@ Las flechas continuas marcan el orden de integración. Las punteadas señalan co
 
 **Objetivo.** Que cada versión se descargue desde GitHub Releases, se sepa de qué commit salió y haya un canal aparte para las compilaciones de desarrollo. Aprobada por el usuario el 2026-11-21 a partir de la [propuesta 017](../../propuestas/017-estructura-de-releases.md), con RPCS3 y DroidDeck como referentes. Sale en `0.2.0-alpha.2`.
 
-**Numeración.** Los números 7 a 9 quedan reservados para las fases del [feedback de alpha.1](feedback-alpha-1.md), todavía sin aprobar. Esta fase no depende de ellas.
+**Numeración.** Los números 7 a 9 son las fases del [feedback de alpha.1](feedback-alpha-1.md), aprobadas el 2026-11-21 para la versión 0.2.1 ([plan](../0.2.1/plan-3.md)). Esta fase no depende de ellas.
 
 ### 14. Estructura de releases · M
 

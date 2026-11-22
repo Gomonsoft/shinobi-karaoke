@@ -9,6 +9,7 @@ import type {
   ResueltaIpc
 } from '../../shared'
 import {
+  CREADA_POR_DEFECTO,
   DESTINO_HEREDAR_PROVISIONAL,
   NOMBRES_PASO,
   resolverApariencia,
@@ -42,6 +43,8 @@ export interface ResumenCancion {
   /** Modalidad efectiva (ADR 0018 §5). */
   modalidad: Modalidad
   modificada: string
+  /** Fecha de añadido (ISO); `null` si falta, es ilegible o es `CREADA_POR_DEFECTO`. */
+  creada: string | null
   /** Estilo resuelto; `null` solo en la canción dañada por JSON. */
   estilo: Estilo | null
   /** Álbum tal como está en los metadatos (`null` si no tiene). */
@@ -140,6 +143,7 @@ export function resumirCancion(
     estado: cancion.estado,
     modalidad: modalidadEfectiva(cancion),
     modificada: cancion.modificada,
+    creada: cancion.creada === CREADA_POR_DEFECTO ? null : cancion.creada,
     estilo: resolucion.estilo,
     album: cancion.metadatos.album ?? null,
     claves: {
@@ -168,6 +172,7 @@ export function resumenDanadaPorJson(id: string): ResumenCancion {
     estado: 'borrador',
     modalidad: 'karaoke',
     modificada: new Date(0).toISOString(),
+    creada: null,
     estilo: null,
     album: null,
     claves: { artista: null, album: null },

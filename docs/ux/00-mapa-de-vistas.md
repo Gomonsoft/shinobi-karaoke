@@ -123,6 +123,27 @@ flowchart LR
 - Atajo nuevo: **Ctrl/Cmd + E** (solo Editor).
 - Errores nuevos (detalle en spec 10 §"Errores"; códigos finales del ADR 0019 §10): `SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`, `DESTINO_OCUPADO`, `CANCION_NO_DISPONIBLE`, `PERFIL_NO_SOPORTADO`, `MEMORIA_INSUFICIENTE`, `RUNTIME_NO_DISPONIBLE`, `SIN_CODIFICADOR`, `LIMPIEZA_FALLIDA` y `ERROR_INTERNO` («Algo salió mal al crear el video»). No hay código de bloqueo por sesión.
 
+### 0.2.1 · fases 7 a 9
+No hay vistas nuevas. Cambios dentro de las existentes:
+- **Exportar a video** ([10 · Fase 7](10-exportacion.md#fase-7-de-021--perfiles-capturables-reintentar-y-errores-tempranos)): perfiles que el equipo no puede capturar marcados antes de elegirlos; «Reintentar» como acción principal del fallo cuando puede funcionar; carpeta sin permiso detectada al pulsar «Exportar»; código nuevo `CANCION_EXPORTANDOSE` con [Ver exportación].
+- **Biblioteca** ([02 · Fase 8](02-biblioteca.md#fase-8-de-021--estados-y-fecha-de-añadido)): «▶ Reproducir» y «✎ Editar» en las tarjetas Lista y Letra lista (tecla E); agrupar por «Fecha de añadido».
+- **Editor** ([06 · Fase 8](06-editor.md#fase-8-de-021--sincronía-y-editor-más-simples)): sin palabras importadas, sin S, sin desplazamiento de toda la letra; doble clic en una región (o Mayús + L) escucha la línea; pestaña **«Funciones»** (exportar, ajustar los silencios, modo de reproducción, volver a borrador); el menú ⋯ queda con atajos y restablecer distribución; «Hecho» y «Marcar como …» en Lista y Letra lista.
+- **Editor preciso de línea** ([06 · Fase 9](06-editor.md#fase-9-de-021--editor-preciso-de-línea)): **ventana flotante no modal** dentro del editor (no es una vista ni un diálogo modal), abierta desde la lista de líneas (botón, menú contextual o P).
+- **Reproductor y video** ([07 · Fase 8](07-reproductor.md#fase-8-de-021--sin-palabras-importadas-ni-desplazamiento-y-barra-de-carga)): barra de espera como barra de carga; barrido palabra a palabra solo con palabras hechas a mano; sin `,` / `.`.
+
+```mermaid
+flowchart LR
+    BIB[2 · Biblioteca<br/>tarjeta Lista / Letra lista] -- "▶ Reproducir" --> REP[7 · Reproductor]
+    BIB -- "✎ Editar / E" --> EDI[6 · Editor]
+    EDI -- "Hecho" --> BIB
+    EDI -- "Marcar como lista / letra lista<br/>(cambia el modo y sale)" --> BIB
+    EDI -- "Funciones › Cambiar modo / Volver a borrador<br/>(sin salir)" --> EDI
+    EDI -- "Lista de líneas: botón, menú contextual o P" --> PRE{{Editor preciso<br/>ventana flotante}}
+    PRE -- "Aplicar / Esc / ✕ (aplica)" --> EDI
+    PRE -- "Cancelar (descarta)" --> EDI
+    PRE -- "Anterior / Siguiente (aplica)" --> PRE
+```
+
 ## 2. Estructura de la ventana
 
 ```

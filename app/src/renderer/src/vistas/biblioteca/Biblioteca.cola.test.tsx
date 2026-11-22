@@ -110,6 +110,23 @@ describe('tarjetas durante la sesión (S10, E1)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
+  it('B8-2: el botón «Editar» y la tecla E muestran edi.bloqueo y no navegan', async () => {
+    const { ir } = await conSesion(estadoP1())
+    const t = await tarjeta('Despacito')
+    const boton = within(t).getByRole('button', { name: `Editar «Despacito»${EDI_BLOQUEO.aria}` })
+    expect(boton).toHaveAttribute('aria-disabled', 'true')
+    expect(boton).toHaveAttribute('aria-keyshortcuts', 'E')
+    // «A la cola» sigue en el lugar de «Reproducir».
+    expect(within(t).getByRole('button', { name: BIB_COLA.botonAria('Despacito') })).toBeVisible()
+    fireEvent.click(boton)
+    expect(await screen.findByRole('dialog', { name: EDI_BLOQUEO.titulo })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: EDI_BLOQUEO.entendido }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.keyDown(t, { key: 'e' })
+    expect(await screen.findByRole('dialog', { name: EDI_BLOQUEO.titulo })).toBeInTheDocument()
+    expect(ir).not.toHaveBeenCalled()
+  })
+
   it('E1: «Continuar» hacia Letra o Editor y su portada muestran el bloqueo', async () => {
     const { ir } = await conSesion(estadoP1())
     const t = await tarjeta('Casi lista')
@@ -144,6 +161,22 @@ describe('tarjetas durante la sesión (S10, E1)', () => {
     expect(within(await tarjeta('Bohemian Rhapsody')).getByText(BIB_COLA.sonando)).toBeVisible()
     expect(within(await tarjeta('La flaca')).getByText(BIB_COLA.enCola)).toBeVisible()
     expect(within(await tarjeta('Despacito')).queryByText(BIB_COLA.enCola)).toBeNull()
+  })
+})
+
+describe('«Editar» en la tarjeta (B8-1)', () => {
+  it('abre el editor con el botón y con E; los borradores no lo tienen', async () => {
+    const { ir } = montarConSesion([libre, borradorListo], estadoSinCola(), { pantallas: DOS })
+    const t = await tarjeta('Despacito')
+    fireEvent.click(within(t).getByRole('button', { name: 'Editar «Despacito»' }))
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'cancion-9', paso: 'editor' })
+    ir.mockClear()
+    fireEvent.keyDown(t, { key: 'E' })
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'cancion-9', paso: 'editor' })
+    const b = await tarjeta('Casi lista')
+    expect(within(b).queryByRole('button', { name: /^Editar/ })).toBeNull()
+    fireEvent.keyDown(b, { key: 'e' })
+    expect(ir).toHaveBeenCalledTimes(1)
   })
 })
 

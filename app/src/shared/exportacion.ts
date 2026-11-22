@@ -182,7 +182,7 @@ export function memoriaMinimaDe(ancho: number, alto: number): number | null {
 
 const MB = 1_000_000
 const OPUS_MB_MIN = 1.44
-const MARGEN_TAMANO = 1.3
+const MARGEN_TAMANO = 1.15
 
 export const FACTOR_CORRECTOR = { min: 0.25, max: 8, defecto: 1 } as const
 
@@ -195,11 +195,12 @@ export interface EntradaEstimacion {
   fondoMovil?: boolean
 }
 
+/** Recalibrada con las medidas de QA de 0.2.0 (ADR 0019, revisión para 0.2.1 §3). */
 function videoMbPorMinuto(alto: number): number {
-  if (alto <= 768) return 2
-  if (alto <= 1200) return 3
-  if (alto <= 1440) return 4
-  return 6
+  if (alto <= 768) return 1
+  if (alto <= 1200) return 1.3
+  if (alto <= 1440) return 2
+  return 4
 }
 
 export function estimarBytes(e: EntradaEstimacion): number {
@@ -304,7 +305,12 @@ export function tiempoDeFotograma(n: number, fps: number): number {
 
 // --- Tipos de la IPC (los esquemas están en `ipc.ts`) -------------------------------
 
-export const MOTIVOS_PERFIL_NO_SOPORTADO = ['codificador', 'memoria', 'no_comprobado'] as const
+export const MOTIVOS_PERFIL_NO_SOPORTADO = [
+  'codificador',
+  'memoria',
+  'captura',
+  'no_comprobado'
+] as const
 export type MotivoPerfilNoSoportado = (typeof MOTIVOS_PERFIL_NO_SOPORTADO)[number]
 
 export interface FormatoIpc {
@@ -380,6 +386,10 @@ export type EstadoExportacion = (typeof ESTADOS_EXPORTACION)[number]
 export const RESULTADOS_EXPORTACION = ['completada', 'error', 'cancelada'] as const
 export type ResultadoExportacion = (typeof RESULTADOS_EXPORTACION)[number]
 
+/** 0.2.1 (0283): `captura` = fallo de captura (¿reintentable?); `destino` = error del campo destino; `trabajoId` = trabajo existente de `CANCION_EXPORTANDOSE`. */
+export type DetalleErrorExportacion =
+  { causa: 'captura'; reintentable: boolean } | { campo: 'destino' } | { trabajoId: string }
+
 export interface ErrorExportacionIpc {
   codigo: CodigoError
   mensaje: string
@@ -387,6 +397,7 @@ export interface ErrorExportacionIpc {
   posicionMs: number | null
   /** Para «Copiar detalles». */
   detalles?: string
+  detalle?: DetalleErrorExportacion
 }
 
 export interface ExportacionIpc {

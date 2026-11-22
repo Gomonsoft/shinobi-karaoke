@@ -66,13 +66,50 @@ describe('catálogo', () => {
 describe('estimaciones', () => {
   const base = { formato: 'mkv_av1' as const, alto: 1080, fps: 30, duracionMs: 240_000 }
 
-  it('tamaño: (video + 1,44) × minutos × 1,3', () => {
-    // (3 + 1,44) × 4 × 1,3 = 23,088 MB
-    expect(estimarBytes(base)).toBe(23_088_000)
+  it('tamaño: (video + 1,44) × minutos × 1,15', () => {
+    // (1,3 + 1,44) × 4 × 1,15 = 12,604 MB
+    expect(estimarBytes(base)).toBe(12_604_000)
     const caro = estimarBytes({ ...base, fps: 60, fondoMovil: true, formato: 'webm_vp9' })
-    expect(caro).toBe(Math.round((3 * 1.3 * 1.5 * 1.3 + 1.44) * 4 * 1.3 * 1e6))
+    expect(caro).toBe(Math.round((1.3 * 1.3 * 1.5 * 1.3 + 1.44) * 4 * 1.15 * 1e6))
+    // 2160 líneas con movimiento: (4 × 1,5 + 1,44) × 4 × 1,15
+    expect(estimarBytes({ ...base, alto: 2160, fondoMovil: true })).toBe(34_224_000)
     expect(estimarBytes({ ...base, alto: 480 })).toBeLessThan(estimarBytes(base))
     expect(estimarBytes({ ...base, alto: 2160 })).toBeGreaterThan(estimarBytes(base))
+  })
+
+  it('acierta entre 0 % y +50 % con las cuatro medidas de QA (226,03 s)', () => {
+    const d = 226_030
+    const casos = [
+      [{ formato: 'mkv_av1', alto: 1080, fps: 30 }, 9.6],
+      [{ formato: 'webm_vp9', alto: 1080, fps: 30 }, 10.7],
+      [{ formato: 'webm_vp9', alto: 1080, fps: 60 }, 12.1],
+      [{ formato: 'mkv_av1', alto: 720, fps: 30 }, 8.6]
+    ] as const
+    for (const [c, realMb] of casos) {
+      const est = estimarBytes({ ...c, duracionMs: d }) / 1e6
+      expect(est).toBeGreaterThanOrEqual(realMb)
+      expect(est).toBeLessThanOrEqual(realMb * 1.5)
+    }
+  })
+
+  it('ninguna de las 48 combinaciones baja de la estimación anterior entre 3', () => {
+    const anterior = (alto: number) => (alto <= 768 ? 2 : alto <= 1200 ? 3 : alto <= 1440 ? 4 : 6)
+    for (const c of combinaciones()) {
+      for (const fondoMovil of [false, true]) {
+        const viejo =
+          (anterior(c.alto) *
+            (c.fps >= 60 ? 1.3 : 1) *
+            (fondoMovil ? 1.5 : 1) *
+            (c.formato === 'webm_vp9' ? 1.3 : 1) +
+            1.44) *
+          4 *
+          1.3 *
+          1e6
+        const nuevo = estimarBytes({ ...c, duracionMs: 240_000, fondoMovil })
+        expect(nuevo).toBeGreaterThanOrEqual(viejo / 3)
+        expect(nuevo).toBeLessThan(viejo)
+      }
+    }
   })
 
   it('tiempo: factor por línea × duración × corrección, doble a 60 FPS y VP9 × 1,2', () => {

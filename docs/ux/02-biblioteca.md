@@ -10,6 +10,7 @@
 - 0.2.0, fase 4 (2026-11-11): abrir el reproductor en otra pantalla, panel «Cola de reproducción», controles de la sesión, cierre con cola y recuperación. Ver [Fase 4 de 0.2.0 — ventana secundaria y cola](#fase-4-de-020--ventana-secundaria-y-cola).
 - 0.2.0, fase 5 (2026-11-20): insignia «Letra lista» y toast al marcarla; portadas con el fondo quieto. Ver [Fase 5 de 0.2.0 — estilo, espera y Letra lista](#fase-5-de-020--estilo-espera-y-letra-lista).
 - 0.2.0, fase 6 (2026-11-20): «Exportar video…» en el ⋯ de las Listas, línea de exportación en la tarjeta y exportaciones en el panel de actividad. Ver [Fase 6 de 0.2.0 — exportación](#fase-6-de-020--exportación) y [10 · Exportar a video](10-exportacion.md).
+- 0.2.1, fase 8 (2026-11-21): «Editar» junto a «Reproducir» en las tarjetas Lista y Letra lista, y agrupar por «Fecha de añadido». Ver [Fase 8 de 0.2.1 — estados y fecha de añadido](#fase-8-de-021--estados-y-fecha-de-añadido).
 
 ## Objetivo
 Ver de un vistazo todas las canciones y su estado, **reproducir una canción lista con un clic**, retomar un borrador justo donde se quedó y empezar una canción nueva.
@@ -920,3 +921,87 @@ Las claves `exp.*`, `bib.exp.*` y `act.exp` están en [spec 10 · Microcopy](10-
 - X5. Eliminar una canción que se exporta muestra `exp.eliminar.extra` y, al confirmar, no queda temporal en el disco.
 - X6. Durante una sesión, «Exportar video…» está disponible sin candado y el diálogo muestra `exp.nota.sesion`; con una exportación en curso, el diálogo de pantallas no cambia y, al abrir la sesión, la exportación sigue.
 - X7. Captura `docs/ux/revision-fase-6/exportacion-1280x800-100-tarjeta-exportando.png` (tarjeta con la línea y el ⋯ abierto).
+
+## Fase 8 de 0.2.1 — estados y fecha de añadido
+
+Origen: [plan 0.2.1, fase 8](../versiones/0.2.1/plan-3.md#fase-8--sincronía-y-editor-más-simples), puntos 6 y 7, y palabras del usuario: «el estado de letra lista debe tener el botón de reproducir o editar» y «Agregar Agrupar por "Fecha de añadido" (si la estructura no es compatible simplemente asignar la fecha default y dejar en sin agrupar)». Editor: [06 · Fase 8](06-editor.md#86--estados-y-acciones-dock-pestaña-funciones-y-menú-). Contrato de la fecha: [0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §7. Decisiones provisionales: [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md). Esta sección **amplía** la vista.
+
+**Sustituye**: la fila «Lista» de «Estados» y la de «Acción principal, portada, Intro» de la tarjeta de la fase 5 (se añade «Editar»), la anatomía de la tarjeta (fila de acciones), la fila «Agrupar por» de la barra de herramientas de la fase 3 (cuarta opción) y la clave `bib.agrupar`.
+
+### Tarjeta Lista y Letra lista: «Reproducir» y «Editar»
+
+```
+┌──────────────────────────┐
+│ PORTADA 16:9      ( ▶ )  │
+├──────────────────────────┤
+│ Despacito                        │
+│ Luis Fonsi · 3:48                │
+│ ◐ Neón · del artista             │
+│ (▤ Letra lista)             [⋯]  │
+│ [▶ Reproducir]  [✎ Editar]       │  ← dos botones en una fila
+└──────────────────────────┘
+```
+
+| Elemento | Comportamiento |
+|---|---|
+| **Dónde** | Tarjetas **Lista** y **Letra lista**, también las incompletas **(decisión provisional, [0147](../preguntas/0147-decisiones-provisionales-de-ux-de-0-2-1.md) §6: el usuario lo pidió para Letra lista; se aplica también a Lista porque las dos son el mismo estado y su tarjeta debe ser igual)**. Borradores (Continuar / Reintentar) y Dañadas: sin cambios. |
+| **▶ Reproducir** | Sin cambios (secundario con icono; con sesión, «A la cola»). Sigue siendo la acción de Espacio y la de la portada e Intro. |
+| **✎ Editar** | Botón **fantasma** con icono `pencil` a la derecha de «Reproducir». Abre el Editor como «Editar» del menú ⋯ (que se mantiene). Durante una sesión en otra pantalla: `aria-disabled` con el candado y el diálogo `edi.bloqueo` (fase 4). |
+| **Ancho** | Los dos botones caben en una fila desde la tarjeta mínima (240 px): «▶ Reproducir» y «✎ Editar» miden juntos ≈ 200 px con 8 px de separación. Con la línea de exportación o de incompleta, van debajo de ella. |
+| **Teclado** | Con la tarjeta enfocada: **Intro** = portada (reproducir), **Espacio** = Reproducir (o «A la cola»), **E** = Editar (nuevo; solo en Lista y Letra lista; durante la sesión abre `edi.bloqueo`). Los botones también se alcanzan con el puntero y desde el menú ⋯. |
+| **Modo selección** | Los dos botones se ocultan, como la acción principal hoy. |
+| **Lectores de pantalla** | `bib.aria.tarjeta` no cambia; el botón tiene el nombre `bib.accion.editar.aria` y `aria-keyshortcuts="E"`. |
+
+### Agrupar por «Fecha de añadido»
+
+```
+≥ 1280 px
+│ [Todas 12|Listas 7|Borradores 5]  Agrupar por [Sin agrupar|Artista|Álbum|Fecha de añadido]  [☑ Seleccionar]  [🔍 …] │
+
+│ ▾ Hoy  ·  2 canciones                                                   │
+│ ┌──────┐ ┌──────┐                                                       │
+│ ▾ Ayer  ·  1 canción                                                    │
+│ ▾ Esta semana  ·  3 canciones                                           │
+│ ▾ Este mes  ·  4 canciones                                              │
+│ ▾ Octubre de 2026  ·  6 canciones                                       │
+│ ▾ Diciembre de 2025  ·  1 canción                                       │
+│ ▾ Sin agrupar  ·  1 canción          No tienen fecha de añadido válida. │
+```
+
+| Aspecto | Regla |
+|---|---|
+| **Opción** | Cuarta opción del control segmentado «Agrupar por»: «Fecha de añadido». Se guarda en `config.biblioteca.agrupar` como `"fecha"` (mismas reglas de la fase 3: global, valor no válido → «Sin agrupar»). Por debajo de 1280 px, el control sigue en la segunda fila. |
+| **Fecha que usa** | `creada` de la canción (cuándo se añadió), en la **hora local** del equipo. |
+| **Grupos** | En este orden, de más reciente a más antiguo; solo se muestran los que tienen canciones: **Hoy** (el día de calendario de hoy) · **Ayer** · **Esta semana** (desde el lunes de esta semana, sin hoy ni ayer) · **Este mes** (desde el día 1 del mes actual, sin lo anterior) · **un grupo por mes y año** para todo lo anterior («Octubre de 2026», «Diciembre de 2025»), también de años anteriores · **Sin agrupar** al final. |
+| **Solapes** | Cada canción va a un único grupo: el primero de la lista que la contiene. Si «Ayer» o «Esta semana» caen en el mes anterior, mandan ellos; el mes anterior recibe el resto de sus días. |
+| **Sin fecha válida** | Una canción sin `creada` válida (ausente, ilegible o la fecha por defecto que main asigna a esas canciones) va al grupo **«Sin agrupar»**, con la explicación `bib.grupo.sinFecha.ayuda` en el lugar del tema del grupo **(decisión provisional, 0147 §7: es el nombre que usó el usuario; la explicación evita confundirlo con la opción del control)**. La interfaz no escribe ninguna fecha: main lee esas canciones con la fecha por defecto (`CREADA_POR_DEFECTO`) sin escribir nada y el resumen trae **`creada: null`**, que es lo que manda la canción a este grupo ([0145](../preguntas/0145-contratos-de-las-fases-8-y-9-para-las-specs.md) §7). Las 18 canciones actuales ya la tienen. |
+| **Fecha futura** | Una `creada` posterior al momento actual (reloj del equipo cambiado) cuenta como **Hoy**. |
+| **Orden dentro del grupo** | Por `creada`, de la más reciente a la más antigua (en las demás agrupaciones sigue siendo `modificada`). En «Sin agrupar», por `modificada`. |
+| **Cambio de día** | Los grupos se calculan al mostrar la vista; si la app sigue abierta al pasar la medianoche, se recalculan la próxima vez que se vuelve a la vista (regla de «no reordenar bajo el cursor»). |
+| **Encabezado** | Como los de la fase 3 (`h2`, plegable, recuento, «{v} de {n}» con búsqueda o filtro), **sin** tema de grupo ni [Tema…] (una fecha no admite tema). |
+| **Búsqueda, filtro, selección, plegado, teclado** | Como en las demás agrupaciones: solo grupos con coincidencias, casilla tri-estado en modo selección, plegado por sesión, *roving tabindex* entre grupos. |
+| **Canción nueva** | Aparece en «Hoy» (o lo crea arriba) sin reordenar el resto hasta volver a la vista. |
+| **Editar datos** | No cambia la fecha: la tarjeta no se mueve. |
+
+### Microcopy (fase 8, biblioteca)
+| Clave | Texto |
+|---|---|
+| `bib.agrupar` | Agrupar por · Sin agrupar · Artista · Álbum · Fecha de añadido |
+| `bib.grupo.fecha.hoy` | Hoy |
+| `bib.grupo.fecha.ayer` | Ayer |
+| `bib.grupo.fecha.semana` | Esta semana |
+| `bib.grupo.fecha.mes` | Este mes |
+| `bib.grupo.fecha.mesAnio` | {Mes} de {año} (mes con mayúscula inicial: «Octubre de 2026») |
+| `bib.grupo.sinFecha` | Sin agrupar |
+| `bib.grupo.sinFecha.ayuda` | No tienen fecha de añadido válida. · (n = 1) No tiene fecha de añadido válida. |
+| `bib.accion.editar` | Editar |
+| `bib.accion.editar.aria` | Editar «{título}» |
+
+### Criterios de aceptación de la fase 8 (biblioteca)
+- B8-1. Las tarjetas Lista y Letra lista (también incompletas) muestran «▶ Reproducir» y «✎ Editar» en una fila desde 240 px de ancho; «Editar» abre el editor de esa canción; E con la tarjeta enfocada hace lo mismo; los borradores y las Dañadas no cambian.
+- B8-2. Durante una sesión en otra pantalla, «Editar» y E muestran `edi.bloqueo` y no navegan; «A la cola» sigue en el lugar de «Reproducir». En modo selección no se ven los botones.
+- B8-3. «Agrupar por» ofrece cuatro opciones; «Fecha de añadido» se conserva al volver de otra vista y al reiniciar.
+- B8-4. Con el reloj simulado el miércoles 2026-11-18 a las 10:00 y canciones creadas el 18-11, el 17-11, el 16-11 (lunes), el 03-11, el 20-10, el 15-12-2025 y una sin `creada` válida, los grupos son exactamente Hoy (1), Ayer (1), Esta semana (1), Este mes (1), Octubre de 2026 (1), Diciembre de 2025 (1) y Sin agrupar (1), en ese orden (test unitario de la función de agrupación). Con el reloj el lunes 2026-11-02 (la semana empieza ese día), una canción del 01-11 va a «Ayer» y una del 31-10 a «Octubre de 2026»; no aparece «Esta semana».
+- B8-5. Dentro de un grupo por fecha las tarjetas van por `creada` descendente; los encabezados no tienen [Tema…]; la búsqueda y el filtro ocultan los grupos sin coincidencias y muestran «{v} de {n}».
+- B8-6. El grupo «Sin agrupar» va al final con `bib.grupo.sinFecha.ayuda`; una `creada` futura cuenta como «Hoy».
+- B8-7. Captura `docs/ux/revision-0.2.1-fase-8/biblioteca-1280x800-100-fecha.png` con al menos cuatro grupos de fecha y una tarjeta Lista y una Letra lista con sus dos botones.

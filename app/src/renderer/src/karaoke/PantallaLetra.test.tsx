@@ -172,6 +172,7 @@ it.each([false, true])(
 it('reparte el avance de una palabra partida dentro de su propia ventana', () => {
   const lineaPorPalabras = {
     ...linea('a', 'Larguísima una palabra', 2000),
+    origen_palabras: 'manual' as const,
     palabras: [
       { texto: 'Larguísima', inicio_ms: 2000, fin_ms: 3000 },
       { texto: 'una', inicio_ms: 3000, fin_ms: 4000 },
@@ -296,6 +297,7 @@ it('R5: los indicadores no son hijos de ninguna línea', () => {
 it('R12: sin barrido no hay capa de resaltado y los indicadores usan el color de la letra', () => {
   const lineaPorPalabras = {
     ...linea('a', 'Una dos', 2000, { fin_ms: 4000 }),
+    origen_palabras: 'manual' as const,
     palabras: [
       { texto: 'Una', inicio_ms: 2000, fin_ms: 3000 },
       { texto: 'dos', inicio_ms: 3000, fin_ms: 4000 }
@@ -398,6 +400,31 @@ it('E2: el mismo instante da el mismo DOM, vengas de donde vengas', () => {
   expect(viaje.container.innerHTML).toBe(html)
   viaje.rerender(fijoEn(10_500))
   expect(viaje.container.innerHTML).toBe(html)
+})
+
+it('R8-3 a R8-6: barra de carga con pista y relleno, también sin barrido y con movimiento reducido', () => {
+  const fraccion = (c: HTMLElement) =>
+    c.querySelector<HTMLElement>('[data-indicador=barra]')!.style.getPropertyValue('--k-fraccion')
+  const barraEn = (t: number, extra = {}) => {
+    const v = render(fijoEn(t, extra))
+    const f = fraccion(v.container)
+    const barra = v.container.querySelector('[data-indicador=barra]')!
+    const relleno = barra.querySelector(`.${estilos.relleno}`)
+    v.unmount()
+    return { f, relleno }
+  }
+  expect([4000, 8000, 12_000 - 1].map((t) => Number(barraEn(t).f).toFixed(2))).toEqual([
+    '0.00',
+    '0.50',
+    '1.00'
+  ])
+  expect(barraEn(8000).relleno).not.toBeNull()
+  // Movimiento reducido: la fracción no cambia.
+  expect(barraEn(8000, { movimiento: 'reducido' }).f).toBe('0.5')
+  // Sin barrido: el contenedor lleva la clase que recolorea pista y relleno.
+  const sin = render(fijoEn(8000, { barrido: false }))
+  expect(sin.container.firstElementChild!.classList.contains(estilos.sinBarrido!)).toBe(true)
+  expect(fraccion(sin.container)).toBe('0.5')
 })
 
 it('E3: el movimiento es el pedido aunque el sistema pida reducido', () => {

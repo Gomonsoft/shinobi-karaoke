@@ -13,11 +13,13 @@ export function useAtajosEditor(
       // Durante el arrastre de un divisor, Esc y el resto de teclas son del arrastre.
       document.body.dataset[ATRIBUTO_ARRASTRE_DIVISOR] ||
       document.querySelector(
-        '[role="dialog"], [role="menu"], [role="listbox"][aria-activedescendant]'
+        '[role="dialog"]:not([data-ventana-flotante]), [role="menu"], [role="listbox"][aria-activedescendant]'
       )
     )
       return
     const objetivo = e.target instanceof HTMLElement ? e.target : null
+    // Con el foco dentro del editor preciso, sus atajos se resuelven allí (ADR 0021 §9).
+    if (objetivo?.closest('[data-ventana-flotante]')) return
     const enCampoTexto = !!objetivo?.closest(
       'textarea, input:not([type="range"]):not([type="checkbox"]), [contenteditable="true"]'
     )

@@ -27,7 +27,7 @@ interface Entrada {
   transporte: RefObject<HTMLElement | null>
   /** Banner del modo sincronizar y la línea de tiempo bajo él. */
   extraSync: RefObject<HTMLElement | null>
-  pestana: 'sincronia' | 'estilo'
+  pestana: 'sincronia' | 'estilo' | 'funciones'
   sincronizando: boolean
   preferencias?: PreferenciasPaneles
 }

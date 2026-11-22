@@ -10,7 +10,6 @@ export const TEXTO = {
   resultados: (n: number): string => `Resultados (${n})`,
   vistaPrevia: 'Vista previa',
   sync: {
-    palabra: 'Sincronizada por palabra',
     linea: 'Sincronizada por línea',
     texto: 'Solo texto'
   },

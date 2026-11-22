@@ -198,6 +198,13 @@ describe('calcularDistribucion: Estilo y sincronizar', () => {
     expect(est.altoZonaSuperior).toBe(1080 - 56 - 12 - 80 - 8 - 96)
   })
 
+  it('Funciones conserva la línea de tiempo igual que Sincronía (solo Estilo la oculta)', () => {
+    const sync = calcularDistribucion(entrada(1920, 1080))
+    const funciones = calcularDistribucion(entrada(1920, 1080, { pestana: 'funciones' }))
+    expect(funciones.lineaTiempo).toEqual(sync.lineaTiempo)
+    expect(funciones.altoZonaSuperior).toBe(sync.altoZonaSuperior)
+  })
+
   it('Estilo en 1024 x 576 no minimiza ni cambia la preferencia del dock', () => {
     const pref = preferenciasPanelesPredeterminadas()
     pref.linea_tiempo.alto = 300

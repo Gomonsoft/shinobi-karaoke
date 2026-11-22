@@ -89,10 +89,6 @@
   font-size: 0.875rem;
 }
 
-.sync_palabra {
-  color: var(--exito);
-}
-
 .sync_linea {
   color: var(--info);
 }

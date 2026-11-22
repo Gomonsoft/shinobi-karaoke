@@ -1,7 +1,7 @@
 # 0140 — ¿Las alfas de 0.2.0 se publican ya como *pre-release* pública, aunque falten comprobaciones de la tarea 0142?
 - De: arquitecto
 - Para: usuario
-- Estado: Abierta
+- Estado: Respondida
 - Bloquea: no bloquea ninguna tarea (0191–0195 se implementan y ensayan sin publicar). Solo condiciona **la primera etiqueta real** `v0.2.0-alpha.1`.
 
 ## Contexto
@@ -24,3 +24,5 @@ La [tarea 0142](../tareas/0142-primera-version-publica.md) ponía una "puerta" a
 Se implementa todo y se ensaya sin publicar (tarea 0195). No se sube ninguna etiqueta `v*` hasta tu respuesta. Si eliges B, basta con crear la variable antes de la primera etiqueta.
 
 ## Respuesta
+A= Si
+> Sesión principal, 2026-11-21: el usuario respondió **A** al punto 1 (las alfas se publican como *pre-release* pública). Los puntos 2 (*immutable releases*) y 3 (proteger las etiquetas `v*`) no tienen respuesta: quedan como pasos opcionales del usuario.

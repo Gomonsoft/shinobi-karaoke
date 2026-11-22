@@ -5,7 +5,7 @@
 - ADRs: [0019](../adr/0019-exportacion-de-video-render-por-fotograma-y-worker-pyav.md) (exportación de video, **aceptado**: formatos, catálogo de perfiles, estimaciones, destino y códigos de error), [0005](../adr/0005-letras-y-formato-de-sincronia.md) (`finEfectivo`, desplazamiento), [0006](../adr/0006-persistencia-y-modelo-de-datos.md), [0008](../adr/0008-seguridad-de-electron-y-protocolos-propios.md) (destino elegido en main), [0011](../adr/0011-reproductor-pantalla-completa-y-reutilizacion-del-motor.md) (render compartido), [0017](../adr/0017-ventana-secundaria-sesion-en-vivo-y-cola-de-reproduccion.md) (sesión en vivo), [0018](../adr/0018-estilo-ampliado-espera-letra-lista-y-ajuste-de-silencios.md) (degradados en movimiento, comodines, «Letra lista»)
 - Specs relacionadas: [04 · Progreso](04-progreso-pipeline.md) (modelo de trabajo largo con cancelación, panel de actividad, cierre con trabajos), [02 · Biblioteca](02-biblioteca.md#fase-6-de-020--exportación) y [06 · Editor](06-editor.md#fase-6-de-020--exportación) (puntos de entrada), [07 · Reproductor](07-reproductor.md) (qué se ve), [sistema visual](sistema-visual.md#020--exportación-de-video-fase-6)
 - Preguntas: [0130](../preguntas/0130-decisiones-de-producto-de-la-exportacion.md) (usuario, provisional tomada; su punto 4 queda sin efecto), [0131](../preguntas/0131-contratos-tecnicos-de-la-exportacion.md) (arquitecto, respondida en el ADR 0019)
-- Fecha: 2026-11-20 · Revisión: 2026-11-20, alineada con el ADR 0019 (ver «Cambios de esta revisión» al final)
+- Fecha: 2026-11-20 · Revisión: 2026-11-20, alineada con el ADR 0019 (ver «Cambios de esta revisión» al final) · 2026-11-21, [fase 7 de 0.2.1](#fase-7-de-021--perfiles-capturables-reintentar-y-errores-tempranos) (perfiles que el equipo no puede capturar, «Reintentar» en el fallo, carpeta sin permiso y canción ya exportándose) y efectos en el video de la fase 8 (barra de carga, palabras)
 
 ## Objetivo
 Convertir una canción en un **archivo de video** que se pueda reproducir fuera de Shinobi Karaoke (otro equipo, una tele con un USB, OBS, un reproductor de video), con la letra, el estilo y los tiempos **idénticos** a los del reproductor, sin tener que esperar mirando la pantalla.
@@ -499,3 +499,97 @@ Para la guía de la fase en `docs/Test-manuales/0.2.0/` (la escribe `qa`). No so
 - Criterios: cambian V1, V3–V5, V7, V9, V10, V12, V14–V18, V20, V23, V26 y V29; V24 retirado; V30 nuevo. Verificación manual: M1, M3–M8 actualizados y M9 nuevo.
 
 2026-11-21, fase 10 de 0.2.0 ([plan](../versiones/0.2.0/plan-2.md#fase-10--detalles-de-release)): «Copiar detalles» termina con la línea de versión común de [08 · Fase 10](08-ajustes-y-acerca.md#línea-de-versión-en-los-detalles-copiados) (número de compilación, canal y commit) en lugar de `Versión: {versión}`. Cambia V20.
+
+2026-11-21, 0.2.1: fase 7 (sección siguiente) y efectos de la fase 8 en el video.
+
+## Fase 7 de 0.2.1 — perfiles capturables, reintentar y errores tempranos
+
+Origen: [plan 0.2.1, fase 7](../versiones/0.2.1/plan-3.md#fase-7--correcciones-pendientes-de-alpha1) y tareas [0260](../tareas/0260-sondeo-de-perfiles-con-captura-real.md) (sondeo con captura real) y [0258](../tareas/0258-destino-sin-permiso-y-cancion-ya-exportandose.md) (carpeta sin permiso y canción ya exportándose), con la evidencia del [feedback de alpha.1](../versiones/0.2.0/feedback-alpha-1.md) §1.1. Contratos pendientes: [0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) (arquitecto). La 0257 (estimación de tamaño) no cambia la interfaz: `exp.estimacion` y la nota `exp.aviso.espacio` usan la cifra corregida.
+
+**Sustituye**: la definición de «Perfil no soportado» de «Conceptos» (se añade el motivo `captura`), la clave `exp.perfil.noSoportado`, el estado «Cargando perfiles», las filas `PERFIL_NO_SOPORTADO` y `DESTINO_NO_DISPONIBLE` de la tabla de «Errores», la regla «Fallo con el diálogo abierto» de «Al terminar» (foco y acciones) y los criterios V5 y V20 en lo que se refiere a estos casos.
+
+### Perfiles que el equipo no puede capturar
+
+- **Motivo nuevo `captura`**: además del codificador y la memoria, el sondeo de la primera apertura comprueba que el equipo puede **preparar la imagen** del video a ese tamaño (la ventana de captura del tamaño del perfil, [0260](../tareas/0260-sondeo-de-perfiles-con-captura-real.md)). Los perfiles que no caben se marcan como no soportados con ese motivo **antes** de que el usuario los elija.
+- **Cómo se ven** (sin cambios respecto a la fase 6): en la lista de resoluciones y en FPS, la opción en `texto-desactivado` con el sufijo `exp.perfil.noDisponible` («— no disponible en este equipo»), enfocable y no seleccionable, sin candado; al enfocarla o pasar el ratón, tooltip `exp.perfil.noSoportado` con el motivo. Con `captura`, el motivo es «tu equipo no puede preparar la imagen del video a este tamaño».
+- Las reglas de sustitución automática (FPS y resolución soportados más cercanos por debajo, anuncios `exp.anuncio.fps` / `exp.anuncio.resolucion`, proporción sin ninguna resolución disponible, opciones recordadas que ya no valen) se aplican igual con `captura`.
+- **Cargando perfiles**: el sondeo de captura forma parte de «Comprobando qué puede exportar tu equipo…» (`exp.cargando`). Normalmente tarda < 1 s y no alarga la comprobación. Si en 10 s no ha terminado, el formulario se muestra con los perfiles comprobados y los pendientes marcados con el motivo `no_comprobado`. Si el sondeo de captura **falla con una excepción** (no por tiempo), no marca ningún perfil (solo se registra en el log), para no esconder perfiles por un error propio ([0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §1).
+- **Cambia la pantalla** con la app abierta (otro monitor, otra escala): el sondeo es de la primera apertura en cada arranque; si después una exportación falla por la captura, se aplica «Fallo de captura al exportar».
+
+### Fallo de captura al exportar y «Reintentar»
+
+Si una exportación termina con `PERFIL_NO_SOPORTADO` porque la captura no consiguió el tamaño (falla en «Preparar la canción», antes de escribir fotogramas):
+1. Main vuelve a comprobar ese perfil (≤ 3 s) antes de mostrar el fallo; el error lleva `detalle: { causa: "captura", reintentable }` (`false` → caso 2, `true` → caso 3; [0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §2).
+2. **Sigue sin poderse**: D muestra `exp.error.captura` con [Cambiar opciones] (primario, foco) y [Copiar detalles]. **No** hay [Reintentar]: repetir con los mismos datos no lo arregla (tarea 0260). El perfil queda marcado como no disponible (`captura`) para el resto de la sesión; al pulsar [Cambiar opciones], A se abre con el perfil soportado más cercano por debajo ya elegido y `exp.anuncio.resolucion`.
+3. **Ahora sí se puede** (fallo pasajero): D muestra `exp.error.capturaPasajera` con [Reintentar] (primario, foco), [Cambiar opciones] y [Copiar detalles].
+
+**«Reintentar» en el diálogo de fallo (D)**, regla general que sustituye a la de «Al terminar»: D ofrece [Reintentar] como **primario con el foco** siempre que repetir con las mismas opciones pueda funcionar; si no, el primario y el foco son la acción que lo arregla.
+
+| Código | Acciones en D (primario en negrita, con el foco) |
+|---|---|
+| `SIN_ESPACIO` | [Cambiar opciones] **[Reintentar]** |
+| `DESTINO_NO_DISPONIBLE` (al exportar) | [Cambiar opciones] **[Reintentar]** |
+| `CANCION_NO_DISPONIBLE` | **[Cerrar]** |
+| `PERFIL_NO_SOPORTADO` (perfil sin soporte) | [Copiar detalles] **[Cambiar opciones]** |
+| `PERFIL_NO_SOPORTADO` (captura pasajera) | [Copiar detalles] [Cambiar opciones] **[Reintentar]** |
+| `MEMORIA_INSUFICIENTE` | [Cambiar opciones] **[Reintentar]** |
+| `RUNTIME_NO_DISPONIBLE` | [Copiar detalles] **[Reparar el motor de audio]** |
+| `SIN_CODIFICADOR` | [Copiar detalles] **[Cambiar opciones]** |
+| `ERROR_INTERNO` | [Copiar detalles] **[Reintentar]** |
+
+[Copiar detalles] está siempre en D, a la izquierda (como en el wireframe D). «Reintentar» hace lo de siempre: mismas opciones, instantánea nueva. Con el diálogo cerrado, el toast `exp.toast.error` y su [Ver] llevan a este mismo D.
+
+### Carpeta sin permiso: error al empezar
+
+- Al pulsar «Exportar», main comprueba que puede escribir en la carpeta de destino **antes** de preparar nada ([0258](../tareas/0258-destino-sin-permiso-y-cancion-ya-exportandose.md) (1)). Si no puede, no se lanza nada y el diálogo **sigue en A**:
+```
+│ Guardar como                                                          │
+│ [C:\Archivos de programa\Bohemian Rh…(karaoke).mkv] [Cambiar…]        │  borde `error`
+│ ✕ No se puede guardar en esa carpeta.                                 │  `exp.error.destino.titulo` (role="alert")
+│   No tienes permiso para escribir en ella o el disco no está          │  `exp.error.destino.permiso`
+│   disponible. Elige otra con «Cambiar…».                              │
+```
+- El mensaje va **debajo del campo «Guardar como»** (no en el bloque de notas), con el borde del campo en `error`, `aria-describedby` y `role="alert"`; el **foco** pasa a [Cambiar…]. «Exportar» vuelve a su texto y sigue disponible (por si el usuario da permiso a la carpeta y quiere repetir).
+- El error se quita al elegir otro destino con [Cambiar…] o al cambiar de formato (que propone otro destino).
+- Si la carpeta deja de poder escribirse **durante** la exportación, sigue siendo `DESTINO_NO_DISPONIBLE` en D con su texto de siempre y [Reintentar].
+- Distinguir «sin permiso» de «disco desconectado» depende de main ([0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §3); el texto cubre los dos casos y no hace falta distinguirlos.
+
+### «Esta canción ya se está exportando»
+
+- Normalmente no se puede llegar: con una exportación de la canción en curso o en cola, todas las entradas dicen «Ver exportación». Puede pasar en una carrera (dos pulsaciones muy seguidas, o la exportación empezó desde otra entrada con A abierto).
+- Main responde con un código propio, **`CANCION_EXPORTANDOSE`** (recomendado frente a reutilizar `DESTINO_OCUPADO`, que habla del archivo de destino y llevaría a cambiar el nombre sin necesidad; [0146](../preguntas/0146-captura-reintentar-y-errores-tempranos-de-la-exportacion.md) §4; [0258](../tareas/0258-destino-sin-permiso-y-cancion-ya-exportandose.md) (2)).
+- **Dónde**: en A, como aviso en línea `error` encima de la fila de acciones (no es de un campo), con `role="alert"`:
+```
+│ ┌────────────────────────────────────────────────────────────────┐ │
+│ │ ✕ Esta canción ya se está exportando.                          │ │  `exp.error.cancionExportandose`
+│ │   Solo puede tener una exportación a la vez. Espera a que      │ │
+│ │   termine o cancélala para empezar otra.  [Ver exportación]    │ │
+│ └────────────────────────────────────────────────────────────────┘ │
+```
+- [Ver exportación] (con el `detalle.trabajoId` del error) cambia el diálogo al estado de esa exportación (B, B2, C o D) y el foco va a su acción inicial. «Exportar» queda `aria-disabled` con ese mismo texto en el tooltip mientras dure. Si esa exportación termina o se cancela con A abierto, el aviso desaparece y «Exportar» vuelve a estar disponible.
+- `DESTINO_OCUPADO` sigue siendo solo «otra canción ya se está exportando a ese archivo».
+
+### Efectos de la fase 8 en el video
+- La **barra de espera** del video es la barra de carga de la fase 8 (ancho fijo, pista en el color de la letra, relleno en el de lo ya cantado; en Letra lista, la letra al 35 % y al 100 %): [07 · Fase 8](07-reproductor.md#barra-de-espera-como-barra-de-carga). La muestra del formulario no la pinta (muestra un fotograma con letra).
+- Las líneas con palabras **importadas** se exportan con barrido progresivo; las que tienen palabras **hechas a mano**, palabra a palabra.
+- `letra.offset_ms` se sigue aplicando (aunque ya no se pueda cambiar en la interfaz).
+
+### Microcopy (fase 7)
+| Clave | Texto |
+|---|---|
+| `exp.perfil.noSoportado` | {ancho} × {alto} a {fps} FPS en {formato corto} no está disponible en este equipo: {motivo}. · Motivos: (`codificador`) el formato elegido no admite esta resolución en tu equipo · (`memoria`) hace falta un equipo con al menos 8 GB de memoria · (`captura`) tu equipo no puede preparar la imagen del video a este tamaño · (`no_comprobado`) no se pudo comprobar |
+| `exp.error.captura` | Título: Tu equipo no puede crear el video a este tamaño. · Texto: No consigue preparar la imagen a {ancho} × {alto}. Elige una resolución menor; esta ya no se ofrecerá hasta que reinicies Shinobi Karaoke. — [Copiar detalles] [Cambiar opciones] |
+| `exp.error.capturaPasajera` | Título: No se pudo preparar la imagen del video. · Texto: Puede haber sido un cambio de pantalla. Tu equipo sí admite este tamaño: vuelve a intentarlo. — [Copiar detalles] [Cambiar opciones] [Reintentar] |
+| `exp.error.destino.titulo` | No se puede guardar en esa carpeta. |
+| `exp.error.destino.permiso` | No tienes permiso para escribir en ella o el disco no está disponible. Elige otra con «Cambiar…». |
+| `exp.error.cancionExportandose` | Título: Esta canción ya se está exportando. · Texto: Solo puede tener una exportación a la vez. Espera a que termine o cancélala para empezar otra. — [Ver exportación] |
+
+### Criterios de aceptación de la fase 7
+- V31. Con un doble de ventana de captura que no admite 2160 líneas, al abrir el diálogo las resoluciones 3840 × 2160 y 2880 × 2160 aparecen con `exp.perfil.noDisponible`, no se pueden elegir y su tooltip dice el motivo `captura`; una opción recordada de 2160 líneas pasa a la soportada más alta por debajo con `exp.anuncio.resolucion`. En este equipo de referencia (pantalla de 3440 × 1440 con la tarea 0244 aplicada) no aparece ningún perfil con ese motivo.
+- V32. Si el sondeo de captura no termina en 10 s (doble lento), el formulario aparece con esos perfiles como `no_comprobado`; si el sondeo lanza una excepción (doble que falla), ningún perfil queda marcado por la captura y el fallo queda en el log.
+- V33. Una exportación que falla por la captura en «Preparar la canción»: si la nueva comprobación falla, D muestra `exp.error.captura` sin [Reintentar], con el foco en [Cambiar opciones], y A se abre después con otra resolución y ese perfil no disponible; si la nueva comprobación pasa, D muestra `exp.error.capturaPasajera` con el foco en [Reintentar].
+- V34. Cada código de la tabla «Reintentar en el diálogo de fallo» muestra exactamente esas acciones y el foco en la marcada (doble por código).
+- V35. Con una carpeta de destino sin permiso de escritura (doble), «Exportar» no arranca el codificador ni crea temporales (comprobado en el doble del worker y en la carpeta), el diálogo sigue en A con `exp.error.destino.titulo` y `exp.error.destino.permiso` debajo de «Guardar como», el campo con borde `error`, `role="alert"` y el foco en [Cambiar…]; elegir otra carpeta quita el error.
+- V36. Con dos `iniciar` de la misma canción (doble), el segundo responde `CANCION_EXPORTANDOSE` y A muestra `exp.error.cancionExportandose` con [Ver exportación], que lleva al estado de la primera; «Exportar» está `aria-disabled` mientras la primera siga; `DESTINO_OCUPADO` solo aparece con dos canciones distintas al mismo archivo.
+- V37. En un video exportado, la barra de espera es la barra de carga de la fase 8 (modelo de fotograma igual al del reproductor para el mismo tiempo, R8-6) y una línea con palabras importadas se barre de forma progresiva.
+- V38. Capturas en `docs/ux/revision-0.2.1-fase-7/` con nombre `exportacion-{ancho}x{alto}-{escala}-{estado}.png` a 1280 × 800 al 100 %: `perfil-captura`, `fallo-captura`, `fallo-captura-pasajera`, `destino-sin-permiso`, `cancion-exportandose`.

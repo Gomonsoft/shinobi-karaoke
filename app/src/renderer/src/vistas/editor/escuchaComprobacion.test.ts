@@ -11,7 +11,8 @@ function montar() {
     sonando: false,
     velocidad: 1,
     duracionMs: 30_000,
-    volumen: 1
+    volumen: 1,
+    tonoConservado: true
   }
   const oyentes = new Set<(e: EstadoMotor) => void>()
   const publicar = (sonando: boolean) => {

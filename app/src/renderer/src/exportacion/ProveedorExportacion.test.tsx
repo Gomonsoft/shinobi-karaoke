@@ -225,6 +225,80 @@ describe('resultado con el diálogo abierto (C y D)', () => {
     }
   )
 
+  it.each([
+    ['SIN_ESPACIO', undefined, 'Reintentar'],
+    ['DESTINO_NO_DISPONIBLE', undefined, 'Reintentar'],
+    ['CANCION_NO_DISPONIBLE', undefined, 'Cerrar'],
+    ['PERFIL_NO_SOPORTADO', undefined, 'Cambiar opciones'],
+    ['MEMORIA_INSUFICIENTE', undefined, 'Reintentar'],
+    ['RUNTIME_NO_DISPONIBLE', undefined, 'Reparar el motor de audio'],
+    ['SIN_CODIFICADOR', undefined, 'Cambiar opciones'],
+    ['ERROR_INTERNO', undefined, 'Reintentar'],
+    ['PERFIL_NO_SOPORTADO', false, 'Cambiar opciones'],
+    ['PERFIL_NO_SOPORTADO', true, 'Reintentar']
+  ] as const)(
+    'V34: %s (captura reintentable: %s) enfoca «%s»',
+    async (codigo, reintentable, foco) => {
+      const fallo = doble({
+        estado: 'terminada',
+        resultado: 'error',
+        progreso: null,
+        error: {
+          codigo,
+          mensaje: 'x',
+          posicionMs: null,
+          ...(reintentable === undefined ? {} : { detalle: { causa: 'captura', reintentable } })
+        }
+      })
+      await montar(crearApiExportacionFalsa({ estado: [fallo] }))
+      fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }))
+      await screen.findByRole('dialog', { name: 'No se pudo exportar el video' })
+      await waitFor(() => expect(screen.getByRole('button', { name: foco })).toHaveFocus())
+    }
+  )
+
+  it('un fallo de captura que no se arregla (V33) explica el tamaño y no ofrece reintentar', async () => {
+    const fallo = doble({
+      estado: 'terminada',
+      resultado: 'error',
+      progreso: null,
+      ancho: 3840,
+      alto: 2160,
+      error: {
+        codigo: 'PERFIL_NO_SOPORTADO',
+        mensaje: 'x',
+        posicionMs: null,
+        detalle: { causa: 'captura', reintentable: false }
+      }
+    })
+    await montar(crearApiExportacionFalsa({ estado: [fallo] }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }))
+    const aviso = await screen.findByRole('alert')
+    expect(aviso).toHaveTextContent('Tu equipo no puede crear el video a este tamaño.')
+    expect(aviso).toHaveTextContent('No consigue preparar la imagen a 3840 × 2160.')
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).toBeNull()
+  })
+
+  it('un fallo de captura pasajero (V33) ofrece reintentar', async () => {
+    const fallo = doble({
+      estado: 'terminada',
+      resultado: 'error',
+      progreso: null,
+      error: {
+        codigo: 'PERFIL_NO_SOPORTADO',
+        mensaje: 'x',
+        posicionMs: null,
+        detalle: { causa: 'captura', reintentable: true }
+      }
+    })
+    await montar(crearApiExportacionFalsa({ estado: [fallo] }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reabrir' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se pudo preparar la imagen del video.'
+    )
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeVisible()
+  })
+
   it('un fallo antes del primer fotograma lo dice', async () => {
     const fallo = doble({
       estado: 'terminada',

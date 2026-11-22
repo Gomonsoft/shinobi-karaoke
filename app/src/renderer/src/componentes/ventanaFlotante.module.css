@@ -1,0 +1,105 @@
+/*
+ * Ventana flotante no modal (spec 06 · Fase 9, sistema-visual «0.2.1»): sin velo, por encima de los
+ * paneles (z 20) y por debajo de menús, popovers (30), toasts (40) y diálogos modales (50).
+ */
+.ventana {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-l);
+  background: var(--fondo-1);
+  box-shadow: var(--elevacion);
+  color: var(--texto-1);
+  animation: entrada 120ms ease-out;
+}
+@keyframes entrada {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ventana {
+    animation: none;
+  }
+}
+.barra {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--e-2);
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 var(--e-2) 0 var(--e-1);
+  border-bottom: 1px solid var(--borde);
+  background: var(--fondo-2);
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.asaMover,
+.asaTamano {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--texto-3);
+}
+.asaMover {
+  width: 24px;
+  height: 24px;
+  cursor: move;
+}
+.esquina {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
+.asaTamano {
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.asaMover:hover,
+.asaTamano:hover {
+  color: var(--texto-1);
+}
+.asaMover:focus-visible,
+.asaTamano:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+.titulo {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--t-cuerpo-fuerte);
+  line-height: var(--t-cuerpo-fuerte-lh);
+  font-weight: var(--t-cuerpo-fuerte-peso);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.botones {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--e-1);
+  cursor: default;
+}
+.cuerpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--e-4);
+}

@@ -26,6 +26,7 @@ import {
   type GuardarTiempos,
   type EdicionLetraIpc,
   type EditarTextoLetra,
+  type EditarTextoLinea,
   type ArchivoLetraLeido,
   CODIGOS_ERROR,
   ErrorDatosInvalidos,
@@ -151,6 +152,7 @@ export interface LetrasIpc {
   buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
   guardar(letra: GuardarLetra): Promise<ResumenCancion>
   editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancion>
+  editarTextoLinea(peticion: EditarTextoLinea, sesionId: string): Promise<ResumenCancion>
   guardarTiempos(peticion: GuardarTiempos, sesionId: string): Promise<ResumenCancion>
   abrirEdicion(id: string): EdicionLetraIpc | null
   cerrarEdicion(sesionId: string): void
@@ -449,6 +451,13 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       sinSesion()
       return resumenParaRenderer(await letras().editarTexto(p))
     }),
+    [CANALES.letras.editarTextoLinea]: envolver(
+      CANALES.letras.editarTextoLinea,
+      async (p, sesionId) => {
+        sinSesion()
+        return resumenParaRenderer(await letras().editarTextoLinea(p, sesionId))
+      }
+    ),
     [CANALES.letras.guardarTiempos]: envolver(
       CANALES.letras.guardarTiempos,
       async (p, sesionId) => {

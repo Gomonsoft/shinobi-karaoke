@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -9,7 +10,7 @@ import {
   type ReactNode
 } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import type { Letra } from '@shared/letra'
+import { tienePalabrasManuales, type Letra } from '@shared/letra'
 import { formatearTiempo, limitesInicio } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { BotonLayout } from './BotonLayout'
@@ -40,6 +41,10 @@ interface Props {
   obtenerTiempoAudio(): number
   buscar(ms: number): void
   seleccionar(id: string): void
+  /** Doble clic en el cuerpo de una región; `false` si la línea queda fuera del audio. */
+  escucharLinea?(id: string): boolean
+  /** Línea abierta en el editor preciso: sin tiradores y con el tooltip `edi.preciso.ocupado`. */
+  ocupadaId?: string | null
   iniciarMarcador(borde: Borde): boolean
   moverMarcador(ms: number): void
   terminarMarcador(confirmar: boolean): void
@@ -65,6 +70,8 @@ interface PropsTirador {
   limites: VistaLineaTiempo
   vista: VistaLineaTiempo
   automatico: boolean
+  /** Línea con palabras hechas a mano: el tooltip avisa de que moverlo las quita (P19). */
+  conPalabras: boolean
   activo: boolean
   ocupado: boolean
   iniciar: Props['iniciarMarcador']
@@ -79,6 +86,7 @@ function Tirador({
   limites,
   vista,
   automatico,
+  conPalabras,
   activo,
   ocupado,
   iniciar,
@@ -120,6 +128,11 @@ function Tirador({
       style={{ left: `${Math.max(0, Math.min(100, tiempoAPixel(vista, 100, ms)))}%` }}
       role="slider"
       tabIndex={0}
+      title={
+        conPalabras
+          ? `${borde === 'inicio' ? E.timeline.inicio : automatico ? E.timeline.finAuto : E.timeline.fin}. ${E.preciso.avisoTirador}`
+          : undefined
+      }
       aria-label={
         borde === 'inicio' ? E.timeline.inicio : automatico ? E.timeline.finAuto : E.timeline.fin
       }
@@ -148,6 +161,12 @@ function Tirador({
   )
 }
 
+/** Inicios de las palabras hechas a mano salvo el primero: fronteras de 1 px de la región (P19). */
+function fronterasDe(letra: Letra, id: string): number[] {
+  const el = letra.lineas.find((l) => l.id === id)
+  return el && tienePalabrasManuales(el) ? el.palabras!.slice(1).map((p) => p.inicio_ms) : []
+}
+
 export function PistaSincronia({
   letra,
   seleccion,
@@ -158,6 +177,8 @@ export function PistaSincronia({
   obtenerTiempoAudio,
   buscar,
   seleccionar,
+  escucharLinea,
+  ocupadaId = null,
   iniciarMarcador,
   moverMarcador,
   terminarMarcador,
@@ -195,6 +216,12 @@ export function PistaSincronia({
       }
     }
   }, [activa, letra, duracionMs])
+  const [fuera, setFuera] = useState<string | null>(null)
+  useEffect(() => {
+    if (fuera === null) return
+    const t = setTimeout(() => setFuera(null), 2000)
+    return () => clearTimeout(t)
+  }, [fuera])
   const eje = useRef<HTMLDivElement>(null)
   const cabezal = useRef<HTMLDivElement>(null)
 
@@ -259,15 +286,6 @@ export function PistaSincronia({
         className={`${estilos.timeline} ${estilos.minimizada}`}
         aria-label={E.layout.region(E.layout.timeline.nombre, true)}
       >
-        <BotonLayout
-          icono={ChevronUp}
-          etiqueta={E.layout.timeline.expandir}
-          nombre="timeline-expandir"
-          expandido={false}
-          controla="zona-linea-tiempo"
-          noDisponible={expandirNoDisponible}
-          onClick={alternarMinimizada}
-        />
         <h2>{E.timeline.titulo}</h2>
         <VistaGeneral
           informativa
@@ -281,6 +299,15 @@ export function PistaSincronia({
           obtenerTiempoAudio={obtenerTiempoAudio}
           sonando={sonando}
           posicionMs={posicionMs}
+        />
+        <BotonLayout
+          icono={ChevronUp}
+          etiqueta={E.layout.timeline.expandir}
+          nombre="timeline-expandir"
+          expandido={false}
+          controla="zona-linea-tiempo"
+          noDisponible={expandirNoDisponible}
+          onClick={alternarMinimizada}
         />
       </section>
     )
@@ -372,29 +399,55 @@ export function PistaSincronia({
             if (!visible) return null
             const esActiva = r.id === seleccion
             return (
-              <button
-                type="button"
-                key={r.id}
-                className={estilos.region}
-                aria-pressed={esActiva}
-                data-inicio-recortado={visible.inicioRecortado || undefined}
-                data-fin-recortado={visible.finRecortado || undefined}
-                data-resaltada={resaltadas?.has(r.id) || undefined}
-                disabled={inactiva}
-                title={r.texto}
-                style={{
-                  left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
-                  width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`
-                }}
-                onClick={() => seleccionar(r.id)}
-              >
-                {r.texto}
-              </button>
+              <Fragment key={r.id}>
+                <button
+                  type="button"
+                  className={estilos.region}
+                  aria-pressed={esActiva}
+                  data-inicio-recortado={visible.inicioRecortado || undefined}
+                  data-fin-recortado={visible.finRecortado || undefined}
+                  data-resaltada={resaltadas?.has(r.id) || undefined}
+                  disabled={inactiva}
+                  title={r.id === ocupadaId ? E.preciso.ocupado : E.regionTooltip(r.texto)}
+                  style={{
+                    left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
+                    width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`
+                  }}
+                  onClick={() => seleccionar(r.id)}
+                  onDoubleClick={() => {
+                    if (escucharLinea?.(r.id) === false) setFuera(r.id)
+                  }}
+                >
+                  {r.texto}
+                  {fronterasDe(letra, r.id).map((ms) => {
+                    const k =
+                      (ms + letra.offset_ms - visible.inicioMs) / (visible.finMs - visible.inicioMs)
+                    return k > 0 && k < 1 ? (
+                      <span
+                        key={ms}
+                        aria-hidden="true"
+                        className={estilos.frontera}
+                        style={{ left: `${100 * k}%` }}
+                      />
+                    ) : null
+                  })}
+                </button>
+                {fuera === r.id && (
+                  <span
+                    role="tooltip"
+                    className={estilos.regionFuera}
+                    style={{ left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%` }}
+                  >
+                    {E.timeline.fuera}
+                  </span>
+                )}
+              </Fragment>
             )
           })}
           {activa &&
             limites &&
             !inactiva &&
+            activa.id !== ocupadaId &&
             (['inicio', 'fin'] as const).map((borde) => {
               const ms = borde === 'inicio' ? activa.real.inicioMs : activa.real.finMs
               if (bordeArrastrado !== borde && (ms < inicioMs || ms > finMs)) return null
@@ -407,6 +460,9 @@ export function PistaSincronia({
                   limites={limites[borde]}
                   vista={vista}
                   automatico={automatico}
+                  conPalabras={letra.lineas.some(
+                    (l) => l.id === activa.id && tienePalabrasManuales(l)
+                  )}
                   activo={bordeArrastrado === borde}
                   ocupado={bordeArrastrado !== undefined}
                   iniciar={iniciarMarcador}

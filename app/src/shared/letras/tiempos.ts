@@ -4,17 +4,18 @@ import {
   finEfectivo,
   moverInicioLinea,
   numerosLineasSinInicio,
+  sinPalabras,
+  tienePalabrasManuales,
   type ElementoLetra,
   type Letra
 } from '../letra'
-import { OFFSET_MAXIMO_MS, type GuardarTiempos } from '../letrasBusqueda'
+import type { GuardarTiempos } from '../letrasBusqueda'
 
 type TipoElemento = ElementoLetra['tipo']
 
 export type Limite =
   | { tipo: 'inicio_anterior' | 'inicio_siguiente'; vecino: TipoElemento }
   | { tipo: 'fin_antes_del_inicio' | 'fin_siguiente' }
-  | { tipo: 'desplazamiento' }
   | { tipo: 'demasiado_pronto' }
 
 export interface ResultadoTiempos {
@@ -94,12 +95,21 @@ export function fijarInicio(letra: Letra, id: string, msGuardado: number): Resul
   return limitarInicio(letra, id, msGuardado, false)
 }
 
-function cambiarFin(letra: Letra, indice: number, fin: number | null, limite: Limite | null) {
+/** Cambia el fin de una línea y descarta sus palabras (ADR 0021 §4). */
+function cambiarFin(
+  letra: Letra,
+  indice: number,
+  fin: number | null,
+  limite: Limite | null
+): ResultadoTiempos {
   const linea = letra.lineas[indice]!
   if (linea.fin_ms === fin) return resultado(letra, false, limite)
   const lineas = letra.lineas.slice()
-  lineas[indice] = { ...linea, fin_ms: fin }
-  return resultado({ ...letra, lineas }, true, limite)
+  lineas[indice] = { ...sinPalabras(linea), fin_ms: fin }
+  return {
+    ...resultado({ ...letra, lineas }, true, limite),
+    palabrasDescartadas: tienePalabrasManuales(linea) ? [linea.id] : []
+  }
 }
 
 function limitarFin(
@@ -147,9 +157,11 @@ export function usarFinAutomatico(letra: Letra, id: string): ResultadoTiempos {
 
 export function borrarTiempos(letra: Letra, id: string): ResultadoTiempos {
   const { linea } = buscarLinea(letra, id)
-  return linea.inicio_ms === null
-    ? resultado(letra)
-    : resultado(borrarTiemposLinea(letra, id), true)
+  if (linea.inicio_ms === null) return resultado(letra)
+  return {
+    ...resultado(borrarTiemposLinea(letra, id), true),
+    palabrasDescartadas: tienePalabrasManuales(linea) ? [linea.id] : []
+  }
 }
 
 export function marcarInicioLinea(
@@ -160,6 +172,7 @@ export function marcarInicioLinea(
   const { indice, linea } = buscarLinea(letra, id)
   const anterior = vecinoConInicio(letra, indice, -1)
   const borrados: string[] = []
+  const perdidas: string[] = []
   if (anterior && msGuardado <= anterior.inicio_ms!) {
     return { ...resultado(letra, false, { tipo: 'demasiado_pronto' }), borrados }
   }
@@ -169,28 +182,17 @@ export function marcarInicioLinea(
     if (i <= indice || elemento.inicio_ms === null || elemento.inicio_ms > msGuardado)
       return elemento
     borrados.push(elemento.id)
-    return { ...elemento, inicio_ms: null, fin_ms: null, palabras: null }
+    if (tienePalabrasManuales(elemento)) perdidas.push(elemento.id)
+    return { ...sinPalabras(elemento), inicio_ms: null, fin_ms: null }
   })
+  const movido = moverInicioLinea({ ...letra, lineas }, id, msGuardado)
   return {
-    ...moverInicioLinea({ ...letra, lineas }, id, msGuardado),
+    ...movido,
+    palabrasDescartadas: [...perdidas, ...movido.palabrasDescartadas],
     cambiado: true,
     limite: null,
     borrados
   }
-}
-
-export function fijarDesplazamiento(letra: Letra, offsetMs: number): ResultadoTiempos {
-  const offset_ms = Math.max(-OFFSET_MAXIMO_MS, Math.min(OFFSET_MAXIMO_MS, offsetMs))
-  const cambiado = offset_ms !== letra.offset_ms
-  return resultado(
-    cambiado ? { ...letra, offset_ms } : letra,
-    cambiado,
-    offset_ms === offsetMs ? null : { tipo: 'desplazamiento' }
-  )
-}
-
-export function desplazar(letra: Letra, deltaMs: number): ResultadoTiempos {
-  return fijarDesplazamiento(letra, letra.offset_ms + deltaMs)
 }
 
 export function indiceLineaActual(letra: Letra, tAudioMs: number): number {
@@ -234,11 +236,12 @@ export function aPeticionTiempos(cancionId: string, letra: Letra): GuardarTiempo
   return {
     cancionId,
     offset_ms: letra.offset_ms,
-    tiempos: letra.lineas.map(({ id, inicio_ms, fin_ms, palabras }) => ({
+    tiempos: letra.lineas.map(({ id, inicio_ms, fin_ms, palabras, origen_palabras }) => ({
       id,
       inicio_ms,
       fin_ms,
-      palabras
+      palabras,
+      ...(palabras !== null && origen_palabras === 'manual' ? { origen_palabras } : {})
     }))
   }
 }
@@ -255,15 +258,4 @@ export function interpretarTiempo(texto: string): number | null {
   if (!partes) return null
   const [, minutos, segundos, centesimas = ''] = partes
   return Number(minutos) * 60_000 + Number(segundos) * 1000 + Number(centesimas.padEnd(2, '0')) * 10
-}
-
-export function formatearDesplazamiento(ms: number): string {
-  return `${ms < 0 ? '−' : '+'}${(Math.abs(ms) / 1000).toFixed(2).replace('.', ',')} s`
-}
-
-export function interpretarDesplazamiento(texto: string): number | null {
-  const valor = texto.trim().replace('−', '-').replace(',', '.')
-  if (!/^[+-]?\d+(?:\.\d{1,2})?$/.test(valor)) return null
-  const ms = Math.round(Number(valor) * 1000)
-  return Number.isFinite(ms) ? ms : null
 }

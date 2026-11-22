@@ -330,7 +330,9 @@ export function PantallaLetra({
               data-indicador="barra"
               aria-hidden="true"
               style={{ '--k-fraccion': espera.fraccion } as CSSProperties}
-            />
+            >
+              <div className={estilos.relleno} data-relleno="" />
+            </div>
           )}
           {espera?.cuenta && (
             <div

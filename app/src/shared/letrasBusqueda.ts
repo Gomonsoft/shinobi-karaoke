@@ -94,7 +94,9 @@ export const tiempoElementoSchema = z.strictObject({
   id: z.string().min(1).max(200),
   inicio_ms: z.number().int().min(0).nullable(),
   fin_ms: z.number().int().min(0).nullable(),
-  palabras: z.array(palabraSchema).min(1).max(500).nullable()
+  palabras: z.array(palabraSchema).min(1).max(500).nullable(),
+  /** `"manual"`: palabras hechas en el editor preciso (ADR 0021 §6); ausente = las de la referencia. */
+  origen_palabras: z.literal('manual').optional()
 })
 
 export const OFFSET_MAXIMO_MS = 30_000
@@ -112,6 +114,25 @@ export const editarTextoLetraSchema = z.strictObject({
   })
 })
 export type EditarTextoLetra = z.infer<typeof editarTextoLetraSchema>
+
+/**
+ * Máximo de caracteres del texto de una línea (0283). La vista Letra no tenía tope propio (solo el de
+ * 512 KB del texto entero): este es el de `letras.editarTextoLinea` y el que usa el editor preciso.
+ */
+export const MAX_CARACTERES_LINEA = 500
+
+/** `letras.editarTextoLinea` (ADR 0021 §7): solo el texto de una línea; conserva `id`, inicio y fin. */
+export const editarTextoLineaSchema = z.strictObject({
+  cancionId: z.string().min(1).max(200),
+  id: z.string().min(1).max(200),
+  texto: z
+    .string()
+    .min(1)
+    .max(MAX_CARACTERES_LINEA)
+    .refine((t) => !/[\r\n]/.test(t), { message: 'El texto no puede tener saltos de línea' })
+    .refine((t) => t === t.trim(), { message: 'El texto no puede tener espacios en los extremos' })
+})
+export type EditarTextoLinea = z.infer<typeof editarTextoLineaSchema>
 
 export const archivoLetraLeidoSchema = z.discriminatedUnion('cancelado', [
   z.object({ cancelado: z.literal(true) }),

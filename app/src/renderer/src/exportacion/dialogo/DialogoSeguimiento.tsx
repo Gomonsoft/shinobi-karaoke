@@ -14,6 +14,7 @@ import { useExportaciones } from '../contexto'
 import { duracionDe, porcentajeDe, type ExportacionVista } from '../estado'
 import {
   codigoDeError,
+  ERRORES_CAPTURA,
   EXP,
   formatearPosicion,
   formatearTamano,
@@ -372,7 +373,19 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
 
   // --- D: fallo ---------------------------------------------------------------------
   const codigo = e.error?.codigo ?? 'ERROR_INTERNO'
-  const texto = textoErrorExp(codigo)
+  // Fallo de captura (0260): `detalle.reintentable` distingue el pasajero del que no se arregla.
+  const detalleCaptura =
+    codigo === 'PERFIL_NO_SOPORTADO' &&
+    e.error?.detalle &&
+    'causa' in e.error.detalle &&
+    e.error.detalle.causa === 'captura'
+      ? e.error.detalle
+      : null
+  const texto = detalleCaptura
+    ? detalleCaptura.reintentable
+      ? ERRORES_CAPTURA.pasajera
+      : ERRORES_CAPTURA.captura(e.ancho, e.alto)
+    : textoErrorExp(codigo)
   const posicion =
     e.error?.posicionMs != null
       ? EXP_PROGRESO.errorPosicion(
@@ -380,12 +393,10 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
           formatearPosicion(e.duracionMs)
         )
       : EXP_PROGRESO.errorPosicionPreparando
-  const puedeReintentar = [
-    'SIN_ESPACIO',
-    'DESTINO_NO_DISPONIBLE',
-    'MEMORIA_INSUFICIENTE',
-    'ERROR_INTERNO'
-  ].includes(codigo)
+  const puedeReintentar =
+    ['SIN_ESPACIO', 'DESTINO_NO_DISPONIBLE', 'MEMORIA_INSUFICIENTE', 'ERROR_INTERNO'].includes(
+      codigo
+    ) || detalleCaptura?.reintentable === true
   const puedeCambiar =
     codigo !== 'CANCION_NO_DISPONIBLE' &&
     codigo !== 'RUNTIME_NO_DISPONIBLE' &&

@@ -8,7 +8,12 @@ export function sincroniaActual(lineas: readonly ElementoLetra[]): SincroniaActu
   const con = solo.filter((e) => e.inicio_ms !== null).length
   if (con === 0) return 'ninguna'
   if (con < solo.length) return 'parte'
-  return solo.some((e) => e.palabras !== null && e.palabras.length > 0) ? 'palabra' : 'linea'
+  // Solo las palabras hechas a mano cuentan: las importadas ya no se usan (ADR 0021, 0149).
+  return solo.some(
+    (e) => e.origen_palabras === 'manual' && e.palabras !== null && e.palabras.length > 0
+  )
+    ? 'palabra'
+    : 'linea'
 }
 
 /** Algún renglón empieza por una marca `[m:ss]` o `[mm:ss.xx]` (preguntas/0023 §3). */

@@ -1,5 +1,6 @@
 import {
   Fragment,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -39,6 +40,12 @@ interface MenuContextualProps {
   items: ItemMenu[]
   /** `-1` para sacar el botón ⋯ del orden de tabulación (p. ej. rejilla con roving tabindex). */
   tabIndexDisparador?: number
+  /**
+   * Menú contextual de una fila (clic secundario, tecla Menú, Mayús + F10): sin botón ⋯, abierto en
+   * ese punto de la ventana. Al cerrarse por cualquier vía llama a `alCerrar`, que devuelve el foco.
+   */
+  punto?: { x: number; y: number }
+  alCerrar?: () => void
 }
 
 export interface PosicionMenu {
@@ -88,8 +95,14 @@ function leerToken(nombre: string, respaldo: number): number {
   return n
 }
 
-export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuContextualProps) {
-  const [abierto, setAbierto] = useState(false)
+export function MenuContextual({
+  etiqueta,
+  items,
+  tabIndexDisparador,
+  punto,
+  alCerrar
+}: MenuContextualProps) {
+  const [abierto, setAbierto] = useState(Boolean(punto))
   const [inicial, setInicial] = useState<'primero' | 'ultimo'>('primero')
   const raiz = useRef<HTMLSpanElement>(null)
   const disparador = useRef<HTMLButtonElement>(null)
@@ -102,9 +115,11 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
 
   // Posición antes de pintar: se mide el menú ya montado y se coloca respecto al disparador.
   useLayoutEffect(() => {
-    if (!abierto || !disparador.current || !lista.current) return
-    const d = disparador.current.getBoundingClientRect()
+    if (!abierto || !(disparador.current || punto) || !lista.current) return
     const m = lista.current.getBoundingClientRect()
+    const d = punto
+      ? { top: punto.y, bottom: punto.y, right: punto.x + m.width }
+      : disparador.current!.getBoundingClientRect()
     setPosicion(
       calcularPosicionMenu(
         d,
@@ -114,16 +129,21 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
         leerToken('--e-1', 4)
       )
     )
-  }, [abierto])
+  }, [abierto, punto])
+
+  const cerrarSimple = useCallback(() => {
+    setAbierto(false)
+    alCerrar?.()
+  }, [alCerrar])
 
   useEffect(() => {
     if (!abierto) return
     const dentro = (n: EventTarget | null) =>
       n instanceof Node && (raiz.current?.contains(n) || lista.current?.contains(n))
     const cerrarSiFuera = (e: Event) => {
-      if (!dentro(e.target)) setAbierto(false)
+      if (!dentro(e.target)) cerrarSimple()
     }
-    const cerrarSiempre = () => setAbierto(false)
+    const cerrarSiempre = () => cerrarSimple()
     document.addEventListener('mousedown', cerrarSiFuera)
     // En captura: cualquier contenedor con desplazamiento (la rejilla) cierra el menú.
     window.addEventListener('scroll', cerrarSiFuera, true)
@@ -135,7 +155,7 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
       window.removeEventListener('resize', cerrarSiempre)
       window.removeEventListener('blur', cerrarSiempre)
     }
-  }, [abierto, inicial])
+  }, [abierto, inicial, cerrarSimple])
 
   // El foco solo puede entrar cuando el menú ya está colocado (hasta entonces es `visibility: hidden`).
   const colocado = posicion !== null
@@ -148,7 +168,8 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
   const cerrar = (devolverFoco: boolean) => {
     setAbierto(false)
     setPosicion(null)
-    if (devolverFoco) disparador.current?.focus()
+    if (punto) alCerrar?.()
+    else if (devolverFoco) disparador.current?.focus()
   }
 
   const teclaDisparador = (e: KeyboardEvent) => {
@@ -175,7 +196,7 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
       cerrar(true)
       return
     } else if (e.key === 'Tab') {
-      setAbierto(false)
+      cerrarSimple()
       return
     } else if (/^\p{L}$/u.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey) {
       const normalizar = (texto: string) =>
@@ -197,20 +218,22 @@ export function MenuContextual({ etiqueta, items, tabIndexDisparador }: MenuCont
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <span ref={raiz} className={estilos.menuEnvoltorio} onKeyDown={teclaDisparador}>
-      <BotonIcono
-        ref={disparador}
-        icono={Ellipsis}
-        etiqueta={etiqueta}
-        tabIndex={tabIndexDisparador}
-        aria-haspopup="menu"
-        aria-expanded={abierto}
-        aria-controls={abierto ? idMenu : undefined}
-        ocultarTooltip={abierto}
-        onClick={() => {
-          setInicial('primero')
-          setAbierto((a) => !a)
-        }}
-      />
+      {!punto && (
+        <BotonIcono
+          ref={disparador}
+          icono={Ellipsis}
+          etiqueta={etiqueta}
+          tabIndex={tabIndexDisparador}
+          aria-haspopup="menu"
+          aria-expanded={abierto}
+          aria-controls={abierto ? idMenu : undefined}
+          ocultarTooltip={abierto}
+          onClick={() => {
+            setInicial('primero')
+            setAbierto((a) => !a)
+          }}
+        />
+      )}
       {abierto &&
         createPortal(
           // eslint-disable-next-line jsx-a11y/interactive-supports-focus

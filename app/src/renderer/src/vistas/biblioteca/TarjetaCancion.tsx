@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Film, ListPlus, Palette, Play, TriangleAlert } from 'lucide-react'
+import { Film, ListPlus, Palette, Pencil, Play, TriangleAlert } from 'lucide-react'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { useExportaciones } from '../../exportacion/contexto'
@@ -175,6 +175,7 @@ export function TarjetaCancion({
   }
   const alReproducir = () =>
     principalEsCola ? acciones.agregarAlFinal(id) : acciones.reproducir(id)
+  const alEditar = () => bloqueo.intentar(() => acciones.editar(id))
   const alContinuar = () =>
     continuaBloqueado ? bloqueo.intentar(() => acciones.continuar(id)) : acciones.continuar(id)
   const alPrincipal = () => {
@@ -215,7 +216,7 @@ export function TarjetaCancion({
       id: 'editar',
       etiqueta: 'Editar',
       ...(bloqueo.bloqueada ? textoBloqueo('Editar') : null),
-      alSeleccionar: () => bloqueo.intentar(() => acciones.editar(id))
+      alSeleccionar: alEditar
     })
   } else if (!resumen.danada) {
     items.push({
@@ -326,6 +327,15 @@ export function TarjetaCancion({
         } else if (e.key === ' ') {
           e.preventDefault()
           alPrincipal()
+        } else if (
+          lista &&
+          (e.key === 'e' || e.key === 'E') &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey
+        ) {
+          e.preventDefault()
+          alEditar()
         } else if (e.key === 'Delete') {
           e.preventDefault()
           alEliminar()
@@ -420,6 +430,20 @@ export function TarjetaCancion({
                 : ETIQUETA_ACCION[d.accion]}
               {d.accion === 'continuar' && continuaBloqueado && bloqueo.candado}
             </Boton>
+            {lista && (
+              <Boton
+                variante="fantasma"
+                tabIndex={-1}
+                onClick={alEditar}
+                aria-keyshortcuts="E"
+                aria-label={`Editar «${titulo}»${bloqueo.bloqueada ? EDI_BLOQUEO.aria : ''}`}
+                aria-disabled={bloqueo.bloqueada ? true : undefined}
+              >
+                <Icono icono={Pencil} tamano={16} />
+                Editar
+                {bloqueo.candado}
+              </Boton>
+            )}
           </div>
         )}
       </div>

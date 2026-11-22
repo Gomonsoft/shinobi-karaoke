@@ -54,7 +54,32 @@ export interface OpcionesVentanaOffscreen {
     nodeIntegration: false
     backgroundThrottling: false
     zoomFactor: 1
-    preload: string
+    /** Ausente en la ventana del sondeo de captura (sin preload ni rol). */
+    preload?: string
+  }
+}
+
+/** Las opciones de la ventana de exportación; el sondeo de captura usa las mismas sin preload. */
+function opcionesOffscreen(
+  ancho: number,
+  alto: number,
+  preload?: string
+): OpcionesVentanaOffscreen {
+  return {
+    show: false,
+    width: ancho,
+    height: alto,
+    useContentSize: true,
+    enableLargerThanScreen: true,
+    webPreferences: {
+      offscreen: { useSharedTexture: false, deviceScaleFactor: 1 },
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+      zoomFactor: 1,
+      ...(preload !== undefined ? { preload } : {})
+    }
   }
 }
 
@@ -110,6 +135,70 @@ export interface VentanaExportacion {
 const errorConCodigo = (codigo: string, mensaje: string): Error =>
   Object.assign(new Error(mensaje), { codigo })
 
+/** `PERFIL_NO_SOPORTADO` por la captura (0260): el servicio vuelve a sondear antes de cerrar el trabajo. */
+const errorDeCaptura = (mensaje: string): Error =>
+  Object.assign(errorConCodigo('PERFIL_NO_SOPORTADO', mensaje), { causa: 'captura' })
+
+/** Tope de cada ventana del sondeo de captura (ADR 0019, revisión 0.2.1 §1). */
+export const PLAZO_SONDEO_CAPTURA_MS = 3000
+const REINTENTOS_SONDEO_CAPTURA = 4
+const ESPERA_REINTENTO_SONDEO_MS = 150
+
+export interface DepsSondeoCaptura {
+  crear(opciones: OpcionesVentanaOffscreen): BrowserWindowOffscreen
+  plazoMs?: number
+}
+
+/**
+ * ¿Puede el equipo capturar una ventana offscreen de `ancho × alto` a escala 1? Crea una ventana
+ * como la de exportación (sin preload ni rol, `about:blank`, silenciada, navegación bloqueada),
+ * hace una captura real y compara el tamaño. Se destruye siempre. Un tamaño distinto da `false`;
+ * una excepción o pasar de `plazoMs` rechazan (el que llama decide que eso no marca nada).
+ */
+export async function probarCaptura(
+  ancho: number,
+  alto: number,
+  deps: DepsSondeoCaptura
+): Promise<boolean> {
+  const ventana = deps.crear(opcionesOffscreen(ancho, alto))
+  let temporizador: NodeJS.Timeout | undefined
+  try {
+    const wc = ventana.webContents
+    bloquearNavegacionTotal(wc)
+    wc.setWindowOpenHandler(() => ({ action: 'deny' }))
+    wc.setAudioMuted(true)
+    ventana.setContentSize(ancho, alto)
+    // La misma comprobación temprana que hace una exportación real: si la ventana no toma el
+    // tamaño (Xvfb sin GPU la deja en 3839×2159), ese perfil no se puede capturar.
+    const [anchoReal, altoReal] = ventana.getContentSize()
+    if (anchoReal !== ancho || altoReal !== alto) return false
+    const medir = async (): Promise<boolean> => {
+      await ventana.loadURL('about:blank')
+      // Recién cargada, la superficie offscreen puede no tener aún fotograma y `capturePage`
+      // rechaza (UnknownVizError en Linux sin GPU): se reintenta unas pocas veces.
+      for (let intento = 0; ; intento++) {
+        try {
+          const { width, height } = (await wc.capturePage()).getSize()
+          return width === ancho && height === alto
+        } catch (e) {
+          if (intento >= REINTENTOS_SONDEO_CAPTURA) throw e
+          await new Promise((res) => setTimeout(res, ESPERA_REINTENTO_SONDEO_MS))
+        }
+      }
+    }
+    const plazo = new Promise<never>((_, rechazar) => {
+      temporizador = setTimeout(
+        () => rechazar(new Error(`sondeo de captura ${ancho}×${alto}: sin respuesta`)),
+        deps.plazoMs ?? PLAZO_SONDEO_CAPTURA_MS
+      )
+    })
+    return await Promise.race([medir(), plazo])
+  } finally {
+    clearTimeout(temporizador)
+    if (!ventana.isDestroyed()) ventana.destroy()
+  }
+}
+
 interface Pendiente {
   n: number
   resolver: () => void
@@ -122,22 +211,7 @@ export async function crearVentanaExportacion(
   deps: DepsVentanaExportacion
 ): Promise<VentanaExportacion> {
   const { ancho, alto, trabajoId } = opciones
-  const ventana = deps.crear({
-    show: false,
-    width: ancho,
-    height: alto,
-    useContentSize: true,
-    enableLargerThanScreen: true,
-    webPreferences: {
-      offscreen: { useSharedTexture: false, deviceScaleFactor: 1 },
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false,
-      zoomFactor: 1,
-      preload: deps.preload
-    }
-  })
+  const ventana = deps.crear(opcionesOffscreen(ancho, alto, deps.preload))
   // Windows recorta la ventana al área de trabajo al crearla: se fija el tamaño después y,
   // si aun así no coincide, se falla pronto. Nunca se escala (ADR 0019, revisión alpha.2).
   ventana.setContentSize(ancho, alto)
@@ -146,7 +220,7 @@ export async function crearVentanaExportacion(
     const mensaje = `La ventana de captura es de ${anchoReal}×${altoReal} y se esperaba ${ancho}×${alto}.`
     deps.registrar?.('error', `exportacion: ${mensaje}`)
     ventana.destroy()
-    throw errorConCodigo('PERFIL_NO_SOPORTADO', mensaje)
+    throw errorDeCaptura(mensaje)
   }
   const wc = ventana.webContents
   deps.registrarRol(ventana)
@@ -166,10 +240,7 @@ export async function crearVentanaExportacion(
     const imagen = await wc.capturePage()
     const { width, height } = imagen.getSize()
     if (width !== ancho || height !== alto) {
-      throw errorConCodigo(
-        'PERFIL_NO_SOPORTADO',
-        `La captura es de ${width}×${height} y se esperaba ${ancho}×${alto}.`
-      )
+      throw errorDeCaptura(`La captura es de ${width}×${height} y se esperaba ${ancho}×${alto}.`)
     }
     const bytes = imagen.toBitmap()
     if (bytes.length !== ancho * alto * 4) {

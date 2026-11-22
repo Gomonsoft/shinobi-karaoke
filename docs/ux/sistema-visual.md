@@ -11,25 +11,34 @@
 - Logotipo provisional: wordmark "Shinobi Karaoke" en la fuente de interfaz, peso 700, con la "i" final de *Shinobi* sustituida por un pequeño shuriken/rombo rojo (detalle gráfico opcional; sin dependencia funcional).
 
 ### 1.1 Icono de la app
-Traslada a un archivo el rombo rojo `◆` que ya acompaña al nombre en las specs, con los tokens de §2. No crea una marca nueva y es tan provisional como el logotipo: se sustituye si el usuario decide otra marca ([0039](../preguntas/0039-icono-de-la-app-y-texto-del-menu-apple.md)). Es de creación propia, con la licencia del proyecto.
+Icono **definitivo**, elegido por el usuario el 2026-11-21 entre las propuestas de `docs/propuestas/diseno/` (`icono-kunais-sk.html` e `icono-sello-sk.html`): **«H · Emblema»** para 32 px o más y **«Mini 1 · Shuriken»** para 16, 20 y 24 px ([tarea 0140](../tareas/0140-icono-de-la-app-en-los-instaladores.md), «Icono definitivo»). Sustituye al rombo provisional sobre placa oscura. Es de creación propia, con la licencia del proyecto. Las fuentes vectoriales son la referencia; esta tabla las describe.
 
-| Elemento | Especificación (lienzo de 1024 × 1024 px) |
-|----------|-------------------------------------------|
-| Lienzo | PNG RGBA, fondo transparente. Margen de 100 px en cada lado |
-| Placa | Cuadrado redondeado de 824 × 824 px, de (100, 100) a (924, 924), radio exterior 186 px, relleno `fondo-0` `#0E0F14` |
-| Borde de la placa | 8 px hacia dentro, `borde` `#2E3244`, para que se distinga en barras y muelles oscuros; decorativo |
-| Rombo | Vértices (512, 212), (812, 512), (512, 812), (212, 512), relleno `acento` `#C8303B`, esquinas vivas. Contraste con la placa ≈ 3,6:1 (≥ 3:1 para objetos gráficos) |
-| Sin | Texto, degradados, sombras, brillos ni ilustración |
-| Tamaños pequeños | Una sola imagen, sin variantes: por eso no lleva texto ni detalles finos. A 16 px, la placa mide unos 13 px y el rombo unos 9 px; el borde puede desaparecer sin que importe |
+**Emblema** (`app/build/icon.svg`, lienzo 512 × 512, fondo transparente; para 32 px o más)
 
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <rect x="104" y="104" width="816" height="816" rx="182" fill="#0E0F14" stroke="#2E3244" stroke-width="8"/>
-  <path d="M512 212 L812 512 L512 812 L212 512 Z" fill="#C8303B"/>
-</svg>
-```
+| Elemento | Especificación |
+|---|---|
+| Disco | Círculo rojo de radio 194 centrado en (256, 256), con degradado radial `#F0434E` (centro desplazado arriba a la izquierda, al 38 % · 32 %) → `#B4141F`. Es el «rojo hanko» del sistema, con volumen. |
+| Aro | Círculo negro `#121214` de radio 214 bajo el disco: deja un aro negro de 20 px que separa el disco de fondos claros. |
+| Puntas de kunai | Cuatro puntas negras `#121214` que salen del aro en diagonal hacia las cuatro esquinas (como un sello atravesado por cuatro kunais). Llegan a unos 76 px de cada esquina del lienzo. |
+| Monograma «SK» | En negro `#121214`, escalado al 84 % desde el centro. **S**: trazo de 44 px con una punta de kunai en cada extremo. **K**: asta vertical con una punta de kunai arriba y una anilla (el aro del mango del kunai) abajo; dos brazos diagonales de 36 px, cada uno rematado en punta de kunai. |
+| Sin | Texto, sombras, brillos ni contornos añadidos. |
 
-Criterios: `app/build/icon.png` mide 1024 × 1024 con canal alfa; (0, 0) es transparente, (512, 512) es `#C8303B` y (150, 512) es `#0E0F14`; reducido a 16, 32, 48 y 256 px, el rombo se distingue sobre fondo claro y oscuro.
+**Shuriken** (`app/build/icon-mini.svg`, lienzo 512 × 512, fondo transparente; para 16, 20 y 24 px)
+
+| Elemento | Especificación |
+|---|---|
+| Aro | Disco negro `#121214` de radio 248 (casi todo el lienzo). |
+| Disco | Rojo de radio 214 con el mismo degradado del emblema. |
+| Shuriken | Estrella negra de cuatro hojas (8 vértices) que llega casi al borde del disco, con un agujero central rojo de radio 30. Sin letras: a 16 px el «SK» no se leería. |
+
+**Generación y uso**
+- `node scripts/icono.mjs` (desde `app/`) regenera `build/icon.png` (1024 × 1024, desde el emblema) y `build/icon.ico` con 9 tamaños: 16, 20 y 24 desde el shuriken; 32, 40, 48, 64, 128 y 256 desde el emblema. El `.icns` y los PNG de Linux los genera electron-builder desde `icon.png`.
+- El mismo icono va en el instalador, los accesos directos, la barra de tareas, las ventanas (principal y secundaria), el Dock, el DMG y el menú de aplicaciones de Linux.
+- El wordmark del logotipo (§1) no cambia; el `◆` de los textos de interfaz («◆ Shinobi Karaoke» en la pantalla en espera de la fase 4) tampoco.
+
+**Contraste**: el negro `#121214` sobre el rojo va de ≈ 5,0:1 (zona clara del degradado) a ≈ 2,7:1 (borde más oscuro). En los tamaños pequeños, donde un trazo fino se perdería, se usa el shuriken, de formas grandes. Sobre fondos claros separa el aro negro; sobre fondos oscuros, el disco rojo (`#F0434E` frente a una barra de tareas `#202020` ≈ 4,4:1).
+
+Criterios: `app/build/icon.png` mide 1024 × 1024 con canal alfa y (0, 0) transparente; `app/build/icon.ico` contiene los 9 tamaños y sus imágenes de 16, 20 y 24 px son el shuriken (sin «SK»); reducido a 16, 24, 32, 48 y 256 px sobre fondo claro (`#FFFFFF`) y oscuro (`#202020`), se distingue la silueta (disco con shuriken en los pequeños; disco con «SK» y puntas desde 32 px). La comprobación a ojo en la barra de tareas de Windows, el DMG de macOS y el menú de Linux va a la guía manual.
 
 ## 2. Paleta (tema oscuro, único en el MVP)
 
@@ -294,5 +303,34 @@ Contraste (fase 5): textos nuevos en `texto-1/2/3` sobre `fondo-1/2` (≥ 4,7:1,
 | **Estimación** | `t-pequeno` `texto-2`, cifras en `t-tiempo`. Sin color de estado. |
 | **Subpasos de la exportación** | Los de la vista de progreso (spec 04): icono 20 px de estado + nombre `t-cuerpo` + dato `t-tiempo` `texto-2` a la derecha; barra de 12 px. |
 | **Línea de exportación en la tarjeta** | Como la línea de paso de un borrador (spec 02): icono `loader` (o `clock` en cola) 14 px `info`, texto `t-pequeno` `info`, barra de 6 px. Icono `film` 16 px en los ítems de menú «Exportar video…». |
+| **Motivo `captura`** (0.2.1, fase 7) | Mismo tratamiento que cualquier perfil no soportado: sufijo `exp.perfil.noDisponible` y el motivo en el tooltip. Ver [spec 10 · Fase 7](10-exportacion.md#fase-7-de-021--perfiles-capturables-reintentar-y-errores-tempranos). |
 
 Contraste (fase 6): los textos del diálogo usan `texto-1/2/3` sobre `fondo-1/2` (≥ 5,4:1, §2.2); el sufijo de perfil no soportado en `texto-3` sobre `fondo-3` del menú desplegable mantiene 4,7:1; la marca de agua cumple ≥ 3:1 sobre cualquier fondo de estilo; la pista del formato en `texto-2` sobre `fondo-1` cumple ≥ 5,4:1. La letra del video usa el estilo de la canción y sus avisos de §9, que el diálogo no repite. Ver [Exportar a video](10-exportacion.md), [Biblioteca](02-biblioteca.md#fase-6-de-020--exportación) y [Editor](06-editor.md#fase-6-de-020--exportación).
+
+## 0.2.1 — Sincronía, editor preciso y barra de carga (fases 8 y 9)
+
+Comportamiento en [Editor · Fase 8](06-editor.md#fase-8-de-021--sincronía-y-editor-más-simples), [Editor · Fase 9](06-editor.md#fase-9-de-021--editor-preciso-de-línea), [Reproductor · Fase 8](07-reproductor.md#fase-8-de-021--sin-palabras-importadas-ni-desplazamiento-y-barra-de-carga) y [Biblioteca · Fase 8](02-biblioteca.md#fase-8-de-021--estados-y-fecha-de-añadido). **Sustituye** la fila «Resaltado» de §10 (por palabra solo con tiempos hechos a mano en el editor preciso; las palabras importadas se barren de forma progresiva) y la fila **«Barra»** de «Indicadores de espera» (fase 5).
+
+**Render de la letra**
+
+| Elemento | Valor |
+|---|---|
+| **Barra de espera** (sustituye a la de la fase 5) | Barra de carga de **ancho fijo**: 40 % del ancho del área, centrada, con su centro vertical a `45 % − 0,9 × S`. Grosor `max(6px, 1vh)`, extremos redondeados. **Pista** en `letra.color` y **relleno** en `color_resaltado`, que crece desde el borde izquierdo de 0 al 100 % de forma lineal entre el inicio del hueco y el inicio de la línea siguiente. Sombra de §10 en la pista. **Letra lista**: pista `letra.color` al 35 % de opacidad y relleno `letra.color`. Sin animación de entrada ni salida; con movimiento reducido el relleno sigue avanzando (es contenido). |
+| **Barrido palabra a palabra** | Cada palabra se llena con `color_resaltado` de izquierda a derecha entre su inicio y su fin; el espacio que la sigue se pinta al empezar la siguiente. Solo con tiempos hechos a mano. |
+
+**Interfaz del editor**
+
+| Componente | Tratamiento visual |
+|---|---|
+| **Pestañas del panel** | Control de pestañas actual con tres opciones («Sincronía · Estilo · Funciones»), mismo alto (36 px) y una sola fila entre 300 y 480 px de ancho. |
+| **Sección de «Funciones»** | `h3` en `t-cuerpo-fuerte`, ayuda en `t-pequeno` `texto-2`, botón secundario de §6 (con icono 20 px) y, si aplica, el atajo en `t-pequeno` `texto-3` alineado a la derecha. Separador de 1 px `borde` entre secciones; 16 px de relleno vertical por sección. Motivo de no disponible: icono `info` 16 px + `t-pequeno` `texto-2` bajo el botón (no un tooltip). Estado actual del modo («✓ Lista: …»): icono `check` en `exito` + texto `texto-1`. |
+| **Botón «Funciones» del riel** | Botón de 32 px de alto y ancho del riel, icono `blocks` 16 px + «Funciones» en `t-pequeno`, al final del riel del panel. |
+| **Ventana flotante** (editor preciso) | Superficie `fondo-1`, borde 1 px `borde-control`, radio `r-l`, sombra de diálogos y menús (§4), sin velo. Barra de título de 40 px en `fondo-2` con asa `grip-vertical` 16 px `texto-3`, título en `t-cuerpo-fuerte` y botones icono de 32 px. Asa de tamaño de 16 × 16 (`texto-3`) en la esquina inferior derecha. Relleno interior 16 px; separadores de 1 px `borde`. Por encima de los paneles, por debajo de diálogos modales, menús, popovers y toasts. Foco en la barra de título: anillo de §7. |
+| **Zona de onda de la ventana** | Como la línea de tiempo de 0.2.0 (onda en `texto-3` sobre `fondo-2`, regla en `borde-control` / `texto-2`). Márgenes fuera de la línea sombreados con `rgba(0,0,0,0.35)` sobre la onda. Tiradores de la línea: trazo de 3 px `texto-1` a toda la altura (fin automático: discontinuo), objetivo 24 × 24. |
+| **Segmento de palabra** | Alto 32 px, radio `r-s`, texto `t-pequeno` cortado con «…». Marcada: fondo `fondo-3`, borde 1 px `texto-2`, texto `texto-1` (12,3:1). Sin marcar: sin relleno, borde 1 px discontinuo `borde-control` (3,14:1 sobre `fondo-3`, ≥ 3:1), texto `texto-3` (4,7:1). Seleccionada: borde 2 px `acento-texto` y tiradores de 2 px `acento-texto` con objetivo 24 × 24. Atenuada («Quitar los tiempos por palabra»): todo al 50 % de opacidad (el aviso en texto explica el estado). |
+| **«MARCAR» de la ventana** | Botón secundario grande de 44 px de alto (como el del modo al ritmo). Mientras se mantiene pulsado: fondo `fondo-2` y borde `acento-texto`. |
+| **Indicador de palabras hechas a mano** | Icono `whole-word` 14 px en `texto-2` al final de la fila de la lista y en el panel Sincronía (con texto). En la región de la línea de tiempo, marcas verticales de 1 px `texto-3` en cada frontera entre palabras (decorativas). |
+| **Botón «Editar» de la tarjeta** | Botón fantasma de §6 con icono `pencil` 16 px, 36 px de alto, junto a «▶ Reproducir». |
+| **Encabezado de grupo por fecha** | Como el de la fase 3, sin tema ni [Tema…]; «Sin agrupar» con su explicación en `t-pequeno` `texto-2`. |
+
+Contraste (0.2.1): los textos nuevos usan `texto-1/2/3` sobre `fondo-1/2/3` (≥ 4,7:1, §2.2); bordes y tiradores que distinguen estados, ≥ 3:1 (objetos gráficos). La barra de carga no añade comprobaciones: la pista la cubre «Letra vs fondo», el relleno «Resaltado vs fondo» y su diferencia «Resaltado vs letra» (§9).

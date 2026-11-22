@@ -6,8 +6,6 @@ import {
   ajustarFin,
   ajustarInicio,
   borrarTiempos,
-  desplazar,
-  fijarDesplazamiento,
   fijarFin,
   fijarInicio,
   lineaVecina,
@@ -17,6 +15,7 @@ import {
   type Limite,
   type ResultadoTiempos
 } from '@shared/letras/tiempos'
+import { aplicarEdicionPrecisa, type BorradorLinea } from '@shared/letras/palabras'
 import type { PropuestaSilencios } from '@shared/silencios'
 import { tiempoAudioALetra } from './lineaTiempo'
 
@@ -130,9 +129,15 @@ export type AccionEditor =
   | { tipo: 'fijar_fin'; ms: number; duracionMs: number; ahora: number }
   | { tipo: 'confirmar_marcador'; gesto: GestoMarcador; ahora: number }
   | { tipo: 'fin_automatico'; ahora: number }
+  /** «Aplicar» del editor preciso: texto, límites y palabras de una línea en un solo paso (ADR 0021 §9). */
+  | {
+      tipo: 'aplicar_preciso'
+      id: string
+      borrador: BorradorLinea
+      duracionMs: number
+      ahora: number
+    }
   | { tipo: 'borrar_tiempos'; ahora: number }
-  | { tipo: 'desplazar'; deltaMs: number; ahora: number; grupo?: string }
-  | { tipo: 'fijar_desplazamiento'; ms: number; ahora: number }
   | { tipo: 'estilo'; estilo: Estilo; clave: string; ahora: number; agruparGesto?: boolean }
   | {
       tipo: 'estilo_borrador'
@@ -421,20 +426,20 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       return !e.sync.activo && esLinea(letra, id)
         ? cambiarTiempos(e, usarFinAutomatico(letra, id), unica(`finauto:${id}`), a.ahora)
         : e
+    case 'aplicar_preciso': {
+      if (e.sync.activo || !esLinea(letra, a.id)) return e
+      let nueva: Letra
+      try {
+        nueva = aplicarEdicionPrecisa(letra, a.id, a.borrador, a.duracionMs)
+      } catch {
+        return e
+      }
+      return guardarPaso(e, { ...e.actual, letra: nueva }, unica(`preciso:${a.id}`), a.ahora)
+    }
     case 'borrar_tiempos':
       return !e.sync.activo && esLinea(letra, id)
         ? cambiarTiempos(e, borrarTiempos(letra, id), unica(`borrar:${id}`), a.ahora)
         : e
-    case 'desplazar':
-      return cambiarTiempos(
-        e,
-        desplazar(letra, a.deltaMs),
-        a.grupo === undefined ? 'desplazamiento' : `desplazamiento:prueba:${a.grupo}`,
-        a.ahora,
-        a.grupo !== undefined
-      )
-    case 'fijar_desplazamiento':
-      return cambiarTiempos(e, fijarDesplazamiento(letra, a.ms), 'desplazamiento', a.ahora)
     case 'estilo':
       return e.sync.activo ||
         borrador !== null ||

@@ -23,6 +23,12 @@ interface Props {
   separacion: SeparacionEditor
   vaciar(): Promise<boolean>
   alEnfocarPrimera(): void
+  /**
+   * `true` solo la primera vez que se pregunta en la visita (y la consume): el aviso de líneas
+   * sin inicio lo comparten «Hecho» y «Marcar como …» del dock (spec 06, 8.6). Si no se pasa,
+   * el botón lleva el suyo.
+   */
+  primeraPulsacionIncompleta?(): boolean
 }
 
 export function avisarError(mensaje: string, error: unknown) {
@@ -110,7 +116,14 @@ export function RenglonesFaltas({
 }
 
 /** Acción principal del editor. Las líneas sin inicio se consultan en la edición local. */
-export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimera }: Props) {
+export function BotonLista({
+  resumen,
+  letra,
+  separacion,
+  vaciar,
+  alEnfocarPrimera,
+  primeraPulsacionIncompleta
+}: Props) {
   const { ir } = useNavegacion()
   const { abrir } = useReproductor()
   const { haySesion } = useSesion()
@@ -118,7 +131,14 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
   const [popover, setPopover] = useState<'faltas' | 'incompleta' | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const marcoLista = useRef(false)
-  const avisoIncompletaVisto = useRef(false)
+  const incompletaVista = useRef(false)
+  const primeraPulsacion =
+    primeraPulsacionIncompleta ??
+    (() => {
+      const antes = incompletaVista.current
+      incompletaVista.current = true
+      return !antes
+    })
   const { sincronizadas, total } = contador(letra)
   const pendientes = total - sincronizadas
   const lista = resumen.estado === 'lista'
@@ -164,8 +184,7 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
   function pulsar() {
     if (marcoLista.current) return
     if (lista) {
-      if (pendientes > 0 && !avisoIncompletaVisto.current) {
-        avisoIncompletaVisto.current = true
+      if (pendientes > 0 && primeraPulsacion()) {
         setPopover('incompleta')
       } else salir()
     } else if (falta) {
@@ -233,10 +252,13 @@ export function BotonLista({ resumen, letra, separacion, vaciar, alEnfocarPrimer
 
 export function DialogoVolverABorradorEditor({
   resumen,
-  alCerrar
+  alCerrar,
+  alVolver
 }: {
   resumen: ResumenCancionIpc
   alCerrar(): void
+  /** La canción volvió a borrador (el botón que lo abrió desaparece: el foco va a otro sitio). */
+  alVolver?(): void
 }) {
   return (
     <DialogoConfirmar
@@ -247,6 +269,7 @@ export function DialogoVolverABorradorEditor({
       alConfirmar={async () => {
         try {
           await window.shinobi.biblioteca.volverABorrador(resumen.id)
+          alVolver?.()
         } catch (error) {
           avisarError('No se pudo volver a borrador.', error)
         } finally {

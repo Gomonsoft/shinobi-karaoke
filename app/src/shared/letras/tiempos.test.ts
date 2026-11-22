@@ -7,14 +7,10 @@ import {
   aPeticionTiempos,
   borrarTiempos,
   contador,
-  desplazar,
-  fijarDesplazamiento,
   fijarFin,
   fijarInicio,
-  formatearDesplazamiento,
   formatearTiempo,
   indiceLineaActual,
-  interpretarDesplazamiento,
   interpretarTiempo,
   limitesInicio,
   lineaVecina,
@@ -25,6 +21,8 @@ import {
   tiempoMostrado,
   usarFinAutomatico
 } from './tiempos'
+
+const D = 20_000
 
 function ejemplo(): Letra {
   return letra([
@@ -102,33 +100,75 @@ describe('edición de tiempos', () => {
     })
   })
 
-  it('desplaza palabras y avisa si hay que descartarlas o anular un fin', () => {
-    const l = congelar(ejemplo())
-    expect(fijarInicio(l, 'a', 1200).letra.lineas[0]?.palabras).toEqual([
-      { texto: 'Llueve', inicio_ms: 1300, fin_ms: 1900 }
-    ])
-    expect(fijarInicio(l, 'b', 1400)).toMatchObject({
+  it('editar inicio o fin descarta las palabras; solo las manuales se avisan', () => {
+    const manual = (): Letra => {
+      const l = ejemplo()
+      l.lineas[0]!.origen_palabras = 'manual'
+      return l
+    }
+    const sinOrigen = (r: { letra: Letra }) => {
+      expect(r.letra.lineas[0]?.palabras).toBeNull()
+      expect(r.letra.lineas[0]).not.toHaveProperty('origen_palabras')
+    }
+    // importadas: se borran sin aviso
+    for (const r of [
+      fijarInicio(congelar(ejemplo()), 'a', 1200),
+      ajustarInicio(congelar(ejemplo()), 'a', 100),
+      fijarFin(congelar(ejemplo()), 'a', 2500, D),
+      ajustarFin(congelar(ejemplo()), 'a', -100, D),
+      usarFinAutomatico(congelar(ejemplo()), 'a'),
+      borrarTiempos(congelar(ejemplo()), 'a')
+    ]) {
+      expect(r.cambiado).toBe(true)
+      sinOrigen(r)
+      expect(r.palabrasDescartadas).toEqual([])
+    }
+    // manuales: se avisan
+    for (const r of [
+      fijarInicio(congelar(manual()), 'a', 1200),
+      ajustarInicio(congelar(manual()), 'a', 100),
+      fijarFin(congelar(manual()), 'a', 2500, D),
+      ajustarFin(congelar(manual()), 'a', -100, D),
+      usarFinAutomatico(congelar(manual()), 'a'),
+      borrarTiempos(congelar(manual()), 'a')
+    ]) {
+      sinOrigen(r)
+      expect(r.palabrasDescartadas).toEqual(['a'])
+    }
+    // sin cambio, nada se descarta
+    const igual = fijarFin(congelar(manual()), 'a', 2900, D)
+    expect(igual.cambiado).toBe(false)
+    expect(igual.letra.lineas[0]?.palabras).not.toBeNull()
+  })
+
+  it('mover el inicio siguiente descarta las palabras de la anterior y anula su fin', () => {
+    const l = ejemplo()
+    l.lineas[0]!.origen_palabras = 'manual'
+    expect(fijarInicio(congelar(l), 'b', 1400)).toMatchObject({
       palabrasDescartadas: ['a'],
       finesAutomaticos: ['a']
     })
-    expect(borrarTiempos(l, 'a').letra.lineas[0]).toMatchObject({
-      inicio_ms: null,
-      fin_ms: null,
-      palabras: null
-    })
   })
 
-  it('aplica el desplazamiento al consultar los tiempos y conserva el original en la petición', () => {
+  it('marcarInicioLinea descarta también las de las líneas posteriores que pierden su tiempo', () => {
+    const l = letra([
+      linea('a', 'Uno', 1000),
+      linea('b', 'Dos', 3000, {
+        palabras: [{ texto: 'Dos', inicio_ms: 3000, fin_ms: 3500 }],
+        origen_palabras: 'manual'
+      }),
+      linea('c', 'Tres', 6000)
+    ])
+    const r = marcarInicioLinea(congelar(l), 'a', 4000)
+    expect(r.borrados).toEqual(['b'])
+    expect(r.palabrasDescartadas).toEqual(['b'])
+    expect(r.letra.lineas[1]).toMatchObject({ inicio_ms: null, palabras: null })
+    expect(r.letra.lineas[1]).not.toHaveProperty('origen_palabras')
+  })
+
+  it('aplica offset_ms al consultar los tiempos y conserva el original en la petición', () => {
     const l = ejemplo()
-    expect(fijarDesplazamiento(l, -31_000)).toMatchObject({
-      letra: { offset_ms: -30_000 },
-      limite: { tipo: 'desplazamiento' }
-    })
-    expect(desplazar({ ...l, offset_ms: 30_000 }, 100)).toMatchObject({
-      cambiado: false,
-      limite: { tipo: 'desplazamiento' }
-    })
-    const ajustada = desplazar(l, 250).letra
+    const ajustada = { ...l, offset_ms: 250 }
     expect(indiceLineaActual(ajustada, 1249)).toBe(-1)
     expect(indiceLineaActual(ajustada, 5250)).toBe(1)
     expect(aPeticionTiempos('id', ajustada)).toMatchObject({
@@ -182,8 +222,7 @@ describe('edición de tiempos', () => {
         () => ajustarFin(l, id, delta, 30_000),
         () => usarFinAutomatico(l, id),
         () => borrarTiempos(l, id),
-        () => marcarInicioLinea(l, id, ms),
-        () => fijarDesplazamiento(l, ms * 3 - 45_000)
+        () => marcarInicioLinea(l, id, ms)
       ]
       l = operaciones[azar(operaciones.length)]!().letra
       expect(validarInvariantesLetra(l.lineas), `operación ${i}`).toEqual([])
@@ -200,12 +239,5 @@ describe('formato de los campos', () => {
     expect(['1:5', '01:60', '01:05,20', '01:05.123', 'texto'].map(interpretarTiempo)).toEqual(
       Array(5).fill(null)
     )
-  })
-  it('muestra el signo y lee desplazamientos en segundos', () => {
-    expect([250, -100, 0].map(formatearDesplazamiento)).toEqual(['+0,25 s', '−0,10 s', '+0,00 s'])
-    expect(['+0,25', '−1,5', '0.3', '-30'].map(interpretarDesplazamiento)).toEqual([
-      250, -1500, 300, -30_000
-    ])
-    expect(['0.125', '5 s', 'x', ''].map(interpretarDesplazamiento)).toEqual(Array(4).fill(null))
   })
 })

@@ -5,7 +5,6 @@ import { letra, linea } from '@shared/__fixtures__'
 import type { ApiShinobi } from '@shared/ipc'
 import type { EstadoMotorReproductor } from '../../karaoke/motorReproductor'
 import { Reproductor, type PropsReproductor } from './Reproductor'
-import { E } from '../editor/textos'
 import { R } from './textos'
 
 const cancion = {
@@ -204,8 +203,7 @@ describe('estados del reproductor', () => {
     const f = montar({
       origen: 'editor',
       modo: 'original',
-      cancion: { ...cancion, lineasSinSincronizar: 3 },
-      alDesplazar: vi.fn()
+      cancion: { ...cancion, lineasSinSincronizar: 3 }
     })
     await act(async () => undefined)
     expect(screen.queryByText(R.incompleta(3).slice(2))).not.toBeInTheDocument()
@@ -213,7 +211,7 @@ describe('estados del reproductor', () => {
     fireEvent.keyDown(superficie, { key: 'F1' })
     expect(screen.getByRole('dialog', { name: R.atajos.titulo })).toBeVisible()
     expect(f.motor.pausar).toHaveBeenCalledOnce()
-    expect(screen.getByRole('rowheader', { name: ', / .' })).toBeVisible()
+    expect(screen.queryByRole('rowheader', { name: ', / .' })).not.toBeInTheDocument()
     expect(screen.queryByRole('rowheader', { name: 'V' })).not.toBeInTheDocument()
     fireEvent.keyDown(screen.getByRole('button', { name: 'Cerrar' }), { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: R.atajos.titulo })).not.toBeInTheDocument()
@@ -234,26 +232,16 @@ describe('estados del reproductor', () => {
     expect(f.motor.reproducir).toHaveBeenCalledExactlyOnceWith({ desdeMs: -4000 })
   })
 
-  it('refleja el desplazamiento que recibe y avisa durante 1 s en el límite', async () => {
-    vi.useFakeTimers()
-    const alDesplazar = vi.fn()
-    const conDesplazamiento = (offset_ms: number) => ({
-      ...cancion,
-      letra: { ...cancion.letra, offset_ms }
+  it('«,» y «.» no hacen nada desde el editor y offset_ms se sigue aplicando', async () => {
+    const f = montar({
+      origen: 'editor',
+      cancion: { ...cancion, letra: { ...cancion.letra, offset_ms: 1500 } }
     })
-    const f = montar({ origen: 'editor', alDesplazar, cancion: conDesplazamiento(-29_900) })
     await act(async () => undefined)
     const superficie = screen.getByRole('dialog')
     fireEvent.keyDown(superficie, { key: ',' })
-    expect(alDesplazar).toHaveBeenCalledExactlyOnceWith(-100)
-    f.rerender(<Reproductor {...f.props} cancion={conDesplazamiento(-30_000)} />)
-    expect(screen.getByText(R.offset(-30_000))).toBeVisible()
-    fireEvent.keyDown(superficie, { key: ',' })
-    expect(alDesplazar).toHaveBeenCalledOnce()
-    const aviso = `${R.offset(-30_000)} ${E.offsetRango}`
-    act(() => vi.advanceTimersByTime(999))
-    expect(screen.getByText(aviso)).toBeVisible()
-    act(() => vi.advanceTimersByTime(1))
-    expect(screen.queryByText(aviso)).not.toBeInTheDocument()
+    fireEvent.keyDown(superficie, { key: '.' })
+    expect(screen.queryByText(/Desplazamiento/)).not.toBeInTheDocument()
+    expect(f.motor.pausar).not.toHaveBeenCalled()
   })
 })

@@ -349,7 +349,6 @@ export function PantallaEstadoSesion({
       <DialogoAtajosReproductor
         abierto={atajosAbiertos}
         vozDisponible={false}
-        puedeDesplazar={false}
         sesion
         alCerrar={() => setAtajosAbiertos(false)}
       />

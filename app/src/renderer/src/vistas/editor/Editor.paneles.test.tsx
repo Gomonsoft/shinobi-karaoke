@@ -122,13 +122,35 @@ it('minimizar la lista con su botón deja el riel, anuncia una vez, pasa el foco
   expect(variable('--ancho-lista')).toBe('300px')
 })
 
+it('el botón Funciones del riel expande el panel en esa pestaña con el foco en su primer botón (E8-17)', async () => {
+  montar()
+  await esperarEditor()
+  fireEvent.click(boton('Minimizar panel'))
+  fireEvent.click(boton('Expandir panel en Funciones'))
+  expect(screen.getByRole('radio', { name: 'Funciones' })).toBeChecked()
+  expect(screen.queryByRole('region', { name: 'Panel, minimizado' })).toBeNull()
+  expect(anuncios()).toBe('Panel expandido')
+  // Sin pistas ni líneas sincronizadas ningún botón está disponible: el foco va al primero.
+  const primero = document.querySelector<HTMLElement>('#zona-panel button[data-funcion]')
+  expect(primero).toHaveFocus()
+})
+
+it('en el modo al ritmo la pestaña Funciones y el botón del riel no están disponibles', async () => {
+  montar()
+  await esperarEditor()
+  await waitFor(() => expect(boton('Sincronizar al ritmo')).toBeEnabled())
+  fireEvent.click(boton('Sincronizar al ritmo'))
+  await screen.findByRole('region', { name: 'Sincronizando al ritmo' })
+  expect(screen.getByRole('radio', { name: 'Funciones' })).toHaveAttribute('aria-disabled', 'true')
+})
+
 it('Intro en el divisor alterna y el foco se queda en el divisor', async () => {
   montar()
   await esperarEditor()
   // Causa de la intermitencia: con la letra sin sincronizar, el editor lleva el foco a «Sincronizar al
   // ritmo» cuando la duración del audio llega (`Editor.tsx`, `focoInicialSync`), de forma asíncrona. Bajo
   // carga llegaba después de `divisor.focus()` y se lo quitaba. Se espera a ese foco inicial primero.
-  await waitFor(() => expect(boton('Sincronizar al ritmo (S)')).toHaveFocus())
+  await waitFor(() => expect(boton('Sincronizar al ritmo')).toHaveFocus())
   const divisor = screen.getByRole('separator', { name: 'Ancho del panel' })
   divisor.focus()
   fireEvent.keyDown(divisor, { key: 'Enter' })

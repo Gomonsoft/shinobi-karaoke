@@ -105,13 +105,33 @@
   position: absolute;
   top: calc(45% - var(--k-tamano) * 0.9);
   left: 50%;
-  width: calc(40% * (1 - var(--k-fraccion, 0)));
-  height: max(4px, 0.8cqh);
+  width: 40%;
+  height: max(6px, 1cqh);
   transform: translate(-50%, -50%);
+  overflow: hidden;
   border-radius: 999px;
-  background: var(--k-indicador);
+  background: var(--k-color);
   filter: drop-shadow(0 0.04em 0.12em rgb(0 0 0 / 55%));
   pointer-events: none;
+}
+
+/* Barra de carga: la pista es el color de la letra y el relleno crece de izquierda a derecha. */
+.relleno {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--k-resaltado);
+  transform: scaleX(var(--k-fraccion, 0));
+  transform-origin: left center;
+}
+
+/* Letra lista: pista al 35 % y relleno del color de la letra; sin `color_resaltado`. */
+.sinBarrido .barra {
+  background: color-mix(in srgb, var(--k-color) 35%, transparent);
+}
+
+.sinBarrido .relleno {
+  background: var(--k-color);
 }
 
 .cuentaEspera {

@@ -1,7 +1,7 @@
 # 0143 — Canal de compilaciones de desarrollo: configuración en GitHub y carpeta de datos compartida
 - De: arquitecto
 - Para: usuario
-- Estado: Abierta
+- Estado: Respondida
 - Bloquea: no. Sin esta configuración, la compilación nocturna se omite en verde y lo demás de `0.2.0-alpha.2` funciona igual (ADR 0020, «Revisión para 0.2.0 — fase 10», §1 y §6). Solo bloquea que aparezcan compilaciones en `shinobi-karaoke-builds`.
 
 ## Contexto
@@ -25,3 +25,6 @@ La fase 10 añade un canal de compilaciones de `develop` en un repositorio apart
 Punto 2: **A**. Los textos de la spec 09 §3b ya la recogen. Si eliges B, se registra como propuesta para una versión posterior.
 
 ## Respuesta
+A
+
+> Sesión principal, 2026-11-21: el usuario respondió **A** al punto 2 (misma app y misma carpeta de datos). El punto 1 son pasos de configuración que hace el usuario cuando quiera activar el canal.

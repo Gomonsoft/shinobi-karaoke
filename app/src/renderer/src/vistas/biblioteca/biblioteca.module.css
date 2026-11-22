@@ -221,6 +221,8 @@
 
 .accion {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
   margin-top: auto;
 }
 

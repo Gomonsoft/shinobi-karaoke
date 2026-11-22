@@ -100,7 +100,8 @@ describe('Letra: búsqueda (A)', () => {
     const op = within(lista).getAllByRole('option') as [HTMLElement, HTMLElement, HTMLElement]
     expect(op).toHaveLength(3)
     expect(within(op[0]).getByText('Sincronizada por línea')).toBeInTheDocument()
-    expect(within(op[1]).getByText('Sincronizada por palabra')).toBeInTheDocument()
+    // El candidato con sincronía por palabra ya no la promete: se ve «por línea» (0149).
+    expect(within(op[1]).getByText('Sincronizada por línea')).toBeInTheDocument()
     expect(within(op[2]).getByText('Solo texto')).toBeInTheDocument()
     expect(within(op[0]).getByText('Duración igual que tu audio')).toBeInTheDocument()
     expect(within(op[1]).getByText('4 s más larga que tu audio')).toBeInTheDocument()

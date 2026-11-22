@@ -247,3 +247,15 @@ Fecha: 2026-11-20. El detalle está en el [ADR 0018](0018-estilo-ampliado-espera
   - El ajuste se deshabilita durante la sincronización al ritmo y con un borrador de tema abierto.
 - **Picos en el editor**: para el ajuste se lee el nivel base con `picos.leer` en ventanas de 4096 bloques (40 960 ms), comprobando la `generacion`. Se conserva en memoria durante la visita.
 - **Marcar**: «Marcar como letra lista» usa `biblioteca.marcarLista(id, { modalidad: "letra_lista" })`. El aviso de la primera activación lee y escribe `config.editor.omitir_aviso_letra_lista`.
+
+## Revisión para 0.2.1 — fases 8 y 9
+
+Fecha: 2026-11-21. Detalle en el [ADR 0021](0021-sincronia-simplificada-y-editor-preciso-de-linea.md) §4 y §6–§9.
+
+- **Escritura** (§2): `guardarTiempos` acepta `origen_palabras: "manual"` por línea y valida esas palabras contra el texto guardado (`tokenizarLinea`), no contra la referencia. Nuevo canal **`letras.editarTextoLinea({ cancionId, id, texto }, sesionId)`**: cambia el texto de una línea, conserva id, inicio y fin, aplica la regla de palabras y **actualiza** la referencia de la visita en lugar de invalidarla. Se bloquea durante la sesión en vivo como los demás canales de edición.
+- **Guardado**: `useGuardadoEditor` envía primero `editarTextoLinea` por cada línea cuyo texto cambió respecto a la última instantánea enviada y después `guardarTiempos`. Deshacer un cambio de texto es restaurar la instantánea.
+- **Historial** (§3): las acciones `desplazar` y `fijar_desplazamiento` se retiran. El editor preciso tiene su propio borrador con historial local; al aplicar entra **un** paso `aplicar_preciso` (texto, límites y palabras). El descarte de palabras va en la misma entrada que la edición de inicio o fin que lo provoca.
+- **Motor** (§1):
+  - `Velocidad` no cambia (0,5×, 0,75×, 1×). Fuera del editor preciso, `playbackRate` (el tono baja).
+  - Con el editor preciso abierto (`fijarTramoConTono`) y por debajo de 1×, las reproducciones dentro de su tramo usan un buffer estirado por WSOLA (`karaoke/estiramiento.ts`, en un *Web Worker*) a `playbackRate = 1`, con un anclaje cuya `velocidad` es la elegida. **El reloj y sus fórmulas no cambian**, y la precisión se comprueba con clics sintéticos (≤ 10 ms de canción). Se descartan `preservesPitch` (otro reloj) y el *AudioWorklet* (latencia variable y WASM en la CSP).
+- **Atajos**: se retiran la S y `,`/`.`, también en «Probar a pantalla completa». Se añaden Mayús + L (escuchar la línea) y P (editor preciso). Intro, mantenerla para el fin y Retroceso no cambian.

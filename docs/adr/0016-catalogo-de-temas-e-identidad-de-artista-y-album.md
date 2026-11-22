@@ -421,3 +421,16 @@ Fecha: 2026-11-20. Concreta el §3 («Fase 5») y el §12 según el [ADR 0018](0
 - **Igualdad de estilos**: `estilosIguales` compara la forma normalizada. Así `neutra` y el nombre «Shinobi» o «Mi estilo» no cambian para estilos sin los campos nuevos.
 - **Impacto de editar un tema**: el recuento de usos no cambia. Las canciones con espera personalizada siguen recibiendo fondo y letra del tema, pero no su espera. La spec decide si la confirmación lo menciona.
 - **Contraste**: se calcula sobre el estilo resuelto o el borrador del tema, con el muestreo por tramos y el cierre del cónico (ADR 0018 §4).
+
+## Revisión para 0.2.1 — agrupar por fecha de añadido
+
+Fecha: 2026-11-21. Fase 8 del [plan 0.2.1](../versiones/0.2.1/plan-3.md), punto 7. Spec: [Biblioteca](../ux/02-biblioteca.md).
+
+**Alternativas.** (A) Agrupar por `modificada`: cambia con cada autoguardado, así que las canciones saltarían de grupo al editarlas. (B) Un campo nuevo `anadida`: duplicaría `creada`, que ya tienen las 18 canciones del usuario. (C) **Elegida: `creada`**, que main escribe al crear la canción y no cambia después (`operaciones.ts` no la admite en un cambio parcial).
+
+**Decisión.**
+1. `AGRUPACIONES_BIBLIOTECA` (`shared/config.ts`) añade `"fecha"`. `config.biblioteca.agrupar` lo acepta con la misma lectura tolerante (`.catch("ninguno")`); 0.2.0 lo lee como `"ninguno"`. `configParcialRendererSchema` lo admite por el mismo enum.
+2. `creada` se lee con tolerancia: si no es una fecha ISO válida vale `CREADA_POR_DEFECTO` (`1970-01-01T00:00:00.000Z`, en `shared/cancion.ts`) y la canción **no** se da por dañada ([ADR 0006, revisión para 0.2.1](0006-persistencia-y-modelo-de-datos.md#revisión-para-021)). `ResumenCancionIpc` añade `creada: string | null`: `null` si es la de por defecto.
+3. `agrupacion.ts` añade los tipos de grupo `fecha` y `sinFecha`, con una función pura que recibe la fecha actual (inyectable en pruebas) y aplica en hora local los grupos de la spec 02 (fase 8): `hoy`, `ayer`, `semana` (desde el lunes), `mes` y un grupo por mes y año (id `fecha:AAAA-MM`), de más reciente a más antiguo, cada canción en el primero que la contiene; una fecha futura cuenta como hoy. Dentro de cada grupo, por `creada` descendente; en «Sin agrupar», por `modificada`. Las canciones con `creada: null` van al grupo final `sinFecha` («Sin agrupar» con su explicación). La spec pedía `creadaValida: false`; `creada: null` lleva la misma información y evita un campo redundante (respuesta a 0145 §7).
+4. Los grupos por fecha **no admiten tema** (`asignable: false`), como los de «Sin artista».
+5. El plegado sigue siendo de sesión; la búsqueda y los filtros se aplican antes de agrupar, como en las otras agrupaciones.

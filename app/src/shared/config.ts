@@ -13,7 +13,12 @@ import {
   FACTOR_CORRECTOR,
   proporcionDe
 } from './exportacion'
-import { LIMITES_PANELES } from './paneles'
+import {
+  LIMITES_PANELES,
+  LIMITES_PRECISO,
+  LIMITE_GEOMETRIA_PRECISO,
+  PRECISO_POR_DEFECTO
+} from './paneles'
 
 export const VERSION_ESQUEMA_CONFIG = 1
 
@@ -146,6 +151,28 @@ const enteroEnRango = (min: number, max: number) => z.number().int().min(min).ma
  * Preferencias de paneles del editor (ADR 0006, rev. 0.2.0). Lectura tolerante campo a campo:
  * un valor inválido se sustituye por el defecto de ese campo sin apartar el config.
  */
+const geometriaPrecisoSchema = z.object({
+  x: z.number().int().min(-LIMITE_GEOMETRIA_PRECISO).max(LIMITE_GEOMETRIA_PRECISO),
+  y: z.number().int().min(-LIMITE_GEOMETRIA_PRECISO).max(LIMITE_GEOMETRIA_PRECISO),
+  ancho: z.number().int().min(LIMITES_PRECISO.ancho.min).max(LIMITE_GEOMETRIA_PRECISO),
+  alto: z.number().int().min(LIMITES_PRECISO.alto.min).max(LIMITE_GEOMETRIA_PRECISO)
+})
+
+/**
+ * Parcial estricto que puede escribir el renderer (sin `.catch`): lo enchufa `configParcialRendererSchema`
+ * en `editor.paneles.preciso`.
+ */
+export const precisoParcialSchema = z.strictObject({
+  geometria: geometriaPrecisoSchema.nullable().optional(),
+  margen_ms: z.union([z.literal(0), z.literal(500), z.literal(1000)]).optional()
+})
+
+/** Ventana del editor preciso (0.2.1): ausente en el archivo = sin preferencia; cada campo es tolerante. */
+const precisoSchema = objetoTolerante({
+  geometria: geometriaPrecisoSchema.nullable().catch(null),
+  margen_ms: precisoParcialSchema.shape.margen_ms.unwrap().catch(PRECISO_POR_DEFECTO.margen_ms)
+})
+
 const panelesSchema = objetoTolerante({
   lista: objetoTolerante({
     ancho: enteroEnRango(LIMITES_PANELES.lista.min, LIMITES_PANELES.lista.max).catch(
@@ -164,7 +191,8 @@ const panelesSchema = objetoTolerante({
       .nullable()
       .catch(null),
     minimizado: z.boolean().catch(false)
-  })
+  }),
+  preciso: precisoSchema
 })
 
 const editorSchema = objetoTolerante({
@@ -173,7 +201,7 @@ const editorSchema = objetoTolerante({
   omitir_aviso_letra_lista: z.boolean().catch(false)
 })
 
-export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album'] as const
+export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album', 'fecha'] as const
 export type AgruparBiblioteca = (typeof AGRUPACIONES_BIBLIOTECA)[number]
 
 /** Preferencias de la Biblioteca (ADR 0016 §9): lectura tolerante, como `editor.paneles`. */
@@ -233,7 +261,11 @@ export const configSchema = z.object({
 })
 
 export type Config = z.infer<typeof configSchema>
-export type PreferenciasPaneles = Config['editor']['paneles']
+type PanelesLeidos = Config['editor']['paneles']
+/** Lo que lee `config.json` siempre trae `preciso`; el modelo del editor puede no llevarlo (0.2.0). */
+export type PreferenciasPaneles = Omit<PanelesLeidos, 'preciso'> & {
+  preciso?: PanelesLeidos['preciso']
+}
 
 /** Configuración por defecto (la de una instalación nueva). */
 export function configPredeterminada(): Config {
