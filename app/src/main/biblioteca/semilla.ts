@@ -237,7 +237,7 @@ function plan(): Plan[] {
   ]
 }
 
-// ---- Temas (fase 3): conjunto de revision-fase-3/README.md#datos-de-prueba ----
+// ---- Temas (fase 3): conjunto de docs/ux/revisiones/fase-3/README.md#datos-de-prueba ----
 
 const idTema = (n: number): string => `7e3a0000-0000-4000-8000-${String(n).padStart(12, '0')}`
 export const TEMA_NEON = idTema(1)

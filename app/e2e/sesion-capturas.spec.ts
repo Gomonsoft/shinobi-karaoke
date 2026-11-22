@@ -13,13 +13,13 @@ import type { EstadoSesionIpc } from '../src/shared/sesion'
 import { crearTemporal } from './temporales'
 
 /**
- * Capturas de revisión de la fase 4 (tarea 0190, `docs/ux/revision-fase-4/README.md`): S18, P16, E8
+ * Capturas de revisión de la fase 4 (tarea 0190, `docs/ux/revisiones/fase-4/README.md`): S18, P16, E8
  * y AR4. Opt-in: `SHINOBI_CAPTURAS_4=1 npx playwright test e2e/sesion-capturas.spec.ts --workers=1`.
  * No escribe nada en el CI. Cada estado es independiente: si uno falla se anota y se sigue.
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_4 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-fase-4')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', 'fase-4')
 const idSemilla = (n: number): string => `5eed0000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const A = idSemilla(20)
 const B = idSemilla(21)

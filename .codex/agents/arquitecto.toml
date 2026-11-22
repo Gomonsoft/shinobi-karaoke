@@ -30,7 +30,7 @@ Antes de decidir nada lee:
 ## Forma de trabajar
 - Investiga con WebSearch/WebFetch cuando el estado del arte pueda haber cambiado (modelos de separación, APIs de letras, herramientas de descarga). Cita fuentes en el ADR.
 - Presenta siempre al menos 2 alternativas consideradas y por qué se descartan.
-- Solo escribes en `docs/`. No escribes código de producción; puedes hacer pruebas de concepto en `docs/poc/` si son imprescindibles para decidir.
+- Solo escribes en `docs/`. No escribes código de producción; puedes hacer pruebas de concepto en `docs/spikes/` si son imprescindibles para decidir.
 - Si una decisión depende de la experiencia de usuario, deja una pregunta para el Diseñador UX en `docs/preguntas/` en lugar de suponer.
 - Cuando una decisión sea de producto (alcance, prioridades) y no técnica, no la tomes: déjala como pregunta para el usuario (`para: usuario`).
 

@@ -105,7 +105,7 @@ export function componerNotas({ aviso, cabecera, notas, previa }) {
 
 export function rutaNotas(raiz, version) {
   const base = version.replace(/-.*$/, '')
-  return join(raiz, 'docs', 'versiones', base, 'notas', `${version}.md`)
+  return join(raiz, 'lanzamientos', 'notas', base, `${version}.md`)
 }
 
 /** Sustituye cada `{MARCADOR}` por su valor, literalmente, y falla si queda alguno sin resolver. */

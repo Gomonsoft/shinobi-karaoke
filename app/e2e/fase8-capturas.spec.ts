@@ -6,13 +6,13 @@ import { leerCancion } from './fixtures/separacion'
 import { conEditor, abrirEditor, idSemilla } from './fixtures/editor'
 
 /**
- * Capturas de revisión de la fase 8 de 0.2.1 (E8-19, `docs/ux/revision-0.2.1-fase-8/`). Opt-in:
+ * Capturas de revisión de la fase 8 de 0.2.1 (E8-19, `docs/ux/revisiones/0.2.1-fase-8/`). Opt-in:
  * `SHINOBI_CAPTURAS_8=1 npx playwright test e2e/fase8-capturas.spec.ts --workers=1`.
  * Las canciones y letras son inventadas (la semilla de pruebas). No escribe nada en el CI.
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_8 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-0.2.1-fase-8')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', '0.2.1-fase-8')
 const LISTA = 'Editor: lista incompleta'
 const BORRADOR = 'Editor: pista de clics'
 const FORMATOS = [

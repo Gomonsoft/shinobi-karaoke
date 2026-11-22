@@ -5,13 +5,13 @@ import { leerCancion } from './fixtures/separacion'
 import { abrirEditor, conEditor, idSemilla } from './fixtures/editor'
 
 /**
- * Capturas de revisión de la fase 9 de 0.2.1 (P23, `docs/ux/revision-0.2.1-fase-9/`). Opt-in:
+ * Capturas de revisión de la fase 9 de 0.2.1 (P23, `docs/ux/revisiones/0.2.1-fase-9/`). Opt-in:
  * `SHINOBI_CAPTURAS_9=1 npx playwright test e2e/editor-preciso-capturas.spec.ts --workers=1`.
  * Letras inventadas. No escribe nada en el CI.
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_9 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-0.2.1-fase-9')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', '0.2.1-fase-9')
 const TITULO = 'Editor: lista incompleta'
 const ID = idSemilla(19)
 
