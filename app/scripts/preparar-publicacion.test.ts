@@ -100,7 +100,7 @@ function raizConNotas(version: string, notas?: string): string {
     recursive: true
   })
   if (notas !== undefined) {
-    const carpeta = join(raiz, 'docs', 'versiones', version.replace(/-.*$/, ''), 'notas')
+    const carpeta = join(raiz, 'lanzamientos', 'notas', version.replace(/-.*$/, ''))
     mkdirSync(carpeta, { recursive: true })
     writeFileSync(join(carpeta, `${version}.md`), notas)
   }

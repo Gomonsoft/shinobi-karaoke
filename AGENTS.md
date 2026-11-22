@@ -65,3 +65,11 @@ uv run ruff check . && uv run ruff format --check .
 uv run pytest
 ```
 Requisitos: Node 24 (`app/.nvmrc`), uv 0.13.7, Python 3.12 (lo instala uv).
+
+## Documentación en un repositorio aparte
+`docs/` es un submódulo: el repositorio [`Gomonsoft/shinobidocs`](https://github.com/Gomonsoft/shinobidocs). Las rutas `docs/…` no cambian.
+- Si `docs/` está vacío: `git submodule update --init`.
+- Un cambio de documentación son dos commits: primero dentro de `docs/` (commit y push a `main` de shinobidocs, o a su rama `version-X.Y.Z` si define una versión aún sin implementar) y después `git add docs` en este repositorio, junto con el código al que acompaña. Detalle en `docs/workflow.md` («Dos repositorios»).
+- El puntero de `develop` y `main` apunta siempre a un commit ya subido de `main` de shinobidocs.
+- El CI no descarga el submódulo: nada que se construya o se pruebe puede leer de `docs/`. Lo que la publicación necesita vive en `lanzamientos/` (notas de versión en `lanzamientos/notas/<X.Y.Z>/<versión>.md`, botones de descarga y plantilla del README).
+- Pruebas de concepto: `docs/spikes/`. Capturas de revisión: `docs/ux/revisiones/<fase>/`.

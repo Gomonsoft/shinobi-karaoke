@@ -10,7 +10,7 @@ Software **libre y gratuito** para convertir tus canciones en karaokes.
 4. **Personaliza** fondo, color y fuente de la letra.
 5. **Canta** a pantalla completa.
 
-> Estado: en desarrollo temprano. Consulta la documentación en [`docs/`](docs/README.md).
+> Estado: en desarrollo temprano. La documentación del proyecto vive en [shinobidocs](https://github.com/Gomonsoft/shinobidocs), montado aquí como submódulo en `docs/`.
 
 ## Descargar
 
@@ -43,9 +43,9 @@ GPL-3.0-or-later. Ver [`LICENSE`](LICENSE) y [`THIRD_PARTY_NOTICES.md`](THIRD_PA
 
 ## Desarrollo
 
-Estructura: `app/` (Electron + TypeScript), `worker/` (Python), `spikes/` (pruebas de concepto), `.github/workflows/` (CI).
+Estructura: `app/` (Electron + TypeScript), `worker/` (Python), `lanzamientos/` (notas de cada versión y recursos de publicación), `.github/workflows/` (CI) y `docs/` (submódulo con la documentación y las pruebas de concepto: [shinobidocs](https://github.com/Gomonsoft/shinobidocs)). Para traer la documentación: `git submodule update --init`.
 
 - **App**: Node 24 (`app/.nvmrc`). Desde `app/`: `npm install`, y después `npm run dev` (arranca con datos en `app/.datos-dev/`), `npm run build`, `npm run lint`, `npm run format`, `npm run typecheck`, `npm test` y `npm run test:e2e` (prueba de humo Playwright). Más detalle en `app/README.md`.
 - **Worker**: desde `worker/`, `uv sync`, `uv run pytest`, `uv run ruff check` y `uv run ruff format --check`. Prueba manual: `uv run python -m shinobi_worker demo --args '{"segundos": 3}'` (ver `worker/README.md`).
 
-Requisitos previstos: Node.js LTS, [uv](https://docs.astral.sh/uv/). Detalles en [`docs/arquitectura.md`](docs/arquitectura.md) y [`docs/adr/0007-herramientas-de-desarrollo-y-calidad.md`](docs/adr/0007-herramientas-de-desarrollo-y-calidad.md).
+Requisitos previstos: Node.js LTS, [uv](https://docs.astral.sh/uv/). Detalles en [`docs/arquitectura.md`](https://github.com/Gomonsoft/shinobidocs/blob/main/arquitectura.md) y [`docs/adr/0007-herramientas-de-desarrollo-y-calidad.md`](https://github.com/Gomonsoft/shinobidocs/blob/main/adr/0007-herramientas-de-desarrollo-y-calidad.md).

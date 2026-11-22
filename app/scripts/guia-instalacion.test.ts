@@ -11,9 +11,7 @@ const version = (JSON.parse(leer('app/package.json')) as { version: string }).ve
 
 // Estado E½ preparado (spec 09 §1.1b): se aplica al publicar la primera pre-release pública.
 const bloques = [
-  ...leer('docs/versiones/0.2.0/plantillas/estado-e-medio.md').matchAll(
-    /```markdown\n([\s\S]*?)\n```/g
-  )
+  ...leer('lanzamientos/plantillas/estado-e-medio.md').matchAll(/```markdown\n([\s\S]*?)\n```/g)
 ].map(([, bloque]) => (bloque ?? '').replaceAll('{VERSION}', version))
 const readmeE12 = bloques[0] ?? ''
 const avisoE12 = bloques[1] ?? ''
@@ -81,7 +79,7 @@ describe('guía provisional de instalación', () => {
     )
     const base = `https://github.com/Gomonsoft/shinobi-karaoke/releases/download/v${version}/`
     for (const sistema of SISTEMAS) {
-      const svg = `docs/imagenes/descarga/descargar-${sistema}.svg`
+      const svg = `lanzamientos/descarga/descargar-${sistema}.svg`
       expect(readmeE12).toContain(
         `[![${TEXTOS_ALT[sistema]}](${svg})](${base}${ARCHIVOS[sistema]})`
       )
@@ -106,7 +104,7 @@ describe('guía provisional de instalación', () => {
 
   it('los botones SVG son válidos, accesibles y sin scripts ni recursos externos', () => {
     for (const sistema of SISTEMAS) {
-      const svg = leer(`docs/imagenes/descarga/descargar-${sistema}.svg`)
+      const svg = leer(`lanzamientos/descarga/descargar-${sistema}.svg`)
       expect(svg).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="360" height="64"/)
       expect(svg).toContain('viewBox="0 0 360 64"')
       expect(svg).toContain('role="img"')

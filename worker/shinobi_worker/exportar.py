@@ -1,6 +1,6 @@
 """Comando `exportar`: fotogramas BGRA por stdin + audio -> MKV (AV1) o WebM (VP9) con Opus.
 
-ADR 0019 §4. Base: docs/poc/0019-exportacion/codificar.py (solo referencia). Sin estado propio y
+ADR 0019 §4. Base: docs/spikes/0019-exportacion/codificar.py (solo referencia). Sin estado propio y
 sin escribir fuera de `temporal`; en cualquier error el temporal se borra.
 """
 

@@ -945,7 +945,7 @@ test.describe('otras vistas a 1024 × 576 (mínimo de ventana de 0155)', () => {
 // --- Capturas de revisión del criterio 25 (opcional: SHINOBI_CAPTURAS_2_1=1) --------------------
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_2_1 === '1'
-const DIR_CAPTURAS = join(process.cwd(), '..', 'docs', 'ux', 'revision-fase-2.1')
+const DIR_CAPTURAS = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', 'fase-2.1')
 
 /** Espera, sin fallar, a que la forma de onda tenga picos dibujados (hay entorno del worker). */
 async function esperarPicosSiHay(v: Page): Promise<boolean> {
