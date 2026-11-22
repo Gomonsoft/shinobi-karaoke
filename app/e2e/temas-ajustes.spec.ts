@@ -116,7 +116,7 @@ test.describe('Ajustes › Temas: predeterminado', () => {
       await abrirEditor(v, 'Dancing Queen')
       await v.getByRole('radio', { name: 'Estilo' }).click()
       await expect(v.getByText(AJ_TEMAS.origenAnterior, { exact: true })).toBeVisible()
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
       await v

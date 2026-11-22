@@ -3,6 +3,7 @@ import { estiloSchema010 } from './__fixtures__/estilo-0.1.0'
 import { ESPERA_LEGADA } from './espera'
 import {
   ESTILO_PREDETERMINADO,
+  conSubrayadoDelEquipo,
   estiloPredeterminado,
   estiloSchema,
   normalizarEstilo
@@ -199,5 +200,26 @@ describe('estilo.pantalla y colores_partes (ADR 0022 §1)', () => {
       c2: '#4ADEDE'
     })
     expect(estiloSchema.parse(letra(5)).letra.colores_partes).toBeUndefined()
+  })
+})
+
+describe('subrayar_cantado (0.2.2)', () => {
+  it('es opcional y tolerante: un valor ilegible se lee como ausente y no se escribe al leer', () => {
+    const base = estiloPredeterminado()
+    expect(estiloSchema.parse(base).letra).not.toHaveProperty('subrayar_cantado')
+    const raro = { ...base, letra: { ...base.letra, subrayar_cantado: 'sí' } }
+    expect(estiloSchema.parse(raro).letra.subrayar_cantado).toBeUndefined()
+    const activo = { ...base, letra: { ...base.letra, subrayar_cantado: true } }
+    expect(estiloSchema.parse(activo).letra.subrayar_cantado).toBe(true)
+  })
+
+  it('conSubrayadoDelEquipo suma la preferencia del equipo sin tocar el estilo original', () => {
+    const base = estiloPredeterminado()
+    expect(conSubrayadoDelEquipo(base, false)).toBe(base)
+    const con = conSubrayadoDelEquipo(base, true)
+    expect(con.letra.subrayar_cantado).toBe(true)
+    expect(base.letra.subrayar_cantado).toBeUndefined()
+    const propio = { ...base, letra: { ...base.letra, subrayar_cantado: true } }
+    expect(conSubrayadoDelEquipo(propio, false)).toBe(propio)
   })
 })

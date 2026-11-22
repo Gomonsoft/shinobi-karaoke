@@ -11,6 +11,7 @@ import {
 import { Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
+import { conSubrayadoDelEquipo } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { preferenciasPanelesPredeterminadas } from '@shared/paneles'
 import { MARGEN_ESCUCHA_LINEA_MS, tramoEscuchaLinea } from '@shared/escucha'
@@ -34,7 +35,6 @@ import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
-import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { evaluarContraste } from '../../karaoke/contraste'
 import type { Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
@@ -66,7 +66,15 @@ import type { Area, Geometria } from '../../componentes/VentanaFlotante'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
 import { useControlEspera, useEjemploEspera, esperaVisible } from './estilo/useEspera'
+import { crearEjemploPantalla } from './estilo/ejemploPantalla'
+import { pantallaVisible, reemplazosDeDisco } from './estilo/pantallaEfectiva'
+import { useControlPantalla } from './estilo/usePantalla'
+import { T_PANTALLA } from './estilo/textosPantalla'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { BotonAjustarSilencios } from './silencios/BotonAjustarSilencios'
+import { DialogosComprobar } from './comprobar/Dialogos'
+import { K as KC } from './comprobar/textos'
+import { useComprobarLetra } from './comprobar/useComprobarLetra'
 import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
 import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
 import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
@@ -276,7 +284,7 @@ function EditorActivo({
         apariencia: {
           seleccion: seleccionDeDisco(cancion.apariencia),
           estilo: cancion.estilo,
-          reemplazos: cancion.apariencia?.reemplazos ?? null
+          reemplazos: reemplazosDeDisco(cancion.apariencia)
         }
       },
       seleccionarInicial(letraInicial)
@@ -532,10 +540,46 @@ function EditorActivo({
         : null,
     borradorTema: tema.editando
   })
+  // «Comprobar la letra con la voz» (feature 4): sobre la letra en memoria y los picos de voz.
+  const comprobar = useComprobarLetra({
+    cancionId: id,
+    letra,
+    duracionMs,
+    separacionDisponible: separacion.disponible,
+    picos:
+      pestana !== 'estilo' && cuentas.total > 0 && prueba === null && separacion.disponible
+        ? picos.estado.estado
+        : null,
+    calcularAlEntrar: resumen.estado === 'borrador' && !edicion.sync.activo,
+    despachar,
+    anunciar,
+    irATramo: (tramo) => {
+      cerrarAplicandoPreciso()
+      const linea =
+        tramo.lineaId ??
+        letra.lineas.find(
+          (l) =>
+            l.tipo === 'linea' &&
+            l.inicio_ms !== null &&
+            tiempoMostrado(l.inicio_ms, letra.offset_ms) >= tramo.desdeMs &&
+            tiempoMostrado(l.inicio_ms, letra.offset_ms) < tramo.hastaMs
+        )?.id
+      if (linea) seleccionar(linea)
+      buscar(tramo.desdeMs)
+      setRevisionSeleccion((n) => n + 1)
+    }
+  })
   // Indicadores de espera (0212): la vista previa y la prueba ven la espera efectiva de la canción.
+  // Letra en pantalla (0291) y subrayado de este equipo (0293): lo ve también la prueba a pantalla completa.
+  const pantallaDelPublico = pantallaVisible(tema.control.vista, apariencia, estilo)
+  const subrayadoDelEquipo = config.reproductor.subrayar_cantado
   const estiloPrevia = useMemo(
-    () => ({ ...estilo, espera: esperaDelPublico }),
-    [estilo, esperaDelPublico]
+    () =>
+      conSubrayadoDelEquipo(
+        { ...estilo, espera: esperaDelPublico, pantalla: pantallaDelPublico },
+        subrayadoDelEquipo
+      ),
+    [estilo, esperaDelPublico, pantallaDelPublico, subrayadoDelEquipo]
   )
   const ejemploEspera = useEjemploEspera({
     letra,
@@ -545,6 +589,17 @@ function EditorActivo({
     pausar: () => alternar(),
     anunciar
   })
+  // «Ver un ejemplo» de Letra en pantalla: solo hay un ejemplo a la vez (el de espera se detiene).
+  const ejemploPantalla = useEjemploEspera({
+    letra,
+    seleccion: edicion.seleccion,
+    espera: esperaDelPublico,
+    sonando,
+    pausar: () => alternar(),
+    anunciar,
+    crear: crearEjemploPantalla,
+    anuncios: { inicio: T_PANTALLA.anuncio.ejemploInicio, fin: T_PANTALLA.anuncio.ejemploFin }
+  })
   const controlEspera = useControlEspera({
     vista: tema.control.vista,
     resumen,
@@ -553,8 +608,31 @@ function EditorActivo({
     despachar,
     anunciar,
     ejemploActivo: ejemploEspera.ejemplo !== null,
-    alternarEjemplo: ejemploEspera.alternar
+    alternarEjemplo: () => {
+      if (ejemploPantalla.ejemplo) ejemploPantalla.alternar()
+      ejemploEspera.alternar()
+    }
   })
+  const controlPantalla = useControlPantalla({
+    vista: tema.control.vista,
+    resumen,
+    apariencia,
+    estilo,
+    despachar,
+    anunciar,
+    ejemploActivo: ejemploPantalla.ejemplo !== null,
+    alternarEjemplo: () => {
+      if (ejemploEspera.ejemplo) ejemploEspera.alternar()
+      ejemploPantalla.alternar()
+    },
+    sonando,
+    movimientoReducido
+  })
+  // Con un ejemplo en marcha, la vista previa enseña el suyo (el de pantalla, sin indicadores).
+  const ejemploVista = ejemploEspera.ejemplo ? ejemploEspera : ejemploPantalla
+  const estiloVista = ejemploPantalla.ejemplo
+    ? { ...estiloPrevia, espera: ejemploPantalla.ejemplo.espera }
+    : estiloPrevia
   function irAPrimeraSinInicio() {
     const primera = primeraSinInicio(letra)
     if (primera) seleccionar(primera, true)
@@ -1299,6 +1377,8 @@ function EditorActivo({
   )
 
   const irALetra = () => ir({ tipo: 'cancion', id, paso: 'letra' })
+  /** «Buscar otra letra» de la comprobación: abre la vista Letra en A (spec 06 · F4). */
+  const irABuscarOtra = () => ir({ tipo: 'cancion', id, paso: 'letra', buscarOtra: true })
   const botonProbar = (
     <Boton
       ref={refProbar}
@@ -1318,9 +1398,49 @@ function EditorActivo({
       : undefined
   const siguiente = letra.lineas.find((el) => el.id === edicion.sync.siguiente)
   const todasAlEntrar = contador(letraInicial).sincronizadas === contador(letraInicial).total
+  // Con algo que decir, la comprobación sustituye al aviso «ya sincronizada» (spec 06 · F4, «Banner al entrar»).
+  const entrada = comprobar.entrada
+  const bannerComprobacion =
+    resumen.estado !== 'borrador' || edicion.sync.activo || !entrada ? null : entrada.tipo ===
+      'desfasada' ? (
+      <AvisoEnLinea
+        tipo="info"
+        accion={
+          <>
+            <Boton onClick={() => void comprobar.pedir()}>{KC.desfase.boton}</Boton>
+            <Boton variante="fantasma" onClick={comprobar.descartarEntrada}>
+              {KC.banner.ahoraNo}
+            </Boton>
+          </>
+        }
+      >
+        {KC.banner.desfase(entrada.desfaseMs)}
+      </AvisoEnLinea>
+    ) : (
+      <AvisoEnLinea
+        tipo="aviso"
+        accion={
+          <>
+            <Boton onClick={() => void comprobar.pedir()}>{KC.banner.verPorQue}</Boton>
+            <Boton variante="fantasma" onClick={irABuscarOtra}>
+              {KC.noCoincide.otra}
+            </Boton>
+            <BotonIcono
+              icono={X}
+              etiqueta={KC.banner.cerrar}
+              onClick={comprobar.descartarEntrada}
+            />
+          </>
+        }
+      >
+        {KC.banner.noCoincide}
+      </AvisoEnLinea>
+    )
   const banner =
     cuentas.sincronizadas === 0 ? (
       <AvisoEnLinea tipo="info">{E.sinSync}</AvisoEnLinea>
+    ) : bannerComprobacion ? (
+      bannerComprobacion
     ) : todasAlEntrar &&
       resumen.estado === 'borrador' &&
       letra === letraInicial &&
@@ -1447,19 +1567,23 @@ function EditorActivo({
               <div className={estilos.lienzo}>
                 <div className={estilos.pantalla} data-lienzo="previa">
                   <PantallaLetra
-                    letra={gestoVisible?.resultado?.letra ?? letraConBorrador}
-                    key={ejemploEspera.ejemplo ? 'ejemplo' : 'previa'}
-                    estilo={estiloPrevia}
-                    duracionMs={ejemploEspera.ejemplo?.duracionMs ?? duracionMs}
+                    letra={
+                      ejemploVista.ejemplo?.letra ??
+                      gestoVisible?.resultado?.letra ??
+                      letraConBorrador
+                    }
+                    key={ejemploVista.ejemplo ? 'ejemplo' : 'previa'}
+                    estilo={estiloVista}
+                    duracionMs={ejemploVista.ejemplo?.duracionMs ?? duracionMs}
                     titulo={metadatos.titulo}
                     artista={metadatos.artista}
                     idEstatico={edicion.seleccion}
-                    reproduciendo={ejemploEspera.ejemplo !== null || sonando}
-                    cuentaAtras={ejemploEspera.ejemplo ? null : sync.cuentaAtras}
+                    reproduciendo={ejemploVista.ejemplo !== null || sonando}
+                    cuentaAtras={ejemploVista.ejemplo ? null : sync.cuentaAtras}
                     obtenerTiempoAudio={
-                      ejemploEspera.ejemplo ? ejemploEspera.obtenerTiempo : obtenerTiempoAudio
+                      ejemploVista.ejemplo ? ejemploVista.obtenerTiempo : obtenerTiempoAudio
                     }
-                    etiqueta={ejemploEspera.ejemplo ? ejemploEspera.etiqueta : undefined}
+                    etiqueta={ejemploVista.ejemplo ? ejemploVista.etiqueta : undefined}
                     fondoEstatico={fondoDetenido}
                   />
                 </div>
@@ -1552,6 +1676,20 @@ function EditorActivo({
                           motivo: exportarVideo.motivo,
                           exportar: exportarAplicando
                         }}
+                        comprobar={{
+                          motivos: comprobar.motivos,
+                          calculando: comprobar.calculando,
+                          pedir: () => {
+                            cerrarAplicandoPreciso()
+                            void comprobar.pedir()
+                          },
+                          reintentar: picos.reintentar,
+                          desfaseCorregidoMs: letra.desfase_corregido_ms ?? null,
+                          quitar: () => {
+                            cerrarAplicandoPreciso()
+                            comprobar.quitar()
+                          }
+                        }}
                         silencios={{
                           motivos: motivosAjuste,
                           buscando: silencios.buscando,
@@ -1604,6 +1742,8 @@ function EditorActivo({
                         inactivo={edicion.sync.activo}
                         tema={tema.control}
                         espera={controlEspera}
+                        pantalla={controlPantalla}
+                        subrayadoDelEquipo={subrayadoDelEquipo}
                         alCambiar={(nuevo, clave, agruparGesto) =>
                           despachar({
                             tipo: tema.editando ? 'estilo_borrador' : 'estilo',
@@ -1734,6 +1874,7 @@ function EditorActivo({
                     />
                   }
                   resaltadas={silencios.resaltadas}
+                  resaltadasDesfase={comprobar.resaltadas}
                   onda={(vista) => (
                     <PistaOndaVoz
                       cancionId={id}
@@ -1889,6 +2030,19 @@ function EditorActivo({
           mac={silencios.mac}
           alConfirmar={() => void silencios.confirmar()}
           alCancelar={silencios.cancelar}
+        />
+      )}
+      {comprobar.dialogo && (
+        <DialogosComprobar
+          dialogo={comprobar.dialogo}
+          mac={silencios.mac}
+          alConfirmar={() => void comprobar.confirmar()}
+          alCancelar={comprobar.cancelar}
+          alIr={comprobar.ir}
+          alBuscarOtra={() => {
+            comprobar.cancelar()
+            irABuscarOtra()
+          }}
         />
       )}
       {exportarVideo.dialogo}

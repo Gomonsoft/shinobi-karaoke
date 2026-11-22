@@ -45,6 +45,8 @@ function sondear(archivo: string): {
   seg: number
   /** Píxeles del color de resaltado en los fotogramas 53 (2,2 s) y 69 (2,9 s). */
   amarillo: [number, number]
+  /** Diferencia media (× 100) entre fotogramas contiguos: a mitad del cambio (52→53) y en reposo (62→63). */
+  movimiento: [number, number]
 } {
   const uv = process.env.SHINOBI_UV ?? 'uv'
   const salida = execFileSync(
@@ -62,14 +64,17 @@ function sondear(archivo: string): {
         'n = sum(1 for p in c.demux(v) if p.pts is not None)',
         'c.seek(0)',
         'm = {}',
+        'g = {}',
         'for i, f in enumerate(c.decode(v)):',
+        '    a = f.to_ndarray(format="rgb24").astype("int16")',
         '    if i in (53, 69):',
-        '        a = f.to_ndarray(format="rgb24").astype("int16")',
         '        m[i] = int(((a[..., 0] > 200) & (a[..., 1] > 170) & (a[..., 2] < 130)).sum())',
+        '    if i in (52, 53, 62, 63): g[i] = a',
         '    if i > 69: break',
         'amarillo = [m.get(53, -1), m.get(69, -1)]',
+        'mov = [int(abs(g[b] - g[a]).mean() * 100) for a, b in ((52, 53), (62, 63))]',
         'print(json.dumps({"n": n, "w": v.width, "h": v.height, "a": len(c.streams.audio),',
-        '  "fps": round(float(v.average_rate), 2), "seg": round(float(c.duration / 1e6), 1), "amarillo": amarillo}))'
+        '  "fps": round(float(v.average_rate), 2), "seg": round(float(c.duration / 1e6), 1), "amarillo": amarillo, "movimiento": mov}))'
       ].join('\n'),
       archivo
     ],
@@ -80,7 +85,7 @@ function sondear(archivo: string): {
 
 const sha = (ruta: string): string => createHash('sha256').update(readFileSync(ruta)).digest('hex')
 
-test('exporta a MKV: 3 s a 640×480, fotogramas y barrido visible', async () => {
+test('exporta a MKV: 3 s a 640×480 con 5 líneas, fotogramas, barrido y cambio de línea', async () => {
   test.setTimeout(240_000)
   const { datos, salida, id, app } = await preparar('exportacion', 3000)
   try {
@@ -127,6 +132,10 @@ test('exporta a MKV: 3 s a 640×480, fotogramas y barrido visible', async () => 
     expect(s).toMatchObject({ n: 72, w: 640, h: 480, a: 1, fps: 24, seg: 3 })
     // V17: el barrido de la primera línea avanza entre 2,2 s y 2,9 s: aparece color de resaltado.
     expect(s.amarillo[1]).toBeGreaterThan(s.amarillo[0] + 200)
+    // F1-R23: con 5 líneas (el predeterminado de la semilla) la entrada de la primera línea (2,0 a
+    // 2,35 s) mueve el bloque, y el fotograma depende solo del instante: entre 52 y 53 la imagen
+    // cambia mucho más que en reposo (medido: 658 frente a 4, en centésimas de nivel) (62 → 63, donde solo avanza el barrido).
+    expect(s.movimiento[0]).toBeGreaterThan(Math.max(100, s.movimiento[1] * 5))
   } finally {
     await app.close().catch(() => undefined)
   }

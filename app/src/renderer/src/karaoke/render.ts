@@ -67,7 +67,6 @@ export interface FotogramaLetra {
   siguiente: LineaRender | null
   /** Ids visibles en orden: la vista solo vuelve a renderizar React cuando cambia. */
   claveLineas: string
-  claveTransicion: string
 }
 
 type ContextoRender = {
@@ -275,7 +274,7 @@ function enPantalla(
   return { ...base, palabras: activa ? base.palabras : null, ...posicion }
 }
 
-function vacio(titulo: FotogramaLetra['titulo'], clave: string): FotogramaLetra {
+function vacio(titulo: FotogramaLetra['titulo']): FotogramaLetra {
   return {
     titulo,
     lineas: [],
@@ -285,8 +284,7 @@ function vacio(titulo: FotogramaLetra['titulo'], clave: string): FotogramaLetra 
     esperaAparicion: 0,
     actual: null,
     siguiente: null,
-    claveLineas: '',
-    claveTransicion: clave
+    claveLineas: ''
   }
 }
 
@@ -300,7 +298,7 @@ export function fotogramaEn(
   const { lineas, fines, sucesos, pasadas, futuras } = indice
   const primera = lineas[0]
   if (!primera || tLetraMs < primera.inicio_ms - 4000) {
-    return vacio({ titulo, artista }, 'titulo')
+    return vacio({ titulo, artista })
   }
   const t = tLetraMs
 
@@ -402,8 +400,7 @@ export function fotogramaEn(
         )
       : null,
     siguiente: sigLinea ? dibujar(sigLinea, 0, () => 0) : null,
-    claveLineas: salida.map((l) => l.id).join(','),
-    claveTransicion: actual ? `actual:${actual.id}` : `espera:${sigLinea?.id ?? ''}`
+    claveLineas: salida.map((l) => l.id).join(',')
   }
 }
 
@@ -456,7 +453,6 @@ export function fotogramaEstatico(
     esperaAparicion: 0,
     actual: actual ? dibujar(actual, 0.5, (_p, i) => progreso(mitad, i, i + 1)) : null,
     siguiente: siguiente ? dibujar(siguiente, 0, () => 0) : null,
-    claveLineas: visibles.map((l) => l.id).join(','),
-    claveTransicion: `pausa:${actual?.id ?? ''}`
+    claveLineas: visibles.map((l) => l.id).join(',')
   }
 }

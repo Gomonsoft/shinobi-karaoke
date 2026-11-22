@@ -36,13 +36,15 @@ describe('apariencia y borrador de tema (0170, 0171)', () => {
     expect(aSeleccionIpc(e.actual.apariencia)).toEqual({
       modo: 'tema',
       temaId: OTRO,
-      reemplazos: null
+      reemplazos: null,
+      reemplazo_pantalla: null
     })
     e = reducirEditor(e, { tipo: 'deshacer' })
     expect(aSeleccionIpc(e.actual.apariencia)).toEqual({
       modo: 'tema',
       temaId: TEMA,
-      reemplazos: null
+      reemplazos: null,
+      reemplazo_pantalla: null
     })
     e = reducirEditor(e, { tipo: 'deshacer' })
     expect(aSeleccionIpc(e.actual.apariencia)).toEqual({ modo: 'propio', estilo: base })

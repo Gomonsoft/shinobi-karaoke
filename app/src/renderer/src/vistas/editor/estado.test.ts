@@ -329,3 +329,69 @@ it('aplicar_preciso escribe texto, límites y palabras en un solo paso y Ctrl+Z 
   const deshecho = reducirEditor(e, { tipo: 'deshacer' })
   expect(deshecho.actual.letra).toBe(l)
 })
+
+describe('cambiar_desfase (feature 4, pregunta 0172)', () => {
+  const rev = { inicio_ms: 1000, fin_ms: 2000, texto: 'Verso 1' }
+  const base = () => {
+    const l = letra([
+      linea('1', 'Verso 1', 1000, { fin_ms: 2000, revisada: rev }),
+      linea('2', 'Verso 2', 3000, { fin_ms: 4000 })
+    ])
+    return estadoInicial({ apariencia: aparienciaPropia(estiloPredeterminado()), letra: l }, null)
+  }
+
+  it('un paso: cambia offset y anota el desfase, quita revisada y no toca los tiempos; deshacer y rehacer', () => {
+    const e0 = base()
+    const e1 = reducirEditor(e0, {
+      tipo: 'cambiar_desfase',
+      offsetMs: 800,
+      desfaseCorregidoMs: 800,
+      ahora: 5000
+    })
+    expect(e1.pasado).toHaveLength(1)
+    expect(e1.actual.letra).toMatchObject({ offset_ms: 800, desfase_corregido_ms: 800 })
+    expect(e1.actual.letra.lineas.map((l) => [l.inicio_ms, l.fin_ms])).toEqual([
+      [1000, 2000],
+      [3000, 4000]
+    ])
+    expect(e1.actual.letra.lineas.some((l) => l.revisada)).toBe(false)
+    const e2 = reducirEditor(e1, { tipo: 'deshacer' })
+    expect(e2.actual.letra).toBe(e0.actual.letra)
+    expect(e2.actual.letra.lineas[0]?.revisada).toEqual(rev)
+    expect(reducirEditor(e2, { tipo: 'rehacer' }).actual.letra).toEqual(e1.actual.letra)
+  })
+
+  it('quitar la corrección borra el campo; repetir el mismo valor no es un paso ni quita revisada', () => {
+    let e = reducirEditor(base(), {
+      tipo: 'cambiar_desfase',
+      offsetMs: 800,
+      desfaseCorregidoMs: 800,
+      ahora: 1
+    })
+    e = reducirEditor(e, {
+      tipo: 'cambiar_desfase',
+      offsetMs: 0,
+      desfaseCorregidoMs: null,
+      ahora: 9
+    })
+    expect(e.pasado).toHaveLength(2)
+    expect(e.actual.letra.offset_ms).toBe(0)
+    expect(e.actual.letra).not.toHaveProperty('desfase_corregido_ms')
+    const igual = reducirEditor(e, {
+      tipo: 'cambiar_desfase',
+      offsetMs: 0,
+      desfaseCorregidoMs: null,
+      ahora: 20
+    })
+    expect(igual).toBe(e)
+    // Solo cambia el desfase anotado, no el offset: las marcas se conservan.
+    const marcada = base()
+    const solo = reducirEditor(marcada, {
+      tipo: 'cambiar_desfase',
+      offsetMs: 0,
+      desfaseCorregidoMs: 300,
+      ahora: 1
+    })
+    expect(solo.actual.letra.lineas[0]?.revisada).toEqual(rev)
+  })
+})

@@ -9,7 +9,9 @@ import {
   variarLuminosidad30
 } from './colores'
 import {
+  confusionDaltonismo,
   deltaE76,
+  deltaESimulado,
   evaluarContraste,
   grisDeLetra,
   luminancia,
@@ -214,5 +216,43 @@ describe('gris de la letra y suelos de opacidad (ADR 0022 §4)', () => {
     const conLetra = suelosDeOpacidad(estilo, pantalla)
     const conOscuro = suelosDeOpacidad(estilo, pantalla, '#444444')
     expect(conOscuro[2]).toBeGreaterThan(conLetra[2]!)
+  })
+})
+
+describe('confusionDaltonismo (0.2.2 · Feature 2)', () => {
+  const conPar = (color: string, color_resaltado: string, subrayar = false) => {
+    const e = estiloPredeterminado()
+    e.letra.color = color
+    e.letra.color_resaltado = color_resaltado
+    if (subrayar) e.letra.subrayar_cantado = true
+    return evaluarContraste(e)
+  }
+  it('el par predeterminado no avisa y el rojo/verde de la spec sí', () => {
+    expect(confusionDaltonismo('#FFFFFF', '#FFD400')).toBe(false)
+    expect(confusionDaltonismo('#E53935', '#43A047')).toBe(true)
+    expect(conPar('#FFFFFF', '#FFD400').avisos).not.toContain('daltonismo')
+    expect(conPar('#E53935', '#43A047').avisos).toContain('daltonismo')
+  })
+  it('es simétrica, no avisa si ya se parecen sin daltonismo y se calla con subrayado', () => {
+    expect(confusionDaltonismo('#43A047', '#E53935')).toBe(true)
+    expect(confusionDaltonismo('#FFFFFF', '#F2F3F7')).toBe(false)
+    expect(conPar('#E53935', '#43A047', true).avisos).not.toContain('daltonismo')
+  })
+  it('F2-E7: con subrayado, «diferencia» baja a informativo y deja de ser aviso', () => {
+    expect(conPar('#FFFFFF', '#F2F3F7').avisos).toContain('diferencia')
+    const con = conPar('#FFFFFF', '#F2F3F7', true)
+    expect(con.avisos).not.toContain('diferencia')
+    expect(con.informativos).toEqual(['diferencia'])
+    expect(con.nivel).not.toBe('aviso')
+  })
+  it('F2-E8: sugerir un resaltado para letra #E53935 elige uno que no se confunde', () => {
+    const e = estiloPredeterminado()
+    e.letra.color = '#E53935'
+    e.letra.color_resaltado = '#43A047'
+    const sugerido = sugerirResaltado(e)
+    expect(confusionDaltonismo('#E53935', sugerido)).toBe(false)
+    expect(deltaESimulado('#E53935', sugerido)).toBeGreaterThanOrEqual(25)
+    e.letra.color_resaltado = sugerido
+    expect(evaluarContraste(e).avisos).not.toContain('daltonismo')
   })
 })

@@ -1,6 +1,7 @@
 import type { Estilo } from '@shared/estilo'
 import { buscarFuente, FUENTE_PREDETERMINADA } from '@shared/fuentes'
 
+import { grisDeLetra } from './contraste'
 import { geometriaFondoEn, type GeometriaFondo } from './fondo'
 
 const pct = (n: number): number => Math.round(n * 1000) / 10
@@ -33,11 +34,20 @@ export function fondoCssEn(
   return fondoCss(fondo, geometriaFondoEn(fondo, tAudioMs, opciones))
 }
 
+/**
+ * Color del barrido de una línea (preparación 0.2.3: por parte). En 0.2.2 es siempre el
+ * `color_resaltado` del estilo; la línea se pasa ya para que el cambio no toque a los llamadores.
+ */
+export function colorDeLinea(_linea: { id: string } | null, estilo: Estilo): string {
+  return estilo.letra.color_resaltado
+}
+
 export function variablesEstilo(estilo: Estilo): Record<string, string> {
   const fuente = buscarFuente(estilo.letra.fuente.familia) ?? buscarFuente(FUENTE_PREDETERMINADA)!
   return {
     '--k-color': estilo.letra.color,
     '--k-resaltado': estilo.letra.color_resaltado,
+    '--k-color-gris': grisDeLetra(estilo.letra.color),
     '--k-fuente': `"${fuente.familia}"`,
     '--k-peso': String(fuente.peso),
     '--k-fondo': fondoCss(estilo.fondo)

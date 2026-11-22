@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { modalidadEfectiva, type Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
-import { estiloPredeterminado } from '@shared/estilo'
+import { conSubrayadoDelEquipo, estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { numerosLineasSinInicio, type Letra } from '@shared/letra'
 import { Icono } from '../../componentes/Icono'
@@ -100,6 +100,12 @@ function CancionCargada({
   alCerrar(): void
 }) {
   const volumen = useVolumenCompartido(config.reproductor)
+  const subrayar = config.reproductor.subrayar_cantado
+  // Estable entre renders: el estilo es dependencia del bucle de pintado.
+  const estilo = useMemo(
+    () => conSubrayadoDelEquipo(cancion.estilo, subrayar),
+    [cancion.estilo, subrayar]
+  )
   const { titulo, artista, duracion_ms } = cancion.metadatos
   return (
     <Reproductor
@@ -110,7 +116,7 @@ function CancionCargada({
         duracionMs: duracion_ms,
         gananciaDb: cancion.fuente.ganancia_db,
         letra: cancion.letra ?? LETRA_VACIA,
-        estilo: cancion.estilo,
+        estilo,
         modalidad: modalidadEfectiva(cancion),
         lineasSinSincronizar
       }}

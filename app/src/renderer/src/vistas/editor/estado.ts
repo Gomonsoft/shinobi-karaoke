@@ -1,4 +1,5 @@
 import type { Espera } from '@shared/espera'
+import type { Pantalla } from '@shared/pantalla'
 import type { Estilo } from '@shared/estilo'
 import type { SeleccionApariencia } from '@shared/ipc'
 import { finEfectivo, type Letra } from '@shared/letra'
@@ -34,7 +35,7 @@ export interface AparienciaEditor {
   reemplazos: ReemplazosEditor | null
 }
 
-export type ReemplazosEditor = { espera?: Espera }
+export type ReemplazosEditor = { espera?: Espera; pantalla?: Pantalla }
 
 /** Borrador de un tema en memoria (D3): nunca se escribe hasta confirmar el impacto. */
 export interface BorradorTema {
@@ -67,9 +68,12 @@ export const aparienciaPropia = (estilo: Estilo): AparienciaEditor => ({
 export function aSeleccionIpc(apariencia: AparienciaEditor): SeleccionApariencia {
   const { seleccion, estilo, reemplazos } = apariencia
   if (seleccion.modo === 'propio') return { modo: 'propio', estilo }
+  // `reemplazo_pantalla` es una clave hermana (ADR 0022 §1): `reemplazos` solo lleva la espera.
+  const espera = reemplazos?.espera ? { espera: reemplazos.espera } : null
+  const aparte = { reemplazos: espera, reemplazo_pantalla: reemplazos?.pantalla ?? null }
   return seleccion.modo === 'tema'
-    ? { modo: 'tema', temaId: seleccion.temaId, reemplazos }
-    : { modo: 'heredar', reemplazos }
+    ? { modo: 'tema', temaId: seleccion.temaId, ...aparte }
+    : { modo: 'heredar', ...aparte }
 }
 
 const mismoJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
@@ -150,6 +154,8 @@ export type AccionEditor =
   | { tipo: 'apariencia'; apariencia: AparienciaEditor; clave: string; ahora: number }
   /** Espera de la canción: `estilo.espera` con `propio`, `reemplazos.espera` con `tema` o `heredar`. */
   | { tipo: 'espera'; espera: Espera | null; clave: string; ahora: number }
+  /** Letra en pantalla de la canción: `estilo.pantalla` con `propio`, `reemplazos.pantalla` con `tema` o `heredar`. */
+  | { tipo: 'pantalla'; pantalla: Pantalla | null; clave: string; ahora: number }
   /** Aplica la propuesta de ajuste de silencios como un solo paso (ADR 0018 §6.3). */
   | {
       tipo: 'ajustar_silencios'
@@ -157,6 +163,12 @@ export type AccionEditor =
       versionCalculo: number
       ahora: number
     }
+  /**
+   * Corregir el desfase o quitar la corrección (ADR 0024 §1): cambia `offset_ms` y
+   * `desfase_corregido_ms` de toda la letra en un solo paso. Retira `revisada` de todas las líneas
+   * (ADR 0024, revisión 2026-11-22; pregunta 0172). Ningún tiempo de línea cambia.
+   */
+  | { tipo: 'cambiar_desfase'; offsetMs: number; desfaseCorregidoMs: number | null; ahora: number }
   /** Entrar en D3 (no es un paso del historial). */
   | { tipo: 'entrar_borrador'; borrador: BorradorTema }
   /** Salir de D3 (guardar, descartar o guardar como nuevo): retira los pasos del borrador. */
@@ -268,7 +280,28 @@ function conEspera(ap: AparienciaEditor, espera: Espera | null): AparienciaEdito
     if (!espera) delete estilo.espera
     return { ...ap, estilo }
   }
-  return { ...ap, reemplazos: espera ? { espera } : null }
+  return { ...ap, reemplazos: conReemplazo(ap.reemplazos, { espera: espera ?? undefined }) }
+}
+
+/** Suma o quita (`undefined`) un reemplazo sin tocar el otro; sin ninguno, `null`. */
+function conReemplazo(
+  actual: ReemplazosEditor | null,
+  cambio: ReemplazosEditor
+): ReemplazosEditor | null {
+  const unido = { ...actual, ...cambio }
+  if (!unido.espera) delete unido.espera
+  if (!unido.pantalla) delete unido.pantalla
+  return unido.espera || unido.pantalla ? unido : null
+}
+
+/** La apariencia con la letra en pantalla cambiada donde corresponde al modo; `null` quita el reemplazo. */
+function conPantalla(ap: AparienciaEditor, pantalla: Pantalla | null): AparienciaEditor {
+  if (ap.seleccion.modo === 'propio') {
+    const estilo = { ...ap.estilo, pantalla: pantalla ?? undefined }
+    if (!pantalla) delete estilo.pantalla
+    return { ...ap, estilo }
+  }
+  return { ...ap, reemplazos: conReemplazo(ap.reemplazos, { pantalla: pantalla ?? undefined }) }
 }
 
 function esLinea(letra: Letra, id: string | null): id is string {
@@ -469,6 +502,12 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         ? e
         : guardarPaso(e, { ...e.actual, apariencia: nueva }, `espera:${a.clave}`, a.ahora)
     }
+    case 'pantalla': {
+      const nueva = conPantalla(apariencia, a.pantalla)
+      return e.sync.activo || borrador !== null || mismoJson(apariencia, nueva)
+        ? e
+        : guardarPaso(e, { ...e.actual, apariencia: nueva }, `pantalla:${a.clave}`, a.ahora)
+    }
     case 'ajustar_silencios': {
       if (e.sync.activo || borrador !== null) return e
       if (a.versionCalculo !== e.version) {
@@ -483,6 +522,25 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         unica('ajustar_silencios'),
         a.ahora
       )
+    }
+    case 'cambiar_desfase': {
+      if (e.sync.activo) return e
+      const mismo =
+        a.offsetMs === letra.offset_ms &&
+        (a.desfaseCorregidoMs ?? undefined) === letra.desfase_corregido_ms
+      if (mismo) return e
+      // Una línea dada por buena antes de mover la letra ya no está comprobada en su sitio nuevo.
+      const quitarRevisada = a.offsetMs !== letra.offset_ms
+      const lineas = letra.lineas.map((l) => {
+        if (!quitarRevisada || !l.revisada) return l
+        const sinMarca = { ...l }
+        delete sinMarca.revisada
+        return sinMarca
+      })
+      const nueva: Letra = { ...letra, offset_ms: a.offsetMs, lineas }
+      if (a.desfaseCorregidoMs === null) delete nueva.desfase_corregido_ms
+      else nueva.desfase_corregido_ms = a.desfaseCorregidoMs
+      return guardarPaso(e, { ...e.actual, letra: nueva }, unica('desfase'), a.ahora)
     }
     case 'apariencia':
       return e.sync.activo || borrador !== null || mismoJson(apariencia, a.apariencia)

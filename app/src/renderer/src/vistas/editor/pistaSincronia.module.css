@@ -215,6 +215,26 @@
     animation: none;
   }
 }
+.region[data-resaltada-desfase] {
+  border-color: var(--info);
+  box-shadow: inset 0 0 0 1px var(--info);
+  animation: resalteDesfase 2s ease-out forwards;
+}
+@keyframes resalteDesfase {
+  70% {
+    border-color: var(--info);
+    box-shadow: inset 0 0 0 1px var(--info);
+  }
+  to {
+    border-color: var(--borde-control);
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .region[data-resaltada-desfase] {
+    animation: none;
+  }
+}
 .region[data-inicio-recortado] {
   border-inline-start-style: dashed;
 }

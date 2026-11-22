@@ -182,7 +182,8 @@ test.describe('editor sin red', () => {
         await barra.fill('15900')
         await expect(v.locator('[data-linea="i1"]')).toBeVisible()
         await barra.fill('16500')
-        await expect(v.locator('[data-linea]')).toHaveCount(0)
+        // 0.2.2: en el hueco sigue a la vista la ya cantada y la siguiente (2 líneas con este letra).
+        await expect(v.locator('[data-linea]')).toHaveCount(2)
         await barra.fill('17300')
         await expect(v.locator('[data-linea="i2"]')).toBeVisible()
 
@@ -195,7 +196,7 @@ test.describe('editor sin red', () => {
         await tiempo.fill('15900')
         await expect(capa.locator('[data-linea="i1"]')).toBeVisible()
         await tiempo.fill('16500')
-        await expect(capa.locator('[data-linea]')).toHaveCount(0)
+        await expect(capa.locator('[data-linea]')).toHaveCount(2)
         await expect(capa.getByText('El faro nos espera', { exact: true })).toBeVisible()
         await expect(capa.locator('[data-linea="i2"]')).toBeVisible()
       },
@@ -1045,6 +1046,64 @@ test('ajustar los silencios: propone, aplica con la cuenta y se deshace en un pa
         nueva('s4', 16000, null),
         nueva('s5', 24000, null)
       ]
+      writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
+    }
+  )
+})
+
+test('comprobar la letra con la voz: corrige el desfase sin tocar los tiempos y se deshace en un paso', async () => {
+  test.setTimeout(90_000)
+  await conEditor(
+    'comprobar-letra',
+    async (v, datos) => {
+      const letraDe = () => leerCancion(datos, idDe(T20)).letra
+      const inicios = () => soloLineas(datos, T20).map((l) => l.inicio_ms)
+      const antes = inicios()
+      await abrir(v, T20)
+      await v.getByRole('radio', { name: 'Sincronía' }).click()
+      await esperarOnda(v)
+      await v.getByRole('radio', { name: 'Funciones' }).click()
+      // La sección va justo antes de «Ajustar los silencios».
+      const titulos = await v.getByRole('heading', { level: 3 }).allTextContents()
+      expect(titulos.indexOf('Comprobar la letra con la voz')).toBe(
+        titulos.indexOf('Ajustar los silencios') - 1
+      )
+      await v.getByRole('button', { name: 'Comprobar la letra con la voz…' }).click()
+      const dialogo = v.getByRole('dialog', { name: '¿Corregir el desfase de la letra?' })
+      await expect(dialogo.getByText(/Toda la letra va 0,8 s adelantada/)).toBeVisible()
+      await expect(dialogo.getByText(/Moveremos sus 6 líneas/)).toBeVisible()
+      await dialogo.getByRole('button', { name: 'Corregir el desfase' }).click()
+      await expect(v.getByText(/Desfase corregido: toda la letra 0,8 s más tarde/)).toBeVisible()
+      await expect
+        .poll(() => Math.abs(letraDe().offset_ms - 800), { timeout: 5000 })
+        .toBeLessThanOrEqual(50)
+      expect(letraDe().desfase_corregido_ms).toBe(letraDe().offset_ms)
+      expect(letraDe().offset_ms % 10).toBe(0)
+      expect(inicios()).toEqual(antes)
+
+      await v.keyboard.press('ControlOrMeta+z')
+      await expect.poll(() => letraDe().offset_ms, { timeout: 5000 }).toBe(0)
+      expect(letraDe().desfase_corregido_ms).toBeUndefined()
+      await expect(v.getByText(/Desfase corregido:/)).toHaveCount(0)
+      expect(inicios()).toEqual(antes)
+    },
+    (datos) => {
+      const raiz = join(datos, 'biblioteca', idDe(T20))
+      // Voz de 2 s cada 5 s desde el segundo 2: la letra empieza 0,8 s antes que cada canto.
+      writeFileSync(
+        join(raiz, 'pistas', 'voz.flac'),
+        pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs: 2000, desfaseMs: 2000 })
+      )
+      const cancion = leerCancion(datos, idDe(T20))
+      cancion.letra.offset_ms = 0
+      cancion.letra.lineas = [1200, 6200, 11_200, 16_200, 21_200, 26_200].map((inicio, i) => ({
+        id: `d${i}`,
+        tipo: 'linea',
+        texto: `Línea inventada ${i + 1}`,
+        inicio_ms: inicio,
+        fin_ms: inicio + 2000,
+        palabras: null
+      }))
       writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
     }
   )

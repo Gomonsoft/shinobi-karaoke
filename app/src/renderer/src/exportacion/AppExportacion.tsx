@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { InicialExportacionIpc, FotogramaExportacionIpc } from '@shared/exportacion'
 import type { ApiExportacion } from '@shared/ipc'
+import { normalizarEstilo } from '@shared/estilo'
 import { buscarFuente } from '@shared/fuentes'
 import { fijarAnimaciones } from '../karaoke/animacionesPorFotograma'
 import { PantallaLetra } from '../karaoke/PantallaLetra'
@@ -64,7 +65,9 @@ export function AppExportacion({ api = window.shinobiExportacion }: PropsAppExpo
               duracionMs: instantanea.duracionMs,
               titulo: instantanea.titulo,
               artista: instantanea.artista,
-              espera: instantanea.estilo.espera
+              espera: instantanea.estilo.espera,
+              pantalla: normalizarEstilo(instantanea.estilo).pantalla,
+              movimiento: 'completo'
             })
           }
         }

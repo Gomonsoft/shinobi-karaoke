@@ -300,7 +300,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         registrar('letras.guardarTiempos', peticion, sesionId)
         exigirId(peticion.cancionId)
         const { letra } = cancion
-        const { tiempos, offset_ms } = peticion
+        const { tiempos, offset_ms, desfase_corregido_ms } = peticion
         if (
           sesionId !== sesionActiva ||
           !letra ||
@@ -308,10 +308,19 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           letra.lineas.some((linea, i) => linea.id !== tiempos[i]?.id)
         )
           throw error('LETRA_DESACTUALIZADA')
+        // Como main: `desfase_corregido_ms` número = se anota, `null` = se borra, ausente = igual; cambiar
+        // `offset_ms` retira `revisada` de todas las líneas (pregunta 0172).
+        const { desfase_corregido_ms: previo, ...sinDesfase } = letra
+        const desfase = desfase_corregido_ms === undefined ? previo : desfase_corregido_ms
         const resultado = letraSchema.safeParse({
-          ...letra,
+          ...sinDesfase,
           offset_ms,
-          lineas: letra.lineas.map((linea, i) => ({ ...linea, ...tiempos[i] }))
+          ...(desfase != null ? { desfase_corregido_ms: desfase } : {}),
+          lineas: letra.lineas.map((linea, i) => {
+            const nueva = { ...linea, ...tiempos[i] }
+            if (offset_ms !== letra.offset_ms) delete nueva.revisada
+            return nueva
+          })
         })
         if (!resultado.success) throw error('ARGUMENTOS_NO_VALIDOS')
         cancion.letra = resultado.data

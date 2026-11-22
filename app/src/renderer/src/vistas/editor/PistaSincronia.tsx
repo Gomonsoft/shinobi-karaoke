@@ -62,6 +62,8 @@ interface Props {
   botonSilencios?: ReactNode
   /** Líneas recién ajustadas: se resaltan 2 s (spec AS, «Cómo se ve después»). */
   resaltadas?: ReadonlySet<string>
+  /** Líneas movidas por «Corregir el desfase»: borde `info` 2 s (spec 06 · Feature 4, «Aplicar»). */
+  resaltadasDesfase?: ReadonlySet<string>
 }
 
 interface PropsTirador {
@@ -191,7 +193,8 @@ export function PistaSincronia({
   expandirNoDisponible,
   alternarMinimizada,
   botonSilencios,
-  resaltadas
+  resaltadas,
+  resaltadasDesfase
 }: Props) {
   const [vistaGuardada, setVista] = useState<VistaLineaTiempo | null>(null)
   const vista = vistaGuardada
@@ -407,6 +410,7 @@ export function PistaSincronia({
                   data-inicio-recortado={visible.inicioRecortado || undefined}
                   data-fin-recortado={visible.finRecortado || undefined}
                   data-resaltada={resaltadas?.has(r.id) || undefined}
+                  data-resaltada-desfase={resaltadasDesfase?.has(r.id) || undefined}
                   disabled={inactiva}
                   title={r.id === ocupadaId ? E.preciso.ocupado : E.regionTooltip(r.texto)}
                   style={{

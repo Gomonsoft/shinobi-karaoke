@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { PANTALLA_PREDETERMINADA, pasadasEfectivas, type Pantalla } from '@shared/pantalla'
 import { disponerBloque, escalaDePuesto, objetivoOpacidad, type Region } from './pantalla'
-import type { LineaEnPantalla } from './render'
+import { letra, linea } from '@shared/__fixtures__'
+import { fotogramaEn, type LineaEnPantalla } from './render'
 
 // [N, P, ancla en % del alto] (tabla «Puestos y ancla» de la spec 07)
 const TABLA: [number, number, number][] = [
@@ -291,4 +292,49 @@ describe('disposición del bloque', () => {
     expect(copia(recortado, 'l-2').dibujar).toBe(false)
     expect(copia(en(REGION, siete, g), 'l-2').dibujar).toBe(true)
   })
+})
+
+// Caso límite de 0288: entre 2,0 y 2,4 s tras el fin, las ya cantadas de la frase anterior aún se
+// funden mientras entra la siguiente. El modelo y la disposición tienen que convivir sin que dos
+// líneas ocupen el mismo puesto (la disposición se perdería una).
+describe('disposición sobre el modelo, barrido de instantes', () => {
+  const casos: [number, number, Pantalla['transicion']][] = [
+    [7, 2, 'desplazamiento'],
+    [6, 2, 'fundido'],
+    [5, 1, 'desplazamiento'],
+    [4, 1, 'fundido'],
+    [2, 0, 'desplazamiento']
+  ]
+  it.each(casos)(
+    'N=%i P=%i %s: ningún instante repite puesto ni rompe la disposición',
+    (n, p, t) => {
+      const pantalla = pantallaDe(n, p, t)
+      for (const hueco of [1900, 2000, 2100, 2250, 2399, 2400, 2500]) {
+        const l = letra([
+          linea('a', 'uno', 1000, { fin_ms: 3000 }),
+          linea('b', 'dos', 3100, { fin_ms: 5000 }),
+          linea('c', 'tres', 5000, { fin_ms: 7000 }),
+          linea('d', 'cuatro', 7000 + hueco, { fin_ms: 9000 + hueco }),
+          linea('e', 'cinco', 9100 + hueco, { fin_ms: 11_000 + hueco }),
+          linea('f', 'seis', 11_000 + hueco, { fin_ms: 13_000 + hueco })
+        ])
+        for (let ms = 0; ms < 16_000 + hueco; ms += 20) {
+          const f = fotogramaEn(l, ms, { duracionMs: 30_000, titulo: '', artista: '', pantalla })
+          for (const cual of ['desde', 'hacia'] as const) {
+            const puestos = f.lineas.map((x) => x[cual])
+            expect(new Set(puestos).size, `t=${ms} hueco=${hueco} ${cual}`).toBe(puestos.length)
+          }
+          const b = disponerBloque({
+            lineas: f.lineas,
+            alturas: {},
+            pantalla,
+            region: { y0Px: 0, altoPx: 1080 },
+            cambio: f.cambio,
+            aparicion: f.aparicion
+          })
+          expect(b.lineas).toHaveLength(f.lineas.length)
+        }
+      }
+    }
+  )
 })

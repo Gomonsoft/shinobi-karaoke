@@ -75,7 +75,9 @@ export const estiloSchema = z.object({
     fuente: fuenteLetraSchema,
     color: colorHex,
     color_resaltado: colorHex,
-    colores_partes: coloresPartesSchema.optional().catch(undefined)
+    colores_partes: coloresPartesSchema.optional().catch(undefined),
+    /** Subrayado de lo ya cantado (ADR 0022 §5); ausente = apagado. Sin reemplazo por canción. */
+    subrayar_cantado: z.boolean().optional().catch(undefined)
   }),
   espera: esperaSchema.optional(),
   /** Letra en pantalla (ADR 0022 §1); ausente = `PANTALLA_PREDETERMINADA`. */
@@ -114,6 +116,15 @@ export function normalizarEstilo(estilo: Estilo): EstiloNormalizado {
     espera: copia.espera ?? { ...ESPERA_LEGADA },
     pantalla: copia.pantalla ?? { ...PANTALLA_PREDETERMINADA }
   }
+}
+
+/**
+ * Subrayado que se ve: el del estilo o la preferencia de este equipo (ADR 0022 §5). La exportación
+ * no la usa: solo cuenta lo que diga el estilo.
+ */
+export function conSubrayadoDelEquipo(estilo: Estilo, preferencia: boolean): Estilo {
+  if (!preferencia || estilo.letra.subrayar_cantado) return estilo
+  return { ...estilo, letra: { ...estilo.letra, subrayar_cantado: true } }
 }
 
 /** Estilo de karaoke predeterminado (ux/sistema-visual.md §8). */

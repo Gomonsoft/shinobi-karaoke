@@ -187,3 +187,17 @@
   color: var(--texto-1);
   font: inherit;
 }
+
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+  margin-top: var(--e-3);
+}
+
+.casilla input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}

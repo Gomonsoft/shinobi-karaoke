@@ -75,8 +75,48 @@ export function deltaE76(a: string, b: string): number {
   return Math.hypot(la - lb, aa - ab, ba - bb)
 }
 
+type Matriz = readonly [number, number, number, number, number, number, number, number, number]
+
+/** Machado, Oliveira y Fernandes (2009), severidad 1,0, sobre RGB lineal (ADR 0022 §5). */
+const PROTANOPIA: Matriz = [
+  0.152286, 1.052583, -0.204868, 0.114503, 0.786281, 0.099216, -0.003882, -0.048116, 1.051998
+]
+const DEUTERANOPIA: Matriz = [
+  0.367322, 0.860646, -0.227968, 0.280085, 0.672501, 0.047413, -0.01182, 0.04294, 0.968881
+]
+const UMBRAL_DALTONISMO = 25
+
+function simular(hex: string, m: Matriz): string {
+  const [r, g, b] = canalesRgb(hex).map(lineal) as [number, number, number]
+  const lin = [
+    m[0] * r + m[1] * g + m[2] * b,
+    m[3] * r + m[4] * g + m[5] * b,
+    m[6] * r + m[7] * g + m[8] * b
+  ]
+  const codificar = (v: number) => {
+    const c = Math.min(1, Math.max(0, v))
+    return 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)
+  }
+  return aHex(lin.map(codificar))
+}
+
+/** El menor ΔE76 entre dos colores tal como los ven una protanopía y una deuteranopía. */
+export function deltaESimulado(a: string, b: string): number {
+  return Math.min(...[PROTANOPIA, DEUTERANOPIA].map((m) => deltaE76(simular(a, m), simular(b, m))))
+}
+
+/**
+ * Dos colores que se distinguen bien (ΔE ≥ 25) pero se confunden con daltonismo (el menor ΔE
+ * simulado < 25). Si ya se parecen sin daltonismo no cuenta: lo dice `diferencia`.
+ */
+export function confusionDaltonismo(a: string, b: string): boolean {
+  return deltaE76(a, b) >= UMBRAL_DALTONISMO && deltaESimulado(a, b) < UMBRAL_DALTONISMO
+}
+
 export interface EvaluacionContraste {
-  avisos: ('letra' | 'resaltado' | 'diferencia')[]
+  avisos: ('letra' | 'resaltado' | 'diferencia' | 'daltonismo')[]
+  /** Con el subrayado en el estilo, `diferencia` baja a informativo (el avance se ve por la forma). */
+  informativos: 'diferencia'[]
   nivel: 'ok' | 'justo' | 'aviso'
   ratioLetra: number
   ratioResaltado: number
@@ -94,9 +134,16 @@ export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
   const avisos: EvaluacionContraste['avisos'] = []
   if (ratioLetra < 3) avisos.push('letra')
   if (ratioResaltado < 3) avisos.push('resaltado')
-  if (deltaE < 25) avisos.push('diferencia')
+  const informativos: EvaluacionContraste['informativos'] = []
+  const subrayado = !!estilo.letra.subrayar_cantado
+  if (deltaE < 25) (subrayado ? informativos : avisos).push('diferencia')
+  else if (!subrayado && confusionDaltonismo(color, color_resaltado)) avisos.push('daltonismo')
   const nivel =
-    avisos.length > 0 ? 'aviso' : Math.min(ratioLetra, ratioResaltado) < 4.5 ? 'justo' : 'ok'
+    avisos.length > 0
+      ? 'aviso'
+      : informativos.length > 0 || Math.min(ratioLetra, ratioResaltado) < 4.5
+        ? 'justo'
+        : 'ok'
 
   let accionesLetra: EvaluacionContraste['accionesLetra'] = []
   let sugerirFondo = false
@@ -108,7 +155,16 @@ export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
     if (!sugerirFondo && Math.min(blanca, negra) < 3) accionesLetra.pop()
   }
 
-  return { avisos, nivel, ratioLetra, ratioResaltado, deltaE, accionesLetra, sugerirFondo }
+  return {
+    avisos,
+    informativos,
+    nivel,
+    ratioLetra,
+    ratioResaltado,
+    deltaE,
+    accionesLetra,
+    sugerirFondo
+  }
 }
 
 export function sugerirResaltado(estilo: Estilo): string {
@@ -116,9 +172,16 @@ export function sugerirResaltado(estilo: Estilo): string {
   const candidatos = SUGERIDOS_LETRA.map((color) => ({
     color,
     distinguible: deltaE76(color, estilo.letra.color) >= 25,
+    // Se prefieren los que tampoco se confunden con daltonismo (spec 06 · Feature 2).
+    claro: deltaESimulado(color, estilo.letra.color) >= UMBRAL_DALTONISMO,
     ratio: peorEnMuestras(color, muestras)
   }))
-  candidatos.sort((a, b) => Number(b.distinguible) - Number(a.distinguible) || b.ratio - a.ratio)
+  candidatos.sort(
+    (a, b) =>
+      Number(b.distinguible) - Number(a.distinguible) ||
+      Number(b.distinguible && b.claro) - Number(a.distinguible && a.claro) ||
+      b.ratio - a.ratio
+  )
   return candidatos[0]!.color
 }
 

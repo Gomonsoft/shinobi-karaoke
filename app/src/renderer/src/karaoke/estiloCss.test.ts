@@ -35,6 +35,7 @@ it('deriva variables CSS y peso desde el estilo y el registro', () => {
   expect(variablesEstilo(estilo)).toEqual({
     '--k-color': '#FFFFFF',
     '--k-resaltado': '#FFD400',
+    '--k-color-gris': '#FFFFFF',
     '--k-fuente': '"Nunito"',
     '--k-peso': '800',
     '--k-fondo': 'linear-gradient(135deg, #1B1033 0%, #5A1E6E 100%)'

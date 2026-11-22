@@ -126,6 +126,9 @@ export const AJREP = {
   opcionPredeterminada: (n: number): string => `${String(n)} s (predeterminado)`,
   ayuda:
     'Cuando termina una canción y hay otra en la cola, la pantalla del reproductor cuenta estos segundos antes de empezarla.',
+  subrayado: 'Subrayar siempre lo ya cantado',
+  subrayadoAyuda:
+    'Añade una línea bajo la parte cantada en todas las canciones, aunque su tema no la tenga. Ayuda a quien no distingue bien los colores. No cambia tus temas ni los videos que exportes.',
   errorGuardar: 'No se pudo guardar el ajuste.',
   copiar: 'Copiar detalles'
 } as const
