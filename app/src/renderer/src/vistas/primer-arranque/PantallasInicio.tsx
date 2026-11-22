@@ -18,6 +18,8 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { infoSoporte } from '../acerca/AcercaDe'
 import { DialogoAcercaDe } from '../acerca/DialogoAcercaDe'
 import { WEB_PROYECTO } from '../acerca/textos'
+import { PA_ACTUALIZACIONES } from '../acerca/textosActualizaciones'
+import { useActualizaciones } from '../acerca/useActualizaciones'
 import {
   detallesEquipo,
   enfocar,
@@ -133,6 +135,8 @@ export function Bienvenida({
   const insuficiente = espacioInsuficiente(requisitos)
   const req = formatearGb(requisitos.espacioRequerido)
   const libre = formatearGbLibre(requisitos.espacioLibre)
+  // Las compilaciones de desarrollo y locales no comprueban nada: no lo mencionan (ux/01 · F3).
+  const menciona = useActualizaciones().estado?.canal === 'publicada'
   return (
     <section className={estilos.pantalla} aria-labelledby="pa-titulo">
       <Logotipo />
@@ -162,6 +166,7 @@ export function Bienvenida({
       >
         {insuficiente ? PA.botonComprobar : PA.botonPreparar}
       </Boton>
+      {menciona && <p className={estilos.actualizaciones}>{PA_ACTUALIZACIONES}</p>}
       <PiePagina alLicencias={alLicencias} />
     </section>
   )

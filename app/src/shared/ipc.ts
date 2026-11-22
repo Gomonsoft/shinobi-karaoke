@@ -27,6 +27,7 @@ import {
 } from './exportacion'
 import { claveTexto } from './identidad'
 import { esperaSchema } from './espera'
+import { pantallaEstrictaSchema } from './pantalla'
 import { letraSchema } from './letra'
 import { nombreTemaSchema, type Procedencia } from './temas'
 import {
@@ -96,6 +97,7 @@ import {
   type BusquedaLetra,
   type EditarTextoLetra,
   type EditarTextoLinea,
+  type EventoEncajeLetras,
   type GuardarLetra,
   type GuardarTiempos,
   type ResultadoBusquedaLetra
@@ -227,7 +229,9 @@ export const aparienciaResumenSchema = z.object({
   neutra: z.boolean(),
   alHeredar: destinoHeredarSchema,
   /** De dónde sale la espera: `cancion` si hay reemplazo; si no, la del estilo (ADR 0018 §3). */
-  procedenciaEspera: procedenciaSchema
+  procedenciaEspera: procedenciaSchema,
+  /** De dónde sale la letra en pantalla: `cancion` si hay reemplazo; si no, la del estilo (ADR 0022 §1). */
+  procedenciaPantalla: procedenciaSchema
 })
 export type AparienciaResumenIpc = z.infer<typeof aparienciaResumenSchema>
 
@@ -242,7 +246,8 @@ export const resueltaSchema = z.object({
   temaId: temaIdSchema.nullable(),
   temaNombre: z.string().nullable(),
   alHeredar: destinoHeredarSchema,
-  procedenciaEspera: procedenciaSchema
+  procedenciaEspera: procedenciaSchema,
+  procedenciaPantalla: procedenciaSchema
 })
 export type ResueltaIpc = z.infer<typeof resueltaSchema>
 
@@ -256,6 +261,9 @@ const reemplazosSeleccionSchema = z
   .nullable()
   .optional()
 
+/** Igual para `reemplazo_pantalla` (ADR 0022 §1): bloque completo, escritura estricta. */
+const reemplazoPantallaSeleccionSchema = pantallaEstrictaSchema.nullable().optional()
+
 export const opcionesMarcarListaSchema = z.strictObject({ modalidad: z.enum(MODALIDADES) })
 export type OpcionesMarcarLista = z.infer<typeof opcionesMarcarListaSchema>
 
@@ -264,9 +272,14 @@ export const seleccionAparienciaSchema = z.discriminatedUnion('modo', [
   z.strictObject({
     modo: z.literal('tema'),
     temaId: temaIdSchema,
-    reemplazos: reemplazosSeleccionSchema
+    reemplazos: reemplazosSeleccionSchema,
+    reemplazo_pantalla: reemplazoPantallaSeleccionSchema
   }),
-  z.strictObject({ modo: z.literal('heredar'), reemplazos: reemplazosSeleccionSchema })
+  z.strictObject({
+    modo: z.literal('heredar'),
+    reemplazos: reemplazosSeleccionSchema,
+    reemplazo_pantalla: reemplazoPantallaSeleccionSchema
+  })
 ])
 export type SeleccionApariencia = z.infer<typeof seleccionAparienciaSchema>
 
@@ -1035,7 +1048,11 @@ export const estadoActualizacionesSchema = z.object({
   disponible: disponibleSchema.nullable(),
   vista: z.string().nullable(),
   ultimaComprobacion: z.string().nullable(),
-  comprobando: z.boolean()
+  comprobando: z.boolean(),
+  /** Enlaces construidos por main para `disponible` (ADR 0023 §5); `directa`: `descargar` es el instalador. */
+  enlaces: z
+    .object({ novedades: enlaceSchema, descargar: enlaceSchema, directa: z.boolean() })
+    .nullable()
 })
 export type EstadoActualizacionesIpc = z.infer<typeof estadoActualizacionesSchema>
 export const resultadoComprobacionSchema = z.object({
@@ -1926,8 +1943,8 @@ export interface ApiShinobi {
       ids: string[],
       carpetaId: string
     ): Promise<z.infer<typeof resultadoExportarLrcVariasSchema>>
-    /** Encajes de los candidatos cuando los picos terminan (ADR 0024 §2); forma a fijar en 0296. */
-    alEncaje(cb: (encaje: unknown) => void): () => void
+    /** Encajes de los candidatos cuando los picos terminan (ADR 0024 §2). */
+    alEncaje(cb: (encaje: EventoEncajeLetras) => void): () => void
   }
   config: {
     obtener(): Promise<Config>

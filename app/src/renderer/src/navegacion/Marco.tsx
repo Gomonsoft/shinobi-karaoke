@@ -3,6 +3,9 @@ import { Mic, Plus, Settings } from 'lucide-react'
 import { Boton } from '../componentes/Boton'
 import { BotonIcono } from '../componentes/BotonIcono'
 import { Icono } from '../componentes/Icono'
+import { hayPunto } from '../vistas/acerca/modeloActualizaciones'
+import { AJACT } from '../vistas/acerca/textosActualizaciones'
+import { useActualizaciones } from '../vistas/acerca/useActualizaciones'
 import { IndicadorSesion } from '../sesion/IndicadorSesion'
 import { IndicadorActividad } from './IndicadorActividad'
 import { claveVista, vistaAjustesDesde, VISTAS_SIN_BARRA, useNavegacion } from './estado'
@@ -24,6 +27,7 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
   const conBarra = !VISTAS_SIN_BARRA.includes(vista.tipo)
   const clave = claveVista(vista)
   const primera = useRef(true)
+  const punto = hayPunto(useActualizaciones().estado)
   const enEditor = vista.tipo === 'cancion' && vista.paso === 'editor'
 
   useEffect(() => {
@@ -63,11 +67,14 @@ export function Marco({ bibliotecaVacia, children }: MarcoProps) {
           <div className={estilos.acciones}>
             <IndicadorSesion />
             <IndicadorActividad />
-            <BotonIcono
-              icono={Settings}
-              etiqueta="Ajustes"
-              onClick={() => ir(vistaAjustesDesde(vista))}
-            />
+            <span className={estilos.envoltorioAjustes}>
+              <BotonIcono
+                icono={Settings}
+                etiqueta={punto ? AJACT.tooltip : 'Ajustes'}
+                onClick={() => ir(vistaAjustesDesde(vista))}
+              />
+              {punto && <span className={estilos.punto} aria-hidden="true" data-punto-version />}
+            </span>
             {vista.tipo === 'biblioteca' && !bibliotecaVacia && (
               <Boton variante="primario" onClick={() => ir({ tipo: 'anadir' })}>
                 <Icono icono={Plus} tamano={16} />

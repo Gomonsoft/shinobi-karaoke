@@ -54,6 +54,7 @@ import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
 import type { ServicioSesion } from '../sesion/servicio'
 import type { ServicioExportacion } from '../exportacion/servicio'
+import type { ServicioActualizaciones } from '../actualizaciones'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -222,7 +223,14 @@ export interface VentanaExportacionIpc {
   confirmarListo(carga: { trabajoId: string; n: number }): void
 }
 
+/** Aviso de versión nueva (ADR 0023). */
+export type ActualizacionesIpc = Pick<
+  ServicioActualizaciones,
+  'estado' | 'comprobar' | 'marcarVista' | 'suscribir'
+>
+
 export interface DependenciasIpc {
+  actualizaciones?: ActualizacionesIpc
   /** Exportación de video (ADR 0019). */
   exportacion?: ExportacionServicioIpc
   /** Ventana offscreen vigente (0234). */
@@ -312,9 +320,6 @@ const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
 
 /** Canales de 0.2.2 aún sin servicio (tarea 0339); cada tarea de feature saca el suyo de esta lista. */
 const CANALES_NO_IMPLEMENTADOS = [
-  CANALES.actualizaciones.estado,
-  CANALES.actualizaciones.comprobar,
-  CANALES.actualizaciones.marcarVista,
   CANALES.preparacion.previsualizar,
   CANALES.preparacion.preparar,
   CANALES.preparacion.pausar,
@@ -419,6 +424,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.sesion
   }
 
+  const actualizaciones = (): ActualizacionesIpc => {
+    if (!deps.actualizaciones) throw new Error('El servicio de actualizaciones no está disponible.')
+    return deps.actualizaciones
+  }
+
   const exportacion = (): ExportacionServicioIpc => {
     if (!deps.exportacion) throw new Error('El servicio de exportación no está disponible.')
     return deps.exportacion
@@ -493,6 +503,16 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
   ) as Record<(typeof CANALES_NO_IMPLEMENTADOS)[number], ManejadorIpc>
 
   return {
+    [CANALES.actualizaciones.estado]: envolver(CANALES.actualizaciones.estado, () =>
+      actualizaciones().estado()
+    ),
+    [CANALES.actualizaciones.comprobar]: envolver(CANALES.actualizaciones.comprobar, () =>
+      actualizaciones().comprobar()
+    ),
+    [CANALES.actualizaciones.marcarVista]: envolver(
+      CANALES.actualizaciones.marcarVista,
+      ({ version }) => actualizaciones().marcarVista(version)
+    ),
     [CANALES.temas.catalogo]: envolver(CANALES.temas.catalogo, () => temas().catalogo()),
     [CANALES.temas.previsualizar]: envolver(CANALES.temas.previsualizar, (op) =>
       temas().previsualizar(op)
@@ -932,7 +952,11 @@ export function registrarIpc(
     deps.exportacion?.suscribirProgreso((p) => aPrincipal(CANALES.eventos.exportacionProgreso, p)),
     deps.exportacion?.suscribirAviso((a) => aPrincipal(CANALES.eventos.exportacionAviso, a))
   ]
+  const bajaActualizaciones = deps.actualizaciones?.suscribir((e) =>
+    aPrincipal(CANALES.eventos.actualizacionesCambio, e)
+  )
   return () => {
+    bajaActualizaciones?.()
     for (const baja of bajasExportacion) baja?.()
     bajaPantallaCompleta?.()
     bajaRtProgreso()

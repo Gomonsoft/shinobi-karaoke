@@ -6,6 +6,7 @@ import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import estilos from './acerca.module.css'
+import { BloqueActualizaciones } from './BloqueActualizaciones'
 import { DialogoAvisoYoutube } from './DialogoAvisoYoutube'
 import { DialogoTextoLegal } from './DialogoTextoLegal'
 import { modeloEfectivo } from '../ajustes/modelo'
@@ -145,6 +146,9 @@ export function AcercaDe() {
     }
   }
 
+  // Sin API de actualizaciones (pruebas de otras vistas) no se muestra el bloque.
+  const conActualizaciones = typeof window.shinobi.actualizaciones?.estado === 'function'
+
   const abrirCarpeta = () =>
     window.shinobi.sistema
       .abrirCarpetaDatos()
@@ -161,6 +165,7 @@ export function AcercaDe() {
             {T.version(numeroVisible(info.version, info.compilacion))}
           </p>
           <LineaCanal info={info} alCopiar={() => void copiarVersion()} />
+          {conActualizaciones && <BloqueActualizaciones info={info} />}
         </>
       )}
       <div className={estilos.botones}>

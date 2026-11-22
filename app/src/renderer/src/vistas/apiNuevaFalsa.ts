@@ -22,7 +22,8 @@ export function apiNuevaFalsa(): Pick<
           disponible: null,
           vista: null,
           ultimaComprobacion: null,
-          comprobando: false
+          comprobando: false,
+          enlaces: null
         }),
       comprobar: noImplementado,
       marcarVista: noImplementado,

@@ -9,6 +9,7 @@ import {
   Menu,
   net,
   Notification,
+  powerMonitor,
   powerSaveBlocker,
   protocol,
   screen,
@@ -42,6 +43,7 @@ import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
 import { RegistroArchivo } from './registro'
 import { COMPILACION } from './compilacion'
+import { ServicioActualizaciones } from './actualizaciones'
 import {
   bloquearNavegacionTotal,
   conPlazo,
@@ -135,6 +137,7 @@ export let runtime: RuntimeReal | null = null
 export let servicioSeparacion: ServicioSeparacion | null = null
 let servicioPicos: ServicioPicos | null = null
 let busquedaLetras: BusquedaLetras | null = null
+let servicioActualizaciones: ServicioActualizaciones | null = null
 
 /** Avisos del sistema al terminar o fallar un trabajo (0072). */
 let servicioAvisos: ServicioAvisos | null = null
@@ -310,7 +313,11 @@ function crearVentana(): BrowserWindow {
     guardadoEditorPendiente = false
   })
   ventana.on('focus', () => servicioAvisos?.alRecuperarFoco())
-  ventana.once('ready-to-show', () => ventana.show())
+  ventana.once('ready-to-show', () => {
+    ventana.show()
+    // El aviso de versión nueva espera a que la ventana se muestre (ADR 0023 §3).
+    servicioActualizaciones?.iniciar()
+  })
 
   const urlDev = process.env.ELECTRON_RENDERER_URL
   if (!app.isPackaged && urlDev) {
@@ -508,7 +515,8 @@ if (instanciaUnica)
       servicioPicos = new ServicioPicos({
         dirBiblioteca: join(rutaDatos(), 'biblioteca'),
         tieneVoz: (id) => servicioBiblioteca?.tieneVozSeparada(id) ?? false,
-        ejecutar
+        ejecutar,
+        alListos: (id) => void busquedaLetras?.alPicosListos(id).catch(() => undefined)
       })
       // Cerrojo lectores/escritor de yt-dlp (0050): `info-youtube` y `descargar-youtube` leen.
       const cerrojo = new CerrojoLecturaEscritura()
@@ -621,6 +629,8 @@ if (instanciaUnica)
       const rt = runtime
       servicioSeparacion = new ServicioSeparacion({
         publicarPistas: (id, publicar) => servicioPicos?.duranteCambio(id, publicar) ?? publicar(),
+        // Los picos no esperan al editor (ADR 0024 §2): se piden en cuanto la voz está separada.
+        alSepararVoz: (id) => void servicioPicos?.generarTrasSeparar(id).catch(() => undefined),
         biblioteca: servicioBiblioteca,
         gestor: gestorTrabajos,
         config: servicioConfig,
@@ -732,7 +742,9 @@ if (instanciaUnica)
       busquedaLetras = new BusquedaLetras({
         biblioteca: servicioBiblioteca,
         cliente: clienteLrclib,
-        registro
+        registro,
+        picos: { nivelBase: (id) => servicioPicos?.nivelBase(id) ?? Promise.resolve(null) },
+        emitirEncaje: (e) => aPrincipal(CANALES.eventos.letrasEncaje, e)
       })
       const busqueda = busquedaLetras
       const biblioteca = servicioBiblioteca
@@ -814,9 +826,20 @@ if (instanciaUnica)
       })
       // Restos de una caída: el aviso espera a que la principal lo pida (antes de crearla).
       await servicioExportacion.recuperarAlArrancar()
+      servicioActualizaciones = new ServicioActualizaciones({
+        config,
+        fetch: (url, init) => net.fetch(url, init),
+        registro,
+        version: app.getVersion(),
+        canal: COMPILACION.canal,
+        empaquetada: app.isPackaged,
+        env: process.env,
+        reposo: powerMonitor
+      })
       registrarIpc(
         ipcMain,
         {
+          actualizaciones: servicioActualizaciones,
           biblioteca: servicioBiblioteca,
           exportacion: servicioExportacion,
           ventanaExportacion: () => ventanaExportacionVigente,
@@ -933,6 +956,7 @@ app.on('before-quit', (evento) => {
   // La secundaria se cierra sin su diálogo de cola y se sueltan bloqueos, silencio y reposo.
   void servicioSesion?.prepararSalida()
   gestorReposo.liberarTodo()
+  servicioActualizaciones?.detener()
   // Se espera a las escrituras pendientes (0010) antes de salir de verdad.
   evento.preventDefault()
   escriturasVolcadas = true

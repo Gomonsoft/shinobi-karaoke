@@ -32,7 +32,8 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
     temaNombre: null,
     neutra: false,
     alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
-    procedenciaEspera: 'propio'
+    procedenciaEspera: 'propio',
+    procedenciaPantalla: 'propio'
   },
   miniatura,
   pasos: null,
