@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   _electron as electron,
@@ -24,8 +24,21 @@ import { crearTemporal } from './temporales'
  * `captura` antes de que nadie los elija, y es eso lo que se comprueba. Linux real con GPU queda en
  * la guía manual (docs/Test-manuales/). En macOS y Windows la captura exacta sigue siendo obligatoria.
  */
+/** Líneas de exportación de `app.log`, para diagnosticar el sondeo cuando la prueba falla. */
+function registroDe(datos: string): string {
+  try {
+    return readFileSync(join(datos, 'registros', 'app.log'), 'utf8')
+      .split(/\r?\n/)
+      .filter((l) => /exportaci/i.test(l))
+      .join(' | ')
+  } catch {
+    return '(sin app.log)'
+  }
+}
+
 async function comprobarMarcadoPorCaptura(
   e: unknown,
+  datos: string,
   principal: Page,
   ancho: number,
   alto: number
@@ -41,7 +54,7 @@ async function comprobarMarcadoPorCaptura(
       .filter((p) => p.alto === 2160 && p.fps === 30)
       .map((p) => `${p.formato} ${p.ancho}x${p.alto} ${p.soportado} ${p.motivo}`)
   })
-  expect(marcados).toEqual([
+  expect(marcados, `Registro de la app: ${registroDe(datos)}`).toEqual([
     'mkv_av1 3840x2160 false captura',
     'mkv_av1 2880x2160 false captura',
     'webm_vp9 3840x2160 false captura',
@@ -121,7 +134,7 @@ for (const [ancho, alto] of [
         )
       } catch (e) {
         // Sin superficie exacta (Linux sin GPU): vale que el sondeo marque los perfiles 4K.
-        await comprobarMarcadoPorCaptura(e, principal, ancho, alto)
+        await comprobarMarcadoPorCaptura(e, datos, principal, ancho, alto)
         return
       }
       expect(resultado.longitud).toBe(ancho * alto * 4)

@@ -355,7 +355,12 @@ export class ServicioExportacion<V = unknown> {
       for (const proporcion of PROPORCIONES) {
         try {
           for (const r of RESOLUCIONES.filter((x) => x.proporcion === proporcion).reverse()) {
-            if (await probar(r.ancho, r.alto)) {
+            const capturable = await probar(r.ancho, r.alto)
+            this.deps.registrar?.(
+              'info',
+              `exportación: sondeo de captura ${r.ancho}×${r.alto}: ${capturable ? 'sí' : 'no'}`
+            )
+            if (capturable) {
               this.altoMaximoCaptura.set(proporcion, r.alto)
               break
             }
