@@ -4,7 +4,7 @@
  * La oferta del modelo Rápido nunca se incluye en un aviso (ux/04 criterio 8b).
  */
 
-export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error'] as const
+export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error', 'desfase'] as const
 export const TITULO_MOTOR_INCOMPLETO = 'Hay que reparar el motor de audio'
 export type TipoAvisoTrabajo = (typeof TIPOS_AVISO_TRABAJO)[number]
 
@@ -34,7 +34,13 @@ export const AVISOS = {
   error: (titulo: string, tituloError: string): string => `«${titulo}»: ${tituloError}`,
   etiquetaOk: 'Abrir',
   etiquetaLista: 'Abrir editor',
-  etiquetaError: 'Ver'
+  etiquetaError: 'Ver',
+  /** `let.comp.toast.corregida` (spec 05, feature 4): `desfaseMs` > 0 = la letra se movió más tarde. */
+  desfase: (titulo: string, desfaseMs: number): string => {
+    const d = (Math.abs(desfaseMs) / 1000).toFixed(1).replace('.', ',')
+    return `Movimos la letra de «${titulo}» ${d} s ${desfaseMs > 0 ? 'más tarde' : 'antes'} para que coincida con la voz.`
+  },
+  etiquetaDesfase: 'Deshacer'
 } as const
 
 const ERRORES_DESCARGA: Record<string, string> = {

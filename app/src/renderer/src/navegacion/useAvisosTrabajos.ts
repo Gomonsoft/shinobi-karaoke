@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from '@shared/avisos'
 import { mostrarToast } from '../componentes/gestorToasts'
 import { useSesion } from '../sesion/ProveedorSesion'
+import { quitarCorreccionGuardada } from '../vistas/letra/escribirDesfase'
+import { CC } from '../vistas/letra/textosComprobacion'
 import type { Vista } from './estado'
 
 /** El usuario ya está viendo el progreso de esa canción: no hace falta avisarle (0072). */
@@ -44,6 +46,21 @@ export function useAvisosTrabajos(vista: Vista, ir: (v: Vista) => void): void {
     }
     const mostrar = (a: AvisoTrabajoIpc): void => {
       if (vistaRef.current.tipo === 'primer-arranque') return
+      if (a.tipo === 'desfase') {
+        // Corrección diferida de la letra (F4-L7): [Deshacer] quita la corrección.
+        mostrarToast({
+          tipo: 'exito',
+          mensaje: a.texto,
+          accion: {
+            etiqueta: a.etiqueta,
+            alAccionar: () =>
+              void quitarCorreccionGuardada(a.cancionId).catch(() =>
+                mostrarToast({ tipo: 'error', mensaje: CC.errorGuardar })
+              )
+          }
+        })
+        return
+      }
       if (estaEnSuProgreso(vistaRef.current, a.cancionId)) return
       mostrarToast({
         tipo: a.tipo === 'error' ? 'error' : 'exito',

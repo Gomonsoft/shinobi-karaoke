@@ -88,14 +88,14 @@ const api: ApiShinobi = {
     solicitarCierre: () => invocar(CANALES.sesion.solicitarCierre),
     confirmarCierre: (cola, revision) =>
       invocar(CANALES.sesion.confirmarCierre, { cola, revision }),
-    cancelarCierre: () => invocar(CANALES.sesion.cancelarCierre),
-    colaAnadirVarias: (ids) => invocar(CANALES.sesion.colaAnadirVarias, { ids }),
-    colaQuitarVarias: (entradaIds) => invocar(CANALES.sesion.colaQuitarVarias, { entradaIds })
+    cancelarCierre: () => invocar(CANALES.sesion.cancelarCierre)
   },
   cola: {
     agregar: (cancionId, donde) => invocar(CANALES.cola.agregar, { cancionId, donde }),
     mover: (entradaId, antesDe) => invocar(CANALES.cola.mover, { entradaId, antesDe }),
     quitar: (entradaId) => invocar(CANALES.cola.quitar, { entradaId }),
+    agregarVarias: (ids) => invocar(CANALES.cola.agregarVarias, { ids }),
+    quitarVarias: (entradaIds) => invocar(CANALES.cola.quitarVarias, { entradaIds }),
     vaciar: (contexto) => invocar(CANALES.cola.vaciar, { contexto })
   },
   exportacion: {
@@ -158,7 +158,8 @@ const api: ApiShinobi = {
     previsualizar: (peticion) => invocar(CANALES.alineacion.previsualizar, peticion),
     alinear: (peticion) => invocar(CANALES.alineacion.alinear, peticion),
     cancelar: (trabajoId) => invocar(CANALES.alineacion.cancelar, { trabajoId }),
-    alProgreso: (cb) => suscribir(CANALES.eventos.alineacionProgreso, cb)
+    alProgreso: (cb) => suscribir(CANALES.eventos.alineacionProgreso, cb),
+    alResultado: (cb) => suscribir(CANALES.eventos.alineacionResultado, cb)
   },
   trabajos: {
     listar: () => invocar(CANALES.trabajos.listar),
@@ -188,10 +189,9 @@ const api: ApiShinobi = {
     leerArchivo: () => invocar(CANALES.letras.leerArchivo),
     candidatoPorId: (cancionId, lrclibId) =>
       invocar(CANALES.letras.candidatoPorId, { cancionId, lrclibId }),
-    exportarLrc: (cancionId, destinoId) =>
-      invocar(CANALES.letras.exportarLrc, { cancionId, destinoId }),
-    exportarLrcVarias: (ids, carpetaId) =>
-      invocar(CANALES.letras.exportarLrcVarias, { ids, carpetaId }),
+    exportarLrc: (cancionId) => invocar(CANALES.letras.exportarLrc, { cancionId }),
+    exportarLrcVarias: (ids) => invocar(CANALES.letras.exportarLrcVarias, { ids }),
+    mostrarEnCarpeta: (ubicacionId) => invocar(CANALES.letras.mostrarEnCarpeta, { ubicacionId }),
     alEncaje: (cb) => suscribir(CANALES.eventos.letrasEncaje, cb)
   },
   config: {

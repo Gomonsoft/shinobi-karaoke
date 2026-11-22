@@ -29,6 +29,7 @@ import {
   type GuardarTiempos,
   type GuardarLetra
 } from '../../shared/letrasBusqueda'
+import { corregirDesfase } from '../../shared/encaje'
 import { ErrorBiblioteca } from '../biblioteca/operaciones'
 import type { ServicioBiblioteca } from '../biblioteca/servicio'
 import type { ResumenCancion } from '../biblioteca/resumen'
@@ -102,6 +103,8 @@ export class ServicioLetras {
     if (!cancion) throw noValido('La canción no existe o está dañada.')
     let lineas: ElementoLetra[]
     let letra: Letra
+    // Con `desfase_ms` la letra se guarda ya corregida: solo cambia `offset_ms` (ADR 0024 §1).
+    const correccion = corregirDesfase({ offset_ms: 0 }, peticion.desfase_ms ?? 0)
     try {
       // Letra nueva: solo cuentan texto y tiempos; el fin que traía es `origen_fin: "letra"` (ADR 0024 §4).
       lineas = normalizarLetra(peticion.lineas.map(soloTextoYTiempos)).map((l) =>
@@ -111,7 +114,7 @@ export class ServicioLetras {
       letra = letraSchema.parse({
         origen: peticion.origen,
         lrclib_id: peticion.lrclib_id,
-        offset_ms: 0,
+        ...correccion,
         lineas,
         intacta: true,
         ...(idioma ? { idioma } : {})
@@ -270,6 +273,30 @@ export class ServicioLetras {
     }
   }
 
+  /**
+   * Corrección diferida del desfase (ADR 0024 §1, tarea 0367): sin sesión de edición, por el mismo camino
+   * de escritura de `guardarTiempos`. Solo si la letra está `intacta`, sin corrección previa, la canción
+   * es un borrador y el editor no la tiene abierta (su copia en memoria la revertiría). Devuelve el
+   * desfase realmente aplicado, o `null` si no procede.
+   */
+  async corregirDesfaseDiferido(cancionId: string, desfaseMs: number): Promise<number | null> {
+    const cancion = this.biblioteca.obtener(cancionId)
+    const letra = cancion?.letra
+    if (!cancion || !letra || cancion.estado !== 'borrador') return null
+    if (letra.intacta !== true || letra.desfase_corregido_ms !== undefined) return null
+    if (this.visita?.cancionId === cancionId) return null
+    const c = corregirDesfase(letra, desfaseMs)
+    if (c.offset_ms === letra.offset_ms) return null
+    const nueva = letraSchema.safeParse({
+      ...letra,
+      offset_ms: c.offset_ms,
+      desfase_corregido_ms: c.desfase_corregido_ms
+    })
+    if (!nueva.success) return null
+    await this.escribirTiempos(cancionId, nueva.data)
+    return c.offset_ms - letra.offset_ms
+  }
+
   private invalidarEdicionDe(cancionId: string): void {
     if (this.visita?.cancionId === cancionId) this.liberarEdicion()
   }
@@ -299,6 +326,9 @@ export class ServicioLetras {
       )
     }
 
+    // Cambiar el desfase mueve la letra entera respecto a la voz: las líneas dadas por buenas dejan de
+    // estar comprobadas (ADR 0024 §4, pregunta 0172). Vale aunque el cliente envíe `revisada`.
+    const cambiaDesfase = offset_ms !== letra.offset_ms
     const lineas = letra.lineas.map((guardada, i): ElementoLetra => {
       const inicial = referencia.lineas[i]!
       const { inicio_ms, fin_ms, palabras, origen_palabras, origen_fin, revisada } = tiempos[i]!
@@ -308,7 +338,7 @@ export class ServicioLetras {
       delete linea.origen_fin
       delete linea.revisada
       if (origen_fin) linea.origen_fin = origen_fin
-      if (revisada) linea.revisada = revisada
+      if (revisada && !cambiaDesfase) linea.revisada = revisada
       if (linea.tipo === 'pausa') {
         if (
           palabras !== null ||
@@ -351,7 +381,18 @@ export class ServicioLetras {
       return { ...linea, inicio_ms, fin_ms, palabras: validadas }
     })
 
-    const nueva = letraSchema.safeParse({ ...letra, offset_ms, lineas })
+    // `desfase_corregido_ms`: número = se anota, `null` = se borra, ausente = igual (ADR 0024 §1).
+    const { desfase_corregido_ms, ...sinDesfase } = letra
+    const desfase =
+      peticion.desfase_corregido_ms === undefined
+        ? desfase_corregido_ms
+        : peticion.desfase_corregido_ms
+    const nueva = letraSchema.safeParse({
+      ...sinDesfase,
+      offset_ms,
+      ...(desfase != null ? { desfase_corregido_ms: desfase } : {}),
+      lineas
+    })
     if (!nueva.success) throw noValido('Los tiempos no son válidos.')
     const resumen = this.biblioteca.obtenerResumen(cancionId)
     if (resumen && JSON.stringify(nueva.data) === JSON.stringify(letra)) {

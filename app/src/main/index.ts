@@ -33,7 +33,12 @@ import {
 } from './fuente'
 import { shellConPapeleraDePruebas } from './biblioteca/papelera'
 import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
-import { BusquedaLetras, ServicioLetras, crearClienteLrclib } from './letras'
+import {
+  BusquedaLetras,
+  ServicioLetras,
+  comprobarLetraGuardada,
+  crearClienteLrclib
+} from './letras'
 import { ServicioConfig } from './configuracion'
 import { ServicioTemas } from './temas'
 import { registrarIpc } from './ipc'
@@ -137,6 +142,8 @@ export let runtime: RuntimeReal | null = null
 export let servicioSeparacion: ServicioSeparacion | null = null
 let servicioPicos: ServicioPicos | null = null
 let busquedaLetras: BusquedaLetras | null = null
+/** Comprobación diferida de la letra al quedar listos los picos (F4-L7, tarea 0367). */
+let comprobarLetraDiferida: ((id: string) => Promise<unknown>) | null = null
 let servicioActualizaciones: ServicioActualizaciones | null = null
 
 /** Avisos del sistema al terminar o fallar un trabajo (0072). */
@@ -516,7 +523,10 @@ if (instanciaUnica)
         dirBiblioteca: join(rutaDatos(), 'biblioteca'),
         tieneVoz: (id) => servicioBiblioteca?.tieneVozSeparada(id) ?? false,
         ejecutar,
-        alListos: (id) => void busquedaLetras?.alPicosListos(id).catch(() => undefined)
+        alListos: (id) => {
+          void busquedaLetras?.alPicosListos(id).catch(() => undefined)
+          void comprobarLetraDiferida?.(id).catch(() => undefined)
+        }
       })
       // Cerrojo lectores/escritor de yt-dlp (0050): `info-youtube` y `descargar-youtube` leen.
       const cerrojo = new CerrojoLecturaEscritura()
@@ -728,6 +738,18 @@ if (instanciaUnica)
           { env: process.env, empaquetada: app.isPackaged }
         )
       })
+      const bibliotecaLetras = servicioBiblioteca
+      comprobarLetraDiferida = (id) =>
+        comprobarLetraGuardada(
+          {
+            biblioteca: bibliotecaLetras,
+            letras: servicioLetras,
+            picos: { nivelBase: (c) => servicioPicos?.nivelBase(c) ?? Promise.resolve(null) },
+            avisar: (a) => servicioAvisos?.avisar(a)
+            // `enTandaDeVarias`: lo conecta la preparación desatendida (feature 5) con su tanda.
+          },
+          id
+        )
       app.on('browser-window-created', (_evento, ventana) => {
         ventana.once('closed', () => servicioLetras.liberarEdicion())
       })

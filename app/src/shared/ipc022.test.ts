@@ -11,6 +11,7 @@ const NUEVOS = [
   CANALES.letras.candidatoPorId,
   CANALES.letras.exportarLrc,
   CANALES.letras.exportarLrcVarias,
+  CANALES.letras.mostrarEnCarpeta,
   CANALES.fuente.lote,
   CANALES.fuente.leerArchivos,
   CANALES.fuente.leerCarpeta,
@@ -20,8 +21,8 @@ const NUEVOS = [
   CANALES.biblioteca.editarDatosVariasEjecutar,
   CANALES.biblioteca.eliminarVariasPrevisualizar,
   CANALES.biblioteca.eliminarVariasEjecutar,
-  CANALES.sesion.colaAnadirVarias,
-  CANALES.sesion.colaQuitarVarias,
+  CANALES.cola.agregarVarias,
+  CANALES.cola.quitarVarias,
   CANALES.exportacion.destinoCarpeta,
   CANALES.exportacion.iniciarLote,
   CANALES.exportacion.cancelarLote,
@@ -74,7 +75,7 @@ describe('argumentos de los canales de 0.2.2', () => {
     expect(args(CANALES.preparacion.preparar, { ids: ['a'] })).toBe(true)
     expect(args(CANALES.actualizaciones.marcarVista, { version: '' })).toBe(false)
     expect(args(CANALES.letras.candidatoPorId, { cancionId: 'a', lrclibId: 0 })).toBe(false)
-    expect(args(CANALES.sesion.colaQuitarVarias, { entradaIds: [] })).toBe(false)
+    expect(args(CANALES.cola.quitarVarias, { entradaIds: [] })).toBe(false)
     expect(args(CANALES.biblioteca.eliminarVariasEjecutar, { ids: ['a'] })).toBe(false)
     expect(
       args(CANALES.copias.importar, { origenId: UUID, conflictos: 'borrar', ajustes: false })

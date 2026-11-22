@@ -734,7 +734,9 @@ export const infoYoutubeSchema = z.object({
   duracionS: z.number().nonnegative(),
   metadatos: z.object({ titulo: z.string(), artista: z.string(), album: z.string() }),
   /** `data:image/jpeg;base64,…` o `null` si no hay miniatura. */
-  miniaturaDataUrl: z.string().nullable()
+  miniaturaDataUrl: z.string().nullable(),
+  /** Solo el modo lote lo usa (ADR 0026 §1; pregunta 0166). */
+  duplicado: z.enum(['YA_EN_BIBLIOTECA']).nullable().optional()
 })
 export type InfoYoutubeIpc = z.infer<typeof infoYoutubeSchema>
 
@@ -1080,13 +1082,34 @@ export const resultadoPrepararSchema = z.object({
   aceptadas: z.array(idCancionSchema),
   omitidas: z.array(omitidaSchema)
 })
-/** Tanda de la cola de preparación (ADR 0025 §5); forma provisional. */
+/** Tanda de la cola de preparación (ADR 0025 §5; forma fijada en la pregunta 0166). */
 export const tandaPreparacionSchema = z.object({
   total: z.number().int().nonnegative(),
   terminadas: z.number().int().nonnegative(),
   pausada: z.boolean(),
   motivoPausa: motivoSchema.nullable(),
-  estimacionMin: z.number().nonnegative().nullable()
+  /** Minutos restantes; `null` mientras se calcula. */
+  estimacionMin: z.number().nonnegative().nullable(),
+  /** Parada solo de las descargas, distinta de la pausa de toda la cola. */
+  descargasParadas: z.enum(['YOUTUBE_BLOQUEADO', 'SIN_CONEXION']).nullable(),
+  /** Resultado por canción en el orden de la cola (`null` = aún sin resultado). */
+  canciones: z.array(
+    z.object({
+      id: idCancionSchema,
+      resultado: z
+        .enum([
+          'lista_para_revisar',
+          'elige_letra',
+          'sin_letra',
+          'letra_pendiente',
+          'error',
+          'cancelada'
+        ])
+        .nullable(),
+      motivo: motivoSchema.optional(),
+      dudosas: z.number().int().nonnegative().optional()
+    })
+  )
 })
 export type TandaPreparacionIpc = z.infer<typeof tandaPreparacionSchema>
 /** Evento `preparacion:cambio`: el registro `cancion.preparacion` lo define la tarea 0306. */
@@ -1117,7 +1140,7 @@ export const lecturaLoteSchema = z.object({
   rechazadas: z.number().int().nonnegative()
 })
 export type LecturaLoteIpc = z.infer<typeof lecturaLoteSchema>
-/** Sin rutas, main abre el diálogo del sistema (provisional, pregunta 0166). */
+/** Sin rutas, main abre el diálogo del sistema (pregunta 0166). */
 export const leerArchivosSchema = z.strictObject({
   rutas: z.array(z.string().min(1).max(4096)).min(1).max(500).optional()
 })
@@ -1132,7 +1155,8 @@ export const listaYoutubeSchema = z.object({
       titulo: z.string(),
       canal: z.string(),
       duracionS: z.number().nonnegative().nullable(),
-      disponible: z.boolean()
+      disponible: z.boolean(),
+      duplicado: z.enum(['YA_EN_BIBLIOTECA']).nullable()
     })
   ),
   /** La lista tenía más de `MAX_LOTE` entradas y se recortó. */
@@ -1209,11 +1233,11 @@ export interface ProgresoLoteIpc {
 }
 
 /** «A la cola» de varias canciones (ADR 0026 §4). */
-export const colaAnadirVariasSchema = idsParejaSchema
+export const colaAgregarVariasSchema = idsParejaSchema
 export const colaQuitarVariasSchema = z.strictObject({
   entradaIds: z.array(z.string().min(1).max(200)).min(1).max(MAX_IDS_LOTE)
 })
-export const resultadoColaAnadirVariasSchema = z.object({
+export const resultadoColaAgregarVariasSchema = z.object({
   entradaIds: z.array(z.string()),
   omitidas: z.array(omitidaSchema)
 })
@@ -1248,19 +1272,24 @@ export const candidatoPorIdSchema = z.strictObject({
   cancionId: idCancionSchema,
   lrclibId: z.number().int().positive()
 })
-export const exportarLrcSchema = z.strictObject({ cancionId: idCancionSchema, destinoId: z.uuid() })
-export const exportarLrcVariasSchema = z.strictObject({
-  ids: idsCancionSchema,
-  carpetaId: z.uuid()
-})
-export const resultadoExportarLrcSchema = z.object({
-  /** Líneas sin inicio que no se escribieron (la spec muestra el recuento). */
-  lineasOmitidas: z.number().int().nonnegative()
-})
-export const resultadoExportarLrcVariasSchema = z.object({
-  escritas: z.number().int().nonnegative(),
-  omitidas: z.array(omitidaSchema)
-})
+/** Main abre el diálogo del sistema dentro de la llamada; `null` = cancelado (pregunta 0166). */
+export const exportarLrcSchema = z.strictObject({ cancionId: idCancionSchema })
+export const exportarLrcVariasSchema = z.strictObject({ ids: idsCancionSchema })
+export const resultadoExportarLrcSchema = z
+  .object({
+    /** Líneas sin inicio que no se escribieron (la spec muestra el recuento). */
+    lineasOmitidas: z.number().int().nonnegative(),
+    ubicacionId: z.uuid()
+  })
+  .nullable()
+export const resultadoExportarLrcVariasSchema = z
+  .object({
+    escritas: z.number().int().nonnegative(),
+    omitidas: z.array(omitidaSchema),
+    ubicacionId: z.uuid()
+  })
+  .nullable()
+export const mostrarLrcEnCarpetaSchema = z.strictObject({ ubicacionId: z.uuid() })
 
 /** Paquetes y copias (ADR 0027 §2, §3 y §6). */
 export const TIPOS_COPIA = ['canciones', 'biblioteca'] as const
@@ -1329,7 +1358,7 @@ export interface ProgresoCopiaIpc {
   fraccion: number
 }
 
-/** Sincronía con la voz (ADR 0028 §3); nombres y formas provisionales (pregunta 0166). */
+/** Sincronía con la voz (ADR 0028 §3; canales y formas confirmados en la pregunta 0166). */
 export const estadoAlineacionSchema = z.object({
   /** `false` si la prueba técnica no sirvió o el perfil no lo admite (`ALINEACION_NO_DISPONIBLE`). */
   disponible: z.boolean(),
@@ -1368,6 +1397,22 @@ export interface ProgresoAlineacionIpc {
   fase: 'cargando_modelo' | 'alineando' | 'descargando'
   hechas: number
   total: number
+}
+
+/** Evento `alineacion:resultado`: tiempos en tiempo de audio (pregunta 0166). */
+export interface ResultadoAlineacionIpc {
+  trabajoId: string
+  cancionId: string
+  resultado: {
+    lineas: {
+      id: string
+      finMs: number
+      confianza: number
+      palabras: { inicioMs: number; finMs: number }[]
+    }[]
+    omitidas: { id: string; motivo: string }[]
+  } | null
+  error: ErrorIpc | null
 }
 
 // --- Errores y contrato ----------------------------------------------------
@@ -1625,6 +1670,10 @@ export const CONTRATO = {
     args: z.tuple([exportarLrcVariasSchema]),
     res: resultadoExportarLrcVariasSchema
   },
+  [CANALES.letras.mostrarEnCarpeta]: {
+    args: z.tuple([mostrarLrcEnCarpetaSchema]),
+    res: z.void()
+  },
   [CANALES.fuente.leerArchivos]: {
     args: z.tuple([leerArchivosSchema]),
     res: lecturaLoteSchema.nullable()
@@ -1652,13 +1701,13 @@ export const CONTRATO = {
     args: z.tuple([ejecutarVariasSchema]),
     res: resultadoVariasSchema
   },
-  [CANALES.sesion.colaAnadirVarias]: {
-    args: z.tuple([colaAnadirVariasSchema]),
-    res: resultadoColaAnadirVariasSchema
+  [CANALES.cola.agregarVarias]: {
+    args: z.tuple([colaAgregarVariasSchema]),
+    res: resultadoColaAgregarVariasSchema
   },
-  [CANALES.sesion.colaQuitarVarias]: {
+  [CANALES.cola.quitarVarias]: {
     args: z.tuple([colaQuitarVariasSchema]),
-    res: estadoSesionIpcSchema
+    res: quitarColaResSchema
   },
   [CANALES.exportacion.destinoCarpeta]: {
     args: z.tuple([destinoCarpetaSchema]),
@@ -1799,10 +1848,6 @@ export interface ApiShinobi {
     /** `CONFIRMACION_OBSOLETA` si la revisión cambió. */
     confirmarCierre(cola: 'eliminar' | 'conservar', revision: number): Promise<void>
     cancelarCierre(): Promise<void>
-    /** «A la cola» de varias canciones, en el orden dado (ADR 0026 §4). */
-    colaAnadirVarias(ids: string[]): Promise<z.infer<typeof resultadoColaAnadirVariasSchema>>
-    /** Deshace `colaAnadirVarias`: quita solo las entradas aún no consumidas. */
-    colaQuitarVarias(entradaIds: string[]): Promise<EstadoSesionIpc>
   }
   /** Cola de reproducción; las entradas se refieren por id (ADR 0017 §6). */
   cola: {
@@ -1813,6 +1858,10 @@ export interface ApiShinobi {
     mover(entradaId: string, antesDe: string | null): Promise<EstadoSesionIpc>
     quitar(entradaId: string): Promise<{ estado: EstadoSesionIpc; antesDe: string | null }>
     vaciar(contexto: boolean): Promise<EstadoSesionIpc>
+    /** «A la cola» de varias canciones, en el orden dado (ADR 0026 §4). */
+    agregarVarias(ids: string[]): Promise<z.infer<typeof resultadoColaAgregarVariasSchema>>
+    /** Deshace `agregarVarias`: quita solo las entradas aún no consumidas. */
+    quitarVarias(entradaIds: string[]): Promise<{ estado: EstadoSesionIpc; antesDe: string | null }>
   }
   /** Exportación de video; solo la principal (ADR 0019 §10). */
   exportacion: {
@@ -1880,7 +1929,7 @@ export interface ApiShinobi {
     alCambiar(cb: (cambio: CambioCopiaIpc) => void): () => void
     alProgreso(cb: (progreso: ProgresoCopiaIpc) => void): () => void
   }
-  /** Sincronía con la voz (ADR 0028); nombres provisionales (pregunta 0166). */
+  /** Sincronía con la voz (ADR 0028; canales confirmados en la pregunta 0166). */
   alineacion: {
     estado(): Promise<EstadoAlineacionIpc>
     descargarModelo(idioma: string): Promise<void>
@@ -1892,6 +1941,7 @@ export interface ApiShinobi {
     alinear(peticion: z.infer<typeof alinearSchema>): Promise<{ trabajoId: string }>
     cancelar(trabajoId: string): Promise<void>
     alProgreso(cb: (progreso: ProgresoAlineacionIpc) => void): () => void
+    alResultado(cb: (resultado: ResultadoAlineacionIpc) => void): () => void
   }
   trabajos: {
     /** Trabajos en curso y en cola (los terminados solo llegan por `alCambiar`). */
@@ -1935,14 +1985,10 @@ export interface ApiShinobi {
       cancionId: string,
       lrclibId: number
     ): Promise<z.infer<typeof candidatoLetraSchema> | null>
-    exportarLrc(
-      cancionId: string,
-      destinoId: string
-    ): Promise<z.infer<typeof resultadoExportarLrcSchema>>
-    exportarLrcVarias(
-      ids: string[],
-      carpetaId: string
-    ): Promise<z.infer<typeof resultadoExportarLrcVariasSchema>>
+    exportarLrc(cancionId: string): Promise<z.infer<typeof resultadoExportarLrcSchema>>
+    exportarLrcVarias(ids: string[]): Promise<z.infer<typeof resultadoExportarLrcVariasSchema>>
+    /** [Mostrar en la carpeta] del aviso; el renderer nunca ve rutas. */
+    mostrarEnCarpeta(ubicacionId: string): Promise<void>
     /** Encajes de los candidatos cuando los picos terminan (ADR 0024 §2). */
     alEncaje(cb: (encaje: EventoEncajeLetras) => void): () => void
   }

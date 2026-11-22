@@ -76,6 +76,29 @@ describe('guardar', () => {
     expect(eventos.length).toBeGreaterThan(0)
   })
 
+  it('desfase_ms: guarda la letra corregida (offset y desfase_corregido_ms) sin tocar los tiempos', async () => {
+    const id = await cancionConFuente(biblioteca, datos)
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 7,
+      lineas: [el('a', 'Uno', 1000), el('b', 'Dos', 4000)],
+      desfase_ms: 804
+    })
+    const c = await enDisco(id)
+    expect(c.letra).toMatchObject({ offset_ms: 800, desfase_corregido_ms: 800 })
+    expect(c.letra?.lineas.map((l) => l.inicio_ms)).toEqual([1000, 4000])
+    // Sin `desfase_ms`, la letra nueva no trae corrección.
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'manual',
+      lrclib_id: null,
+      lineas: [el('c', 'Tres', 1000)]
+    })
+    expect((await enDisco(id)).letra).toMatchObject({ offset_ms: 0 })
+    expect((await enDisco(id)).letra?.desfase_corregido_ms).toBeUndefined()
+  })
+
   it('sustituye una letra con sincronía y deja la canción lista como lista', async () => {
     const id = await cancionConFuente(biblioteca, datos)
     await servicio.guardar({
@@ -768,6 +791,44 @@ describe('campos nuevos de 0.2.2 en main', () => {
     }
     await servicio.guardarTiempos(sinFin, sesionId)
     expect((await enDisco(id)).letra?.lineas[0]).not.toHaveProperty('origen_fin')
+  })
+
+  it('guardarTiempos: cambiar offset_ms retira revisada de todas las líneas; repetirlo la conserva', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    const rev = { inicio_ms: 5000, fin_ms: 8000, texto: 'y yo me quedo en el mar' }
+    const conRev = {
+      ...p,
+      tiempos: p.tiempos.map((t, i) => (i === 1 ? { ...t, revisada: rev } : t))
+    }
+    await servicio.guardarTiempos(conRev, sesionId)
+    expect((await enDisco(id)).letra?.lineas[1]?.revisada).toEqual(rev)
+    // Mismo offset: se conserva.
+    await servicio.guardarTiempos({ ...conRev, offset_ms: conRev.offset_ms }, sesionId)
+    expect((await enDisco(id)).letra?.lineas[1]?.revisada).toEqual(rev)
+    // Otro offset: se retira, aunque el cliente la envíe. intacta no cambia.
+    await servicio.guardarTiempos({ ...conRev, offset_ms: conRev.offset_ms + 700 }, sesionId)
+    const c = await enDisco(id)
+    expect(c.letra?.offset_ms).toBe(conRev.offset_ms + 700)
+    expect(c.letra?.lineas.some((l) => l.tipo === 'linea' && l.revisada)).toBe(false)
+    expect(c.letra?.intacta).toBe(true)
+  })
+
+  it('guardarTiempos: desfase_corregido_ms se anota, se borra con null y no cambia si falta', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    await servicio.guardarTiempos({ ...p, offset_ms: 800, desfase_corregido_ms: 800 }, sesionId)
+    expect((await enDisco(id)).letra).toMatchObject({ offset_ms: 800, desfase_corregido_ms: 800 })
+    const sinCampo = { ...p }
+    delete sinCampo.desfase_corregido_ms
+    await servicio.guardarTiempos({ ...sinCampo, offset_ms: 800 }, sesionId)
+    expect((await enDisco(id)).letra?.desfase_corregido_ms).toBe(800)
+    await servicio.guardarTiempos({ ...p, offset_ms: 0, desfase_corregido_ms: null }, sesionId)
+    const c = await enDisco(id)
+    expect(c.letra?.offset_ms).toBe(0)
+    expect(c.letra?.desfase_corregido_ms).toBeUndefined()
   })
 
   it('el reparto reservado sobrevive a guardarTiempos y editarTexto', async () => {

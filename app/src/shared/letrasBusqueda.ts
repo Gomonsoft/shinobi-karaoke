@@ -89,6 +89,8 @@ export const origenLetraGuardarSchema = z.enum(['lrclib', 'manual', 'archivo'])
 const tieneLinea = (lineas: readonly ElementoLetra[]): boolean =>
   lineas.some((l) => l.tipo === 'linea')
 
+export const OFFSET_MAXIMO_MS = 30_000
+
 export const busquedaLetraSchema = z.strictObject({
   cancionId: z.string().min(1).max(200),
   titulo: z.string().trim().min(1).max(500),
@@ -102,7 +104,12 @@ export const guardarLetraSchema = z
     cancionId: z.string().min(1).max(200),
     origen: origenLetraGuardarSchema,
     lrclib_id: z.number().int().nullable(),
-    lineas: z.array(elementoLetraSchema).max(MAX_ELEMENTOS_LETRA)
+    lineas: z.array(elementoLetraSchema).max(MAX_ELEMENTOS_LETRA),
+    /**
+     * Corrección de desfase que se guarda con la letra nueva (ADR 0024 §1: `offset_ms = d` a 10 ms y
+     * `desfase_corregido_ms = d`; los tiempos de las líneas no cambian). Ausente = sin corrección.
+     */
+    desfase_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS).optional()
   })
   .refine((v) => v.lrclib_id === null || v.origen === 'lrclib', {
     message: 'lrclib_id solo puede ser no nulo con origen lrclib',
@@ -127,10 +134,20 @@ export const tiempoElementoSchema = z.strictObject({
   revisada: revisadaSchema.extend({ texto: z.string().max(1000) }).optional()
 })
 
-export const OFFSET_MAXIMO_MS = 30_000
 export const guardarTiemposSchema = z.strictObject({
   cancionId: z.string().min(1).max(200),
   offset_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS),
+  /**
+   * Desfase que se corrigió en la letra (ADR 0024 §1): número = se anota; `null` = se borra (quitar la
+   * corrección); ausente = no cambia. El editor lo envía siempre (estado completo).
+   */
+  desfase_corregido_ms: z
+    .number()
+    .int()
+    .min(-OFFSET_MAXIMO_MS)
+    .max(OFFSET_MAXIMO_MS)
+    .nullable()
+    .optional(),
   tiempos: z.array(tiempoElementoSchema).max(MAX_ELEMENTOS_LETRA)
 })
 export type GuardarTiempos = z.infer<typeof guardarTiemposSchema>

@@ -16,6 +16,8 @@ import { Letra } from './Letra'
 interface Opciones extends OpcionesApiLetrasFalsa {
   conLetra?: boolean
   fuenteEnCurso?: boolean
+  /** Llega desde «Buscar otra letra» del editor (tarea 0367). */
+  buscarOtra?: boolean
   buscar?: (p: never) => Promise<ResultadoBusquedaLetra>
 }
 
@@ -51,7 +53,15 @@ function montar(o: Opciones = {}) {
   const ir = vi.fn<(v: Vista) => void>()
   render(
     <NavegacionContexto.Provider
-      value={{ vista: { tipo: 'cancion', id: 'c1', paso: 'letra' }, ir }}
+      value={{
+        vista: {
+          tipo: 'cancion',
+          id: 'c1',
+          paso: 'letra',
+          ...(o.buscarOtra ? { buscarOtra: true } : {})
+        },
+        ir
+      }}
     >
       <TrabajosContexto.Provider value={{ trabajos: [], progreso: {}, terminado: false }}>
         <Letra id="c1" />
@@ -76,6 +86,13 @@ const llamadasDe = <T extends { canal: string }>(l: T[], canal: string): T[] =>
   l.filter((x) => x.canal === canal)
 
 describe('Letra: búsqueda (A)', () => {
+  it('desde «Buscar otra letra» del editor abre en A, sin caché, aunque ya haya letra', async () => {
+    const { llamadas } = montar({ conLetra: true, buscarOtra: true })
+    await screen.findAllByRole('option')
+    expect(llamadas.find((l) => l.canal === 'buscar')?.args[0]).toMatchObject({ usarCache: false })
+    expect(screen.queryByText(/Letra actual/)).not.toBeInTheDocument()
+  })
+
   it('sin letra busca sola con caché y los metadatos de la canción', async () => {
     const { llamadas } = montar()
     await screen.findByRole('listbox')

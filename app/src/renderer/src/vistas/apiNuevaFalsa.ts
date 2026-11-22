@@ -61,7 +61,8 @@ export function apiNuevaFalsa(): Pick<
       previsualizar: noImplementado,
       alinear: noImplementado,
       cancelar: noImplementado,
-      alProgreso: sinBaja
+      alProgreso: sinBaja,
+      alResultado: sinBaja
     }
   }
 }
@@ -69,11 +70,12 @@ export function apiNuevaFalsa(): Pick<
 /** Métodos nuevos de `letras`, `biblioteca`, `sesion`, `exportacion` y `fuente`. */
 export const letrasNuevasFalsas = (): Pick<
   ApiShinobi['letras'],
-  'candidatoPorId' | 'exportarLrc' | 'exportarLrcVarias' | 'alEncaje'
+  'candidatoPorId' | 'exportarLrc' | 'exportarLrcVarias' | 'mostrarEnCarpeta' | 'alEncaje'
 > => ({
   candidatoPorId: () => Promise.resolve(null),
   exportarLrc: noImplementado,
   exportarLrcVarias: noImplementado,
+  mostrarEnCarpeta: noImplementado,
   alEncaje: sinBaja
 })
 
@@ -87,10 +89,10 @@ export const bibliotecaNuevaFalsa = (): Pick<
   alProgresoLote: sinBaja
 })
 
-export const sesionNuevaFalsa = (): Pick<
-  ApiShinobi['sesion'],
-  'colaAnadirVarias' | 'colaQuitarVarias'
-> => ({ colaAnadirVarias: noImplementado, colaQuitarVarias: noImplementado })
+export const colaNuevaFalsa = (): Pick<ApiShinobi['cola'], 'agregarVarias' | 'quitarVarias'> => ({
+  agregarVarias: noImplementado,
+  quitarVarias: noImplementado
+})
 
 export const exportacionNuevaFalsa = (): Pick<
   ApiShinobi['exportacion'],

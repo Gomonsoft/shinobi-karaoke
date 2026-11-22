@@ -236,6 +236,8 @@ export function aPeticionTiempos(cancionId: string, letra: Letra): GuardarTiempo
   return {
     cancionId,
     offset_ms: letra.offset_ms,
+    // Estado completo: `null` borra la corrección que main tenga anotada (quitar la corrección).
+    desfase_corregido_ms: letra.desfase_corregido_ms ?? null,
     tiempos: letra.lineas.map(
       ({ id, inicio_ms, fin_ms, palabras, origen_palabras, origen_fin, revisada }) => ({
         id,

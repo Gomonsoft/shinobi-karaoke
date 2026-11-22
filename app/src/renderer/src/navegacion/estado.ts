@@ -20,8 +20,8 @@ export type Vista =
   | { tipo: 'biblioteca'; enfocar?: { id: string; resaltar: boolean } }
   /** `archivo`: ruta de un archivo arrastrado sobre la Biblioteca (la vista 03 lo recibe). */
   | { tipo: 'anadir'; archivo?: string; iniciales?: DatosInicialesAnadir }
-  /** `pestana`: pestaña con la que abre el editor (al volver de Ajustes, `estilo`; 0175). */
-  | { tipo: 'cancion'; id: string; paso: PasoCancion; pestana?: 'estilo' }
+  /** `pestana`: pestaña con la que abre el editor (al volver de Ajustes, `estilo`; 0175). `buscarOtra`: la vista Letra abre en «Buscar otra letra» (A) aunque ya haya letra. */
+  | { tipo: 'cancion'; id: string; paso: PasoCancion; pestana?: 'estilo'; buscarOtra?: true }
   /** `origen`: vista a la que regresa «Volver» y Esc; `seccion`: sección a la que se baja al abrir. */
   | { tipo: 'ajustes'; origen?: OrigenAjustes; seccion?: SeccionAjustes }
 

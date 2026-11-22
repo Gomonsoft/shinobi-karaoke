@@ -24,7 +24,9 @@ interface Carga {
 
 /** Paso 3 de una canción: buscar la letra (A), y la letra elegida (C, `LetraElegida`). */
 export function Letra({ id }: { id: string }) {
-  const { ir } = useNavegacion()
+  const { vista, ir } = useNavegacion()
+  // «Buscar otra letra» desde el editor: se abre en A, sin caché, aunque ya haya letra.
+  const [abrirEnBusqueda] = useState(() => vista.tipo === 'cancion' && vista.buscarOtra === true)
   const [carga, setCarga] = useState<Carga>({ estado: 'cargando', resumen: null, cancion: null })
   // Número de líneas de la letra elegida; `null` = se muestra la búsqueda (A).
   const [elegida, setElegida] = useState<number | null>(null)
@@ -36,7 +38,7 @@ export function Letra({ id }: { id: string }) {
   const [ignoradasImportadas, setIgnoradasImportadas] = useState(0)
   // Letra que muestra C (la clave la remonta al sustituirla) y si A busca sin caché ("Buscar otra letra").
   const [letraC, setLetraC] = useState<{ letra: LetraGuardada; clave: number } | null>(null)
-  const [sinCache, setSinCache] = useState(false)
+  const [sinCache, setSinCache] = useState(abrirEnBusqueda)
   const raiz = useRef<HTMLElement>(null)
   const refEditor = useRef<HTMLButtonElement>(null)
   const enfocarEditor = useRef(false)
@@ -56,7 +58,7 @@ export function Letra({ id }: { id: string }) {
           return
         }
         const n = contarLineas(cancion.letra)
-        setElegida(n >= 1 ? n : null)
+        setElegida(n >= 1 && !abrirEnBusqueda ? n : null)
         setLetraC(cancion.letra && n >= 1 ? { letra: cancion.letra, clave: 0 } : null)
         setExistente(existenteDe(cancion.letra?.lineas))
         setCarga({ estado: 'listo', resumen, cancion })
@@ -67,7 +69,7 @@ export function Letra({ id }: { id: string }) {
       activo = false
       baja()
     }
-  }, [id])
+  }, [id, abrirEnBusqueda])
 
   useEffect(() => {
     if (elegida !== null && enfocarEditor.current) {
@@ -81,11 +83,12 @@ export function Letra({ id }: { id: string }) {
     nuevo: ResumenCancionIpc,
     lineas: ElementoLetra[],
     ignoradas = 0,
-    origen: LetraGuardada['origen'] = 'manual'
+    origen: LetraGuardada['origen'] = 'manual',
+    correccion?: Pick<LetraGuardada, 'offset_ms' | 'desfase_corregido_ms'>
   ): void => {
     enfocarEditor.current = true
     setLetraC((c) => ({
-      letra: { origen, lrclib_id: null, offset_ms: 0, lineas },
+      letra: { origen, lrclib_id: null, offset_ms: 0, ...correccion, lineas },
       clave: (c?.clave ?? 0) + 1
     }))
     setCarga((c) => ({ ...c, resumen: nuevo }))
@@ -100,6 +103,8 @@ export function Letra({ id }: { id: string }) {
   )
 
   const { resumen, cancion } = carga
+  const separada = resumen?.pasos?.separacion.estado === 'completado' && !resumen.danada
+  const duracionMs = cancion?.metadatos.duracion_ms ?? 0
   return (
     <section ref={raiz} className={estilos.vista} aria-labelledby="titulo-vista">
       <CabeceraCancion resumen={resumen} actual="letra" />
@@ -137,7 +142,11 @@ export function Letra({ id }: { id: string }) {
           onPegar={() => setPegando(true)}
           onImportar={() => void importar()}
           sinCacheInicial={sinCache}
-          onUsada={(nuevo, _n, lineas) => guardada(nuevo, lineas, 0, 'lrclib')}
+          separada={separada}
+          duracionMs={duracionMs}
+          onUsada={(nuevo, _n, lineas, correccion) =>
+            guardada(nuevo, lineas, 0, 'lrclib', correccion)
+          }
         />
       )}
 
@@ -147,6 +156,8 @@ export function Letra({ id }: { id: string }) {
           cancionId={id}
           letraInicial={letraC.letra}
           estado={resumen?.estado ?? 'borrador'}
+          separada={separada}
+          duracionMs={duracionMs}
           fuenteLista={resumen?.pasos?.fuente.estado === 'completado'}
           esperandoFuente={resumen?.pasos?.fuente.estado === 'en_curso'}
           ignoradas={ignoradasImportadas}

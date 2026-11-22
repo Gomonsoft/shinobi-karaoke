@@ -1,21 +1,43 @@
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import { Check, TriangleAlert } from 'lucide-react'
-import { contarLineas, type ElementoLetra } from '@shared/letra'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  Check,
+  CircleHelp,
+  Clock,
+  MoveHorizontal,
+  TriangleAlert,
+  X,
+  type LucideIcon
+} from 'lucide-react'
+import { corregirDesfase, evaluarEncajeConPicos } from '@shared/encaje'
+import { contarLineas, type ElementoLetra, type Letra } from '@shared/letra'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import {
   compararDuracion,
   type CandidatoLetra,
+  type EncajeCandidato,
   type ResultadoBusquedaLetra
 } from '@shared/letrasBusqueda'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
+import { BotonIcono } from '../../componentes/BotonIcono'
 import { CampoTexto } from '../../componentes/Campos'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { formatearDuracion } from '../biblioteca/tarjeta'
+import {
+  comprobacionDe,
+  detalleNoCoincide,
+  esConcluyente,
+  indiceDelMejor,
+  motivosNoCoincide,
+  textoComprobacion,
+  type Comprobacion
+} from './comprobacion'
 import { filasDePrevia } from './modelo'
 import type { ConfirmarSustituir } from './sustituir'
 import { TEXTO } from './textos'
+import { CC, segundosDe } from './textosComprobacion'
+import { useEstadoPicos, usePicosBase } from './usePicosLetra'
 import estilos from './letra.module.css'
 
 type Fase =
@@ -51,14 +73,49 @@ function Duracion({ diferenciaMs }: { diferenciaMs: number }) {
   )
 }
 
+const ICONO_COMPROBACION: Record<Comprobacion['tipo'], LucideIcon | null> = {
+  ninguna: null,
+  comprobando: Clock,
+  pendiente: Clock,
+  noDisponible: null,
+  coincide: Check,
+  desfasada: MoveHorizontal,
+  dudosa: CircleHelp,
+  noCoincide: TriangleAlert
+}
+const ESTILO_COMPROBACION: Record<Comprobacion['tipo'], string> = {
+  ninguna: '',
+  comprobando: 'compTenue',
+  pendiente: 'compTenue',
+  noDisponible: 'compTenue',
+  coincide: 'durIgual',
+  desfasada: 'compInfo',
+  dudosa: 'compTenue',
+  noCoincide: 'durAviso'
+}
+
+/** Línea de comprobación con icono y texto (nunca solo color). */
+function LineaComprobacion({ comprobacion }: { comprobacion: Comprobacion }) {
+  const texto = textoComprobacion(comprobacion, segundosDe)
+  if (!texto) return null
+  const icono = ICONO_COMPROBACION[comprobacion.tipo]
+  return (
+    <span className={`${estilos.duracion} ${estilos[ESTILO_COMPROBACION[comprobacion.tipo]]}`}>
+      {icono && <Icono icono={icono} tamano={14} />} {texto}
+    </span>
+  )
+}
+
 function Opcion({
   id,
   candidato,
+  comprobacion,
   seleccionado,
   onElegir
 }: {
   id: string
   candidato: CandidatoLetra
+  comprobacion: Comprobacion
   seleccionado: boolean
   onElegir: () => void
 }) {
@@ -83,8 +140,44 @@ function Opcion({
       <span className={`${estilos.insignia} ${estilos[`sync_${visible}`]}`}>
         <span aria-hidden="true">{GLIFO[visible]}</span> {TEXTO.sync[visible]}
       </span>
-      <Duracion diferenciaMs={candidato.diferencia_ms} />
+      {!esConcluyente(comprobacion) && <Duracion diferenciaMs={candidato.diferencia_ms} />}
+      <LineaComprobacion comprobacion={comprobacion} />
     </div>
+  )
+}
+
+/** Veredicto del candidato seleccionado, encima de las líneas de la vista previa (spec 05). */
+function BloqueComprobacion({
+  comprobacion,
+  motivos
+}: {
+  comprobacion: Comprobacion
+  motivos: string[]
+}) {
+  const t = comprobacion.tipo
+  if (t !== 'coincide' && t !== 'desfasada' && t !== 'dudosa' && t !== 'noCoincide') return null
+  const icono = ICONO_COMPROBACION[t]!
+  const d = t === 'desfasada' ? segundosDe(comprobacion.desfaseMs) : ''
+  return (
+    <section className={estilos.bloqueComp} aria-label={CC.titulo}>
+      <p className={estilos.bloqueCompTitulo}>
+        <Icono icono={icono} tamano={14} /> {textoComprobacion(comprobacion, segundosDe)}
+      </p>
+      {t === 'desfasada' && <p>{CC.desfaseAyuda(d, comprobacion.desfaseMs > 0)}</p>}
+      {t === 'dudosa' && <p>{CC.dudosaAyuda}</p>}
+      {t === 'noCoincide' && (
+        <>
+          {motivos.length > 0 && (
+            <ul>
+              {motivos.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          )}
+          <p>{CC.noCoincideAyuda}</p>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -93,7 +186,12 @@ interface Props {
   tituloInicial: string
   artistaInicial: string
   /** Se llama tras guardar la letra elegida. */
-  onUsada: (resumen: ResumenCancionIpc, lineas: number, elementos: ElementoLetra[]) => void
+  onUsada: (
+    resumen: ResumenCancionIpc,
+    lineas: number,
+    elementos: ElementoLetra[],
+    correccion?: Pick<Letra, 'offset_ms' | 'desfase_corregido_ms'>
+  ) => void
   /** Pide confirmar antes de sustituir una letra existente (0085). */
   confirmar?: ConfirmarSustituir
   /** "Buscar otra letra" (C): la búsqueda automática inicial ignora la caché. */
@@ -101,6 +199,10 @@ interface Props {
   /** Pasan a la vista B / diálogo de importar (0085). Hasta entonces no hacen nada. */
   onPegar?: () => void
   onImportar?: () => void
+  /** La separación de la voz terminó (para distinguir «pendiente» de «no disponible»). */
+  separada?: boolean
+  /** Duración de la canción, para leer los picos y evaluar el encaje. */
+  duracionMs?: number
 }
 
 /** Wireframe A de docs/ux/05: búsqueda en LRCLIB, resultados y vista previa. */
@@ -112,7 +214,9 @@ export function BusquedaLetra({
   confirmar,
   sinCacheInicial = false,
   onPegar,
-  onImportar
+  onImportar,
+  separada = false,
+  duracionMs = 0
 }: Props) {
   const idLista = useId()
   const [titulo, setTitulo] = useState(tituloInicial)
@@ -120,6 +224,8 @@ export function BusquedaLetra({
   const [fase, setFase] = useState<Fase>({ tipo: 'cargando' })
   const [indice, setIndice] = useState(0)
   const [guardando, setGuardando] = useState(false)
+  const [encajes, setEncajes] = useState<ReadonlyMap<number, EncajeCandidato | null>>(new Map())
+  const [llegadaDescartada, setLlegadaDescartada] = useState(false)
   const secuencia = useRef(0)
   const refTitulo = useRef<HTMLInputElement>(null)
   const refLista = useRef<HTMLDivElement>(null)
@@ -129,6 +235,8 @@ export function BusquedaLetra({
     async (t: string, a: string, usarCache: boolean, origen: 'auto' | 'manual') => {
       const mia = ++secuencia.current
       refEditor.current = origen
+      setEncajes(new Map())
+      setLlegadaDescartada(false)
       setFase({ tipo: 'cargando' })
       try {
         const resultado = await window.shinobi.letras.buscar({
@@ -163,8 +271,52 @@ export function BusquedaLetra({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancionId])
 
-  const candidatos = fase.tipo === 'listo' ? fase.resultado.candidatos : []
+  // Encajes llegados por `letras:encaje` (los picos terminaron después de buscar): se muestran en vivo
+  // sin reordenar la lista ni mover la selección (spec 05, «La comprobación llega después»).
+  const picos = useEstadoPicos(cancionId, separada)
+  useEffect(
+    () =>
+      window.shinobi.letras.alEncaje?.((ev) => {
+        if (ev.cancionId !== cancionId) return
+        setEncajes(new Map(ev.encajes.map((e) => [e.lrclib_id, e.encaje])))
+      }),
+    [cancionId]
+  )
+  const base = fase.tipo === 'listo' ? fase.resultado.candidatos : null
+  const candidatos = useMemo(
+    () =>
+      (base ?? []).map((c) =>
+        encajes.has(c.lrclib_id) ? { ...c, encaje: encajes.get(c.lrclib_id) } : c
+      ),
+    [base, encajes]
+  )
   const seleccionado: CandidatoLetra | undefined = candidatos[indice]
+  const comprobaciones = candidatos.map((c) => comprobacionDe(c, picos, separada))
+  const comprobacionSel = comprobaciones[indice] ?? { tipo: 'ninguna' as const }
+
+  // Si llegan encajes y el mejor candidato no es el seleccionado, se avisa (hasta que se elige o se cierra).
+  const mejor = encajes.size > 0 ? indiceDelMejor(candidatos) : -1
+  const llegada = mejor >= 0 && mejor !== indice && !llegadaDescartada ? mejor : null
+
+  // Motivos de un «no coincide»: se evalúan con los picos solo para el candidato seleccionado.
+  const picosBase = usePicosBase(
+    cancionId,
+    duracionMs,
+    comprobacionSel.tipo === 'noCoincide' && seleccionado !== undefined,
+    separada
+  )
+  const motivos = useMemo(() => {
+    if (comprobacionSel.tipo !== 'noCoincide' || !seleccionado || picosBase?.estado !== 'lista')
+      return []
+    const letra = { lineas: seleccionado.lineas, offset_ms: 0 }
+    const r = evaluarEncajeConPicos(letra, picosBase, { duracionMs })
+    return motivosNoCoincide(detalleNoCoincide(letra, r, duracionMs))
+  }, [comprobacionSel.tipo, seleccionado, picosBase, duracionMs])
+  const desplazamientoMs =
+    comprobacionSel.tipo === 'desfasada'
+      ? corregirDesfase({ offset_ms: 0 }, comprobacionSel.desfaseMs).offset_ms
+      : 0
+
   const sinResultados = fase.tipo === 'listo' && candidatos.length === 0
   const codigoBanner =
     fase.tipo === 'error'
@@ -212,9 +364,18 @@ export function BusquedaLetra({
         cancionId,
         origen: 'lrclib',
         lrclib_id: seleccionado.lrclib_id,
-        lineas: seleccionado.lineas
+        lineas: seleccionado.lineas,
+        // Un candidato desfasado se guarda ya corregido (spec 05, «Usar esta letra»).
+        ...(comprobacionSel.tipo === 'desfasada' ? { desfase_ms: comprobacionSel.desfaseMs } : {})
       })
-      onUsada(resumen, contarLineas(seleccionado), seleccionado.lineas)
+      onUsada(
+        resumen,
+        contarLineas(seleccionado),
+        seleccionado.lineas,
+        comprobacionSel.tipo === 'desfasada'
+          ? corregirDesfase({ offset_ms: 0 }, comprobacionSel.desfaseMs)
+          : undefined
+      )
     } catch {
       setGuardando(false)
       mostrarToast({ tipo: 'error', mensaje: TEXTO.errorGuardar })
@@ -246,7 +407,15 @@ export function BusquedaLetra({
   const banner = codigoBanner ? textoBanner(codigoBanner) : null
   const reintentable = codigoBanner === 'SIN_CONEXION' || codigoBanner === 'SERVICIO_NO_DISPONIBLE'
   const tipoBanner = codigoBanner === 'LETRA_NO_ENCONTRADA' ? 'info' : 'aviso'
-  const filas = seleccionado ? filasDePrevia(seleccionado.lineas) : []
+  const filas = seleccionado ? filasDePrevia(seleccionado.lineas, desplazamientoMs) : []
+  const seleccionarMejor = (): void => {
+    if (llegada === null) return
+    setIndice(llegada)
+    window.setTimeout(() => {
+      document.getElementById(idOpcion(llegada))?.scrollIntoView?.({ block: 'nearest' })
+      refLista.current?.focus()
+    })
+  }
 
   return (
     // Ctrl/Cmd+Intro vale en toda la vista (spec 05, teclado).
@@ -331,6 +500,25 @@ export function BusquedaLetra({
       {candidatos.length > 0 && (
         <div className={estilos.paneles}>
           <div>
+            {llegada !== null && (
+              <AvisoEnLinea
+                tipo="info"
+                accion={
+                  <>
+                    <Boton variante="secundario" onClick={seleccionarMejor}>
+                      {CC.seleccionarla}
+                    </Boton>
+                    <BotonIcono
+                      icono={X}
+                      etiqueta={CC.cerrarAviso}
+                      onClick={() => setLlegadaDescartada(true)}
+                    />
+                  </>
+                }
+              >
+                {CC.llegada(llegada + 1)}
+              </AvisoEnLinea>
+            )}
             <h2 id={`${idLista}-t`} className={estilos.subtitulo}>
               {TEXTO.resultados(candidatos.length)}
             </h2>
@@ -349,6 +537,7 @@ export function BusquedaLetra({
                   key={c.lrclib_id}
                   id={idOpcion(i)}
                   candidato={c}
+                  comprobacion={comprobaciones[i]!}
                   seleccionado={i === indice}
                   onElegir={() => setIndice(i)}
                 />
@@ -365,6 +554,7 @@ export function BusquedaLetra({
               role="region"
               aria-label={TEXTO.vistaPrevia}
             >
+              <BloqueComprobacion comprobacion={comprobacionSel} motivos={motivos} />
               <ol className={estilos.filasPrevia}>
                 {filas.map((f) => (
                   <li key={f.id} className={f.pausa ? estilos.pausaPrevia : estilos.filaPrevia}>

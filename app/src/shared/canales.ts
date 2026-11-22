@@ -58,16 +58,16 @@ export const CANALES = {
     inicial: 'sesion:inicial',
     informar: 'sesion:informar',
     preferencias: 'sesion:preferencias',
-    guardarPreferencias: 'sesion:guardarPreferencias',
-    /** 0.2.2 (ADR 0026 §4): «A la cola» de varias canciones y su deshacer. */
-    colaAnadirVarias: 'sesion:colaAnadirVarias',
-    colaQuitarVarias: 'sesion:colaQuitarVarias'
+    guardarPreferencias: 'sesion:guardarPreferencias'
   },
   /** Cola de reproducción (ADR 0017 §6). */
   cola: {
     agregar: 'cola:agregar',
     mover: 'cola:mover',
     quitar: 'cola:quitar',
+    /** 0.2.2 (ADR 0026 §4): «A la cola» de varias canciones y su deshacer. */
+    agregarVarias: 'cola:agregarVarias',
+    quitarVarias: 'cola:quitarVarias',
     vaciar: 'cola:vaciar'
   },
   /** Exportación de video (ADR 0019 §10). `inicial` y `listo` son solo de la ventana de exportación. */
@@ -177,7 +177,9 @@ export const CANALES = {
     candidatoPorId: 'letras:candidatoPorId',
     /** 0.2.2 (ADR 0027 §4): exportar la letra a `.lrc`. */
     exportarLrc: 'letras:exportarLrc',
-    exportarLrcVarias: 'letras:exportarLrcVarias'
+    exportarLrcVarias: 'letras:exportarLrcVarias',
+    /** Muestra la carpeta de lo escrito por `exportarLrc*` (pregunta 0166). */
+    mostrarEnCarpeta: 'letras:mostrarEnCarpeta'
   },
   /** Aviso de versión nueva (ADR 0023 §4). */
   actualizaciones: {
@@ -206,10 +208,7 @@ export const CANALES = {
     importar: 'copias:importar',
     cancelar: 'copias:cancelar'
   },
-  /**
-   * Sincronía con la voz (ADR 0028 §3). El ADR no fija los nombres de estos canales: propuestos en la
-   * pregunta 0166, a confirmar por el arquitecto.
-   */
+  /** Sincronía con la voz (ADR 0028 §3; canales confirmados en la pregunta 0166). */
   alineacion: {
     estado: 'alineacion:estado',
     descargarModelo: 'alineacion:descargarModelo',
@@ -281,7 +280,9 @@ export const CANALES = {
     /** Progreso de un paquete o una copia (ADR 0027 §2). */
     copiasProgreso: 'copias:progreso',
     /** Progreso de la alineación y de la descarga de modelos (ADR 0028 §3.2). */
-    alineacionProgreso: 'alineacion:progreso'
+    alineacionProgreso: 'alineacion:progreso',
+    /** Resultado de una alineación, en tiempo de audio (pregunta 0166). */
+    alineacionResultado: 'alineacion:resultado'
   }
 } as const
 
@@ -407,8 +408,8 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.biblioteca.editarDatosVariasEjecutar]: PRINCIPAL,
   [CANALES.biblioteca.eliminarVariasPrevisualizar]: PRINCIPAL,
   [CANALES.biblioteca.eliminarVariasEjecutar]: PRINCIPAL,
-  [CANALES.sesion.colaAnadirVarias]: PRINCIPAL,
-  [CANALES.sesion.colaQuitarVarias]: PRINCIPAL,
+  [CANALES.cola.agregarVarias]: PRINCIPAL,
+  [CANALES.cola.quitarVarias]: PRINCIPAL,
   [CANALES.exportacion.destinoCarpeta]: PRINCIPAL,
   [CANALES.exportacion.iniciarLote]: PRINCIPAL,
   [CANALES.exportacion.cancelarLote]: PRINCIPAL,
@@ -420,6 +421,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.letras.candidatoPorId]: PRINCIPAL,
   [CANALES.letras.exportarLrc]: PRINCIPAL,
   [CANALES.letras.exportarLrcVarias]: PRINCIPAL,
+  [CANALES.letras.mostrarEnCarpeta]: PRINCIPAL,
   [CANALES.actualizaciones.estado]: PRINCIPAL,
   [CANALES.actualizaciones.comprobar]: PRINCIPAL,
   [CANALES.actualizaciones.marcarVista]: PRINCIPAL,
