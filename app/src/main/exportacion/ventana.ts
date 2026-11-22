@@ -141,6 +141,8 @@ const errorDeCaptura = (mensaje: string): Error =>
 
 /** Tope de cada ventana del sondeo de captura (ADR 0019, revisión 0.2.1 §1). */
 export const PLAZO_SONDEO_CAPTURA_MS = 3000
+const REINTENTOS_SONDEO_CAPTURA = 4
+const ESPERA_REINTENTO_SONDEO_MS = 150
 
 export interface DepsSondeoCaptura {
   crear(opciones: OpcionesVentanaOffscreen): BrowserWindowOffscreen
@@ -172,8 +174,17 @@ export async function probarCaptura(
     if (anchoReal !== ancho || altoReal !== alto) return false
     const medir = async (): Promise<boolean> => {
       await ventana.loadURL('about:blank')
-      const { width, height } = (await wc.capturePage()).getSize()
-      return width === ancho && height === alto
+      // Recién cargada, la superficie offscreen puede no tener aún fotograma y `capturePage`
+      // rechaza (UnknownVizError en Linux sin GPU): se reintenta unas pocas veces.
+      for (let intento = 0; ; intento++) {
+        try {
+          const { width, height } = (await wc.capturePage()).getSize()
+          return width === ancho && height === alto
+        } catch (e) {
+          if (intento >= REINTENTOS_SONDEO_CAPTURA) throw e
+          await new Promise((res) => setTimeout(res, ESPERA_REINTENTO_SONDEO_MS))
+        }
+      }
     }
     const plazo = new Promise<never>((_, rechazar) => {
       temporizador = setTimeout(

@@ -353,6 +353,7 @@ export class ServicioExportacion<V = unknown> {
     if (!probar) return Promise.resolve()
     this.sondeoCaptura ??= (async () => {
       for (const proporcion of PROPORCIONES) {
+        const negados: string[] = []
         try {
           for (const r of RESOLUCIONES.filter((x) => x.proporcion === proporcion).reverse()) {
             const capturable = await probar(r.ancho, r.alto)
@@ -364,8 +365,12 @@ export class ServicioExportacion<V = unknown> {
               this.altoMaximoCaptura.set(proporcion, r.alto)
               break
             }
+            negados.push(`${r.ancho}x${r.alto}`)
           }
         } catch (e) {
+          // Los «no» ya obtenidos son firmes aunque falle el sondeo de un tamaño menor. Si todos
+          // responden «no» sin error no se marca nada: sería más bien un sondeo averiado.
+          for (const clave of negados) this.noCapturables.add(clave)
           this.deps.registrar?.(
             'aviso',
             `exportación: falló el sondeo de captura de ${proporcion}: ${String(e)}`

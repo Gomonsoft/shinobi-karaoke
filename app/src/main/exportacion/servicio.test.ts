@@ -971,6 +971,16 @@ describe('sondeo de captura (0260)', () => {
     expect(m.registrar).toHaveBeenCalledWith('aviso', expect.stringContaining('sondeo de captura'))
   })
 
+  it('un «no» seguido de una excepción deja marcado el tamaño que respondió «no»', async () => {
+    let sondeos = 0
+    const m = montar({
+      probarCaptura: () =>
+        sondeos++ % 2 === 0 ? Promise.resolve(false) : Promise.reject(new Error('UnknownVizError'))
+    })
+    expect(await motivos(m, 2160)).toEqual(['captura', 'captura'])
+    expect(await motivos(m, 1440)).toEqual([null])
+  })
+
   it.each([
     [true, true],
     [false, false]

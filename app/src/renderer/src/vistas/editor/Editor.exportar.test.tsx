@@ -61,10 +61,13 @@ afterEach(() => {
 it('Ctrl/Cmd + E pausa el audio, vacía el guardado y abre el diálogo de exportación (EX1)', async () => {
   const { abrir, cancion } = montar()
   await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
-  fireEvent.keyDown(window, { key: 'e', ctrlKey: true })
-  await waitFor(() =>
+  // Los atajos se registran en un efecto pasivo (useAtajosEditor): bajo carga caen después de que
+  // aparezca el botón y la tecla se perdía (falló en el CI de Windows y de macOS).
+  await act(async () => {})
+  await waitFor(() => {
+    fireEvent.keyDown(window, { key: 'e', ctrlKey: true })
     expect(abrir).toHaveBeenCalledWith({ cancionId: cancion.id, temaBorrador: false })
-  )
+  })
   expect(motor.pausar).toHaveBeenCalled()
 })
 
