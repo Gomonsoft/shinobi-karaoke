@@ -70,6 +70,8 @@ interface PropsTirador {
   limites: VistaLineaTiempo
   vista: VistaLineaTiempo
   automatico: boolean
+  /** Línea con palabras hechas a mano: el tooltip avisa de que moverlo las quita (P19). */
+  conPalabras: boolean
   activo: boolean
   ocupado: boolean
   iniciar: Props['iniciarMarcador']
@@ -84,6 +86,7 @@ function Tirador({
   limites,
   vista,
   automatico,
+  conPalabras,
   activo,
   ocupado,
   iniciar,
@@ -125,6 +128,11 @@ function Tirador({
       style={{ left: `${Math.max(0, Math.min(100, tiempoAPixel(vista, 100, ms)))}%` }}
       role="slider"
       tabIndex={0}
+      title={
+        conPalabras
+          ? `${borde === 'inicio' ? E.timeline.inicio : automatico ? E.timeline.finAuto : E.timeline.fin}. ${E.preciso.avisoTirador}`
+          : undefined
+      }
       aria-label={
         borde === 'inicio' ? E.timeline.inicio : automatico ? E.timeline.finAuto : E.timeline.fin
       }
@@ -452,6 +460,9 @@ export function PistaSincronia({
                   limites={limites[borde]}
                   vista={vista}
                   automatico={automatico}
+                  conPalabras={letra.lineas.some(
+                    (l) => l.id === activa.id && tienePalabrasManuales(l)
+                  )}
                   activo={bordeArrastrado === borde}
                   ocupado={bordeArrastrado !== undefined}
                   iniciar={iniciarMarcador}

@@ -73,3 +73,45 @@ it('el doble clic en el cuerpo de una región escucha la línea y en un tirador 
     'Uno · Doble clic: escuchar esta línea'
   )
 })
+
+it('los tiradores de una línea con palabras a mano avisan de que moverlos las quita', () => {
+  const props = {
+    seleccion: 'a',
+    duracionMs: 10_000,
+    inactiva: false,
+    sonando: false,
+    posicionMs: 0,
+    obtenerTiempoAudio: () => 0,
+    buscar: noop,
+    seleccionar: noop,
+    iniciarMarcador: () => false,
+    moverMarcador: noop,
+    terminarMarcador: noop,
+    ajustarMarcador: noop,
+    bordeArrastrado: undefined,
+    limite: null
+  }
+  const conPalabras = crearLetra([
+    linea('a', 'Uno dos', 1000, {
+      fin_ms: 3000,
+      origen_palabras: 'manual',
+      palabras: [
+        { texto: 'Uno', inicio_ms: 1000, fin_ms: 2000 },
+        { texto: 'dos', inicio_ms: 2000, fin_ms: 3000 }
+      ]
+    })
+  ])
+  const { unmount } = render(<PistaSincronia {...props} letra={conPalabras} />)
+  const tiradores = screen.getAllByRole('slider', { name: /^(Inicio|Fin) de la línea/ })
+  expect(tiradores).toHaveLength(2)
+  for (const t of tiradores) {
+    expect(t.title).toContain('Moverlo quitará los tiempos por palabra de esta línea.')
+  }
+  unmount()
+  render(
+    <PistaSincronia {...props} letra={crearLetra([linea('a', 'Uno', 1000, { fin_ms: 3000 })])} />
+  )
+  const sin = screen.getAllByRole('slider', { name: /^(Inicio|Fin) de la línea/ })
+  expect(sin).toHaveLength(2)
+  for (const t of sin) expect(t.title).toBe('')
+})

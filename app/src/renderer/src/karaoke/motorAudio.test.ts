@@ -488,3 +488,41 @@ describe('MotorAudio: tramo con el tono conservado', () => {
     aviso.mockRestore()
   })
 })
+
+describe('MotorAudio: buscar antes del bucle conservándolo', () => {
+  it('suena el tramo previo una vez y envuelve sin soltar el bucle', async () => {
+    const { motor, ctx, fuentes } = doble()
+    await motor.usarPista('original')
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })
+    await motor.reproducir({ desdeMs: 2500 })
+    motor.buscar(1500, { conservarBucle: true })
+    const fuente = fuentes.at(-1)!
+    expect(fuente).toMatchObject({ loop: true, loopStart: 2, loopEnd: 4 })
+    expect(fuente.start).toHaveBeenCalledWith(1, 1.5)
+    ctx.currentTime = 2.04
+    expect(motor.posicionMs()).toBeCloseTo(2500)
+    ctx.currentTime = 5.04
+    expect(motor.posicionMs()).toBeCloseTo(3500)
+    // Sin la opción, o buscando después del final, el bucle se suelta como siempre.
+    motor.buscar(1500)
+    expect(fuentes.at(-1)).toMatchObject({ loop: false })
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })
+    motor.buscar(5000, { conservarBucle: true })
+    expect(fuentes.at(-1)).toMatchObject({ loop: false })
+  })
+
+  it('en pausa conserva la posición previa hasta reproducir y la cambia de velocidad sin saltar', async () => {
+    const { motor, ctx, fuentes } = doble()
+    await motor.usarPista('original')
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4000 })
+    motor.buscar(1500, { conservarBucle: true })
+    motor.fijarBucle({ inicioMs: 2000, finMs: 4500 })
+    expect(motor.posicionMs()).toBe(1500)
+    await motor.reproducir()
+    expect(fuentes[0]!.start).toHaveBeenCalledWith(1, 1.5)
+    ctx.currentTime = 1.54
+    motor.fijarVelocidad(0.5)
+    expect(fuentes.at(-1)!.start).toHaveBeenCalledWith(1.54, 2)
+    expect(fuentes.at(-1)).toMatchObject({ loop: true, loopStart: 2, loopEnd: 4.5 })
+  })
+})

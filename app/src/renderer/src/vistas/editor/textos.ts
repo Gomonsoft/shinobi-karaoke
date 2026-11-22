@@ -37,6 +37,7 @@ export const E = {
       'Si cambias su inicio o su fin aquí o en la línea de tiempo, se quitarán (podrás deshacerlo).',
     avisoTirador: 'Moverlo quitará los tiempos por palabra de esta línea.',
     atajosTitulo: 'Editor preciso de línea',
+    menuFila: 'Acciones de la línea',
     escucharLineaMenu: 'Escuchar la línea (Mayús + L)',
     escucharDesdeMenu: 'Escuchar desde esta línea (L)',
     borrarMenu: 'Borrar tiempos de esta línea (Supr)'

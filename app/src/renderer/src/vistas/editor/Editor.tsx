@@ -1015,26 +1015,9 @@ function EditorActivo({
       const intervalo = intervaloDeSeleccion(letra)
       if (!intervalo) return false
       const desdeMs = Math.max(0, intervalo.inicioMs - MARGEN_ESCUCHA_LINEA_MS)
-      if (desdeMs >= intervalo.inicioMs) {
-        motor.buscar(intervalo.inicioMs)
-        void motor.reproducir()
-        return true
-      }
-      // El motor suelta el bucle al buscar fuera de él: se suena el margen y se vuelve a armar.
-      motor.pausar()
-      const baja = motor.suscribir((e) => {
-        if (e.sonando || motor.posicionMs() < intervalo.inicioMs - 5) return
-        cancelarEntradaBucle.current?.()
-        if (bucle.current && motor.fijarBucle(intervalo)) {
-          motor.buscar(intervalo.inicioMs)
-          void motor.reproducir()
-        }
-      })
-      cancelarEntradaBucle.current = () => {
-        baja()
-        cancelarEntradaBucle.current = null
-      }
-      void motor.reproducir({ desdeMs, hastaMs: intervalo.inicioMs })
+      // El motor conserva el bucle al buscar antes de su inicio: suena el margen y luego envuelve.
+      motor.buscar(desdeMs, { conservarBucle: true })
+      void motor.reproducir()
       return true
     }
     // Otra línea: el bucle termina sin restaurar la posición y suena el tramo nuevo.
@@ -1438,6 +1421,8 @@ function EditorActivo({
                 banner={banner}
                 abrirPreciso={abrirPreciso}
                 motivoPreciso={motivoPreciso}
+                escucharLinea={escucharTramoLinea}
+                borrarTiempos={borrar}
                 minimizar={
                   distribucion.bajoMinimo === 'ancho'
                     ? undefined

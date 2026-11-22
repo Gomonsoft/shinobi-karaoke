@@ -125,6 +125,7 @@ export class MotorAudio {
   private estirado: Estirado | null = null
   private preparando: { clave: ClaveEstirado; carga: AbortController } | null = null
   private fallido: ClaveEstirado | null = null
+  private previoBucle = false
   private posicionEnPausa = 0
   private solicitudReproduccion = 0
   private audioLiberado = false
@@ -278,7 +279,11 @@ export class MotorAudio {
     const duracionMs = buffer.duration * 1000
     const bucle =
       hastaMs === undefined && this.bucle ? intervaloAudible(this.bucle, duracionMs) : null
-    if (bucle && !contiene(bucle, desde)) desde = bucle.inicioMs
+    // Con `conservarBucle` se puede empezar antes del bucle: suena el margen y luego envuelve.
+    if (bucle && !contiene(bucle, desde) && !(this.previoBucle && desde < bucle.inicioMs)) {
+      desde = bucle.inicioMs
+    }
+    if (!bucle || desde >= bucle.inicioMs) this.previoBucle = false
     this.posicionEnPausa = desde
     const finMs = Math.min(hastaMs ?? Infinity, duracionMs)
     if (finMs <= desde) return
@@ -332,8 +337,8 @@ export class MotorAudio {
   ): Estirado | undefined {
     const e = this.estirado
     if (!e || e.origen !== origen || e.velocidad !== velocidad) return undefined
-    if (bucle) return dentroDe(bucle, e) ? e : undefined
     const holgura = 1000 / e.buffer.sampleRate
+    if (bucle) return dentroDe(bucle, e) && desdeMs >= e.inicioMs - holgura ? e : undefined
     return hastaMs !== undefined && desdeMs >= e.inicioMs - holgura && hastaMs <= e.finMs + holgura
       ? e
       : undefined
@@ -489,10 +494,15 @@ export class MotorAudio {
     const bucle = intervalo && buffer ? intervaloAudible(intervalo, buffer.duration * 1000) : null
     if (intervalo && !bucle) return false
     if (!intervalo && this.bucle) this.solicitudReproduccion++
+    if (intervalo?.inicioMs !== this.bucle?.inicioMs) this.previoBucle = false
     this.bucle = intervalo
     const reproduccion = this.reproduccion
     if (!reproduccion) {
-      if (bucle && !contiene(bucle, this.posicionEnPausa)) this.posicionEnPausa = bucle.inicioMs
+      if (bucle && !contiene(bucle, this.posicionEnPausa)) {
+        if (!(this.previoBucle && this.posicionEnPausa < bucle.inicioMs)) {
+          this.posicionEnPausa = bucle.inicioMs
+        }
+      }
       return true
     }
     if (reproduccion.hastaMs !== undefined) return true
@@ -540,11 +550,19 @@ export class MotorAudio {
     return true
   }
 
-  buscar(ms: number): void {
+  /**
+   * Con `conservarBucle`, buscar antes del inicio del bucle no lo suelta: suena ese tramo previo
+   * una vez y después envuelve (escucha del margen previo sin rearmar el bucle). Buscar después
+   * de su final sigue soltándolo.
+   */
+  buscar(ms: number, opciones: { conservarBucle?: boolean } = {}): void {
     this.posicionEnPausa = acotar(ms, this.actual.duracionMs ?? 0)
+    this.previoBucle = false
     if (this.bucle) {
       const bucle = intervaloAudible(this.bucle, this.actual.duracionMs ?? 0)
-      if (!bucle || !contiene(bucle, this.posicionEnPausa)) {
+      if (bucle && opciones.conservarBucle && this.posicionEnPausa < bucle.inicioMs) {
+        this.previoBucle = true
+      } else if (!bucle || !contiene(bucle, this.posicionEnPausa)) {
         this.bucle = null
         this.solicitudReproduccion++
       }
