@@ -1,3 +1,3 @@
 """Worker de audio de Shinobi Karaoke."""
 
-__version__ = "0.2.1a1"
+__version__ = "0.2.1"
