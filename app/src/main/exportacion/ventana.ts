@@ -166,6 +166,10 @@ export async function probarCaptura(
     wc.setWindowOpenHandler(() => ({ action: 'deny' }))
     wc.setAudioMuted(true)
     ventana.setContentSize(ancho, alto)
+    // La misma comprobación temprana que hace una exportación real: si la ventana no toma el
+    // tamaño (Xvfb sin GPU la deja en 3839×2159), ese perfil no se puede capturar.
+    const [anchoReal, altoReal] = ventana.getContentSize()
+    if (anchoReal !== ancho || altoReal !== alto) return false
     const medir = async (): Promise<boolean> => {
       await ventana.loadURL('about:blank')
       const { width, height } = (await wc.capturePage()).getSize()

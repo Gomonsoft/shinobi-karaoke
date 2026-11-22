@@ -176,6 +176,13 @@ describe('probarCaptura', () => {
     expect(ventana.destroy).toHaveBeenCalledOnce()
   })
 
+  it('una ventana que no toma el tamaño da false sin llegar a capturar', async () => {
+    const { ventana, deps } = montar({ w: 3840, h: 2160 }, 'rebelde')
+    expect(await probarCaptura(3840, 2160, { crear: deps.crear })).toBe(false)
+    expect(ventana.loadURL).not.toHaveBeenCalled()
+    expect(ventana.destroy).toHaveBeenCalledOnce()
+  })
+
   it('pasar del plazo rechaza y destruye la ventana', async () => {
     const { ventana, deps } = montar()
     ventana.loadURL.mockReturnValue(new Promise(() => undefined))
