@@ -1,5 +1,6 @@
 import type { AgruparBiblioteca } from '@shared/config'
 import type { ApiShinobi } from '@shared/ipc'
+import { apiNuevaFalsa, bibliotecaNuevaFalsa } from '../apiNuevaFalsa'
 import { temasFalsos, type TemasFalsos } from './temasFalsos'
 import { ventanaFalsa } from './ventanaFalsa'
 
@@ -30,7 +31,9 @@ export function fixtures({
   return {
     ventana: ventanaFalsa(),
     ...temas.api,
+    ...apiNuevaFalsa(),
     biblioteca: {
+      ...bibliotecaNuevaFalsa(),
       listar,
       obtener: () => Promise.resolve(null),
       comprobarPistas: async (id: string) => (await listar()).find((c) => c.id === id) ?? null,

@@ -253,6 +253,26 @@ describe('manejadores IPC', () => {
     expect(JSON.stringify(lista)).not.toContain('/ruta/absoluta')
   })
 
+  it('los canales de 0.2.2 responden «no implementado», validan argumentos y exigen la principal', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    const canal = CANALES.preparacion.preparar
+    expect(await m[canal]([{ ids: ['a'] }])).toEqual({
+      ok: false,
+      error: { codigo: 'ERROR_INTERNO', mensaje: 'No implementado.' }
+    })
+    expect(await m[canal]([{ ids: [] }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    const r = await m[canal]([{ ids: ['a'] }], { rol: 'secundaria', sender: null })
+    expect(r).toMatchObject({ ok: false })
+    expect(r.ok === false && r.error.codigo).not.toBe('ERROR_INTERNO')
+    expect(await m[CANALES.alineacion.estado]([])).toMatchObject({
+      error: { codigo: 'ERROR_INTERNO' }
+    })
+  })
+
   it('rechaza argumentos inválidos sin llamar al servicio', async () => {
     const { deps } = crearDeps()
     const m = crearManejadores(deps)
@@ -565,7 +585,12 @@ describe('runtime y cierre (0036)', () => {
     expect(canales.filter((c) => /modelo|rapido|descarg/i.test(c))).toEqual([
       CANALES.runtime.aceptarYUsarRapido
     ])
-    expect(Object.keys(CONTRATO).filter((c) => /modelo|descargar/i.test(c))).toEqual([])
+    // Los modelos de alineación (ADR 0028, 0.2.2) tienen su propio grupo de canales.
+    expect(
+      Object.keys(CONTRATO).filter(
+        (c) => !c.startsWith('alineacion:') && /modelo|descargar/i.test(c)
+      )
+    ).toEqual([])
   })
 
   it('rechaza argumentos inválidos sin llamar al servicio', async () => {

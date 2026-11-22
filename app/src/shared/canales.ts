@@ -13,7 +13,14 @@ export const CANALES = {
     comprobarPistas: 'biblioteca:comprobarPistas',
     volverABorrador: 'biblioteca:volverABorrador',
     eliminar: 'biblioteca:eliminar',
-    mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta'
+    mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta',
+    /** 0.2.2 (ADR 0025 §6): artistas y álbumes existentes con su clave, del índice en memoria. */
+    valoresDatos: 'biblioteca:valoresDatos',
+    /** 0.2.2 (ADR 0026 §4): acciones por lotes con el patrón previsualizar / ejecutar. */
+    editarDatosVariasPrevisualizar: 'biblioteca:editarDatosVariasPrevisualizar',
+    editarDatosVariasEjecutar: 'biblioteca:editarDatosVariasEjecutar',
+    eliminarVariasPrevisualizar: 'biblioteca:eliminarVariasPrevisualizar',
+    eliminarVariasEjecutar: 'biblioteca:eliminarVariasEjecutar'
   },
   /** Catálogo de temas y operaciones sobre la apariencia (ADR 0016, 0164). */
   temas: {
@@ -51,7 +58,10 @@ export const CANALES = {
     inicial: 'sesion:inicial',
     informar: 'sesion:informar',
     preferencias: 'sesion:preferencias',
-    guardarPreferencias: 'sesion:guardarPreferencias'
+    guardarPreferencias: 'sesion:guardarPreferencias',
+    /** 0.2.2 (ADR 0026 §4): «A la cola» de varias canciones y su deshacer. */
+    colaAnadirVarias: 'sesion:colaAnadirVarias',
+    colaQuitarVarias: 'sesion:colaQuitarVarias'
   },
   /** Cola de reproducción (ADR 0017 §6). */
   cola: {
@@ -73,7 +83,12 @@ export const CANALES = {
     avisosPendientes: 'exportacion:avisosPendientes',
     /** Solo ventana de exportación. */
     inicial: 'exportacion:inicial',
-    listo: 'exportacion:listo'
+    listo: 'exportacion:listo',
+    /** 0.2.2 (ADR 0026 §5): exportar varias canciones a una carpeta. */
+    destinoCarpeta: 'exportacion:destinoCarpeta',
+    iniciarLote: 'exportacion:iniciarLote',
+    cancelarLote: 'exportacion:cancelarLote',
+    reintentarLote: 'exportacion:reintentarLote'
   },
   ventana: {
     modoReproductor: 'ventana:modoReproductor',
@@ -100,7 +115,12 @@ export const CANALES = {
     infoYoutube: 'fuente:infoYoutube',
     cancelarInfo: 'fuente:cancelarInfo',
     confirmarYoutube: 'fuente:confirmarYoutube',
-    reintentar: 'fuente:reintentar'
+    reintentar: 'fuente:reintentar',
+    /** 0.2.2 (ADR 0026 §1 y §2): lectura del lote (sin ruta: diálogo del sistema) y su confirmación. */
+    leerArchivos: 'fuente:leerArchivos',
+    leerCarpeta: 'fuente:leerCarpeta',
+    infoLista: 'fuente:infoLista',
+    lote: 'fuente:lote'
   },
   runtime: {
     estado: 'runtime:estado',
@@ -152,7 +172,52 @@ export const CANALES = {
     /** Solo el texto de una línea, conservando id y tiempos (0283, ADR 0021 §7). */
     editarTextoLinea: 'letras:editarTextoLinea',
     /** Diálogo nativo `.lrc`/`.txt`; no guarda (0083). */
-    leerArchivo: 'letras:leerArchivo'
+    leerArchivo: 'letras:leerArchivo',
+    /** 0.2.2 (ADR 0025 §7): texto de un candidato guardado por su id de LRCLIB. */
+    candidatoPorId: 'letras:candidatoPorId',
+    /** 0.2.2 (ADR 0027 §4): exportar la letra a `.lrc`. */
+    exportarLrc: 'letras:exportarLrc',
+    exportarLrcVarias: 'letras:exportarLrcVarias'
+  },
+  /** Aviso de versión nueva (ADR 0023 §4). */
+  actualizaciones: {
+    estado: 'actualizaciones:estado',
+    comprobar: 'actualizaciones:comprobar',
+    marcarVista: 'actualizaciones:marcarVista'
+  },
+  /** Preparación desatendida y su cola (ADR 0025 §5 y §7). */
+  preparacion: {
+    previsualizar: 'preparacion:previsualizar',
+    preparar: 'preparacion:preparar',
+    pausar: 'preparacion:pausar',
+    reanudar: 'preparacion:reanudar',
+    reintentarFallidas: 'preparacion:reintentarFallidas',
+    tanda: 'preparacion:tanda',
+    cancelar: 'preparacion:cancelar'
+  },
+  /** Paquetes de canción, copia de seguridad y restauración (ADR 0027 §6). */
+  copias: {
+    exportarCanciones: 'copias:exportarCanciones',
+    exportarBiblioteca: 'copias:exportarBiblioteca',
+    destinoPropuesto: 'copias:destinoPropuesto',
+    elegirDestino: 'copias:elegirDestino',
+    elegirOrigen: 'copias:elegirOrigen',
+    leer: 'copias:leer',
+    importar: 'copias:importar',
+    cancelar: 'copias:cancelar'
+  },
+  /**
+   * Sincronía con la voz (ADR 0028 §3). El ADR no fija los nombres de estos canales: propuestos en la
+   * pregunta 0166, a confirmar por el arquitecto.
+   */
+  alineacion: {
+    estado: 'alineacion:estado',
+    descargarModelo: 'alineacion:descargarModelo',
+    cancelarDescarga: 'alineacion:cancelarDescarga',
+    quitarModelo: 'alineacion:quitarModelo',
+    previsualizar: 'alineacion:previsualizar',
+    alinear: 'alineacion:alinear',
+    cancelar: 'alineacion:cancelar'
   },
   eventos: {
     cancion: 'evento:cancion',
@@ -198,7 +263,25 @@ export const CANALES = {
     /** Aviso de arranque (interrumpida, limpieza fallida), solo a la principal (0132). */
     exportacionAviso: 'exportacion:aviso',
     /** Pide pintar el fotograma `n`, solo a la ventana de exportación. */
-    exportacionFotograma: 'exportacion:fotograma'
+    exportacionFotograma: 'exportacion:fotograma',
+    /** El aviso de versión cambió (ADR 0023 §4), solo a la principal. */
+    actualizacionesCambio: 'actualizaciones:cambio',
+    /** Cambio de estado o paso de la preparación de una canción (ADR 0025 §7). */
+    preparacionCambio: 'preparacion:cambio',
+    /** Estado de la tanda de la cola de preparación (ADR 0025 §5). */
+    preparacionTanda: 'preparacion:tanda',
+    /** Se reanudó trabajo pendiente al abrir (ADR 0025 §5). */
+    preparacionReanudada: 'preparacion:reanudada',
+    /** Encajes de los candidatos cuando los picos terminan (ADR 0024 §2). */
+    letrasEncaje: 'letras:encaje',
+    /** Avance `{ hechas, total }` de una acción por lotes de la Biblioteca (ADR 0026 §4). */
+    bibliotecaProgresoLote: 'biblioteca:progresoLote',
+    /** Alta, estado y resultado de un paquete o una copia (ADR 0027 §2). */
+    copiasCambio: 'copias:cambio',
+    /** Progreso de un paquete o una copia (ADR 0027 §2). */
+    copiasProgreso: 'copias:progreso',
+    /** Progreso de la alineación y de la descarga de modelos (ADR 0028 §3.2). */
+    alineacionProgreso: 'alineacion:progreso'
   }
 } as const
 
@@ -318,5 +401,48 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.cola.agregar]: PRINCIPAL,
   [CANALES.cola.mover]: PRINCIPAL,
   [CANALES.cola.quitar]: PRINCIPAL,
-  [CANALES.cola.vaciar]: PRINCIPAL
+  [CANALES.cola.vaciar]: PRINCIPAL,
+  [CANALES.biblioteca.valoresDatos]: PRINCIPAL,
+  [CANALES.biblioteca.editarDatosVariasPrevisualizar]: PRINCIPAL,
+  [CANALES.biblioteca.editarDatosVariasEjecutar]: PRINCIPAL,
+  [CANALES.biblioteca.eliminarVariasPrevisualizar]: PRINCIPAL,
+  [CANALES.biblioteca.eliminarVariasEjecutar]: PRINCIPAL,
+  [CANALES.sesion.colaAnadirVarias]: PRINCIPAL,
+  [CANALES.sesion.colaQuitarVarias]: PRINCIPAL,
+  [CANALES.exportacion.destinoCarpeta]: PRINCIPAL,
+  [CANALES.exportacion.iniciarLote]: PRINCIPAL,
+  [CANALES.exportacion.cancelarLote]: PRINCIPAL,
+  [CANALES.exportacion.reintentarLote]: PRINCIPAL,
+  [CANALES.fuente.leerArchivos]: PRINCIPAL,
+  [CANALES.fuente.leerCarpeta]: PRINCIPAL,
+  [CANALES.fuente.infoLista]: PRINCIPAL,
+  [CANALES.fuente.lote]: PRINCIPAL,
+  [CANALES.letras.candidatoPorId]: PRINCIPAL,
+  [CANALES.letras.exportarLrc]: PRINCIPAL,
+  [CANALES.letras.exportarLrcVarias]: PRINCIPAL,
+  [CANALES.actualizaciones.estado]: PRINCIPAL,
+  [CANALES.actualizaciones.comprobar]: PRINCIPAL,
+  [CANALES.actualizaciones.marcarVista]: PRINCIPAL,
+  [CANALES.preparacion.previsualizar]: PRINCIPAL,
+  [CANALES.preparacion.preparar]: PRINCIPAL,
+  [CANALES.preparacion.pausar]: PRINCIPAL,
+  [CANALES.preparacion.reanudar]: PRINCIPAL,
+  [CANALES.preparacion.reintentarFallidas]: PRINCIPAL,
+  [CANALES.preparacion.tanda]: PRINCIPAL,
+  [CANALES.preparacion.cancelar]: PRINCIPAL,
+  [CANALES.copias.exportarCanciones]: PRINCIPAL,
+  [CANALES.copias.exportarBiblioteca]: PRINCIPAL,
+  [CANALES.copias.destinoPropuesto]: PRINCIPAL,
+  [CANALES.copias.elegirDestino]: PRINCIPAL,
+  [CANALES.copias.elegirOrigen]: PRINCIPAL,
+  [CANALES.copias.leer]: PRINCIPAL,
+  [CANALES.copias.importar]: PRINCIPAL,
+  [CANALES.copias.cancelar]: PRINCIPAL,
+  [CANALES.alineacion.estado]: PRINCIPAL,
+  [CANALES.alineacion.descargarModelo]: PRINCIPAL,
+  [CANALES.alineacion.cancelarDescarga]: PRINCIPAL,
+  [CANALES.alineacion.quitarModelo]: PRINCIPAL,
+  [CANALES.alineacion.previsualizar]: PRINCIPAL,
+  [CANALES.alineacion.alinear]: PRINCIPAL,
+  [CANALES.alineacion.cancelar]: PRINCIPAL
 }

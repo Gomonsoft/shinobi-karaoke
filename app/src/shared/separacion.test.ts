@@ -146,7 +146,19 @@ describe('errores', () => {
       'DESTINO_OCUPADO',
       'PERFIL_NO_SOPORTADO',
       'LIMPIEZA_FALLIDA',
-      'CANCION_EXPORTANDOSE'
+      'CANCION_EXPORTANDOSE',
+      'LISTA_NO_DISPONIBLE',
+      'ARCHIVO_NO_ENCONTRADO',
+      'NADA_QUE_HACER',
+      'YA_EN_COLA',
+      'YA_EXISTE',
+      'PAQUETE_NO_VALIDO',
+      'PAQUETE_VERSION_NUEVA',
+      'PAQUETE_INCOMPLETO',
+      'CANCION_MAS_NUEVA',
+      'EN_CURSO',
+      'ALINEACION_NO_DISPONIBLE',
+      'IDIOMA_NO_ADMITIDO'
     ])
   })
 })

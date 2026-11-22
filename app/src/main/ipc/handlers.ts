@@ -310,6 +310,53 @@ const CONTEXTO_PRINCIPAL: ContextoIpc = { rol: 'principal', sender: null }
 const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
   Object.assign(new Error(mensaje), { codigo })
 
+/** Canales de 0.2.2 aún sin servicio (tarea 0339); cada tarea de feature saca el suyo de esta lista. */
+const CANALES_NO_IMPLEMENTADOS = [
+  CANALES.actualizaciones.estado,
+  CANALES.actualizaciones.comprobar,
+  CANALES.actualizaciones.marcarVista,
+  CANALES.preparacion.previsualizar,
+  CANALES.preparacion.preparar,
+  CANALES.preparacion.pausar,
+  CANALES.preparacion.reanudar,
+  CANALES.preparacion.reintentarFallidas,
+  CANALES.preparacion.tanda,
+  CANALES.preparacion.cancelar,
+  CANALES.letras.candidatoPorId,
+  CANALES.letras.exportarLrc,
+  CANALES.letras.exportarLrcVarias,
+  CANALES.fuente.leerArchivos,
+  CANALES.fuente.leerCarpeta,
+  CANALES.fuente.infoLista,
+  CANALES.fuente.lote,
+  CANALES.biblioteca.valoresDatos,
+  CANALES.biblioteca.editarDatosVariasPrevisualizar,
+  CANALES.biblioteca.editarDatosVariasEjecutar,
+  CANALES.biblioteca.eliminarVariasPrevisualizar,
+  CANALES.biblioteca.eliminarVariasEjecutar,
+  CANALES.sesion.colaAnadirVarias,
+  CANALES.sesion.colaQuitarVarias,
+  CANALES.exportacion.destinoCarpeta,
+  CANALES.exportacion.iniciarLote,
+  CANALES.exportacion.cancelarLote,
+  CANALES.exportacion.reintentarLote,
+  CANALES.copias.exportarCanciones,
+  CANALES.copias.exportarBiblioteca,
+  CANALES.copias.destinoPropuesto,
+  CANALES.copias.elegirDestino,
+  CANALES.copias.elegirOrigen,
+  CANALES.copias.leer,
+  CANALES.copias.importar,
+  CANALES.copias.cancelar,
+  CANALES.alineacion.estado,
+  CANALES.alineacion.descargarModelo,
+  CANALES.alineacion.cancelarDescarga,
+  CANALES.alineacion.quitarModelo,
+  CANALES.alineacion.previsualizar,
+  CANALES.alineacion.alinear,
+  CANALES.alineacion.cancelar
+] as const satisfies readonly CanalInvocable[]
+
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
 export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
   const { biblioteca, config, trabajos, fuente, runtime } = deps
@@ -419,6 +466,31 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     if (!cancion) return null
     return { ...cancion, resuelta: resueltaDeResolucion(biblioteca.resolver(cancion)) }
   }
+
+  /**
+   * Canales de 0.2.2 declarados en la tarea 0339: validan argumentos y rol como cualquier canal y
+   * responden `ERROR_INTERNO` «no implementado» hasta que la tarea de su feature sustituya el manejador
+   * (cada una solo cambia su entrada de este objeto, no el registro).
+   */
+  const noImplementado =
+    (canal: CanalInvocable): ManejadorIpc =>
+    async (crudos, ctx = CONTEXTO_PRINCIPAL) => {
+      if (!CONTRATO[canal].args.safeParse(crudos).success) {
+        return {
+          ok: false,
+          error: { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Los argumentos no son válidos.' }
+        }
+      }
+      try {
+        exigirRol(ctx, 'principal')
+      } catch (e) {
+        return { ok: false, error: aErrorIpc(e) }
+      }
+      return { ok: false, error: { codigo: 'ERROR_INTERNO', mensaje: 'No implementado.' } }
+    }
+  const noImplementados = Object.fromEntries(
+    CANALES_NO_IMPLEMENTADOS.map((canal) => [canal, noImplementado(canal)])
+  ) as Record<(typeof CANALES_NO_IMPLEMENTADOS)[number], ManejadorIpc>
 
   return {
     [CANALES.temas.catalogo]: envolver(CANALES.temas.catalogo, () => temas().catalogo()),
@@ -780,6 +852,7 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       exigirRol(ctx, 'exportacion')
       return ventanaExportacion().confirmarListo(carga)
     }),
+    ...noImplementados,
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),

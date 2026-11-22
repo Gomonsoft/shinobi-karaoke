@@ -84,6 +84,7 @@ import {
   type PreferenciasSecundaria
 } from './config'
 import {
+  candidatoLetraSchema,
   archivoLetraLeidoSchema,
   busquedaLetraSchema,
   editarTextoLetraSchema,
@@ -145,6 +146,8 @@ export type PeticionPicos = z.infer<typeof peticionPicosSchema>
 export type LecturaPicos = z.infer<typeof lecturaPicosSchema>
 
 const textoCorto = z.string().max(500)
+/** Tope de canciones en una operación por lotes (500: la biblioteca realista, ADR 0026). */
+const MAX_IDS_LOTE = 500
 
 export const metadatosEditablesSchema = z.strictObject({
   titulo: textoCorto.refine((t) => t.trim().length > 0, 'El título no puede estar vacío'),
@@ -575,9 +578,17 @@ export const configParcialRendererSchema = z.strictObject({
       voz_guia: z.number().min(0).max(1).optional(),
       voz_guia_silenciada: z.boolean().optional(),
       // Cuenta entre canciones (ADR 0006, rev. fase 4). `secundaria` solo lo escribe main.
-      transicion_s: z.number().int().min(TRANSICION_S.min).max(TRANSICION_S.max).optional()
+      transicion_s: z.number().int().min(TRANSICION_S.min).max(TRANSICION_S.max).optional(),
+      // 0.2.2 (ADR 0022 §5).
+      subrayar_cantado: z.boolean().optional()
     })
     .optional(),
+  // 0.2.2 (ADR 0023 §4): del aviso de versión el renderer solo escribe `avisar`.
+  actualizaciones: z.strictObject({ avisar: z.boolean().optional() }).optional(),
+  // 0.2.2 (ADR 0025 §4): `pausada` solo la escribe main.
+  preparacion: z.strictObject({ automatica: z.boolean().optional() }).optional(),
+  // 0.2.2 (ADR 0026 §3): aviso legal de las listas de YouTube.
+  aviso_youtube_listas_aceptado: z.iso.datetime().nullable().optional(),
   // `separacion.modo` y `separacion.rapido_aceptado` no se editan desde el renderer: solo los
   // cambian `aceptarYUsarRapido` y `volverACalidad` (0057).
   // `estilo_predeterminado` (0.1.0) ya no lo escribe el renderer: el predeterminado es un tema (0170).
@@ -1005,6 +1016,343 @@ export const fotogramaExportacionSchema = z.object({
   n: z.int().min(0).max(MAX_FOTOGRAMAS)
 }) satisfies z.ZodType<FotogramaExportacionIpc>
 
+// --- 0.2.2: contratos de las once features (tarea 0339) --------------------------------------
+// Los esquemas de respuesta salen de los ADR 0022–0028; lo que el ADR no fija (marcado «provisional»)
+// está en la pregunta 0166 y lo concretará la tarea que sustituya el manejador «no implementado».
+
+const idsCancionSchema = z.array(idCancionSchema).min(1).max(MAX_IDS_LOTE)
+const idsParejaSchema = z.strictObject({ ids: idsCancionSchema })
+
+/** Aviso de versión nueva (ADR 0023 §4). */
+export const disponibleSchema = z.object({
+  version: z.string(),
+  publicada: z.string(),
+  recursos: z.array(z.string())
+})
+export const estadoActualizacionesSchema = z.object({
+  canal: z.enum(['publicada', 'desarrollo', 'local']),
+  avisar: z.boolean(),
+  disponible: disponibleSchema.nullable(),
+  vista: z.string().nullable(),
+  ultimaComprobacion: z.string().nullable(),
+  comprobando: z.boolean()
+})
+export type EstadoActualizacionesIpc = z.infer<typeof estadoActualizacionesSchema>
+export const resultadoComprobacionSchema = z.object({
+  resultado: z.enum(['nueva', 'al_dia', 'error']),
+  disponible: disponibleSchema.optional(),
+  codigo: z.enum(CODIGOS_ERROR).optional()
+})
+export type ResultadoComprobacionIpc = z.infer<typeof resultadoComprobacionSchema>
+export const marcarVistaSchema = z.strictObject({ version: z.string().min(1).max(64) })
+
+/** Motivo por canción de una operación por lotes: un código de error o de omisión (provisional). */
+const motivoSchema = z.string().max(64)
+export const omitidaSchema = z.object({ id: idCancionSchema, motivo: motivoSchema })
+
+/** Preparación desatendida (ADR 0025 §7). */
+export const previsualizarPreparacionSchema = z.array(
+  z.object({
+    id: idCancionSchema,
+    aplica: z.boolean(),
+    pasos: z.array(z.string()),
+    motivo: motivoSchema.optional()
+  })
+)
+export const resultadoPrepararSchema = z.object({
+  aceptadas: z.array(idCancionSchema),
+  omitidas: z.array(omitidaSchema)
+})
+/** Tanda de la cola de preparación (ADR 0025 §5); forma provisional. */
+export const tandaPreparacionSchema = z.object({
+  total: z.number().int().nonnegative(),
+  terminadas: z.number().int().nonnegative(),
+  pausada: z.boolean(),
+  motivoPausa: motivoSchema.nullable(),
+  estimacionMin: z.number().nonnegative().nullable()
+})
+export type TandaPreparacionIpc = z.infer<typeof tandaPreparacionSchema>
+/** Evento `preparacion:cambio`: el registro `cancion.preparacion` lo define la tarea 0306. */
+export interface CambioPreparacionIpc {
+  id: string
+  preparacion: unknown
+}
+
+/** Lectura y confirmación de un lote (ADR 0026 §1 y §2). */
+export const MAX_LOTE = 50
+export const metadatosFilaLoteSchema = z.object({
+  titulo: z.string(),
+  artista: z.string(),
+  album: z.string().nullable()
+})
+export const filaLoteSchema = z.object({
+  /** Identificador que main asocia a la ruta; válido 30 min. El renderer nunca envía rutas al confirmar. */
+  ref: z.uuid(),
+  nombre: z.string(),
+  duracionMs: z.number().int().nonnegative().nullable(),
+  metadatos: metadatosFilaLoteSchema,
+  /** `YA_EN_BIBLIOTECA` o `REPETIDA` (ADR 0026 §1): la fila llega desmarcada. */
+  duplicado: z.enum(['YA_EN_BIBLIOTECA', 'REPETIDA']).nullable()
+})
+export const lecturaLoteSchema = z.object({
+  filas: z.array(filaLoteSchema),
+  /** Elementos rechazados por superar `MAX_LOTE` o no ser audio. */
+  rechazadas: z.number().int().nonnegative()
+})
+export type LecturaLoteIpc = z.infer<typeof lecturaLoteSchema>
+/** Sin rutas, main abre el diálogo del sistema (provisional, pregunta 0166). */
+export const leerArchivosSchema = z.strictObject({
+  rutas: z.array(z.string().min(1).max(4096)).min(1).max(500).optional()
+})
+export const leerCarpetaSchema = z.strictObject({ ruta: z.string().min(1).max(4096).optional() })
+export const infoListaSchema = z.strictObject({ url: z.string().min(1).max(2048) })
+export const listaYoutubeSchema = z.object({
+  titulo: z.string(),
+  tipo: z.enum(['lista', 'album']),
+  entradas: z.array(
+    z.object({
+      id: z.string(),
+      titulo: z.string(),
+      canal: z.string(),
+      duracionS: z.number().nonnegative().nullable(),
+      disponible: z.boolean()
+    })
+  ),
+  /** La lista tenía más de `MAX_LOTE` entradas y se recortó. */
+  recortada: z.boolean()
+})
+export type ListaYoutubeIpc = z.infer<typeof listaYoutubeSchema>
+export const entradaLoteSchema = z.discriminatedUnion('tipo', [
+  z.strictObject({ tipo: z.literal('archivo'), ref: z.uuid() }),
+  z.strictObject({ tipo: z.literal('youtube'), id: z.string().min(1).max(64) })
+])
+export const loteSchema = z
+  .strictObject({
+    entradas: z.array(entradaLoteSchema).min(1).max(MAX_LOTE),
+    metadatos: z.array(metadatosEditablesSchema).min(1).max(MAX_LOTE)
+  })
+  .refine((l) => l.entradas.length === l.metadatos.length, 'Una entrada por cada metadato')
+export type LoteIpc = z.infer<typeof loteSchema>
+export const resultadoLoteSchema = z.object({
+  creadas: z.array(z.object({ id: idCancionSchema })),
+  omitidas: z.array(z.object({ fila: z.number().int().nonnegative(), motivo: motivoSchema }))
+})
+
+/** Acciones por lotes en la Biblioteca (ADR 0026 §4): previsualizar, ejecutar con `version`. */
+export const valoresDatosSchema = z.object({
+  artistas: z.array(
+    z.object({ valor: z.string(), clave: z.string(), canciones: z.number().int() })
+  ),
+  albumes: z.array(z.object({ valor: z.string(), clave: z.string(), canciones: z.number().int() }))
+})
+export type ValoresDatosIpc = z.infer<typeof valoresDatosSchema>
+const datosVariasForma = {
+  ids: idsCancionSchema,
+  artista: textoCorto.optional(),
+  album: textoCorto.nullable().optional()
+}
+export const previsualizarDatosVariasSchema = z.strictObject(datosVariasForma)
+export const ejecutarDatosVariasSchema = z.strictObject({
+  ...datosVariasForma,
+  version: z.string().min(1).max(200)
+})
+export const ejecutarVariasSchema = z.strictObject({
+  ids: idsCancionSchema,
+  version: z.string().min(1).max(200)
+})
+export const previsualizacionVariasSchema = z.object({
+  version: z.string(),
+  canciones: z.array(
+    z.object({
+      id: idCancionSchema,
+      aplica: z.boolean(),
+      motivo: motivoSchema.optional(),
+      /** Lo que arrastra: trabajos que se cancelan, entradas de la cola y cambio de tema efectivo. */
+      trabajos: z.number().int().nonnegative(),
+      entradasCola: z.number().int().nonnegative(),
+      cambiaTema: z.boolean()
+    })
+  )
+})
+export type PrevisualizacionVariasIpc = z.infer<typeof previsualizacionVariasSchema>
+export const resultadoVariasSchema = z.object({
+  resultados: z.array(
+    z.object({
+      id: idCancionSchema,
+      resultado: z.enum(['hecho', 'omitida', 'error']),
+      motivo: motivoSchema.optional()
+    })
+  )
+})
+export type ResultadoVariasIpc = z.infer<typeof resultadoVariasSchema>
+/** Evento `biblioteca:progresoLote`. */
+export interface ProgresoLoteIpc {
+  hechas: number
+  total: number
+}
+
+/** «A la cola» de varias canciones (ADR 0026 §4). */
+export const colaAnadirVariasSchema = idsParejaSchema
+export const colaQuitarVariasSchema = z.strictObject({
+  entradaIds: z.array(z.string().min(1).max(200)).min(1).max(MAX_IDS_LOTE)
+})
+export const resultadoColaAnadirVariasSchema = z.object({
+  entradaIds: z.array(z.string()),
+  omitidas: z.array(omitidaSchema)
+})
+
+/** Exportar varias canciones (ADR 0026 §5). */
+export const destinoCarpetaSchema = z.strictObject({ desdeCarpetaId: z.uuid().optional() })
+export const carpetaIpcSchema = z.object({
+  carpetaId: z.uuid(),
+  ruta: z.string(),
+  libreBytes: z.number().nonnegative()
+})
+export const iniciarLoteExportacionSchema = z
+  .strictObject({
+    cancionIds: idsCancionSchema,
+    ...perfilExportacionForma,
+    audio: audioExportacionSchema,
+    carpetaId: z.uuid(),
+    siExiste: z.enum(['numerar', 'sustituir', 'omitir'])
+  })
+  .refine(perfilValido, perfilNoValido)
+export type IniciarLoteExportacion = z.infer<typeof iniciarLoteExportacionSchema>
+const loteIdSchema = z.strictObject({ loteId: z.uuid() })
+export const resultadoLoteExportacionSchema = z.object({
+  loteId: z.uuid(),
+  encoladas: z.array(z.object({ cancionId: idCancionSchema, trabajoId: z.uuid() })),
+  omitidas: z.array(omitidaSchema)
+})
+export type ResultadoLoteExportacionIpc = z.infer<typeof resultadoLoteExportacionSchema>
+
+/** Letras: candidato por id y exportar `.lrc` (ADR 0025 §7, 0027 §4). */
+export const candidatoPorIdSchema = z.strictObject({
+  cancionId: idCancionSchema,
+  lrclibId: z.number().int().positive()
+})
+export const exportarLrcSchema = z.strictObject({ cancionId: idCancionSchema, destinoId: z.uuid() })
+export const exportarLrcVariasSchema = z.strictObject({
+  ids: idsCancionSchema,
+  carpetaId: z.uuid()
+})
+export const resultadoExportarLrcSchema = z.object({
+  /** Líneas sin inicio que no se escribieron (la spec muestra el recuento). */
+  lineasOmitidas: z.number().int().nonnegative()
+})
+export const resultadoExportarLrcVariasSchema = z.object({
+  escritas: z.number().int().nonnegative(),
+  omitidas: z.array(omitidaSchema)
+})
+
+/** Paquetes y copias (ADR 0027 §2, §3 y §6). */
+export const TIPOS_COPIA = ['canciones', 'biblioteca'] as const
+export const copiasExportarCancionesSchema = z.strictObject({
+  ids: idsCancionSchema,
+  conAudio: z.boolean(),
+  destinoId: z.uuid()
+})
+export const copiasExportarBibliotecaSchema = z.strictObject({
+  conAudio: z.boolean(),
+  ajustes: z.boolean(),
+  destinoId: z.uuid()
+})
+export const copiasDestinoPropuestoSchema = z.strictObject({
+  tipo: z.enum(TIPOS_COPIA),
+  ids: idsCancionSchema.optional()
+})
+export const copiasElegirDestinoSchema = z.strictObject({ destinoId: z.uuid() })
+export const origenCopiaSchema = z.strictObject({ origenId: z.uuid() })
+const conflictoSchema = z.enum(['sustituir', 'conservar_ambas', 'omitir'])
+export const copiasImportarSchema = z.strictObject({
+  origenId: z.uuid(),
+  conflictos: conflictoSchema,
+  porCancion: z.record(idCancionSchema, conflictoSchema).optional(),
+  ajustes: z.boolean()
+})
+export const copiasCancelarSchema = z.strictObject({ trabajoId: z.uuid() })
+export const destinoCopiaIpcSchema = z.object({
+  destinoId: z.uuid(),
+  nombre: z.string(),
+  carpeta: z.string(),
+  libreBytes: z.number().nonnegative().nullable()
+})
+export const origenCopiaIpcSchema = z.object({ origenId: z.uuid(), nombre: z.string() })
+export const resumenPaqueteSchema = z.object({
+  tipo: z.enum(['paquete', 'copia']),
+  conAudio: z.boolean(),
+  canciones: z.array(
+    z.object({ id: idCancionSchema, titulo: z.string(), artista: z.string(), existe: z.boolean() })
+  ),
+  temas: z.array(
+    z.object({ id: z.string(), nombre: z.string(), existe: z.enum(['igual', 'distinto', 'no']) })
+  )
+})
+export type ResumenPaqueteIpc = z.infer<typeof resumenPaqueteSchema>
+export const resultadoImportacionSchema = z.object({
+  resultados: z.array(
+    z.object({
+      id: idCancionSchema,
+      resultado: z.enum(['importada', 'sustituida', 'omitida', 'error']),
+      motivo: motivoSchema.optional()
+    })
+  )
+})
+export type ResultadoImportacionIpc = z.infer<typeof resultadoImportacionSchema>
+/** Respuesta de exportar un paquete o una copia: el trabajo que sigue `copias:cambio` (provisional). */
+export const trabajoCopiaSchema = z.object({ trabajoId: z.uuid() })
+/** Eventos `copias:cambio` y `copias:progreso` (formas provisionales). */
+export interface CambioCopiaIpc {
+  trabajoId: string
+  estado: 'en_curso' | 'terminada' | 'error' | 'cancelada'
+  codigo?: string
+}
+export interface ProgresoCopiaIpc {
+  trabajoId: string
+  fraccion: number
+}
+
+/** Sincronía con la voz (ADR 0028 §3); nombres y formas provisionales (pregunta 0166). */
+export const estadoAlineacionSchema = z.object({
+  /** `false` si la prueba técnica no sirvió o el perfil no lo admite (`ALINEACION_NO_DISPONIBLE`). */
+  disponible: z.boolean(),
+  modelos: z.array(
+    z.object({
+      idioma: z.string(),
+      bytes: z.number().nonnegative(),
+      descargado: z.boolean(),
+      licencia: z.string()
+    })
+  )
+})
+export type EstadoAlineacionIpc = z.infer<typeof estadoAlineacionSchema>
+export const idiomaAlineacionSchema = z.strictObject({ idioma: z.string().min(2).max(16) })
+const peticionAlinearForma = {
+  cancionId: idCancionSchema,
+  idioma: z.string().min(2).max(16),
+  /** Solo estas líneas; sin él, toda la letra. */
+  ids: z.array(z.string().min(1).max(200)).max(5000).optional()
+}
+export const previsualizarAlineacionSchema = z.strictObject(peticionAlinearForma)
+export const previsualizacionAlineacionSchema = z.object({
+  /** Líneas que se tocarían, fines a mano que solo se cambian si el usuario lo marca y modelo listo. */
+  lineas: z.number().int().nonnegative(),
+  finesAMano: z.number().int().nonnegative(),
+  idioma: z.string().nullable(),
+  modeloDescargado: z.boolean()
+})
+export const alinearSchema = z.strictObject(peticionAlinearForma)
+export const resultadoAlinearSchema = z.object({ trabajoId: z.string() })
+export const cancelarAlineacionSchema = z.strictObject({ trabajoId: z.string().min(1).max(200) })
+export interface ProgresoAlineacionIpc {
+  /** Descarga de un modelo o alineación de una canción. */
+  tipo: 'modelo' | 'alineacion'
+  referencia: string
+  fase: 'cargando_modelo' | 'alineando' | 'descargando'
+  hechas: number
+  total: number
+}
+
 // --- Errores y contrato ----------------------------------------------------
 
 export const errorIpcSchema = z.object({
@@ -1227,7 +1575,120 @@ export const CONTRATO = {
   },
   [CANALES.exportacion.avisosPendientes]: { args: vacio, res: z.array(avisoExportacionIpcSchema) },
   [CANALES.exportacion.inicial]: { args: vacio, res: inicialExportacionSchema },
-  [CANALES.exportacion.listo]: { args: z.tuple([listoExportacionSchema]), res: z.void() }
+  [CANALES.exportacion.listo]: { args: z.tuple([listoExportacionSchema]), res: z.void() },
+  // --- 0.2.2 (tarea 0339): todos responden «no implementado» hasta que su tarea los sustituya ---
+  [CANALES.actualizaciones.estado]: { args: vacio, res: estadoActualizacionesSchema },
+  [CANALES.actualizaciones.comprobar]: { args: vacio, res: resultadoComprobacionSchema },
+  [CANALES.actualizaciones.marcarVista]: { args: z.tuple([marcarVistaSchema]), res: z.void() },
+  [CANALES.preparacion.previsualizar]: {
+    args: z.tuple([idsParejaSchema]),
+    res: previsualizarPreparacionSchema
+  },
+  [CANALES.preparacion.preparar]: {
+    args: z.tuple([idsParejaSchema]),
+    res: resultadoPrepararSchema
+  },
+  [CANALES.preparacion.pausar]: { args: vacio, res: z.void() },
+  [CANALES.preparacion.reanudar]: { args: vacio, res: z.void() },
+  [CANALES.preparacion.reintentarFallidas]: { args: vacio, res: z.void() },
+  [CANALES.preparacion.tanda]: { args: vacio, res: tandaPreparacionSchema.nullable() },
+  [CANALES.preparacion.cancelar]: {
+    args: z.tuple([z.strictObject({ id: idCancionSchema })]),
+    res: z.void()
+  },
+  [CANALES.letras.candidatoPorId]: {
+    args: z.tuple([candidatoPorIdSchema]),
+    res: candidatoLetraSchema.nullable()
+  },
+  [CANALES.letras.exportarLrc]: {
+    args: z.tuple([exportarLrcSchema]),
+    res: resultadoExportarLrcSchema
+  },
+  [CANALES.letras.exportarLrcVarias]: {
+    args: z.tuple([exportarLrcVariasSchema]),
+    res: resultadoExportarLrcVariasSchema
+  },
+  [CANALES.fuente.leerArchivos]: {
+    args: z.tuple([leerArchivosSchema]),
+    res: lecturaLoteSchema.nullable()
+  },
+  [CANALES.fuente.leerCarpeta]: {
+    args: z.tuple([leerCarpetaSchema]),
+    res: lecturaLoteSchema.nullable()
+  },
+  [CANALES.fuente.infoLista]: { args: z.tuple([infoListaSchema]), res: listaYoutubeSchema },
+  [CANALES.fuente.lote]: { args: z.tuple([loteSchema]), res: resultadoLoteSchema },
+  [CANALES.biblioteca.valoresDatos]: { args: vacio, res: valoresDatosSchema },
+  [CANALES.biblioteca.editarDatosVariasPrevisualizar]: {
+    args: z.tuple([previsualizarDatosVariasSchema]),
+    res: previsualizacionVariasSchema
+  },
+  [CANALES.biblioteca.editarDatosVariasEjecutar]: {
+    args: z.tuple([ejecutarDatosVariasSchema]),
+    res: resultadoVariasSchema
+  },
+  [CANALES.biblioteca.eliminarVariasPrevisualizar]: {
+    args: z.tuple([idsParejaSchema]),
+    res: previsualizacionVariasSchema
+  },
+  [CANALES.biblioteca.eliminarVariasEjecutar]: {
+    args: z.tuple([ejecutarVariasSchema]),
+    res: resultadoVariasSchema
+  },
+  [CANALES.sesion.colaAnadirVarias]: {
+    args: z.tuple([colaAnadirVariasSchema]),
+    res: resultadoColaAnadirVariasSchema
+  },
+  [CANALES.sesion.colaQuitarVarias]: {
+    args: z.tuple([colaQuitarVariasSchema]),
+    res: estadoSesionIpcSchema
+  },
+  [CANALES.exportacion.destinoCarpeta]: {
+    args: z.tuple([destinoCarpetaSchema]),
+    res: carpetaIpcSchema.nullable()
+  },
+  [CANALES.exportacion.iniciarLote]: {
+    args: z.tuple([iniciarLoteExportacionSchema]),
+    res: resultadoLoteExportacionSchema
+  },
+  [CANALES.exportacion.cancelarLote]: { args: z.tuple([loteIdSchema]), res: z.void() },
+  [CANALES.exportacion.reintentarLote]: {
+    args: z.tuple([loteIdSchema]),
+    res: resultadoLoteExportacionSchema
+  },
+  [CANALES.copias.exportarCanciones]: {
+    args: z.tuple([copiasExportarCancionesSchema]),
+    res: trabajoCopiaSchema
+  },
+  [CANALES.copias.exportarBiblioteca]: {
+    args: z.tuple([copiasExportarBibliotecaSchema]),
+    res: trabajoCopiaSchema
+  },
+  [CANALES.copias.destinoPropuesto]: {
+    args: z.tuple([copiasDestinoPropuestoSchema]),
+    res: destinoCopiaIpcSchema
+  },
+  [CANALES.copias.elegirDestino]: {
+    args: z.tuple([copiasElegirDestinoSchema]),
+    res: destinoCopiaIpcSchema.nullable()
+  },
+  [CANALES.copias.elegirOrigen]: { args: vacio, res: origenCopiaIpcSchema.nullable() },
+  [CANALES.copias.leer]: { args: z.tuple([origenCopiaSchema]), res: resumenPaqueteSchema },
+  [CANALES.copias.importar]: {
+    args: z.tuple([copiasImportarSchema]),
+    res: resultadoImportacionSchema
+  },
+  [CANALES.copias.cancelar]: { args: z.tuple([copiasCancelarSchema]), res: z.void() },
+  [CANALES.alineacion.estado]: { args: vacio, res: estadoAlineacionSchema },
+  [CANALES.alineacion.descargarModelo]: { args: z.tuple([idiomaAlineacionSchema]), res: z.void() },
+  [CANALES.alineacion.cancelarDescarga]: { args: z.tuple([idiomaAlineacionSchema]), res: z.void() },
+  [CANALES.alineacion.quitarModelo]: { args: z.tuple([idiomaAlineacionSchema]), res: z.void() },
+  [CANALES.alineacion.previsualizar]: {
+    args: z.tuple([previsualizarAlineacionSchema]),
+    res: previsualizacionAlineacionSchema
+  },
+  [CANALES.alineacion.alinear]: { args: z.tuple([alinearSchema]), res: resultadoAlinearSchema },
+  [CANALES.alineacion.cancelar]: { args: z.tuple([cancelarAlineacionSchema]), res: z.void() }
 } as const
 
 export type CanalInvocable = keyof typeof CONTRATO
@@ -1253,6 +1714,21 @@ export interface ApiShinobi {
     volverABorrador(id: string): Promise<ResumenCancionIpc>
     eliminar(id: string): Promise<void>
     mostrarEnCarpeta(id: string): Promise<void>
+    /** Artistas y álbumes existentes con su clave, del índice en memoria (ADR 0025 §6). */
+    valoresDatos(): Promise<ValoresDatosIpc>
+    editarDatosVarias: {
+      previsualizar(
+        peticion: z.infer<typeof previsualizarDatosVariasSchema>
+      ): Promise<PrevisualizacionVariasIpc>
+      /** `CONFIRMACION_OBSOLETA` si la biblioteca cambió desde la previsualización. */
+      ejecutar(peticion: z.infer<typeof ejecutarDatosVariasSchema>): Promise<ResultadoVariasIpc>
+    }
+    eliminarVarias: {
+      previsualizar(ids: string[]): Promise<PrevisualizacionVariasIpc>
+      ejecutar(ids: string[], version: string): Promise<ResultadoVariasIpc>
+    }
+    /** Avance `{ hechas, total }` de una acción por lotes. */
+    alProgresoLote(cb: (progreso: ProgresoLoteIpc) => void): () => void
   }
   /** Catálogo de temas y operaciones sobre la apariencia (ADR 0016 §11). */
   temas: {
@@ -1306,6 +1782,10 @@ export interface ApiShinobi {
     /** `CONFIRMACION_OBSOLETA` si la revisión cambió. */
     confirmarCierre(cola: 'eliminar' | 'conservar', revision: number): Promise<void>
     cancelarCierre(): Promise<void>
+    /** «A la cola» de varias canciones, en el orden dado (ADR 0026 §4). */
+    colaAnadirVarias(ids: string[]): Promise<z.infer<typeof resultadoColaAnadirVariasSchema>>
+    /** Deshace `colaAnadirVarias`: quita solo las entradas aún no consumidas. */
+    colaQuitarVarias(entradaIds: string[]): Promise<EstadoSesionIpc>
   }
   /** Cola de reproducción; las entradas se refieren por id (ADR 0017 §6). */
   cola: {
@@ -1338,6 +1818,63 @@ export interface ApiShinobi {
     alAviso(cb: (aviso: AvisoExportacionIpc) => void): () => void
     alCambiar(cb: (exportacion: ExportacionIpc) => void): () => void
     alProgreso(cb: (progreso: ProgresoExportacionIpc) => void): () => void
+    /** Diálogo de carpeta del sistema (ADR 0026 §5); `null` si se cancela. */
+    destinoCarpeta(desdeCarpetaId?: string): Promise<z.infer<typeof carpetaIpcSchema> | null>
+    iniciarLote(peticion: IniciarLoteExportacion): Promise<ResultadoLoteExportacionIpc>
+    cancelarLote(loteId: string): Promise<void>
+    reintentarLote(loteId: string): Promise<ResultadoLoteExportacionIpc>
+  }
+  /** Aviso de versión nueva (ADR 0023). */
+  actualizaciones: {
+    estado(): Promise<EstadoActualizacionesIpc>
+    comprobar(): Promise<ResultadoComprobacionIpc>
+    marcarVista(version: string): Promise<void>
+    alCambiar(cb: (estado: EstadoActualizacionesIpc) => void): () => void
+  }
+  /** Preparación desatendida y su cola (ADR 0025). */
+  preparacion: {
+    previsualizar(ids: string[]): Promise<z.infer<typeof previsualizarPreparacionSchema>>
+    preparar(ids: string[]): Promise<z.infer<typeof resultadoPrepararSchema>>
+    pausar(): Promise<void>
+    reanudar(): Promise<void>
+    reintentarFallidas(): Promise<void>
+    tanda(): Promise<TandaPreparacionIpc | null>
+    cancelar(id: string): Promise<void>
+    alCambiar(cb: (cambio: CambioPreparacionIpc) => void): () => void
+    alTanda(cb: (tanda: TandaPreparacionIpc | null) => void): () => void
+    alReanudar(cb: (evento: { total: number }) => void): () => void
+  }
+  /** Paquetes de canción, copia de seguridad y restauración (ADR 0027). */
+  copias: {
+    exportarCanciones(
+      peticion: z.infer<typeof copiasExportarCancionesSchema>
+    ): Promise<{ trabajoId: string }>
+    exportarBiblioteca(
+      peticion: z.infer<typeof copiasExportarBibliotecaSchema>
+    ): Promise<{ trabajoId: string }>
+    destinoPropuesto(
+      peticion: z.infer<typeof copiasDestinoPropuestoSchema>
+    ): Promise<z.infer<typeof destinoCopiaIpcSchema>>
+    elegirDestino(destinoId: string): Promise<z.infer<typeof destinoCopiaIpcSchema> | null>
+    elegirOrigen(): Promise<z.infer<typeof origenCopiaIpcSchema> | null>
+    leer(origenId: string): Promise<ResumenPaqueteIpc>
+    importar(peticion: z.infer<typeof copiasImportarSchema>): Promise<ResultadoImportacionIpc>
+    cancelar(trabajoId: string): Promise<void>
+    alCambiar(cb: (cambio: CambioCopiaIpc) => void): () => void
+    alProgreso(cb: (progreso: ProgresoCopiaIpc) => void): () => void
+  }
+  /** Sincronía con la voz (ADR 0028); nombres provisionales (pregunta 0166). */
+  alineacion: {
+    estado(): Promise<EstadoAlineacionIpc>
+    descargarModelo(idioma: string): Promise<void>
+    cancelarDescarga(idioma: string): Promise<void>
+    quitarModelo(idioma: string): Promise<void>
+    previsualizar(
+      peticion: z.infer<typeof previsualizarAlineacionSchema>
+    ): Promise<z.infer<typeof previsualizacionAlineacionSchema>>
+    alinear(peticion: z.infer<typeof alinearSchema>): Promise<{ trabajoId: string }>
+    cancelar(trabajoId: string): Promise<void>
+    alProgreso(cb: (progreso: ProgresoAlineacionIpc) => void): () => void
   }
   trabajos: {
     /** Trabajos en curso y en cola (los terminados solo llegan por `alCambiar`). */
@@ -1376,6 +1913,21 @@ export interface ApiShinobi {
     cerrarEdicion(sesionId: string): Promise<void>
     /** Diálogo nativo `.lrc`/`.txt`; no guarda (ver `guardar` con `origen: 'archivo'`). */
     leerArchivo(): Promise<ArchivoLetraLeido>
+    /** Texto de un candidato guardado por su id de LRCLIB (ADR 0025 §7). */
+    candidatoPorId(
+      cancionId: string,
+      lrclibId: number
+    ): Promise<z.infer<typeof candidatoLetraSchema> | null>
+    exportarLrc(
+      cancionId: string,
+      destinoId: string
+    ): Promise<z.infer<typeof resultadoExportarLrcSchema>>
+    exportarLrcVarias(
+      ids: string[],
+      carpetaId: string
+    ): Promise<z.infer<typeof resultadoExportarLrcVariasSchema>>
+    /** Encajes de los candidatos cuando los picos terminan (ADR 0024 §2); forma a fijar en 0296. */
+    alEncaje(cb: (encaje: unknown) => void): () => void
   }
   config: {
     obtener(): Promise<Config>
@@ -1416,6 +1968,14 @@ export interface ApiShinobi {
     ): Promise<ResumenCancionIpc>
     /** Vuelve a encolar la descarga de una canción de YouTube con el paso `fuente` sin completar. */
     reintentar(cancionId: string): Promise<void>
+    /** Lee las etiquetas de varios archivos; sin rutas abre el diálogo. `null` si se cancela. */
+    leerArchivos(rutas?: string[]): Promise<LecturaLoteIpc | null>
+    /** Recorre una carpeta (3 niveles, 500 elementos); sin ruta abre el diálogo. */
+    leerCarpeta(ruta?: string): Promise<LecturaLoteIpc | null>
+    /** Lee una lista o álbum de YouTube sin descargar nada (exige el aviso legal de listas). */
+    infoLista(url: string): Promise<ListaYoutubeIpc>
+    /** Crea las canciones del lote con la fuente pendiente y encola su preparación. */
+    lote(lote: LoteIpc): Promise<z.infer<typeof resultadoLoteSchema>>
   }
   runtime: {
     estado(): Promise<EstadoRuntimeIpc>

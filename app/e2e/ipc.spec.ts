@@ -48,6 +48,7 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
     expect(r.malo).toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
     expect(r.enlace).toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
     expect(r.claves).toEqual([
+      'actualizaciones',
       'alAccionMenu',
       'alCambiarCancion',
       'alCambiarConfig',
@@ -56,16 +57,19 @@ test('window.shinobi.biblioteca.listar() devuelve la semilla y el renderer no ve
       'alCambiarSesion',
       'alCambiarTemas',
       'alPosicionSesion',
+      'alineacion',
       'app',
       'avisos',
       'biblioteca',
       'cola',
       'config',
+      'copias',
       'exportacion',
       'fuente',
       'letras',
       'pantallas',
       'picos',
+      'preparacion',
       'runtime',
       'rutaDeArchivo',
       'separacion',

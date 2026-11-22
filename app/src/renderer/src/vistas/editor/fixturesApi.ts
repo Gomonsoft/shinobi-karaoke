@@ -17,6 +17,7 @@ import type {
 } from '@shared/ipc'
 import { modalidadEfectiva } from '@shared/cancion'
 import { claveAlbumTexto, claveAlbum, claveArtista } from '@shared/index'
+import { apiNuevaFalsa, bibliotecaNuevaFalsa, letrasNuevasFalsas } from '../apiNuevaFalsa'
 import { aparienciaResumenPrueba } from '../biblioteca/resumenPrueba'
 import { temasFalsos, type TemasFalsos } from '../biblioteca/temasFalsos'
 import { ventanaFalsa } from '../biblioteca/ventanaFalsa'
@@ -88,7 +89,15 @@ type ApiEditor = {
   [K in 'biblioteca' | 'letras' | 'app' | 'trabajos']: Partial<ApiShinobi[K]>
 } & Pick<
   ApiShinobi,
-  'config' | 'temas' | 'alCambiarCancion' | 'alCambiarConfig' | 'alCambiarTemas'
+  | 'config'
+  | 'temas'
+  | 'alCambiarCancion'
+  | 'alCambiarConfig'
+  | 'alCambiarTemas'
+  | 'actualizaciones'
+  | 'preparacion'
+  | 'copias'
+  | 'alineacion'
 > & {
     ventana: ReturnType<typeof ventanaFalsa>
   }
@@ -188,6 +197,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   const api: ApiEditor = {
     ventana: ventanaFalsa(),
     biblioteca: {
+      ...bibliotecaNuevaFalsa(),
       async listar() {
         registrar('biblioteca.listar')
         return [resumen()]
@@ -261,6 +271,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       }
     },
     letras: {
+      ...letrasNuevasFalsas(),
       async abrirEdicion(id) {
         registrar('letras.abrirEdicion', id)
         sesionActiva = id === cancion.id ? crypto.randomUUID() : null
@@ -307,6 +318,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       }
     },
     ...temas.api,
+    ...apiNuevaFalsa(),
     config: {
       async obtener() {
         registrar('config.obtener')
