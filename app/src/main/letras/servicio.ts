@@ -3,6 +3,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { basename } from 'node:path'
 import {
   contarLineas,
+  detectarIdioma,
   estadoPasoLetra,
   letraSchema,
   sinPalabras,
@@ -17,6 +18,7 @@ import {
   esLrc,
   lrcALetra,
   normalizarLetra,
+  retirarCamposObsoletos,
   textoPlanoALetra
 } from '../../shared/letras'
 import {
@@ -69,6 +71,12 @@ export function decodificarTextoLetra(bytes: Uint8Array): string | null {
   }
 }
 
+/** Una letra nueva solo trae texto, tiempos y palabras: nada de campos de revisión o reparto. */
+function soloTextoYTiempos(e: ElementoLetra): ElementoLetra {
+  const { id, tipo, texto, inicio_ms, fin_ms, palabras } = e
+  return { id, tipo, texto, inicio_ms, fin_ms, palabras }
+}
+
 /**
  * Único escritor de `letra`: guardar, editarTexto, editarTextoLinea, guardarTiempos (ADR 0006 y 0010).
  * Escribe siempre con `ServicioBiblioteca.actualizar`, que emite `evento:cancion`.
@@ -95,12 +103,18 @@ export class ServicioLetras {
     let lineas: ElementoLetra[]
     let letra: Letra
     try {
-      lineas = normalizarLetra(peticion.lineas)
+      // Letra nueva: solo cuentan texto y tiempos; el fin que traía es `origen_fin: "letra"` (ADR 0024 §4).
+      lineas = normalizarLetra(peticion.lineas.map(soloTextoYTiempos)).map((l) =>
+        l.tipo === 'linea' && l.fin_ms !== null ? { ...l, origen_fin: 'letra' as const } : l
+      )
+      const idioma = detectarIdioma(lineas)
       letra = letraSchema.parse({
         origen: peticion.origen,
         lrclib_id: peticion.lrclib_id,
         offset_ms: 0,
-        lineas
+        lineas,
+        intacta: true,
+        ...(idioma ? { idioma } : {})
       })
     } catch {
       throw noValido('La letra no es válida.')
@@ -287,9 +301,14 @@ export class ServicioLetras {
 
     const lineas = letra.lineas.map((guardada, i): ElementoLetra => {
       const inicial = referencia.lineas[i]!
-      const { inicio_ms, fin_ms, palabras, origen_palabras } = tiempos[i]!
+      const { inicio_ms, fin_ms, palabras, origen_palabras, origen_fin, revisada } = tiempos[i]!
       // `origen_palabras` solo se escribe con palabras manuales: en cualquier otro caso se quita.
+      // `origen_fin` y `revisada` son el estado completo de la línea: ausentes = a mano / sin revisar.
       const linea = sinPalabras(guardada)
+      delete linea.origen_fin
+      delete linea.revisada
+      if (origen_fin) linea.origen_fin = origen_fin
+      if (revisada) linea.revisada = revisada
       if (linea.tipo === 'pausa') {
         if (
           palabras !== null ||
@@ -342,6 +361,9 @@ export class ServicioLetras {
   }
 
   private escribir(id: string, letra: Letra, debounceMs: number): Promise<ResumenCancion> {
+    const cancion = this.biblioteca.obtener(id)
+    // Reglas de retirada de intacta, origen_fin, revisada y alineacion (ADR 0024 §4).
+    if (cancion) letra = retirarCamposObsoletos(cancion.letra, letra, cancion.metadatos.duracion_ms)
     return this.biblioteca.actualizar(
       id,
       {

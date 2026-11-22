@@ -89,6 +89,8 @@ export interface DependenciasServicioSeparacion {
   alMotorIncompleto?(): void
   /** Coordina la publicación de pistas con los datos derivados de voz. */
   publicarPistas?(id: string, publicar: () => Promise<void>): Promise<void>
+  /** La voz quedó separada: main pide los picos (ADR 0024 §2). */
+  alSepararVoz?(id: string): void
 }
 
 const MEMORIA = new Set(['MEMORIA_INSUFICIENTE', 'PROCESO_TERMINADO'])
@@ -116,6 +118,9 @@ export class ServicioSeparacion {
     // YouTube: al completar la fuente se encadena la separación (el paso ya está escrito).
     this.baja = deps.gestor.suscribir((t) => {
       if (t.estado === 'terminado' && t.paso === 'separacion') this.deps.alCambiarOferta?.()
+      if (t.estado === 'terminado' && t.comando === 'separar' && t.resultado === 'completado') {
+        this.deps.alSepararVoz?.(t.cancionId)
+      }
       if (
         t.estado === 'terminado' &&
         t.comando === 'separar' &&

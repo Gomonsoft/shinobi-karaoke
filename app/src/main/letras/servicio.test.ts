@@ -390,7 +390,10 @@ describe('editarTextoLinea', () => {
     await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Otro texto' }, sesionId)
     await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Canta el río' }, sesionId)
     await servicio.guardarTiempos(peticion, sesionId)
-    expect((await enDisco(id)).letra).toEqual(antes.letra)
+    // `intacta` ya se retiró con la primera escritura de tiempos (ADR 0024 §2): deshacer no la devuelve.
+    const { intacta, ...sinIntacta } = antes.letra!
+    expect(intacta).toBe(true)
+    expect((await enDisco(id)).letra).toEqual(sinIntacta)
   })
 
   it('sin cambio de texto no escribe', async () => {
@@ -710,5 +713,92 @@ describe('guardarTiempos en una visita', () => {
     const cancion = await enDisco(id)
     expect(cancion.letra?.offset_ms).toBe(400)
     expect(cancion.pasos.separacion).toMatchObject({ estado: 'en_curso', progreso: 0.6 })
+  })
+})
+
+describe('campos nuevos de 0.2.2 en main', () => {
+  async function abrir() {
+    const id = await cancionConFuente(biblioteca, datos, { mezcla: silencioFlac() })
+    const a = el('a', 'El sol se va con la tarde', 1000)
+    a.fin_ms = 2500
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 5,
+      lineas: [a, el('b', 'y yo me quedo en el mar', 5000), el('c', 'no sé por qué lloro', 8000)]
+    })
+    return id
+  }
+
+  it('guardar pone intacta, idioma y origen_fin "letra" solo en el fin que traía', async () => {
+    const c = await enDisco(await abrir())
+    expect(c.letra).toMatchObject({ intacta: true, idioma: 'es' })
+    expect(c.letra?.lineas.map((l) => l.origen_fin)).toEqual(['letra', undefined, undefined])
+  })
+
+  it('guardarTiempos: mover un tiempo retira intacta; origen_fin y revisada viajan y se retiran', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    const rev = { inicio_ms: 5000, fin_ms: 8000, texto: 'y yo me quedo en el mar' }
+    // Solo se da por buena una línea: no cambia tiempos, intacta sigue.
+    const conRev = {
+      ...p,
+      tiempos: p.tiempos.map((t, i) => (i === 1 ? { ...t, revisada: rev } : t))
+    }
+    await servicio.guardarTiempos(conRev, sesionId)
+    let c = await enDisco(id)
+    expect(c.letra?.intacta).toBe(true)
+    expect(c.letra?.lineas[1]?.revisada).toEqual(rev)
+    // Cambia el inicio de esa línea: revisada y intacta se retiran.
+    const movida = {
+      ...conRev,
+      tiempos: conRev.tiempos.map((t, i) => (i === 1 ? { ...t, inicio_ms: 5200 } : t))
+    }
+    await servicio.guardarTiempos(movida, sesionId)
+    c = await enDisco(id)
+    expect(c.letra?.intacta).toBeUndefined()
+    expect(c.letra?.lineas[1]).not.toHaveProperty('revisada')
+    // Sin fin, origen_fin se retira aunque el cliente lo mande.
+    const sinFin = {
+      ...movida,
+      tiempos: movida.tiempos.map((t, i) =>
+        i === 0 ? { ...t, fin_ms: null, origen_fin: 'silencios' as const } : t
+      )
+    }
+    await servicio.guardarTiempos(sinFin, sesionId)
+    expect((await enDisco(id)).letra?.lineas[0]).not.toHaveProperty('origen_fin')
+  })
+
+  it('el reparto reservado sobrevive a guardarTiempos y editarTexto', async () => {
+    const id = await abrir()
+    const letra = (await enDisco(id)).letra!
+    const partes = {
+      cantantes: [
+        { id: 'c1' as const, nombre: 'Ana' },
+        { id: 'c2' as const, nombre: 'Luis' }
+      ]
+    }
+    await biblioteca.actualizar(id, {
+      letra: {
+        ...letra,
+        partes,
+        lineas: letra.lineas.map((l, i) => (i === 1 ? { ...l, parte: 'c2' as const } : l))
+      }
+    })
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    await servicio.guardarTiempos(
+      { ...p, tiempos: p.tiempos.map((t, i) => (i === 2 ? { ...t, inicio_ms: 8100 } : t)) },
+      sesionId
+    )
+    await servicio.editarTexto({
+      cancionId: id,
+      texto: 'El sol se va con la tarde\ny yo me quedo en el mar\nno sé por qué canto'
+    })
+    await biblioteca.flushTodo()
+    const c = await enDisco(id)
+    expect(c.letra?.partes).toEqual(partes)
+    expect(c.letra?.lineas[1]?.parte).toBe('c2')
   })
 })

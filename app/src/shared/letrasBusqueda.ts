@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import { elementoLetraSchema, palabraSchema, type ElementoLetra } from './letra'
+import { VEREDICTOS_ENCAJE } from './encaje'
+import {
+  ORIGENES_FIN,
+  elementoLetraSchema,
+  palabraSchema,
+  revisadaSchema,
+  type ElementoLetra
+} from './letra'
 
 /**
  * Contratos de la búsqueda e importación de letras (Fase 4, 0077; ADR 0005 Revisión 2026-11-05).
@@ -41,6 +48,21 @@ export const MAX_ELEMENTOS_LETRA = 5000
 /** Máximo del texto de `letras.editarTexto`: 512 KB. */
 export const MAX_BYTES_TEXTO_LETRA = 512 * 1024
 
+export const encajeCandidatoSchema = z.object({
+  veredicto: z.enum(VEREDICTOS_ENCAJE),
+  desfaseMs: z.number().int()
+})
+export type EncajeCandidato = z.infer<typeof encajeCandidatoSchema>
+
+/** Evento `letras:encaje` (ADR 0024 §2): los encajes de la última búsqueda cuando los picos terminan. */
+export const eventoEncajeLetrasSchema = z.object({
+  cancionId: z.string(),
+  encajes: z.array(
+    z.object({ lrclib_id: z.number().int(), encaje: encajeCandidatoSchema.nullable() })
+  )
+})
+export type EventoEncajeLetras = z.infer<typeof eventoEncajeLetrasSchema>
+
 export const candidatoLetraSchema = z.object({
   lrclib_id: z.number().int(),
   titulo: z.string(),
@@ -50,7 +72,9 @@ export const candidatoLetraSchema = z.object({
   sincronia: sincroniaSchema,
   /** Duración del candidato menos la de la canción, con signo. */
   diferencia_ms: z.number().int(),
-  lineas: z.array(elementoLetraSchema)
+  lineas: z.array(elementoLetraSchema),
+  /** Encaje con la voz (ADR 0024 §2); null o ausente si no hay picos o el candidato es solo texto. */
+  encaje: encajeCandidatoSchema.nullable().optional()
 })
 export type CandidatoLetra = z.infer<typeof candidatoLetraSchema>
 
@@ -96,7 +120,11 @@ export const tiempoElementoSchema = z.strictObject({
   fin_ms: z.number().int().min(0).nullable(),
   palabras: z.array(palabraSchema).min(1).max(500).nullable(),
   /** `"manual"`: palabras hechas en el editor preciso (ADR 0021 §6); ausente = las de la referencia. */
-  origen_palabras: z.literal('manual').optional()
+  origen_palabras: z.literal('manual').optional(),
+  /** Quién fijó el fin (ADR 0024 §4); ausente = a mano. Main lo retira si `fin_ms` es null. */
+  origen_fin: z.enum(ORIGENES_FIN).optional(),
+  /** Instantánea de «dada por buena»; ausente = sin revisar. Main la retira si deja de coincidir. */
+  revisada: revisadaSchema.extend({ texto: z.string().max(1000) }).optional()
 })
 
 export const OFFSET_MAXIMO_MS = 30_000

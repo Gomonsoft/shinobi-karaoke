@@ -90,11 +90,9 @@ export function aplicarTextoEditado(letra: Letra, texto: string, generarId?: Gen
       viejo.tipo === 'pausa'
         ? { ...viejo, palabras: null, fin_ms: null }
         : {
-            id: viejo.id,
-            tipo: 'linea',
+            // Se conserva todo salvo el texto (ADR 0021 §4): origen_palabras, origen_fin, revisada…
+            ...viejo,
             texto: n.texto,
-            inicio_ms: viejo.inicio_ms,
-            fin_ms: viejo.fin_ms,
             palabras: viejo.palabras ? viejo.palabras.map((p) => ({ ...p })) : null
           }
     )

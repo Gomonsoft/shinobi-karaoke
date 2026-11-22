@@ -30,6 +30,7 @@ let gestor: GestorTrabajos
 let config: ReturnType<typeof configEnMemoria>
 let servicio: ServicioSeparacion
 const alMotorIncompleto = vi.fn()
+const alSepararVoz = vi.fn()
 
 function resultado(extra: Record<string, unknown> = {}) {
   return {
@@ -85,12 +86,14 @@ function montar(parcialConfig = {}): void {
     manifiesto: () => manifiesto,
     dirDatos: datos,
     estimarSeparacion: () => null,
-    alMotorIncompleto
+    alMotorIncompleto,
+    alSepararVoz
   })
 }
 
 beforeEach(async () => {
   alMotorIncompleto.mockClear()
+  alSepararVoz.mockClear()
   datos = await nuevoDirDatos()
   montar()
 })
@@ -249,6 +252,7 @@ describe('resultado, factor y descarte', () => {
     await escribirPistas(l)
     l.resolver(resultado({ segundos_total: 120 }))
     await esperarHasta(() => !gestor.hayPendientes())
+    expect(alSepararVoz).toHaveBeenCalledExactlyOnceWith(id)
     const c = biblioteca.obtener(id)!
     expect(c.pasos.separacion).toMatchObject({
       estado: 'completado',

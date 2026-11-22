@@ -213,3 +213,39 @@ describe('aplicarTextoEditado', () => {
     expect(b.ms).toBeLessThan(3000)
   })
 })
+
+describe('aplicarTextoEditado conserva los campos de las líneas que no cambian (defecto de 0.2.1)', () => {
+  const manual = [
+    { texto: 'Luna', inicio_ms: 1000, fin_ms: 1400 },
+    { texto: 'roja', inicio_ms: 1500, fin_ms: 2000 }
+  ]
+  const completa = () =>
+    letraDe([
+      lin('a', 'Luna roja', 1000, {
+        fin_ms: 2500,
+        palabras: manual,
+        origen_palabras: 'manual',
+        origen_fin: 'silencios',
+        revisada: { inicio_ms: 1000, fin_ms: 2500, texto: 'Luna roja' },
+        alineacion: { confianza: 0.8 },
+        parte: 'c2'
+      }),
+      lin('b', 'Sol azul', 3000)
+    ])
+
+  it('corregir otra línea no quita palabras a mano, origen_fin, revisada, alineacion ni parte', () => {
+    const r = aplicarTextoEditado(completa(), 'Luna roja\nSol rojo', contador())
+    expect(r.lineas[0]).toEqual(completa().lineas[0])
+  })
+
+  it('conserva los campos de la letra (reparto reservado, intacta, idioma)', () => {
+    const l = {
+      ...completa(),
+      intacta: true as const,
+      idioma: 'es',
+      partes: { cantantes: [{ id: 'c1' as const, nombre: 'Ana' }] }
+    }
+    const r = aplicarTextoEditado(l, 'Luna roja\nSol rojo', contador())
+    expect(r).toMatchObject({ intacta: true, idioma: 'es', partes: l.partes })
+  })
+})

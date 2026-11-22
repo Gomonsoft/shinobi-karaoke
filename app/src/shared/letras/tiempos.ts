@@ -236,13 +236,17 @@ export function aPeticionTiempos(cancionId: string, letra: Letra): GuardarTiempo
   return {
     cancionId,
     offset_ms: letra.offset_ms,
-    tiempos: letra.lineas.map(({ id, inicio_ms, fin_ms, palabras, origen_palabras }) => ({
-      id,
-      inicio_ms,
-      fin_ms,
-      palabras,
-      ...(palabras !== null && origen_palabras === 'manual' ? { origen_palabras } : {})
-    }))
+    tiempos: letra.lineas.map(
+      ({ id, inicio_ms, fin_ms, palabras, origen_palabras, origen_fin, revisada }) => ({
+        id,
+        inicio_ms,
+        fin_ms,
+        palabras,
+        ...(palabras !== null && origen_palabras === 'manual' ? { origen_palabras } : {}),
+        ...(fin_ms !== null && origen_fin ? { origen_fin } : {}),
+        ...(revisada ? { revisada } : {})
+      })
+    )
   }
 }
 

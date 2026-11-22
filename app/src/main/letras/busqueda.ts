@@ -1,13 +1,17 @@
 import type { ElementoLetra } from '../../shared'
+import { evaluarEncajeConPicos, type VeredictoEncaje } from '../../shared/encaje'
 import { lrcALetra, textoPlanoALetra } from '../../shared/letras'
 import {
   sincroniaDe,
   type BusquedaLetra,
   type CandidatoLetra,
+  type EncajeCandidato,
+  type EventoEncajeLetras,
   type ResultadoBusquedaLetra,
   type Sincronia
 } from '../../shared/letrasBusqueda'
 import type { ServicioBiblioteca } from '../biblioteca/servicio'
+import type { NivelBase } from '../picos/formato'
 import type { RegistroApp } from '../registro'
 import {
   ErrorLrclib,
@@ -31,6 +35,19 @@ export interface OpcionesBusquedaLetras {
   ahora?: () => number
   presupuestoMs?: number
   cacheMs?: number
+  /** Picos de la voz separada (ADR 0024 §2); sin ellos los candidatos salen sin encaje. */
+  picos?: { nivelBase(cancionId: string): Promise<NivelBase | null> }
+  /** Evento `letras:encaje` cuando los picos terminan después de buscar. */
+  emitirEncaje?: (evento: EventoEncajeLetras) => void
+}
+
+/** Orden por veredicto (ADR 0024 §2): `coincide` = `desfasada` > `dudosa` > `no_comprobable` > `no_coincide`. */
+const RANGO_VEREDICTO: Record<VeredictoEncaje, number> = {
+  coincide: 0,
+  desfasada: 0,
+  dudosa: 1,
+  no_comprobable: 2,
+  no_coincide: 3
 }
 
 const RANGO: Record<Sincronia, number> = { palabra: 0, linea: 1, texto: 2 }
@@ -110,7 +127,7 @@ export class BusquedaLetras {
     let candidatos = 0
     let codigo = '-'
     try {
-      const r = await this.ejecutar(p, ctl.signal, inicio)
+      const r = await this.conEncaje(p.cancionId, await this.ejecutar(p, ctl.signal, inicio))
       candidatos = r.candidatos.length
       return r
     } catch (e) {
@@ -124,6 +141,52 @@ export class BusquedaLetras {
         `búsqueda cancion=${p.cancionId} candidatos=${candidatos} duracion_ms=${this.ahora() - inicio} error=${codigo}`
       )
     }
+  }
+
+  /** Encaje de cada candidato con tiempos; null si aún no hay picos. Un candidato solo texto da null. */
+  private async encajes(
+    cancionId: string,
+    candidatos: readonly CandidatoLetra[]
+  ): Promise<(EncajeCandidato | null)[] | null> {
+    const nivel = await this.o.picos?.nivelBase(cancionId)
+    if (!nivel) return null
+    const voz = { pasoMs: nivel.pasoMs, pares: nivel.pares }
+    return candidatos.map((c) => {
+      if (c.sincronia === 'texto') return null
+      const r = evaluarEncajeConPicos({ lineas: c.lineas, offset_ms: 0 }, voz, {
+        duracionMs: nivel.duracionMs
+      })
+      return { veredicto: r.veredicto, desfaseMs: r.desfaseMs }
+    })
+  }
+
+  /** Añade `encaje` a cada candidato y ordena por veredicto (estable: dentro, el orden de ADR 0005). */
+  private async conEncaje(
+    cancionId: string,
+    r: ResultadoBusquedaLetra
+  ): Promise<ResultadoBusquedaLetra> {
+    const encajes = await this.encajes(cancionId, r.candidatos)
+    if (!encajes) return r
+    const conEncaje = r.candidatos.map((c, i) => ({ ...c, encaje: encajes[i] ?? null }))
+    conEncaje.sort(
+      (a, b) =>
+        RANGO_VEREDICTO[a.encaje?.veredicto ?? 'no_comprobable'] -
+        RANGO_VEREDICTO[b.encaje?.veredicto ?? 'no_comprobable']
+    )
+    return { ...r, candidatos: conEncaje }
+  }
+
+  /** Los picos acaban de terminar: si hay una búsqueda reciente, se emiten sus encajes. */
+  async alPicosListos(cancionId: string): Promise<void> {
+    const previa = this.cache.get(cancionId)
+    if (!previa || previa.hasta <= this.ahora() || !this.o.emitirEncaje) return
+    const candidatos = previa.resultado.candidatos
+    const encajes = await this.encajes(cancionId, candidatos)
+    if (!encajes) return
+    this.o.emitirEncaje({
+      cancionId,
+      encajes: candidatos.map((c, i) => ({ lrclib_id: c.lrclib_id, encaje: encajes[i] ?? null }))
+    })
   }
 
   private async ejecutar(

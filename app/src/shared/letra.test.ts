@@ -481,3 +481,79 @@ describe('palabras hechas a mano (ADR 0021)', () => {
     })
   })
 })
+
+describe('campos nuevos de 0.2.2', () => {
+  const base = {
+    origen: 'manual',
+    lrclib_id: null,
+    offset_ms: 0,
+    lineas: [
+      {
+        id: 'a',
+        tipo: 'linea',
+        texto: 'Hola',
+        inicio_ms: 100,
+        fin_ms: 900,
+        palabras: null,
+        origen_fin: 'letra',
+        revisada: { inicio_ms: 100, fin_ms: 900, texto: 'Hola' },
+        alineacion: { confianza: 0.5 },
+        parte: 'c2'
+      }
+    ],
+    intacta: true,
+    desfase_corregido_ms: -800,
+    idioma: 'es',
+    partes: { cantantes: [{ id: 'c1', nombre: 'Ana' }], voz_en_coros: 0.5 }
+  }
+
+  it('se leen y se conservan', () => {
+    expect(letraSchema.parse(base)).toEqual(base)
+  })
+
+  it('reparto (ADR 0029 §1): nombre nulo se conserva, nombre no válido es null, c1 como parte es ausente', () => {
+    const r = letraSchema.parse({
+      ...base,
+      partes: {
+        cantantes: [
+          { id: 'c1', nombre: null },
+          { id: 'c2', nombre: 5 }
+        ]
+      },
+      lineas: [{ ...base.lineas[0], parte: 'c1' }]
+    })
+    expect(r.partes?.cantantes).toEqual([
+      { id: 'c1', nombre: null },
+      { id: 'c2', nombre: null }
+    ])
+    expect(r.lineas[0]!.parte).toBeUndefined()
+  })
+
+  it('lectura tolerante: valores fuera de catálogo se leen como ausentes', () => {
+    const r = letraSchema.parse({
+      ...base,
+      intacta: 'sí',
+      idioma: 3,
+      partes: 'x',
+      lineas: [{ ...base.lineas[0], origen_fin: 'otro', revisada: 1, alineacion: {}, parte: 'z' }]
+    })
+    expect(r.intacta).toBeUndefined()
+    expect(r.idioma).toBeUndefined()
+    expect(r.partes).toBeUndefined()
+    expect(r.lineas[0]).toEqual({
+      id: 'a',
+      tipo: 'linea',
+      texto: 'Hola',
+      inicio_ms: 100,
+      fin_ms: 900,
+      palabras: null
+    })
+  })
+
+  it('palabrasVisibles incluye auto', () => {
+    const palabras = [{ texto: 'Hola', inicio_ms: 100, fin_ms: 500 }]
+    const el = { texto: 'Hola', inicio_ms: 100, fin_ms: 900, palabras }
+    expect(palabrasVisibles({ ...el, origen_palabras: 'auto' })).toBe(palabras)
+    expect(palabrasVisibles({ ...el, origen_palabras: 'importada' })).toBeNull()
+  })
+})

@@ -57,7 +57,9 @@ export function normalizarLetra(
         palabras: null
       }
     }
+    // Se conservan los campos que esta función no toca (origen_fin, revisada, parte…).
     return {
+      ...e,
       id: '',
       tipo: 'linea',
       texto,
@@ -103,6 +105,7 @@ export function normalizarLetra(
     if (e.inicio_ms === null) {
       e.fin_ms = null
       e.palabras = null
+      limpiarDerivados(e)
       return
     }
     const inicio = e.inicio_ms
@@ -110,6 +113,7 @@ export function normalizarLetra(
       e.fin_ms = null
     }
     if (e.palabras) e.palabras = depurarPalabras(e.palabras, inicio, limite)
+    limpiarDerivados(e)
   })
 
   // 5. Ids nuevos y únicos.
@@ -134,10 +138,17 @@ export function normalizarLetra(
       e.inicio_ms = null
       e.fin_ms = null
       e.palabras = null
+      limpiarDerivados(e)
     }
     return els.filter((e, i) => !(e.tipo === 'pausa' && els[i - 1]?.tipo === 'pausa'))
   }
   return els
+}
+
+/** Quita los campos que ya no tienen sentido (sin fin no hay origen del fin; sin palabras, tampoco su origen). */
+function limpiarDerivados(e: ElementoLetra): void {
+  if (e.fin_ms === null) delete e.origen_fin
+  if (e.palabras === null) delete e.origen_palabras
 }
 
 function depurarPalabras(
