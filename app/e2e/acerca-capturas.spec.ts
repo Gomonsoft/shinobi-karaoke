@@ -12,7 +12,7 @@ import type { Compilacion } from '../src/shared/compilacion'
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_10 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-fase-10')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', 'fase-10')
 const SHA = '3f9c2a1' + 'b'.repeat(33)
 
 const ESTADOS: { estado: string; version: string; compilacion: Compilacion; canal: RegExp }[] = [

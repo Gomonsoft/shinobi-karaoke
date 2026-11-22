@@ -21,3 +21,11 @@ Flujo y formatos: `docs/02-flujo-de-agentes.md`. Los agentes se comunican median
 - No elegir tecnologías fuera de los ADRs aceptados.
 - Antes de implementar algo con interfaz, debe existir su spec en `docs/ux/`.
 - Pruebas: solo como feedback para los agentes (`docs/pruebas.md`). Por tarea: typecheck, lint, format:check, `npm run test:cambios`, specs E2E cambiadas y, si toca el flujo principal, `npm run test:e2e:criticos`. La regresión completa es del CI; lo demás va a guías manuales.
+
+## Documentación en un repositorio aparte
+`docs/` es un submódulo: el repositorio [`Gomonsoft/shinobidocs`](https://github.com/Gomonsoft/shinobidocs). Las rutas `docs/…` no cambian.
+- Si `docs/` está vacío: `git submodule update --init`.
+- Un cambio de documentación son dos commits: primero dentro de `docs/` (commit y push a `main` de shinobidocs, o a su rama `version-X.Y.Z` si define una versión aún sin implementar) y después `git add docs` en este repositorio, junto con el código al que acompaña. Detalle en `docs/workflow.md` («Dos repositorios»).
+- El puntero de `develop` y `main` apunta siempre a un commit ya subido de `main` de shinobidocs.
+- El CI no descarga el submódulo: nada que se construya o se pruebe puede leer de `docs/`. Lo que la publicación necesita vive en `lanzamientos/` (notas de versión en `lanzamientos/notas/<X.Y.Z>/<versión>.md`, botones de descarga y plantilla del README).
+- Pruebas de concepto: `docs/spikes/`. Capturas de revisión: `docs/ux/revisiones/<fase>/`.

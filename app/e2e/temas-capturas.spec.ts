@@ -25,13 +25,13 @@ import {
 import type { ApiShinobi } from '../src/shared/ipc'
 
 /**
- * Capturas de revisión de la fase 3 (tarea 0176, `docs/ux/revision-fase-3/README.md`). Opt-in:
+ * Capturas de revisión de la fase 3 (tarea 0176, `docs/ux/revisiones/fase-3/README.md`). Opt-in:
  * `SHINOBI_CAPTURAS_3=1 npx playwright test e2e/temas-capturas.spec.ts --workers=1`. No escribe nada
  * en CI. El nombre usa el tamaño físico: `{vista}-{ancho}x{alto}-{escala}-{estado}.png`.
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_3 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-fase-3')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', 'fase-3')
 
 test.describe('capturas de revisión de la fase 3', () => {
   test.skip(!CAPTURAS, 'se generan solo con SHINOBI_CAPTURAS_3=1')

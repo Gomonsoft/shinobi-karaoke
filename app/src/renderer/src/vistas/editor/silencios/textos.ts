@@ -8,7 +8,6 @@ export const esMac = (): boolean =>
 
 export const S = {
   boton: 'Ajustar los silencios',
-  menu: 'Ajustar los silencios…',
   buscando: 'Buscando silencios…',
   falta: {
     titulo: 'Para ajustar los silencios falta:',
@@ -23,7 +22,7 @@ export const S = {
   dialogo: {
     titulo: '¿Ajustar los silencios?',
     explicacion:
-      'Shinobi Karaoke buscará en la voz el primer silencio después de cada línea y llevará su fin al último momento con voz. Las líneas sin silencio, las que tienen tiempos por palabra y las pausas no cambian.',
+      'Shinobi Karaoke buscará en la voz el primer silencio después de cada línea y llevará su fin al último momento con voz. Las líneas sin silencio, las que tienen tiempos por palabra hechos a mano y las pausas no cambian.',
     cancelar: 'Cancelar'
   },
   lineas: (n: number, total: number): string =>

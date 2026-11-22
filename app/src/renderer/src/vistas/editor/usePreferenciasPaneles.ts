@@ -33,7 +33,9 @@ export function normalizarPreferencias(p: PreferenciasPaneles): PreferenciasPane
           ? null
           : acotar(p.linea_tiempo.alto, l.linea_tiempo.min, l.linea_tiempo.max),
       minimizado: p.linea_tiempo.minimizado
-    }
+    },
+    // Ventana del editor preciso (0273): se conserva tal cual para que las demás escrituras no la pisen.
+    ...(p.preciso ? { preciso: p.preciso } : {})
   }
 }
 

@@ -67,6 +67,10 @@ export interface PropsFormulario {
   alCambiarFps(f: Fps): void
   alCambiarFormato(f: FormatoId): void
   alCambiarDestino(): void
+  /** `CANCION_EXPORTANDOSE` y esa exportación sigue: su `trabajoId` (V36). */
+  exportacionExistente?: string | null
+  /** [Ver exportación]: cambia el diálogo al estado de ese trabajo. */
+  alVerExportacion?(trabajoId: string): void
 }
 
 interface Nota {
@@ -130,9 +134,16 @@ export function Formulario(p: PropsFormulario) {
   const idAyuda = useId()
   const idDestino = useId()
   const botonAyuda = useRef<HTMLButtonElement>(null)
+  const idErrorDestino = useId()
+  const filaDestino = useRef<HTMLDivElement>(null)
   const [ayudaAbierta, setAyudaAbierta] = useState(false)
   const proporcion = proporcionDeOpciones(opciones)
   const popover = useRef<HTMLDivElement>(null)
+  // Carpeta sin permiso (V35): el foco va a [Cambiar…] cuando aparece el error.
+  const errorCarpeta = error?.codigo === 'DESTINO_NO_DISPONIBLE' ? error : null
+  useEffect(() => {
+    if (errorCarpeta) filaDestino.current?.querySelector('button')?.focus()
+  }, [errorCarpeta])
   // Al abrirse en línea puede quedar bajo el pliegue de la zona con scroll: se trae a la vista.
   useEffect(() => {
     if (ayudaAbierta) popover.current?.scrollIntoView?.({ block: 'nearest' })
@@ -202,11 +213,15 @@ export function Formulario(p: PropsFormulario) {
   const tamano = estimacion?.bytes != null ? formatearTamano(estimacion.bytes) : null
   const tiempo = estimacion?.segundos != null ? formatearTiempoEstimado(estimacion.segundos) : null
   const textoEstimacion = EXP.estimacion(tamano, tiempo)
-  const errorCampo = error ? textoErrorExp(error.codigo) : null
+  const yaExportandose = error?.codigo === 'CANCION_EXPORTANDOSE'
+  const errorCampo = error && !yaExportandose ? textoErrorExp(error.codigo) : null
   // Los errores del destino van junto a «Guardar como»; el resto, antes de las notas.
   const errorEnDestino =
     error !== null &&
     ['DESTINO_NO_DISPONIBLE', 'DESTINO_OCUPADO', 'SIN_ESPACIO'].includes(error.codigo)
+  const textoErrorDestino = errorCarpeta
+    ? { titulo: EXP.errorDestinoTitulo, explicacion: EXP.errorDestinoPermiso }
+    : errorCampo
 
   const cerrarAyuda = (e: KeyboardEvent) => {
     // Con la ayuda cerrada, Esc llega al diálogo y lo cierra.
@@ -306,22 +321,26 @@ export function Formulario(p: PropsFormulario) {
           <label htmlFor={idDestino} className={estilos.etiquetaFila}>
             {EXP.destino}
           </label>
-          <div className={estilos.filaDestino}>
+          <div ref={filaDestino} className={estilos.filaDestino}>
             <input
               id={idDestino}
               readOnly
               value={destino?.ruta ?? ''}
               aria-label={EXP.destinoAria(destino?.ruta ?? '')}
               title={destino?.ruta}
-              className={`${estilosComponentes.entrada} ${estilos.rutaDestino}`}
+              aria-invalid={errorCarpeta ? true : undefined}
+              aria-describedby={errorCarpeta ? idErrorDestino : undefined}
+              className={`${estilosComponentes.entrada} ${estilos.rutaDestino} ${errorCarpeta ? estilos.rutaDestinoError : ''}`}
             />
             <Boton onClick={p.alCambiarDestino}>{EXP.cambiar}</Boton>
           </div>
           <Anuncio texto={anuncios.destino} />
-          {errorCampo && errorEnDestino && (
-            <AvisoEnLinea tipo="error">
-              <strong>{errorCampo.titulo}</strong> {errorCampo.explicacion}
-            </AvisoEnLinea>
+          {textoErrorDestino && errorEnDestino && (
+            <div id={idErrorDestino}>
+              <AvisoEnLinea tipo="error">
+                <strong>{textoErrorDestino.titulo}</strong> {textoErrorDestino.explicacion}
+              </AvisoEnLinea>
+            </div>
           )}
         </div>
         {textoEstimacion && (
@@ -329,7 +348,10 @@ export function Formulario(p: PropsFormulario) {
             {textoEstimacion}
           </p>
         )}
-        {(destino?.existe || (errorCampo && !errorEnDestino) || notas.length > 0) && (
+        {(destino?.existe ||
+          (errorCampo && !errorEnDestino) ||
+          (yaExportandose && p.exportacionExistente) ||
+          notas.length > 0) && (
           // Pegada al borde inferior de la zona con scroll: los avisos que condicionan la
           // decisión se ven siempre, encima de los botones del pie.
           <div className={estilos.notas} data-notas>
@@ -337,6 +359,19 @@ export function Formulario(p: PropsFormulario) {
             {errorCampo && !errorEnDestino && (
               <AvisoEnLinea tipo="error">
                 <strong>{errorCampo.titulo}</strong> {errorCampo.explicacion}
+              </AvisoEnLinea>
+            )}
+            {yaExportandose && p.exportacionExistente && (
+              <AvisoEnLinea
+                tipo="error"
+                accion={
+                  <Boton onClick={() => p.alVerExportacion?.(p.exportacionExistente!)}>
+                    {EXP.verExportacion}
+                  </Boton>
+                }
+              >
+                <strong>{EXP.errorCancionExportandoseTitulo}</strong>{' '}
+                {EXP.errorCancionExportandoseTexto}
               </AvisoEnLinea>
             )}
             {notas.map((n) => (

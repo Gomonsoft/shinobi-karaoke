@@ -5,8 +5,7 @@ import type { ResumenCancionIpc } from '@shared/ipc'
 import {
   compararDuracion,
   type CandidatoLetra,
-  type ResultadoBusquedaLetra,
-  type Sincronia
+  type ResultadoBusquedaLetra
 } from '@shared/letrasBusqueda'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
@@ -25,7 +24,7 @@ type Fase =
   | { tipo: 'error'; codigo: string; mensaje: string }
 
 const URL_LRCLIB = 'https://lrclib.net'
-const GLIFO: Record<Sincronia, string> = { palabra: '◆', linea: '◇', texto: '▭' }
+const GLIFO: Record<'linea' | 'texto', string> = { linea: '◇', texto: '▭' }
 
 function codigoDe(err: unknown): { codigo: string; mensaje: string } {
   const o = err && typeof err === 'object' ? (err as Record<string, unknown>) : {}
@@ -65,6 +64,8 @@ function Opcion({
 }) {
   const duracion = formatearDuracion(candidato.duracion_ms)
   const detalle = [candidato.album, duracion].filter(Boolean).join(' · ')
+  // Los tiempos por palabra ya no se importan: «palabra» solo sirve para ordenar (ADR 0021 §5, 0149).
+  const visible = candidato.sincronia === 'texto' ? 'texto' : 'linea'
   return (
     // Patrón listbox con `aria-activedescendant`: el foco real está en la lista.
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
@@ -79,9 +80,8 @@ function Opcion({
         {candidato.titulo} — {candidato.artista}
       </span>
       {detalle && <span className={estilos.opcionDetalle}>{detalle}</span>}
-      <span className={`${estilos.insignia} ${estilos[`sync_${candidato.sincronia}`]}`}>
-        <span aria-hidden="true">{GLIFO[candidato.sincronia]}</span>{' '}
-        {TEXTO.sync[candidato.sincronia]}
+      <span className={`${estilos.insignia} ${estilos[`sync_${visible}`]}`}>
+        <span aria-hidden="true">{GLIFO[visible]}</span> {TEXTO.sync[visible]}
       </span>
       <Duracion diferenciaMs={candidato.diferencia_ms} />
     </div>

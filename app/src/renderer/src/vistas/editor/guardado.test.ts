@@ -116,3 +116,36 @@ it('guarda la última selección de apariencia (tema o heredar) y la reenvía tr
   expect(guardarApariencia).toHaveBeenLastCalledWith('c', { modo: 'heredar' })
   expect(editor.hayPendiente()).toBe(false)
 })
+
+it('llama a editarTextoLinea antes de guardarTiempos, solo por las líneas con texto distinto', async () => {
+  const orden: string[] = []
+  const editarTextoLinea = vi.fn(async () => void orden.push('texto'))
+  const guardarTiempos = vi.fn(async () => void orden.push('tiempos'))
+  const inicial = letra([linea('a', 'El viento', 2000), linea('b', 'Dos', 4000)])
+  const editor = new GuardadoEditor({
+    cancionId: 'c',
+    letraInicial: inicial,
+    api: { guardarTiempos, editarTextoLinea, guardarApariencia: vi.fn(async () => undefined) },
+    alEstado: vi.fn(),
+    alDesactualizada: vi.fn()
+  })
+  editor.cambiarLetra({
+    ...inicial,
+    lineas: inicial.lineas.map((e) => (e.id === 'a' ? { ...e, texto: 'El viento sopla' } : e))
+  })
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(editarTextoLinea).toHaveBeenCalledExactlyOnceWith({
+    cancionId: 'c',
+    id: 'a',
+    texto: 'El viento sopla'
+  })
+  expect(orden).toEqual(['texto', 'tiempos'])
+  // Una segunda escritura sin cambiar el texto no vuelve a llamarlo.
+  editor.cambiarLetra({
+    ...inicial,
+    offset_ms: 100,
+    lineas: inicial.lineas.map((e) => (e.id === 'a' ? { ...e, texto: 'El viento sopla' } : e))
+  })
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(editarTextoLinea).toHaveBeenCalledOnce()
+})

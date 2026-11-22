@@ -1,4 +1,4 @@
-import type { ElementoLetra, Letra, Palabra } from '../letra'
+import { palabrasVisibles, type ElementoLetra, type Letra, type Palabra } from '../letra'
 import { comprobarTamanoTexto, limpiarTexto, normalizarLetra, type GeneradorId } from './normalizar'
 
 const MARCA_LINEA = /^\[(\d+):(\d{2})(?:[.:](\d{1,3}))?\]/
@@ -83,6 +83,8 @@ export function lrcALetra(texto: string, generarId?: GeneradorId): ResultadoLrc 
   // Orden estable por tiempo.
   crudos.sort((a, b) => a.inicio - b.inicio)
 
+  // Ya no se importan tiempos por palabra (ADR 0021 §5): el fin de la línea es el de su última palabra
+  // (el cierre `<mm:ss.xx>` o, si quedó abierta, su fin estimado) si cumple inicio < fin < siguiente.
   const els: ElementoLetra[] = crudos.map((c, i) => {
     let palabras = c.palabras
     if (palabras && c.ultimaAbierta) {
@@ -95,13 +97,21 @@ export function lrcALetra(texto: string, generarId?: GeneradorId): ResultadoLrc 
       palabras = [...palabras.slice(0, -1), { ...ultima, fin_ms: fin }]
     }
     const esPausa = c.texto === '' && !palabras?.length
+    const finPalabras = palabras?.at(-1)?.fin_ms ?? null
+    const siguiente = crudos[i + 1]?.inicio ?? null
+    const finFijado =
+      finPalabras !== null &&
+      finPalabras > c.inicio &&
+      (siguiente === null || finPalabras < siguiente)
+        ? finPalabras
+        : null
     return {
       id: '',
       tipo: esPausa ? 'pausa' : 'linea',
       texto: c.texto,
       inicio_ms: c.inicio,
-      fin_ms: null,
-      palabras
+      fin_ms: esPausa ? null : finFijado,
+      palabras: null
     }
   })
 
@@ -174,8 +184,8 @@ function exportar(letra: Pick<Letra, 'lineas'>, mejorado: boolean): string {
       salida.push(marca)
       return
     }
-    if (mejorado && e.palabras && e.palabras.length > 0) {
-      const ps = e.palabras
+    const ps = mejorado ? palabrasVisibles(e, lineas[i + 1]?.inicio_ms ?? null) : null
+    if (ps && ps.length > 0) {
       const cuerpo = ps.map((p) => formatear(p.inicio_ms, '<', '>') + p.texto).join('')
       salida.push(`${marca}${cuerpo}${formatear(ps[ps.length - 1]!.fin_ms, '<', '>')}`)
     } else {

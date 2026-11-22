@@ -5,6 +5,8 @@ import {
   contarLineas,
   estadoPasoLetra,
   letraSchema,
+  sinPalabras,
+  validarPalabrasManuales,
   type EdicionLetraIpc,
   type ElementoLetra,
   type Letra
@@ -21,6 +23,7 @@ import {
   sincroniaDe,
   type ArchivoLetraLeido,
   type EditarTextoLetra,
+  type EditarTextoLinea,
   type GuardarTiempos,
   type GuardarLetra
 } from '../../shared/letrasBusqueda'
@@ -67,7 +70,7 @@ export function decodificarTextoLetra(bytes: Uint8Array): string | null {
 }
 
 /**
- * Único escritor de `letra`: guardar, editarTexto, guardarTiempos (ADR 0006 y 0010).
+ * Único escritor de `letra`: guardar, editarTexto, editarTextoLinea, guardarTiempos (ADR 0006 y 0010).
  * Escribe siempre con `ServicioBiblioteca.actualizar`, que emite `evento:cancion`.
  */
 export class ServicioLetras {
@@ -197,6 +200,62 @@ export class ServicioLetras {
     this.visita = null
   }
 
+  /**
+   * Cambia solo el texto de una línea (ADR 0021 §7): conserva `id`, `inicio_ms` y `fin_ms`, quita sus
+   * palabras y **actualiza** la referencia de la visita en lugar de invalidarla, para que el historial
+   * del editor siga valiendo. En la referencia se actualiza el texto y se conservan las palabras de la
+   * línea: así deshacer puede restaurar unas palabras importadas con `guardarTiempos`. Se escribe sin
+   * *debounce* y en la misma cola que `guardarTiempos` (texto → tiempos, en orden).
+   */
+  async editarTextoLinea(peticion: EditarTextoLinea, sesionId: string): Promise<ResumenCancion> {
+    const { cancionId, id, texto } = peticion
+    const cancion = this.biblioteca.obtener(cancionId)
+    if (!cancion) throw noValido('La canción no existe o está dañada.')
+    const { letra } = cancion
+    const visita = this.visita
+    const referencia = visita?.referencia
+    if (
+      visita?.id !== sesionId ||
+      visita.cancionId !== cancionId ||
+      !letra ||
+      !referencia ||
+      letra.lineas.length !== referencia.lineas.length ||
+      letra.lineas.some((linea, i) => linea.id !== referencia.lineas[i]?.id)
+    ) {
+      throw new ErrorBiblioteca(
+        'LETRA_DESACTUALIZADA',
+        'La letra ha cambiado desde que se abrió el editor.'
+      )
+    }
+    const i = letra.lineas.findIndex((l) => l.id === id)
+    const actual = letra.lineas[i]
+    if (!actual || actual.tipo !== 'linea') throw noValido('La línea no existe en la letra.')
+
+    const resumen = this.biblioteca.obtenerResumen(cancionId)
+    if (actual.texto === texto) {
+      if (resumen) return this.escriturasTiempos.get(cancionId) ?? resumen
+    }
+    const lineas = letra.lineas.map((l, j) => (j === i ? { ...sinPalabras(l), texto } : l))
+    const nueva = letraSchema.safeParse({ ...letra, lineas })
+    if (!nueva.success) throw noValido('El texto de la línea no es válido.')
+
+    // Se actualiza antes de ceder el turno: el siguiente `guardarTiempos` ya ve el texto nuevo.
+    referencia.lineas[i] = { ...referencia.lineas[i]!, texto }
+    return this.escribirTiempos(cancionId, nueva.data)
+  }
+
+  /** Escritura sin *debounce* compartida por `guardarTiempos` y `editarTextoLinea`. */
+  private async escribirTiempos(cancionId: string, letra: Letra): Promise<ResumenCancion> {
+    const escritura = this.escribir(cancionId, letra, 0)
+    this.escriturasTiempos.set(cancionId, escritura)
+    try {
+      return await escritura
+    } finally {
+      if (this.escriturasTiempos.get(cancionId) === escritura)
+        this.escriturasTiempos.delete(cancionId)
+    }
+  }
+
   private invalidarEdicionDe(cancionId: string): void {
     if (this.visita?.cancionId === cancionId) this.liberarEdicion()
   }
@@ -226,9 +285,11 @@ export class ServicioLetras {
       )
     }
 
-    const lineas = letra.lineas.map((linea, i): ElementoLetra => {
+    const lineas = letra.lineas.map((guardada, i): ElementoLetra => {
       const inicial = referencia.lineas[i]!
-      const { inicio_ms, fin_ms, palabras } = tiempos[i]!
+      const { inicio_ms, fin_ms, palabras, origen_palabras } = tiempos[i]!
+      // `origen_palabras` solo se escribe con palabras manuales: en cualquier otro caso se quita.
+      const linea = sinPalabras(guardada)
       if (linea.tipo === 'pausa') {
         if (
           palabras !== null ||
@@ -239,6 +300,14 @@ export class ServicioLetras {
         return { ...linea, inicio_ms, fin_ms, palabras: null }
       }
       if (palabras === null) return { ...linea, inicio_ms, fin_ms, palabras }
+      if (origen_palabras === 'manual') {
+        // Palabras hechas a mano: se validan contra el texto guardado y el fin de la línea (el fijado o,
+        // si no hay, el inicio del siguiente elemento); no se comparan con la referencia.
+        const tope = fin_ms ?? tiempos[i + 1]?.inicio_ms ?? null
+        if (validarPalabrasManuales({ texto: linea.texto, inicio_ms, palabras }, tope).length > 0)
+          throw noValido('Las palabras no son válidas para la línea.')
+        return { ...linea, inicio_ms, fin_ms, palabras, origen_palabras: 'manual' }
+      }
       const originales = inicial.palabras
       if (
         !originales ||
@@ -269,14 +338,7 @@ export class ServicioLetras {
     if (resumen && JSON.stringify(nueva.data) === JSON.stringify(letra)) {
       return this.escriturasTiempos.get(cancionId) ?? resumen
     }
-    const escritura = this.escribir(cancionId, nueva.data, 0)
-    this.escriturasTiempos.set(cancionId, escritura)
-    try {
-      return await escritura
-    } finally {
-      if (this.escriturasTiempos.get(cancionId) === escritura)
-        this.escriturasTiempos.delete(cancionId)
-    }
+    return this.escribirTiempos(cancionId, nueva.data)
   }
 
   private escribir(id: string, letra: Letra, debounceMs: number): Promise<ResumenCancion> {

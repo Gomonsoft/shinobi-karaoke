@@ -6,7 +6,6 @@ app/.datos-dev/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
-spikes/**/salida/
 .DS_Store
 
 # Worktrees de agentes de Claude Code

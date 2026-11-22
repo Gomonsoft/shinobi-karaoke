@@ -1,17 +1,11 @@
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
-import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Icono } from '../../componentes/Icono'
-import { Diamond, RotateCcw, X } from 'lucide-react'
+import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
+import { WholeWord, X } from 'lucide-react'
+import { tienePalabrasManuales } from '@shared/letra'
 import { contarLineas, finEfectivo } from '@shared/letra'
-import {
-  formatearDesplazamiento,
-  formatearTiempo,
-  interpretarDesplazamiento,
-  numeroDeLinea,
-  tiempoMostrado,
-  type Limite
-} from '@shared/letras/tiempos'
+import { formatearTiempo, numeroDeLinea, tiempoMostrado, type Limite } from '@shared/letras/tiempos'
 import { CampoTiempo } from './CampoTiempo'
 import type { EstadoEditor } from './estado'
 import { E } from './textos'
@@ -29,10 +23,15 @@ interface Props {
   fijar(campo: Campo, msAudio?: number): void
   finAutomatico(): void
   escuchar(): void
+  /** Mayús + L: de 0,5 s antes a 0,5 s después de la línea. */
+  escucharTramo(): void
   borrar(): void
-  desplazar(delta: number): void
-  fijarDesplazamiento(ms: number): void
   ayudaBluetooth?: boolean
+  /** Abre el editor preciso de la línea; `motivoPreciso` si no se puede (sin inicio, ritmo…). */
+  abrirPreciso?(): void
+  motivoPreciso?: string
+  /** La línea está abierta en el editor preciso: sus controles de tiempo quedan inactivos. */
+  ocupada?: boolean
   cerrarBluetooth?(): void
 }
 
@@ -55,24 +54,22 @@ export function textoLimite(limite: Limite, pausaFin: boolean): string | null {
       return pausaFin
         ? 'El fin no puede pasar del inicio de la pausa siguiente.'
         : E.limiteFinSiguiente
-    case 'desplazamiento':
-      return E.offsetRango
     default:
       return null
   }
 }
 
 /**
- * Aviso de límite vigente de un campo de la línea seleccionada (o del desplazamiento). Lo comparten
+ * Aviso de límite vigente de un campo de la línea seleccionada. Lo comparten
  * el panel completo, que lo enseña junto al campo, y los rieles minimizados, junto a su botón.
  */
 export function limiteDeCampo(
   edicion: EstadoEditor,
-  campo: Campo | 'desplazamiento'
+  campo: Campo
 ): { mensaje: string; clave: number } | undefined {
   const { aviso, seleccion } = edicion
   if (!aviso?.limite || !aviso.limite.tipo.startsWith(campo)) return undefined
-  if (campo !== 'desplazamiento' && aviso.id !== seleccion) return undefined
+  if (aviso.id !== seleccion) return undefined
   const { letra } = edicion.actual
   const indice = letra.lineas.findIndex((el) => el.id === seleccion && el.tipo === 'linea')
   const siguiente = letra.lineas.slice(indice + 1).find((e) => e.inicio_ms !== null)
@@ -91,11 +88,13 @@ export function PanelSincronia({
   fijar,
   finAutomatico,
   escuchar,
+  escucharTramo,
   borrar,
-  desplazar,
-  fijarDesplazamiento,
   ayudaBluetooth,
-  cerrarBluetooth
+  cerrarBluetooth,
+  abrirPreciso,
+  motivoPreciso,
+  ocupada = false
 }: Props) {
   const { letra } = edicion.actual
   const { seleccion } = edicion
@@ -105,32 +104,37 @@ export function PanelSincronia({
   const fin = linea ? finEfectivo(letra, linea.id, duracionMs) : null
   const tiempo = (ms: number | null) =>
     formatearTiempo(ms === null ? null : tiempoMostrado(ms, letra.offset_ms))
-  const limite = (campo: Campo | 'desplazamiento') => limiteDeCampo(edicion, campo)
+  const bloqueo = ocupada ? E.preciso.ocupado : undefined
+  const limite = (campo: Campo) => limiteDeCampo(edicion, campo)
   return (
     <fieldset className={estilos.panelSincronia} disabled={bloqueado} aria-label="Sincronía">
       {linea ? (
         <div className={estilos.ajustesLinea}>
           <h3>{E.lineaN(numeroDeLinea(letra, linea.id), contarLineas(letra))}</h3>
-          <p className={estilos.lineaDetalle}>
-            «{linea.texto}»{' '}
-            {linea.palabras && (
-              <span>
-                <Icono icono={Diamond} tamano={14} /> {E.palabrasEtiqueta}
-              </span>
-            )}
-          </p>
+          <p className={estilos.lineaDetalle}>«{linea.texto}»</p>
+          {tienePalabrasManuales(linea) && (
+            <>
+              <p className={estilos.indicadorPanel}>
+                <Icono icono={WholeWord} tamano={14} /> {E.preciso.indicadorPanel}
+              </p>
+              <p className={estilos.avisoPanel}>{E.preciso.avisoDescartar}</p>
+            </>
+          )}
           <CampoTiempo
             etiqueta={E.inicio}
             valor={tiempo(linea.inicio_ms)}
             aplicar={(ms) => fijar('inicio', ms)}
+            inactivo={ocupada}
             limite={limite('inicio')}
           />
-          <Boton onClick={() => fijar('inicio')}>{E.fijarInicio} (I)</Boton>
+          <Boton noDisponible={bloqueo} onClick={() => fijar('inicio')}>
+            {E.fijarInicio} (I)
+          </Boton>
           <CampoTiempo
             etiqueta={E.fin}
             valor={tiempo(fin)}
             aplicar={(ms) => fijar('fin', ms)}
-            inactivo={linea.inicio_ms === null}
+            inactivo={linea.inicio_ms === null || ocupada}
             ayuda={
               linea.inicio_ms === null ? (
                 E.finSinInicio
@@ -147,19 +151,34 @@ export function PanelSincronia({
             }
             limite={limite('fin')}
           />
-          <Boton disabled={linea.inicio_ms === null} onClick={() => fijar('fin')}>
+          <Boton
+            disabled={linea.inicio_ms === null}
+            noDisponible={bloqueo}
+            onClick={() => fijar('fin')}
+          >
             {E.fijarFin} (O)
           </Boton>
-          {linea.fin_ms !== null && <Boton onClick={finAutomatico}>{E.usarFinAuto}</Boton>}
+          {linea.fin_ms !== null && (
+            <Boton noDisponible={bloqueo} onClick={finAutomatico}>
+              {E.usarFinAuto}
+            </Boton>
+          )}
           <Boton onClick={escuchar}>{E.escucharLinea} (L)</Boton>
-          <Boton disabled={linea.inicio_ms === null} onClick={borrar}>
+          <Boton
+            aria-keyshortcuts="Shift+L"
+            noDisponible={linea.inicio_ms === null ? E.escucharLineaSinInicio : undefined}
+            onClick={escucharTramo}
+          >
+            {E.escucharLineaTramo}
+          </Boton>
+          <Boton disabled={linea.inicio_ms === null} noDisponible={bloqueo} onClick={borrar}>
             {E.borrarTiempos} (Supr)
           </Boton>
           <label className={estilos.casilla}>
             <input
               type="checkbox"
               checked={escucharAjustes}
-              disabled={bucle}
+              disabled={bucle || ocupada}
               aria-describedby={bucle ? 'escucha-ocupada' : undefined}
               onChange={(e) => fijarEscucharAjustes(e.currentTarget.checked)}
             />{' '}
@@ -170,49 +189,36 @@ export function PanelSincronia({
             <input
               type="checkbox"
               checked={bucle}
-              disabled={!bucle && (!!motivoBucle || !alternarBucle)}
+              disabled={ocupada || (!bucle && (!!motivoBucle || !alternarBucle))}
               aria-describedby={motivoBucle ? 'motivo-bucle' : undefined}
               onChange={alternarBucle}
             />{' '}
             {E.timeline.bucle}
           </label>
           <div aria-live="polite">{motivoBucle && <p id="motivo-bucle">{motivoBucle}</p>}</div>
+          {abrirPreciso && (
+            <Boton
+              aria-keyshortcuts="P"
+              data-abrir-preciso
+              noDisponible={motivoPreciso}
+              onClick={abrirPreciso}
+            >
+              <Icono icono={WholeWord} />
+              {E.preciso.abrirPuntos}
+            </Boton>
+          )}
         </div>
       ) : (
         <p>{E.sinSeleccion}</p>
       )}
-      <div className={estilos.desplazamiento} role="group" aria-labelledby="titulo-desplazamiento">
-        <h3 id="titulo-desplazamiento">{E.offsetTitulo}</h3>
-        <div className={estilos.ajustesTiempo}>
-          <Boton onClick={() => desplazar(-100)}>−0,1 s</Boton>
-          <CampoTiempo
-            etiqueta={E.offsetCampo}
-            etiquetaOculta
-            describedBy="ayuda-desplazamiento"
-            valor={formatearDesplazamiento(letra.offset_ms).replace(' s', '')}
-            aplicar={fijarDesplazamiento}
-            interpretar={interpretarDesplazamiento}
-            errorFormato={E.offsetRango}
-            limite={limite('desplazamiento')}
-          />
-          <Boton onClick={() => desplazar(100)}>+0,1 s</Boton>
-          <BotonIcono
-            icono={RotateCcw}
-            etiqueta={E.offsetRestablecer}
-            disabled={letra.offset_ms === 0}
-            onClick={() => fijarDesplazamiento(0)}
-          />
-        </div>
-        <p id="ayuda-desplazamiento">{E.offsetAyuda}</p>
-        {ayudaBluetooth && (
-          <AvisoEnLinea
-            tipo="info"
-            accion={<BotonIcono icono={X} etiqueta="Cerrar aviso" onClick={cerrarBluetooth} />}
-          >
-            {E.bluetooth}
-          </AvisoEnLinea>
-        )}
-      </div>
+      {ayudaBluetooth && (
+        <AvisoEnLinea
+          tipo="info"
+          accion={<BotonIcono icono={X} etiqueta="Cerrar aviso" onClick={cerrarBluetooth} />}
+        >
+          {E.bluetooth}
+        </AvisoEnLinea>
+      )}
     </fieldset>
   )
 }

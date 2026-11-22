@@ -17,7 +17,13 @@ export const elementoLetraSchema = z.object({
   /** null = fin automático (ver finEfectivo); número = fin fijado. */
   fin_ms: tiempoMs.nullable(),
   /** null si no hay sincronía por palabra. */
-  palabras: z.array(palabraSchema).nullable()
+  palabras: z.array(palabraSchema).nullable(),
+  /**
+   * Origen de las palabras (ADR 0021 §1). Ausente con palabras = importadas (no
+   * se usan); "manual" = hechas en el editor preciso. Lectura tolerante: un
+   * valor fuera del catálogo se lee como ausente.
+   */
+  origen_palabras: z.enum(['importada', 'manual']).optional().catch(undefined)
 })
 
 export type Palabra = z.infer<typeof palabraSchema>
@@ -155,6 +161,96 @@ function cap(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
+// ---------------------------------------------------------------------------
+// Palabras hechas a mano (ADR 0021 §1)
+// ---------------------------------------------------------------------------
+
+/** Duración mínima de una palabra hecha a mano. */
+export const DURACION_MINIMA_PALABRA_MS = 20
+
+/** Palabras de una línea: fragmentos separados por espacios (la puntuación va con su palabra). */
+export function tokenizarLinea(texto: string): string[] {
+  return texto
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t !== '')
+}
+
+type LineaConPalabras = Pick<ElementoLetra, 'texto' | 'inicio_ms' | 'palabras'>
+
+/**
+ * Reglas de validez de unas palabras hechas a mano (spec 06, fase 9): una por
+ * token con su texto y en orden, ≥ 20 ms, sin solapes, la primera ≥ inicio de la
+ * línea y la última ≤ `finLinea` (null = sin tope). Devuelve los problemas
+ * (vacío si es válida). Sin palabras no hay nada que validar.
+ */
+export function validarPalabrasManuales(
+  linea: LineaConPalabras,
+  finLinea: number | null
+): string[] {
+  const palabras = linea.palabras
+  if (palabras === null) return []
+  const problemas: string[] = []
+  const tokens = tokenizarLinea(linea.texto)
+  if (palabras.length !== tokens.length) {
+    problemas.push(
+      `La línea tiene ${tokens.length} palabras y se han dado tiempos a ${palabras.length}`
+    )
+  } else {
+    palabras.forEach((p, k) => {
+      if (p.texto !== tokens[k]) {
+        problemas.push(`La palabra ${k + 1} debe ser «${tokens[k]}», no «${p.texto}»`)
+      }
+    })
+  }
+  palabras.forEach((p, k) => {
+    if (p.fin_ms - p.inicio_ms < DURACION_MINIMA_PALABRA_MS) {
+      problemas.push(`La palabra «${p.texto}» dura menos de ${DURACION_MINIMA_PALABRA_MS} ms`)
+    }
+    const siguiente = palabras[k + 1]
+    if (siguiente && p.fin_ms > siguiente.inicio_ms) {
+      problemas.push(`La palabra «${p.texto}» se solapa con la siguiente`)
+    }
+  })
+  const primera = palabras[0]
+  if (primera && (linea.inicio_ms === null || primera.inicio_ms < linea.inicio_ms)) {
+    problemas.push('La primera palabra empieza antes que la línea')
+  }
+  const ultima = palabras[palabras.length - 1]
+  if (ultima && finLinea !== null && ultima.fin_ms > finLinea) {
+    problemas.push('La última palabra termina después del fin de la línea')
+  }
+  return problemas
+}
+
+/**
+ * Palabras que se usan (pintan, fin efectivo): solo las hechas a mano y válidas
+ * contra `finLinea` (fin fijado) o, si no hay, contra `inicioSiguienteMs`
+ * (inicio del siguiente elemento con inicio; null/ausente = sin tope). Si no, null.
+ */
+export function palabrasVisibles(
+  el: LineaConPalabras & Pick<ElementoLetra, 'fin_ms' | 'origen_palabras'>,
+  inicioSiguienteMs: number | null = null
+): Palabra[] | null {
+  if (el.origen_palabras !== 'manual' || el.palabras === null || el.palabras.length === 0) {
+    return null
+  }
+  const tope = el.fin_ms ?? inicioSiguienteMs
+  return validarPalabrasManuales(el, tope).length === 0 ? el.palabras : null
+}
+
+/** Copia del elemento sin palabras ni origen (la regla de descarte). */
+export function sinPalabras(el: ElementoLetra): ElementoLetra {
+  const copia = { ...el, palabras: null }
+  delete copia.origen_palabras
+  return copia
+}
+
+/** ¿Pierde palabras hechas a mano si se descartan? (las únicas que se avisan) */
+export function tienePalabrasManuales(el: Pick<ElementoLetra, 'palabras' | 'origen_palabras'>) {
+  return el.palabras !== null && el.origen_palabras === 'manual'
+}
+
 export const letraSchema = z
   .object({
     origen: z.enum(['lrclib', 'manual', 'archivo']),
@@ -206,7 +302,7 @@ function contarPalabrasTexto(texto: string): number {
  * Fin efectivo de un elemento (ADR 0005; preguntas/0005 §6). No se guarda: se
  * calcula al renderizar. Devuelve null si el elemento no existe o no tiene inicio.
  *
- * Orden: fin fijado → fin de la última palabra → inicio de la pausa siguiente
+ * Orden: fin fijado → fin de la última palabra visible (solo hechas a mano y válidas) → inicio de la pausa siguiente
  * si tiene tiempo → inicio de la línea siguiente si el hueco es ≤ 8 s y no hay
  * pausa → inicio + min(hueco, máx(2000, 400 × nº de palabras)) → última línea:
  * min(inicio + 5000, duración).
@@ -223,9 +319,12 @@ export function finEfectivo(
   const inicio = el.inicio_ms
 
   if (el.fin_ms !== null) return el.fin_ms
-  if (el.palabras && el.palabras.length > 0) {
-    return el.palabras[el.palabras.length - 1]!.fin_ms
-  }
+  const idxSigInicio = siguienteConInicio(lineas, i)
+  const visibles = palabrasVisibles(
+    el,
+    idxSigInicio === -1 ? null : lineas[idxSigInicio]!.inicio_ms
+  )
+  if (visibles) return visibles[visibles.length - 1]!.fin_ms
 
   const siguiente = lineas[i + 1]
   if (siguiente?.tipo === 'pausa' && siguiente.inicio_ms !== null) return siguiente.inicio_ms
@@ -254,7 +353,7 @@ export function finEfectivo(
 
 export interface ResultadoMoverInicio {
   letra: Letra
-  /** Ids de líneas cuyas palabras se descartaron (pasan a barrido progresivo). */
+  /** Ids de líneas que perdieron palabras hechas a mano (las importadas se borran sin aviso). */
   palabrasDescartadas: string[]
   /** Ids de elementos cuyo fin fijado se pasó a automático (null). */
   finesAutomaticos: string[]
@@ -267,9 +366,9 @@ function indiceDe(letra: Pick<Letra, 'lineas'>, id: string): number {
 }
 
 /**
- * Mueve el inicio de una línea. Sus palabras (si tiene) se desplazan el mismo
- * delta. Si las palabras de esa línea o de la anterior ya no caben, se
- * descartan. No toca `fin_ms`, salvo que un fin fijado deje de cumplir
+ * Mueve el inicio de una línea. Descarta sus palabras (de cualquier origen) y
+ * las de la anterior si su fin fijado pasa a automático o se solapan con el
+ * nuevo inicio (ADR 0021 §4). `palabrasDescartadas` lista solo las manuales. No toca `fin_ms`, salvo que un fin fijado deje de cumplir
  * `inicio < fin ≤ siguiente inicio`: entonces pasa a null (automático).
  *
  * Lanza RangeError si el id no existe, no es una línea, o si el nuevo inicio
@@ -302,50 +401,34 @@ export function moverInicioLinea(
     )
   }
 
-  const delta = original.inicio_ms === null ? 0 : nuevoInicioMs - original.inicio_ms
-  const lineas: ElementoLetra[] = letra.lineas.map((e) => ({
-    ...e,
-    palabras: e.palabras ? e.palabras.map((p) => ({ ...p })) : null
-  }))
+  const lineas: ElementoLetra[] = letra.lineas.map((e) => ({ ...e }))
   const palabrasDescartadas: string[] = []
   const finesAutomaticos: string[] = []
-
-  const actual = lineas[i]!
-  actual.inicio_ms = nuevoInicioMs
-  if (actual.palabras) {
-    actual.palabras = actual.palabras.map((p) => ({
-      ...p,
-      inicio_ms: p.inicio_ms + delta,
-      fin_ms: p.fin_ms + delta
-    }))
-    const ultima = actual.palabras[actual.palabras.length - 1]
-    const primera = actual.palabras[0]
-    const caben =
-      primera !== undefined &&
-      ultima !== undefined &&
-      primera.inicio_ms >= nuevoInicioMs &&
-      (inicioSig === null || ultima.fin_ms <= inicioSig)
-    if (!caben) {
-      actual.palabras = null
-      palabrasDescartadas.push(actual.id)
-    }
+  const descartar = (k: number): void => {
+    const e = lineas[k]!
+    if (e.palabras === null) return
+    if (tienePalabrasManuales(e)) palabrasDescartadas.push(e.id)
+    lineas[k] = sinPalabras(e)
   }
+
+  // Las palabras ya no se desplazan con la línea (ADR 0021 §4): se descartan.
+  lineas[i] = { ...lineas[i]!, inicio_ms: nuevoInicioMs }
+  descartar(i)
+  const actual = lineas[i]!
 
   if (ant !== -1) {
     const previa = lineas[ant]!
     const ultima = previa.palabras?.[previa.palabras.length - 1]
-    if (ultima && ultima.fin_ms > nuevoInicioMs) {
-      previa.palabras = null
-      palabrasDescartadas.push(previa.id)
-    }
-    if (previa.fin_ms !== null && previa.fin_ms > nuevoInicioMs) {
-      previa.fin_ms = null
+    const pierdeFin = previa.fin_ms !== null && previa.fin_ms > nuevoInicioMs
+    if (pierdeFin) {
+      lineas[ant] = { ...previa, fin_ms: null }
       finesAutomaticos.push(previa.id)
     }
+    if (pierdeFin || (ultima && ultima.fin_ms > nuevoInicioMs)) descartar(ant)
   }
   if (actual.fin_ms !== null) {
     if (actual.fin_ms <= nuevoInicioMs || (inicioSig !== null && actual.fin_ms > inicioSig)) {
-      actual.fin_ms = null
+      lineas[i] = { ...actual, fin_ms: null }
       finesAutomaticos.push(actual.id)
     }
   }
@@ -359,7 +442,7 @@ export function borrarTiemposLinea(letra: Letra, id: string): Letra {
   return {
     ...letra,
     lineas: letra.lineas.map((e, k) =>
-      k === i ? { ...e, inicio_ms: null, fin_ms: null, palabras: null } : { ...e }
+      k === i ? { ...sinPalabras(e), inicio_ms: null, fin_ms: null } : { ...e }
     )
   }
 }

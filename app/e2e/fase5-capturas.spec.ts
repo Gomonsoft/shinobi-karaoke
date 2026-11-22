@@ -13,14 +13,14 @@ import { leerCancion, tarjeta } from './fixtures/separacion'
 import { crearTemporal } from './temporales'
 
 /**
- * Capturas de revisión de la fase 5 de 0.2.0 (tarea 0218, `docs/ux/revision-0.2.0-fase-5/README.md`):
+ * Capturas de revisión de la fase 5 de 0.2.0 (tarea 0218, `docs/ux/revisiones/0.2.0-fase-5/README.md`):
  * F5-1 (editor), R14 (reproductor) y LB7 (biblioteca). Opt-in:
  * `SHINOBI_CAPTURAS_5=1 npx playwright test e2e/fase5-capturas.spec.ts --workers=1`.
  * No escribe nada en el CI. Cada estado es independiente: si uno falla se anota y se sigue.
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_5 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-0.2.0-fase-5')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', '0.2.0-fase-5')
 const ID = idSemilla(20)
 const TITULO = 'Reproductor: lista'
 const SEGUNDOS = 12_300

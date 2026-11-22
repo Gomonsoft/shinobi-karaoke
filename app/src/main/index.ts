@@ -86,7 +86,8 @@ import { rutaIcono } from './ventana/icono'
 import {
   crearVentanaExportacion,
   type OpcionesExportacion,
-  type VentanaExportacion
+  type VentanaExportacion,
+  probarCaptura
 } from './exportacion/ventana'
 import { Destinos } from './exportacion/destinos'
 import { DiarioExportacion } from './exportacion/diario'
@@ -782,6 +783,9 @@ if (instanciaUnica)
         },
         dirDatos: rutaDatos(),
         config,
+        // Sondeo de captura real (0260): el diálogo no ofrece tamaños que el equipo no captura.
+        probarCaptura: (ancho, alto) =>
+          probarCaptura(ancho, alto, { crear: (o) => new BrowserWindow(o) as never }),
         destinos: new Destinos<BrowserWindow | null>({
           dialogoGuardar: async (ventana, o) => {
             const opciones = {
@@ -840,6 +844,7 @@ if (instanciaUnica)
             cerrarEdicion: (id) => servicioLetras.cerrarEdicion(id),
             guardarTiempos: (peticion, id) => servicioLetras.guardarTiempos(peticion, id),
             editarTexto: (p) => servicioLetras.editarTexto(p),
+            editarTextoLinea: (p, id) => servicioLetras.editarTextoLinea(p, id),
             leerArchivo: () => servicioLetras.leerArchivo()
           },
           ...(servicioYoutube ? { youtube: servicioYoutube } : {}),

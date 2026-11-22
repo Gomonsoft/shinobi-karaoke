@@ -27,7 +27,6 @@ export interface ContextoIndicador {
   silenciado: boolean
   volumenVoz: number
   vozSilenciada: boolean
-  offsetMs: number
 }
 
 /** El contexto refleja los valores después de aplicar la acción. */
@@ -45,8 +44,6 @@ export function textoIndicador(accion: AccionReproductor, ctx: ContextoIndicador
       return ctx.vozSilenciada ? R.ind.vozSilenciada : R.ind.voz(Math.round(ctx.volumenVoz * 100))
     case 'principio':
       return R.ind.principio
-    case 'desplazar':
-      return R.offset(ctx.offsetMs)
     default:
       return null
   }

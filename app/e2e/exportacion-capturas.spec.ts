@@ -14,14 +14,14 @@ import { salirSinConfirmar } from './salir'
 import { crearTemporal } from './temporales'
 
 /**
- * Capturas de revisión de la fase 6 (tarea 0241, `docs/ux/revision-fase-6/README.md`, criterio V29).
+ * Capturas de revisión de la fase 6 (tarea 0241, `docs/ux/revisiones/fase-6/README.md`, criterio V29).
  * Opt-in: `SHINOBI_CAPTURAS_6=1 npx playwright test e2e/exportacion-capturas.spec.ts --workers=1`.
  * No escribe nada en el CI. Cada estado es independiente: si uno falla se anota y se sigue.
  * Con el worker real: el progreso y el éxito son de una exportación de verdad (5 s a 1080p30 MKV).
  */
 
 const CAPTURAS = process.env.SHINOBI_CAPTURAS_6 === '1'
-const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revision-fase-6')
+const DIR = join(process.cwd(), '..', 'docs', 'ux', 'revisiones', 'fase-6')
 const TITULO = 'Reproductor: lista'
 const ID = idSemilla(20)
 

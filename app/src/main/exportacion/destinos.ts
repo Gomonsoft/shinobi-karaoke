@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { constants, promises as fsp } from 'node:fs'
+import { promises as fsp } from 'node:fs'
 import { basename, dirname, extname, join, posix, resolve, win32 } from 'node:path'
 import type { CodigoError } from '../../shared/errores'
 import {
   FORMATOS,
   nombrePropuesto,
   type DestinoIpc,
+  type DetalleErrorExportacion,
   type FormatoId
 } from '../../shared/exportacion'
 
@@ -17,15 +18,26 @@ import {
 
 /** Error con código estable de la IPC (`aErrorIpc` lo traduce). */
 export class ErrorDestino extends Error {
+  readonly detalles: string | undefined
+
   constructor(
     readonly codigo: CodigoError,
     mensaje?: string,
     /** `LIMPIEZA_FALLIDA`: ruta del temporal para «Mostrar en la carpeta». */
-    readonly detalles?: string
+    detalles?: string,
+    /** 0.2.1: `{ campo: 'destino' }` si el error es del campo «Guardar como» (V35). */
+    readonly detalle?: DetalleErrorExportacion
   ) {
     super(mensaje ?? codigo)
     this.name = 'ErrorDestino'
+    // `aErrorIpc` solo transporta `detalles` (texto): el `detalle` viaja serializado (pregunta 0151).
+    this.detalles = detalles ?? (detalle ? JSON.stringify(detalle) : undefined)
   }
+}
+
+/** Error del campo destino: el formulario lo muestra bajo «Guardar como». */
+function errorDeCampo(mensaje: string): ErrorDestino {
+  return new ErrorDestino('DESTINO_NO_DISPONIBLE', mensaje, undefined, { campo: 'destino' })
 }
 
 export const CADUCIDAD_DESTINO_MS = 30 * 60 * 1000
@@ -58,15 +70,49 @@ export interface PuertosDestinos<V = unknown> {
   uuid?: () => string
 }
 
+/** Lo que usa `probarEscritura` de `fs`. */
+export interface FsPrueba {
+  open(ruta: string, flags: 'wx'): Promise<{ close(): Promise<void> }>
+  rm(ruta: string, opciones: { force: true }): Promise<void>
+}
+
+const CODIGOS_NO_ESCRIBIBLE = new Set(['EACCES', 'EPERM', 'EROFS', 'ENOENT', 'ENOTDIR'])
+
+/**
+ * ¿Se puede crear un archivo en la carpeta? `fs.access(W_OK)` no consulta las ACL de Windows, así
+ * que se crea de verdad `.exportacion.<8 hex>.shinobi-prueba` y se borra (ADR 0019 §4, revisión
+ * 0.2.1). Un fallo al borrar se registra y no cuenta. Un error distinto de los de permiso o
+ * inexistencia (p. ej. disco lleno) no declara la carpeta inservible: lo dirá el codificador.
+ */
+export async function probarEscritura(
+  carpeta: string,
+  opciones: { fs?: FsPrueba; uuid?: () => string; registrar?: (mensaje: string) => void } = {}
+): Promise<boolean> {
+  const fs = opciones.fs ?? fsp
+  const hex = (opciones.uuid ?? randomUUID)().replace(/-/g, '').slice(0, 8)
+  const ruta = join(carpeta, `.exportacion.${hex}.shinobi-prueba`)
+  try {
+    const archivo = await fs.open(ruta, 'wx')
+    await archivo.close()
+  } catch (e) {
+    return !CODIGOS_NO_ESCRIBIBLE.has(codigoDe(e) ?? '')
+  }
+  try {
+    await fs.rm(ruta, { force: true })
+  } catch (e) {
+    opciones.registrar?.(`exportación: no se pudo borrar ${ruta}: ${String(e)}`)
+  }
+  return true
+}
+
 export const discoReal: DiscoDestinos = {
   async esCarpetaEscribible(ruta) {
     try {
       if (!(await fsp.stat(ruta)).isDirectory()) return false
-      await fsp.access(ruta, constants.W_OK)
-      return true
     } catch {
       return false
     }
+    return probarEscritura(ruta)
   },
   async existe(ruta) {
     try {
@@ -167,7 +213,7 @@ export class Destinos<V = unknown> {
   /** Diálogo «Guardar»; `null` si se cancela (el `destinoId` actual sigue vigente). */
   async elegirDestino(destinoId: string, ventana: V): Promise<DestinoIpc | null> {
     const actual = this.mirar(destinoId)
-    if (!actual) throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
+    if (!actual) throw errorDeCampo('El destino caducó o ya se usó.')
     const extension = FORMATOS[actual.formato].extension
     const elegida = await this.p.dialogoGuardar(ventana, {
       defaultPath: actual.ruta,
@@ -185,11 +231,11 @@ export class Destinos<V = unknown> {
   /** Para `iniciar`: devuelve la ruta y gasta el `destinoId`. Rechaza el caducado o el ya usado. */
   async consumir(destinoId: string): Promise<string> {
     const e = this.mirar(destinoId)
-    if (!e) throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
+    if (!e) throw errorDeCampo('El destino caducó o ya se usó.')
     // Un destino que ya no se puede usar no se gasta: el usuario puede cambiarlo.
     await this.validar(e.ruta)
     if (!this.vigentes.delete(destinoId)) {
-      throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
+      throw errorDeCampo('El destino caducó o ya se usó.')
     }
     return e.ruta
   }
@@ -264,7 +310,7 @@ export class Destinos<V = unknown> {
         return { carpeta: resolve(c), recordadaNoDisponible }
       }
     }
-    throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'No hay ninguna carpeta donde guardar.')
+    throw errorDeCampo('No hay ninguna carpeta donde guardar.')
   }
 
   private dentroDeDatos(ruta: string): boolean {
@@ -286,7 +332,7 @@ export class Destinos<V = unknown> {
       (this.plataforma === 'win32' && RESERVADOS_WINDOWS.test(sinExt.split('.')[0] ?? '')) ||
       !(await this.disco.esCarpetaEscribible(dirname(ruta)))
     ) {
-      throw new ErrorDestino('DESTINO_NO_DISPONIBLE', `No se puede guardar en ${ruta}.`)
+      throw errorDeCampo(`No se puede guardar en ${ruta}.`)
     }
   }
 

@@ -32,6 +32,12 @@ interface Props {
   alPulsar(): void
   alReintentar(): void
   alIrAPrimera(): void
+  /**
+   * `funciones`: botón de la pestaña «Funciones» (con texto, sin abrir el popover al enfocar y con
+   * el motivo siempre visible fuera, enlazado con `describedBy`). Por defecto, el de la línea de tiempo.
+   */
+  variante?: 'linea_tiempo' | 'funciones'
+  describedBy?: string
 }
 
 export function textoMotivo(m: Motivo): string {
@@ -57,24 +63,28 @@ export function BotonAjustarSilencios({
   buscando,
   alPulsar,
   alReintentar,
-  alIrAPrimera
+  alIrAPrimera,
+  variante = 'linea_tiempo',
+  describedBy
 }: Props) {
   const ancla = useRef<HTMLButtonElement>(null)
   const [popover, setPopover] = useState(false)
-  const soloIcono = useSoloIcono()
+  const enFunciones = variante === 'funciones'
+  const soloIcono = useSoloIcono() && !enFunciones
   const falta = motivos.length > 0
   const mostrar = popover && falta
 
   const propiedades = {
     ref: ancla,
-    className: `${estilos.boton} ${soloIcono ? estilos.icono : ''}`,
-    'data-silencios-boton': true,
+    className: enFunciones ? undefined : `${estilos.boton} ${soloIcono ? estilos.icono : ''}`,
+    'data-silencios-boton': enFunciones ? 'funciones' : 'linea-tiempo',
+    'aria-describedby': describedBy,
     'aria-label': soloIcono ? S.boton : undefined,
     'aria-haspopup': falta ? ('dialog' as const) : undefined,
     'aria-expanded': falta ? mostrar : undefined,
     'aria-disabled': falta || undefined,
     onFocus: (e: React.FocusEvent<HTMLButtonElement>) => {
-      if (falta && e.currentTarget.matches(':focus-visible')) setPopover(true)
+      if (!enFunciones && falta && e.currentTarget.matches(':focus-visible')) setPopover(true)
     },
     onClick: () => {
       if (falta) setPopover(true)
@@ -84,7 +94,7 @@ export function BotonAjustarSilencios({
   const contenido = (
     <>
       <Icono icono={AudioWaveform} />
-      {!soloIcono && (buscando ? S.buscando : S.boton)}
+      {!soloIcono && (buscando ? S.buscando : enFunciones ? E.funciones.silencios.boton : S.boton)}
     </>
   )
 
@@ -92,6 +102,10 @@ export function BotonAjustarSilencios({
     <>
       {ritmo ? (
         <Boton {...propiedades} noDisponible={S.falta.ritmo} onClick={undefined}>
+          {contenido}
+        </Boton>
+      ) : enFunciones ? (
+        <Boton {...propiedades} cargando={buscando} textoCargando={S.buscando}>
           {contenido}
         </Boton>
       ) : (

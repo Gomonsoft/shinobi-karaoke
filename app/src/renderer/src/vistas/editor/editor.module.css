@@ -237,6 +237,68 @@
   overflow-x: hidden;
   scrollbar-gutter: stable;
 }
+.funciones {
+  display: grid;
+  gap: var(--e-4);
+  min-width: 0;
+  padding: var(--e-2) var(--e-1);
+}
+.funcion {
+  display: grid;
+  justify-items: start;
+  gap: var(--e-2);
+  min-width: 0;
+  padding-top: var(--e-4);
+  border-top: 1px solid var(--borde);
+}
+.funcion:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.funcion h3 {
+  margin: 0;
+  font-size: var(--t-cuerpo-fuerte);
+}
+.funcion p {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.funcionFila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+  max-width: 100%;
+}
+.funcionAtajo {
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+}
+.funcion .funcionMotivo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-1);
+}
+.funcion .funcionMotivo svg {
+  flex: none;
+  margin-top: 2px;
+}
+.riel .rielFunciones {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-1);
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  margin-top: auto;
+  padding: 0 var(--e-1);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
 .dock {
   min-width: 0;
 }
@@ -311,45 +373,10 @@
   margin: 0;
   color: var(--texto-2);
 }
-.ajustesLinea,
-.desplazamiento {
+.ajustesLinea {
   display: grid;
   justify-items: start;
   gap: var(--e-2);
-}
-/* Una sola fila que nunca se parte (300–480 px); los errores van debajo sin mover la fila. */
-.ajustesTiempo {
-  position: relative;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--e-1);
-}
-.ajustesTiempo > button {
-  flex: none;
-  padding-inline: var(--e-2);
-  white-space: nowrap;
-}
-.ajustesTiempo input {
-  width: 5.5rem;
-  max-width: none;
-  font-variant-numeric: tabular-nums;
-}
-.ajustesTiempo [id$='-error'] {
-  position: absolute;
-  top: calc(100% + var(--e-1));
-  left: 0;
-  width: 12rem;
-}
-.ajustesTiempo:has([aria-invalid='true']) {
-  margin-bottom: 2.75rem;
-}
-.desplazamiento {
-  border-top: 1px solid var(--borde);
-  padding-top: var(--e-3);
-}
-.lineaDetalle span {
-  white-space: nowrap;
 }
 .casilla {
   display: flex;
@@ -483,4 +510,18 @@
   height: 8px;
   border-radius: var(--r-pildora);
   background: var(--info);
+}
+
+.indicadorPanel,
+.avisoPanel {
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.indicadorPanel {
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+}
+.panelSincronia .avisoPanel {
+  color: var(--texto-3);
 }

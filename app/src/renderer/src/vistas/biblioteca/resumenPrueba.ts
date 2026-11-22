@@ -65,6 +65,7 @@ export function resumenPrueba(cambios: Partial<ResumenCancionIpc> = {}): Resumen
     estado: 'borrador',
     modalidad: 'karaoke',
     modificada: '2026-11-03T10:00:00Z',
+    creada: '2026-11-03T10:00:00Z',
     estilo: null,
     ...identidadResumenPrueba(),
     miniatura: null,

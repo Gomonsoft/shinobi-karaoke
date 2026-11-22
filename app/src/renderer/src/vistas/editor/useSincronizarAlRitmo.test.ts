@@ -16,7 +16,8 @@ function montar(velocidad: Velocidad = 1, offset = 0) {
     error: null,
     duracionMs: 30_000,
     velocidad,
-    volumen: 1
+    volumen: 1,
+    tonoConservado: true
   }
   const oyentes = new Set<(estado: EstadoMotor) => void>()
   let pos = 0

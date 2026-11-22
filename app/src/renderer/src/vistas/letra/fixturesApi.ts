@@ -103,6 +103,7 @@ export function apiLetrasFalsa(opciones: OpcionesApiLetrasFalsa = {}): {
     estado: 'borrador',
     modalidad: 'karaoke',
     modificada: '2026-11-05T10:00:00Z',
+    creada: '2026-11-05T10:00:00Z',
     estilo: null,
     ...identidadResumenPrueba(),
     miniatura: null,
@@ -136,6 +137,11 @@ export function apiLetrasFalsa(opciones: OpcionesApiLetrasFalsa = {}): {
     },
     async cerrarEdicion(id) {
       llamadas.push({ canal: 'cerrarEdicion', args: [id] })
+    },
+    async editarTextoLinea(p, sesionId) {
+      llamadas.push({ canal: 'editarTextoLinea', args: [p, sesionId] })
+      await espera()
+      return resumen(p.cancionId)
     },
     async guardarTiempos(p) {
       llamadas.push({ canal: 'guardarTiempos', args: [p] })

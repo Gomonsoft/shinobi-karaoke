@@ -18,20 +18,17 @@ const ATAJOS = [
   ['Mayús + N', R.cola.atajos.siguiente, 'sesion'],
   ['Ctrl/Cmd + W', R.cola.atajos.cerrar, 'sesion'],
   ['Esc', R.cola.atajos.esc, 'sesion'],
-  [', / .', 'Desplazamiento de toda la letra −/+ 100 ms', 'editor'],
   ['F1 / ?', R.atajos.titulo]
 ] as const
 
 export function DialogoAtajosReproductor({
   abierto,
   vozDisponible,
-  puedeDesplazar,
   sesion = false,
   alCerrar
 }: {
   abierto: boolean
   vozDisponible: boolean
-  puedeDesplazar: boolean
   /** Ventana secundaria: añade los atajos de la cola y no ofrece los del reproductor local. */
   sesion?: boolean
   alCerrar(): void
@@ -54,7 +51,6 @@ export function DialogoAtajosReproductor({
         <tbody>
           {ATAJOS.filter(([, , modo]) => {
             if (modo === 'voz') return vozDisponible
-            if (modo === 'editor') return puedeDesplazar
             if (modo === 'sesion') return sesion
             if (modo === 'local') return !sesion
             return true

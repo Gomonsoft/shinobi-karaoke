@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleDashed, Diamond, PanelLeftClose, Play } from 'lucide-react'
-import type { Letra } from '@shared/letra'
+import { CircleDashed, PanelLeftClose, Play, WholeWord } from 'lucide-react'
+import { tienePalabrasManuales, type Letra } from '@shared/letra'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
+import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
 import { Tooltip } from '../../componentes/Tooltip'
 import { BotonLayout } from './BotonLayout'
 import { E } from './textos'
@@ -21,6 +22,12 @@ interface Props {
   banner?: ReactNode
   /** Minimiza la lista; sin él no hay botón (disposición bajo el mínimo de diseño). */
   minimizar?(): void
+  /** Abre el editor preciso de la línea seleccionada; `motivoPreciso` = por qué no se puede ahora. */
+  abrirPreciso?(): void
+  motivoPreciso?: string
+  /** Menú contextual de la fila: «Escuchar la línea (Mayús + L)» y «Borrar tiempos de esta línea (Supr)». */
+  escucharLinea?(id: string): void
+  borrarTiempos?(): void
 }
 
 const FILA_PX = 56
@@ -37,8 +44,13 @@ export function ListaLineas({
   escuchar,
   corregir,
   banner,
-  minimizar
+  minimizar,
+  abrirPreciso,
+  motivoPreciso,
+  escucharLinea,
+  borrarTiempos
 }: Props) {
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const lista = useRef<HTMLDivElement>(null)
   const cajaLineas = useRef<HTMLDivElement>(null)
   const botones = useRef(new Map<string, HTMLButtonElement>())
@@ -92,6 +104,41 @@ export function ListaLineas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actual, virtual])
 
+  function itemsMenu(id: string): ItemMenu[] {
+    const items: ItemMenu[] = []
+    if (abrirPreciso) {
+      items.push({
+        id: 'preciso',
+        etiqueta: E.preciso.abrirPuntos,
+        icono: WholeWord,
+        noDisponible: motivoPreciso,
+        alSeleccionar: abrirPreciso
+      })
+    }
+    if (escucharLinea) {
+      items.push({
+        id: 'escuchar-linea',
+        etiqueta: E.preciso.escucharLineaMenu,
+        alSeleccionar: () => escucharLinea(id)
+      })
+    }
+    items.push({
+      id: 'escuchar-desde',
+      etiqueta: E.preciso.escucharDesdeMenu,
+      alSeleccionar: () => escuchar(id)
+    })
+    if (borrarTiempos) {
+      items.push({
+        id: 'borrar',
+        etiqueta: E.preciso.borrarMenu,
+        destructivo: true,
+        separadorAntes: true,
+        alSeleccionar: borrarTiempos
+      })
+    }
+    return items
+  }
+
   return (
     <section id="zona-lista" className={estilos.listaZona} aria-label={E.layout.lista.nombre}>
       <div className={estilos.listaTitulo}>
@@ -108,6 +155,21 @@ export function ListaLineas({
           </Boton>
         ) : (
           <span className={estilos.completa}>{E.contador(sincronizadas, total)} ✓</span>
+        )}
+        {abrirPreciso && (
+          <Tooltip contenido={motivoPreciso ?? E.preciso.abrir}>
+            <button
+              type="button"
+              className={estilos.botonLayout}
+              aria-label={E.preciso.abrir}
+              aria-keyshortcuts="P"
+              aria-disabled={motivoPreciso ? true : undefined}
+              data-abrir-preciso
+              onClick={() => !motivoPreciso && abrirPreciso()}
+            >
+              <Icono icono={WholeWord} />
+            </button>
+          </Tooltip>
         )}
         {minimizar && (
           <BotonLayout
@@ -167,7 +229,7 @@ export function ListaLineas({
                 }}
                 type="button"
                 role="option"
-                aria-label={E.ariaLinea(n, tiempo, el.texto)}
+                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}`}
                 aria-selected={el.id === seleccion}
                 aria-current={sonando || undefined}
                 aria-posinset={n}
@@ -176,6 +238,19 @@ export function ListaLineas({
                 className={estilos.linea}
                 onClick={() => seleccionar(el.id)}
                 onDoubleClick={() => escuchar(el.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  seleccionar(el.id)
+                  setMenu({ id: el.id, x: e.clientX, y: e.clientY })
+                }}
+                onKeyDown={(e) => {
+                  // Tecla Menú o Mayús + F10: el menú se abre junto a la fila.
+                  if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return
+                  e.preventDefault()
+                  seleccionar(el.id)
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setMenu({ id: el.id, x: r.left + 32, y: r.bottom })
+                }}
               >
                 {sonando ? <Icono icono={Play} tamano={14} /> : <span aria-hidden="true" />}
                 <span className={`t-tiempo ${!tiempo ? estilos.sinTiempo : ''}`}>
@@ -184,14 +259,14 @@ export function ListaLineas({
                 <span className={estilos.textoLinea} title={el.texto}>
                   {el.texto}
                 </span>
+                {tienePalabrasManuales(el) && (
+                  <Tooltip contenido={E.preciso.indicador}>
+                    <Icono icono={WholeWord} tamano={14} />
+                  </Tooltip>
+                )}
                 {!tiempo && (
                   <Tooltip contenido={E.faltaTooltip}>
                     <Icono icono={CircleDashed} tamano={16} />
-                  </Tooltip>
-                )}
-                {el.palabras && (
-                  <Tooltip contenido={E.palabrasTooltip}>
-                    <Icono icono={Diamond} tamano={14} />
                   </Tooltip>
                 )}
               </button>
@@ -202,6 +277,18 @@ export function ListaLineas({
           )}
         </div>
       </div>
+      {menu && (
+        <MenuContextual
+          etiqueta={E.preciso.menuFila}
+          punto={menu}
+          alCerrar={() => {
+            const id = menu.id
+            setMenu(null)
+            botones.current.get(id)?.focus({ preventScroll: true })
+          }}
+          items={itemsMenu(menu.id)}
+        />
+      )}
       <button className={estilos.enlace} type="button" onClick={corregir}>
         {E.corregir}
       </button>

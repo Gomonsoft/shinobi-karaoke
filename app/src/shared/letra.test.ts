@@ -7,12 +7,22 @@ import {
   letraSchema,
   moverInicioLinea,
   numerosLineasSinInicio,
+  palabrasVisibles,
+  tokenizarLinea,
   validarInvariantesLetra,
+  validarPalabrasManuales,
   type Letra
 } from './letra'
 import { letra, letraConPalabras, letraSincronizada, linea, pausa } from './__fixtures__'
 
 const problemas = (l: Letra) => validarInvariantesLetra(l.lineas)
+
+/** Como letraConPalabras, pero con las palabras marcadas como hechas a mano. */
+function letraManual(): Letra {
+  const l = letraConPalabras()
+  for (const e of l.lineas) if (e.palabras) e.origen_palabras = 'manual'
+  return l
+}
 
 describe('invariantes de la letra', () => {
   it('acepta letras válidas', () => {
@@ -161,8 +171,19 @@ describe('finEfectivo', () => {
     const l = letra([linea('a', 'x', 1000, { fin_ms: 1500 }), linea('b', 'y', 3000)])
     expect(finEfectivo(l, 'a', D)).toBe(1500)
   })
-  it('2. fin de la última palabra', () => {
-    expect(finEfectivo(letraConPalabras(), 'l1', D)).toBe(12000)
+  it('2. fin de la última palabra visible (manuales válidas)', () => {
+    expect(finEfectivo(letraManual(), 'l1', D)).toBe(12000)
+  })
+  it('2. las palabras importadas no cuentan: igual que sin palabras (E8-3)', () => {
+    const sin = letraConPalabras()
+    for (const e of sin.lineas) e.palabras = null
+    expect(finEfectivo(letraConPalabras(), 'l1', D)).toBe(14000)
+    expect(finEfectivo(letraConPalabras(), 'l1', D)).toBe(finEfectivo(sin, 'l1', D))
+  })
+  it('2. unas palabras manuales no válidas tampoco cuentan', () => {
+    const l = letraManual()
+    l.lineas[0]!.palabras![2]!.fin_ms = 15000 // pasa del inicio de la siguiente
+    expect(finEfectivo(l, 'l1', D)).toBe(14000)
   })
   it('3. inicio de la pausa siguiente si tiene tiempo', () => {
     const l = letra([linea('a', 'x', 1000), pausa('p', 4000), linea('b', 'y', 9000)])
@@ -201,24 +222,22 @@ describe('finEfectivo', () => {
 })
 
 describe('moverInicioLinea', () => {
-  it('desplaza hacia delante las palabras el mismo delta', () => {
+  it('ya no desplaza las palabras: descarta las de la línea movida (importadas, sin aviso)', () => {
     const r = moverInicioLinea(letraConPalabras(), 'l1', 10500)
     const l1 = r.letra.lineas[0]!
     expect(l1.inicio_ms).toBe(10500)
-    expect(l1.palabras!.map((p) => [p.inicio_ms, p.fin_ms])).toEqual([
-      [10500, 11000],
-      [11100, 11700],
-      [11800, 12500]
-    ])
+    expect(l1.palabras).toBeNull()
+    expect(l1).not.toHaveProperty('origen_palabras')
     expect(r.palabrasDescartadas).toEqual([])
     expect(problemas(r.letra)).toEqual([])
   })
 
-  it('desplaza hacia atrás las palabras el mismo delta', () => {
-    const r = moverInicioLinea(letraConPalabras(), 'l2', 13000)
-    expect(r.letra.lineas[1]!.palabras!.map((p) => p.inicio_ms)).toEqual([13000, 13900])
-    expect(r.letra.lineas[1]!.palabras![1]!.fin_ms).toBe(14600)
-    expect(r.palabrasDescartadas).toEqual([])
+  it('descarta las manuales de la línea movida y las avisa', () => {
+    const r = moverInicioLinea(letraManual(), 'l2', 13000)
+    expect(r.letra.lineas[1]!.palabras).toBeNull()
+    expect(r.letra.lineas[1]).not.toHaveProperty('origen_palabras')
+    expect(r.palabrasDescartadas).toEqual(['l2'])
+    expect(r.letra.lineas[0]!.palabras).not.toBeNull()
     expect(problemas(r.letra)).toEqual([])
   })
 
@@ -230,28 +249,24 @@ describe('moverInicioLinea', () => {
     expect(original).toEqual(copia)
   })
 
-  it('el límite exacto conserva las palabras; un ms más las descarta (línea movida)', () => {
-    // l2 (siguiente con inicio: l3 = 20000). Última palabra termina en 15600 + delta.
-    const justo = moverInicioLinea(letraConPalabras(), 'l2', 14000 + (20000 - 15600))
-    // nuevo inicio 18400 → última palabra termina en 20000 = límite
-    expect(justo.letra.lineas[1]!.palabras).not.toBeNull()
-    expect(justo.palabrasDescartadas).toEqual([])
-    const pasado = moverInicioLinea(letraConPalabras(), 'l2', 18401)
-    expect(pasado.letra.lineas[1]!.palabras).toBeNull()
-    expect(pasado.palabrasDescartadas).toEqual(['l2'])
+  it('la línea anterior pierde sus palabras solo si se solapan con el nuevo inicio', () => {
+    // l1 (manual) termina en 12000; el inicio de l2 pasa de 14000 a 12000 (cabe) y a 11999 (no)
+    const justo = moverInicioLinea(letraManual(), 'l2', 12000)
+    expect(justo.letra.lineas[0]!.palabras).not.toBeNull()
+    expect(justo.palabrasDescartadas).toEqual(['l2'])
+    const pasado = moverInicioLinea(letraManual(), 'l2', 11999)
+    expect(pasado.letra.lineas[0]!.palabras).toBeNull()
+    expect(pasado.palabrasDescartadas.sort()).toEqual(['l1', 'l2'])
     expect(problemas(pasado.letra)).toEqual([])
   })
 
-  it('descarta las palabras de la línea anterior si ya no caben, en el límite', () => {
-    // l1 palabras terminan en 12000; el inicio de l2 pasa de 14000 a 12000 (cabe) y a 11999 (no)
-    const justo = moverInicioLinea(letraConPalabras(), 'l2', 12000)
-    expect(justo.letra.lineas[0]!.palabras).not.toBeNull()
-    expect(justo.palabrasDescartadas).toEqual([])
-    const pasado = moverInicioLinea(letraConPalabras(), 'l2', 11999)
-    expect(pasado.letra.lineas[0]!.palabras).toBeNull()
-    expect(pasado.letra.lineas[1]!.palabras).not.toBeNull()
-    expect(pasado.palabrasDescartadas).toEqual(['l1'])
-    expect(problemas(pasado.letra)).toEqual([])
+  it('la anterior pierde las palabras si su fin fijado pasa a automático', () => {
+    const l = letraManual()
+    l.lineas[0]!.fin_ms = 13000
+    const r = moverInicioLinea(l, 'l2', 12500)
+    expect(r.finesAutomaticos).toEqual(['l1'])
+    expect(r.letra.lineas[0]!.palabras).toBeNull()
+    expect(r.palabrasDescartadas).toContain('l1')
   })
 
   it('línea sin palabras: solo cambia el inicio', () => {
@@ -363,5 +378,106 @@ describe('borrarTiemposLinea', () => {
     const r = borrarTiemposLinea(letraConPalabras(), 'l2')
     expect(problemas(r)).toEqual([])
     expect(numerosLineasSinInicio(r)).toEqual([2])
+  })
+})
+
+describe('palabras hechas a mano (ADR 0021)', () => {
+  it('el esquema lee origen_palabras de forma tolerante', () => {
+    const lectura = (origen: unknown) =>
+      letraSchema.parse({
+        ...letraSincronizada(),
+        lineas: [
+          {
+            id: 'a',
+            tipo: 'linea',
+            texto: 'x',
+            inicio_ms: 1,
+            fin_ms: null,
+            palabras: null,
+            origen_palabras: origen
+          }
+        ]
+      }).lineas[0]!.origen_palabras
+    expect(lectura('manual')).toBe('manual')
+    expect(lectura('importada')).toBe('importada')
+    expect(lectura('otra')).toBeUndefined()
+    expect(lectura(3)).toBeUndefined()
+    expect(lectura(undefined)).toBeUndefined()
+  })
+
+  it('el esquema no exige las reglas de las manuales (solo las de siempre)', () => {
+    const l = letraManual()
+    l.lineas[0]!.palabras![0]!.fin_ms = 10010 // < 20 ms: válida para el esquema
+    expect(letraSchema.safeParse(l).success).toBe(true)
+  })
+
+  it('tokenizarLinea separa por espacios sin vacíos', () => {
+    expect(tokenizarLinea('  Is  this the real life? ')).toEqual([
+      'Is',
+      'this',
+      'the',
+      'real',
+      'life?'
+    ])
+    expect(tokenizarLinea('   ')).toEqual([])
+  })
+
+  describe('validarPalabrasManuales', () => {
+    const base = () => ({
+      texto: 'Hola mundo',
+      inicio_ms: 1000,
+      palabras: [
+        { texto: 'Hola', inicio_ms: 1000, fin_ms: 1500 },
+        { texto: 'mundo', inicio_ms: 1500, fin_ms: 2000 }
+      ]
+    })
+    it('acepta unas válidas (pueden tocarse) y sin palabras', () => {
+      expect(validarPalabrasManuales(base(), 2000)).toEqual([])
+      expect(validarPalabrasManuales({ ...base(), palabras: null }, 2000)).toEqual([])
+    })
+    it('número y texto de las palabras', () => {
+      const una = { ...base(), palabras: [base().palabras[0]!] }
+      expect(validarPalabrasManuales(una, 2000)).toHaveLength(1)
+      const otra = base()
+      otra.palabras[1]!.texto = 'mundos'
+      expect(validarPalabrasManuales(otra, 2000)).toHaveLength(1)
+    })
+    it('mínimo de 20 ms', () => {
+      const l = base()
+      l.palabras[0]!.fin_ms = 1019
+      expect(validarPalabrasManuales(l, 2000)).toHaveLength(1)
+      l.palabras[0]!.fin_ms = 1020
+      expect(validarPalabrasManuales(l, 2000)).toEqual([])
+    })
+    it('sin solapes', () => {
+      const l = base()
+      l.palabras[0]!.fin_ms = 1501
+      expect(validarPalabrasManuales(l, 2000)).toHaveLength(1)
+    })
+    it('dentro de la línea', () => {
+      expect(validarPalabrasManuales({ ...base(), inicio_ms: 1001 }, 2000)).toHaveLength(1)
+      expect(validarPalabrasManuales(base(), 1999)).toHaveLength(1)
+      expect(validarPalabrasManuales(base(), null)).toEqual([])
+    })
+  })
+
+  describe('palabrasVisibles', () => {
+    it('importadas (sin origen o "importada"): null', () => {
+      const l1 = letraConPalabras().lineas[0]!
+      expect(palabrasVisibles(l1, 14000)).toBeNull()
+      expect(palabrasVisibles({ ...l1, origen_palabras: 'importada' }, 14000)).toBeNull()
+    })
+    it('manuales válidas contra el fin fijado o el inicio del siguiente', () => {
+      const l1 = letraManual().lineas[0]!
+      expect(palabrasVisibles(l1, 14000)).toBe(l1.palabras)
+      expect(palabrasVisibles(l1)).toBe(l1.palabras)
+      expect(palabrasVisibles(l1, 11999)).toBeNull()
+      expect(palabrasVisibles({ ...l1, fin_ms: 12000 }, 11000)).toBe(l1.palabras)
+      expect(palabrasVisibles({ ...l1, fin_ms: 11999 }, 14000)).toBeNull()
+    })
+    it('manuales no válidas: null', () => {
+      const l1 = letraManual().lineas[0]!
+      expect(palabrasVisibles({ ...l1, palabras: l1.palabras!.slice(0, 2) }, 14000)).toBeNull()
+    })
   })
 })

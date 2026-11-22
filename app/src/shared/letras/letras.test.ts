@@ -122,31 +122,30 @@ describe('lrcALetra', () => {
       '[00:01.00]<00:01.00>Hola <00:01.50>mundo<00:02.20>\n[00:04.00]<00:04.00>Adiós <00:04.30>luna\n[00:08.00]x'
     ).lineas
     expect(r[0]!.texto).toBe('Hola mundo')
-    expect(r[0]!.palabras).toEqual([
-      { texto: 'Hola ', inicio_ms: 1000, fin_ms: 1500 },
-      { texto: 'mundo', inicio_ms: 1500, fin_ms: 2200 }
+    // Sin palabras (ADR 0021 §5): el cierre de la última palabra pasa a ser el fin de la línea.
+    expect(r.map((e) => [e.palabras, e.fin_ms])).toEqual([
+      [null, 2200],
+      [null, 5300],
+      [null, null]
     ])
-    expect(r[1]!.palabras![1]).toEqual({ texto: 'luna', inicio_ms: 4300, fin_ms: 5300 })
   })
   it('LRC mejorado sin marca de línea y con palabras vacías', () => {
     const r = lrcALetra('<00:02.00>Uno <00:02.50> <00:03.00>dos<00:03.50>').lineas
     expect(r[0]!.inicio_ms).toBe(2000)
     expect(r[0]!.texto).toBe('Uno dos')
-    expect(r[0]!.palabras).toHaveLength(2)
+    expect(r[0]!.palabras).toBeNull()
     expect(lrcALetra('<00:02.00>').lineas).toEqual([])
   })
   it('palabras fuera de su línea se recortan o descartan', () => {
     const r = lrcALetra(
       '[00:02.00]<00:01.00>Antes <00:02.50>medio <00:09.00>tarde<00:10.00>\n[00:04.00]sig'
     ).lineas
-    expect(r[0]!.palabras).toEqual([
-      { texto: 'Antes ', inicio_ms: 2000, fin_ms: 2500 },
-      { texto: 'medio ', inicio_ms: 2500, fin_ms: 4000 }
-    ])
+    // Las palabras no se importan y su fin (10 s) pasa del siguiente inicio: sin fin fijado.
+    expect(r[0]).toMatchObject({ palabras: null, fin_ms: null })
   })
-  it('varias marcas con palabras: solo la primera copia las conserva', () => {
+  it('varias marcas con palabras: ninguna conserva palabras', () => {
     const r = lrcALetra('[00:01.00][00:20.00]<00:01.00>a<00:01.50>').lineas
-    expect(r[0]!.palabras).toHaveLength(1)
+    expect(r[0]!.palabras).toBeNull()
     expect(r[1]!.palabras).toBeNull()
   })
   it('solo pausas → cero líneas', () => {
@@ -262,8 +261,28 @@ describe('exportación', () => {
   it('ida y vuelta LRC mejorado', () => {
     const lrc = '[00:01.00]<00:01.00>Hola <00:01.50>mundo<00:02.20>\n[00:04.00]sola'
     const l = lrcALetra(lrc).lineas
-    expect(letraALrcMejorado(letraDe(l))).toBe(lrc)
+    // Importadas: sin palabras, el exportador escribe líneas simples.
+    expect(letraALrcMejorado(letraDe(l))).toBe('[00:01.00]Hola mundo\n[00:04.00]sola')
     expect(letraALrc(letraDe(l))).toBe('[00:01.00]Hola mundo\n[00:04.00]sola')
+    // Solo se escriben las palabras visibles (hechas a mano y válidas).
+    const manual = l.map((e, i) =>
+      i === 0
+        ? {
+            ...e,
+            fin_ms: 2200,
+            origen_palabras: 'manual' as const,
+            palabras: [
+              { texto: 'Hola', inicio_ms: 1000, fin_ms: 1500 },
+              { texto: 'mundo', inicio_ms: 1500, fin_ms: 2200 }
+            ]
+          }
+        : e
+    )
+    expect(letraALrcMejorado(letraDe(manual))).toBe(
+      '[00:01.00]<00:01.00>Hola<00:01.50>mundo<00:02.20>\n[00:04.00]sola'
+    )
+    const importadas = manual.map((e) => ({ ...e, origen_palabras: undefined }))
+    expect(letraALrcMejorado(letraDe(importadas))).toBe('[00:01.00]Hola mundo\n[00:04.00]sola')
   })
   it('un LRC sin tiempos fallidos produce solo textos si fallan invariantes', () => {
     const r = normalizarLetra(

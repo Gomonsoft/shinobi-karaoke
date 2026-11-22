@@ -11,6 +11,7 @@ import {
   FORMATOS_ID,
   RESOLUCIONES,
   FPS,
+  PROPORCIONES,
   acotarFactorCorrector,
   esCombinacionValida,
   estimarBytes,
@@ -22,12 +23,14 @@ import {
   type AudioExportacion,
   type AvisoExportacionIpc,
   type DestinoIpc,
+  type DetalleErrorExportacion,
   type EstimacionExportacionIpc,
   type ExportacionIpc,
   type FaseExportacion,
   type FormatoId,
   type InstantaneaExportacion,
   type PerfilesIpc,
+  type Proporcion,
   type ProgresoExportacionIpc,
   type PerfilIpc
 } from '../../shared/exportacion'
@@ -43,13 +46,19 @@ import type { OpcionesExportacion, VentanaExportacion } from './ventana'
 
 /** Error del servicio con código estable de la IPC (`aErrorIpc` lo traduce). */
 export class ErrorExportacion extends Error {
+  readonly detalles: string | undefined
+
   constructor(
     readonly codigo: CodigoError,
     mensaje: string,
-    readonly detalles?: string
+    detalles?: string,
+    /** 0.2.1: `{ trabajoId }` de `CANCION_EXPORTANDOSE`, `{ causa, reintentable }` de la captura. */
+    readonly detalle?: DetalleErrorExportacion
   ) {
     super(mensaje)
     this.name = 'ErrorExportacion'
+    // `aErrorIpc` solo transporta `detalles` (texto): el `detalle` viaja serializado (pregunta 0151).
+    this.detalles = detalles ?? (detalle ? JSON.stringify(detalle) : undefined)
   }
 }
 
@@ -107,6 +116,13 @@ export interface DependenciasServicioExportacion<V = unknown> {
   ejecutar: EjecutarWorker
   /** Ventana offscreen (0234). */
   crearVentana(opciones: OpcionesExportacion): Promise<VentanaExportacion>
+  /**
+   * ¿Puede el equipo capturar una ventana de ese tamaño? (`probarCaptura` de `ventana.ts`, 0260).
+   * Rechaza con una excepción si el sondeo falla; sin esta dependencia no se sondea.
+   */
+  probarCaptura?(ancho: number, alto: number): Promise<boolean>
+  /** Tope del sondeo de captura al pedir los perfiles (10 s por omisión; V32). */
+  plazoSondeoCapturaMs?: number
   /** Ventana principal, para el diálogo «Guardar». */
   ventanaPrincipal(): V
   /** `fs.access`; por defecto el real. */
@@ -222,9 +238,15 @@ export class ServicioExportacion<V = unknown> {
   private actual: Trabajo | null = null
   private readonly terminadas = new Map<string, Trabajo>()
   /** Canciones y destinos con un `iniciar` en vuelo (antes de estar en la cola). */
-  private readonly reservasCancion = new Set<string>()
+  private readonly reservasCancion = new Map<string, string>()
   private readonly reservasDestino = new Set<string>()
   private sondeo: Promise<Capacidades> | null = null
+  /** Sondeo de captura de este arranque (una vez); las proporciones ya resueltas y su alto máximo. */
+  private sondeoCaptura: Promise<void> | null = null
+  private readonly proporcionesSondeadas = new Set<Proporcion>()
+  private readonly altoMaximoCaptura = new Map<Proporcion, number>()
+  /** Tamaños que una recomprobación dio por no capturables hasta reiniciar. */
+  private readonly noCapturables = new Set<string>()
   private avisosPendientes_: AvisoExportacionIpc[] = []
   private readonly rutasAviso = new Map<string, string>()
   private bloqueo: number | null = null
@@ -278,7 +300,8 @@ export class ServicioExportacion<V = unknown> {
   async perfiles(): Promise<PerfilesIpc> {
     let capacidades: Capacidades | null = null
     try {
-      capacidades = await this.capacidades()
+      const [c] = await Promise.all([this.capacidades(), this.esperarSondeoCaptura()])
+      capacidades = c
     } catch (e) {
       if (codigoDe(e) === 'RUNTIME_NO_DISPONIBLE') {
         throw new ErrorExportacion('RUNTIME_NO_DISPONIBLE', 'El motor de audio no está instalado.')
@@ -298,6 +321,18 @@ export class ServicioExportacion<V = unknown> {
           if (minima !== null && memoria < minima) {
             return { ...base, soportado: false, motivo: 'memoria' }
           }
+          if (this.noCapturables.has(`${r.ancho}x${r.alto}`)) {
+            return { ...base, soportado: false, motivo: 'captura' }
+          }
+          if (this.deps.probarCaptura) {
+            if (!this.proporcionesSondeadas.has(r.proporcion)) {
+              return { ...base, soportado: false, motivo: 'no_comprobado' }
+            }
+            const maximo = this.altoMaximoCaptura.get(r.proporcion)
+            if (maximo !== undefined && r.alto > maximo) {
+              return { ...base, soportado: false, motivo: 'captura' }
+            }
+          }
           return { ...base, soportado: true, motivo: null }
         })
       )
@@ -306,6 +341,49 @@ export class ServicioExportacion<V = unknown> {
       formatos: FORMATOS_ID.map((id) => ({ id, extension: FORMATOS[id].extension })),
       perfiles
     }
+  }
+
+  /**
+   * Lanza el sondeo de captura la primera vez (una ventana a la vez; por proporción, de la
+   * resolución mayor a la menor) y espera como mucho 10 s: lo no comprobado sale `no_comprobado`.
+   * Una excepción no marca nada y se registra; el resultado dura todo el arranque.
+   */
+  private esperarSondeoCaptura(): Promise<void> {
+    const probar = this.deps.probarCaptura
+    if (!probar) return Promise.resolve()
+    this.sondeoCaptura ??= (async () => {
+      for (const proporcion of PROPORCIONES) {
+        const negados: string[] = []
+        try {
+          for (const r of RESOLUCIONES.filter((x) => x.proporcion === proporcion).reverse()) {
+            const capturable = await probar(r.ancho, r.alto)
+            this.deps.registrar?.(
+              'info',
+              `exportación: sondeo de captura ${r.ancho}×${r.alto}: ${capturable ? 'sí' : 'no'}`
+            )
+            if (capturable) {
+              this.altoMaximoCaptura.set(proporcion, r.alto)
+              break
+            }
+            negados.push(`${r.ancho}x${r.alto}`)
+          }
+        } catch (e) {
+          // Los «no» ya obtenidos son firmes aunque falle el sondeo de un tamaño menor. Si todos
+          // responden «no» sin error no se marca nada: sería más bien un sondeo averiado.
+          for (const clave of negados) this.noCapturables.add(clave)
+          this.deps.registrar?.(
+            'aviso',
+            `exportación: falló el sondeo de captura de ${proporcion}: ${String(e)}`
+          )
+        }
+        this.proporcionesSondeadas.add(proporcion)
+      }
+    })()
+    let temporizador: NodeJS.Timeout | undefined
+    const plazo = new Promise<void>((res) => {
+      temporizador = setTimeout(res, this.deps.plazoSondeoCapturaMs ?? 10_000)
+    })
+    return Promise.race([this.sondeoCaptura, plazo]).finally(() => clearTimeout(temporizador))
   }
 
   estimar(p: {
@@ -390,21 +468,24 @@ export class ServicioExportacion<V = unknown> {
     }
     const clave = this.claveDestino(destinoRuta)
     // Sin esperas desde aquí hasta reservar: dos `iniciar` seguidos no se cuelan.
-    if (this.activaDe(p.cancionId) || this.reservasCancion.has(p.cancionId)) {
+    const existente = this.activaDe(p.cancionId)?.id ?? this.reservasCancion.get(p.cancionId)
+    if (existente !== undefined) {
       throw new ErrorExportacion(
-        'ARGUMENTOS_NO_VALIDOS',
-        'La canción ya tiene una exportación en marcha.'
+        'CANCION_EXPORTANDOSE',
+        'La canción ya tiene una exportación en marcha.',
+        undefined,
+        { trabajoId: existente }
       )
     }
     if (this.destinoEnUso(clave) || this.reservasDestino.has(clave)) {
       throw new ErrorExportacion('DESTINO_OCUPADO', 'Otra exportación usa ese archivo.')
     }
-    this.reservasCancion.add(p.cancionId)
+    const id = this.uuid()
+    this.reservasCancion.set(p.cancionId, id)
     this.reservasDestino.add(clave)
     try {
       // Solo ahora se gasta el `destinoId`: un rechazo anterior lo deja vigente.
       const destino = await this.deps.destinos.consumir(p.destinoId)
-      const id = this.uuid()
       const temporal = this.deps.destinos.rutaTemporal(destino, id)
       const destinoExistia = await this.existe(destino)
       let cerrar: () => void = () => undefined
@@ -561,8 +642,8 @@ export class ServicioExportacion<V = unknown> {
     return this.activo(id) ?? this.terminadas.get(id)
   }
 
-  private activaDe(cancionId: string): boolean {
-    return this.todasActivas().some((t) => t.cancionId === cancionId)
+  private activaDe(cancionId: string): Trabajo | undefined {
+    return this.todasActivas().find((t) => t.cancionId === cancionId)
   }
 
   private claveDestino(ruta: string): string {
@@ -683,7 +764,7 @@ export class ServicioExportacion<V = unknown> {
       const salida = await this.ejecutarTrabajo(t)
       await this.cerrarTrabajo(t, salida)
     } catch (e) {
-      this.terminar(t, { resultado: 'error', error: this.errorDe(t, e) })
+      this.terminar(t, { resultado: 'error', error: await this.errorDe(t, e) })
     } finally {
       this.liberarBloqueo()
     }
@@ -904,7 +985,7 @@ export class ServicioExportacion<V = unknown> {
         await this.borrarDiario()
         this.terminar(t, {
           resultado: 'error',
-          error: this.errorDe(t, e, salida.alcanzados)
+          error: await this.errorDe(t, e, salida.alcanzados)
         })
         return
       }
@@ -924,7 +1005,7 @@ export class ServicioExportacion<V = unknown> {
     }
     this.terminar(t, {
       resultado: 'error',
-      error: this.errorDe(
+      error: await this.errorDe(
         t,
         salida.error ?? new Error('El worker terminó sin resultado.'),
         salida.alcanzados
@@ -978,18 +1059,44 @@ export class ServicioExportacion<V = unknown> {
     }
   }
 
-  private errorDe(
+  private async errorDe(
     t: Trabajo,
     e: unknown,
     alcanzados?: number
-  ): NonNullable<ExportacionIpc['error']> {
+  ): Promise<NonNullable<ExportacionIpc['error']>> {
     const traducido = traducirError(e)
     const fotograma = alcanzados ?? t.progreso?.fotograma ?? 0
+    const detalle: DetalleErrorExportacion | null =
+      traducido.codigo === 'PERFIL_NO_SOPORTADO' &&
+      (e as { causa?: unknown } | null)?.causa === 'captura'
+        ? { causa: 'captura', reintentable: await this.recomprobarCaptura(t) }
+        : null
     return {
       codigo: traducido.codigo,
       mensaje: traducido.mensaje,
       posicionMs: fotograma > 0 ? (fotograma * 1000) / t.fps : null,
-      ...(traducido.detalles ? { detalles: traducido.detalles } : {})
+      ...(traducido.detalles ? { detalles: traducido.detalles } : {}),
+      ...(detalle ? { detalle } : {})
+    }
+  }
+
+  /**
+   * Fallo de captura en un trabajo: vuelve a sondear ese tamaño antes de cerrarlo. `true` = ahora
+   * sí se puede (fallo pasajero); `false` = no, y el perfil queda `captura` hasta reiniciar. Si
+   * no se puede comprobar, no se marca nada y se deja reintentar.
+   */
+  private async recomprobarCaptura(t: Trabajo): Promise<boolean> {
+    try {
+      if (!this.deps.probarCaptura) return true
+      const posible = await this.deps.probarCaptura(t.ancho, t.alto)
+      if (!posible) this.noCapturables.add(`${t.ancho}x${t.alto}`)
+      return posible
+    } catch (e) {
+      this.deps.registrar?.(
+        'aviso',
+        `exportación: falló la recomprobación de captura: ${String(e)}`
+      )
+      return true
     }
   }
 

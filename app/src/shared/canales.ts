@@ -149,6 +149,8 @@ export const CANALES = {
     guardar: 'letras:guardar',
     /** Aplica el diff del texto sobre la letra guardada (0083). */
     editarTexto: 'letras:editarTexto',
+    /** Solo el texto de una línea, conservando id y tiempos (0283, ADR 0021 §7). */
+    editarTextoLinea: 'letras:editarTextoLinea',
     /** Diálogo nativo `.lrc`/`.txt`; no guarda (0083). */
     leerArchivo: 'letras:leerArchivo'
   },
@@ -292,6 +294,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.letras.buscar]: PRINCIPAL,
   [CANALES.letras.guardar]: PRINCIPAL,
   [CANALES.letras.editarTexto]: PRINCIPAL,
+  [CANALES.letras.editarTextoLinea]: PRINCIPAL,
   [CANALES.letras.leerArchivo]: PRINCIPAL,
   [CANALES.pantallas.listar]: PRINCIPAL,
   [CANALES.sesion.estado]: PRINCIPAL,

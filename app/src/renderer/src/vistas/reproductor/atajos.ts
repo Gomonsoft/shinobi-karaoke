@@ -10,7 +10,6 @@ export type AccionReproductor =
   | { tipo: 'principio' }
   | { tipo: 'pantalla_completa' }
   | { tipo: 'salir' }
-  | { tipo: 'desplazar'; deltaMs: 100 | -100 }
   | { tipo: 'atajos' }
   /** Solo en la ventana secundaria (spec 07, fase 4). */
   | { tipo: 'siguiente' }
@@ -73,9 +72,6 @@ export function accionDeTeclaReproductor(
   }
   if (tecla === ' ' && focoEnBoton) return null
   if (tecla === 'v') return vozDisponible ? { tipo: 'voz' } : null
-  if (tecla === ',' || tecla === '.') {
-    return origen === 'editor' ? { tipo: 'desplazar', deltaMs: tecla === ',' ? -100 : 100 } : null
-  }
   // Esc nunca cierra la sesión: solo sale de la pantalla completa.
   if (origen === 'sesion' && tecla === 'escape') return { tipo: 'esc' }
   return ACCIONES.get(tecla) ?? null

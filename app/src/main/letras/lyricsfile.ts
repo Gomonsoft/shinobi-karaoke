@@ -1,13 +1,11 @@
 import { parseDocument } from 'yaml'
 import { z } from 'zod'
-import type { ElementoLetra, Palabra } from '../../shared/letra'
+import type { ElementoLetra } from '../../shared/letra'
 import { normalizarLetra, type GeneradorId } from '../../shared/letras'
 
 /** Tamaño máximo (en caracteres) de un Lyricsfile que se intenta leer. */
 export const MAX_BYTES_LYRICSFILE = 2 * 1024 * 1024
 const MAX_ALIAS = 50
-/** Duración de la última palabra cuando no hay otro límite (ADR 0005). */
-const DURACION_ULTIMA_PALABRA_MS = 1000
 
 /** El Lyricsfile supera el tamaño máximo. El llamante pasa a `syncedLyrics`. */
 export class ErrorLyricsfileDemasiadoGrande extends Error {
@@ -66,7 +64,8 @@ function leerEstructura(texto: string): Lyricsfile | null {
 const aEntero = (n: number): number => Math.round(n)
 
 /**
- * Convierte el campo `lyricsfile` de LRCLIB en elementos de letra (ADR 0005, Revisión 2026-11-05).
+ * Convierte el campo `lyricsfile` de LRCLIB en elementos de letra (ADR 0005, Revisión 2026-11-05; sin
+ * tiempos por palabra desde 0.2.1, ADR 0021 §5).
  * Devuelve `null` si el YAML no es válido o no se reconoce (el llamante usa `syncedLyrics`) y `[]`
  * si no hay líneas o es instrumental (el llamante usa `plainLyrics`). Lanza
  * `ErrorLyricsfileDemasiadoGrande` si la entrada supera 2 MB.
@@ -89,26 +88,23 @@ export function convertirLyricsfile(
       return { id: '', tipo: 'pausa', texto: '', inicio_ms: inicio, fin_ms: null, palabras: null }
     }
     const siguiente = i + 1 < lineas.length ? t(lineas[i + 1]!.start_ms) : null
-    const finLinea = l.end_ms === undefined ? null : t(l.end_ms)
+    // Ya no se importan tiempos por palabra (ADR 0021 §5): el fin de la línea es su `end_ms` si cumple
+    // la regla vigente (inicio < fin < inicio del siguiente) y, si no, el `end_ms` explícito de su
+    // última palabra con la misma regla. Así la línea termina donde terminaba su última palabra.
+    const valido = (fin: number | null): number | null =>
+      fin !== null && fin > inicio && (siguiente === null || fin < siguiente) ? fin : null
+    const ultima = l.words?.at(-1)
     const finFijado =
-      finLinea !== null && finLinea > inicio && (siguiente === null || finLinea < siguiente)
-        ? finLinea
-        : null
-
-    let palabras: Palabra[] | null = null
-    if (l.words && l.words.length > 0) {
-      const ws = l.words
-      palabras = ws.map((p, k) => {
-        const ini = t(p.start_ms)
-        let fin: number
-        if (p.end_ms !== undefined) fin = t(p.end_ms)
-        else if (k + 1 < ws.length) fin = t(ws[k + 1]!.start_ms)
-        else if (finLinea !== null) fin = finLinea
-        else fin = Math.min(siguiente ?? Infinity, ini + DURACION_ULTIMA_PALABRA_MS)
-        return { texto: p.text, inicio_ms: ini, fin_ms: fin }
-      })
+      valido(l.end_ms === undefined ? null : t(l.end_ms)) ??
+      valido(ultima?.end_ms === undefined ? null : t(ultima.end_ms))
+    return {
+      id: '',
+      tipo: 'linea',
+      texto: l.text,
+      inicio_ms: inicio,
+      fin_ms: finFijado,
+      palabras: null
     }
-    return { id: '', tipo: 'linea', texto: l.text, inicio_ms: inicio, fin_ms: finFijado, palabras }
   })
 
   return normalizarLetra(elementos, generarId)

@@ -1105,7 +1105,7 @@ wheels = [
 
 [[package]]
 name = "shinobi-worker"
-version = "0.2.0a2"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "av" },

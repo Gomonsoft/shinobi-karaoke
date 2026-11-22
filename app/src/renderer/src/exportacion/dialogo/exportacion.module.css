@@ -118,6 +118,9 @@
   min-width: 0;
   text-overflow: ellipsis;
 }
+.rutaDestinoError {
+  border-color: var(--error);
+}
 .notas {
   position: sticky;
   z-index: 1;

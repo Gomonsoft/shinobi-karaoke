@@ -31,9 +31,9 @@
   flex: none;
   white-space: nowrap;
 }
-/* El grupo de la derecha (silencios y minimizar) se alinea con el botón de silencios. */
+/* Minimizar va en la esquina superior derecha, como el plegado de la lista y del panel. */
 .controles > :last-child:not(:first-child) {
-  margin-inline-start: var(--e-2);
+  margin-inline-start: auto;
 }
 .controles h2 {
   margin: 0;
@@ -98,6 +98,19 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+.regionFuera {
+  position: absolute;
+  bottom: calc(50% + 20px);
+  z-index: 3;
+  padding: var(--e-1) var(--e-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  color: var(--texto-1);
+  background: var(--fondo-3);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+  pointer-events: none;
 }
 .region[aria-pressed='true'] {
   border-color: var(--acento-texto);
@@ -250,5 +263,13 @@
   top: 0;
   bottom: 0;
   border-inline-start: 2px solid var(--acento-texto);
+  pointer-events: none;
+}
+
+.frontera {
+  position: absolute;
+  inset-block: 0;
+  width: 1px;
+  background: var(--texto-3);
   pointer-events: none;
 }

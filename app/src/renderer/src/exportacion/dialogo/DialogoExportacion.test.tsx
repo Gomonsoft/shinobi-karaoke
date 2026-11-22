@@ -114,6 +114,20 @@ describe('DialogoExportacion · formulario (A)', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument()
   })
 
+  it('los perfiles `captura` salen no disponibles y una resolución recordada baja con aviso (V31)', async () => {
+    const perfiles = perfilesDePrueba((p) => (p.alto === 2160 ? 'captura' : null))
+    montar({
+      exportacion: crearApiExportacionFalsa({ perfiles }),
+      config: { ancho: 3840, alto: 2160 }
+    })
+    await formulario()
+    expect(screen.getByRole('button', { name: /Resolución: 2560 × 1440/ })).toBeVisible()
+    expect(screen.getByText('Resolución: 2560 × 1440.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^Resolución:/ }))
+    const uhd = screen.getByRole('option', { name: /3840 × 2160 · 4K UHD — no disponible/ })
+    expect(uhd).toHaveAccessibleDescription(/no puede preparar la imagen del video a este tamaño/)
+  })
+
   it('anuncia el cambio automático de FPS al cambiar de resolución', async () => {
     const perfiles = perfilesDePrueba((p) =>
       p.alto === 720 && p.fps === 30 ? 'codificador' : null
@@ -256,6 +270,49 @@ describe('DialogoExportacion · formulario (A)', () => {
     await formulario()
     await screen.findByText('Ocupará unos 5,0 GB')
     expect(screen.queryByText(/Puede que no haya espacio/)).not.toBeInTheDocument()
+  })
+
+  it('una carpeta sin permiso se avisa bajo «Guardar como» y el foco va a [Cambiar…] (V35)', async () => {
+    const iniciar = vi.fn().mockRejectedValue({
+      codigo: 'DESTINO_NO_DISPONIBLE',
+      mensaje: 'x',
+      detalles: '{"campo":"destino"}'
+    })
+    montar({ exportacion: crearApiExportacionFalsa({ iniciar }) })
+    await formulario()
+    const exportar = screen.getByRole('button', { name: 'Exportar' })
+    await waitFor(() => expect(exportar).toBeEnabled())
+    fireEvent.click(exportar)
+    const aviso = await screen.findByRole('alert')
+    expect(aviso).toHaveTextContent('No se puede guardar en esa carpeta.')
+    expect(aviso).toHaveTextContent('Elige otra con «Cambiar…».')
+    const ruta = screen.getByRole('textbox', { name: /Guardar como/ })
+    expect(ruta).toHaveAttribute('aria-invalid', 'true')
+    expect(ruta).toHaveAttribute('aria-describedby', aviso.parentElement!.id)
+    expect(screen.getByRole('button', { name: 'Cambiar…' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Exportar' })).toBeEnabled()
+  })
+
+  it('«Esta canción ya se está exportando» ofrece [Ver exportación] y bloquea «Exportar» (V36)', async () => {
+    const iniciar = vi.fn().mockRejectedValue({
+      codigo: 'CANCION_EXPORTANDOSE',
+      mensaje: 'x',
+      detalles: '{"trabajoId":"t-9"}'
+    })
+    const { iniciada } = montar({ exportacion: crearApiExportacionFalsa({ iniciar }) })
+    await formulario()
+    const exportar = screen.getByRole('button', { name: 'Exportar' })
+    await waitFor(() => expect(exportar).toBeEnabled())
+    fireEvent.click(exportar)
+    const aviso = await screen.findByRole('alert')
+    expect(aviso).toHaveTextContent('Esta canción ya se está exportando.')
+    expect(screen.getByRole('button', { name: 'Exportar' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    )
+    expect(screen.queryByText('Ya se está exportando un video a ese archivo.')).toBeNull()
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Ver exportación' }))
+    expect(iniciada).toHaveBeenCalledWith('t-9', ID)
   })
 
   it('«Exportar» pide iniciar con las opciones y el destino, y avisa de los errores en el campo', async () => {

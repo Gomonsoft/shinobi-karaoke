@@ -12,7 +12,6 @@ import type { Modalidad } from '@shared/cancion'
 import type { Letra } from '@shared/letra'
 import type { Estilo } from '@shared/estilo'
 import type { ApiReproductor } from '@shared/ipc'
-import { OFFSET_MAXIMO_MS } from '@shared/letrasBusqueda'
 import { fondoCssEn, variablesEstilo } from '../../karaoke/estiloCss'
 import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
@@ -26,7 +25,6 @@ import {
 import type { useVolumenCompartido } from '../../karaoke/useVolumenCompartido'
 import { retenerToasts } from '../../componentes/gestorToasts'
 import estilosComponentes from '../../componentes/componentes.module.css'
-import { E } from '../editor/textos'
 import { accionDeTeclaReproductor, type AccionReproductor } from './atajos'
 import {
   alternarVoz,
@@ -103,7 +101,6 @@ export interface PropsReproductor {
   desdeMs: number
   volumen: ReturnType<typeof useVolumenCompartido>
   alSalir(r: { posicionMs: number }): void
-  alDesplazar?(deltaMs: 100 | -100): void
   alFallarPista?(e: { pista: 'principal' | 'voz'; tipo: ErrorPista }): void
   crearMotor?: (o: OpcionesMotorReproductor) => MotorReproductor
   /** Obligatorio con `origen: 'sesion'`. */
@@ -121,7 +118,6 @@ export function Reproductor({
   desdeMs,
   volumen,
   alSalir,
-  alDesplazar,
   alFallarPista,
   crearMotor,
   sesion
@@ -141,7 +137,7 @@ export function Reproductor({
   const [pantallaCompleta, setPantallaCompleta] = useState(false)
   const [cargaLarga, setCargaLarga] = useState(false)
   const [posicionBarra, setPosicionBarra] = useState(0)
-  const [indicador, setIndicador] = useState<string | { fueraDeRango: boolean } | null>(null)
+  const [indicador, setIndicador] = useState<string | null>(null)
   const [anuncio, setAnuncio] = useState('')
   // La modalidad se toma al empezar: un cambio en el editor se ve en la siguiente reproducción.
   const [barrido] = useState(cancion.modalidad !== 'letra_lista')
@@ -155,7 +151,6 @@ export function Reproductor({
   const finalizado = estado?.finalizado ?? false
   const errorPrincipal = estado?.errorPrincipal ?? null
   const vozDisponible = modo === 'karaoke' && (estado?.vozDisponible ?? false)
-  const puedeDesplazar = origen === 'editor' && alDesplazar !== undefined
   const aviso =
     origen === 'biblioteca' && cancion.lineasSinSincronizar > 0
       ? textoIncompleta(cancion.lineasSinSincronizar)
@@ -521,15 +516,6 @@ export function Reproductor({
         visibilidad.current?.fijarRetenida('atajos', true)
         setAtajosAbiertos(true)
         return
-      case 'desplazar': {
-        if (!puedeDesplazar) return
-        const offset = cancion.letra.offset_ms
-        const fueraDeRango =
-          accion.deltaMs < 0 ? offset <= -OFFSET_MAXIMO_MS : offset >= OFFSET_MAXIMO_MS
-        if (!fueraDeRango) alDesplazar?.(accion.deltaMs)
-        mostrar({ fueraDeRango }, 1000)
-        return
-      }
     }
     if (Object.keys(cambio).length > 0) cambiarNivel(cambio)
     mostrar(
@@ -538,8 +524,7 @@ export function Reproductor({
         volumen: cambio.volumen ?? volumen.volumen,
         silenciado: cambio.silenciado ?? volumen.silenciado,
         volumenVoz: cambio.voz_guia ?? volumen.volumenVoz,
-        vozSilenciada: cambio.voz_guia_silenciada ?? volumen.vozSilenciada,
-        offsetMs: cancion.letra.offset_ms
+        vozSilenciada: cambio.voz_guia_silenciada ?? volumen.vozSilenciada
       })
     )
   }
@@ -601,12 +586,6 @@ export function Reproductor({
   }, [])
 
   const titulo = { titulo: cancion.titulo, artista: cancion.artista }
-  const textoVisible =
-    typeof indicador === 'object' && indicador !== null
-      ? [R.offset(cancion.letra.offset_ms), indicador.fueraDeRango && E.offsetRango]
-          .filter(Boolean)
-          .join(' ')
-      : indicador
   return createPortal(
     <div
       ref={raiz}
@@ -686,14 +665,13 @@ export function Reproductor({
           sesion={sesion && { hayPendientes: sesion.hayPendientes }}
         />
       )}
-      {!errorPrincipal && <IndicadorBreve texto={textoVisible} />}
+      {!errorPrincipal && <IndicadorBreve texto={indicador} />}
       <div className={estilosComponentes.soloLector} aria-live="polite" aria-atomic="true">
         {anuncio}
       </div>
       <DialogoAtajosReproductor
         abierto={atajosAbiertos}
         vozDisponible={vozDisponible}
-        puedeDesplazar={puedeDesplazar}
         sesion={esSesion}
         alCerrar={() => {
           setAtajosAbiertos(false)

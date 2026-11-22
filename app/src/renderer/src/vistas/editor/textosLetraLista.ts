@@ -9,8 +9,6 @@ export const LL = {
   confirmarCambio: 'Cambiar a «Letra lista»',
   estado: 'Letra lista',
   incompleta: (n: number): string => (n === 1 ? 'Falta 1 línea' : `Faltan ${n} líneas`),
-  menuALetraLista: 'Cambiar a «Letra lista»…',
-  menuALista: 'Cambiar a «Lista»',
   toastCambio: 'Esta canción se reproducirá sin barrido (letra lista).',
   toastKaraoke: 'Esta canción se reproducirá con barrido (lista).',
   errorMarcar: 'No se pudo marcar la canción como letra lista.',

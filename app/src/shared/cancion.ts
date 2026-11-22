@@ -8,6 +8,9 @@ export const VERSION_ESQUEMA_CANCION = 1
 
 const fechaIso = z.iso.datetime()
 
+/** Fecha que se asigna al leer una canción sin `creada` válida (0.2.1, ADR 0006). No se reescribe. */
+export const CREADA_POR_DEFECTO = '1970-01-01T00:00:00.000Z'
+
 export const metadatosSchema = z.object({
   titulo: z.string(),
   artista: z.string(),
@@ -83,7 +86,7 @@ export type Modalidad = (typeof MODALIDADES)[number]
 export const cancionSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CANCION),
   id: z.string().min(1),
-  creada: fechaIso,
+  creada: fechaIso.catch(CREADA_POR_DEFECTO),
   modificada: fechaIso,
   estado: z.enum(['borrador', 'lista']),
   /** Solo con `lista`; ausente vale `karaoke`. Con `borrador` se ignora al leer. */
