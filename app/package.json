@@ -19,6 +19,7 @@
     "dev": "cross-env SHINOBI_DATOS=.datos-dev electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "calibrar:encaje": "node --experimental-transform-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/calibrar-encaje-cli.mjs",
     "calibrar:silencios": "node --experimental-transform-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/calibrar-silencios-cli.mjs",
     "semilla": "cross-env SHINOBI_DATOS=.datos-dev node --experimental-transform-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/semilla.mjs",
     "uv:descargar": "node scripts/descargar-uv.mjs",

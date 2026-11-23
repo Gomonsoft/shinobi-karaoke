@@ -1405,6 +1405,7 @@ function EditorActivo({
       'desfasada' ? (
       <AvisoEnLinea
         tipo="info"
+        accionesAbajo
         accion={
           <>
             <Boton onClick={() => void comprobar.pedir()}>{KC.desfase.boton}</Boton>
@@ -1419,6 +1420,7 @@ function EditorActivo({
     ) : (
       <AvisoEnLinea
         tipo="aviso"
+        accionesAbajo
         accion={
           <>
             <Boton onClick={() => void comprobar.pedir()}>{KC.banner.verPorQue}</Boton>
@@ -1574,6 +1576,7 @@ function EditorActivo({
                     }
                     key={ejemploVista.ejemplo ? 'ejemplo' : 'previa'}
                     estilo={estiloVista}
+                    vistaPrevia
                     duracionMs={ejemploVista.ejemplo?.duracionMs ?? duracionMs}
                     titulo={metadatos.titulo}
                     artista={metadatos.artista}

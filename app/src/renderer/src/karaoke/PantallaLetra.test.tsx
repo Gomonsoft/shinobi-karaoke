@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { letra, linea } from '@shared/__fixtures__'
@@ -657,7 +658,7 @@ describe('Feature 1: puestos', () => {
           .style.getPropertyValue('--k-y')
       expect(y('barra')).toBe(`${ancla - 0.9 * S}px`)
       expect(y('cuenta')).toBe(`${ancla}px`)
-      expect(y('puntos')).toBe(`${ancla + 1.2 * S}px`)
+      expect(y('puntos')).toBe(`${ancla + 0.9 * S}px`)
       // El color lo da la línea que viene, en la zona que la contiene.
       expect(
         v.container
@@ -748,4 +749,13 @@ describe('Feature 2: subrayado', () => {
     const nodo = v.container.querySelector<HTMLElement>('[data-linea=a]')!
     expect(nodo.style.getPropertyValue('--k-resaltado-linea')).toBe('#FFD400')
   })
+})
+
+it('F2-R5: la sombra de la capa subrayada se desvanece con el gris (0205: sin raya oscura en la ya cantada)', () => {
+  // jsdom no aplica CSS Modules: se vigila la regla en el propio archivo (captura: capturas-022).
+  const css = readFileSync('src/renderer/src/karaoke/pantallaLetra.module.css', 'utf8')
+  const regla =
+    css.match(/\.subrayado \.linea\[data-activa='true'\] \.resaltado \{[^}]*\}/s)?.[0] ?? ''
+  expect(regla).toMatch(/text-decoration-color:[^;]*--k-gris/s)
+  expect(regla).toMatch(/text-shadow:[^;]*--k-gris/s)
 })

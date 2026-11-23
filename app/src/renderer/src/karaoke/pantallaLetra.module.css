@@ -20,6 +20,10 @@
   --k-indicador: var(--k-resaltado);
 }
 
+.vistaPrevia {
+  --k-tamano: 7.5cqh;
+}
+
 .sinBarrido {
   --k-indicador: var(--k-color);
 }
@@ -106,7 +110,7 @@
   top: var(--k-y, 0px);
   left: calc((100% - var(--k-ancho-linea)) / 2);
   width: var(--k-ancho-linea);
-  transform: translateY(-100%);
+  transform: translateY(-50%);
   color: var(--k-indicador);
   font-size: calc(var(--k-tamano) * 0.35);
   text-align: center;
@@ -144,7 +148,7 @@
  * con el barrido. Continuo, grosor máx(2 px, 0,07 em), a 0,12 em bajo la línea base. Su opacidad
  * es `1 − --k-gris` (se funde con la salida de la línea).
  */
-.subrayado .resaltado {
+.subrayado .linea[data-activa='true'] .resaltado {
   text-decoration-line: underline;
   text-decoration-skip-ink: none;
   text-decoration-thickness: max(2px, 0.07em);
@@ -154,6 +158,12 @@
     var(--k-resaltado-linea, var(--k-resaltado)) calc((1 - var(--k-gris, 0)) * 100%),
     transparent
   );
+  /*
+   * Chromium dibuja la sombra heredada aunque la decoración sea transparente: sin esto la línea ya
+   * cantada conservaba una raya oscura (F2-R5). La sombra sigue la misma opacidad `1 − --k-gris`.
+   */
+  text-shadow: 0 0.04em 0.12em
+    color-mix(in srgb, rgb(0 0 0 / 55%) calc((1 - var(--k-gris, 0)) * 100%), transparent);
 }
 
 /* Letra lista: pista al 35 % y relleno del color de la letra; sin `color_resaltado`. */
@@ -192,9 +202,8 @@
 
 .etiqueta {
   position: absolute;
-  top: var(--e-3);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 8px;
+  left: 8px;
   padding: var(--e-2) var(--e-4);
   border-radius: var(--r-pildora);
   background: rgb(0 0 0 / 60%);

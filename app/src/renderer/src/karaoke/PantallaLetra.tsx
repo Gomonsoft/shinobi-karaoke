@@ -64,6 +64,11 @@ export interface PantallaLetraProps {
    * instantánea; ausente = lo que diga el estilo. Sin barrido (Letra lista) nunca se dibuja.
    */
   subrayado?: boolean
+  /**
+   * Vista previa del editor: el fotograma del reproductor reducido, con S = 7,5 % del alto del
+   * lienzo y sin el mínimo de 32 px de las pantallas reales (spec 06 · Feature 1).
+   */
+  vistaPrevia?: boolean
 }
 
 type MedicionBarrido = { capa: HTMLElement; cajas: DOMRectReadOnly[]; margen: number }
@@ -193,7 +198,8 @@ export function PantallaLetra({
   tiempoFijoMs,
   movimiento,
   alAnunciarEspera,
-  subrayado
+  subrayado,
+  vistaPrevia = false
 }: PantallaLetraProps) {
   const raiz = useRef<HTMLDivElement>(null)
   const nodos = useRef(new Map<string, HTMLElement>())
@@ -274,6 +280,7 @@ export function PantallaLetra({
           pantalla,
           region: { y0Px: zona.region.y0 * alto, altoPx: zona.region.alto * alto },
           altoPantallaPx: alto,
+          minimoTamanoPx: vistaPrevia ? 0 : undefined,
           cambio: f.cambio,
           aparicion: f.aparicion,
           suelos
@@ -288,6 +295,8 @@ export function PantallaLetra({
               '--k-gris': String(copia.mezclaGris)
             })
             const linea = porId.get(disp.id)
+            // El subrayado solo existe en la activa (al empezar o al terminar un cambio).
+            if (nodo && linea) nodo.dataset.activa = String(linea.desde === 0 || linea.hacia === 0)
             const barridos = nodo && medidos.current.get(nodo)
             if (linea && barridos) aplicarProgreso(barridos, linea)
           }
@@ -461,7 +470,7 @@ export function PantallaLetra({
     <div
       ref={raiz}
       aria-hidden="true"
-      className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} ${subrayar ? estilos.subrayado : ''} foco-doble ${className ?? ''}`}
+      className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} ${subrayar ? estilos.subrayado : ''} ${vistaPrevia ? estilos.vistaPrevia : ''} foco-doble ${className ?? ''}`}
       data-movimiento={reducido ? 'reducido' : 'completo'}
       style={variablesEstilo(estilo) as CSSProperties}
     >

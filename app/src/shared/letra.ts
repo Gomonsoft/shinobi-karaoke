@@ -283,6 +283,8 @@ export const letraSchema = z
     intacta: z.literal(true).optional().catch(undefined),
     /** Desfase corregido por «Comprobar la letra» (ADR 0024 §2); ya sumado a `offset_ms`. */
     desfase_corregido_ms: z.number().int().optional().catch(undefined),
+    /** Se quitó una corrección: ni la comprobación diferida ni la preparación la vuelven a corregir sola (ADR 0024, pregunta 0207). */
+    desfase_descartado: z.literal(true).optional().catch(undefined),
     /** Idioma de la letra (ADR 0028 §3.3): `es`, `en`… */
     idioma: z.string().min(2).max(16).optional().catch(undefined),
     /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */

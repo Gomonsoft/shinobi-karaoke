@@ -240,3 +240,18 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.conIcono {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+}
+
+.iconoFila {
+  flex: none;
+  margin-top: 2px;
+}
+
+.compAviso {
+  color: var(--aviso);
+}

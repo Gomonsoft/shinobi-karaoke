@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type Ref } from 'react'
-import { LoaderCircle, X } from 'lucide-react'
+import {
+  Check,
+  CircleHelp,
+  Clock,
+  Info,
+  LoaderCircle,
+  MoveHorizontal,
+  TriangleAlert,
+  X
+} from 'lucide-react'
 import {
   MIN_LINEAS_ENCAJE,
   corregirDesfase,
@@ -28,6 +37,7 @@ import { textoSuperaLimites } from './limiteTexto'
 import { TEXTO_IMPORTAR } from './textosPegar'
 import { TEXTO_ELEGIDA as T } from './textosElegida'
 import { CC, segundosDe } from './textosComprobacion'
+import { FilaConIcono } from './FilaConIcono'
 import { usePicosBase } from './usePicosLetra'
 import { escribirDesfaseGuardado } from './escribirDesfase'
 import { copiarDetalles } from '../../soporte/detalles'
@@ -417,7 +427,11 @@ function LineaComprobacionActual({
   if (corregidaMs !== 0 && !noCoincide) {
     return (
       <div className={estilos.lineaComp}>
-        <p>{CC.actual.corregida(segundosDe(corregidaMs), corregidaMs > 0)}</p>
+        <p>
+          <FilaConIcono icono={Info}>
+            {CC.actual.corregida(segundosDe(corregidaMs), corregidaMs > 0)}
+          </FilaConIcono>
+        </p>
         <div className={estilos.lineaCompFila}>
           <Boton ref={refBoton} variante="fantasma" disabled={ocupado} onClick={onQuitar}>
             {CC.boton.quitar}
@@ -434,24 +448,36 @@ function LineaComprobacionActual({
     case 'noDisponible':
       return (
         <p className={estilos.compTenue}>
-          {comprobacion.tipo === 'comprobando'
-            ? CC.comprobando
-            : comprobacion.tipo === 'pendiente'
-              ? CC.actual.pendiente
-              : CC.noDisponible}
+          <FilaConIcono icono={comprobacion.tipo === 'noDisponible' ? Info : Clock}>
+            {comprobacion.tipo === 'comprobando'
+              ? CC.comprobando
+              : comprobacion.tipo === 'pendiente'
+                ? CC.actual.pendiente
+                : CC.noDisponible}
+          </FilaConIcono>
         </p>
       )
     case 'coincide':
-      return <p>{CC.actual.coincide}</p>
+      return (
+        <p>
+          <FilaConIcono icono={Check}>{CC.actual.coincide}</FilaConIcono>
+        </p>
+      )
     case 'dudosa':
-      return <p>{CC.actual.dudosa}</p>
+      return (
+        <p>
+          <FilaConIcono icono={CircleHelp}>{CC.actual.dudosa}</FilaConIcono>
+        </p>
+      )
     case 'desfasada':
       return (
         <div className={estilos.lineaComp}>
           <p>
-            {comprobacion.desfaseMs > 0
-              ? CC.actual.adelantada(segundosDe(comprobacion.desfaseMs))
-              : CC.actual.atrasada(segundosDe(comprobacion.desfaseMs))}
+            <FilaConIcono icono={MoveHorizontal}>
+              {comprobacion.desfaseMs > 0
+                ? CC.actual.adelantada(segundosDe(comprobacion.desfaseMs))
+                : CC.actual.atrasada(segundosDe(comprobacion.desfaseMs))}
+            </FilaConIcono>
           </p>
           <div className={estilos.lineaCompFila}>
             <Boton
@@ -468,7 +494,11 @@ function LineaComprobacionActual({
     case 'noCoincide':
       return (
         <div className={estilos.lineaComp}>
-          <p>{CC.actual.noCoincide}</p>
+          <p>
+            <FilaConIcono icono={TriangleAlert} className={estilos.compAviso}>
+              {CC.actual.noCoincide}
+            </FilaConIcono>
+          </p>
           <div className={estilos.lineaCompFila}>
             <Boton
               variante="fantasma"

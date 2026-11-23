@@ -343,6 +343,21 @@
   flex: 1;
   color: var(--texto-1);
 }
+.bannerApilado {
+  flex-wrap: wrap;
+}
+.bannerApilado .bannerTexto {
+  min-width: 0;
+  flex: 1 1 0;
+}
+/* Fila de acciones bajo el texto, alineada con él; se parte en dos si no cabe. */
+.bannerAcciones {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  padding-inline-start: calc(20px + var(--e-3));
+}
 .bannerIcono {
   flex: none;
   margin-top: 1px;

@@ -432,10 +432,12 @@ suite('capturas de revisión de 0.2.2 · feature 1', F1, '0.2.2-feature-1', ({ i
           async (v) => {
             await abrirEditor(v, TITULO)
             await irAEstilo(v)
+            // El motivo en texto bajo el control (sin tooltip) tiene que verse.
             await v
-              .getByRole('radiogroup', { name: T_PANTALLA.pasadas })
-              .getByRole('radio', { name: '1', exact: true })
-              .focus()
+              .locator('p', { hasText: T_PANTALLA.minimo1 })
+              .first()
+              .evaluate((el) => el.scrollIntoView({ block: 'center' }))
+            await v.mouse.move(0, 0)
             await foto(v, nombre('pantalla-no-disponible'))
           }
         )
@@ -454,6 +456,9 @@ suite('capturas de revisión de 0.2.2 · feature 1', F1, '0.2.2-feature-1', ({ i
           await abrirEditor(v, TITULO)
           await irAEstilo(v)
           await expect(v.getByText(T_PANTALLA.reducido)).toBeVisible()
+          await v
+            .getByText(T_PANTALLA.reducido)
+            .evaluate((el) => el.scrollIntoView({ block: 'center' }))
           await foto(v, nombre('pantalla-reducido'))
         })
       )
@@ -463,6 +468,8 @@ suite('capturas de revisión de 0.2.2 · feature 1', F1, '0.2.2-feature-1', ({ i
           { preparar: propio({ lineas: 7, pasadas: 2, transicion: 'desplazamiento' }) },
           async (v) => {
             await abrirEditor(v, TITULO)
+            // La 4.ª línea seleccionada: 2 ya cantadas, la activa y 4 futuras.
+            await v.getByRole('option').nth(3).click()
             await pausarEn(v, 11_500)
             await irAEstilo(v)
             await foto(v, nombre('previa-pausa-siete'))
@@ -597,6 +604,7 @@ suite('capturas de revisión de 0.2.2 · feature 2', F2, '0.2.2-feature-2', ({ i
         async (v) => {
           await abrirEditor(v, TITULO)
           await irALetra(v)
+          await v.getByText(/Con daltonismo, lo ya cantado/).scrollIntoViewIfNeeded()
           await foto(v, nombre('subrayado-letra-lista'))
         }
       )
@@ -689,10 +697,10 @@ suite('capturas de revisión de 0.2.2 · feature 4', F4, '0.2.2-feature-4', ({ i
         const aviso = v.getByText(/Ya hemos comprobado las letras con tu audio/)
         if (await aviso.count()) await foto(v, nombreLetra('aviso-llegada'))
         else console.log('AVISO aviso-llegada: no apareció el aviso')
-        await v
-          .getByRole('button', { name: CC.seleccionarla })
-          .click()
-          .catch(() => undefined)
+        // Los tres veredictos a la vista, con los encajes hechos y la lista ordenada.
+        await expect(desfasada).toContainText('Va 0,8 s adelantada', { timeout: 40_000 })
+        await expect(otra).toContainText(CC.noCoincide, { timeout: 40_000 })
+        await v.mouse.move(0, 0)
         await foto(v, nombreLetra('candidatos-comprobados'))
         await desfasada.click()
         await expect(v.getByText(/Toda la letra sale 0,8 s antes que la voz/)).toBeVisible()

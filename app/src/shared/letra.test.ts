@@ -511,6 +511,14 @@ describe('campos nuevos de 0.2.2', () => {
     expect(letraSchema.parse(base)).toEqual(base)
   })
 
+  it('desfase_descartado: true se lee y se conserva; otro valor se lee como ausente', () => {
+    expect(letraSchema.parse({ ...base, desfase_descartado: true }).desfase_descartado).toBe(true)
+    for (const raro of [false, 'si', 1, null])
+      expect(
+        letraSchema.parse({ ...base, desfase_descartado: raro }).desfase_descartado
+      ).toBeUndefined()
+  })
+
   it('reparto (ADR 0029 §1): nombre nulo se conserva, nombre no válido es null, c1 como parte es ausente', () => {
     const r = letraSchema.parse({
       ...base,

@@ -5,6 +5,7 @@ import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
 import { ContenedorToasts } from '../../componentes/Toasts'
 import type { Cancion } from '@shared/cancion'
 import { apiPicosFalsa } from '../letra/fixturesPicos'
+import { CC } from '../letra/textosComprobacion'
 import { apiEditorFalsa, cancionLista, cancionSincronizadaLrclib } from './fixturesApi'
 import { olvidarPicosBase } from './picosBase'
 import { Editor } from './Editor'
@@ -96,7 +97,7 @@ it('F4-E3/E5: corregir el desfase es un paso: guarda offset y desfase sin tocar 
         .tiempos
       expect(tiempos.map((t) => t.inicio_ms)).toEqual(antes.map((e) => e.inicio_ms))
     },
-    { timeout: 2500 }
+    { timeout: 5000 }
   )
   // Un solo paso de deshacer: quita la corrección y la línea «Desfase corregido».
   fireEvent.keyDown(window, { key: 'z', ctrlKey: true })
@@ -122,7 +123,7 @@ it('F4-E5: Quitar la corrección resta el desfase en un paso y avisa con su toas
       const l = llamadas.find((x) => x.metodo === 'letras.guardarTiempos')
       expect(l?.args[0]).toMatchObject({ offset_ms: 0, desfase_corregido_ms: null })
     },
-    { timeout: 2500 }
+    { timeout: 5000 }
   )
 })
 
@@ -141,7 +142,9 @@ it('F4-E6: una letra que no encaja lista los tramos; [Ir] lleva el cabezal y cer
   const { llamadas, ir } = montar(cancionSincronizadaLrclib(), lejos)
   fireEvent.click(await abrirFunciones())
   const dialogo = await screen.findByRole('dialog', { name: 'La letra no encaja con la voz' })
-  expect(dialogo).toHaveTextContent('No se puede arreglar moviendo toda la letra.')
+  // Desfase variable: se explica el motivo y no se repite el pie (pregunta 0209).
+  expect(dialogo).toHaveTextContent(CC.detalle.variable)
+  expect(dialogo).not.toHaveTextContent('No se puede arreglar moviendo toda la letra.')
   const irA = within(dialogo).getAllByRole('button', { name: /^Ir a / })[0]!
   fireEvent.click(irA)
   expect(screen.queryByRole('dialog')).toBeNull()

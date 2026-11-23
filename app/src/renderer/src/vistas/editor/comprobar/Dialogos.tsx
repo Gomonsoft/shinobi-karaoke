@@ -145,7 +145,7 @@ export function DialogosComprobar({
       >
         <p>{K.noCoincide.intro}</p>
         <MotivosNoEncaja detalle={dialogo.detalle} alIr={alIr} />
-        <p>{K.noCoincide.pie}</p>
+        {!dialogo.detalle.variable && <p>{K.noCoincide.pie}</p>}
       </Dialogo>
     )
   }

@@ -6,6 +6,7 @@ import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import type { MotivoComprobar } from './comprobar/calcular'
 import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
+import { FilaConIcono } from '../letra/FilaConIcono'
 import { K } from './comprobar/textos'
 import { esMac, S } from './silencios/textos'
 import type { Motivo } from './silencios/useAjustarSilencios'
@@ -143,7 +144,9 @@ export function PanelFunciones({
         {comprobar.desfaseCorregidoMs ? (
           <>
             <p data-desfase-corregido="">
-              <Icono icono={Info} tamano={14} /> {K.desfase.corregido(comprobar.desfaseCorregidoMs)}
+              <FilaConIcono icono={Info}>
+                {K.desfase.corregido(comprobar.desfaseCorregidoMs)}
+              </FilaConIcono>
             </p>
             <div className={estilos.funcionFila}>
               <Boton

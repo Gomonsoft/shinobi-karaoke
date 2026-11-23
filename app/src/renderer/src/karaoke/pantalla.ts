@@ -42,9 +42,12 @@ export function objetivoOpacidad(puesto: number, pasadas: number, futuras: numbe
   return OPACIDAD_PUESTO[puesto] ?? 0
 }
 
-/** Tamaño de la línea activa: `máx(32 px, 7,5 % del alto)`. No depende del número de líneas. */
-export function tamanoActiva(altoPx: number): number {
-  return Math.max(32, 0.075 * altoPx)
+/**
+ * Tamaño de la línea activa: `máx(32 px, 7,5 % del alto)`. No depende del número de líneas. La vista
+ * previa del editor pasa `minimoPx = 0`: es el fotograma del reproductor reducido (spec 06).
+ */
+export function tamanoActiva(altoPx: number, minimoPx = 32): number {
+  return Math.max(minimoPx, 0.075 * altoPx)
 }
 
 /** Ancla (y del centro de la activa): bloque de líneas de un renglón centrado en el 47 %; 45 % con 2 líneas. */
@@ -152,6 +155,8 @@ export interface EntradaBloque {
   region: Region
   /** Alto de la pantalla entera para calcular S; ausente = el de la región. */
   altoPantallaPx?: number
+  /** Mínimo de S en píxeles (32 en pantallas reales, 0 en la vista previa del editor). */
+  minimoTamanoPx?: number
   cambio: Pick<CambioEnCurso, 'tipo'> | null
   /** Factor 0–1 del fundido de aparición del bloque (1 si no aplica). */
   aparicion?: number
@@ -163,7 +168,7 @@ const mezclar = (a: number, b: number, t: number) => a + (b - a) * t
 
 export function disponerBloque(entrada: EntradaBloque): BloqueDispuesto {
   const { lineas, alturas, pantalla, region, suelos = {}, aparicion = 1 } = entrada
-  const tamano = tamanoActiva(entrada.altoPantallaPx ?? region.altoPx)
+  const tamano = tamanoActiva(entrada.altoPantallaPx ?? region.altoPx, entrada.minimoTamanoPx)
   const pasadas = pasadasEfectivas(pantalla)
   const futuras = pantalla.lineas - 1 - pasadas
   const ancla = anclaDeBloque(pantalla, region, tamano)
@@ -232,7 +237,8 @@ export function disponerBloque(entrada: EntradaBloque): BloqueDispuesto {
     indicadores: {
       barraY: ancla - BARRA_SOBRE_ANCLA * tamano,
       cuentaY: ancla,
-      puntosY: ancla + (SEPARACION_JUNTO_ACTIVA + INTERLINEA / 2) * tamano
+      // A mitad del hueco entre la caja de la activa y la de la +1 (spec, revisión de capturas).
+      puntosY: ancla + (INTERLINEA / 2 + SEPARACION_JUNTO_ACTIVA / 2) * tamano
     }
   }
 }

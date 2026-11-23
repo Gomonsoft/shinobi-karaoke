@@ -283,7 +283,12 @@ export class ServicioLetras {
     const cancion = this.biblioteca.obtener(cancionId)
     const letra = cancion?.letra
     if (!cancion || !letra || cancion.estado !== 'borrador') return null
-    if (letra.intacta !== true || letra.desfase_corregido_ms !== undefined) return null
+    if (
+      letra.intacta !== true ||
+      letra.desfase_corregido_ms !== undefined ||
+      letra.desfase_descartado === true
+    )
+      return null
     if (this.visita?.cancionId === cancionId) return null
     const c = corregirDesfase(letra, desfaseMs)
     if (c.offset_ms === letra.offset_ms) return null
@@ -387,8 +392,14 @@ export class ServicioLetras {
       peticion.desfase_corregido_ms === undefined
         ? desfase_corregido_ms
         : peticion.desfase_corregido_ms
+    // Quitar una corrección que existía deja la marca: la diferida no la repone (pregunta 0207).
+    const descartado =
+      desfase_corregido_ms !== undefined && peticion.desfase_corregido_ms === null
+        ? { desfase_descartado: true as const }
+        : {}
     const nueva = letraSchema.safeParse({
       ...sinDesfase,
+      ...descartado,
       offset_ms,
       ...(desfase != null ? { desfase_corregido_ms: desfase } : {}),
       lineas

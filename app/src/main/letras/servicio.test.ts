@@ -831,6 +831,49 @@ describe('campos nuevos de 0.2.2 en main', () => {
     expect(c.letra?.desfase_corregido_ms).toBeUndefined()
   })
 
+  it('quitar una corrección deja desfase_descartado y la diferida no la repone (pregunta 0207)', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    await servicio.guardarTiempos({ ...p, offset_ms: 800, desfase_corregido_ms: 800 }, sesionId)
+    // (a) quitar: marca puesta, corrección fuera, intacta sin cambios.
+    await servicio.guardarTiempos({ ...p, offset_ms: 0, desfase_corregido_ms: null }, sesionId)
+    let l = (await enDisco(id)).letra!
+    expect(l.desfase_descartado).toBe(true)
+    expect(l.desfase_corregido_ms).toBeUndefined()
+    expect(l.intacta).toBe(true)
+    // (b) la diferida (y la preparación) no corrige.
+    servicio.liberarEdicion()
+    expect(await servicio.corregirDesfaseDiferido(id, 800)).toBeNull()
+    expect((await enDisco(id)).letra!.offset_ms).toBe(0)
+    // La marca se conserva en escrituras posteriores que no tocan el desfase.
+    const otra = servicio.abrirEdicion(id)!
+    await servicio.guardarTiempos(
+      { ...aPeticionTiempos(id, otra.cancion.letra!), desfase_corregido_ms: undefined },
+      otra.sesionId
+    )
+    l = (await enDisco(id)).letra!
+    expect(l.desfase_descartado).toBe(true)
+    // (d) una letra nueva nace sin la marca.
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'manual',
+      lrclib_id: null,
+      lineas: [el('n', 'Nueva', 1000)]
+    })
+    expect((await enDisco(id)).letra!.desfase_descartado).toBeUndefined()
+  })
+
+  it('desfase_corregido_ms: null sin corrección previa no pone la marca (pregunta 0207)', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    await servicio.guardarTiempos(
+      { ...aPeticionTiempos(id, cancion.letra!), desfase_corregido_ms: null },
+      sesionId
+    )
+    expect((await enDisco(id)).letra!.desfase_descartado).toBeUndefined()
+  })
+
   it('el reparto reservado sobrevive a guardarTiempos y editarTexto', async () => {
     const id = await abrir()
     const letra = (await enDisco(id)).letra!

@@ -220,6 +220,8 @@ describe('disposición del bloque', () => {
         const ya = copia(b, 'l-1')
         expect(barraY).toBeGreaterThan(ya.centroY + (1.2 * 0.6 * b.tamano) / 2)
       }
+      // Centro a mitad del hueco entre la caja de la activa y la de la +1 (0,6 S + 0,3 S).
+      expect(puntosY - b.ancla).toBeCloseTo(0.9 * b.tamano)
       const mas1 = copia(b, 'l1')
       expect(puntosY).toBeLessThanOrEqual(mas1.centroY - (1.2 * 0.7 * b.tamano) / 2 + 1e-6)
     }

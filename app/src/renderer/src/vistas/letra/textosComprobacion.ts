@@ -29,8 +29,8 @@ export const CC = {
     'Puede ser otra versión de la canción. Prueba con otra letra o revísala en el editor.',
   detalle: {
     silencio: (n: number, total: number, tramos: [number, number][]): string => {
-      if (n === 1 && tramos.length === 1)
-        return `1 de ${total} líneas cae donde no hay voz (${mmss(tramos[0]![0])}).`
+      if (n === 1)
+        return `1 de ${total} líneas cae donde no hay voz${tramos.length === 1 ? ` (${mmss(tramos[0]![0])})` : ''}.`
       if (tramos.length === 1)
         return `${n} de ${total} líneas caen donde no hay voz (de ${mmss(tramos[0]![0])} a ${mmss(tramos[0]![1])}).`
       return `${n} de ${total} líneas caen donde no hay voz.`

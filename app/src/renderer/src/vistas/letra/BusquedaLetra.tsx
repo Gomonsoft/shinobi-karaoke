@@ -33,6 +33,7 @@ import {
   textoComprobacion,
   type Comprobacion
 } from './comprobacion'
+import { FilaConIcono } from './FilaConIcono'
 import { filasDePrevia } from './modelo'
 import type { ConfirmarSustituir } from './sustituir'
 import { TEXTO } from './textos'
@@ -100,9 +101,12 @@ function LineaComprobacion({ comprobacion }: { comprobacion: Comprobacion }) {
   if (!texto) return null
   const icono = ICONO_COMPROBACION[comprobacion.tipo]
   return (
-    <span className={`${estilos.duracion} ${estilos[ESTILO_COMPROBACION[comprobacion.tipo]]}`}>
-      {icono && <Icono icono={icono} tamano={14} />} {texto}
-    </span>
+    <FilaConIcono
+      icono={icono}
+      className={`${estilos.duracion} ${estilos[ESTILO_COMPROBACION[comprobacion.tipo]]}`}
+    >
+      {texto}
+    </FilaConIcono>
   )
 }
 
@@ -161,7 +165,7 @@ function BloqueComprobacion({
   return (
     <section className={estilos.bloqueComp} aria-label={CC.titulo}>
       <p className={estilos.bloqueCompTitulo}>
-        <Icono icono={icono} tamano={14} /> {textoComprobacion(comprobacion, segundosDe)}
+        <FilaConIcono icono={icono}>{textoComprobacion(comprobacion, segundosDe)}</FilaConIcono>
       </p>
       {t === 'desfasada' && <p>{CC.desfaseAyuda(d, comprobacion.desfaseMs > 0)}</p>}
       {t === 'dudosa' && <p>{CC.dudosaAyuda}</p>}
