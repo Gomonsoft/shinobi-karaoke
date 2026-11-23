@@ -43,7 +43,8 @@ describe('configSchema (lectura tolerante)', () => {
           preciso: { geometria: null, margen_ms: 500 }
         },
         omitir_aviso_letra_lista: false,
-        revision_autoescucha: true
+        revision_autoescucha: true,
+        carriles_juntos: false
       },
       biblioteca: { agrupar: 'ninguno' },
       aviso_youtube_listas_aceptado: null,
@@ -59,12 +60,23 @@ describe('configSchema (lectura tolerante)', () => {
         alto: 1080,
         fps: 30,
         carpeta: null,
+        coros: true,
         factor_corrector: 1
       },
       aviso_youtube_aceptado: null,
       ultima_comprobacion_ytdlp: null,
       estilo_predeterminado: ESTILO_PREDETERMINADO
     })
+  })
+  it('0.2.3: carriles_juntos y exportacion.coros son tolerantes (un valor raro cae a su defecto)', () => {
+    const c = configSchema.parse({ editor: { carriles_juntos: 'sí' }, exportacion: { coros: 3 } })
+    expect(c.editor.carriles_juntos).toBe(false)
+    expect(c.exportacion.coros).toBe(true)
+    const d = configSchema.parse({
+      editor: { carriles_juntos: true },
+      exportacion: { coros: false }
+    })
+    expect([d.editor.carriles_juntos, d.exportacion.coros]).toEqual([true, false])
   })
   it('el estilo predeterminado por defecto no comparte referencias', () => {
     const a = configPredeterminada()
@@ -142,6 +154,13 @@ describe('configSchema (lectura tolerante)', () => {
     expect(configParcialRendererSchema.safeParse({ reproductor: { volumen: 0.5 } }).success).toBe(
       true
     )
+  })
+  it('el renderer puede escribir carriles_juntos y exportacion.coros (0.2.3), no el resto de exportacion', () => {
+    const ok = (p: unknown): boolean => configParcialRendererSchema.safeParse(p).success
+    expect(ok({ editor: { carriles_juntos: true } })).toBe(true)
+    expect(ok({ exportacion: { coros: false } })).toBe(true)
+    expect(ok({ exportacion: { coros: 'no' } })).toBe(false)
+    expect(ok({ exportacion: { carpeta: '/x' } })).toBe(false)
   })
   it('el renderer ya no puede escribir estilo_predeterminado (0170)', () => {
     expect(

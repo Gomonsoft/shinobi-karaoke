@@ -678,10 +678,14 @@ export const configParcialRendererSchema = z.strictObject({
   biblioteca: z.strictObject({ agrupar: z.enum(AGRUPACIONES_BIBLIOTECA) }).optional(),
   aviso_youtube_aceptado: z.iso.datetime().nullable().optional(),
   // Preferencias de paneles del editor (0155): estrictas y sin `.catch`; un valor inválido se rechaza.
+  // 0.2.3 (ADR 0030 §5): la casilla «Incluir la voz en los coros» del diálogo de exportación.
+  exportacion: z.strictObject({ coros: z.boolean().optional() }).optional(),
   editor: z
     .strictObject({
       omitir_aviso_letra_lista: z.boolean().optional(),
       revision_autoescucha: z.boolean().optional(),
+      // 0.2.3 (ADR 0029 §5): «Juntar carriles» de la línea de tiempo.
+      carriles_juntos: z.boolean().optional(),
       paneles: z
         .strictObject({
           lista: z
@@ -988,7 +992,9 @@ export const iniciarExportacionSchema = z
     cancionId: idCancionSchema,
     ...perfilExportacionForma,
     audio: audioExportacionSchema,
-    destinoId: z.uuid()
+    destinoId: z.uuid(),
+    /** Voz original en los coros (ADR 0030 §5); ausente = `false`. Main lo ignora hasta 0353. */
+    coros: z.boolean().optional()
   })
   .refine(perfilValido, perfilNoValido)
 export type IniciarExportacion = z.infer<typeof iniciarExportacionSchema>
@@ -1405,7 +1411,9 @@ export const iniciarLoteExportacionSchema = z
     ...perfilExportacionForma,
     audio: audioExportacionSchema,
     carpetaId: z.uuid(),
-    siExiste: z.enum(['numerar', 'sustituir', 'omitir'])
+    siExiste: z.enum(['numerar', 'sustituir', 'omitir']),
+    /** Voz original en los coros (ADR 0030 §5); ausente = `false`. Main lo ignora hasta 0353. */
+    coros: z.boolean().optional()
   })
   .refine(perfilValido, perfilNoValido)
 export type IniciarLoteExportacion = z.infer<typeof iniciarLoteExportacionSchema>

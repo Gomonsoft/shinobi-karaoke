@@ -4,9 +4,11 @@ import {
   ORIGENES_FIN,
   elementoLetraSchema,
   palabraSchema,
+  partesEscrituraSchema,
   revisadaSchema,
   type ElementoLetra
 } from './letra'
+import { PARTES_ESCRITAS } from './reparto'
 
 /**
  * Contratos de la búsqueda e importación de letras (Fase 4, 0077; ADR 0005 Revisión 2026-11-05).
@@ -140,25 +142,46 @@ export const tiempoElementoSchema = z.strictObject({
   /** Quién fijó el fin (ADR 0024 §4); ausente = a mano. Main lo retira si `fin_ms` es null. */
   origen_fin: z.enum(ORIGENES_FIN).optional(),
   /** Instantánea de «dada por buena»; ausente = sin revisar. Main la retira si deja de coincidir. */
-  revisada: revisadaSchema.extend({ texto: z.string().max(1000) }).optional()
+  revisada: revisadaSchema.extend({ texto: z.string().max(1000) }).optional(),
+  /** Quién canta la línea (ADR 0029 §2): ausente = `c1`, que no se escribe. El editor envía siempre el reparto completo. */
+  parte: z.enum(PARTES_ESCRITAS).optional()
 })
 
-export const guardarTiemposSchema = z.strictObject({
-  cancionId: z.string().min(1).max(200),
-  offset_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS),
-  /**
-   * Desfase que se corrigió en la letra (ADR 0024 §1): número = se anota; `null` = se borra (quitar la
-   * corrección); ausente = no cambia. El editor lo envía siempre (estado completo).
-   */
-  desfase_corregido_ms: z
-    .number()
-    .int()
-    .min(-OFFSET_MAXIMO_MS)
-    .max(OFFSET_MAXIMO_MS)
-    .nullable()
-    .optional(),
-  tiempos: z.array(tiempoElementoSchema).max(MAX_ELEMENTOS_LETRA)
-})
+export const guardarTiemposSchema = z
+  .strictObject({
+    cancionId: z.string().min(1).max(200),
+    offset_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS),
+    /**
+     * Desfase que se corrigió en la letra (ADR 0024 §1): número = se anota; `null` = se borra (quitar la
+     * corrección); ausente = no cambia. El editor lo envía siempre (estado completo).
+     */
+    desfase_corregido_ms: z
+      .number()
+      .int()
+      .min(-OFFSET_MAXIMO_MS)
+      .max(OFFSET_MAXIMO_MS)
+      .nullable()
+      .optional(),
+    /** Reparto de la letra (ADR 0029 §2): `null` = quitarlo; ausente = conservar el que hay. */
+    partes: partesEscrituraSchema.nullable().optional(),
+    tiempos: z.array(tiempoElementoSchema).max(MAX_ELEMENTOS_LETRA)
+  })
+  .refine(
+    ({ partes, tiempos }) => {
+      if (partes === undefined) return true
+      const ids = new Set((partes?.cantantes ?? []).map((c) => c.id as string))
+      return tiempos.every(
+        ({ parte }) =>
+          parte === undefined ||
+          parte === 'coro' ||
+          (parte === 'todos' ? ids.size >= 2 : ids.has(parte))
+      )
+    },
+    {
+      message: 'Una línea es de un cantante que no existe o de «Todos» sin 2 cantantes',
+      path: ['tiempos']
+    }
+  )
 export type GuardarTiempos = z.infer<typeof guardarTiemposSchema>
 
 export const editarTextoLetraSchema = z.strictObject({

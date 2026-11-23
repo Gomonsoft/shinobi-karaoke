@@ -9,6 +9,8 @@ import {
   normalizarEstilo
 } from './estilo'
 import { PANTALLA_PREDETERMINADA } from './pantalla'
+import { COLORES_PARTES_PREDETERMINADOS } from './reparto'
+import { estilosIguales } from './temas'
 import { FUENTE_PREDETERMINADA, FUENTES_INCLUIDAS } from './fuentes'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,6 +157,31 @@ it.each([
   const e = estilo()
   e.fondo.paradas = posiciones.map((posicion) => ({ color: '#112233', posicion }))
   expect(estiloSchema.safeParse(e).success).toBe(valida)
+})
+
+describe('colores_partes en 0.2.3 (ADR 0029 §4)', () => {
+  it('una clave c1 se ignora, normalizarEstilo no rellena predeterminados y estilosIguales compara efectivos', () => {
+    const e = estiloPredeterminado()
+    const leido = estiloSchema.parse({
+      ...e,
+      letra: { ...e.letra, colores_partes: { c1: '#010203', c2: '#4ADEDE' } }
+    })
+    expect(leido.letra.colores_partes).toEqual({ c2: '#4ADEDE' })
+    expect(normalizarEstilo(e).letra.colores_partes).toBeUndefined()
+    const explicito = {
+      ...e,
+      letra: { ...e.letra, colores_partes: { ...COLORES_PARTES_PREDETERMINADOS } }
+    }
+    expect(estilosIguales(e, explicito)).toBe(true)
+    const otro = { ...e, letra: { ...e.letra, colores_partes: { coro: '#000000' } } }
+    expect(estilosIguales(e, otro)).toBe(false)
+    expect(
+      estilosIguales(e, { ...e, pantalla: { ...PANTALLA_PREDETERMINADA, zonas: 'por_parte' } })
+    ).toBe(estilosIguales(e, { ...e, pantalla: { ...PANTALLA_PREDETERMINADA } }))
+    expect(
+      estilosIguales(e, { ...e, pantalla: { ...PANTALLA_PREDETERMINADA, zonas: 'una' } })
+    ).toBe(false)
+  })
 })
 
 describe('estilo.pantalla y colores_partes (ADR 0022 §1)', () => {

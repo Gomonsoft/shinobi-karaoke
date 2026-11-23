@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { MAX_CANTANTES, NOMBRE_MAX, PARTES_ESCRITAS, RANURAS, cantantesDe } from './reparto'
+
 const tiempoMs = z.number().int().min(0)
 
 export const palabraSchema = z.object({
@@ -10,9 +12,6 @@ export const palabraSchema = z.object({
 
 export const ORIGENES_FIN = ['letra', 'silencios', 'preparacion', 'alineacion'] as const
 export type OrigenFin = (typeof ORIGENES_FIN)[number]
-
-/** Reserva del reparto (ADR 0029 §1): ausente = `c1`, que nunca se escribe. */
-const PARTES = ['c2', 'c3', 'c4', 'todos', 'coro'] as const
 
 export const revisadaSchema = z.object({ inicio_ms: tiempoMs, fin_ms: tiempoMs, texto: z.string() })
 export type Revisada = z.infer<typeof revisadaSchema>
@@ -45,8 +44,12 @@ export const elementoLetraSchema = z.object({
     .object({ confianza: z.number().min(0).max(1) })
     .optional()
     .catch(undefined),
-  /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
-  parte: z.enum(PARTES).optional().catch(undefined)
+  /**
+   * Quién canta la línea (ADR 0029 §1): `c2`…`c4`, `todos` o `coro`; ausente = `c1`, que nunca se escribe.
+   * Lectura tolerante por campo; que el cantante exista o que `todos` tenga 2 o más cantantes lo
+   * resuelve `parteDe(linea, letra)`.
+   */
+  parte: z.enum(PARTES_ESCRITAS).optional().catch(undefined)
 })
 
 export type Palabra = z.infer<typeof palabraSchema>
@@ -273,6 +276,55 @@ export function tienePalabrasManuales(el: Pick<ElementoLetra, 'palabras' | 'orig
   return el.palabras !== null && el.origen_palabras === 'manual'
 }
 
+/**
+ * `letra.partes`, lectura tolerante por campo (ADR 0029 §1): `cantantes` se repara (ids de `c1`…`c4`
+ * únicos y en orden de ranura, siempre con `c1`), un nombre no válido se lee como `null` y un nivel fuera
+ * de rango, como ausente (0,5). No marca la canción como dañada ni la reescribe al abrir.
+ */
+export const partesSchema = z.object({
+  cantantes: z.preprocess(
+    (v) => cantantesDe({ partes: { cantantes: v as never } }),
+    z.array(z.object({ id: z.enum(RANURAS), nombre: z.string().max(NOMBRE_MAX).nullable() }))
+  ),
+  voz_en_coros: z.number().min(0).max(1).optional().catch(undefined)
+})
+
+/** `partes` al escribir (IPC, estricto): 1–4 cantantes únicos con `c1`, nombre de hasta 40 caracteres y nivel en pasos de 0,05. */
+export const partesEscrituraSchema = z
+  .strictObject({
+    cantantes: z
+      .array(
+        z.strictObject({
+          id: z.enum(RANURAS),
+          nombre: z
+            .string()
+            .max(NOMBRE_MAX)
+            .refine(
+              (n) => n === n.trim() && n !== '',
+              'El nombre no puede estar vacío ni llevar espacios en los extremos'
+            )
+            .nullable()
+        })
+      )
+      .min(1)
+      .max(MAX_CANTANTES),
+    voz_en_coros: z
+      .number()
+      .min(0)
+      .max(1)
+      .refine((n) => Math.abs(n * 20 - Math.round(n * 20)) < 1e-9, 'Debe ir en pasos de 0,05')
+      .optional()
+  })
+  .refine(({ cantantes }) => cantantes.some((c) => c.id === 'c1'), {
+    message: 'El Cantante 1 es obligatorio',
+    path: ['cantantes']
+  })
+  .refine(({ cantantes }) => new Set(cantantes.map((c) => c.id)).size === cantantes.length, {
+    message: 'Hay cantantes repetidos',
+    path: ['cantantes']
+  })
+export type PartesEscritura = z.infer<typeof partesEscrituraSchema>
+
 export const letraSchema = z
   .object({
     origen: z.enum(['lrclib', 'manual', 'archivo']),
@@ -299,22 +351,8 @@ export const letraSchema = z
       .catch(undefined),
     /** Idioma de la letra (ADR 0028 §3.3): `es`, `en`… */
     idioma: z.string().min(2).max(16).optional().catch(undefined),
-    /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
-    partes: z
-      .object({
-        cantantes: z
-          .array(
-            z.object({
-              id: z.enum(['c1', 'c2', 'c3', 'c4']),
-              nombre: z.string().max(40).nullable().catch(null)
-            })
-          )
-          .min(1)
-          .max(4),
-        voz_en_coros: z.number().min(0).max(1).optional().catch(undefined)
-      })
-      .optional()
-      .catch(undefined)
+    /** Reparto entre cantantes y coro (ADR 0029 §1); ausente = un solo cantante, sin coros y nivel por defecto. */
+    partes: partesSchema.optional().catch(undefined)
   })
   .superRefine((letra, ctx) => {
     for (const mensaje of validarInvariantesLetra(letra.lineas)) {

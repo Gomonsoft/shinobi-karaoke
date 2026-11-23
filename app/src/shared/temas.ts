@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { esperaSchema } from './espera'
-import { pantallaSchema, type Pantalla } from './pantalla'
+import { pantallaSchema, zonasEfectivas, type Pantalla } from './pantalla'
+import { colorDeParte } from './reparto'
 import { ESTILO_PREDETERMINADO, estiloSchema, normalizarEstilo, type Estilo } from './estilo'
 import {
   claveAlbum,
@@ -197,9 +198,20 @@ function canonico(valor: unknown): unknown {
 
 /** Igualdad campo a campo; el orden de las claves de los objetos es irrelevante. */
 export function estilosIguales(a: Estilo, b: Estilo): boolean {
-  return (
-    JSON.stringify(canonico(normalizarEstilo(a))) === JSON.stringify(canonico(normalizarEstilo(b)))
+  return JSON.stringify(comparable(a)) === JSON.stringify(comparable(b))
+}
+
+/** Estilo normalizado con los colores de las partes y `zonas` efectivos: «ausente» y «predeterminado» no difieren. */
+function comparable(estilo: Estilo): unknown {
+  const n = normalizarEstilo(estilo)
+  const colores = Object.fromEntries(
+    (['c2', 'c3', 'c4', 'todos', 'coro'] as const).map((p) => [p, colorDeParte(n, p)])
   )
+  return canonico({
+    ...n,
+    letra: { ...n.letra, colores_partes: colores },
+    pantalla: { ...n.pantalla, zonas: zonasEfectivas(n.pantalla) }
+  })
 }
 
 /**

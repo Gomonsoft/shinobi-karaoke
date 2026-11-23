@@ -210,6 +210,7 @@ describe('config.exportacion', () => {
       alto: 1080,
       fps: 30,
       carpeta: null,
+      coros: true,
       factor_corrector: 1
     })
   })
@@ -234,6 +235,7 @@ describe('config.exportacion', () => {
       alto: 768,
       fps: 30,
       carpeta: null,
+      coros: true,
       factor_corrector: 8
     })
   })
