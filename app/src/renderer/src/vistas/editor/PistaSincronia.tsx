@@ -97,7 +97,7 @@ interface Props {
     /** Cantantes de la canción (con menos de 4 hay franja «+ Nuevo cantante» al arrastrar). */
     cantantes: number
     /** Pasar estas líneas a esa parte las solaparía con otra de la misma parte (carril prohibido). */
-    solapaAl?(ids: string[], parte: Parte): boolean
+    solapaAl?(ids: string[], parte: Parte): string | null
     /** Franjas de destino que aparecen (o dejan de aparecer) durante un arrastre: el editor las cuenta en el alto. */
     alArrastrar?(franjas: number): void
   }
@@ -125,6 +125,8 @@ interface PropsTirador {
   conPalabras: boolean
   /** Con carriles, el tirador va en el carril de su región (24 × 24 escalonados). */
   carril?: { top: number; alto: number }
+  /** Con carriles juntos y solapes: sub-fila de la región (centrada con `--h-sub`). */
+  sub?: number
   activo: boolean
   ocupado: boolean
   iniciar: Props['iniciarMarcador']
@@ -141,6 +143,7 @@ function Tirador({
   automatico,
   conPalabras,
   carril,
+  sub,
   activo,
   ocupado,
   iniciar,
@@ -181,13 +184,19 @@ function Tirador({
       data-auto={automatico || undefined}
       style={{
         left: `${Math.max(0, Math.min(100, tiempoAPixel(vista, 100, ms)))}%`,
-        ...(carril
+        ...(sub !== undefined
           ? {
-              top: borde === 'inicio' ? carril.top : carril.top + carril.alto - 24,
+              top: `calc(${sub} * var(--h-sub) + (var(--h-sub) - 24px) / 2)`,
               bottom: 'auto',
               height: 24
             }
-          : {})
+          : carril
+            ? {
+                top: borde === 'inicio' ? carril.top : carril.top + carril.alto - 24,
+                bottom: 'auto',
+                height: 24
+              }
+            : {})
       }}
       role="slider"
       tabIndex={0}
@@ -453,11 +462,12 @@ export function PistaSincronia({
     const fila = seleccion ? subfilas.get(seleccion) : undefined
     const caja = pista.current
     if (!conSubfilas || fila === undefined || !caja) return
-    const arriba = fila * ALTO_SUBFILA
+    const alto = caja.scrollHeight / nSubfilas
+    const arriba = fila * alto
     if (arriba < caja.scrollTop) caja.scrollTop = arriba
-    else if (arriba + ALTO_SUBFILA > caja.scrollTop + caja.clientHeight)
-      caja.scrollTop = arriba + ALTO_SUBFILA - caja.clientHeight
-  }, [conSubfilas, seleccion, subfilas])
+    else if (arriba + alto > caja.scrollTop + caja.clientHeight)
+      caja.scrollTop = arriba + alto - caja.clientHeight
+  }, [conSubfilas, seleccion, subfilas, nSubfilas])
   const carrilDe = (parte: Parte): number =>
     Math.max(
       0,
@@ -672,7 +682,11 @@ export function PistaSincronia({
             conCarriles
               ? ({ minHeight: tops[filas.length], '--alto-carril': `${alto}px` } as CSSProperties)
               : conSubfilas
-                ? ({ '--alto-subfilas': `${nSubfilas * ALTO_SUBFILA}px` } as CSSProperties)
+                ? ({
+                    '--k': nSubfilas,
+                    // Las sub-filas se reparten el alto de la pista a partes iguales (mínimo 24 px, con scroll).
+                    '--h-sub': 'max(24px, calc(100% / var(--k)))'
+                  } as CSSProperties)
                 : undefined
           }
         >
@@ -680,6 +694,11 @@ export function PistaSincronia({
           {conCarriles &&
             reparto &&
             filas.map((f, i) => {
+              // Carril prohibido durante el arrastre: el motivo va dentro (el color no es la única señal).
+              const motivoProhibido =
+                arrastre && arrastre.destino === i && f.id !== 'nuevo'
+                  ? (reparto.solapaAl?.(arrastre.ids, f.id) ?? null)
+                  : null
               const sinLineas =
                 !f.virtual &&
                 f.id !== 'nuevo' &&
@@ -690,13 +709,7 @@ export function PistaSincronia({
                   className={estilos.carril}
                   data-virtual={f.virtual || undefined}
                   data-destino={arrastre?.destino === i || undefined}
-                  data-prohibido={
-                    (arrastre &&
-                      f.id !== 'nuevo' &&
-                      reparto.solapaAl?.(arrastre.ids, f.id) &&
-                      arrastre.destino === i) ||
-                    undefined
-                  }
+                  data-prohibido={motivoProhibido ? '' : undefined}
                   data-carril={f.id}
                   style={{ top: tops[i], height: altoFila(f) }}
                 >
@@ -708,7 +721,12 @@ export function PistaSincronia({
                         <ChipParte letra={letra} estilo={reparto.estilo} parte={f.id} decorativo />
                         <span>{nombreCarril(letra, f.id)}</span>
                       </div>
-                      {sinLineas && (
+                      {motivoProhibido ? (
+                        <span className={estilos.carrilTexto} data-motivo-prohibido="">
+                          {motivoProhibido}
+                        </span>
+                      ) : null}
+                      {sinLineas && !motivoProhibido && (
                         <span className={estilos.carrilTexto}>
                           {P.carrilVacio(etiquetaParte(letra, f.id))}
                         </span>
@@ -739,7 +757,7 @@ export function PistaSincronia({
             const marca = juntasConParte ? inicial(letra, parte) : null
             const subfila = conSubfilas ? (subfilas.get(r.id) ?? 0) : 0
             const posicion: CSSProperties = conSubfilas
-              ? { top: subfila * ALTO_SUBFILA + 2, height: ALTO_SUBFILA - 4 }
+              ? ({ '--sub': subfila } as CSSProperties)
               : conCarriles
                 ? {
                     top: (tops[carril] ?? 0) + 2,
@@ -857,9 +875,10 @@ export function PistaSincronia({
                     conCarriles
                       ? { top: tops[carrilDe(parteDeLinea.get(activa.id) ?? 'c1')] ?? 0, alto }
                       : conSubfilas
-                        ? { top: (subfilas.get(activa.id) ?? 0) * ALTO_SUBFILA, alto: ALTO_SUBFILA }
+                        ? { top: 0, alto: ALTO_SUBFILA }
                         : undefined
                   }
+                  sub={conSubfilas ? (subfilas.get(activa.id) ?? 0) : undefined}
                   conPalabras={letra.lineas.some(
                     (l) => l.id === activa.id && tienePalabrasManuales(l)
                   )}

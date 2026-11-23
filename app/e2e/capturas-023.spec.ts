@@ -69,7 +69,8 @@ async function conApp(
   const datos = crearTemporal(nombre)
   await sembrar(datos, { reparto: true, voces: true })
   preparar(datos)
-  const app = await lanzar(datos, dpr)
+  // Perfil de color fijo: los colores de las partes salen iguales en todas las capturas (revisión 2026-11-23).
+  const app = await lanzar(datos, dpr, ['--force-color-profile=srgb'])
   try {
     const v = await app.firstWindow()
     await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
@@ -293,6 +294,12 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
     await verHastaElFinal(v, voz)
   }
   const dir2 = join(RAIZ, '0.2.3-feature-2')
+  const dir3 = join(RAIZ, '0.2.3-feature-3')
+  /** Quita el foco del botón recién pulsado: su tooltip no tapa la fila de controles en la captura. */
+  const quitarFoco = async (v: Page) => {
+    await v.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await v.mouse.move(640, 300)
+  }
   const SOLAPES = (d: string) =>
     cambiar(d, 50, (c) => {
       for (const l of c.letra.lineas) if (l.id === 'd1') l.fin_ms = 6000
@@ -309,6 +316,7 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
   ]) {
     test(`editor ${f.ancho}x${f.alto} al ${f.escala} % · cantantes y coros`, async () => {
       mkdirSync(dir2, { recursive: true })
+      mkdirSync(dir3, { recursive: true })
       const css = { ancho: Math.round(f.ancho / f.dpr), alto: Math.round(f.alto / f.dpr) }
       const nombre = (e: string) => `editor-${f.ancho}x${f.alto}-${f.escala}-${e}`
       const estado = async (
@@ -397,6 +405,7 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
           // Con poco espacio los carriles ya se juntan solos y el botón se llama «Separar carriles».
           const juntar = v.getByRole('button', { name: 'Juntar carriles' })
           if (await juntar.count()) await juntar.click()
+          await quitarFoco(v)
         }
       )
       await estado('carriles-sin-espacio', DUO, CUARTETO, async () => undefined)
@@ -428,20 +437,33 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
       await estado('estilo-voces', DUO, sin, async (v) => {
         await estilo(v)
         await expect(v.getByText('Varias voces').first()).toBeAttached()
-        await v.getByText('Varias voces').first().scrollIntoViewIfNeeded()
-        await expect(v.getByText(/Esta canción tiene varias voces/)).toBeVisible()
+        // Se baja el panel hasta que se ve la nota `edi.pantalla.zonas` (bajo «Líneas ya cantadas»).
+        await verHastaElFinal(v, v.getByText(/Esta canción tiene varias voces/))
       })
       // --- 0359: voces a la vez (Ana pisa a Luis de 5 a 6 s) ---
-      await estado('solape-carriles', DUO, SOLAPES, async () => undefined)
-      await estado('solape-carriles-juntos', DUO, SOLAPES, async (v) => {
-        const juntar = v.getByRole('button', { name: 'Juntar carriles' })
-        if (await juntar.count()) await juntar.click()
-      })
-      await estado('solape-menu-inactivo', DUO, SOLAPES, async (v) => {
-        await fila(v, 2).click()
-        await v.keyboard.press('c')
-        await expect(v.getByText(/No puede ser de Ana/)).toBeVisible()
-      })
+      await estado('solape-carriles', DUO, SOLAPES, async () => undefined, dir3)
+      await estado(
+        'solape-carriles-juntos',
+        DUO,
+        SOLAPES,
+        async (v) => {
+          const juntar = v.getByRole('button', { name: 'Juntar carriles' })
+          if (await juntar.count()) await juntar.click()
+          await quitarFoco(v)
+        },
+        dir3
+      )
+      await estado(
+        'solape-menu-inactivo',
+        DUO,
+        SOLAPES,
+        async (v) => {
+          await fila(v, 2).click()
+          await v.keyboard.press('c')
+          await expect(v.getByText(/No puede ser de Ana/)).toBeVisible()
+        },
+        dir3
+      )
       if (f.escala === '100' && f.ancho === 1280)
         await estado(
           'solape-arrastre-prohibido',
@@ -461,18 +483,22 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
             })
             await expect(v.locator('[data-prohibido]')).toHaveCount(1)
           },
-          dir,
+          dir3,
           false
         )
-      await estado('solape-silencios-excluidas', DUO, SOLAPES, async (v) => {
-        await v.getByRole('radio', { name: /^Funciones/ }).click()
-        const aviso = v.getByText(/líneas? que suenan? a la vez/)
-        await expect(aviso).toBeVisible()
-        await aviso.scrollIntoViewIfNeeded()
-      })
+      await estado(
+        'solape-silencios-excluidas',
+        DUO,
+        SOLAPES,
+        async (v) => {
+          await v.getByRole('radio', { name: /^Funciones/ }).click()
+          const aviso = v.getByText(/líneas? que suenan? a la vez/)
+          await expect(aviso).toBeVisible()
+          await aviso.scrollIntoViewIfNeeded()
+        },
+        dir3
+      )
       if (f.escala === '100' && f.ancho === 1280) {
-        const dir3 = join(RAIZ, '0.2.3-feature-3')
-        mkdirSync(dir3, { recursive: true })
         // C1S-E6: carriles juntos con voces a la vez: ninguna región tapa a otra (sub-filas de 24 px).
         await estado(
           'juntos-solapes',
@@ -481,7 +507,28 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
           async (v) => {
             const juntar = v.getByRole('button', { name: 'Juntar carriles' })
             if (await juntar.count()) await juntar.click()
+            await quitarFoco(v)
             await expect(v.locator('[class*="conSubfilas"]')).toHaveCount(1)
+          },
+          dir3
+        )
+        // C1S-E7: «Todas en un bloque» con voces a la vez: la nota `edi.pantalla.bloqueSolapes` con «Ver en zonas».
+        await estado(
+          'bloque-solapes',
+          DUO,
+          (d) =>
+            cambiar(d, 50, (c) => {
+              for (const l of c.letra.lineas) if (l.id === 'd1') l.fin_ms = 6000
+              c.estilo.pantalla = {
+                lineas: 3,
+                pasadas: 1,
+                transicion: 'desplazamiento',
+                zonas: 'una'
+              }
+            }),
+          async (v) => {
+            await estilo(v)
+            await verHastaElFinal(v, v.locator('[data-bloque-solapes]'))
           },
           dir3
         )

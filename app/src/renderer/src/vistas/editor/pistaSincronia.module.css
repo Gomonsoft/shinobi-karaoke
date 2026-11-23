@@ -414,7 +414,7 @@
   clip-path: inset(50%);
 }
 
-/* Carriles juntos con voces a la vez: k sub-filas de 24 px con scroll vertical propio (nunca de página). */
+/* Carriles juntos con voces a la vez: k sub-filas que se reparten el alto (mínimo 24 px, con scroll vertical propio). */
 .pista.conSubfilas {
   overflow-x: hidden;
   overflow-y: auto;
@@ -423,10 +423,20 @@
   position: absolute;
   top: 0;
   width: 1px;
-  height: var(--alto-subfilas);
+  height: max(calc(var(--k) * 24px), 100%);
   content: '';
   pointer-events: none;
 }
+/* Cada región centrada en vertical en su sub-fila; el texto, en los 17 px que deja la franja de 3 px. */
 .conSubfilas .region {
-  top: 0;
+  top: calc(var(--sub) * var(--h-sub) + (var(--h-sub) - 20px) / 2);
+  height: 20px;
+  box-sizing: border-box;
+  font-size: var(--t-pequeno);
+  line-height: 17px;
+}
+
+/* Carril prohibido en un arrastre: borde discontinuo y el motivo dentro (no solo el color). */
+.carril[data-prohibido] {
+  border-style: dashed;
 }

@@ -58,8 +58,16 @@ it('una canción de un solo cantante se ve como en 0.2.2: sin chips, sin menú y
   expect(screen.queryByText('Canta')).toBeNull()
   expect(filas()[0]!.getAttribute('aria-label')).not.toMatch(/Canta:/)
   // C abre el menú también aquí (un cantante: «Cantante 1», «Coro» y «Añadir cantante»).
-  fireEvent.keyDown(filas()[0]!, { key: 'c', code: 'KeyC' })
-  const menu = await screen.findByRole('menu', { name: '¿Quién canta?' })
+  // En el CI (ubuntu, 362 archivos a la vez) la primera pulsación llegó a veces antes de que el editor
+  // tuviera línea principal y el menú no se abría: se repite la tecla hasta que el menú aparece.
+  await waitFor(
+    () => {
+      fireEvent.keyDown(filas()[0]!, { key: 'c', code: 'KeyC' })
+      expect(screen.getByRole('menu', { name: '¿Quién canta?' })).toBeInTheDocument()
+    },
+    { timeout: 5000 }
+  )
+  const menu = screen.getByRole('menu', { name: '¿Quién canta?' })
   expect(
     within(menu)
       .getAllByRole('menuitemradio')

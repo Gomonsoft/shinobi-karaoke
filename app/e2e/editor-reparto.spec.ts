@@ -171,30 +171,42 @@ test('voces a la vez: alargar el fin de Ana sobre la línea de Luis se permite y
   })
 })
 
-test('C1-E23: a 256 px de lista y 300 px de panel nada se parte, no hay scroll horizontal y el texto mide ≥ 96 px', async () => {
-  await conDuo('editor-reparto-anchos', async (v) => {
-    for (const divisor of ['lista', 'panel']) {
-      await v.locator(`[data-divisor="${divisor}"]`).focus()
-      await v.keyboard.press('Home')
-    }
-    await fila(v, 1).click()
-    const sinScroll = async (selector: string) =>
-      v.locator(selector).evaluate((el) => el.scrollWidth <= el.clientWidth)
-    expect(await sinScroll('#zona-lista [role="listbox"]')).toBe(true)
-    expect(await sinScroll('#zona-lista')).toBe(true)
-    expect(await sinScroll('#zona-panel')).toBe(true)
-    for (const texto of await v.locator('#lineas-editor [class*="textoLinea"]').all()) {
-      expect((await texto.boundingBox())!.width).toBeGreaterThanOrEqual(96)
-    }
-    for (const chip of await v.locator('#lineas-editor [data-parte]').all()) {
-      expect((await chip.boundingBox())!.height).toBe(20)
-    }
-    await v.getByRole('radio', { name: 'Funciones' }).click()
-    const seccion = v.getByRole('heading', { name: 'Cantantes y coros' }).locator('..')
-    expect(await seccion.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
-    // Nada del panel queda bajo la barra de desplazamiento: el relleno derecho es de 12 px.
-    expect(
-      await v.locator('#zona-panel').evaluate((el) => parseFloat(getComputedStyle(el).paddingRight))
-    ).toBeGreaterThanOrEqual(12)
+// También con barras de desplazamiento clásicas (15 px, como en Linux y Windows) en macOS (0385).
+for (const clasicas of [false, true]) {
+  test(`C1-E23: a 256 px de lista y 300 px de panel nada se parte, no hay scroll horizontal y el texto mide ≥ 96 px${clasicas ? ' (barras clásicas)' : ''}`, async () => {
+    await conDuo('editor-reparto-anchos', async (v) => {
+      if (clasicas) {
+        await v.addStyleTag({
+          content:
+            '::-webkit-scrollbar { width: 15px; height: 15px } ::-webkit-scrollbar-thumb { background: #666 }'
+        })
+      }
+      for (const divisor of ['lista', 'panel']) {
+        await v.locator(`[data-divisor="${divisor}"]`).focus()
+        await v.keyboard.press('Home')
+      }
+      await fila(v, 1).click()
+      const sinScroll = async (selector: string) =>
+        v.locator(selector).evaluate((el) => el.scrollWidth <= el.clientWidth)
+      expect(await sinScroll('#zona-lista [role="listbox"]')).toBe(true)
+      expect(await sinScroll('#zona-lista')).toBe(true)
+      expect(await sinScroll('#zona-panel')).toBe(true)
+      for (const texto of await v.locator('#lineas-editor [class*="textoLinea"]').all()) {
+        expect((await texto.boundingBox())!.width).toBeGreaterThanOrEqual(96)
+      }
+      for (const chip of await v.locator('#lineas-editor [data-parte]').all()) {
+        expect((await chip.boundingBox())!.height).toBe(20)
+      }
+      await v.getByRole('radio', { name: 'Funciones' }).click()
+      const seccion = v.getByRole('heading', { name: 'Cantantes y coros' }).locator('..')
+      expect(await seccion.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      // Nada del panel queda bajo la barra: relleno (barra superpuesta) o hueco reservado (barra clásica) ≥ 12 px.
+      expect(
+        await v.locator('#zona-panel').evaluate((el) => {
+          const barra = (el as HTMLElement).offsetWidth - el.clientWidth
+          return parseFloat(getComputedStyle(el).paddingRight) + barra
+        })
+      ).toBeGreaterThanOrEqual(12)
+    })
   })
-})
+}

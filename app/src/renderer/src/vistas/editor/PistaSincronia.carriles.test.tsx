@@ -17,7 +17,7 @@ function montar(
     letra?: typeof letra
     alArrastrar?: (n: number) => void
     mensajeOnda?: { texto: string; reintentar?: () => void }
-    solapaAl?: () => boolean
+    solapaAl?: () => string | null
     asignar?: ReturnType<typeof crearAsignar>
     seleccionadas?: string[]
   } = {}
@@ -150,12 +150,16 @@ it('las regiones llevan data-foco-editor="region" (Alt + ↑/↓ con el foco en 
 })
 
 it('un carril donde la línea se solaparía con otra de la misma parte se tiñe de prohibido (C1S-E3)', () => {
-  montar({ solapaAl: () => true })
+  montar({ solapaAl: () => 'No puede ser de Ana: se solapa con su línea 1.' })
   const r = region(/Cruza el faro/)
   fireEvent.pointerDown(r, { button: 0, pointerId: 1, clientX: 0, clientY: 16 })
   mover(r, 50)
   expect(document.querySelector('[data-carril="c2"]')).toHaveAttribute('data-prohibido')
   expect(document.querySelector('[data-carril="c1"]')).not.toHaveAttribute('data-prohibido')
+  // El motivo va dentro del carril (no solo el color) y el borde es discontinuo por CSS.
+  expect(document.querySelector('[data-motivo-prohibido]')).toHaveTextContent(
+    'No puede ser de Ana: se solapa con su línea 1.'
+  )
 })
 
 afterEach(() => vi.unstubAllGlobals())
@@ -206,18 +210,13 @@ it('C1S-E6: con carriles juntos y solapes, ninguna región tapa a otra: sub-fila
   const solapes = structuredClone(letra)
   solapes.lineas[0]!.fin_ms = 6000 // Ana pisa a Luis (5 s) de 5 a 6 s
   montar({ juntos: true, letra: solapes })
-  const caja = (nombre: RegExp) => {
-    const r = region(nombre)
-    return { top: parseFloat(r.style.top), alto: parseFloat(r.style.height) }
-  }
-  const ana = caja(/Cruza el faro/)
-  const luis = caja(/Responde el viento/)
-  expect(ana.alto).toBe(20)
-  expect(luis.alto).toBe(20)
-  expect(luis.top).toBe(ana.top + 24) // sub-filas distintas: las cajas no se pisan
-  expect(document.querySelector('.conSubfilas, [class*="conSubfilas"]')).not.toBeNull()
+  const sub = (nombre: RegExp) => Number(region(nombre).style.getPropertyValue('--sub'))
+  // Sub-filas distintas (el CSS las centra en su fila): las cajas no se pisan.
+  expect(sub(/Cruza el faro/)).toBe(0)
+  expect(sub(/Responde el viento/)).toBe(1)
+  expect(document.querySelector('[class*="conSubfilas"]')).not.toBeNull()
   // Una línea que no se pisa con nadie vuelve a la primera sub-fila.
-  expect(caja(/Cantemos todos/).top).toBe(ana.top)
+  expect(sub(/Cantemos todos/)).toBe(0)
   // Cada región se puede seleccionar con un clic.
   expect(region(/Responde el viento/)).toBeEnabled()
 })
@@ -225,5 +224,5 @@ it('C1S-E6: con carriles juntos y solapes, ninguna región tapa a otra: sub-fila
 it('sin solapes los carriles juntos son la pista de siempre (una sola fila, sin sub-filas)', () => {
   montar({ juntos: true })
   expect(document.querySelector('[class*="conSubfilas"]')).toBeNull()
-  expect(region(/Cruza el faro/).style.height).toBe('')
+  expect(region(/Cruza el faro/).style.getPropertyValue('--sub')).toBe('')
 })

@@ -236,8 +236,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
-  /* Con barras superpuestas (macOS) el hueco no se reserva: nada del panel queda bajo la barra. */
-  padding-inline-end: var(--e-3);
+  /* Con barras superpuestas (macOS) `scrollbar-gutter` no reserva nada: el relleno lo pone `useRellenoBarra`
+     solo entonces (con barra clásica se sumaría al hueco y estrecharía el panel). */
+  padding-inline-end: var(--relleno-barra, 0px);
 }
 .funciones {
   display: grid;
@@ -571,7 +572,11 @@
 /* El hueco del chip: el chip más ancho de la canción más 8 px a cada lado (`--ancho-col-chip`). */
 .lineaConParte {
   /* Solo las columnas que hay: los iconos de la derecha añaden las suyas. El hueco del chip ya lleva sus 8 px. */
-  grid-template-columns: 14px max-content var(--ancho-col-chip, 40px) minmax(0, 1fr);
+  /* El texto conserva 96 px con cualquier tipografía: cede el hueco del chip (hasta 30 px). */
+  grid-template-columns: 14px max-content minmax(30px, var(--ancho-col-chip, 40px)) minmax(
+      96px,
+      1fr
+    );
   column-gap: var(--e-1);
 }
 .textoCoro {
@@ -592,7 +597,7 @@
   z-index: 30;
   display: grid;
   min-width: 15rem;
-  max-width: min(22rem, calc(100vw - 16px));
+  max-width: min(360px, calc(100vw - 16px));
   padding: var(--e-1);
   border-radius: var(--r-m);
   background: var(--fondo-3);
@@ -630,11 +635,11 @@
   opacity: 0.7;
 }
 .menuPartesMotivo {
+  /* El motivo se lee entero: pasa a un segundo renglón en vez de cortarse con «…». */
   display: block;
-  overflow: hidden;
   color: var(--texto-3);
   font-size: var(--t-pequeno);
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 .menuPartesAtajo {
   color: var(--texto-3);

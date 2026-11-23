@@ -87,6 +87,7 @@ import {
   solapeAlAsignar
 } from './partes'
 import { VozEnCoros } from './VozEnCoros'
+import { useRellenoBarra } from './useRellenoBarra'
 import { envolvente, tramosCoro } from '@shared/coros'
 import { solapadas } from '@shared/solapes'
 import { seleccionDeDisco } from './aparienciaVista'
@@ -411,6 +412,7 @@ function EditorActivo({
   )
   const refSync = useRef<HTMLButtonElement>(null)
   const refRaiz = useRef<HTMLDivElement>(null)
+  const refPanel = useRellenoBarra()
   const refCabecera = useRef<HTMLElement>(null)
   const refDock = useRef<HTMLDivElement>(null)
   const refTransporte = useRef<HTMLDivElement>(null)
@@ -2268,7 +2270,7 @@ function EditorActivo({
                     />
                   )}
                 </div>
-                <div id="zona-panel" className={estilos.panel}>
+                <div id="zona-panel" ref={refPanel} className={estilos.panel}>
                   {pestana === 'funciones' ? (
                     <section aria-label={E.funciones.nombre}>
                       <PanelFunciones
@@ -2586,8 +2588,10 @@ function EditorActivo({
                           cantantes: cantantesDe(letra).length,
                           asignar: repartoEditable ? asignarDesdeArrastre : undefined,
                           alArrastrar: setFranjasArrastre,
-                          solapaAl: (ids: string[], parte: Parte) =>
-                            solapeAlAsignar(letra, ids, parte) !== null
+                          solapaAl: (ids: string[], parte: Parte) => {
+                            const k = solapeAlAsignar(letra, ids, parte)
+                            return k === null ? null : P.solapaMisma(etiquetaParte(letra, parte), k)
+                          }
                         }
                       : undefined
                   }

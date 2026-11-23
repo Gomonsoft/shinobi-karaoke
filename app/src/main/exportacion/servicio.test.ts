@@ -1549,7 +1549,9 @@ describe('voz en los coros (0.2.3, ADR 0030 §5)', () => {
     for (const e of r.encoladas) await hasta(() => m.ultimo(e.trabajoId)?.estado === 'terminada')
     const audioDe = (id: string) =>
       m.llamadas.find((l) =>
-        String((l.args.audio as { instrumental: string }).instrumental).includes(`/${id}/`)
+        String((l.args.audio as { instrumental: string }).instrumental)
+          .replaceAll('\\', '/')
+          .includes(`/${id}/`)
       )!.args.audio as Record<string, unknown>
     expect(audioDe('c1').voz_envolvente).toEqual(esperado(canciones.c1!))
     expect(audioDe('c2').voz_envolvente).toEqual(esperado(canciones.c2!))

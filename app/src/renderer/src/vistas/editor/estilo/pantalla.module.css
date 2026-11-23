@@ -38,3 +38,12 @@
 .cambio .nota {
   display: block;
 }
+
+/* Nota «voces a la vez» con su acción: el texto ocupa su renglón y «Ver en zonas» va debajo si no cabe. */
+[data-bloque-solapes] {
+  flex-wrap: wrap;
+}
+[data-bloque-solapes] > span {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
