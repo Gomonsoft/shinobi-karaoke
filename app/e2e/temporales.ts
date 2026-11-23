@@ -13,5 +13,6 @@ export function crearTemporal(nombre: string): string {
 }
 
 test.afterEach(() => {
-  for (const d of temporales.splice(0)) rmSync(d, { recursive: true, force: true })
+  for (const d of temporales.splice(0))
+    rmSync(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 })
