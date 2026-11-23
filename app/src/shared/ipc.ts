@@ -993,7 +993,7 @@ export const iniciarExportacionSchema = z
     ...perfilExportacionForma,
     audio: audioExportacionSchema,
     destinoId: z.uuid(),
-    /** Voz original en los coros (ADR 0030 §5); ausente = `false`. Main lo ignora hasta 0353. */
+    /** Voz original en los coros (ADR 0030 §5); ausente = `false`. Solo cuenta con «Solo instrumental». */
     coros: z.boolean().optional()
   })
   .refine(perfilValido, perfilNoValido)
@@ -1097,6 +1097,7 @@ export const exportacionIpcSchema = z.object({
   alto: z.int(),
   fps: fpsExportacionSchema,
   audio: audioExportacionSchema,
+  corosNivel: z.number().min(0).max(1).optional(),
   estado: z.enum(ESTADOS_EXPORTACION),
   posicion: z.int().min(1).nullable(),
   resultado: z.enum(RESULTADOS_EXPORTACION).nullable(),
@@ -1412,7 +1413,7 @@ export const iniciarLoteExportacionSchema = z
     audio: audioExportacionSchema,
     carpetaId: z.uuid(),
     siExiste: z.enum(['numerar', 'sustituir', 'omitir']),
-    /** Voz original en los coros (ADR 0030 §5); ausente = `false`. Main lo ignora hasta 0353. */
+    /** Voz original en los coros (ADR 0030 §5); ausente = `false`. Solo cuenta con «Solo instrumental». */
     coros: z.boolean().optional()
   })
   .refine(perfilValido, perfilNoValido)

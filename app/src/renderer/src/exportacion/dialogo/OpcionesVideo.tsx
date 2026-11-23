@@ -36,12 +36,19 @@ function Anuncio({ texto }: { texto?: string }) {
   )
 }
 
+/** Voz de los coros bajo el control de audio (spec 10 · 0.2.3): la casilla o la nota de nivel 0 %. */
+export type VistaCoros =
+  | { tipo: 'casilla'; etiqueta: string; marcada: boolean; alCambiar(marcada: boolean): void }
+  | { tipo: 'cero' }
+
 export interface PropsOpcionesVideo {
   perfiles: PerfilesIpc
   opciones: OpcionesExportacion
   /** Hay pista de voz utilizable; en un lote la opción nunca se desactiva por ello. */
   vozDisponible: boolean
   anuncios: AnunciosFormulario
+  /** Casilla de los coros (`null` o ausente: no se ofrece). */
+  coros?: VistaCoros | null
   alCambiarAudio(a: OpcionesExportacion['audio']): void
   alCambiarProporcion(p: Proporcion): void
   alCambiarResolucion(r: Resolucion): void
@@ -56,6 +63,7 @@ export interface PropsOpcionesVideo {
 export function OpcionesVideo(p: PropsOpcionesVideo) {
   const { perfiles, opciones, anuncios } = p
   const idPista = useId()
+  const idCoros = useId()
   const idAyuda = useId()
   const botonAyuda = useRef<HTMLButtonElement>(null)
   const popover = useRef<HTMLDivElement>(null)
@@ -128,6 +136,27 @@ export function OpcionesVideo(p: PropsOpcionesVideo) {
           valor={audio}
           onCambio={p.alCambiarAudio}
         />
+        {p.coros?.tipo === 'casilla' && (
+          <>
+            <label className={estilos.casilla}>
+              <input
+                type="checkbox"
+                checked={p.coros.marcada}
+                aria-describedby={idCoros}
+                onChange={(e) =>
+                  (p.coros as { alCambiar(v: boolean): void }).alCambiar(e.target.checked)
+                }
+              />
+              {p.coros.etiqueta}
+            </label>
+            <p id={idCoros} className={`t-pequeno ${estilos.pista}`}>
+              {EXP.corosAyuda}
+            </p>
+          </>
+        )}
+        {p.coros?.tipo === 'cero' && (
+          <p className={`t-pequeno ${estilos.pista}`}>{EXP.corosCero}</p>
+        )}
       </div>
       <div className={estilos.fila}>
         <span className={estilos.etiquetaFila}>{EXP.proporcion}</span>

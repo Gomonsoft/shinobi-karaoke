@@ -372,3 +372,62 @@ describe('preferenciaTrasAccion', () => {
     expect(preferenciaTrasAccion(pref, 'dock', 10).linea_tiempo.alto).toBe(176)
   })
 })
+
+describe('calcularDistribucion: carriles por parte (0.2.3)', () => {
+  const con = (vw: number, vh: number, carriles: number, juntos = false) =>
+    calcularDistribucion(entrada(vw, vh, { carriles, carrilesJuntos: juntos }))
+
+  it('sin reparto no cambia nada: ni alto de carril ni pista distinta', () => {
+    const sin = calcularDistribucion(entrada(1280, 720))
+    expect(sin.lineaTiempo.altoCarril).toBe(0)
+    expect(sin.lineaTiempo.carrilesJuntos).toBe(false)
+    expect(sin.lineaTiempo.altoPistaVoz).toBe(76)
+  })
+
+  it('con 2 carriles caben en los 76 px de siempre; con 3, la pista crece a 96 px', () => {
+    expect(con(1280, 720, 2).lineaTiempo).toMatchObject({ altoCarril: 32, altoPistaVoz: 76 })
+    const tres = con(1280, 720, 3).lineaTiempo
+    expect(tres).toMatchObject({ altoCarril: 32, altoPistaVoz: 96 })
+    expect(tres.alto).toBe(204 + 20)
+  })
+
+  it('a 1280 × 720 caben 6 carriles de 32 px y la zona superior conserva ≥ 136 px', () => {
+    const d = con(1280, 720, 6)
+    expect(d.lineaTiempo).toMatchObject({
+      altoCarril: 32,
+      altoPistaVoz: 192,
+      carrilesJuntosPorEspacio: false
+    })
+    expect(d.altoZonaSuperior).toBeGreaterThanOrEqual(136)
+    expect(d.bajoMinimo).toBeNull()
+  })
+
+  it('a 1024 × 576 los carriles bajan a 24 px y, con más de los que caben, se juntan solos', () => {
+    const cuatro = con(1024, 576, 4).lineaTiempo
+    expect(cuatro.altoCarril).toBe(24)
+    const muchos = con(1024, 576, 6).lineaTiempo
+    expect(muchos).toMatchObject({
+      carrilesJuntos: true,
+      carrilesJuntosPorEspacio: true,
+      altoCarril: 0
+    })
+    // Al agrandar la ventana vuelven, sin haber tocado ninguna preferencia.
+    expect(con(1280, 720, 6).lineaTiempo.carrilesJuntos).toBe(false)
+  })
+
+  it('la preferencia «Juntar carriles» no es «por espacio» y la pista vuelve a su alto', () => {
+    const d = con(1280, 720, 4, true).lineaTiempo
+    expect(d).toMatchObject({
+      carrilesJuntos: true,
+      carrilesJuntosPorEspacio: false,
+      altoPistaVoz: 76
+    })
+  })
+
+  it('el mínimo del divisor sube con los carriles sin reescribir la preferencia', () => {
+    const pref = preferenciasPanelesPredeterminadas()
+    const d = calcularDistribucion(entrada(1280, 720, { carriles: 6 }, pref))
+    expect(d.lineaTiempo.min).toBe(d.lineaTiempo.altoFilasFijas + 192)
+    expect(pref.linea_tiempo.alto).toBeNull()
+  })
+})

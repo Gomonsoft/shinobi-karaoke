@@ -2,7 +2,6 @@ import { useLayoutEffect, useMemo, useState, type RefObject } from 'react'
 import type { PreferenciasPaneles } from '@shared/config'
 import { ALTO_TIMELINE_MINIMIZADA, preferenciasPanelesPredeterminadas } from '@shared/paneles'
 import {
-  ALTO_PISTA_VOZ_MIN,
   calcularDistribucion,
   type Distribucion,
   type DivisorEditor,
@@ -30,6 +29,9 @@ interface Entrada {
   pestana: 'sincronia' | 'estilo' | 'funciones'
   sincronizando: boolean
   preferencias?: PreferenciasPaneles
+  /** Carriles de la línea de tiempo (0 sin reparto) y preferencia «Juntar carriles». */
+  carriles?: number
+  carrilesJuntos?: boolean
 }
 
 const PREFERENCIAS_MEMORIA = preferenciasPanelesPredeterminadas()
@@ -52,7 +54,7 @@ export function aplicarTamanoVivo(
   else {
     estilo.setProperty('--alto-linea-tiempo', `${valor}px`)
     // El mínimo de la sección es filas fijas + pista de voz mínima: solo la pista crece.
-    estilo.setProperty('--alto-pista-voz', `${valor - (d.lineaTiempo.min - ALTO_PISTA_VOZ_MIN)}px`)
+    estilo.setProperty('--alto-pista-voz', `${valor - d.lineaTiempo.altoFilasFijas}px`)
   }
 }
 
@@ -138,9 +140,18 @@ export function useDistribucion(entrada: Entrada): Distribucion {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pestana, sincronizando])
 
+  const { carriles, carrilesJuntos } = entrada
   const distribucion = useMemo(
-    () => calcularDistribucion({ medidas, preferencias, pestana, sincronizando }),
-    [medidas, preferencias, pestana, sincronizando]
+    () =>
+      calcularDistribucion({
+        medidas,
+        preferencias,
+        pestana,
+        sincronizando,
+        carriles,
+        carrilesJuntos
+      }),
+    [medidas, preferencias, pestana, sincronizando, carriles, carrilesJuntos]
   )
 
   useLayoutEffect(() => {

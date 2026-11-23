@@ -299,11 +299,11 @@ export function ListaLineas({
                 }}
                 type="button"
                 role="option"
-                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}${reparto ? `, ${P.chip(etiquetaParte(letra, parte))}` : ''}`}
+                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}${reparto ? `, ${P.chip(etiquetaParte(letra, parte))}` : ''}${varias && principal ? P.principal : ''}`}
                 data-dudosa={motivo ? '' : undefined}
                 data-principal={principal ? '' : undefined}
                 aria-selected={elegida}
-                aria-current={(varias && principal) || sonando || undefined}
+                aria-current={sonando || undefined}
                 aria-posinset={n}
                 aria-setsize={total}
                 tabIndex={principal ? 0 : -1}

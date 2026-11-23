@@ -4,6 +4,8 @@ import {
   pasadasEfectivas,
   pasadasMaximas,
   TRANSICIONES_PANTALLA,
+  ZONAS_PANTALLA,
+  zonasEfectivas,
   type Pantalla,
   type TransicionPantalla
 } from '@shared/pantalla'
@@ -24,6 +26,8 @@ export interface ControlPantalla {
   /** Edición de un tema (D3) en una canción con letra en pantalla propia. */
   d3Propia: boolean
   pantalla: Pantalla
+  /** Canción con reparto (y siempre en D3): muestra «Varias voces» (0363). */
+  varias?: boolean
   procedencia: string
   temaNombre: string | null
   ejemploActivo: boolean
@@ -51,6 +55,7 @@ export function SeccionPantalla({
   const idTitulo = useId()
   const idMotivo = useId()
   const idCambio = useId()
+  const idVoces = useId()
   const modo = control.resumen
   const efectivas = pasadasEfectivas(pantalla)
   const maximo = pasadasMaximas(pantalla.lineas)
@@ -76,7 +81,7 @@ export function SeccionPantalla({
     return (
       <section ref={raiz} className={estilosPanel.bloque} aria-labelledby={idTitulo}>
         <h3 id={idTitulo}>{T.titulo}</h3>
-        <p className={estilos.nota}>{T.resumenCorto(pantalla, efectivas)}</p>
+        <p className={estilos.nota}>{T.resumenCorto(pantalla, efectivas, control.varias)}</p>
         <p className={estilos.nota}>{T.origen(control.procedencia, control.temaNombre)}</p>
         <div className={estilosPanel.acciones}>
           <Boton
@@ -115,6 +120,34 @@ export function SeccionPantalla({
       <h3 id={idTitulo}>{T.titulo}</h3>
       <p className={estilos.nota}>{control.propia ? T.propia(control.temaNombre) : T.ayuda}</p>
 
+      {control.varias && (
+        <>
+          <h4 id={idVoces}>{T.voces}</h4>
+          <div role="radiogroup" aria-labelledby={idVoces} className={estilosPantalla.cambios}>
+            {ZONAS_PANTALLA.map((valor) => (
+              <div key={valor} className={estilosPantalla.cambio}>
+                <input
+                  id={`${idVoces}-${valor}`}
+                  type="radio"
+                  name={idVoces}
+                  aria-describedby={`${idVoces}-${valor}-ayuda`}
+                  checked={zonasEfectivas(pantalla) === valor}
+                  onChange={() => control.cambiar({ ...pantalla, zonas: valor }, `zonas.${valor}`)}
+                />
+                <div>
+                  <label htmlFor={`${idVoces}-${valor}`} className={estilosPantalla.cambioNombre}>
+                    {T.vocesOpciones[valor][0]}
+                  </label>
+                  <span id={`${idVoces}-${valor}-ayuda`} className={estilos.nota}>
+                    {T.vocesOpciones[valor][1]}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <h4>{T.lineas}</h4>
       <div data-foco-editor="segmentado">
         <ControlSegmentado
@@ -137,6 +170,12 @@ export function SeccionPantalla({
         />
       </div>
       <p className={estilos.nota}>{T.pasadasAyuda}</p>
+      {control.varias && zonasEfectivas(pantalla) === 'por_parte' && (
+        <p className={`${estilos.nota} ${estilosPantalla.motivo}`}>
+          <Icono icono={Info} tamano={16} />
+          {T.zonas}
+        </p>
+      )}
       {motivo && (
         <p id={idMotivo} className={`${estilos.nota} ${estilosPantalla.motivo}`}>
           <Icono icono={Info} tamano={16} />

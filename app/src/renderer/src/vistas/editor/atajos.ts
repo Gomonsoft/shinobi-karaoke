@@ -44,9 +44,11 @@ export function accionDeTecla(
     sync: boolean
     focoEn: FocoEditor
     mac?: boolean
+    /** Canción con reparto: sin él, Alt + ↑/↓ no hace nada (ni se captura). Por defecto, sí. */
+    reparto?: boolean
   }
 ): AccionAtajo | null {
-  const { enCampoTexto, sync, focoEn, mac } = opciones
+  const { enCampoTexto, sync, focoEn, mac, reparto = true } = opciones
   const tecla = e.key.toLowerCase()
   const control = e.ctrlKey || e.metaKey
   if (e.isComposing) return null
@@ -80,7 +82,7 @@ export function accionDeTecla(
   if (e.altKey && !control && !sync) {
     const digito = /^Digit([1-4])$/.exec(e.code ?? '')
     if (digito) return { tipo: 'parte_n', n: Number(digito[1]) as 1 | 2 | 3 | 4 }
-    if ((tecla === 'arrowup' || tecla === 'arrowdown') && !e.shiftKey) {
+    if ((tecla === 'arrowup' || tecla === 'arrowdown') && !e.shiftKey && reparto) {
       return focoEn === 'lista' || focoEn === 'region'
         ? { tipo: 'parte_vecina', sentido: tecla === 'arrowup' ? -1 : 1 }
         : null

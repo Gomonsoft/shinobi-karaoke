@@ -1,4 +1,5 @@
-import { evaluarEncajeConPicos, type VeredictoEncaje } from '../../shared/encaje'
+import type { VeredictoEncaje } from '../../shared/encaje'
+import { evaluarEncajeConPicosSinSolapes } from '../../shared/solapes'
 import { AVISOS, type AvisoTrabajoIpc } from '../../shared/avisos'
 import type { ServicioBiblioteca } from '../biblioteca/servicio'
 import type { NivelBase } from '../picos/formato'
@@ -35,7 +36,7 @@ export async function comprobarLetraGuardada(
   if (!cancion?.letra) return null
   const nivel = await deps.picos.nivelBase(cancionId)
   if (!nivel) return null
-  const r = evaluarEncajeConPicos(
+  const r = evaluarEncajeConPicosSinSolapes(
     cancion.letra,
     { pasoMs: nivel.pasoMs, pares: nivel.pares },
     { duracionMs: nivel.duracionMs }

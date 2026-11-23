@@ -336,3 +336,100 @@ test('exportar varias con un video ya presente y «omitir»: el botón dice uno 
     await app.close().catch(() => undefined)
   }
 })
+
+/** Cuenta píxeles de un color en dos fotogramas del video (0.2.3 · 0364). */
+function sondearColores(
+  archivo: string,
+  fotogramas: [number, number]
+): { amarillo: [number, number]; cian: [number, number] } {
+  const uv = process.env.SHINOBI_UV ?? 'uv'
+  const salida = execFileSync(
+    uv,
+    [
+      'run',
+      '--project',
+      resolve(process.cwd(), '..', 'worker'),
+      'python',
+      '-c',
+      [
+        'import av, json, sys',
+        'c = av.open(sys.argv[1])',
+        'v = c.streams.video[0]',
+        'quiero = [int(sys.argv[2]), int(sys.argv[3])]',
+        'r = {}',
+        'for i, f in enumerate(c.decode(v)):',
+        '    if i in quiero:',
+        '        a = f.to_ndarray(format="rgb24").astype("int16")',
+        '        amarillo = int(((a[..., 0] > 200) & (a[..., 1] > 170) & (a[..., 2] < 130)).sum())',
+        '        cian = int(((a[..., 0] < 110) & (a[..., 1] > 150) & (a[..., 2] > 200)).sum())',
+        '        r[i] = [amarillo, cian]',
+        '    if i > max(quiero): break',
+        'print(json.dumps({"amarillo": [r[q][0] for q in quiero], "cian": [r[q][1] for q in quiero]}))'
+      ].join('\n'),
+      archivo,
+      String(fotogramas[0]),
+      String(fotogramas[1])
+    ],
+    { encoding: 'utf8' }
+  )
+  return JSON.parse(salida.trim().split('\n').at(-1)!)
+}
+
+test('exporta un dúo con coro: cada cantante barre en su color y el tiempo por fotograma es comparable (0364, C1-V1)', async () => {
+  test.setTimeout(300_000)
+  const datos = crearTemporal('exportacion-duo')
+  const salida = crearTemporal('exportacion-duo-salida')
+  await sembrar(datos, { reparto: true })
+  for (const id of [idSemilla(20), idSemilla(50)]) {
+    const cancion = leerCancion(datos, id)
+    cancion.metadatos.duracion_ms = 8000
+    writeFileSync(join(carpeta(datos, id), 'cancion.json'), JSON.stringify(cancion, null, 2))
+  }
+  const config = leerConfig(datos)
+  config.instalacion.estado = 'completa'
+  config.exportacion = { carpeta: salida }
+  writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  const app = await electron.launch({
+    args: ['.'],
+    cwd: process.cwd(),
+    env: { ...process.env, SHINOBI_DATOS: datos, SHINOBI_SILENCIAR_AUDIO: '1' }
+  })
+  try {
+    const ventana = await app.firstWindow()
+    const exportar = (cancionId: string) =>
+      ventana.evaluate(async (id) => {
+        const api = (globalThis as unknown as { shinobi: ApiShinobi }).shinobi.exportacion
+        const destino = await api.destinoPropuesto({ cancionId: id, formato: 'mkv_av1' })
+        const inicio = Date.now()
+        const { trabajoId } = await api.iniciar({
+          cancionId: id,
+          formato: 'mkv_av1',
+          ancho: 640,
+          alto: 480,
+          fps: 24,
+          audio: 'instrumental',
+          destinoId: destino.destinoId
+        })
+        for (;;) {
+          const e = (await api.estado()).find((x) => x.trabajoId === trabajoId)
+          if (e?.estado === 'terminada') return { e, ms: Date.now() - inicio }
+          if (Date.now() - inicio > 200_000) throw new Error('la exportación no terminó')
+          await new Promise((res) => setTimeout(res, 250))
+        }
+      }, cancionId)
+    const base = await exportar(idSemilla(20))
+    const duo = await exportar(idSemilla(50))
+    expect(duo.e).toMatchObject({ resultado: 'completada', fotogramas: 192 })
+    // Anotado en las notas de la tarea: tiempo por fotograma del dúo frente al de 0.2.2.
+    console.log(
+      `0364: ${(base.ms / 192).toFixed(1)} ms/fotograma sin reparto; ${(duo.ms / 192).toFixed(1)} ms/fotograma con 3 zonas`
+    )
+    const s = sondearColores(join(salida, duo.e.archivo), [60, 144])
+    // 2,5 s canta Ana (color de lo ya cantado, amarillo); 6 s canta Luis (cian de su ranura).
+    expect(s.amarillo[0]).toBeGreaterThan(100)
+    expect(s.cian[1]).toBeGreaterThan(100)
+    expect(s.cian[1]).toBeGreaterThan(s.cian[0])
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+})

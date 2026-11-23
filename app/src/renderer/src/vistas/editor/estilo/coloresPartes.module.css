@@ -6,9 +6,10 @@
 
 .fila {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* Columna fija: los chips («L», «A·L», «( )») no desalinean los selectores. */
+  grid-template-columns: 44px minmax(0, 1fr);
   gap: var(--e-2);
-  align-items: end;
+  align-items: start;
   min-width: 0;
 }
 
@@ -35,11 +36,13 @@
   font-size: var(--t-pequeno);
   font-weight: 600;
   line-height: 1;
-  margin-bottom: var(--e-2);
+  /* A la altura del nombre, sobre el selector. */
+  margin-top: 2px;
+  justify-self: start;
 }
 
 .filaEnlace .chip {
-  margin-bottom: 0;
+  margin-top: 0;
 }
 
 .enlace {

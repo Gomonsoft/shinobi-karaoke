@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { letra, linea } from '@shared/__fixtures__'
+import { letra, linea, pausa } from '@shared/__fixtures__'
 import { estiloPredeterminado } from '@shared/estilo'
 import { GuardadoEditor } from './guardado'
 
@@ -172,4 +172,20 @@ it('envía el reparto completo y normalizado; sin reparto, `partes: null` (ADR 0
   editor.cambiarLetra(l(0))
   await vi.advanceTimersByTimeAsync(1000)
   expect(guardarTiempos).toHaveBeenLastCalledWith(expect.objectContaining({ partes: null }))
+})
+
+it('nunca envía `parte` en una pausa, ni aunque el dato venga raro (ADR 0029 §2)', async () => {
+  const { editor, guardarTiempos } = preparar()
+  const base = letra([linea('a', 'El viento', 2000), pausa('p'), linea('b', 'La sal', 6000)])
+  const rara = {
+    ...base,
+    partes: { cantantes: [{ id: 'c1' as const, nombre: null }] },
+    lineas: base.lineas.map((e) => (e.tipo === 'pausa' ? { ...e, parte: 'coro' as const } : e))
+  }
+  editor.cambiarLetra(rara)
+  await vi.advanceTimersByTimeAsync(1000)
+  const [peticion] = guardarTiempos.mock.calls[0] as unknown as [
+    { tiempos: { id: string; parte?: string }[] }
+  ]
+  expect(peticion.tiempos.find((t) => t.id === 'p')).not.toHaveProperty('parte')
 })

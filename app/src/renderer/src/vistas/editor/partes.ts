@@ -26,6 +26,29 @@ export const P = {
     `Los tiempos se editan de una en una: los controles de abajo son de la línea ${k}.`,
   soloPrincipal: (k: number) => `Solo en la línea ${k}`,
   paso: 'Quién canta',
+  principal: ', principal',
+  titulo: 'Cantantes y coros',
+  ayuda:
+    'Reparte la letra entre varias voces. Cada una se ve en su color y con su inicial al cantar.',
+  repartir: 'Repartir entre varios cantantes',
+  nombreAria: (n: number) => `Nombre del cantante ${n}`,
+  recuento: (n: number) => (n === 0 ? 'Sin líneas' : n === 1 ? '1 línea' : `${n} líneas`),
+  quitarAria: (nombre: string, destino: string) =>
+    `Quitar a ${nombre}: sus líneas pasan a ${destino}`,
+  quitado: (nombre: string, destino: string) => `${nombre} quitado: sus líneas pasan a ${destino}.`,
+  maximo: 'Hasta 4 cantantes por canción.',
+  sugerenciaCoro: (n: number) =>
+    n === 1
+      ? '1 línea va entre paréntesis: suele ser un coro.'
+      : `${n} líneas van entre paréntesis: suelen ser coros.`,
+  marcarCoro: (n: number) => (n === 1 ? 'Marcarla como coro' : 'Marcarlas como coro'),
+  juntar: 'Juntar carriles',
+  separar: 'Separar carriles',
+  juntosSinEspacio: 'No caben los carriles: agranda la ventana o la línea de tiempo para verlos.',
+  anuncioJuntar: 'Carriles juntos en una pista.',
+  anuncioSeparar: 'Un carril por cantante.',
+  nuevoCarril: 'Suelta aquí para un cantante nuevo',
+  carrilVacio: (nombre: string) => `Arrastra aquí las líneas de ${nombre}`,
   anuncio: (n: number, parte: string) =>
     n === 1 ? `Línea para ${parte}.` : `${n} líneas para ${parte}.`,
   anuncioNuevo: (nombre: string, n = 0) =>
@@ -97,3 +120,20 @@ export function parteComun(
   )
   return partes.size === 1 ? [...partes][0]! : null
 }
+
+/** Microcopy de ux/06 · 0.2.3 · Feature 2 (claves `edi.coros.*`). */
+export const C = {
+  nivel: 'Voz en los coros',
+  ayuda:
+    'La voz original suena a este volumen mientras se cantan las líneas de coro, aunque la voz guía esté silenciada.',
+  limite: 'Si en esas líneas también canta la voz principal, también se oirá.',
+  cero: 'Sin voz (0 %)',
+  escuchar: 'Escuchar un coro',
+  detener: 'Detener',
+  anuncioEscuchando: (tiempo: string, nivel: number) =>
+    `Escuchando el coro de ${tiempo} con la voz al ${nivel} %.`,
+  sinVoz: 'Hace falta separar la voz para oír los coros.',
+  preparando: 'Preparando los coros…',
+  error:
+    'No se pudo preparar la voz de los coros en el editor: «Instrumental» suena sin ella. En el reproductor y en el video sí se oirá.'
+} as const

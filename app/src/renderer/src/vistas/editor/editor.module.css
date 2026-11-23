@@ -676,3 +676,108 @@
   border: 0;
   background: transparent;
 }
+
+/* Funciones › «Cantantes y coros» (0.2.3 · feature 1). */
+.filasCantantes {
+  display: grid;
+  gap: var(--e-2);
+  width: 100%;
+  min-width: 0;
+}
+.filaCantante {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto 24px;
+  gap: var(--e-2);
+  align-items: center;
+  min-width: 0;
+}
+.campoNombre {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.campoNombre input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+}
+.contadorNombre {
+  position: absolute;
+  inset-inline-end: var(--e-2);
+  inset-block-end: 2px;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+.nombreFijo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recuentoParte {
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+  text-decoration: underline;
+}
+.recuentoParte[aria-disabled='true'] {
+  text-decoration: none;
+  cursor: default;
+}
+.quitarCantante {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-2);
+}
+.quitarCantante:hover,
+.quitarCantante:focus-visible {
+  background: var(--fondo-2);
+}
+.funcion .textoMaximo {
+  color: var(--texto-3);
+}
+
+/* Funciones › «Voz en los coros» (0.2.3 · feature 2). */
+.vozCoros {
+  display: grid;
+  gap: var(--e-2);
+  width: 100%;
+  min-width: 0;
+  padding-top: var(--e-3);
+  border-top: 1px solid var(--borde);
+  justify-items: start;
+}
+.vozCoros h4 {
+  margin: 0;
+  font-size: var(--t-cuerpo-fuerte);
+}
+.filaVozCoros {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  gap: var(--e-2);
+  align-items: center;
+  width: 100%;
+}
+.filaVozCoros input {
+  width: 100%;
+  min-width: 0;
+}
+.funcion .textoTres {
+  color: var(--texto-3);
+}

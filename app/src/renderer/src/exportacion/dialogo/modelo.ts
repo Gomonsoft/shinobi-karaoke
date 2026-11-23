@@ -24,7 +24,17 @@ export interface OpcionesExportacion {
   ancho: number
   alto: number
   fps: Fps
+  /** Incluir la voz en los coros (solo cuenta con «Solo instrumental», voz y coros con nivel > 0). Ausente = sí. */
+  coros?: boolean
 }
+
+/** La casilla se ofrece: «Solo instrumental», voz separada y coros con nivel > 0 (spec 10 · 0.2.3). */
+export const corosAplican = (
+  audio: AudioExportacion,
+  c: { vozDisponible: boolean; nivelCoros: number | null }
+): boolean => audio === 'instrumental' && c.vozDisponible && (c.nivelCoros ?? 0) > 0
+
+export const porcentajeCoros = (nivel: number): number => Math.round(nivel * 100)
 
 export interface CambioAutomatico {
   /** FPS anterior si hubo que cambiarlo (`exp.anuncio.fps`). */

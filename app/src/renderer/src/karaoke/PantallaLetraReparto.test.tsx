@@ -1,13 +1,20 @@
-import { render } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { letra, linea } from '@shared/__fixtures__'
 import { cancionDosCantantes, cancionUnCantanteConCoros } from '@shared/__fixtures__/reparto'
 import { estiloPredeterminado } from '@shared/estilo'
+import { PANTALLA_PREDETERMINADA } from '@shared/pantalla'
 import { PantallaLetra } from './PantallaLetra'
 
 // 0.2.3 · tarea 0348: color por parte, insignia y paréntesis del coro (ADR 0029 §4).
+// Estos tests miran el bloque único (`zonas: "una"`); las zonas, en `zonas.test.ts` y más abajo.
+const estiloBloque = (() => {
+  const e = estiloPredeterminado()
+  e.pantalla = { ...PANTALLA_PREDETERMINADA, zonas: 'una' }
+  return e
+})()
 const props = {
-  estilo: estiloPredeterminado(),
+  estilo: estiloBloque,
   titulo: 'Inventada',
   artista: 'Shinobi',
   duracionMs: 30_000,
@@ -153,5 +160,132 @@ describe('un cantante con coros', () => {
     ).container
     expect(nodo(v, 'u3').style.getPropertyValue('--k-color-linea')).toBe('#FF9F1C')
     expect(nodo(v, 'u2').style.getPropertyValue('--k-color-linea')).toBe('')
+  })
+})
+
+// --- 0.2.3 · tarea 0364: zonas en pantalla ---
+
+describe('zonas por parte', () => {
+  const duo = cancionDosCantantes().letra!
+  const zonasProps = { ...props, estilo: estiloPredeterminado(), letra: duo }
+  const dibujar = (t: number, extra = {}) =>
+    render(<PantallaLetra {...zonasProps} tiempoFijoMs={t} {...extra} />).container
+
+  const centro = (n: HTMLElement) => parseFloat(n.style.getPropertyValue('--k-y'))
+  const zona = (c: HTMLElement, id: string, linea: string) =>
+    c.querySelector<HTMLElement>(`[data-zona=${id}][data-linea=${linea}]`)!
+
+  it('cada línea se dibuja en su zona: el coro arriba y cada cantante debajo, sin moverse de sitio', () => {
+    // clientHeight 720: coro y cantantes dentro del 12 %–86 %.
+    const a = dibujar(5600)
+    const b = dibujar(9000)
+    const c1 = zona(a, 'c1', 'd3')
+    const c2 = zona(a, 'c2', 'd2')
+    expect(c1.dataset.zona).toBe('c1')
+    expect(centro(c2)).toBeGreaterThan(centro(c1))
+    for (const n of [c1, c2]) {
+      expect(centro(n)).toBeGreaterThan(0.12 * 720)
+      expect(centro(n)).toBeLessThan(0.86 * 720)
+    }
+    // Todos se repite en la zona de cada cantante, en el mismo sitio en dos instantes.
+    expect(centro(zona(b, 'c1', 'd3'))).toBeCloseTo(centro(c1))
+    expect(centro(zona(b, 'c2', 'd3'))).toBeGreaterThan(centro(zona(b, 'c1', 'd3')))
+    expect(b.querySelectorAll('[data-linea=d3]')).toHaveLength(2)
+  })
+
+  it('la zona que no suena se atenúa al 55 % y la que suena queda al 100 %', () => {
+    const v = dibujar(5600)
+    const opacidad = (n: HTMLElement) => parseFloat(n.style.getPropertyValue('--k-opacidad'))
+    expect(opacidad(zona(v, 'c2', 'd2'))).toBe(1)
+    expect(opacidad(zona(v, 'c1', 'd3'))).toBeGreaterThanOrEqual(0.55)
+    expect(opacidad(zona(v, 'c1', 'd3'))).toBeLessThan(1)
+  })
+
+  it('el tamaño de la zona viaja en --k-escala-zona y la insignia sigue a su línea', () => {
+    const v = dibujar(5600)
+    expect(zona(v, 'c2', 'd2').style.getPropertyValue('--k-escala-zona')).toBe('1')
+    expect(zona(v, 'c2', 'd2').querySelector('[data-insignia]')?.textContent).toBe('L')
+  })
+
+  it('C1-R11: el instante fijo (video) y el reloj (reproductor) pintan lo mismo', () => {
+    const vars = (c: HTMLElement) =>
+      Array.from(c.querySelectorAll<HTMLElement>('[data-linea]'), (n) =>
+        [
+          n.dataset.zona,
+          n.dataset.linea,
+          n.dataset.copia,
+          n.style.getPropertyValue('--k-y'),
+          n.style.getPropertyValue('--k-escala'),
+          n.style.getPropertyValue('--k-opacidad'),
+          n.style.getPropertyValue('--k-escala-zona')
+        ].join('|')
+      )
+    for (const t of [5600, 8100, 15_050]) {
+      const fijo = vars(dibujar(t))
+      const pendientes: FrameRequestCallback[] = []
+      vi.stubGlobal('requestAnimationFrame', (fn: FrameRequestCallback) => pendientes.push(fn))
+      vi.stubGlobal('cancelAnimationFrame', () => {})
+      const vivo = render(<PantallaLetra {...zonasProps} obtenerTiempoAudio={() => t} />).container
+      act(() => pendientes.shift()!(t))
+      expect(vars(vivo)).toEqual(fijo)
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('con «Todas en un bloque» las líneas van en el bloque único, con colores, insignias y paréntesis', () => {
+    const v = render(<PantallaLetra {...props} letra={duo} tiempoFijoMs={5600} />).container
+    expect(
+      Array.from(v.querySelectorAll<HTMLElement>('[data-linea]'), (n) => n.dataset.zona)
+    ).toEqual(expect.arrayContaining(['todas']))
+    expect(v.querySelectorAll('[data-zona]:not([data-zona=todas])')).toHaveLength(0)
+  })
+
+  it('la espera va en una fila de la zona de la próxima, sobre su texto y en el orden puntos · barra · cuenta', () => {
+    const hueco = {
+      ...duo,
+      lineas: [
+        linea('h1', 'Cruza el faro la gaviota', 2000, { fin_ms: 4000 }),
+        linea('h2', 'Responde el viento del sur', 15_000, { parte: 'c2' as const })
+      ]
+    }
+    const estilo = {
+      ...zonasProps.estilo,
+      espera: { puntos: true, barra: true, cuenta: true, primera_entrada: true, umbral_ms: 2000 }
+    }
+    const v = render(
+      <PantallaLetra {...zonasProps} estilo={estilo} letra={hueco} tiempoFijoMs={12_500} />
+    ).container
+    const filas = v.querySelectorAll<HTMLElement>('[data-fila-espera]')
+    expect(filas).toHaveLength(1)
+    const fila = filas[0]!
+    expect(Array.from(fila.children, (n) => (n as HTMLElement).dataset.indicador)).toEqual([
+      'puntos',
+      'barra',
+      'cuenta'
+    ])
+    // Sobre el centro del primer renglón de la próxima (0,9 S ≈ 0,9 × 54 px a 720 de alto).
+    const proxima = parseFloat(zona(v, 'c2', 'h2').style.getPropertyValue('--k-y'))
+    const y = parseFloat(fila.style.getPropertyValue('--k-y'))
+    expect(y).toBeLessThan(proxima - 0.6 * 54)
+    expect(fila.style.getPropertyValue('--k-escala-zona')).toBe('1')
+  })
+
+  it('sin zonas los indicadores siguen donde estaban (sin fila)', () => {
+    const hueco = {
+      ...duo,
+      lineas: [
+        linea('h1', 'Cruza el faro la gaviota', 2000, { fin_ms: 4000 }),
+        linea('h2', 'Responde el viento del sur', 15_000, { parte: 'c2' as const })
+      ]
+    }
+    const estilo = {
+      ...props.estilo,
+      espera: { puntos: true, barra: true, cuenta: true, primera_entrada: true, umbral_ms: 2000 }
+    }
+    const v = render(
+      <PantallaLetra {...props} estilo={estilo} letra={hueco} tiempoFijoMs={12_500} />
+    ).container
+    expect(v.querySelector('[data-fila-espera]')).toBeNull()
+    expect(v.querySelector('[data-indicador=barra]')).not.toBeNull()
   })
 })

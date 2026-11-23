@@ -1586,6 +1586,7 @@ export class ServicioExportacion<V = unknown> {
       alto: t.alto,
       fps: t.fps,
       audio: t.audio,
+      ...(t.rutas.envolvente ? { corosNivel: vozEnCoros(t.instantanea.letra) } : {}),
       estado: t.estado,
       posicion: t.posicion,
       resultado: t.resultado,

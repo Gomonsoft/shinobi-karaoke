@@ -5,15 +5,21 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
+  type MutableRefObject,
   type PointerEvent,
   type ReactNode
 } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, FoldVertical, Users } from 'lucide-react'
+import type { Estilo } from '@shared/estilo'
 import { tienePalabrasManuales, type Letra } from '@shared/letra'
+import { colorDeParte, inicial, parteDe, type Parte } from '@shared/reparto'
 import { formatearTiempo, limitesInicio } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { BotonLayout } from './BotonLayout'
+import { ChipParte } from './ChipParte'
+import { etiquetaParte, P } from './partes'
 import { VistaGeneral, iniciarCaptura, type Arrastre } from './VistaGeneral'
 import {
   ajustarVistaLineaTiempo,
@@ -69,6 +75,34 @@ interface Props {
   dudosas?: ReadonlyMap<string, string>
   /** Cada cambio pide acercar la línea seleccionada si su región es pequeña o no cabe. */
   zoomRevision?: number
+  /**
+   * Reparto (0.2.3, solo en canciones con reparto): carriles según `carriles(letra)`, alto efectivo de
+   * cada uno, si se ven juntos (preferencia o por falta de espacio) y colores de las partes.
+   */
+  reparto?: {
+    carriles: Parte[]
+    altoCarril: number
+    juntos: boolean
+    juntosPorEspacio: boolean
+    alternarJuntos(): void
+    estilo: Pick<Estilo, 'letra'>
+    /** Sin él (modo al ritmo, sesión bloqueada) no hay arrastre entre carriles. */
+    asignar?(destino: Parte | 'nuevo', ids: string[]): void
+    /** Cantantes de la canción (con menos de 4 hay franja «+ Nuevo cantante» al arrastrar). */
+    cantantes: number
+  }
+  /** Líneas seleccionadas (varias se mueven juntas al arrastrar). */
+  seleccionadas?: readonly string[]
+  /** La pista deja aquí la función que cancela el arrastre en curso (Esc, ADR 0029 §5); `true` si cancelaba algo. */
+  cancelarArrastreRef?: MutableRefObject<(() => boolean) | null>
+}
+
+const UMBRAL_ARRASTRE_PX = 8
+type FilaCarril = { id: Parte | 'nuevo'; virtual: boolean }
+interface EstadoArrastre {
+  ids: string[]
+  dy: number
+  destino: number | null
 }
 
 interface PropsTirador {
@@ -79,6 +113,8 @@ interface PropsTirador {
   automatico: boolean
   /** Línea con palabras hechas a mano: el tooltip avisa de que moverlo las quita (P19). */
   conPalabras: boolean
+  /** Con carriles, el tirador va en el carril de su región (24 × 24 escalonados). */
+  carril?: { top: number; alto: number }
   activo: boolean
   ocupado: boolean
   iniciar: Props['iniciarMarcador']
@@ -94,6 +130,7 @@ function Tirador({
   vista,
   automatico,
   conPalabras,
+  carril,
   activo,
   ocupado,
   iniciar,
@@ -132,7 +169,16 @@ function Tirador({
       className={estilos.tirador}
       data-borde={borde}
       data-auto={automatico || undefined}
-      style={{ left: `${Math.max(0, Math.min(100, tiempoAPixel(vista, 100, ms)))}%` }}
+      style={{
+        left: `${Math.max(0, Math.min(100, tiempoAPixel(vista, 100, ms)))}%`,
+        ...(carril
+          ? {
+              top: borde === 'inicio' ? carril.top : carril.top + carril.alto - 24,
+              bottom: 'auto',
+              height: 24
+            }
+          : {})
+      }}
       role="slider"
       tabIndex={0}
       title={
@@ -201,7 +247,10 @@ export function PistaSincronia({
   resaltadas,
   resaltadasDesfase,
   dudosas,
-  zoomRevision = 0
+  zoomRevision = 0,
+  reparto,
+  seleccionadas,
+  cancelarArrastreRef
 }: Props) {
   const [vistaGuardada, setVista] = useState<VistaLineaTiempo | null>(null)
   const vista = vistaGuardada
@@ -292,6 +341,100 @@ export function PistaSincronia({
     return () => cancelAnimationFrame(frame)
   }, [minimizada, inicioMs, finMs, obtenerTiempoAudio, posicionMs, sonando])
 
+  // --- Carriles (0.2.3) ---
+  const conCarriles = Boolean(reparto && reparto.carriles.length > 0 && !reparto.juntos)
+  const alto = reparto?.altoCarril || 32
+  const parteDeLinea = useMemo(
+    () => new Map(letra.lineas.map((l) => [l.id, parteDe(l, letra)])),
+    [letra]
+  )
+  const [arrastre, setArrastre] = useState<EstadoArrastre | null>(null)
+  const inicioArrastre = useRef<{ x: number; y: number; id: string; pointerId: number } | null>(
+    null
+  )
+  const arrastrando = useRef(false)
+  const tragarClic = useRef(false)
+  const pista = useRef<HTMLDivElement>(null)
+  // Franjas de destino que solo existen durante el arrastre: «+ Nuevo cantante» (bajo el último cantante)
+  // y «Todos» en un dúo (en su sitio, antes del Coro).
+  const filas = useMemo<FilaCarril[]>(() => {
+    if (!reparto || !conCarriles) return []
+    const base: FilaCarril[] = reparto.carriles.map((id) => ({ id, virtual: false }))
+    if (!arrastre) return base
+    const salida = [...base]
+    if (reparto.cantantes === 2 && !reparto.carriles.includes('todos')) {
+      const i = salida.findIndex((f) => f.id === 'coro')
+      salida.splice(i < 0 ? salida.length : i, 0, { id: 'todos', virtual: true })
+    }
+    if (reparto.cantantes < 4) {
+      const ultimo = salida.reduce((n, f, i) => (/^c\d$/.test(f.id) ? i : n), -1)
+      salida.splice(ultimo + 1, 0, { id: 'nuevo', virtual: true })
+    }
+    return salida
+  }, [reparto, conCarriles, arrastre])
+  const carrilDe = (parte: Parte): number =>
+    Math.max(
+      0,
+      filas.findIndex((f) => f.id === parte)
+    )
+
+  function cancelarEsteArrastre(): boolean {
+    if (!arrastrando.current) return false
+    arrastrando.current = false
+    inicioArrastre.current = null
+    setArrastre(null)
+    return true
+  }
+  useEffect(() => {
+    if (!cancelarArrastreRef) return
+    cancelarArrastreRef.current = arrastre ? cancelarEsteArrastre : null
+    return () => {
+      cancelarArrastreRef.current = null
+    }
+    // `cancelarEsteArrastre` solo usa refs y el setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrastre !== null, cancelarArrastreRef])
+
+  function destinoDe(clientY: number): number | null {
+    const caja = pista.current?.getBoundingClientRect()
+    if (!caja) return null
+    const i = Math.floor((clientY - caja.top) / alto)
+    return i >= 0 && i < filas.length ? i : null
+  }
+  function alPulsarRegion(e: PointerEvent<HTMLElement>, id: string) {
+    tragarClic.current = false
+    if (!conCarriles || !reparto?.asignar || inactiva || e.button !== 0) return
+    inicioArrastre.current = { x: e.clientX, y: e.clientY, id, pointerId: e.pointerId }
+  }
+  function alMoverRegion(e: PointerEvent<HTMLElement>) {
+    const inicio = inicioArrastre.current
+    if (!inicio || e.pointerId !== inicio.pointerId) return
+    const dy = e.clientY - inicio.y
+    if (!arrastrando.current) {
+      // El componente horizontal se ignora: el cuerpo nunca mueve tiempos.
+      if (Math.abs(dy) < UMBRAL_ARRASTRE_PX) return
+      arrastrando.current = true
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+    }
+    const ids = seleccionadas?.includes(inicio.id) ? [...seleccionadas] : [inicio.id]
+    setArrastre({ ids, dy, destino: destinoDe(e.clientY) })
+  }
+  function alSoltarRegion(e: PointerEvent<HTMLElement>, confirmar: boolean) {
+    const inicio = inicioArrastre.current
+    if (!inicio || e.pointerId !== inicio.pointerId) return
+    const hubo = arrastrando.current
+    const destino = confirmar && hubo ? destinoDe(e.clientY) : null
+    const ids = arrastre?.ids ?? [inicio.id]
+    inicioArrastre.current = null
+    arrastrando.current = false
+    setArrastre(null)
+    if (!hubo) return
+    // Lo que sigue a soltar tras arrastrar no es un clic.
+    tragarClic.current = true
+    const fila = destino === null ? undefined : filas[destino]
+    if (fila) reparto?.asignar?.(fila.id, ids)
+  }
+
   function teclaFlecha(e: KeyboardEvent<HTMLElement>, aplicar: (sentido: number) => void) {
     if (e.ctrlKey || e.metaKey || e.altKey || inactiva) return
     const sentido = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
@@ -371,6 +514,18 @@ export function PistaSincronia({
           {E.timeline.cabezal}
         </Boton>
         {!activa && <span>{E.timeline.zoomSinInicio}</span>}
+        {reparto && reparto.carriles.length > 0 && (
+          <Boton
+            aria-pressed={reparto.juntos}
+            aria-label={reparto.juntos ? P.separar : P.juntar}
+            noDisponible={reparto.juntosPorEspacio ? P.juntosSinEspacio : undefined}
+            disabled={inactiva}
+            onClick={reparto.alternarJuntos}
+          >
+            <FoldVertical size={16} aria-hidden="true" />
+            {reparto.juntos ? P.separar : P.juntar}
+          </Boton>
+        )}
         {botonSilencios}
         <BotonLayout
           icono={ChevronDown}
@@ -381,7 +536,7 @@ export function PistaSincronia({
           onClick={alternarMinimizada}
         />
       </div>
-      <div className={estilos.eje} ref={eje}>
+      <div className={`${estilos.eje} ${conCarriles ? estilos.conEtiquetas : ''}`} ref={eje}>
         <div className={estilos.regla}>
           <div className={estilos.marcas} aria-hidden="true">
             {[0, 0.25, 0.5, 0.75, 1].map((fraccion) => (
@@ -406,8 +561,51 @@ export function PistaSincronia({
             }
           />
         </div>
-        <div className={estilos.pista}>
+        <div
+          className={`${estilos.pista} ${conCarriles ? estilos.conCarriles : ''}`}
+          ref={pista}
+          data-carriles={conCarriles ? filas.length : undefined}
+          style={
+            conCarriles
+              ? ({ minHeight: filas.length * alto, '--alto-carril': `${alto}px` } as CSSProperties)
+              : undefined
+          }
+        >
           {onda?.(vista)}
+          {conCarriles &&
+            reparto &&
+            filas.map((f, i) => {
+              const sinLineas =
+                !f.virtual &&
+                f.id !== 'nuevo' &&
+                !modelo.regiones.some((r) => parteDeLinea.get(r.id) === f.id)
+              return (
+                <div
+                  key={f.id}
+                  className={estilos.carril}
+                  data-virtual={f.virtual || undefined}
+                  data-destino={arrastre?.destino === i || undefined}
+                  data-carril={f.id}
+                  style={{ top: i * alto, height: alto }}
+                >
+                  {f.id === 'nuevo' ? (
+                    <span className={estilos.carrilTexto}>{P.nuevoCarril}</span>
+                  ) : (
+                    <>
+                      <div className={estilos.etiquetaCarril} title={etiquetaParte(letra, f.id)}>
+                        <ChipParte letra={letra} estilo={reparto.estilo} parte={f.id} decorativo />
+                        <span>{etiquetaParte(letra, f.id)}</span>
+                      </div>
+                      {sinLineas && (
+                        <span className={estilos.carrilTexto}>
+                          {P.carrilVacio(etiquetaParte(letra, f.id))}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
           {modelo.pausas
             .filter((p) => p.tiempoMs >= inicioMs && p.tiempoMs <= finMs)
             .map((p) => (
@@ -422,12 +620,40 @@ export function PistaSincronia({
             const visible = recortarIntervalo(r.real, vista)
             if (!visible) return null
             const esActiva = r.id === seleccion
+            const parte = parteDeLinea.get(r.id) ?? 'c1'
+            const carril = conCarriles ? carrilDe(parte) : 0
+            const arrastrada = arrastre?.ids.includes(r.id) ?? false
+            const juntasConParte = Boolean(reparto && reparto.juntos && reparto.carriles.length > 0)
+            const marca = juntasConParte ? inicial(letra, parte) : null
+            const posicion: CSSProperties = conCarriles
+              ? {
+                  top: carril * alto + 2,
+                  height: alto - 4,
+                  transform: arrastrada ? `translateY(${arrastre!.dy}px)` : undefined,
+                  zIndex: arrastrada ? 4 : undefined
+                }
+              : {}
             return (
               <Fragment key={r.id}>
                 <button
                   type="button"
                   className={estilos.region}
                   aria-pressed={esActiva}
+                  aria-label={
+                    reparto && reparto.carriles.length > 0
+                      ? `${r.texto}. ${P.chip(etiquetaParte(letra, parte))}`
+                      : undefined
+                  }
+                  data-foco-editor="region"
+                  data-parte={reparto && reparto.carriles.length > 0 ? parte : undefined}
+                  data-secundaria={
+                    (seleccionadas &&
+                      seleccionadas.length > 1 &&
+                      seleccionadas.includes(r.id) &&
+                      !esActiva) ||
+                    undefined
+                  }
+                  data-arrastrada={arrastrada || undefined}
                   data-inicio-recortado={visible.inicioRecortado || undefined}
                   data-fin-recortado={visible.finRecortado || undefined}
                   data-resaltada={resaltadas?.has(r.id) || undefined}
@@ -443,13 +669,33 @@ export function PistaSincronia({
                   }
                   style={{
                     left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
-                    width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`
+                    width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`,
+                    ...posicion,
+                    ...(juntasConParte && reparto
+                      ? ({ '--color-parte': colorDeParte(reparto.estilo, parte) } as CSSProperties)
+                      : {})
                   }}
-                  onClick={() => seleccionar(r.id)}
+                  data-juntas={juntasConParte || undefined}
+                  onPointerDown={(e) => alPulsarRegion(e, r.id)}
+                  onPointerMove={alMoverRegion}
+                  onPointerUp={(e) => alSoltarRegion(e, true)}
+                  onPointerCancel={(e) => alSoltarRegion(e, false)}
+                  onClick={() => {
+                    if (tragarClic.current) {
+                      tragarClic.current = false
+                      return
+                    }
+                    seleccionar(r.id)
+                  }}
                   onDoubleClick={() => {
                     if (escucharLinea?.(r.id) === false) setFuera(r.id)
                   }}
                 >
+                  {marca && (
+                    <span className={estilos.inicialRegion} aria-hidden="true">
+                      {marca.tipo === 'texto' ? marca.texto : <Users size={12} />}
+                    </span>
+                  )}
                   {r.texto}
                   {fronterasDe(letra, r.id).map((ms) => {
                     const k =
@@ -492,6 +738,11 @@ export function PistaSincronia({
                   limites={limites[borde]}
                   vista={vista}
                   automatico={automatico}
+                  carril={
+                    conCarriles
+                      ? { top: carrilDe(parteDeLinea.get(activa.id) ?? 'c1') * alto, alto }
+                      : undefined
+                  }
                   conPalabras={letra.lineas.some(
                     (l) => l.id === activa.id && tienePalabrasManuales(l)
                   )}

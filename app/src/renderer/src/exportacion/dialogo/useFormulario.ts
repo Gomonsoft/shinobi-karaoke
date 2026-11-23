@@ -16,6 +16,7 @@ import type { CodigoError } from '@shared/errores'
 import { cancionExportable, type CancionExportable } from './cancion'
 import {
   cambiarFormato,
+  corosAplican,
   cambiarProporcion,
   cambiarResolucion,
   normalizar,
@@ -60,7 +61,8 @@ const OPCIONES_INICIALES: OpcionesExportacion = {
   formato: FORMATO_PREDETERMINADO,
   ancho: RESOLUCION_PREDETERMINADA.ancho,
   alto: RESOLUCION_PREDETERMINADA.alto,
-  fps: FPS_PREDETERMINADO
+  fps: FPS_PREDETERMINADO,
+  coros: true
 }
 
 function mensajeDe(err: unknown): string {
@@ -153,7 +155,9 @@ export function useFormulario(
             formato: recordadas?.formato ?? OPCIONES_INICIALES.formato,
             ancho: recordadas?.ancho ?? OPCIONES_INICIALES.ancho,
             alto: recordadas?.alto ?? OPCIONES_INICIALES.alto,
-            fps: recordadas?.fps ?? OPCIONES_INICIALES.fps
+            fps: recordadas?.fps ?? OPCIONES_INICIALES.fps,
+            // Marcada la primera vez; después, lo último que el usuario eligió (`config.exportacion.coros`).
+            coros: recordadas?.coros ?? true
           })
         }
         if (!exportable.vozDisponible) base.audio = 'instrumental'
@@ -243,6 +247,11 @@ export function useFormulario(
       setOpciones((o) => ({ ...o, audio: a }))
       setError(null)
     },
+    /** Casilla de los coros: se recuerda para la siguiente exportación (`config.exportacion.coros`). */
+    cambiarCoros: (v: boolean) => {
+      setOpciones((o) => ({ ...o, coros: v }))
+      void window.shinobi.config.actualizar({ exportacion: { coros: v } }).catch(() => undefined)
+    },
     cambiarProporcion: (p: Proporcion) =>
       perfiles && aplicar(cambiarProporcion(perfiles, opciones, p)),
     cambiarResolucion: (r: Resolucion) =>
@@ -283,6 +292,10 @@ export function useFormulario(
           alto,
           fps,
           audio,
+          // Solo cuenta con «Solo instrumental», voz y coros con nivel > 0; ausente = sin voz en los coros.
+          ...(cancion && corosAplican(audio, cancion) && opciones.coros !== false
+            ? { coros: true }
+            : {}),
           destinoId: destino.destinoId
         })
         return trabajoId

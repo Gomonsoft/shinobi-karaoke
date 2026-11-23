@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import type { ElementoLetra } from '@shared/letra'
+import type { ElementoLetra, Letra } from '@shared/letra'
+import { tieneReparto } from '@shared/reparto'
 import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
 import { TEXTO_SUSTITUIR } from './textosPegar'
@@ -8,13 +9,22 @@ import { TEXTO_SUSTITUIR } from './textosPegar'
 export interface LetraExistente {
   lineas: number
   conSincronia: boolean
+  /** La letra tiene reparto (2 o más cantantes, o coros): sustituirla pierde quién canta cada línea. */
+  reparto?: boolean
 }
 
 export function existenteDe(
-  elementos: readonly ElementoLetra[] | null | undefined
+  elementos: readonly ElementoLetra[] | null | undefined,
+  letra?: Pick<Letra, 'partes'>
 ): LetraExistente {
   const lineas = (elementos ?? []).filter((e) => e.tipo === 'linea')
-  return { lineas: lineas.length, conSincronia: lineas.some((e) => e.inicio_ms !== null) }
+  return {
+    lineas: lineas.length,
+    conSincronia: lineas.some((e) => e.inicio_ms !== null),
+    ...(tieneReparto({ lineas: [...(elementos ?? [])], partes: letra?.partes })
+      ? { reparto: true }
+      : {})
+  }
 }
 
 export type ConfirmarSustituir = () => Promise<boolean>
@@ -71,6 +81,7 @@ export function useConfirmarSustituir(existente: LetraExistente): {
       <p id={idDescripcion}>
         {existente.conSincronia ? TEXTO_SUSTITUIR.conSincronia : TEXTO_SUSTITUIR.sinSincronia}
       </p>
+      {existente.reparto && <p>{TEXTO_SUSTITUIR.reparto}</p>}
     </Dialogo>
   )
   return { confirmar, dialogo }

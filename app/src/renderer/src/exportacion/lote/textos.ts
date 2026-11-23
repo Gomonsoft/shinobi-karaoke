@@ -10,10 +10,13 @@ export const EXP_LOTE = {
   listaAria: 'Canciones del lote',
   nota: {
     sinVoz: 'Sin pista de voz: se exporta solo con instrumental',
+    coros: (n: number): string => `Con la voz de los coros al ${n} %`,
     existe: 'Ya hay un video con este nombre',
     letraLista: 'Letra lista: sin barrido',
     incompleta: 'Tiene líneas sin sincronizar que no saldrán'
   },
+  coros: (k: number): string =>
+    `Incluir la voz en los coros (en ${k === 1 ? 'la canción que los tiene' : `las ${k} canciones que los tienen`}, cada una a su volumen)`,
   carpeta: 'Guardar en la carpeta',
   carpetaAria: (ruta: string): string => `Guardar en la carpeta, ${ruta}`,
   cambiar: 'Cambiar…',

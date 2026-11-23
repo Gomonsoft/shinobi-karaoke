@@ -7,6 +7,7 @@ import {
   MINIMO_ANIMADO_MS,
   PANTALLA_PREDETERMINADA,
   RETIRADA_MS,
+  ZONA_OPACIDAD_INACTIVA,
   pasadasEfectivas,
   type Pantalla
 } from '@shared/pantalla'
@@ -67,9 +68,14 @@ export interface FotogramaLetra {
   siguiente: LineaRender | null
   /** Ids visibles en orden: la vista solo vuelve a renderizar React cuando cambia. */
   claveLineas: string
+  /**
+   * Solo en zonas (`subidaAlSalir`): 1 mientras suena una línea de la zona y 0,55 si no, con el cambio
+   * lineal en D (ADR 0029 §4 bis). Ausente fuera de las zonas.
+   */
+  opacidadZona?: number
 }
 
-type ContextoRender = {
+export type ContextoRender = {
   duracionMs: number
   titulo: string
   artista: string
@@ -78,6 +84,11 @@ type ContextoRender = {
   pantalla?: Pantalla
   /** Ausente = completo. Con reducido, todas las duraciones valen 0. */
   movimiento?: 'completo' | 'reducido'
+  /**
+   * Solo para zonas (ADR 0029 §4 bis): sin líneas ya cantadas, el «dos tiempos» dejaría vacío el sitio
+   * de la próxima; la salida de una línea y la subida de la siguiente van en un solo cambio, en el fin.
+   */
+  subidaAlSalir?: boolean
 }
 /** Solo se usa la lista de líneas: una subsecuencia de una letra da fotogramas independientes. */
 type ConLineas = Pick<Letra, 'lineas'>
@@ -120,8 +131,9 @@ export function curvaCambio(x: number): number {
   return 1 - (1 - c) ** 3
 }
 
-export function puestoEn(e: Estado, j: number): number {
+export function puestoEn(e: Estado, j: number, subidaAlSalir = false): number {
   if (e.ocupado) return j - e.a
+  if (subidaAlSalir) return j - e.a - 1
   return j <= e.a ? j - e.a - 1 : j - e.a
 }
 
@@ -340,8 +352,9 @@ export function fotogramaEn(
     }
   }
 
+  const subida = !!ctx.subidaAlSalir
   const bajo = (e: Estado) => (e.ocupado ? e.a - pasadas : e.a + 1 - pasadas)
-  const alto = (e: Estado) => e.a + futuras
+  const alto = (e: Estado) => e.a + futuras + (subida && !e.ocupado ? 1 : 0)
   const cierre = !destino.ocupado && destino.a >= 0 && indice.cierres[destino.a]
   const factorRetirada = cierre ? retiroDe(destino.a) : 1
   for (
@@ -350,8 +363,8 @@ export function fotogramaEn(
     j <= fin;
     j++
   ) {
-    const desde = puestoEn(origen, j)
-    const hacia = puestoEn(destino, j)
+    const desde = puestoEn(origen, j, subida)
+    const hacia = puestoEn(destino, j, subida)
     if (!enRango(desde) && !enRango(hacia)) continue
     const retirada = cierre && j <= destino.a ? factorRetirada : 1
     if (retirada <= 0) continue
@@ -400,15 +413,36 @@ export function fotogramaEn(
         )
       : null,
     siguiente: sigLinea ? dibujar(sigLinea, 0, () => 0) : null,
-    claveLineas: salida.map((l) => l.id).join(',')
+    claveLineas: salida.map((l) => l.id).join(','),
+    ...(subida && { opacidadZona: opacidadDeZona(indice.cambioMs, t, previa, fin) })
   }
+}
+
+/** Opacidad de una zona (ADR 0029 §4 bis): 1 suena una línea suya, 0,55 si no; lineal en `D`, instantánea con 0. */
+function opacidadDeZona(
+  cambioMs: number,
+  t: number,
+  previa: LineaConInicio | undefined,
+  fin: number
+): number {
+  const baja = ZONA_OPACIDAD_INACTIVA
+  if (!previa) return baja
+  if (t < fin) {
+    const sube = cambioMs === 0 ? 1 : progreso(t, previa.inicio_ms, previa.inicio_ms + cambioMs)
+    return baja + (1 - baja) * sube
+  }
+  const cae = cambioMs === 0 ? 1 : progreso(t, fin, fin + cambioMs)
+  return 1 - (1 - baja) * cae
 }
 
 export function fotogramaEstatico(
   letra: ConLineas,
   id: string | null,
-  pantalla: Pantalla = PANTALLA_PREDETERMINADA
+  pantalla: Pantalla = PANTALLA_PREDETERMINADA,
+  /** Zona sin ninguna línea ya cantada: `activa` es si la línea `id` es suya (si no, se ve como próxima). */
+  zona?: { activa: boolean }
 ): FotogramaLetra {
+  const medio = zona && !zona.activa ? 0 : 0.5
   const todas = letra.lineas.filter((l) => l.tipo === 'linea')
   const indice =
     id === null
@@ -419,7 +453,7 @@ export function fotogramaEstatico(
         )
   const actual = todas[indice]
   const siguiente = todas[indice + 1]
-  const mitad = (actual ? (palabrasVisibles(actual)?.length ?? 0) : 0) / 2
+  const mitad = (actual ? (palabrasVisibles(actual)?.length ?? 0) : 0) * medio
   const pasadas = pasadasEfectivas(pantalla)
   const futuras = pantalla.lineas - 1 - pasadas
   const visibles: LineaEnPantalla[] = []
@@ -432,7 +466,7 @@ export function fotogramaEstatico(
     const puesto = j - indice
     const linea = dibujar(
       todas[j]!,
-      puesto === 0 ? 0.5 : puesto < 0 ? 1 : 0,
+      puesto === 0 ? medio : puesto < 0 ? 1 : 0,
       puesto === 0 ? (_p, i) => progreso(mitad, i, i + 1) : () => (puesto < 0 ? 1 : 0)
     )
     visibles.push({
@@ -451,8 +485,9 @@ export function fotogramaEstatico(
     aparicion: 1,
     espera: null,
     esperaAparicion: 0,
-    actual: actual ? dibujar(actual, 0.5, (_p, i) => progreso(mitad, i, i + 1)) : null,
+    actual: actual ? dibujar(actual, medio, (_p, i) => progreso(mitad, i, i + 1)) : null,
     siguiente: siguiente ? dibujar(siguiente, 0, () => 0) : null,
-    claveLineas: visibles.map((l) => l.id).join(',')
+    claveLineas: visibles.map((l) => l.id).join(','),
+    ...(zona && { opacidadZona: zona.activa ? 1 : ZONA_OPACIDAD_INACTIVA })
   }
 }

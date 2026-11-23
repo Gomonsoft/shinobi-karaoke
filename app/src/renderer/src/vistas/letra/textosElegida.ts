@@ -11,6 +11,14 @@ export const TEXTO_ELEGIDA = {
   },
   actual: (origen: string, sync: string, n: number): string =>
     `Letra actual · ${origen} · ${sync} · ${n === 1 ? '1 línea' : `${n} líneas`}`,
+  /** `let.actual.reparto`: «{n} cantantes · {k} líneas de coro»; cada parte solo si existe. */
+  reparto: (cantantes: number, coros: number): string =>
+    [
+      cantantes >= 2 ? `${cantantes} cantantes` : '',
+      coros > 0 ? (coros === 1 ? '1 línea de coro' : `${coros} líneas de coro`) : ''
+    ]
+      .filter(Boolean)
+      .join(' · '),
   vacia: 'Sin letra todavía. Escribe o pega aquí la letra, o busca otra.',
   demasiadoLarga: 'El texto es demasiado largo para ser una letra. Este cambio no se ha guardado.',
   errorListaSinLineas:

@@ -1,7 +1,13 @@
 import { useEffect, useEffectEvent, useState } from 'react'
+import type { PuntoEnvolvente } from '@shared/coros'
 import { MotorAudio, type EstadoMotor, type OpcionesMotor } from './motorAudio'
 
-export function useMotorAudio(opciones: OpcionesMotor): {
+export function useMotorAudio(
+  opciones: OpcionesMotor & {
+    /** Voz en los coros de la canción (`envolvente(tramosCoro(letra), nivel)`); `[]` o ausente = sin coros. */
+    coros?: readonly PuntoEnvolvente[]
+  }
+): {
   motor: MotorAudio | null
   estado: EstadoMotor | null
 } {
@@ -33,6 +39,9 @@ export function useMotorAudio(opciones: OpcionesMotor): {
   }, [cancionId, gananciaDb, crearContexto, fetch, ahoraPerf, maxBuffers])
 
   const motor = actual?.motor ?? null
+  // La clave evita reiniciar la espera de 300 ms cuando el llamante entrega un arreglo nuevo igual.
+  const clave = JSON.stringify(opciones.coros ?? [])
+  useEffect(() => motor?.fijarCoros(JSON.parse(clave) as PuntoEnvolvente[]), [motor, clave])
   useEffect(() => motor?.fijarVolumen(volumen), [motor, volumen])
 
   return actual ?? { motor: null, estado: null }

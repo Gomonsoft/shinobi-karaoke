@@ -1,4 +1,4 @@
-import type { Pantalla, TransicionPantalla } from '@shared/pantalla'
+import { zonasEfectivas, type Pantalla, type TransicionPantalla } from '@shared/pantalla'
 
 /** Textos de «Letra en pantalla» (spec 06 · Feature 1, claves `edi.pantalla.*`). */
 const CAMBIO: Record<TransicionPantalla, string> = {
@@ -29,10 +29,22 @@ export const T_PANTALLA = {
     const siguientes = futuras === 1 ? 'la siguiente' : `las ${futuras} siguientes`
     return `Se ven la línea que suena${cantadas} y ${siguientes}.`
   },
-  resumenCorto: (p: Pantalla, pasadas: number): string => {
+  /** `voces`: la canción tiene reparto; el resumen añade « · en zonas» o « · en un bloque». */
+  resumenCorto: (p: Pantalla, pasadas: number, voces = false): string => {
     const cantadas = pasadas === 0 ? '' : pasadas === 1 ? ' · 1 ya cantada' : ' · 2 ya cantadas'
-    return `${p.lineas} líneas${cantadas} · ${CAMBIO[p.transicion]}`
+    const sufijo = !voces ? '' : zonasEfectivas(p) === 'una' ? ' · en un bloque' : ' · en zonas'
+    return `${p.lineas} líneas${cantadas} · ${CAMBIO[p.transicion]}${sufijo}`
   },
+  voces: 'Varias voces',
+  vocesOpciones: {
+    por_parte: ['Cada una en su zona', 'Cada cantante y el coro tienen su franja en la pantalla.'],
+    una: [
+      'Todas en un bloque',
+      'Las líneas se suceden en un solo bloque; cada voz con su color y su inicial.'
+    ]
+  } as Record<'por_parte' | 'una', [string, string]>,
+  zonas:
+    'Esta canción tiene varias voces: cada una se ve en su zona, con su línea y la siguiente. «Líneas a la vez» y «Líneas ya cantadas» no se aplican; «Cambio de línea» sí.',
   reducido:
     'Tu sistema pide reducir el movimiento: en este equipo las líneas cambiarán sin animación.',
   origen: (procedencia: string, tema: string | null): string =>

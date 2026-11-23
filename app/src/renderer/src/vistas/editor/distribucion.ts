@@ -27,6 +27,9 @@ const HUECO_BAJO_CABECERA = 8
 const ALTO_DIVISOR_DOCK = ANCHO_DIVISOR
 const ALTO_PISTA_VOZ_DEFECTO = 76
 export const ALTO_PISTA_VOZ_MIN = 48
+/** Carriles por parte (spec 06 · 0.2.3): 32 px, 24 si falta espacio. */
+export const ALTO_CARRIL = 32
+export const ALTO_CARRIL_MIN = 24
 const ALTO_LINEA_TIEMPO_DEFECTO = { normal: 216, compacto: 204 } as const
 const ALTO_BANNER_SYNC_DEFECTO = 140
 
@@ -52,6 +55,10 @@ export interface EntradaDistribucion {
   preferencias: PreferenciasPaneles
   pestana: 'sincronia' | 'estilo' | 'funciones'
   sincronizando: boolean
+  /** Carriles de la línea de tiempo (`carriles(letra).length`); 0 sin reparto (pista única de siempre). */
+  carriles?: number
+  /** Preferencia «Juntar carriles» (`config.editor.carriles_juntos`). */
+  carrilesJuntos?: boolean
 }
 
 export type DivisorEditor = 'lista' | 'panel' | 'dock'
@@ -67,6 +74,13 @@ export interface Distribucion {
     alto: number
     /** Parte del alto expandido que corresponde a la pista de voz y líneas. */
     altoPistaVoz: number
+    /** Alto de las filas que no son la pista (controles, regla, vista general): lo que no crece. */
+    altoFilasFijas: number
+    /** Alto efectivo de cada carril (32, o 24 si falta espacio); 0 sin carriles visibles. */
+    altoCarril: number
+    /** Los carriles se ven en una sola pista: por la preferencia o solos por falta de espacio. */
+    carrilesJuntos: boolean
+    carrilesJuntosPorEspacio: boolean
     minimizado: boolean
     minimizadoPorEspacio: boolean
     min: number
@@ -78,7 +92,7 @@ export interface Distribucion {
 const acotar = (v: number, min: number, max: number): number => Math.min(Math.max(v, min), max)
 
 export function calcularDistribucion(e: EntradaDistribucion): Distribucion {
-  const { medidas, preferencias, pestana, sincronizando } = e
+  const { medidas, preferencias, pestana, sincronizando, carriles = 0 } = e
   const compacto = medidas.alto + ALTO_BARRA_APP < ALTO_COMPACTO_DESDE
   const modo = compacto ? 'compacto' : 'normal'
 
@@ -130,6 +144,10 @@ export function calcularDistribucion(e: EntradaDistribucion): Distribucion {
     visible,
     alto: 0,
     altoPistaVoz: 0,
+    altoFilasFijas: filasFijas,
+    altoCarril: 0,
+    carrilesJuntos: carriles > 0 && Boolean(e.carrilesJuntos),
+    carrilesJuntosPorEspacio: false,
     minimizado: false,
     minimizadoPorEspacio: false,
     min: minLT,
@@ -150,11 +168,26 @@ export function calcularDistribucion(e: EntradaDistribucion): Distribucion {
   } else {
     const disponible = medidas.alto - base - ALTO_DIVISOR_DOCK - ALTO_MIN_ZONA_SUPERIOR
     const maxLT = Math.min(lim.linea_tiempo.max, disponible)
+    // Qué cede primero (2a y 2b): los carriles bajan de 32 a 24 px y, si aún no caben, se juntan solos.
+    // Es un alto efectivo: la preferencia guardada no se toca.
+    let altoCarril = 0
+    if (carriles > 0 && !e.carrilesJuntos) {
+      const pistaMax = maxLT - filasFijas
+      if (carriles * ALTO_CARRIL <= pistaMax) altoCarril = ALTO_CARRIL
+      else if (carriles * ALTO_CARRIL_MIN <= pistaMax) altoCarril = ALTO_CARRIL_MIN
+      else {
+        linea.carrilesJuntos = true
+        linea.carrilesJuntosPorEspacio = true
+      }
+    }
+    linea.altoCarril = altoCarril
+    const pistaCarriles = altoCarril * carriles
+    const minLTCarriles = Math.max(minLT, filasFijas + pistaCarriles)
     const sinEspacio = maxLT < minLT
-    const preferido = Math.max(preferencias.linea_tiempo.alto ?? defectoLT, minLT)
-    const efectivo = sinEspacio ? minLT : Math.min(preferido, maxLT)
-    linea.min = minLT
-    linea.max = Math.max(minLT, maxLT)
+    const preferido = Math.max(preferencias.linea_tiempo.alto ?? defectoLT, minLTCarriles)
+    const efectivo = sinEspacio ? minLT : Math.min(preferido, Math.max(maxLT, minLTCarriles))
+    linea.min = minLTCarriles
+    linea.max = Math.max(minLTCarriles, maxLT)
     linea.altoPistaVoz = efectivo - filasFijas
     linea.minimizadoPorEspacio = sinEspacio
     linea.minimizado = preferencias.linea_tiempo.minimizado || sinEspacio

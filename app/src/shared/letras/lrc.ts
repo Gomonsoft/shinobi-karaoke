@@ -6,6 +6,7 @@ import {
   type Palabra
 } from '../letra'
 import { textoEnPantalla } from '../reparto'
+import { gruposParaLrc } from '../solapes'
 import { comprobarTamanoTexto, limpiarTexto, normalizarLetra, type GeneradorId } from './normalizar'
 
 const MARCA_LINEA = /^\[(\d+):(\d{2})(?:[.:](\d{1,3}))?\]/
@@ -238,7 +239,7 @@ const valorEtiqueta = (texto: string): string => texto.replace(/[\r\n\]]+/g, ' '
  * Las pausas no se escriben aparte y las líneas sin inicio se omiten. Sin tiempos por palabra.
  */
 export function exportarLrc(
-  letra: Pick<Letra, 'lineas' | 'offset_ms'>,
+  letra: Pick<Letra, 'lineas' | 'offset_ms'> & Partial<Pick<Letra, 'partes'>>,
   opciones: OpcionesExportarLrc
 ): string {
   const segundos = Math.max(0, Math.round(opciones.duracionMs / 1000))
@@ -254,12 +255,16 @@ export function exportarLrc(
 
   const marca = (ms: number): string => formatear(Math.max(0, ms + letra.offset_ms), '[', ']')
   const lineas = letra.lineas
+  // Voces a la vez: una sola marca vacía por grupo de líneas solapadas, tras la última del grupo (ADR 0029 §7).
+  const grupos = gruposParaLrc(letra, opciones.duracionMs)
   lineas.forEach((e, i) => {
     if (e.tipo !== 'linea' || e.inicio_ms === null) return
     // Sin partes; el coro va entre paréntesis (sin duplicarlos) para que al importar se reconozca (ADR 0029 §2).
     const { texto, parentesis } = textoEnPantalla(e)
     salida.push(`${marca(e.inicio_ms)}${parentesis ? `(${texto})` : texto}`)
-    const fin = finEfectivo(letra, e.id, opciones.duracionMs)
+    const grupo = grupos.get(e.id)
+    if (grupo && grupo.finMs < 0) return
+    const fin = grupo ? grupo.finMs : finEfectivo(letra, e.id, opciones.duracionMs)
     if (fin === null) return
     const siguiente = lineas.slice(i + 1).find((x) => x.tipo === 'linea' && x.inicio_ms !== null)
     if (!siguiente || siguiente.inicio_ms! - fin >= HUECO_MARCA_VACIA_MS) salida.push(marca(fin))

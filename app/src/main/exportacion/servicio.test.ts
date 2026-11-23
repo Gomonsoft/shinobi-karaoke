@@ -1473,6 +1473,17 @@ describe('voz en los coros (0.2.3, ADR 0030 §5)', () => {
     ])
   })
 
+  it('el estado de la exportación dice a qué nivel lleva la voz de los coros (y nada si no la lleva)', async () => {
+    const con = montar({ canciones: { [ID_A]: conCoros(ID_A, 0.35) } })
+    const r = await iniciar(con, ID_A, { coros: true })
+    await hasta(() => con.ultimo(r.trabajoId)?.estado === 'terminada')
+    expect(con.ultimo(r.trabajoId)!.corosNivel).toBe(0.35)
+    const sin = montar({ canciones: { [ID_A]: conCoros(ID_A, 0.35) } })
+    const s = await iniciar(sin, ID_A, { coros: false })
+    await hasta(() => sin.ultimo(s.trabajoId)?.estado === 'terminada')
+    expect(sin.ultimo(s.trabajoId)).not.toHaveProperty('corosNivel')
+  })
+
   it('regresión 0.2.2: sin la casilla (o ausente) el audio del worker es el de siempre', async () => {
     for (const coros of [undefined, false]) {
       const m = montar({ canciones: { [ID_A]: conCoros(ID_A) } })

@@ -487,6 +487,14 @@ describe('reemplazo_pantalla (ADR 0022 §1)', () => {
       expect(r.procedenciaPantalla).toBe('cancion')
     }
   })
+  it('0363: `zonas` viaja en el reemplazo (se hereda y se congela con el bloque)', () => {
+    const conZonas: Pantalla = { ...pantalla, zonas: 'una' }
+    const ap: Apariencia = { modo: 'heredar', reemplazo_pantalla: conZonas }
+    expect(aparienciaSchema.parse(ap).reemplazo_pantalla).toEqual(conZonas)
+    const r = resolverApariencia(cancion(ap), indice)
+    expect(r.estilo.pantalla).toEqual(conZonas)
+    expect(r.procedenciaPantalla).toBe('cancion')
+  })
   it('sin reemplazo la procedencia es la del estilo y el estilo no se copia', () => {
     const r = resolverApariencia(cancion({ modo: 'heredar' }), indice)
     expect(r.procedenciaPantalla).toBe('predeterminado')

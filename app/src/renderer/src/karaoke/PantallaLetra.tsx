@@ -22,18 +22,19 @@ import {
 import { Icono } from '../componentes/Icono'
 import estilosComponentes from '../componentes/componentes.module.css'
 import { recorteBarrido } from './barrido'
-import { suelosDeOpacidad } from './contraste'
+import { suelosDeOpacidad, sueloDeContraste } from './contraste'
 import { colorDeLinea, colorDeTextoListo, fondoCss, fondoCssEn, variablesEstilo } from './estiloCss'
 import { disponerBloque } from './pantalla'
-import {
-  fotogramaEn,
-  fotogramaEstatico,
-  type FotogramaLetra,
-  type LineaEnPantalla,
-  type LineaRender
-} from './render'
+import { type FotogramaLetra, type LineaEnPantalla, type LineaRender } from './render'
 import { useMovimientoReducido } from './useMovimientoReducido'
-import { zonasDeLetra, type ZonaLetra } from './zonas'
+import {
+  fotogramasDeZonas,
+  fotogramasEstaticosDeZonas,
+  geometriaDeZonas,
+  pantallaDeZona,
+  zonasDeLetra,
+  type ZonaLetra
+} from './zonas'
 import estilos from './pantallaLetra.module.css'
 
 export interface PantallaLetraProps {
@@ -87,7 +88,7 @@ const MARGEN_SUBRAYADO_EM = 0.19
 type Rol = 'unica' | 'saliente' | 'entrante'
 
 const claveNodo = (zona: string, id: string, rol: Rol): string => `${zona}:${id}:${rol}`
-const claveIndicador = (zona: string, cual: 'barra' | 'cuenta' | 'puntos'): string =>
+const claveIndicador = (zona: string, cual: 'barra' | 'cuenta' | 'puntos' | 'fila'): string =>
   `${zona}#${cual}`
 
 function medirBarridos(nodo: HTMLElement | null, subrayar: boolean): MedicionBarrido[] {
@@ -264,7 +265,15 @@ export function PantallaLetra({
   const { fondo, pantalla } = normalizado
   // Una vez por estilo resuelto, nunca por fotograma (ADR 0022 §4).
   const suelos = useMemo(() => suelosDeOpacidad(estilo, pantalla), [estilo, pantalla])
-  const zonas = useMemo<ZonaLetra[]>(() => zonasDeLetra(letra), [letra])
+  const zonas = useMemo<ZonaLetra[]>(
+    () => zonasDeLetra(letra, { zonas: pantalla.zonas, duracionMs }),
+    [letra, pantalla.zonas, duracionMs]
+  )
+  // Una zona atenuada (55 %) no baja de 3:1 con el fondo (ADR 0029 §4 bis): el suelo de sus dos puestos.
+  const suelosZona = useMemo(() => {
+    const suelo = sueloDeContraste(estilo)
+    return { 0: suelo, 1: suelo }
+  }, [estilo])
   const lineasPorId = useMemo(
     () => new Map(letra.lineas.map((linea) => [linea.id, linea])),
     [letra.lineas]
@@ -292,23 +301,21 @@ export function PantallaLetra({
   const subrayar = barrido && (subrayado ?? !!estilo.letra.subrayar_cantado)
 
   const calcular = (tAudioMs: number): FotogramaLetra[] =>
-    zonas.map((zona) =>
-      fotogramaEn(zona, tAudioMs - letra.offset_ms, {
-        duracionMs,
-        titulo,
-        artista,
-        espera,
-        pantalla,
-        movimiento: reducido ? 'reducido' : 'completo'
-      })
-    )
+    fotogramasDeZonas(zonas, letra, tAudioMs - letra.offset_ms, {
+      duracionMs,
+      titulo,
+      artista,
+      espera,
+      pantalla,
+      movimiento: reducido ? 'reducido' : 'completo'
+    })
 
   const [vivo, setVivo] = useState<FotogramaLetra[] | null>(null)
   const fotogramas: FotogramaLetra[] = fijo
     ? calcular(tiempoFijoMs)
     : reproduciendo
       ? (vivo ?? calcular(0))
-      : zonas.map((zona) => fotogramaEstatico(zona, idEstatico, pantalla))
+      : fotogramasEstaticosDeZonas(zonas, letra, idEstatico, pantalla)
   const vivoConReloj = reproduciendo && !!obtenerTiempoAudio && !fijo
   const claveRender = claveDe(fotogramas)
   const enTitulo = fotogramas.length > 0 && fotogramas.every((f) => f.titulo)
@@ -333,19 +340,28 @@ export function PantallaLetra({
           nodo?.style.setProperty(nombre, valor)
         return nodo
       }
+      const geometria = geometriaDeZonas(zonas, {
+        altoPx: alto,
+        minimoTamanoPx: vistaPrevia ? 0 : undefined
+      })
       zonas.forEach((zona, i) => {
         const f = actual[i]
         if (!f || f.titulo) return
+        const g = geometria[zona.id]!
         const bloque = disponerBloque({
           lineas: f.lineas,
           alturas: alturas.current,
-          pantalla,
-          region: { y0Px: zona.region.y0 * alto, altoPx: zona.region.alto * alto },
+          pantalla: pantallaDeZona(pantalla, zona),
+          region: g.region,
           altoPantallaPx: alto,
           minimoTamanoPx: vistaPrevia ? 0 : undefined,
           cambio: f.cambio,
           aparicion: f.aparicion,
-          suelos
+          suelos: zona.modo === 'bloque' ? suelos : suelosZona,
+          tamanoPx: g.tamanoPx,
+          ancla: g.ancla,
+          limites: g.limites,
+          opacidadZona: f.opacidadZona
         })
         const porId = new Map(f.lineas.map((l) => [l.id, l]))
         for (const disp of bloque.lineas) {
@@ -364,13 +380,19 @@ export function PantallaLetra({
           }
         }
         const aparece = String(f.esperaAparicion)
-        const { barraY, cuentaY, puntosY } = bloque.indicadores
+        const { barraY, cuentaY, puntosY, filaY } = bloque.indicadores
         const fraccion = String(f.espera?.fraccion ?? 0)
         escribir(claveIndicador(zona.id, 'barra'), {
           '--k-y': `${barraY}px`,
           '--k-fraccion': fraccion,
           opacity: aparece
         })
+        if (filaY !== undefined) {
+          escribir(claveIndicador(zona.id, 'fila'), {
+            '--k-y': `${filaY}px`,
+            '--k-escala-zona': String(g.escala)
+          })
+        }
         escribir(claveIndicador(zona.id, 'cuenta'), { '--k-y': `${cuentaY}px` })
         escribir(claveIndicador(zona.id, 'puntos'), { '--k-y': `${puntosY}px`, opacity: aparece })
       })
@@ -383,6 +405,19 @@ export function PantallaLetra({
   // Medición estable: una vez por línea y tamaño (ADR 0022 §3). `todo` la repite en todos los nodos.
   useLayoutEffect(() => {
     medirRef.current = (todo) => {
+      // El tamaño de cada zona va antes de medir: la altura de una línea es la suya a `S_zona`.
+      const contenedor = raiz.current
+      if (contenedor && zonas.some((z) => z.modo === 'parte')) {
+        const g = geometriaDeZonas(zonas, {
+          altoPx: contenedor.clientHeight,
+          minimoTamanoPx: vistaPrevia ? 0 : undefined
+        })
+        nodos.current.forEach((nodo) => {
+          const zona = nodo.dataset.zona
+          if (nodo.dataset.linea !== undefined && zona && g[zona])
+            nodo.style.setProperty('--k-escala-zona', String(g[zona].escala))
+        })
+      }
       nodos.current.forEach((nodo) => {
         if (nodo.dataset.linea === undefined) return
         if (!todo && medidos.current.has(nodo)) return
@@ -478,16 +513,14 @@ export function PantallaLetra({
     const avanzar = () => {
       const tAudio = obtenerTiempoAudio()
       pintarFondo(tAudio)
-      const f = zonas.map((zona) =>
-        fotogramaEn(zona, tAudio - letra.offset_ms, {
-          duracionMs,
-          titulo,
-          artista,
-          espera,
-          pantalla,
-          movimiento: reducido ? 'reducido' : 'completo'
-        })
-      )
+      const f = fotogramasDeZonas(zonas, letra, tAudio - letra.offset_ms, {
+        duracionMs,
+        titulo,
+        artista,
+        espera,
+        pantalla,
+        movimiento: reducido ? 'reducido' : 'completo'
+      })
       modelo.current = f
       const clave = claveDe(f)
       if (clave !== anterior) setVivo(f)
@@ -511,6 +544,7 @@ export function PantallaLetra({
   }, [
     reproduciendo,
     obtenerTiempoAudio,
+    letra,
     letra.offset_ms,
     zonas,
     duracionMs,
@@ -576,44 +610,67 @@ export function PantallaLetra({
             : colorListo
               ? ({ '--k-indicador': colorListo } as CSSProperties)
               : undefined
+          const barraEl = hueco?.barra && (
+            <div
+              ref={registrar(claveIndicador(zona.id, 'barra'))}
+              className={estilos.barra}
+              data-indicador="barra"
+              aria-hidden="true"
+              style={colorIndicadores}
+            >
+              <div className={estilos.relleno} data-relleno="" />
+            </div>
+          )
+          const cuentaEl = hueco?.cuenta && (
+            <div
+              key={hueco.cuenta}
+              ref={registrar(claveIndicador(zona.id, 'cuenta'))}
+              className={`${estilos.cuentaEspera} ${reducido ? '' : estilos.entraNumero}`}
+              data-indicador="cuenta"
+              {...(fijo && {
+                'data-nace-ms': hueco.destinoMs - hueco.cuenta * 1000 + letra.offset_ms
+              })}
+              aria-hidden="true"
+              style={colorIndicadores}
+            >
+              {hueco.cuenta}
+            </div>
+          )
+          const puntosEl = hueco && hueco.puntos > 0 && (
+            <div
+              ref={registrar(claveIndicador(zona.id, 'puntos'))}
+              className={estilos.puntos}
+              data-indicador="puntos"
+              style={colorIndicadores}
+            >
+              {'●'.repeat(hueco.puntos)}
+            </div>
+          )
+          // En una zona los indicadores van en una fila sobre la próxima línea (spec 07): puntos · barra · cuenta.
+          const activos = [hueco && hueco.puntos > 0, hueco?.barra, hueco?.cuenta].filter(Boolean)
+          const indicadores =
+            zona.modo === 'parte' ? (
+              activos.length > 0 && (
+                <div
+                  ref={registrar(claveIndicador(zona.id, 'fila'))}
+                  className={estilos.filaEspera}
+                  data-fila-espera={activos.length}
+                >
+                  {puntosEl}
+                  {barraEl}
+                  {cuentaEl}
+                </div>
+              )
+            ) : (
+              <>
+                {barraEl}
+                {cuentaEl}
+                {puntosEl}
+              </>
+            )
           return (
             <Fragment key={zona.id}>
-              {hueco?.barra && (
-                <div
-                  ref={registrar(claveIndicador(zona.id, 'barra'))}
-                  className={estilos.barra}
-                  data-indicador="barra"
-                  aria-hidden="true"
-                  style={colorIndicadores}
-                >
-                  <div className={estilos.relleno} data-relleno="" />
-                </div>
-              )}
-              {hueco?.cuenta && (
-                <div
-                  key={hueco.cuenta}
-                  ref={registrar(claveIndicador(zona.id, 'cuenta'))}
-                  className={`${estilos.cuentaEspera} ${reducido ? '' : estilos.entraNumero}`}
-                  data-indicador="cuenta"
-                  {...(fijo && {
-                    'data-nace-ms': hueco.destinoMs - hueco.cuenta * 1000 + letra.offset_ms
-                  })}
-                  aria-hidden="true"
-                  style={colorIndicadores}
-                >
-                  {hueco.cuenta}
-                </div>
-              )}
-              {hueco && hueco.puntos > 0 && (
-                <div
-                  ref={registrar(claveIndicador(zona.id, 'puntos'))}
-                  className={estilos.puntos}
-                  data-indicador="puntos"
-                  style={colorIndicadores}
-                >
-                  {'●'.repeat(hueco.puntos)}
-                </div>
-              )}
+              {indicadores}
               {f.lineas.flatMap((linea) =>
                 copiasDe(f, linea).map((rol) => {
                   const clave = claveNodo(zona.id, linea.id, rol)

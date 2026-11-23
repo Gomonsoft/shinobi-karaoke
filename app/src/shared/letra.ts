@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
-import { MAX_CANTANTES, NOMBRE_MAX, PARTES_ESCRITAS, RANURAS, cantantesDe } from './reparto'
+import {
+  MAX_CANTANTES,
+  NOMBRE_MAX,
+  PARTES_ESCRITAS,
+  RANURAS,
+  cantantesDe,
+  parteDe
+} from './reparto'
 
 const tiempoMs = z.number().int().min(0)
 
@@ -81,6 +88,48 @@ function siguienteConInicio(lineas: readonly ElementoLetra[], desde: number): nu
   return -1
 }
 
+/**
+ * Dos elementos «chocan» si no pueden solaparse (ADR 0029 §7): la misma parte; «todos» con cualquier
+ * cantante (no con el coro); coro con coro; una pausa con todo. Se lee con `parteDe(linea, letra)`
+ * (lectura tolerante, `ctx` aporta los cantantes). Sin reparto todas son `c1` y chocan todas: la regla
+ * es la de 0.2.2.
+ */
+export function chocan(a: ElementoLetra, b: ElementoLetra, ctx?: Pick<Letra, 'partes'>): boolean {
+  if (a.tipo === 'pausa' || b.tipo === 'pausa') return true
+  // Sin `parte` en ninguna es el caso de siempre (las dos son `c1`): sin leer los cantantes.
+  if (a.parte === undefined && b.parte === undefined) return true
+  const pa = parteDe(a, ctx)
+  const pb = parteDe(b, ctx)
+  if (pa === pb) return true
+  if (pa === 'todos') return pb !== 'coro'
+  if (pb === 'todos') return pa !== 'coro'
+  return false
+}
+
+/** Índice del siguiente elemento con inicio que choca con el de `desde`, o -1. */
+export function siguienteQueChoca(
+  lineas: readonly ElementoLetra[],
+  desde: number,
+  ctx?: Pick<Letra, 'partes'>
+): number {
+  for (let i = desde + 1; i < lineas.length; i++) {
+    if (lineas[i]!.inicio_ms !== null && chocan(lineas[desde]!, lineas[i]!, ctx)) return i
+  }
+  return -1
+}
+
+/** Índice del anterior elemento con inicio que choca con el de `desde`, o -1. */
+export function anteriorQueChoca(
+  lineas: readonly ElementoLetra[],
+  desde: number,
+  ctx?: Pick<Letra, 'partes'>
+): number {
+  for (let i = desde - 1; i >= 0; i--) {
+    if (lineas[i]!.inicio_ms !== null && chocan(lineas[desde]!, lineas[i]!, ctx)) return i
+  }
+  return -1
+}
+
 /** Índice del elemento anterior (previo a `desde`) que tiene inicio, o -1. */
 function anteriorConInicio(lineas: readonly ElementoLetra[], desde: number): number {
   for (let i = desde - 1; i >= 0; i--) if (lineas[i]?.inicio_ms != null) return i
@@ -91,7 +140,10 @@ function anteriorConInicio(lineas: readonly ElementoLetra[], desde: number): num
  * Comprueba todos los invariantes de la letra (ADR 0006) y devuelve los
  * problemas encontrados como mensajes comprensibles (vacío si es válida).
  */
-export function validarInvariantesLetra(lineas: readonly ElementoLetra[]): string[] {
+export function validarInvariantesLetra(
+  lineas: readonly ElementoLetra[],
+  ctx?: Pick<Letra, 'partes'>
+): string[] {
   const problemas: string[] = []
   const ids = new Set<string>()
   let inicioPrevio: number | null = null
@@ -121,7 +173,8 @@ export function validarInvariantesLetra(lineas: readonly ElementoLetra[]): strin
       nombrePrevio = nombre
     }
 
-    const sig = siguienteConInicio(lineas, i)
+    // El fin fijado y las palabras no pasan de la siguiente línea que choca (misma parte, etc.; ADR 0029 §7).
+    const sig = siguienteQueChoca(lineas, i, ctx)
     const limite = sig === -1 ? null : (lineas[sig]?.inicio_ms ?? null)
 
     if (el.fin_ms !== null) {
@@ -355,7 +408,7 @@ export const letraSchema = z
     partes: partesSchema.optional().catch(undefined)
   })
   .superRefine((letra, ctx) => {
-    for (const mensaje of validarInvariantesLetra(letra.lineas)) {
+    for (const mensaje of validarInvariantesLetra(letra.lineas, letra)) {
       ctx.addIssue({ code: 'custom', message: mensaje, path: ['lineas'] })
     }
   })
@@ -404,7 +457,7 @@ function contarPalabrasTexto(texto: string): number {
  * min(inicio + 5000, duración).
  */
 export function finEfectivo(
-  letra: Pick<Letra, 'lineas'>,
+  letra: Pick<Letra, 'lineas'> & Partial<Pick<Letra, 'partes'>>,
   id: string,
   duracionMs: number
 ): number | null {
@@ -415,7 +468,7 @@ export function finEfectivo(
   const inicio = el.inicio_ms
 
   if (el.fin_ms !== null) return el.fin_ms
-  const idxSigInicio = siguienteConInicio(lineas, i)
+  const idxSigInicio = siguienteQueChoca(lineas, i, letra)
   const visibles = palabrasVisibles(
     el,
     idxSigInicio === -1 ? null : lineas[idxSigInicio]!.inicio_ms
@@ -484,6 +537,9 @@ export function moverInicioLinea(
 
   const ant = anteriorConInicio(letra.lineas, i)
   const sig = siguienteConInicio(letra.lineas, i)
+  const antChoca = anteriorQueChoca(letra.lineas, i, letra)
+  const sigChoca = siguienteQueChoca(letra.lineas, i, letra)
+  const inicioSigChoca = sigChoca === -1 ? null : letra.lineas[sigChoca]!.inicio_ms!
   const inicioAnt = ant === -1 ? null : letra.lineas[ant]!.inicio_ms!
   const inicioSig = sig === -1 ? null : letra.lineas[sig]!.inicio_ms!
   if (inicioAnt !== null && nuevoInicioMs <= inicioAnt) {
@@ -512,18 +568,22 @@ export function moverInicioLinea(
   descartar(i)
   const actual = lineas[i]!
 
-  if (ant !== -1) {
-    const previa = lineas[ant]!
+  // El fin y las palabras de la anterior que choca (si no hay reparto, la anterior de siempre).
+  if (antChoca !== -1) {
+    const previa = lineas[antChoca]!
     const ultima = previa.palabras?.[previa.palabras.length - 1]
     const pierdeFin = previa.fin_ms !== null && previa.fin_ms > nuevoInicioMs
     if (pierdeFin) {
-      lineas[ant] = { ...previa, fin_ms: null }
+      lineas[antChoca] = { ...previa, fin_ms: null }
       finesAutomaticos.push(previa.id)
     }
-    if (pierdeFin || (ultima && ultima.fin_ms > nuevoInicioMs)) descartar(ant)
+    if (pierdeFin || (ultima && ultima.fin_ms > nuevoInicioMs)) descartar(antChoca)
   }
   if (actual.fin_ms !== null) {
-    if (actual.fin_ms <= nuevoInicioMs || (inicioSig !== null && actual.fin_ms > inicioSig)) {
+    if (
+      actual.fin_ms <= nuevoInicioMs ||
+      (inicioSigChoca !== null && actual.fin_ms > inicioSigChoca)
+    ) {
       lineas[i] = { ...actual, fin_ms: null }
       finesAutomaticos.push(actual.id)
     }

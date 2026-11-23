@@ -129,6 +129,31 @@ describe('guardarTiempos con reparto', () => {
     expect((await enDisco(id)).letra?.lineas[1]).not.toHaveProperty('parte')
   })
 
+  it('regresión 0.2.2: `partes: null` en una canción sin reparto no cambia el archivo', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    const antes = await textoEnDisco(id)
+    await servicio.guardarTiempos({ ...peticion, partes: null }, sesionId)
+    expect(await textoEnDisco(id)).toBe(antes)
+  })
+
+  it('C1S-E4: acepta el fin fijado que pasa de otra parte y rechaza el que pasa de la suya', async () => {
+    const { id, sesionId, peticion } = await abrir()
+    const conFin = (parte: 'c2' | undefined) =>
+      peticion.tiempos.map((t, i) =>
+        i === 2 ? { ...t, fin_ms: 9000, ...(parte ? { parte } : {}) } : t
+      )
+    // «b» es de Luis y acaba a los 9 s, después del inicio de «c» (8 s) que es de Ana: voces a la vez.
+    await servicio.guardarTiempos({ ...peticion, partes: DUO, tiempos: conFin('c2') }, sesionId)
+    const { letra } = await enDisco(id)
+    expect(letra?.lineas[2]).toMatchObject({ fin_ms: 9000, parte: 'c2' })
+    // Si «b» fuera de Ana, el mismo fin pasaría del inicio de la siguiente de su parte.
+    const antes = await textoEnDisco(id)
+    await expect(
+      servicio.guardarTiempos({ ...peticion, partes: DUO, tiempos: conFin(undefined) }, sesionId)
+    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    expect(await textoEnDisco(id)).toBe(antes)
+  })
+
   it('normaliza: un reparto que no aporta nada no deja `partes`', async () => {
     const { id, sesionId, peticion } = await abrir()
     await servicio.guardarTiempos(

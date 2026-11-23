@@ -1,4 +1,5 @@
-import { contarImportantes, detectarDudosas } from '../../shared/dudosas'
+import { contarImportantes } from '../../shared/dudosas'
+import { detectarDudosasSinSolapes } from '../../shared/solapes'
 import type { Letra } from '../../shared/letra'
 import { detectarVoz } from '../../shared/silencios'
 import type { NivelBase } from '../picos/formato'
@@ -22,6 +23,6 @@ export async function contarDudosasGuardadas(
   const nivel = await deps.picos.nivelBase(cancion.id)
   const voz = nivel ? detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }) : null
   const duracionMs = nivel?.duracionMs ?? cancion.metadatos.duracion_ms
-  const d = detectarDudosas(cancion.letra, voz, { duracionMs })
+  const { dudosas: d } = detectarDudosasSinSolapes(cancion.letra, voz, { duracionMs })
   return { dudosas: d.length, importantes: contarImportantes(d) }
 }

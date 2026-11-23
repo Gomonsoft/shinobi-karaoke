@@ -38,4 +38,34 @@ describe('contarDudosasGuardadas', () => {
     expect(await contarDudosasGuardadas(deps, cancion)).toEqual({ dudosas: 0, importantes: 0 })
     expect(await contarDudosasGuardadas(deps, { ...cancion, letra: null })).toBeNull()
   })
+
+  it('con voces a la vez no cuenta las líneas solapadas (la voz mezclada no las explica una a una)', async () => {
+    const duo: Letra = {
+      origen: 'manual',
+      lrclib_id: null,
+      offset_ms: 0,
+      partes: {
+        cantantes: [
+          { id: 'c1', nombre: null },
+          { id: 'c2', nombre: null }
+        ]
+      },
+      // «a» y «b» se pisan; «c» está donde no hay voz y sí se cuenta.
+      lineas: [
+        linea('a', 1000, 5000),
+        { ...linea('b', 2000, 4000), parte: 'c2' as const },
+        linea('c', 7000, 8000)
+      ]
+    }
+    const picos = generarPicos({
+      duracionMs: 10_000,
+      tramos: [{ desdeMs: 1000, hastaMs: 5000, dbfs: -6 }]
+    })
+    const nivel = { pasoMs: picos.pasoMs, pares: picos.pares, duracionMs: 10_000 }
+    const cuenta = await contarDudosasGuardadas(
+      { picos: { nivelBase: async () => nivel } },
+      { id: 'x', letra: duo, metadatos: { duracion_ms: 10_000 } }
+    )
+    expect(cuenta).toEqual({ dudosas: 1, importantes: 1 })
+  })
 })

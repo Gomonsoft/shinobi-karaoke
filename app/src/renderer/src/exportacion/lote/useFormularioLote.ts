@@ -14,6 +14,7 @@ import type { CarpetaDestinoIpc, PrevisualizacionLoteIpc } from '@shared/ipc'
 import { cancionExportable, type CancionExportable } from '../dialogo/cancion'
 import {
   cambiarFormato,
+  corosAplican,
   cambiarProporcion,
   cambiarResolucion,
   normalizar,
@@ -38,7 +39,8 @@ const OPCIONES_INICIALES: OpcionesExportacion = {
   formato: FORMATO_PREDETERMINADO,
   ancho: RESOLUCION_PREDETERMINADA.ancho,
   alto: RESOLUCION_PREDETERMINADA.alto,
-  fps: FPS_PREDETERMINADO
+  fps: FPS_PREDETERMINADO,
+  coros: true
 }
 
 export type CargaLote =
@@ -107,7 +109,8 @@ export function useFormularioLote(
           formato: r?.formato ?? OPCIONES_INICIALES.formato,
           ancho: r?.ancho ?? OPCIONES_INICIALES.ancho,
           alto: r?.alto ?? OPCIONES_INICIALES.alto,
-          fps: r?.fps ?? OPCIONES_INICIALES.fps
+          fps: r?.fps ?? OPCIONES_INICIALES.fps,
+          coros: r?.coros ?? true
         }
         setCanciones(lista.flatMap((x) => (x ? [cancionExportable(x)] : [])))
         setPerfiles(p)
@@ -215,6 +218,11 @@ export function useFormularioLote(
       setOpciones((o) => ({ ...o, audio: a }))
       setError(null)
     },
+    /** Casilla de los coros: se recuerda como la de una canción (`config.exportacion.coros`). */
+    cambiarCoros: (v: boolean) => {
+      setOpciones((o) => ({ ...o, coros: v }))
+      void window.shinobi.config.actualizar({ exportacion: { coros: v } }).catch(() => undefined)
+    },
     cambiarProporcion: (p: Proporcion) =>
       perfiles && aplicar(cambiarProporcion(perfiles, opciones, p)),
     cambiarResolucion: (r: Resolucion) =>
@@ -255,6 +263,10 @@ export function useFormularioLote(
           alto,
           fps,
           audio,
+          // Cada canción usa su nivel; con ninguna que los tenga, no se envía.
+          ...(opciones.coros !== false && canciones.some((c) => corosAplican(audio, c))
+            ? { coros: true }
+            : {}),
           carpetaId: carpeta.carpetaId,
           siExiste
         })

@@ -183,3 +183,13 @@ it('Mayús + ↑/↓ extiende la selección en la lista; sin Mayús mueve una so
   })
   expect(accionDeTecla(tecla('ArrowDown'), lista)).toMatchObject({ extender: false })
 })
+
+it('sin reparto Alt + ↑/↓ no se captura (la canción de un solo cantante no cambia)', () => {
+  expect(
+    accionDeTecla(tecla('ArrowDown', { altKey: true }), {
+      ...opciones,
+      focoEn: 'lista',
+      reparto: false
+    })
+  ).toBeNull()
+})

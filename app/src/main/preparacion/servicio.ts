@@ -10,7 +10,8 @@ import { aplicaPreparar } from '../../shared/derivados'
 import { ESPERA_LEGADA } from '../../shared/espera'
 import { evaluarEncajeConPicos } from '../../shared/encaje'
 import type { CambioPreparacionIpc } from '../../shared/ipc'
-import { detectarVoz, proponerAjusteSilencios } from '../../shared/silencios'
+import { detectarVoz } from '../../shared/silencios'
+import { proponerAjusteSilenciosSinSolapes } from '../../shared/solapes'
 import type { ResultadoBusquedaLetra } from '../../shared/letrasBusqueda'
 import type { EventoCancion, CambioCancion } from '../biblioteca/operaciones'
 import type { BusquedaGuardada } from '../letras/busqueda'
@@ -354,7 +355,7 @@ export class ServicioPreparacion {
       }
       const letra = this.deps.biblioteca.obtener(id)?.letra
       if (!letra) return { motivo: 'NADA_QUE_HACER' }
-      const propuesta = proponerAjusteSilencios(
+      const propuesta = proponerAjusteSilenciosSinSolapes(
         letra,
         detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }),
         {
@@ -736,7 +737,7 @@ export class ServicioPreparacion {
       return
     }
     await this.fijar(c, { paso: 'ajustando_fines' })
-    const propuesta = proponerAjusteSilencios(
+    const propuesta = proponerAjusteSilenciosSinSolapes(
       letra,
       detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }),
       {

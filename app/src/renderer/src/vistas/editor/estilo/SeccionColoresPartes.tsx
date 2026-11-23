@@ -6,7 +6,7 @@ import { Icono } from '../../../componentes/Icono'
 import { SelectorColor } from '../../../componentes/SelectorColor'
 import { SUGERIDOS_LETRA } from '../../../karaoke/colores'
 import estilosPanel from '../panelEstilo.module.css'
-import { ChipParte } from './ChipParte'
+import { ChipParte } from '../ChipParte'
 import estilos from './coloresPartes.module.css'
 import { partesEnUso } from './partesEnUso'
 import { nombreDeParte, T_PARTES as T } from './textosPartes'
@@ -76,7 +76,7 @@ export function SeccionColoresPartes({
     if (parte === 'c1') {
       return (
         <div key={parte} className={`${estilos.fila} ${estilos.filaEnlace}`}>
-          <ChipParte letra={letra} parte={parte} color={color} />
+          <ChipParte letra={letra} parte={parte} color={color} decorativo />
           <button
             type="button"
             className={estilos.enlace}
@@ -91,7 +91,7 @@ export function SeccionColoresPartes({
     }
     return (
       <div key={parte} className={estilos.fila} data-parte-color={parte}>
-        <ChipParte letra={letra} parte={parte} color={color} />
+        <ChipParte letra={letra} parte={parte} color={color} decorativo />
         <SelectorColor
           etiqueta={nombre}
           valor={color}

@@ -289,6 +289,11 @@ function suelo(color: string, muestras: readonly string[]): number {
   return 1
 }
 
+/** Opacidad mínima que da 3:1 con el fondo del estilo al pintar `color` (el suelo de una zona atenuada). */
+export function sueloDeContraste(estilo: Estilo, color: string = estilo.letra.color): number {
+  return suelo(color, muestrasFondo(normalizarEstilo(estilo).fondo))
+}
+
 /**
  * Se calcula una vez por estilo resuelto, nunca por fotograma. `colorLetra` es el color con el que
  * se pintan las líneas (en 0.2.2, `estilo.letra.color`); es un parámetro para que 0.2.3 pueda pasar

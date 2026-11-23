@@ -46,7 +46,7 @@
  */
 .linea {
   top: 0;
-  font-size: calc(var(--k-tamano) * var(--k-reduccion, 1));
+  font-size: calc(var(--k-tamano) * var(--k-escala-zona, 1) * var(--k-reduccion, 1));
   opacity: var(--k-opacidad, 0);
   transform: translateY(calc(var(--k-y, 0px) - 50%)) scale(var(--k-escala, 1));
   color: color-mix(
@@ -248,4 +248,63 @@
 /* El movimiento lo decide el componente (`data-movimiento`): el del sistema o el que fija la exportación. Solo queda la entrada del número de la cuenta. */
 .raiz[data-movimiento='reducido'] .entraNumero {
   animation: none;
+}
+
+/*
+ * Zonas por parte: los indicadores van en una fila centrada sobre la próxima línea (puntos · barra ·
+ * cuenta, solo los activos), a la altura que escribe el componente en `--k-y`. Nunca sobre el texto.
+ */
+.filaEspera {
+  position: absolute;
+  top: var(--k-y, 0px);
+  left: 0;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--k-tamano) * var(--k-escala-zona, 1) * 0.5);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.filaEspera .puntos,
+.filaEspera .cuentaEspera,
+.filaEspera .barra {
+  position: static;
+  width: auto;
+  transform: none;
+}
+
+.filaEspera .puntos {
+  font-size: calc(var(--k-tamano) * var(--k-escala-zona, 1) * 0.35);
+}
+
+.filaEspera .cuentaEspera {
+  font-size: calc(var(--k-tamano) * var(--k-escala-zona, 1) * 0.6);
+  line-height: 1;
+}
+
+.filaEspera .barra {
+  width: 40%;
+}
+
+.filaEspera[data-fila-espera='2'] .barra,
+.filaEspera[data-fila-espera='3'] .barra {
+  width: 25%;
+}
+
+.filaEspera .entraNumero {
+  animation-name: entraNumeroFila;
+}
+
+@keyframes entraNumeroFila {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }

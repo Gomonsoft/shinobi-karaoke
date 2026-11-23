@@ -1,3 +1,4 @@
+import { nivelEn, type PuntoEnvolvente } from '@shared/coros'
 import { gananciaLineal, urlPista, type Pista } from './pistas'
 import { ctxOidoEn, msCancionEn, type Anclaje } from './reloj'
 
@@ -63,6 +64,10 @@ export class MotorReproductor {
   private gananciaVoz: GainNode | null = null
   private gananciaGeneral: number
   private nivelVoz: number
+  /** Envolvente de la voz en los coros (ADR 0030): `[]` = sin coros, la ganancia es la de siempre. */
+  private coros: readonly PuntoEnvolvente[] = []
+  /** La ganancia de la voz tiene sucesos programados que habría que cancelar. */
+  private vozProgramada = false
   private carga: Promise<void> | null = null
   private principal: AudioBuffer | null = null
   private voz: AudioBuffer | null = null
@@ -125,6 +130,7 @@ export class MotorReproductor {
         this.gananciaVoz = contexto.createGain()
         this.gananciaVoz.gain.value = this.nivelVoz
         this.gananciaVoz.connect(this.maestra)
+        this.programarVoz(contexto.currentTime)
       }
     } catch (error) {
       this.publicar({ cargando: false, errorPrincipal: this.errorDePrincipal(error) })
@@ -231,6 +237,8 @@ export class MotorReproductor {
       this.posicionEnPausa = duracionMs
       this.publicar({ sonando: false, finalizado: true })
     }
+    // La envolvente va con el mismo anclaje que las fuentes: sin desfase entre voz y nivel.
+    this.programarVoz(ctxInicio)
     principal.start(cuando, offset)
     voz?.start(cuando, offset)
     if (this.voz && this.voz.duration * 1000 > duracionMs) {
@@ -291,7 +299,45 @@ export class MotorReproductor {
 
   fijarVoz(v: number, silenciada: boolean): void {
     this.nivelVoz = silenciada ? 0 : v
-    if (this.gananciaVoz) this.gananciaVoz.gain.value = this.nivelVoz
+    if (!this.gananciaVoz) return
+    if (this.coros.length === 0 && !this.vozProgramada) this.gananciaVoz.gain.value = this.nivelVoz
+    else this.programarVoz(this.contexto!.currentTime)
+  }
+
+  /** Puntos `[ms, nivel]` de la voz en los coros (`shared/coros`); `[]` quita los coros. */
+  fijarCoros(puntos: readonly PuntoEnvolvente[]): void {
+    this.coros = puntos
+    if (this.gananciaVoz) this.programarVoz(this.contexto!.currentTime)
+  }
+
+  /**
+   * Programa la ganancia de la voz desde `ctxAhora`: `máx(voz guía efectiva, envolvente)` en el instante
+   * y una rampa lineal hasta cada punto futuro, en el reloj del contexto y con el anclaje de las fuentes.
+   * Sin coros es la ganancia fija de siempre (ADR 0030 §3).
+   */
+  private programarVoz(ctxAhora: number): void {
+    const ganancia = this.gananciaVoz?.gain
+    if (!ganancia) return
+    if (this.coros.length === 0) {
+      if (this.vozProgramada) {
+        ganancia.cancelScheduledValues(ctxAhora)
+        this.vozProgramada = false
+      }
+      ganancia.value = this.nivelVoz
+      return
+    }
+    const anclaje = this.reproduccion?.anclaje
+    const msAhora = anclaje ? msCancionEn(ctxAhora, anclaje) : this.posicionEnPausa
+    const ctxDe = (ms: number): number =>
+      anclaje
+        ? anclaje.ctxInicio + (ms - anclaje.posInicioMs) / 1000
+        : ctxAhora + (ms - msAhora) / 1000
+    ganancia.cancelScheduledValues(ctxAhora)
+    ganancia.setValueAtTime(Math.max(this.nivelVoz, nivelEn(this.coros, msAhora)), ctxAhora)
+    for (const [ms, nivel] of this.coros) {
+      if (ms > msAhora) ganancia.linearRampToValueAtTime(Math.max(this.nivelVoz, nivel), ctxDe(ms))
+    }
+    this.vozProgramada = true
   }
 
   destruir(): void {

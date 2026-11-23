@@ -1,5 +1,6 @@
 import {
   borrarTiemposLinea,
+  chocan,
   contarLineas,
   finEfectivo,
   moverInicioLinea,
@@ -122,7 +123,10 @@ function limitarFin(
   const { indice, linea } = buscarLinea(letra, id)
   if (linea.inicio_ms === null) return resultado(letra)
   const min = linea.inicio_ms + 1
-  const max = vecinoConInicio(letra, indice, 1)?.inicio_ms ?? duracionMs
+  // Un fin fijado puede pasar del inicio de una línea de otra parte, no del de la siguiente que choca.
+  const max =
+    letra.lineas.slice(indice + 1).find((e) => e.inicio_ms !== null && chocan(linea, e, letra))
+      ?.inicio_ms ?? duracionMs
   let limite: Limite | null = null
   if (ms < min) limite = { tipo: 'fin_antes_del_inicio' }
   else if (ms > max) limite = { tipo: 'fin_siguiente' }

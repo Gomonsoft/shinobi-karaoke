@@ -28,7 +28,7 @@ import { fondoCss } from '../../karaoke/estiloCss'
 import { buscarFuente } from '@shared/fuentes'
 import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from './SeccionTema'
 import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
-import { ChipParte } from './estilo/ChipParte'
+import { ChipParte } from './ChipParte'
 import { paradasRepartidas } from './estilo/paradas'
 import { SeccionColoresPartes, partesVisibles } from './estilo/SeccionColoresPartes'
 import { nombreDeParte, T_PARTES as TP } from './estilo/textosPartes'
@@ -160,7 +160,12 @@ function ResumenSoloLectura({
             <dd>
               {partes.map((parte) => (
                 <span key={parte} className={estilos.colorResumen}>
-                  <ChipParte letra={cancion} parte={parte} color={colorDeParte(estilo, parte)} />
+                  <ChipParte
+                    letra={cancion}
+                    parte={parte}
+                    color={colorDeParte(estilo, parte)}
+                    decorativo
+                  />
                   <span
                     className={estilos.muestraColor}
                     style={{ background: colorDeParte(estilo, parte) }}

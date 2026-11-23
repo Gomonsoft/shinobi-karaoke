@@ -219,3 +219,13 @@ describe('reparto en el reducer', () => {
     expect(puedeDeshacer(ritmo)).toBe(false)
   })
 })
+
+it('asignar una parte nunca llega a una pausa', () => {
+  const e = aplicar(
+    simple(),
+    { tipo: 'anadir_cantante', ahora },
+    { tipo: 'asignar_parte', parte: 'coro', ids: ['p', 'a'], ahora }
+  )
+  expect(e.actual.letra.lineas.find((l) => l.id === 'p')).not.toHaveProperty('parte')
+  expect(e.actual.letra.lineas.find((l) => l.id === 'a')?.parte).toBe('coro')
+})

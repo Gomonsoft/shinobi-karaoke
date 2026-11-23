@@ -61,13 +61,24 @@ import { useExportarDesdeEditor } from './useExportarDesdeEditor'
 import { exportarLetras } from '../biblioteca/paquete/letras'
 import { LRC } from '../biblioteca/paquete/textos'
 import { EXP_GUARDADO, EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
-import { cantantesDe, parteDe, tieneReparto, type Parte } from '@shared/reparto'
+import {
+  carriles as carrilesDe,
+  cantantesDe,
+  lineasEntreParentesis,
+  parteDe,
+  recuentoPorParte,
+  tieneReparto,
+  vozEnCoros as nivelVozEnCoros,
+  type Parte
+} from '@shared/reparto'
 import { useSesion } from '../../sesion/ProveedorSesion'
 import { ChipParte } from './ChipParte'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { MenuQuienCanta, type AnclaMenu } from './MenuQuienCanta'
-import { etiquetaParte, P, parteComun, parteVecina, ranuraDe } from './partes'
+import { C, etiquetaParte, P, parteComun, parteVecina, ranuraDe } from './partes'
+import { VozEnCoros } from './VozEnCoros'
+import { envolvente, tramosCoro } from '@shared/coros'
 import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
 import { partesEnUso } from './estilo/partesEnUso'
@@ -398,7 +409,13 @@ function EditorActivo({
   const { preferencias, actualizar: actualizarPaneles } = usePreferenciasPaneles(
     config.editor.paneles
   )
+  // «Juntar carriles»: preferencia de todas las canciones (`config.editor.carriles_juntos`).
+  const [carrilesJuntosPref, setCarrilesJuntosPref] = useState(config.editor.carriles_juntos)
+  const carrilesVisibles = useMemo(() => carrilesDe(letra), [letra])
+  const cancelarArrastreRegion = useRef<(() => boolean) | null>(null)
   const distribucion = useDistribucion({
+    carriles: carrilesVisibles.length,
+    carrilesJuntos: carrilesJuntosPref,
     raiz: refRaiz,
     cabecera: refCabecera,
     dock: refDock,
@@ -421,7 +438,13 @@ function EditorActivo({
   const bucle = useRef<{ previa: number; sonaba: boolean | null } | null>(null)
   const cancelarEntradaBucle = useRef<(() => void) | null>(null)
   const volumen = useVolumenCompartido(config.reproductor)
+  // Voz en los coros (ADR 0030): la envolvente de los coros de la letra; el motor deriva «Instrumental con coros».
+  const coros = useMemo(
+    () => envolvente(tramosCoro(letra, metadatos.duracion_ms), nivelVozEnCoros(letra)),
+    [letra, metadatos.duracion_ms]
+  )
   const { motor, estado: audio } = useMotorAudio({
+    coros,
     cancionId: id,
     gananciaDb: cancion.fuente.ganancia_db ?? 0,
     volumen: volumen.silenciado ? 0 : volumen.volumen
@@ -711,7 +734,8 @@ function EditorActivo({
       ejemploPantalla.alternar()
     },
     sonando,
-    movimientoReducido
+    movimientoReducido,
+    reparto: tieneReparto(letra)
   })
   // Con un ejemplo en marcha, la vista previa enseña el suyo (el de pantalla, sin indicadores).
   const ejemploVista = ejemploEspera.ejemplo ? ejemploEspera : ejemploPantalla
@@ -1014,6 +1038,15 @@ function EditorActivo({
       botones?.[0]
     enfocarFunciones.current = false
     boton?.focus({ preventScroll: true })
+  })
+  // El foco al nombre de un cantante gana al «primer botón» de arriba: va después.
+  useLayoutEffect(() => {
+    const id = pedirFocoNombre.current
+    if (!id || panelMinimizado || pestana !== 'funciones') return
+    const campo = refRaiz.current?.querySelector<HTMLElement>(`[data-nombre-cantante="${id}"]`)
+    if (!campo) return
+    pedirFocoNombre.current = null
+    campo.focus({ preventScroll: false })
   })
   useLayoutEffect(() => {
     if (!enfocarTituloEstado.current || resumen.estado !== 'borrador') return
@@ -1416,9 +1449,8 @@ function EditorActivo({
   }
 
   /** Asigna la selección a `parte` en un paso y lo anuncia; `agrupar` junta las pulsaciones de Alt + ↑/↓. */
-  function asignarParte(parte: Parte, agrupar = false): boolean {
+  function asignarParte(parte: Parte, agrupar = false, ids = edicion.seleccionadas): boolean {
     if (!repartoEditable) return false
-    const ids = edicion.seleccionadas
     const accion = { tipo: 'asignar_parte', parte, ids, agrupar, ahora: performance.now() } as const
     const siguiente = reducirEditor(edicion, accion)
     if (siguiente.version === edicion.version) return false
@@ -1458,6 +1490,144 @@ function EditorActivo({
       )
     }
     cerrarMenuPartes(true)
+  }
+  /** Soltar regiones en un carril (o en «+ Nuevo cantante»): un paso, como asignar con el menú. */
+  function asignarDesdeArrastre(destino: Parte | 'nuevo', ids: string[]) {
+    if (!repartoEditable) return
+    if (destino !== 'nuevo') {
+      asignarParte(destino, false, ids)
+      return
+    }
+    const accion = { tipo: 'anadir_cantante', asignarA: ids, ahora: performance.now() } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return
+    const antes = new Set(cantantesDe(letra).map((c) => c.id))
+    const nuevo = cantantesDe(siguiente.actual.letra).find((c) => !antes.has(c.id))
+    despachar(accion)
+    if (nuevo) {
+      anunciar(P.anuncioNuevo(etiquetaParte(siguiente.actual.letra, nuevo.id), ids.length))
+    }
+  }
+  // --- Funciones › «Cantantes y coros» ---
+  /** Nombre del cantante al que irá el foco cuando la sección esté a la vista (la consume el efecto de abajo). */
+  const pedirFocoNombre = useRef<Parte | null>(null)
+  /** «Repartir entre varios» y «+ Añadir cantante» de Funciones: crean el cantante sin líneas y enfocan su nombre. */
+  function anadirCantanteSinLineas() {
+    if (!repartoEditable) return
+    const accion = { tipo: 'anadir_cantante', ahora: performance.now() } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return
+    const antes = new Set(cantantesDe(letra).map((c) => c.id))
+    const nuevo = cantantesDe(siguiente.actual.letra).find((c) => !antes.has(c.id))
+    despachar(accion)
+    if (nuevo) {
+      pedirFocoNombre.current = nuevo.id
+      anunciar(P.anuncioNuevo(etiquetaParte(siguiente.actual.letra, nuevo.id)))
+    }
+  }
+  function quitarCantanteDeLaCancion(id: Parte) {
+    if (!repartoEditable) return
+    const nombre = etiquetaParte(letra, id)
+    despachar({ tipo: 'quitar_cantante', id, ahora: performance.now() })
+    const mensaje = P.quitado(nombre, etiquetaParte(letra, 'c1'))
+    mostrarToast({
+      tipo: 'info',
+      mensaje,
+      accion: { etiqueta: 'Deshacer', alAccionar: () => despachar({ tipo: 'deshacer' }) }
+    })
+    anunciar(mensaje)
+  }
+  function verLineasDeParte(parte: Parte) {
+    const ids = letra.lineas
+      .filter((l) => l.tipo === 'linea' && parteDe(l, letra) === parte)
+      .map((l) => l.id)
+    if (ids.length === 0) return
+    despachar({ tipo: 'seleccionar_ids', ids })
+    setRevisionSeleccion((n) => n + 1)
+    setFocoLinea((n) => n + 1)
+  }
+  function marcarSugeridasComoCoro() {
+    if (!repartoEditable) return
+    const n = lineasEntreParentesis(letra).length
+    if (n === 0) return
+    despachar({ tipo: 'marcar_como_coro', ahora: performance.now() })
+    anunciar(P.anuncio(n, P.coro))
+  }
+  // --- Voz en los coros (0365) ---
+  const hayCoros = recuentoPorParte(letra).coro > 0
+  const [escuchandoCoro, setEscuchandoCoro] = useState(false)
+  const coroEnCurso = useRef<{ previaMs: number; arrancado: boolean } | null>(null)
+  /** Termina «Escuchar un coro»: pausa y devuelve el cabezal a donde estaba. */
+  function terminarCoro(detener: boolean) {
+    const c = coroEnCurso.current
+    if (!c) return false
+    coroEnCurso.current = null
+    setEscuchandoCoro(false)
+    if (detener) motor?.pausar()
+    motor?.buscar(c.previaMs)
+    return true
+  }
+  useEffect(() => {
+    if (!motor) return
+    return motor.suscribir((e) => {
+      const c = coroEnCurso.current
+      if (!c) return
+      if (e.sonando) c.arrancado = true
+      else if (c.arrancado) {
+        coroEnCurso.current = null
+        setEscuchandoCoro(false)
+        motor.buscar(c.previaMs)
+      }
+    })
+  }, [motor])
+  // El error de la mezcla avisa una sola vez por visita; el instrumental suena sin los coros.
+  const avisoCorosError = useRef(false)
+  const corosError = audio?.corosError === true
+  useEffect(() => {
+    if (!corosError || avisoCorosError.current) return
+    avisoCorosError.current = true
+    mostrarToast({ tipo: 'aviso', mensaje: C.error })
+  }, [corosError])
+  /** «Escuchar un coro»: de 2 s antes de la siguiente línea de coro (o la primera) a 1 s después de su fin. */
+  async function escucharUnCoro() {
+    if (!motor || edicion.sync.activo) return
+    if (terminarCoro(true)) return
+    const delCoro = letra.lineas.filter(
+      (l) => l.tipo === 'linea' && l.inicio_ms !== null && parteDe(l, letra) === 'coro'
+    )
+    const previaMs = obtenerTiempoAudio()
+    const siguiente = delCoro.find((l) => l.inicio_ms! + letra.offset_ms >= previaMs) ?? delCoro[0]
+    if (!siguiente) return
+    const fin = finEfectivo(letra, siguiente.id, duracionMs)
+    if (fin === null) return
+    desarmarBucle()
+    cancelarMarcador()
+    escucha?.cancelar()
+    if (!(await motor.prepararCoros())) return
+    const desdeMs = Math.max(0, siguiente.inicio_ms! + letra.offset_ms - 2000)
+    const hastaMs = Math.min(duracionMs, fin + letra.offset_ms + 1000)
+    coroEnCurso.current = { previaMs, arrancado: false }
+    setEscuchandoCoro(true)
+    const inicioS = Math.floor((siguiente.inicio_ms! + letra.offset_ms) / 1000)
+    anunciar(
+      C.anuncioEscuchando(
+        `${Math.floor(inicioS / 60)}:${String(inicioS % 60).padStart(2, '0')}`,
+        Math.round(nivelVozEnCoros(letra) * 100)
+      )
+    )
+    await motor.reproducir({ desdeMs, hastaMs, conCoros: true })
+  }
+  function alternarCarrilesJuntos() {
+    const juntos = !carrilesJuntosPref
+    setCarrilesJuntosPref(juntos)
+    anunciar(juntos ? P.anuncioJuntar : P.anuncioSeparar)
+    try {
+      window.shinobi.config
+        .actualizar({ editor: { carriles_juntos: juntos } })
+        .catch(() => undefined)
+    } catch {
+      /* preferencia cosmética: el estado en memoria manda */
+    }
   }
   function seleccionarVarias(id: string, modo: 'alternar' | 'rango' | 'principal') {
     if (id !== edicion.seleccion) {
@@ -1638,7 +1808,9 @@ function EditorActivo({
           break
         case 'escapar':
           // Orden de Esc (ADR 0029 §5): menú o popover (ya cerrado: el menú captura Esc), arrastre en
-          // curso (0345), varias seleccionadas → solo la principal y, si no, lo de siempre.
+          // curso, varias seleccionadas → solo la principal y, si no, lo de siempre.
+          if (cancelarArrastreRegion.current?.()) break
+          if (terminarCoro(true)) break
           if (edicion.seleccionadas.length > 1) {
             despachar({ tipo: 'solo_principal' })
             break
@@ -1659,7 +1831,8 @@ function EditorActivo({
     },
     (evento) => {
       if (evento.key === 'Enter') sync.soltar(evento.timeStamp, 'teclado')
-    }
+    },
+    conReparto
   )
 
   /** Termina el recorrido y devuelve el foco a la fila seleccionada. */
@@ -2125,6 +2298,38 @@ function EditorActivo({
                           reintentar: picos.reintentar,
                           irAPrimera: irAPrimeraSinInicio
                         }}
+                        cantantes={{
+                          letra,
+                          estilo,
+                          editable: repartoEditable,
+                          repartir: anadirCantanteSinLineas,
+                          anadir: anadirCantanteSinLineas,
+                          quitar: quitarCantanteDeLaCancion,
+                          renombrar: (parte, nombre) =>
+                            despachar({
+                              tipo: 'renombrar_cantante',
+                              id: parte,
+                              nombre,
+                              ahora: performance.now()
+                            }),
+                          verLineas: verLineasDeParte,
+                          marcarCoro: marcarSugeridasComoCoro,
+                          vozEnCoros: hayCoros ? (
+                            <VozEnCoros
+                              nivel={nivelVozEnCoros(letra)}
+                              cambiar={(valor) =>
+                                despachar({
+                                  tipo: 'fijar_voz_en_coros',
+                                  valor,
+                                  ahora: performance.now()
+                                })
+                              }
+                              escuchando={escuchandoCoro}
+                              escuchar={() => void escucharUnCoro()}
+                              sinVoz={!separacion.disponible}
+                            />
+                          ) : undefined
+                        }}
                         cambiarModalidad={cambiarModalidadDesdeFunciones}
                         volverABorrador={() => setDialogoBorrador(true)}
                         tituloEstado={tituloEstado}
@@ -2250,6 +2455,7 @@ function EditorActivo({
                   volumen.cambiar({ volumen: volumen.volumen, silenciado: !volumen.silenciado })
                 }
                 entrarSync={entrarSync}
+                preparandoCoros={audio?.corosPreparando === true}
                 refSync={refSync}
                 acciones={
                   <>
@@ -2329,6 +2535,22 @@ function EditorActivo({
                       alReintentar={picos.reintentar}
                       alIrAPrimera={irAPrimeraSinInicio}
                     />
+                  }
+                  seleccionadas={edicion.seleccionadas}
+                  cancelarArrastreRef={cancelarArrastreRegion}
+                  reparto={
+                    carrilesVisibles.length > 0
+                      ? {
+                          carriles: carrilesVisibles,
+                          altoCarril: distribucion.lineaTiempo.altoCarril,
+                          juntos: distribucion.lineaTiempo.carrilesJuntos,
+                          juntosPorEspacio: distribucion.lineaTiempo.carrilesJuntosPorEspacio,
+                          alternarJuntos: alternarCarrilesJuntos,
+                          estilo,
+                          cantantes: cantantesDe(letra).length,
+                          asignar: repartoEditable ? asignarDesdeArrastre : undefined
+                        }
+                      : undefined
                   }
                   resaltadas={silencios.resaltadas}
                   resaltadasDesfase={comprobar.resaltadas}
@@ -2495,8 +2717,13 @@ function EditorActivo({
           }}
           anadir={anadirCantanteDesdeMenu}
           nombres={() => {
-            // El foco en el nombre del primer cantante de la selección es de «Cantantes y coros» (0346).
+            // Foco en el nombre del primer cantante de la selección (sin cantante: el Cantante 1).
             cerrarMenuPartes(false)
+            const primero = edicion.seleccionadas
+              .map((id) => letra.lineas.find((l) => l.id === id))
+              .map((l) => (l ? parteDe(l, letra) : 'c1'))
+              .find((p) => p.startsWith('c') && p !== 'coro')
+            pedirFocoNombre.current = (primero ?? 'c1') as Parte
             expandirEnFunciones()
           }}
           cerrar={cerrarMenuPartes}
