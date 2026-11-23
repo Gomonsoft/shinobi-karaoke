@@ -39,6 +39,18 @@ describe('sembrar con reparto (0.2.3, opt-in)', () => {
   })
 })
 
+describe('sembrar con voces a la vez (0.2.3, opt-in)', () => {
+  it('añade el dúo con solapes solo si se pide, y su cancion.json es válido', async () => {
+    await sembrar(datos)
+    const r = await sembrar(datos, { voces: true })
+    expect(r.creadas).toEqual([idSemilla(52)])
+    const leida = cancionSchema.parse(
+      JSON.parse(await readFile(join(datos, 'biblioteca', idSemilla(52), 'cancion.json'), 'utf8'))
+    )
+    expect(leida.letra?.lineas.map((l) => l.id)).toContain('v4')
+  })
+})
+
 describe('sembrar', () => {
   it('crea la variedad pedida, es idempotente y recrea con limpiar', async () => {
     const r = await sembrar(datos)

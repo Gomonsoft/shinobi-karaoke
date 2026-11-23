@@ -1,6 +1,6 @@
 import { createRef } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { estiloPredeterminado } from '@shared/estilo'
 import { carriles, cantantesDe, type Parte } from '@shared/reparto'
 import { cancionConReparto } from './fixturesApi'
@@ -14,6 +14,10 @@ const crearAsignar = () => vi.fn<(destino: Parte | 'nuevo', ids: string[]) => vo
 function montar(
   extra: {
     juntos?: boolean
+    letra?: typeof letra
+    alArrastrar?: (n: number) => void
+    mensajeOnda?: { texto: string; reintentar?: () => void }
+    solapaAl?: () => boolean
     asignar?: ReturnType<typeof crearAsignar>
     seleccionadas?: string[]
   } = {}
@@ -22,7 +26,7 @@ function montar(
   const cancelar = createRef<(() => boolean) | null>() as { current: (() => boolean) | null }
   render(
     <PistaSincronia
-      letra={letra}
+      letra={extra.letra ?? letra}
       seleccion="d1"
       seleccionadas={extra.seleccionadas}
       duracionMs={30_000}
@@ -39,15 +43,18 @@ function montar(
       bordeArrastrado={undefined}
       limite={null}
       cancelarArrastreRef={cancelar}
+      mensajeOnda={extra.mensajeOnda}
       reparto={{
-        carriles: carriles(letra),
+        carriles: carriles(extra.letra ?? letra),
         altoCarril: 32,
         juntos: extra.juntos ?? false,
         juntosPorEspacio: false,
         alternarJuntos: noop,
         estilo,
-        cantantes: cantantesDe(letra).length,
-        asignar
+        cantantes: cantantesDe(extra.letra ?? letra).length,
+        asignar,
+        solapaAl: extra.solapaAl,
+        alArrastrar: extra.alArrastrar
       }}
     />
   )
@@ -140,4 +147,83 @@ it('con los carriles juntos hay una sola pista, con inicial y franja, y no hay a
 it('las regiones llevan data-foco-editor="region" (Alt + ↑/↓ con el foco en una región)', () => {
   montar()
   expect(region(/Cruza el faro/)).toHaveAttribute('data-foco-editor', 'region')
+})
+
+it('un carril donde la línea se solaparía con otra de la misma parte se tiñe de prohibido (C1S-E3)', () => {
+  montar({ solapaAl: () => true })
+  const r = region(/Cruza el faro/)
+  fireEvent.pointerDown(r, { button: 0, pointerId: 1, clientX: 0, clientY: 16 })
+  mover(r, 50)
+  expect(document.querySelector('[data-carril="c2"]')).toHaveAttribute('data-prohibido')
+  expect(document.querySelector('[data-carril="c1"]')).not.toHaveAttribute('data-prohibido')
+})
+
+afterEach(() => vi.unstubAllGlobals())
+
+it('por debajo de 1280 px «Juntar carriles» es solo el icono, con nombre accesible y aria-pressed', () => {
+  vi.stubGlobal('matchMedia', (q: string) => ({
+    matches: true,
+    media: q,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined
+  }))
+  montar()
+  const boton = screen.getByRole('button', { name: 'Juntar carriles' })
+  expect(boton).toHaveAttribute('aria-pressed', 'false')
+  expect(boton.textContent).toBe('')
+  expect(boton.querySelector('svg')).not.toBeNull()
+})
+
+it('con carriles, «Cantante» con nombre predeterminado en la etiqueta y mensajes de la onda fuera de ellos', () => {
+  const reintentar = vi.fn()
+  montar({ mensajeOnda: { texto: 'Forma de onda no disponible.', reintentar } })
+  const dentro = document.querySelector('[data-carril="c1"]')!
+  expect(within(dentro as HTMLElement).queryByText(/Forma de onda/)).toBeNull()
+  const icono = document.querySelector<HTMLElement>('[data-mensaje-onda]')!
+  expect(icono).toBeVisible()
+  expect(screen.getByRole('status')).toHaveTextContent('Forma de onda no disponible.')
+  fireEvent.click(icono)
+  expect(reintentar).toHaveBeenCalledTimes(1)
+})
+
+it('la franja «+ Nuevo cantante» mide 24 px, se resalta con el puntero encima y el editor la cuenta en el alto', () => {
+  const alArrastrar = vi.fn()
+  montar({ alArrastrar })
+  const r = region(/Cruza el faro/)
+  fireEvent.pointerDown(r, { button: 0, pointerId: 1, clientX: 0, clientY: 16 })
+  mover(r, 50)
+  expect(alArrastrar).toHaveBeenLastCalledWith(1)
+  const franja = document.querySelector<HTMLElement>('[data-carril="nuevo"]')!
+  expect(franja.style.height).toBe('24px')
+  // Filas: c1 (0–32), c2 (32–64), nuevo (64–88).
+  mover(r, 70)
+  expect(document.querySelector('[data-carril="nuevo"]')).toHaveAttribute('data-destino')
+  fireEvent.pointerUp(r, { pointerId: 1, clientX: 0, clientY: 70 })
+  expect(alArrastrar).toHaveBeenLastCalledWith(0)
+})
+
+it('C1S-E6: con carriles juntos y solapes, ninguna región tapa a otra: sub-filas de 24 px, fijas y seleccionables', () => {
+  const solapes = structuredClone(letra)
+  solapes.lineas[0]!.fin_ms = 6000 // Ana pisa a Luis (5 s) de 5 a 6 s
+  montar({ juntos: true, letra: solapes })
+  const caja = (nombre: RegExp) => {
+    const r = region(nombre)
+    return { top: parseFloat(r.style.top), alto: parseFloat(r.style.height) }
+  }
+  const ana = caja(/Cruza el faro/)
+  const luis = caja(/Responde el viento/)
+  expect(ana.alto).toBe(20)
+  expect(luis.alto).toBe(20)
+  expect(luis.top).toBe(ana.top + 24) // sub-filas distintas: las cajas no se pisan
+  expect(document.querySelector('.conSubfilas, [class*="conSubfilas"]')).not.toBeNull()
+  // Una línea que no se pisa con nadie vuelve a la primera sub-fila.
+  expect(caja(/Cantemos todos/).top).toBe(ana.top)
+  // Cada región se puede seleccionar con un clic.
+  expect(region(/Responde el viento/)).toBeEnabled()
+})
+
+it('sin solapes los carriles juntos son la pista de siempre (una sola fila, sin sub-filas)', () => {
+  montar({ juntos: true })
+  expect(document.querySelector('[class*="conSubfilas"]')).toBeNull()
+  expect(region(/Cruza el faro/).style.height).toBe('')
 })

@@ -1,8 +1,24 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, CircleDashed, Flag, PanelLeftClose, Play, WholeWord } from 'lucide-react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode
+} from 'react'
+import {
+  ChevronDown,
+  CircleDashed,
+  Flag,
+  Layers,
+  PanelLeftClose,
+  Play,
+  WholeWord
+} from 'lucide-react'
 import type { Estilo } from '@shared/estilo'
 import { tienePalabrasManuales, type Letra } from '@shared/letra'
-import { parteDe, textoEnPantalla, tieneReparto } from '@shared/reparto'
+import { inicial, parteDe, textoEnPantalla, tieneReparto } from '@shared/reparto'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
@@ -51,6 +67,8 @@ interface Props {
   abrirQuienCanta?(ancla: AnclaMenu, origen: HTMLElement | null): void
   /** `edi.partes.soloPrincipal`, solo con varias seleccionadas: se añade al tooltip del editor preciso. */
   soloPrincipal?: string
+  /** Líneas que empiezan mientras suena otra (voces a la vez): id → número de la que ya sonaba. */
+  solapa?: ReadonlyMap<string, number>
 }
 
 const FILA_PX = 56
@@ -78,7 +96,8 @@ export function ListaLineas({
   estilo,
   seleccionarVarias,
   abrirQuienCanta,
-  soloPrincipal
+  soloPrincipal,
+  solapa
 }: Props) {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const lista = useRef<HTMLDivElement>(null)
@@ -103,6 +122,19 @@ export function ListaLineas({
   )
   const varias = elegidas.size > 1
   const reparto = useMemo(() => tieneReparto(letra), [letra])
+  // Hueco del chip: el chip más ancho de la canción (≈ 7 px por carácter más borde y relleno) + 8 px a cada lado.
+  const anchoColChip = useMemo(() => {
+    if (!reparto) return 40
+    const partes = new Set(letra.lineas.map((l) => parteDe(l, letra)))
+    const ancho = Math.max(
+      24,
+      ...[...partes].map((p) => {
+        const marca = inicial(letra, p)
+        return marca.tipo === 'texto' ? Array.from(marca.texto).length * 7 + 14 : 30
+      })
+    )
+    return ancho + 16
+  }, [letra, reparto])
 
   /** Alto de lo que hay sobre las filas dentro del scroll (el banner se desplaza con ellas). */
   const base = () => cajaLineas.current?.offsetTop ?? 0
@@ -265,6 +297,9 @@ export function ListaLineas({
           data-foco-editor="lista"
           tabIndex={indiceSeleccion < inicio || indiceSeleccion >= fin ? 0 : -1}
           ref={cajaLineas}
+          style={
+            reparto ? ({ '--ancho-col-chip': `${anchoColChip}px` } as CSSProperties) : undefined
+          }
         >
           {virtual && <div aria-hidden="true" style={{ height: inicio * FILA_PX }} />}
           {numeradas.slice(inicio, fin).map(({ elemento: el, n }, i) => {
@@ -289,6 +324,7 @@ export function ListaLineas({
             const parte = parteDe(el, letra)
             const elegida = elegidas.has(el.id)
             const principal = el.id === seleccion
+            const suenaCon = solapa?.get(el.id)
             const textoParte = parte === 'coro' ? textoEnPantalla({ ...el, parte }) : null
             return (
               <button
@@ -299,7 +335,7 @@ export function ListaLineas({
                 }}
                 type="button"
                 role="option"
-                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}${reparto ? `, ${P.chip(etiquetaParte(letra, parte))}` : ''}${varias && principal ? P.principal : ''}`}
+                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}${reparto ? `, ${P.chip(etiquetaParte(letra, parte))}` : ''}${varias && principal ? P.principal : ''}${suenaCon ? `, ${P.solapa(suenaCon).toLowerCase()}` : ''}`}
                 data-dudosa={motivo ? '' : undefined}
                 data-principal={principal ? '' : undefined}
                 aria-selected={elegida}
@@ -380,6 +416,11 @@ export function ListaLineas({
                 >
                   {textoParte?.parentesis ? `(${el.texto})` : el.texto}
                 </span>
+                {suenaCon !== undefined && (
+                  <Tooltip contenido={P.solapa(suenaCon)}>
+                    <Icono icono={Layers} tamano={14} />
+                  </Tooltip>
+                )}
                 {tienePalabrasManuales(el) && (
                   <Tooltip contenido={E.preciso.indicador}>
                     <Icono icono={WholeWord} tamano={14} />

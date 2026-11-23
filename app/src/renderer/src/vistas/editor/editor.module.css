@@ -236,6 +236,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+  /* Con barras superpuestas (macOS) el hueco no se reserva: nada del panel queda bajo la barra. */
+  padding-inline-end: var(--e-3);
 }
 .funciones {
   display: grid;
@@ -535,6 +537,9 @@
 /* Chip de parte (0.2.3 · feature 1): inicial en texto-1 y borde de 2 px en el color de la parte. */
 .chipParte {
   display: inline-flex;
+  width: fit-content;
+  align-self: center;
+  justify-self: start;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -563,8 +568,11 @@
   inset: -2px;
   content: '';
 }
+/* El hueco del chip: el chip más ancho de la canción más 8 px a cada lado (`--ancho-col-chip`). */
 .lineaConParte {
-  grid-template-columns: 14px max-content 40px minmax(0, 1fr) auto auto;
+  /* Solo las columnas que hay: los iconos de la derecha añaden las suyas. El hueco del chip ya lleva sus 8 px. */
+  grid-template-columns: 14px max-content var(--ancho-col-chip, 40px) minmax(0, 1fr);
+  column-gap: var(--e-1);
 }
 .textoCoro {
   color: var(--texto-2);
@@ -616,6 +624,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.menuPartesItem[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.menuPartesMotivo {
+  display: block;
+  overflow: hidden;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+  text-overflow: ellipsis;
 }
 .menuPartesAtajo {
   color: var(--texto-3);
@@ -780,4 +799,10 @@
 }
 .funcion .textoTres {
   color: var(--texto-3);
+}
+
+/* Los iconos de la fila (solape, palabras, sin sincronizar) añaden columnas, no filas. */
+.linea {
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
 }

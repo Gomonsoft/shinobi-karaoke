@@ -109,6 +109,8 @@ interface Suceso {
 interface Indice {
   lineas: LineaConInicio[]
   fines: number[]
+  /** Fin más tardío de las líneas hasta cada una: con voces a la vez, hay silencio solo después de él. */
+  finesMax: number[]
   sucesos: Suceso[]
   /** Primera línea de la «frase» de cada línea: tras un hueco de más de RETIRADA_MS no hay ya cantadas anteriores. */
   cortes: number[]
@@ -192,9 +194,12 @@ function construirIndice(
       hacia: { a: i, ocupado: false }
     })
   })
+  const finesMax: number[] = []
+  fines.forEach((fin, i) => finesMax.push(Math.max(fin, finesMax[i - 1] ?? -Infinity)))
   return {
     lineas,
     fines,
+    finesMax,
     sucesos,
     cortes,
     cierres,
@@ -383,9 +388,11 @@ export function fotogramaEn(
   const sigLinea = lineas[previaPos + 1]
   const fin = previa ? fines[previaPos]! : 0
   const actual = previa && t < fin ? previa : null
+  // Voces a la vez (0360): hay un hueco solo cuando ninguna línea suena, aunque la última en empezar ya acabase.
+  const finHueco = previa ? indice.finesMax[previaPos]! : -Infinity
   const espera =
-    !actual && sigLinea
-      ? esperaEn(ctx.espera ?? ESPERA_LEGADA, t, previa ? fin : null, sigLinea.inicio_ms)
+    !actual && t >= finHueco && sigLinea
+      ? esperaEn(ctx.espera ?? ESPERA_LEGADA, t, previa ? finHueco : null, sigLinea.inicio_ms)
       : null
   const aparicion =
     indice.aparicionMs === 0

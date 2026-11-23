@@ -27,7 +27,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.controles > :is(h2, button) {
+.controles > * {
   flex: none;
   white-space: nowrap;
 }
@@ -306,7 +306,7 @@
 
 /* Carriles por parte (0.2.3 · feature 1). La etiqueta de 72 px vive en el margen izquierdo del eje. */
 .conEtiquetas {
-  margin-inline-start: calc(var(--e-2) + 72px);
+  margin-inline-start: calc(var(--e-2) + 96px);
 }
 .pista.conCarriles {
   min-height: 0;
@@ -330,10 +330,10 @@
 .etiquetaCarril {
   position: absolute;
   inset-block: 0;
-  inset-inline-start: -72px;
+  inset-inline-start: -96px;
   display: flex;
   box-sizing: border-box;
-  width: 72px;
+  width: 96px;
   gap: var(--e-1);
   align-items: center;
   padding-inline: var(--e-1);
@@ -349,13 +349,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.carrilTexto {
+.carril {
   display: flex;
-  height: 100%;
   align-items: center;
   justify-content: center;
+}
+/* Fondo y relleno lateral: la línea base de la onda no atraviesa el texto. */
+.carrilTexto {
+  padding-inline: var(--e-2);
+  background: var(--fondo-1);
   color: var(--texto-3);
   font-size: var(--t-pequeno);
+  line-height: 1.2;
 }
 .region[data-arrastrada] {
   cursor: grabbing;
@@ -375,4 +380,53 @@
   margin-inline: var(--e-1);
   font-size: var(--t-pequeno);
   font-weight: 600;
+}
+
+.carril[data-virtual][data-destino] {
+  border: 2px solid var(--acento-texto);
+}
+.carril[data-prohibido] {
+  border: 2px solid var(--error);
+  cursor: not-allowed;
+}
+.pista:has([data-prohibido]) .region[data-arrastrada] {
+  cursor: not-allowed;
+}
+
+.mensajeOnda {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -96px;
+  display: inline-flex;
+  width: 96px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--texto-3);
+}
+.soloLector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Carriles juntos con voces a la vez: k sub-filas de 24 px con scroll vertical propio (nunca de página). */
+.pista.conSubfilas {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.pista.conSubfilas::after {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: var(--alto-subfilas);
+  content: '';
+  pointer-events: none;
+}
+.conSubfilas .region {
+  top: 0;
 }

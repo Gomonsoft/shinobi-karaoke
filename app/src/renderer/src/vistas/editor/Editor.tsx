@@ -76,9 +76,19 @@ import { ChipParte } from './ChipParte'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { MenuQuienCanta, type AnclaMenu } from './MenuQuienCanta'
-import { C, etiquetaParte, P, parteComun, parteVecina, ranuraDe } from './partes'
+import {
+  C,
+  etiquetaParte,
+  lineasQueSuenanALaVez,
+  P,
+  parteComun,
+  parteVecina,
+  ranuraDe,
+  solapeAlAsignar
+} from './partes'
 import { VozEnCoros } from './VozEnCoros'
 import { envolvente, tramosCoro } from '@shared/coros'
+import { solapadas } from '@shared/solapes'
 import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
 import { partesEnUso } from './estilo/partesEnUso'
@@ -99,7 +109,7 @@ import { K as KC } from './comprobar/textos'
 import { useComprobarLetra } from './comprobar/useComprobarLetra'
 import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
 import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
-import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
+import { LienzoPicosVoz, PistaOndaVoz, textoEstadoOnda, usePicosVoz } from './PistaOndaVoz'
 import { contarImportantes } from '@shared/dudosas'
 import { MarcaPanel, TarjetaRevision } from './revision/TarjetaRevision'
 import { R as RV, motivoPrincipal } from './revision/textos'
@@ -412,10 +422,12 @@ function EditorActivo({
   // «Juntar carriles»: preferencia de todas las canciones (`config.editor.carriles_juntos`).
   const [carrilesJuntosPref, setCarrilesJuntosPref] = useState(config.editor.carriles_juntos)
   const carrilesVisibles = useMemo(() => carrilesDe(letra), [letra])
+  const [franjasArrastre, setFranjasArrastre] = useState(0)
   const cancelarArrastreRegion = useRef<(() => boolean) | null>(null)
   const distribucion = useDistribucion({
     carriles: carrilesVisibles.length,
     carrilesJuntos: carrilesJuntosPref,
+    franjasArrastre,
     raiz: refRaiz,
     cabecera: refCabecera,
     dock: refDock,
@@ -735,7 +747,8 @@ function EditorActivo({
     },
     sonando,
     movimientoReducido,
-    reparto: tieneReparto(letra)
+    reparto: tieneReparto(letra),
+    solapes: tieneReparto(letra) && solapadas(letra, duracionMs).size > 0
   })
   // Con un ejemplo en marcha, la vista previa enseña el suyo (el de pantalla, sin indicadores).
   const ejemploVista = ejemploEspera.ejemplo ? ejemploEspera : ejemploPantalla
@@ -1414,6 +1427,10 @@ function EditorActivo({
   // Asignar, añadir y la selección múltiple no actúan al ritmo ni con la sesión en otra pantalla (C1-E21).
   const repartoEditable = !edicion.sync.activo && !edicionBloqueada
   const conReparto = tieneReparto(letra)
+  const suenanALaVez = useMemo(
+    () => (conReparto ? lineasQueSuenanALaVez(letra, duracionMs) : undefined),
+    [conReparto, letra, duracionMs]
+  )
   const lineaPrincipal = letra.lineas.find((l) => l.id === edicion.seleccion && l.tipo === 'linea')
   const soloPrincipalTexto =
     edicion.seleccionadas.length > 1 && edicion.seleccion
@@ -1451,6 +1468,14 @@ function EditorActivo({
   /** Asigna la selección a `parte` en un paso y lo anuncia; `agrupar` junta las pulsaciones de Alt + ↑/↓. */
   function asignarParte(parte: Parte, agrupar = false, ids = edicion.seleccionadas): boolean {
     if (!repartoEditable) return false
+    // Voces a la vez: dos líneas de la misma parte no pueden pisarse (por menú, C, Alt y arrastre).
+    const solape = solapeAlAsignar(letra, ids, parte)
+    if (solape !== null) {
+      const mensaje = P.solapaMisma(etiquetaParte(letra, parte), solape)
+      anunciar(mensaje)
+      mostrarToast({ tipo: 'aviso', mensaje })
+      return false
+    }
     const accion = { tipo: 'asignar_parte', parte, ids, agrupar, ahora: performance.now() } as const
     const siguiente = reducirEditor(edicion, accion)
     if (siguiente.version === edicion.version) return false
@@ -2112,6 +2137,7 @@ function EditorActivo({
                 seleccionarVarias={repartoEditable ? seleccionarVarias : undefined}
                 abrirQuienCanta={repartoEditable ? abrirMenuPartes : undefined}
                 soloPrincipal={soloPrincipalTexto}
+                solapa={suenanALaVez}
                 minimizar={
                   distribucion.bajoMinimo === 'ancho'
                     ? undefined
@@ -2296,7 +2322,8 @@ function EditorActivo({
                             void silencios.pedir()
                           },
                           reintentar: picos.reintentar,
-                          irAPrimera: irAPrimeraSinInicio
+                          irAPrimera: irAPrimeraSinInicio,
+                          solapaExcluidas: conReparto ? solapadas(letra, duracionMs).size : 0
                         }}
                         cantantes={{
                           letra,
@@ -2536,6 +2563,15 @@ function EditorActivo({
                       alIrAPrimera={irAPrimeraSinInicio}
                     />
                   }
+                  mensajeOnda={(() => {
+                    const texto = textoEstadoOnda(picos.estado, separacion.disponible)
+                    return texto
+                      ? {
+                          texto,
+                          reintentar: picos.estado.estado === 'error' ? picos.reintentar : undefined
+                        }
+                      : undefined
+                  })()}
                   seleccionadas={edicion.seleccionadas}
                   cancelarArrastreRef={cancelarArrastreRegion}
                   reparto={
@@ -2548,7 +2584,10 @@ function EditorActivo({
                           alternarJuntos: alternarCarrilesJuntos,
                           estilo,
                           cantantes: cantantesDe(letra).length,
-                          asignar: repartoEditable ? asignarDesdeArrastre : undefined
+                          asignar: repartoEditable ? asignarDesdeArrastre : undefined,
+                          alArrastrar: setFranjasArrastre,
+                          solapaAl: (ids: string[], parte: Parte) =>
+                            solapeAlAsignar(letra, ids, parte) !== null
                         }
                       : undefined
                   }
@@ -2561,6 +2600,9 @@ function EditorActivo({
                       cancionId={id}
                       vista={vista}
                       separada={separacion.disponible}
+                      mensajeFuera={
+                        carrilesVisibles.length > 0 && !distribucion.lineaTiempo.carrilesJuntos
+                      }
                       {...picos}
                     />
                   )}
@@ -2710,6 +2752,12 @@ function EditorActivo({
           letra={letra}
           estilo={estilo}
           ids={edicion.seleccionadas}
+          noDisponibles={Object.fromEntries(
+            (['c1', 'c2', 'c3', 'c4', 'todos', 'coro'] as const).flatMap((parte) => {
+              const k = solapeAlAsignar(letra, edicion.seleccionadas, parte)
+              return k === null ? [] : [[parte, P.solapaMisma(etiquetaParte(letra, parte), k)]]
+            })
+          )}
           ancla={menuPartes.ancla}
           elegir={(parte) => {
             asignarParte(parte)

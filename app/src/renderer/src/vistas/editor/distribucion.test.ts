@@ -430,4 +430,16 @@ describe('calcularDistribucion: carriles por parte (0.2.3)', () => {
     expect(d.lineaTiempo.min).toBe(d.lineaTiempo.altoFilasFijas + 192)
     expect(pref.linea_tiempo.alto).toBeNull()
   })
+
+  it('durante un arrastre la pista cuenta las franjas de destino (24 px cada una) y vuelve al soltar', () => {
+    const sin = calcularDistribucion(entrada(1280, 720, { carriles: 4 }))
+    const con = calcularDistribucion(entrada(1280, 720, { carriles: 4, franjasArrastre: 2 }))
+    expect(con.lineaTiempo.altoPistaVoz).toBe(sin.lineaTiempo.altoPistaVoz + 48)
+    expect(con.lineaTiempo.altoCarril).toBe(sin.lineaTiempo.altoCarril)
+    expect(calcularDistribucion(entrada(1280, 720, { carriles: 4, franjasArrastre: 0 }))).toEqual(
+      sin
+    )
+    // Cede la zona superior, nunca por debajo de su mínimo.
+    expect(con.altoZonaSuperior).toBeGreaterThanOrEqual(136)
+  })
 })

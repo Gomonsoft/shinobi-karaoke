@@ -1,4 +1,6 @@
 import type { Letra } from '@shared/letra'
+import { chocan } from '@shared/letra'
+import { tramosDeLetra } from '@shared/solapes'
 import { cantantesDe, parteDe, RANURAS, type Parte } from '@shared/reparto'
 
 /*
@@ -27,6 +29,14 @@ export const P = {
   soloPrincipal: (k: number) => `Solo en la línea ${k}`,
   paso: 'Quién canta',
   principal: ', principal',
+  reintentarOnda: 'Pulsa para reintentar.',
+  solapa: (k: number) => `Suena a la vez que la línea ${k}`,
+  solapaMisma: (parte: string, k: number) =>
+    `No puede ser de ${parte}: se solapa con su línea ${k}.`,
+  solapaExcluidas: (n: number) =>
+    n === 1
+      ? '1 línea que suena a la vez que otra no se ha tocado.'
+      : `${n} líneas que suenan a la vez que otras no se han tocado.`,
   titulo: 'Cantantes y coros',
   ayuda:
     'Reparte la letra entre varias voces. Cada una se ve en su color y con su inicial al cantar.',
@@ -137,3 +147,79 @@ export const C = {
   error:
     'No se pudo preparar la voz de los coros en el editor: «Instrumental» suena sin ella. En el reproductor y en el video sí se oirá.'
 } as const
+
+/** Número (desde 1, contando solo líneas) de la línea `id`. */
+const numeroDe = (letra: Pick<Letra, 'lineas'>, id: string): number =>
+  letra.lineas.filter((l) => l.tipo === 'linea').findIndex((l) => l.id === id) + 1
+
+/**
+ * Líneas que empiezan mientras suena otra (voces a la vez, ADR 0029 §7): id → número de la línea que ya
+ * sonaba. Vacío sin solapes (el caso de siempre).
+ */
+export function lineasQueSuenanALaVez(
+  letra: Pick<Letra, 'lineas' | 'offset_ms' | 'partes'>,
+  duracionMs: number
+): Map<string, number> {
+  const salida = new Map<string, number>()
+  const tramos = tramosDeLetra(letra, duracionMs).sort((x, y) => x.a - y.a)
+  tramos.forEach((t, i) => {
+    const antes = tramos.slice(0, i).find((u) => u.b > t.a)
+    if (antes) salida.set(t.id, numeroDe(letra, antes.id))
+  })
+  return salida
+}
+
+/**
+ * Si pasar `ids` a `parte` haría que se solaparan dos líneas que chocan (la misma parte; «Todos» cuenta
+ * como de todos los cantantes), el número de la línea con la que se solapa la primera afectada.
+ */
+export function solapeAlAsignar(letra: Letra, ids: readonly string[], parte: Parte): number | null {
+  const nueva: Letra = {
+    ...letra,
+    lineas: letra.lineas.map((l) =>
+      l.tipo === 'linea' && ids.includes(l.id)
+        ? { ...l, parte: parte === 'c1' ? undefined : parte }
+        : l
+    )
+  }
+  const tramos = tramosDeLetra(nueva, Number.MAX_SAFE_INTEGER)
+  const por = new Map(nueva.lineas.map((l) => [l.id, l]))
+  for (const t of tramos) {
+    if (!ids.includes(t.id)) continue
+    for (const u of tramos) {
+      if (u.id === t.id || u.a >= t.b || t.a >= u.b) continue
+      if (chocan(por.get(t.id)!, por.get(u.id)!, nueva)) {
+        // Si ya se pisaban antes (dato anterior), asignar no lo empeora.
+        const antes = (id: string) => letra.lineas.find((l) => l.id === id)!
+        if (!chocan(antes(t.id), antes(u.id), letra)) return numeroDe(letra, u.id)
+      }
+    }
+  }
+  return null
+}
+
+export const ALTO_SUBFILA = 24
+
+/**
+ * Sub-filas de la pista juntada con voces a la vez (spec 06, C1S-E6): cada región va en la primera sub-fila
+ * libre en su tiempo, en orden de inicio y, a igual inicio, en el orden de los carriles. Solo depende de los
+ * tiempos reales: no cambia con el zoom ni al desplazar. `k` es el máximo de líneas que suenan a la vez
+ * (1 sin solapes: todo queda como siempre).
+ */
+export function subfilasJuntas(
+  regiones: readonly { id: string; real: { inicioMs: number; finMs: number } }[],
+  ordenCarril: (id: string) => number
+): { sub: Map<string, number>; k: number } {
+  const ordenadas = [...regiones].sort(
+    (x, y) => x.real.inicioMs - y.real.inicioMs || ordenCarril(x.id) - ordenCarril(y.id)
+  )
+  const libreDesde: number[] = []
+  const sub = new Map<string, number>()
+  for (const r of ordenadas) {
+    let i = libreDesde.findIndex((fin) => fin <= r.real.inicioMs)
+    if (i < 0) i = libreDesde.length
+    libreDesde[i] = r.real.finMs
+    sub.set(r.id, i)
+  }
+  return { sub, k: Math.max(1, libreDesde.length) }
+}

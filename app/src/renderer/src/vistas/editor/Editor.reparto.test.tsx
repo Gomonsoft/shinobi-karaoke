@@ -417,3 +417,21 @@ it('sin voz separada «Escuchar un coro» queda inactivo con su motivo y el nive
     '45 %'
   )
 })
+
+it('la etiqueta del carril de un cantante sin nombre dice «Cantante» (el número va en el chip)', async () => {
+  montar(cancionLista())
+  await screen.findByRole('listbox', { name: 'Líneas' })
+  fireEvent.click(filas()[1]!)
+  fireEvent.keyDown(filas()[1]!, { key: 'c', code: 'KeyC' })
+  fireEvent.click(await screen.findByRole('menuitem', { name: /Añadir cantante/ }))
+  const etiqueta = document.querySelector('[data-carril="c2"]')!.querySelector('div[title]')!
+  expect(etiqueta).toHaveAttribute('title', 'Cantante 2')
+  expect(etiqueta.textContent).toBe('2Cantante')
+})
+
+it('el hueco del chip de la lista mide el chip más ancho de la canción más 8 px a cada lado', async () => {
+  montar()
+  const lista = await screen.findByRole('listbox', { name: 'Líneas' })
+  // «A·L» (3 caracteres) es el chip más ancho del dúo: 3 × 7 + 14 + 16.
+  expect(lista.style.getPropertyValue('--ancho-col-chip')).toBe('51px')
+})

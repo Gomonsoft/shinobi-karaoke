@@ -18,6 +18,8 @@ interface Props {
   estilo: Pick<Estilo, 'letra'>
   /** Líneas sobre las que actúa (las seleccionadas): decide qué parte lleva la marca ✓. */
   ids: readonly string[]
+  /** Partes que no se pueden elegir y por qué (`edi.partes.solapaMisma`): se ven inactivas con el motivo. */
+  noDisponibles?: Partial<Record<Parte, string>>
   ancla: AnclaMenu
   elegir(parte: Parte): void
   anadir(): void
@@ -34,10 +36,14 @@ interface Entrada {
   atajo?: string
   accion: () => void
   separadorAntes?: boolean
+  noDisponible?: string
 }
 
 /** Entradas del menú según el número de cantantes (spec 06 · «Menú ¿Quién canta?»). */
-function entradas(letra: Letra, props: Pick<Props, 'elegir' | 'anadir' | 'nombres'>): Entrada[] {
+function entradas(
+  letra: Letra,
+  props: Pick<Props, 'elegir' | 'anadir' | 'nombres'> & Pick<Required<Props>, 'noDisponibles'>
+): Entrada[] {
   const cantantes = cantantesDe(letra)
   const n = cantantes.length
   const parte = (p: Parte, etiqueta: string, atajo: string, separadorAntes = false): Entrada => ({
@@ -46,6 +52,7 @@ function entradas(letra: Letra, props: Pick<Props, 'elegir' | 'anadir' | 'nombre
     etiqueta,
     atajo,
     separadorAntes,
+    noDisponible: props.noDisponibles[p],
     accion: () => props.elegir(p)
   })
   const lista: Entrada[] = cantantes.map((c) =>
@@ -72,6 +79,7 @@ export function MenuQuienCanta({
   letra,
   estilo,
   ids,
+  noDisponibles = {},
   ancla,
   elegir,
   anadir,
@@ -80,7 +88,7 @@ export function MenuQuienCanta({
 }: Props) {
   const caja = useRef<HTMLDivElement>(null)
   const [posicion, setPosicion] = useState<PosicionMenu | null>(null)
-  const lista = entradas(letra, { elegir, anadir, nombres })
+  const lista = entradas(letra, { elegir, anadir, nombres, noDisponibles })
   const comun = parteComun(letra, ids)
 
   const botones = () =>
@@ -160,7 +168,7 @@ export function MenuQuienCanta({
     const entrada = lista.find((x) => x.atajo?.toLowerCase() === tecla)
     if (!entrada) return
     e.preventDefault()
-    entrada.accion()
+    if (!entrada.noDisponible) entrada.accion()
   }
 
   return createPortal(
@@ -190,7 +198,8 @@ export function MenuQuienCanta({
             aria-keyshortcuts={x.atajo}
             tabIndex={-1}
             className={estilos.menuPartesItem}
-            onClick={x.accion}
+            aria-disabled={x.noDisponible ? true : undefined}
+            onClick={() => !x.noDisponible && x.accion()}
           >
             {x.parte ? (
               <ChipParte letra={letra} estilo={estilo} parte={x.parte} decorativo />
@@ -199,7 +208,10 @@ export function MenuQuienCanta({
             ) : (
               <span aria-hidden="true" />
             )}
-            <span className={estilos.menuPartesNombre}>{x.etiqueta}</span>
+            <span className={estilos.menuPartesNombre}>
+              {x.etiqueta}
+              {x.noDisponible && <span className={estilos.menuPartesMotivo}>{x.noDisponible}</span>}
+            </span>
             <span className={estilos.menuPartesAtajo} aria-hidden="true">
               {x.atajo ?? ''}
             </span>

@@ -37,9 +37,12 @@
   margin-inline-start: auto;
   gap: var(--e-2);
 }
-.icono {
+.icono,
+.boton.icono {
+  /* Más específico que el relleno de `Boton`: sin esto el icono se aplasta a 2 px (botón «vacío»). */
   inline-size: 36px;
   padding-inline: 0;
+  justify-content: center;
 }
 .faltas {
   display: grid;

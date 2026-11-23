@@ -229,3 +229,22 @@ it('asignar una parte nunca llega a una pausa', () => {
   expect(e.actual.letra.lineas.find((l) => l.id === 'p')).not.toHaveProperty('parte')
   expect(e.actual.letra.lineas.find((l) => l.id === 'a')?.parte).toBe('coro')
 })
+
+it('asignar_parte y marcar_como_coro rechazan lo que dejaría dos líneas de una parte pisándose', () => {
+  const l = letra([
+    linea('a', 'Primera voz', 2000, { fin_ms: 6000 }),
+    linea('b', 'Responde', 5000, { fin_ms: 8000 }),
+    linea('c', '(ah) (ah)', 5500, { fin_ms: 7000 })
+  ])
+  const base = aplicar(
+    estadoInicial({ letra: l, apariencia }, 'b'),
+    { tipo: 'anadir_cantante', ahora },
+    { tipo: 'asignar_parte', parte: 'c2', ids: ['b'], ahora }
+  )
+  // Con la voz de Ana en la 1 y la de Luis en la 2, pasar la 2 a Ana (o la 1 a Luis) se rechaza.
+  expect(aplicar(base, { tipo: 'asignar_parte', parte: 'c1', ids: ['b'], ahora })).toBe(base)
+  expect(aplicar(base, { tipo: 'asignar_parte', parte: 'c2', ids: ['a'], ahora })).toBe(base)
+  // El coro sí puede pisarse con los cantantes; dos líneas de coro, no.
+  const coro = aplicar(base, { tipo: 'asignar_parte', parte: 'coro', ids: ['c'], ahora })
+  expect(coro.actual.letra.lineas[2]?.parte).toBe('coro')
+})

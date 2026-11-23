@@ -28,6 +28,7 @@ import {
   renombrar,
   type Parte
 } from '@shared/reparto'
+import { solapeAlAsignar } from './partes'
 import { tiempoAudioALetra } from './lineaTiempo'
 
 /** Selección de apariencia de la canción (ADR 0016): estilo propio, tema asignado o herencia. */
@@ -658,7 +659,8 @@ function reducirBase(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         : e
     case 'asignar_parte': {
       const ids = (a.ids ?? e.seleccionadas).filter((id) => esLinea(letra, id))
-      return ids.length === 0 || e.sync.activo
+      // Dos líneas que chocan no pueden pisarse (ADR 0029 §7): se rechaza por todas las vías.
+      return ids.length === 0 || e.sync.activo || solapeAlAsignar(letra, ids, a.parte) !== null
         ? e
         : conReparto(
             e,
@@ -689,7 +691,7 @@ function reducirBase(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         : conReparto(e, renombrar(letra, a.id, a.nombre), unica(`nombre:${a.id}`), a.ahora)
     case 'marcar_como_coro': {
       const ids = lineasEntreParentesis(letra)
-      return e.sync.activo || ids.length === 0
+      return e.sync.activo || ids.length === 0 || solapeAlAsignar(letra, ids, 'coro') !== null
         ? e
         : conReparto(e, asignar(letra, ids, 'coro'), unica('marcar_coro'), a.ahora)
     }

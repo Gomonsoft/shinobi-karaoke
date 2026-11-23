@@ -150,3 +150,51 @@ test('el deslizador «Voz en los coros» guarda el nivel de la canción', async 
     { titulo: 'Reparto: un cantante con coros' }
   )
 })
+
+test('voces a la vez: alargar el fin de Ana sobre la línea de Luis se permite y se guarda', async () => {
+  await conDuo('editor-reparto-solape', async (v, datos) => {
+    await fila(v, 1).click()
+    const fin = v.getByRole('slider', { name: /^Fin de la línea/ })
+    await fin.focus()
+    // La línea de Ana acaba sola a los 5 s, donde empieza la de Luis: tres pasos de 100 ms la pisan.
+    for (let i = 0; i < 3; i++) await v.keyboard.press('Shift+ArrowRight')
+    await expect(fila(v, 2)).toHaveAccessibleName(/suena a la vez que la línea 1/)
+    await expect
+      .poll(
+        () =>
+          (leerCancion(datos, ID).letra.lineas as { id: string; fin_ms: number | null }[]).find(
+            (l) => l.id === 'd1'
+          )?.fin_ms,
+        { timeout: 10_000 }
+      )
+      .toBe(5300)
+  })
+})
+
+test('C1-E23: a 256 px de lista y 300 px de panel nada se parte, no hay scroll horizontal y el texto mide ≥ 96 px', async () => {
+  await conDuo('editor-reparto-anchos', async (v) => {
+    for (const divisor of ['lista', 'panel']) {
+      await v.locator(`[data-divisor="${divisor}"]`).focus()
+      await v.keyboard.press('Home')
+    }
+    await fila(v, 1).click()
+    const sinScroll = async (selector: string) =>
+      v.locator(selector).evaluate((el) => el.scrollWidth <= el.clientWidth)
+    expect(await sinScroll('#zona-lista [role="listbox"]')).toBe(true)
+    expect(await sinScroll('#zona-lista')).toBe(true)
+    expect(await sinScroll('#zona-panel')).toBe(true)
+    for (const texto of await v.locator('#lineas-editor [class*="textoLinea"]').all()) {
+      expect((await texto.boundingBox())!.width).toBeGreaterThanOrEqual(96)
+    }
+    for (const chip of await v.locator('#lineas-editor [data-parte]').all()) {
+      expect((await chip.boundingBox())!.height).toBe(20)
+    }
+    await v.getByRole('radio', { name: 'Funciones' }).click()
+    const seccion = v.getByRole('heading', { name: 'Cantantes y coros' }).locator('..')
+    expect(await seccion.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    // Nada del panel queda bajo la barra de desplazamiento: el relleno derecho es de 12 px.
+    expect(
+      await v.locator('#zona-panel').evaluate((el) => parseFloat(getComputedStyle(el).paddingRight))
+    ).toBeGreaterThanOrEqual(12)
+  })
+})

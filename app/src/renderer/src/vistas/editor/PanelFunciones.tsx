@@ -78,6 +78,8 @@ interface Props {
     pedir(): void
     reintentar(): void
     irAPrimera(): void
+    /** Líneas que suenan a la vez que otras: no se tocan (`edi.partes.solapaExcluidas`). */
+    solapaExcluidas?: number
   }
   /** «Cantantes y coros» (0.2.3 · feature 1): sigue a «Ajustar los silencios». */
   cantantes?: ComponentProps<typeof SeccionCantantes>
@@ -314,6 +316,12 @@ export function PanelFunciones({
           />
         </div>
         {textoSilencios && <MotivoVisible id={`${id}-motivo-silencios`} texto={textoSilencios} />}
+        {(silencios.solapaExcluidas ?? 0) > 0 && (
+          <MotivoVisible
+            id={`${id}-solapa-excluidas`}
+            texto={P.solapaExcluidas(silencios.solapaExcluidas!)}
+          />
+        )}
       </Seccion>
 
       {cantantes && (

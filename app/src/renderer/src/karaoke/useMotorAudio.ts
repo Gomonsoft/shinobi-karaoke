@@ -1,6 +1,25 @@
 import { useEffect, useEffectEvent, useState } from 'react'
 import type { PuntoEnvolvente } from '@shared/coros'
 import { MotorAudio, type EstadoMotor, type OpcionesMotor } from './motorAudio'
+import { mezclarCorosEnWorker } from './mezclaCorosCliente'
+
+/**
+ * Solo para las capturas de revisión (`coros-preparando`): si el E2E fija `window.__SHINOBI_MEZCLA_LENTA_MS`
+ * antes de abrir el editor, la mezcla de los coros espera ese tiempo antes de calcularse. Sin esa variable
+ * (que solo pone Playwright) el comportamiento es el de siempre.
+ */
+function mezclaDePrueba(): OpcionesMotor['mezclarCoros'] {
+  const ms = (window as unknown as { __SHINOBI_MEZCLA_LENTA_MS?: unknown })
+    .__SHINOBI_MEZCLA_LENTA_MS
+  if (typeof ms !== 'number' || !(ms > 0)) return undefined
+  return async (instrumental, voz, sampleRate, puntos, signal) => {
+    await new Promise<void>((resolver) => {
+      const t = setTimeout(resolver, ms)
+      signal.addEventListener('abort', () => (clearTimeout(t), resolver()), { once: true })
+    })
+    return mezclarCorosEnWorker(instrumental, voz, sampleRate, puntos, signal)
+  }
+}
 
 export function useMotorAudio(
   opciones: OpcionesMotor & {
@@ -23,7 +42,8 @@ export function useMotorAudio(
       fetch,
       ahoraPerf,
       maxBuffers,
-      volumen: volumenInicial()
+      volumen: volumenInicial(),
+      mezclarCoros: mezclaDePrueba()
     })
     const desuscribir = motor.suscribir((estado) => fijarActual({ motor, estado }))
     // Publica después del montaje y evita exponer un motor descartado por StrictMode.

@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { FIXTURES, letra, linea, pausa } from '../../shared/__fixtures__'
 import { cancionDosCantantes, cancionUnCantanteConCoros } from '../../shared/__fixtures__/reparto'
+import { cancionVocesAlaVez } from '../../shared/__fixtures__/voces'
 import {
   crearIndiceCatalogo,
   estiloPredeterminado,
@@ -375,6 +376,27 @@ function planReparto(): Plan[] {
   ]
 }
 
+/** Dúo con voces a la vez (0.2.3, feature 3; opt-in con `voces`). */
+function planVoces(): Plan[] {
+  const c = cancionVocesAlaVez()
+  return [
+    {
+      id: idN(52),
+      audio: () => silencioFlacSegundos(30),
+      cancion: {
+        ...c,
+        id: idN(52),
+        modificada: new Date(Date.UTC(2026, 10, 3, 9, 57)).toISOString(),
+        metadatos: {
+          ...c.metadatos,
+          titulo: 'Voces a la vez: dúo con coro',
+          artista: 'Shinobi Pruebas'
+        }
+      }
+    }
+  ]
+}
+
 async function existe(ruta: string): Promise<boolean> {
   try {
     await stat(ruta)
@@ -391,7 +413,7 @@ async function existe(ruta: string): Promise<boolean> {
  */
 export async function sembrar(
   datos: string,
-  opciones: { limpiar?: boolean; temas?: boolean; reparto?: boolean } = {}
+  opciones: { limpiar?: boolean; temas?: boolean; reparto?: boolean; voces?: boolean } = {}
 ): Promise<ResultadoSemilla> {
   const biblioteca = join(datos, 'biblioteca')
   if (opciones.limpiar) {
@@ -427,7 +449,8 @@ export async function sembrar(
   const planes = [
     ...plan(),
     ...(conTemas ? planTemas() : []),
-    ...(opciones.reparto === true ? planReparto() : [])
+    ...(opciones.reparto === true ? planReparto() : []),
+    ...(opciones.voces === true ? planVoces() : [])
   ]
   for (const p of planes) {
     const carpeta = join(biblioteca, p.id)

@@ -67,7 +67,7 @@ async function conApp(
   dpr = 1
 ): Promise<void> {
   const datos = crearTemporal(nombre)
-  await sembrar(datos, { reparto: true })
+  await sembrar(datos, { reparto: true, voces: true })
   preparar(datos)
   const app = await lanzar(datos, dpr)
   try {
@@ -138,6 +138,9 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
     tamanos: [number, number][],
     grises = false
   ): Promise<void> {
+    // `SHINOBI_CAPTURAS_023_SOLO=espera-zona,duo-coro` rehace solo esos estados del reproductor.
+    const solo = process.env.SHINOBI_CAPTURAS_023_SOLO
+    if (solo && !solo.split(',').includes(estado)) return
     await intentar(`reproductor-${estado}`, () =>
       conApp(`cap023-rep-${estado}`, preparar, async (v, app) => {
         await ponerTamano(app, tamanos[0]![0], tamanos[0]![1], v)
@@ -265,13 +268,39 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
       c.pasos.separacion = { estado: 'pendiente', progreso: null, error: null, actualizado: null }
     })
   const fila = (v: Page, n: number) => v.getByRole('option', { name: new RegExp(`^Línea ${n},`) })
+  /** Baja el panel hasta que el final del elemento queda a la vista. */
+  const verHastaElFinal = async (v: Page, el: ReturnType<Page['locator']>) => {
+    await el.evaluate((nodo) => nodo.scrollIntoView({ block: 'end' }))
+    await v.waitForTimeout(300)
+  }
   const funciones = async (v: Page) => {
     await v.getByRole('radio', { name: /^Funciones/ }).click()
     const t = v.getByRole('heading', { name: 'Cantantes y coros' })
     await expect(t).toBeAttached()
-    await t.scrollIntoViewIfNeeded()
+    // La sección entera por abajo: filas de partes, «+ Añadir cantante» o `edi.partes.maximo`.
+    const cierre = v
+      .locator('[data-funcion="anadir-cantante"], p:has-text("Hasta 4 cantantes")')
+      .first()
+    // Sin cantantes de más (un solo cantante): el final de la sección.
+    if (await cierre.count()) await verHastaElFinal(v, cierre)
+    else await verHastaElFinal(v, t.locator('..'))
+  }
+  const funcionesCoros = async (v: Page) => {
+    await v.getByRole('radio', { name: /^Funciones/ }).click()
+    // «Voz en los coros» entera: deslizador, valor, ayuda, límite y «Escuchar un coro».
+    const voz = v.locator('[data-voz-coros]')
+    await expect(voz).toBeAttached()
+    await verHastaElFinal(v, voz)
   }
   const dir2 = join(RAIZ, '0.2.3-feature-2')
+  const SOLAPES = (d: string) =>
+    cambiar(d, 50, (c) => {
+      for (const l of c.letra.lineas) if (l.id === 'd1') l.fin_ms = 6000
+    })
+  const estilo = async (v: Page) => {
+    await v.getByRole('radio', { name: /^Estilo/ }).click()
+    await expect(v.getByRole('heading', { name: T_PARTES.titulo })).toBeAttached()
+  }
 
   for (const f of [
     { ancho: 1280, alto: 720, dpr: 1, escala: '100' },
@@ -287,7 +316,8 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
         titulo: string,
         preparar: (d: string) => void,
         accion: (v: Page, app: ElectronApplication) => Promise<void>,
-        carpeta = dir
+        carpeta = dir,
+        moverPuntero = true
       ) =>
         intentar(`${nombre(e)}`, () =>
           conApp(
@@ -297,7 +327,8 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
               await ponerTamano(app, css.ancho, css.alto, v)
               await abrirEditor(v, titulo)
               await accion(v, app)
-              await v.mouse.move(0, 0).catch(() => undefined)
+              // Durante un arrastre el puntero se queda donde está (si no, la región se iría con él).
+              if (moverPuntero) await v.mouse.move(0, 0).catch(() => undefined)
               await v.waitForTimeout(500)
               await v.screenshot({ path: join(carpeta, `${nombre(e)}.png`) })
             },
@@ -341,18 +372,23 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
         (d) => TRES(d, false),
         async () => undefined
       )
-      await estado(
-        'arrastre-carril',
-        DUO,
-        (d) => TRES(d, true),
-        async (v) => {
-          const region = v.getByRole('button', { name: /^Responde el viento del sur/ })
-          const caja = (await region.boundingBox())!
-          await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
-          await v.mouse.down()
-          await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2 + 40, { steps: 6 })
-        }
-      )
+      // El arrastre no existe con los carriles juntos (a 1024 × 576 y al 125 % se juntan solos).
+      if (f.escala === '100' && f.ancho === 1280)
+        await estado(
+          'arrastre-carril',
+          DUO,
+          (d) => TRES(d, true),
+          async (v) => {
+            const region = v.getByRole('button', { name: /^Responde el viento del sur/ })
+            const caja = (await region.boundingBox())!
+            await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
+            await v.mouse.down()
+            await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2 + 40, { steps: 6 })
+            await expect(v.locator('[data-destino]')).toHaveCount(1)
+          },
+          dir,
+          false
+        )
       await estado(
         'carriles-juntos',
         DUO,
@@ -385,10 +421,150 @@ test.describe('capturas de revisión de 0.2.3 · feature 1', () => {
         await v.keyboard.press('Home')
         await funciones(v)
       })
+      await estado('estilo-colores', DUO, sin, async (v) => {
+        await estilo(v)
+        await verHastaElFinal(v, v.getByText(/Más colores/).first())
+      })
+      await estado('estilo-voces', DUO, sin, async (v) => {
+        await estilo(v)
+        await expect(v.getByText('Varias voces').first()).toBeAttached()
+        await v.getByText('Varias voces').first().scrollIntoViewIfNeeded()
+        await expect(v.getByText(/Esta canción tiene varias voces/)).toBeVisible()
+      })
+      // --- 0359: voces a la vez (Ana pisa a Luis de 5 a 6 s) ---
+      await estado('solape-carriles', DUO, SOLAPES, async () => undefined)
+      await estado('solape-carriles-juntos', DUO, SOLAPES, async (v) => {
+        const juntar = v.getByRole('button', { name: 'Juntar carriles' })
+        if (await juntar.count()) await juntar.click()
+      })
+      await estado('solape-menu-inactivo', DUO, SOLAPES, async (v) => {
+        await fila(v, 2).click()
+        await v.keyboard.press('c')
+        await expect(v.getByText(/No puede ser de Ana/)).toBeVisible()
+      })
+      if (f.escala === '100' && f.ancho === 1280)
+        await estado(
+          'solape-arrastre-prohibido',
+          DUO,
+          SOLAPES,
+          async (v) => {
+            const region = v.getByRole('button', { name: /^Responde el viento del sur/ })
+            const caja = (await region.boundingBox())!
+            await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
+            await v.mouse.down()
+            await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2 + 12, { steps: 3 })
+            // Al empezar el arrastre la pista crece (cuenta las franjas) y los carriles suben: se vuelve a medir.
+            await v.waitForTimeout(400)
+            const carrilAna = (await v.locator('[data-carril="c1"]').boundingBox())!
+            await v.mouse.move(caja.x + caja.width / 2, carrilAna.y + carrilAna.height / 2, {
+              steps: 8
+            })
+            await expect(v.locator('[data-prohibido]')).toHaveCount(1)
+          },
+          dir,
+          false
+        )
+      await estado('solape-silencios-excluidas', DUO, SOLAPES, async (v) => {
+        await v.getByRole('radio', { name: /^Funciones/ }).click()
+        const aviso = v.getByText(/líneas? que suenan? a la vez/)
+        await expect(aviso).toBeVisible()
+        await aviso.scrollIntoViewIfNeeded()
+      })
       if (f.escala === '100' && f.ancho === 1280) {
-        await estado('coros-nivel', SOLO_COROS, sin, funciones, dir2)
-        await estado('coros-sin-voz', SOLO_COROS, SIN_VOZ, funciones, dir2)
+        const dir3 = join(RAIZ, '0.2.3-feature-3')
+        mkdirSync(dir3, { recursive: true })
+        // C1S-E6: carriles juntos con voces a la vez: ninguna región tapa a otra (sub-filas de 24 px).
+        await estado(
+          'juntos-solapes',
+          DUO,
+          SOLAPES,
+          async (v) => {
+            const juntar = v.getByRole('button', { name: 'Juntar carriles' })
+            if (await juntar.count()) await juntar.click()
+            await expect(v.locator('[class*="conSubfilas"]')).toHaveCount(1)
+          },
+          dir3
+        )
+        await estado('coros-nivel', SOLO_COROS, sin, funcionesCoros, dir2)
+        await estado('coros-sin-voz', SOLO_COROS, SIN_VOZ, funcionesCoros, dir2)
+        // `coros-preparando`: la mezcla de prueba tarda 3 s; con «Instrumental» elegido se ve el aviso a los 500 ms.
+        await intentar(nombre('coros-preparando'), () =>
+          conApp(
+            `cap023-ed-coros-preparando-${f.escala}`,
+            sin,
+            async (v, app) => {
+              await ponerTamano(app, css.ancho, css.alto, v)
+              await v.evaluate(() => {
+                ;(
+                  window as unknown as { __SHINOBI_MEZCLA_LENTA_MS: number }
+                ).__SHINOBI_MEZCLA_LENTA_MS = 3000
+              })
+              await abrirEditor(v, SOLO_COROS)
+              await v.getByRole('radio', { name: 'Instrumental' }).click()
+              await expect(v.getByText('Preparando los coros…')).toBeVisible({ timeout: 5000 })
+              await v.waitForTimeout(300)
+              await v.screenshot({ path: join(dir2, `${nombre('coros-preparando')}.png`) })
+            },
+            f.dpr
+          )
+        )
       }
+    })
+  }
+})
+
+// ------------------------------------------------------------------ feature 3 · voces a la vez (0360)
+const ACTIVA_3 = process.env.SHINOBI_CAPTURAS_023_3 === '1'
+test.describe('capturas de revisión de 0.2.3 · feature 3', () => {
+  test.skip(!ACTIVA_3, 'se generan solo con la variable SHINOBI_CAPTURAS_023_3=1')
+  test.describe.configure({ timeout: 600_000 })
+  const dir = join(RAIZ, '0.2.3-feature-3')
+  const TITULO_VOCES = 'Voces a la vez: dúo con coro'
+  test.beforeAll(() => mkdirSync(dir, { recursive: true }))
+
+  const estados: [string, number, (d: string) => void][] = [
+    ['dos-voces', 5200, sin],
+    ['tres-voces-con-coro', 8000, sin],
+    ['dos-voces-final', 17_500, sin],
+    ['todos-sin-solape', 13_000, sin],
+    // Tras el coro, con el hueco antes de «Todos»: los indicadores solo salen cuando nadie suena.
+    [
+      'espera-tras-solape',
+      12_600,
+      (d) =>
+        cambiar(d, 52, (c) => {
+          c.estilo.espera = ESPERA
+          // Hueco de 3 s tras el coro (acaba a los 11 s): «Todos» entra a los 14 s.
+          const v5 = c.letra.lineas.find((l: { id: string }) => l.id === 'v5')!
+          v5.inicio_ms = 14_000
+          v5.fin_ms = 15_800
+        })
+    ]
+  ]
+  for (const [estado, ms, preparar] of estados) {
+    test(`reproductor ${estado}`, async () => {
+      await conApp(`cap023-voces-${estado}`, preparar, async (v, app) => {
+        await ponerTamano(app, 1920, 1080, v)
+        await v.getByRole('searchbox', { name: /^Buscar título/ }).fill(TITULO_VOCES)
+        await tarjeta(v, TITULO_VOCES)
+          .getByRole('button', { name: /^Reproducir/ })
+          .click()
+        const capa = v.getByRole('dialog', { name: `Reproductor de «${TITULO_VOCES}»` })
+        await expect(capa.getByRole('button', { name: R.tooltip.pausa })).toBeVisible({
+          timeout: 15_000
+        })
+        await capa.getByRole('button', { name: R.tooltip.pausa }).click()
+        await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill(String(ms))
+        for (const [ancho, alto] of [
+          [1920, 1080],
+          [1280, 720]
+        ] as const) {
+          await ponerTamano(app, ancho, alto, v)
+          await v.mouse.move(0, 0).catch(() => undefined)
+          await v.waitForTimeout(500)
+          await v.screenshot({ path: join(dir, `reproductor-${ancho}x${alto}-${estado}.png`) })
+        }
+      })
     })
   }
 })

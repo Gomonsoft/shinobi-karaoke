@@ -2,6 +2,8 @@ import { useId, useState } from 'react'
 import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react'
 import { finEfectivo } from '@shared/letra'
 import { contador, numeroDeLinea } from '@shared/letras/tiempos'
+import { solapadas } from '@shared/solapes'
+import { P } from '../partes'
 import { Boton } from '../../../componentes/Boton'
 import { Dialogo } from '../../../componentes/Dialogo'
 import { Icono } from '../../../componentes/Icono'
@@ -35,6 +37,7 @@ export function DialogoAjustarSilencios({
   const [verLineas, setVerLineas] = useState(false)
   const idLista = useId()
   const total = contador(letraAntes).total
+  const solapaExcluidas = solapadas(letraAntes, duracionMs).size
   const activa = propuesta.espera !== null
   const mostrarCuenta = propuesta.huecosLargos > 0
 
@@ -68,6 +71,7 @@ export function DialogoAjustarSilencios({
       <p>{S.dialogo.explicacion}</p>
       <ul className={estilos.recuentos}>
         <li>{S.lineas(propuesta.lineasCambiadas, total)}</li>
+        {solapaExcluidas > 0 && <li>{P.solapaExcluidas(solapaExcluidas)}</li>}
         {propuesta.finesFijadosCambiados > 0 && (
           <li>
             <Icono icono={TriangleAlert} tamano={16} className={estilos.aviso} />{' '}

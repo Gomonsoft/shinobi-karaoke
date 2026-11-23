@@ -36,6 +36,9 @@ export const T_PANTALLA = {
     return `${p.lineas} líneas${cantadas} · ${CAMBIO[p.transicion]}${sufijo}`
   },
   voces: 'Varias voces',
+  bloqueSolapes:
+    'Esta canción tiene voces a la vez: en un bloque solo se ve una cada vez. Se ven mejor en zonas.',
+  verEnZonas: 'Ver en zonas',
   vocesOpciones: {
     por_parte: ['Cada una en su zona', 'Cada cantante y el coro tienen su franja en la pantalla.'],
     una: [

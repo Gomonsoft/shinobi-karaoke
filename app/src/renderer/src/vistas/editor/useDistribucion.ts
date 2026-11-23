@@ -32,6 +32,7 @@ interface Entrada {
   /** Carriles de la línea de tiempo (0 sin reparto) y preferencia «Juntar carriles». */
   carriles?: number
   carrilesJuntos?: boolean
+  franjasArrastre?: number
 }
 
 const PREFERENCIAS_MEMORIA = preferenciasPanelesPredeterminadas()
@@ -140,7 +141,7 @@ export function useDistribucion(entrada: Entrada): Distribucion {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pestana, sincronizando])
 
-  const { carriles, carrilesJuntos } = entrada
+  const { carriles, carrilesJuntos, franjasArrastre } = entrada
   const distribucion = useMemo(
     () =>
       calcularDistribucion({
@@ -149,9 +150,10 @@ export function useDistribucion(entrada: Entrada): Distribucion {
         pestana,
         sincronizando,
         carriles,
-        carrilesJuntos
+        carrilesJuntos,
+        franjasArrastre
       }),
-    [medidas, preferencias, pestana, sincronizando, carriles, carrilesJuntos]
+    [medidas, preferencias, pestana, sincronizando, carriles, carrilesJuntos, franjasArrastre]
   )
 
   useLayoutEffect(() => {

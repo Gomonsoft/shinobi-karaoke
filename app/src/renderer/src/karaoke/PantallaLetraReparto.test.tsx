@@ -2,6 +2,7 @@ import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { letra, linea } from '@shared/__fixtures__'
 import { cancionDosCantantes, cancionUnCantanteConCoros } from '@shared/__fixtures__/reparto'
+import { cancionVocesAlaVez } from '@shared/__fixtures__/voces'
 import { estiloPredeterminado } from '@shared/estilo'
 import { PANTALLA_PREDETERMINADA } from '@shared/pantalla'
 import { PantallaLetra } from './PantallaLetra'
@@ -287,5 +288,83 @@ describe('zonas por parte', () => {
     ).container
     expect(v.querySelector('[data-fila-espera]')).toBeNull()
     expect(v.querySelector('[data-indicador=barra]')).not.toBeNull()
+  })
+})
+
+describe('voces a la vez (0360)', () => {
+  const voces = cancionVocesAlaVez().letra!
+  const dibujar = (t: number) =>
+    render(
+      <PantallaLetra {...props} estilo={estiloPredeterminado()} letra={voces} tiempoFijoMs={t} />
+    ).container
+  const opacidad = (c: HTMLElement, zona: string, id: string) =>
+    parseFloat(
+      c
+        .querySelector<HTMLElement>(`[data-zona=${zona}][data-linea=${id}]`)!
+        .style.getPropertyValue('--k-opacidad')
+    )
+
+  it('C1S-R1: con tres voces a la vez, las tres zonas están al 100 % y no hay espera', () => {
+    for (const t of [7900, 8000, 8200, 8400]) {
+      const v = dibujar(t)
+      expect(opacidad(v, 'coro', 'v4')).toBe(1)
+      expect(opacidad(v, 'c1', 'v3')).toBe(1)
+      expect(opacidad(v, 'c2', 'v2')).toBe(1)
+      expect(v.querySelector('[data-fila-espera]')).toBeNull()
+    }
+  })
+
+  it('con dos voces a la vez, cada una en su zona; la zona sin voz espera al 55 %', () => {
+    const v = dibujar(5200)
+    expect(opacidad(v, 'c1', 'v1')).toBe(1)
+    expect(opacidad(v, 'c2', 'v2')).toBe(1)
+    expect(opacidad(v, 'coro', 'v4')).toBeLessThan(1)
+  })
+
+  it('C1S-R4: durante el solape cada línea se pinta con el color exacto de su parte, como fuera de él', () => {
+    const colores: Record<string, string> = {
+      c1: '#FFD400',
+      c2: '#35C6E8',
+      coro: '#FF9F1C',
+      todos: '#B388FF'
+    }
+    const parteDe: Record<string, string> = {
+      v1: 'c1',
+      v2: 'c2',
+      v3: 'c1',
+      v4: 'coro',
+      v5: 'todos',
+      v6: 'c2',
+      v7: 'coro'
+    }
+    const sonando = (t: number) =>
+      voces.lineas.filter((l) => l.inicio_ms! <= t && t < l.fin_ms!).map((l) => l.id)
+    // Lo que pinta cada línea que suena: el color del barrido y que no se mezcla con el gris ni se atenúa.
+    const pintado = (t: number) => {
+      const v = dibujar(t)
+      return sonando(t).flatMap((id) =>
+        Array.from(v.querySelectorAll<HTMLElement>(`[data-linea=${id}]`), (n) => ({
+          id,
+          color: n.style.getPropertyValue('--k-resaltado-linea'),
+          gris: n.style.getPropertyValue('--k-gris'),
+          opacidad: n.style.getPropertyValue('--k-opacidad')
+        }))
+      )
+    }
+    // Diez instantes del solape (C1S-R1) y uno suelto de cada línea, sin solape.
+    const solape = [4900, 5200, 5900, 7900, 8000, 8400, 16_900, 17_500, 18_500, 18_900]
+    for (const t of [...solape, 3000, 13_000]) {
+      const lineas = pintado(t)
+      expect(lineas.length, `t=${t}`).toBeGreaterThan(0)
+      for (const l of lineas) {
+        expect(l.color, `${l.id} a ${t}`).toBe(colores[parteDe[l.id]!])
+        expect(l.gris, `${l.id} a ${t}`).toBe('0')
+        expect(l.opacidad, `${l.id} a ${t}`).toBe('1')
+      }
+    }
+    // Y es el mismo valor que la línea tiene a solas.
+    const ia = pintado(3000)[0]!
+    const ib = pintado(5200).find((l) => l.id === 'v1')!
+    expect([ib.color, ib.gris, ib.opacidad]).toEqual([ia.color, ia.gris, ia.opacidad])
   })
 })

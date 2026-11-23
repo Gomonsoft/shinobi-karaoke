@@ -59,6 +59,8 @@ export interface EntradaDistribucion {
   carriles?: number
   /** Preferencia «Juntar carriles» (`config.editor.carriles_juntos`). */
   carrilesJuntos?: boolean
+  /** Franjas de destino de un arrastre en curso («+ Nuevo cantante», «Todos» en un dúo): 24 px cada una. */
+  franjasArrastre?: number
 }
 
 export type DivisorEditor = 'lista' | 'panel' | 'dock'
@@ -185,7 +187,11 @@ export function calcularDistribucion(e: EntradaDistribucion): Distribucion {
     const minLTCarriles = Math.max(minLT, filasFijas + pistaCarriles)
     const sinEspacio = maxLT < minLT
     const preferido = Math.max(preferencias.linea_tiempo.alto ?? defectoLT, minLTCarriles)
-    const efectivo = sinEspacio ? minLT : Math.min(preferido, Math.max(maxLT, minLTCarriles))
+    const altoBase = sinEspacio ? minLT : Math.min(preferido, Math.max(maxLT, minLTCarriles))
+    // Mientras dura un arrastre la pista cuenta las franjas de destino; si no caben, cede la zona superior
+    // (hasta su mínimo) y todo vuelve al soltar o cancelar.
+    const franjas = altoCarril > 0 ? ALTO_CARRIL_MIN * (e.franjasArrastre ?? 0) : 0
+    const efectivo = altoBase + Math.min(franjas, Math.max(0, maxLT - altoBase))
     linea.min = minLTCarriles
     linea.max = Math.max(minLTCarriles, maxLT)
     linea.altoPistaVoz = efectivo - filasFijas

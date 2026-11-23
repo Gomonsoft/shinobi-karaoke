@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { letra as hacerLetra, linea } from '@shared/__fixtures__'
 import { cancionDosCantantes, cancionUnCantanteConCoros } from '@shared/__fixtures__/reparto'
 import { PANTALLA_PREDETERMINADA, ZONA_OPACIDAD_INACTIVA } from '@shared/pantalla'
-import type { Letra } from '@shared/letra'
+import { letraSchema, type Letra } from '@shared/letra'
+import { solapadas } from '@shared/solapes'
+import { cancionVocesAlaVez } from '@shared/__fixtures__/voces'
 import { fotogramaEn } from './render'
 import {
   fotogramasDeZonas,
@@ -310,5 +312,108 @@ describe('subidaAlSalir (render.ts)', () => {
       lineas: 1,
       pasadas: 0
     })
+  })
+})
+
+// --- 0.2.3 · tarea 0360: voces a la vez (C1S-R1, C1S-R2) ---
+
+describe('voces a la vez', () => {
+  const voces = cancionVocesAlaVez().letra!
+  const zonas = zonasDeLetra(voces, { duracionMs: 30_000 })
+  const espera = { puntos: true, barra: true, cuenta: true, primera_entrada: true, umbral_ms: 500 }
+  const en = (t: number, l: Letra = voces, z = zonas) => {
+    const f = fotogramasDeZonas(z, l, t, { ...ctx, espera })
+    return Object.fromEntries(z.map((zona, i) => [zona.id, f[i]!]))
+  }
+
+  it('la letra inventada es válida con la regla de 0.2.3 y de verdad se solapa', () => {
+    expect(letraSchema.safeParse(voces).success).toBe(true)
+    expect(solapadas(voces, 30_000).size).toBeGreaterThan(0)
+  })
+
+  it('C1S-R1: en 10 instantes del solape, cada zona con línea en curso está al 100 % y barre con sus tiempos', () => {
+    // Intervalos con dos o tres voces a la vez: v1+v2 (4,5–6 s), v2+v3+v4 (7,5–8,5 s), v6+v7 (16,5–19 s).
+    for (const t of [4900, 5200, 5900, 7900, 8000, 8400, 16_900, 17_500, 18_500, 18_900]) {
+      const f = en(t)
+      const sonando = Object.values(f).filter((x) => x.actual)
+      expect(sonando.length, `t=${t}`).toBeGreaterThanOrEqual(2)
+      for (const x of sonando) {
+        expect(x.opacidadZona).toBe(1)
+        expect(x.actual!.progreso).toBeGreaterThan(0)
+        expect(x.espera).toBeNull()
+      }
+    }
+    // Cada barrido avanza con sus propios tiempos: v1 (2–6 s) va por 3,5/4 y v2 (4,5–8,5 s) por 0,5/4.
+    const f = en(5500)
+    expect(f.c1!.actual!.progreso).toBeCloseTo(3.5 / 4)
+    expect(f.c2!.actual!.progreso).toBeCloseTo(1 / 4)
+  })
+
+  it('el coro barre en su zona mientras la principal barre en la suya', () => {
+    const f = en(8000)
+    expect([f.coro!.actual!.id, f.c1!.actual!.id, f.c2!.actual!.id]).toEqual(['v4', 'v3', 'v2'])
+  })
+
+  it('«Todos» suena en las zonas de todos los cantantes y no se solapa con ellos', () => {
+    const f = en(13_000)
+    expect(f.c1!.actual!.id).toBe('v5')
+    expect(f.c2!.actual!.id).toBe('v5')
+    expect(f.coro!.actual).toBeNull()
+  })
+
+  it('los indicadores de espera solo salen cuando ninguna zona suena', () => {
+    // 11,5 s: acabó el coro (11 s) y falta 0,5 s para «Todos»; antes, con el coro sonando, no.
+    expect(Object.values(en(11_500)).filter((x) => x.espera)).toHaveLength(1)
+    expect(en(11_500).c1!.espera).not.toBeNull()
+    expect(Object.values(en(10_500)).every((x) => x.espera === null)).toBe(true)
+  })
+
+  it('la línea que empezó última puede acabar antes que otra: no hay hueco mientras la primera suena', () => {
+    const l: Letra = {
+      ...hacerLetra([
+        linea('x1', 'Larga', 2000, { fin_ms: 10_000 }),
+        linea('x2', 'Corta', 3000, { parte: 'c2', fin_ms: 4000 }),
+        linea('x3', 'Después', 14_000)
+      ]),
+      partes: duo.partes
+    }
+    const z = zonasDeLetra(l, { duracionMs: 30_000 })
+    const e = (t: number) => en(t, l, z)
+    // 5 s: x2 ya acabó pero x1 sigue: ninguna espera.
+    expect(Object.values(e(5000)).every((x) => x.espera === null)).toBe(true)
+    // 11 s: ya no suena nada; la espera cuenta desde el fin de x1, no desde el de x2.
+    const hueco = Object.values(e(11_000)).find((x) => x.espera)!.espera!
+    expect(hueco.origenMs).toBe(10_000)
+  })
+
+  it('con dos voces que se alternan, el fin automático llega a la siguiente de cualquier parte', () => {
+    const l: Letra = {
+      ...hacerLetra([
+        linea('a', 'Uno', 1000),
+        linea('b', 'Dos', 3000, { parte: 'c2' }),
+        linea('c', 'Tres', 5000)
+      ]),
+      partes: duo.partes
+    }
+    const z = zonasDeLetra(l, { duracionMs: 30_000 })
+    expect(z.find((x) => x.id === 'c1')!.lineas[0]!.fin_ms).toBe(3000)
+    expect(en(3500, l, z).c1!.actual).toBeNull()
+  })
+
+  it('C1S-R2: sin solapes el modelo es el de la feature 1 (la letra de dúo de siempre, sin cambios)', () => {
+    const z = zonasDeLetra(duo, { duracionMs: 30_000 })
+    for (let i = 0; i < 50; i++) {
+      const t = i * 600
+      const f = fotogramasDeZonas(z, duo, t, { ...ctx })
+      f.forEach((x, k) => {
+        // Cada zona = su subsecuencia con el mismo modelo que `fotogramaEn` con `subidaAlSalir`.
+        const solo = fotogramaEn(z[k]!, t, {
+          ...ctx,
+          pantalla: pantallaDeZona(PANTALLA_PREDETERMINADA, z[k]!),
+          subidaAlSalir: true
+        })
+        if (!solo.titulo) expect(x.lineas).toEqual(solo.lineas)
+      })
+    }
   })
 })

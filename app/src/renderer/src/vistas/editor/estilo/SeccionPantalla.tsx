@@ -28,6 +28,8 @@ export interface ControlPantalla {
   pantalla: Pantalla
   /** Canción con reparto (y siempre en D3): muestra «Varias voces» (0363). */
   varias?: boolean
+  /** La canción tiene voces a la vez: con «Todas en un bloque» se avisa (`edi.pantalla.bloqueSolapes`). */
+  solapes?: boolean
   procedencia: string
   temaNombre: string | null
   ejemploActivo: boolean
@@ -145,6 +147,20 @@ export function SeccionPantalla({
               </div>
             ))}
           </div>
+          {control.solapes && zonasEfectivas(pantalla) === 'una' && (
+            <div className={`${estilos.nota} ${estilosPantalla.motivo}`} data-bloque-solapes="">
+              <Icono icono={Info} tamano={16} />
+              <span>{T.bloqueSolapes}</span>
+              <Boton
+                variante="fantasma"
+                onClick={() =>
+                  control.cambiar({ ...pantalla, zonas: 'por_parte' }, 'zonas.por_parte')
+                }
+              >
+                {T.verEnZonas}
+              </Boton>
+            </div>
+          )}
         </>
       )}
 
