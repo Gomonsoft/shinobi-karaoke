@@ -3,7 +3,12 @@
  * NO se empaqueta y es de SOLO LECTURA (abre los archivos en modo lectura y no escribe nada, ni cachés
  * ni temporales). Solo imprime ids, títulos y cifras; nunca texto de letra.
  *
- * Uso: npm run calibrar:encaje -- <carpeta-de-biblioteca> [--ids a,b,c] [--json]
+ * Uso: npm run calibrar:encaje -- <carpeta-de-biblioteca> [--ids a,b,c] [--json] [--variantes]
+ *
+ * --variantes (tarea 0371, pregunta 0222): repite todo en tres casos: la letra tal cual, sin fines (como un LRC
+ * de LRCLIB) y sin fines + fines prudentes (los de «Ajustar los silencios» con soloFinesAutomaticos, en memoria),
+ * e imprime si se cumple el criterio de adopción. Para la guía 0312: `npm run calibrar:encaje -- <biblioteca> --variantes`
+ * y leer la línea «Criterio de adopción» (SÍ/NO) y las tres filas de propias/ajenas aceptadas.
  *
  * Por cada canción con `cancion.json`, letra con tiempos y picos ya generados (`pistas/.picos-voz-v1-<hash>.bin`;
  * el script no los genera):
@@ -18,6 +23,8 @@ import { join } from 'node:path'
 import { evaluarEncajeConPicos, type ResultadoEncaje } from '../src/shared/encaje'
 import { leerNivelBase, type NivelBase } from '../src/main/picos/formato'
 import { letraSchema, type Letra } from '../src/shared/letra'
+import { detectarVoz, proponerAjusteSilencios } from '../src/shared/silencios'
+import { ESPERA_LEGADA } from '../src/shared/espera'
 
 const CACHE = /^\.picos-voz-v1-[a-f0-9]{64}\.bin$/
 export const DESPLAZAMIENTOS_MS = [-3000, -1500, -800, -400, 400, 800, 1500, 3000] as const
@@ -57,13 +64,30 @@ export interface ResultadoEncajeCalibracion {
   propias: FilaPropia[]
   desplazadas: FilaDesplazada[]
   ajenas: FilaAjena[]
-  resumen: {
-    propiasAceptadas: number
-    propias: number
-    ajenasAceptadas: number
-    pares: number
-    recuperadas: number
-    desplazadas: number
+  resumen: ResumenVariante
+  /** Solo con `--variantes`. */
+  variantes?: ResultadoVariantes
+}
+export interface ResumenVariante {
+  propiasAceptadas: number
+  propias: number
+  ajenasAceptadas: number
+  pares: number
+  recuperadas: number
+  desplazadas: number
+}
+export const VARIANTES = ['talCual', 'sinFines', 'sinFinesPrudentes'] as const
+export type NombreVariante = (typeof VARIANTES)[number]
+export interface ResultadoVariantes {
+  resumen: Record<NombreVariante, ResumenVariante>
+  criterio: {
+    /** Con «sin fines», las propias aceptadas son < 90 %. */
+    sinFinesBajan: boolean
+    /** Con «sin fines + prudentes», ≥ 90 %. */
+    prudentesRecuperan: boolean
+    /** Ajenas aceptadas = 0 en las tres variantes. */
+    ajenasEnCero: boolean
+    cumple: boolean
   }
 }
 
@@ -125,9 +149,80 @@ const evaluar = (letra: Letra, nivel: NivelBase): ResultadoEncaje =>
     }
   )
 
+const sinFines = (l: Letra): Letra => ({
+  ...l,
+  lineas: l.lineas.map((e) => (e.tipo === 'linea' ? { ...e, fin_ms: null } : e))
+})
+
+/** La letra tal como se evaluaría en cada variante (todo en memoria; el `offset_ms` de entrada se conserva). */
+function variante(nombre: NombreVariante, letra: Letra, nivel: NivelBase): Letra {
+  if (nombre === 'talCual') return letra
+  const base = sinFines(letra)
+  if (nombre === 'sinFines') return base
+  return proponerAjusteSilencios(base, detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }), {
+    duracionMs: nivel.duracionMs,
+    espera: ESPERA_LEGADA,
+    soloFinesAutomaticos: true,
+    activarComodin: false
+  }).letra
+}
+
+function resumirVariantes(canciones: Cancion[]): ResultadoVariantes {
+  const resumen = {} as Record<NombreVariante, ResumenVariante>
+  for (const nombre of VARIANTES) {
+    const r: ResumenVariante = {
+      propiasAceptadas: 0,
+      propias: 0,
+      ajenasAceptadas: 0,
+      pares: 0,
+      recuperadas: 0,
+      desplazadas: 0
+    }
+    for (const c of canciones) {
+      r.propias++
+      if (evaluar(variante(nombre, c.letra, c.nivel), c.nivel).veredicto === 'coincide') {
+        r.propiasAceptadas++
+      }
+      for (const desplazamientoMs of DESPLAZAMIENTOS_MS) {
+        if (Math.abs(desplazamientoMs) < DESFASE_MINIMO_MS) continue
+        r.desplazadas++
+        const movida = { ...c.letra, offset_ms: desplazamientoMs }
+        const d = evaluar(variante(nombre, movida, c.nivel), c.nivel)
+        if (
+          d.veredicto === 'desfasada' &&
+          Math.abs(d.desfaseMs + desplazamientoMs) <= TOLERANCIA_RECUPERADO_MS
+        ) {
+          r.recuperadas++
+        }
+      }
+      for (const otra of canciones) {
+        if (otra.id === c.id) continue
+        r.pares++
+        const a = evaluar(variante(nombre, c.letra, otra.nivel), otra.nivel).veredicto
+        if (a === 'coincide' || a === 'desfasada') r.ajenasAceptadas++
+      }
+    }
+    resumen[nombre] = r
+  }
+  const prop = (n: NombreVariante): number =>
+    resumen[n].propias === 0 ? 0 : resumen[n].propiasAceptadas / resumen[n].propias
+  const sinFinesBajan = prop('sinFines') < 0.9
+  const prudentesRecuperan = canciones.length > 0 && prop('sinFinesPrudentes') >= 0.9
+  const ajenasEnCero = VARIANTES.every((n) => resumen[n].ajenasAceptadas === 0)
+  return {
+    resumen,
+    criterio: {
+      sinFinesBajan,
+      prudentesRecuperan,
+      ajenasEnCero,
+      cumple: sinFinesBajan && prudentesRecuperan && ajenasEnCero
+    }
+  }
+}
+
 export async function calibrarEncaje(
   raiz: string,
-  { ids }: { ids?: string[] } = {}
+  { ids, variantes = false }: { ids?: string[]; variantes?: boolean } = {}
 ): Promise<ResultadoEncajeCalibracion> {
   const avisos: string[] = []
   const candidatas =
@@ -203,7 +298,8 @@ export async function calibrarEncaje(
       pares: ajenas.length,
       recuperadas: grandes.filter((d) => d.recuperado).length,
       desplazadas: grandes.length
-    }
+    },
+    ...(variantes ? { variantes: resumirVariantes(canciones) } : {})
   }
 }
 
@@ -237,5 +333,31 @@ export function formatearEncaje(r: ResultadoEncajeCalibracion): string {
     `  ajenas aceptadas (coincide o desfasada): ${s.ajenasAceptadas}/${s.pares}`,
     `  desplazamientos ≥ 0,5 s recuperados (±${TOLERANCIA_RECUPERADO_MS} ms): ${s.recuperadas}/${s.desplazadas}`
   )
+  if (r.variantes) {
+    const { resumen, criterio } = r.variantes
+    const nombres: Record<NombreVariante, string> = {
+      talCual: 'tal cual',
+      sinFines: 'sin fines',
+      sinFinesPrudentes: 'sin fines + prudentes'
+    }
+    const pct = (a: number, n: number): string => (n === 0 ? '-' : `${Math.round((a / n) * 100)} %`)
+    salida.push(
+      '',
+      'Variantes (propias aceptadas / ajenas aceptadas / desplazamientos recuperados):'
+    )
+    for (const n of VARIANTES) {
+      const v = resumen[n]
+      salida.push(
+        `  ${nombres[n].padEnd(22)} propias ${v.propiasAceptadas}/${v.propias} (${pct(v.propiasAceptadas, v.propias)})` +
+          `  ajenas ${v.ajenasAceptadas}/${v.pares}  recuperados ${v.recuperadas}/${v.desplazadas}`
+      )
+    }
+    const si = (b: boolean): string => (b ? 'sí' : 'no')
+    salida.push(
+      `Criterio de adopción (pregunta 0222): ${criterio.cumple ? 'SÍ' : 'NO'} se cumple` +
+        ` (sin fines < 90 %: ${si(criterio.sinFinesBajan)}; prudentes ≥ 90 %: ${si(criterio.prudentesRecuperan)};` +
+        ` ajenas = 0 en las tres: ${si(criterio.ajenasEnCero)})`
+    )
+  }
   return salida.join('\n')
 }

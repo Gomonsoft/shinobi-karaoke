@@ -70,6 +70,7 @@ import {
   hayAlgoEnCurso,
   motivoDeCierre,
   type FuentesEnCurso,
+  vigilarRenderer,
   type IntencionCierre
 } from './cierre'
 import {
@@ -332,6 +333,7 @@ function crearVentana(): BrowserWindow {
 
   // Con una instalación en curso, cerrar pide confirmación al renderer (0036).
   ventana.on('close', (evento) => controlCierre.alCerrarVentana(evento))
+  vigilarRenderer(ventana.webContents, controlCierre, (m) => console.warn(m))
   ventana.on('closed', () => {
     guardadoEditorPendiente = false
   })

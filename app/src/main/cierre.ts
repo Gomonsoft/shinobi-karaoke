@@ -67,7 +67,7 @@ export interface ControlCierre {
   /** Evento `before-quit` de la app (Salir, Cmd+Q). */
   alSalir(evento: EventoCancelable): void
   /** El renderer confirmó: pausa y vuelve a cerrar o salir según lo que se pidió. */
-  confirmar(): Promise<void>
+  confirmar(opciones?: { comoSalir?: boolean }): Promise<void>
   /** Lo que se pidió y aún no se confirmó (`null` si nada). Para reenviarlo a un renderer que llegó tarde. */
   pendiente(): IntencionCierre | null
 }
@@ -89,10 +89,11 @@ export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
     alCerrarVentana: (evento) => interceptar(evento, 'ventana'),
     alSalir: (evento) => interceptar(evento, 'salir'),
     pendiente: () => (confirmando ? null : pendiente),
-    async confirmar() {
+    async confirmar(opciones) {
       // Una confirmación sin solicitud previa no cierra nada.
-      const intencion = pendiente
-      if (intencion === null) return
+      if (pendiente === null) return
+      // La red de seguridad (0374) siempre sale de la app: no hay ventana a la que volver.
+      const intencion: IntencionCierre = opciones?.comoSalir ? 'salir' : pendiente
       pendiente = null
       confirmando = true
       try {
@@ -106,4 +107,60 @@ export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
       }
     }
   }
+}
+
+/** Tiempo sin responder del renderer, con una solicitud pendiente, antes de salir sin él (0374, ADR 0025 §5). */
+export const PLAZO_RENDERER_MUERTO_MS = 10_000
+
+/** Lo mínimo que se vigila del `webContents` de la ventana principal. */
+export interface ContenidoVigilable {
+  on(
+    evento: 'render-process-gone' | 'destroyed' | 'unresponsive' | 'responsive',
+    cb: () => void
+  ): unknown
+}
+
+/**
+ * Red de seguridad del cierre (0374): mientras el renderer responda, la solicitud espera al usuario sin límite.
+ * Si se cae, se destruye o no responde durante más de 10 s con una solicitud pendiente, se actúa como si se
+ * hubiera confirmado «Salir»: se cancelan los trabajos con motivo `cierre` y el diario se conserva.
+ */
+export function vigilarRenderer(
+  contenido: ContenidoVigilable,
+  control: Pick<ControlCierre, 'pendiente' | 'confirmar'>,
+  registrar: (mensaje: string) => void,
+  plazoMs = PLAZO_RENDERER_MUERTO_MS
+): void {
+  let temporizador: ReturnType<typeof setTimeout> | null = null
+  const parar = (): void => {
+    if (temporizador) clearTimeout(temporizador)
+    temporizador = null
+  }
+  const salir = (causa: string): void => {
+    if (control.pendiente() === null) return
+    parar()
+    registrar(
+      `[cierre] ${causa} con una solicitud de cierre pendiente: se sale como si se confirmara`
+    )
+    void control
+      .confirmar({ comoSalir: true })
+      .catch((e) => registrar(`[cierre] fallo al salir: ${e}`))
+  }
+  const armar = (): void => {
+    temporizador = setTimeout(() => {
+      temporizador = null
+      // Sin solicitud todavía: se sigue contando mientras no responda.
+      if (control.pendiente() === null) armar()
+      else salir(`el renderer no responde desde hace ${plazoMs / 1000} s`)
+    }, plazoMs)
+  }
+  contenido.on('render-process-gone', () => salir('el renderer se cayó'))
+  contenido.on('destroyed', () => {
+    salir('la ventana principal se destruyó')
+    parar()
+  })
+  contenido.on('unresponsive', () => {
+    if (!temporizador) armar()
+  })
+  contenido.on('responsive', parar)
 }

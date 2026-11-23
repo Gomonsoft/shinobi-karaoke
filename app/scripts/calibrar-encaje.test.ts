@@ -163,4 +163,23 @@ describe('calibrar-encaje', () => {
     expect(texto).not.toContain('Verso inventado')
     expect(JSON.stringify(r)).not.toContain('Verso inventado')
   })
+
+  it('--variantes: sin fines no se acepta en una canción con huecos; con fines prudentes sí; las ajenas nunca; sin tocar el árbol', async () => {
+    const antes = await arbol(raiz)
+    const r = await calibrarEncaje(raiz, { variantes: true })
+    expect(await arbol(raiz)).toStrictEqual(antes)
+    const v = r.variantes!
+    expect(v.resumen.talCual.propiasAceptadas).toBe(3)
+    expect(v.resumen.sinFines.propiasAceptadas).toBeLessThan(3)
+    expect(v.resumen.sinFinesPrudentes.propiasAceptadas).toBe(3)
+    for (const n of ['talCual', 'sinFines', 'sinFinesPrudentes'] as const) {
+      expect(v.resumen[n].ajenasAceptadas).toBe(0)
+    }
+    expect(v.criterio.cumple).toBe(true)
+    const texto = formatearEncaje(r)
+    expect(texto).toContain('Criterio de adopción')
+    expect(texto).not.toContain('Verso inventado')
+    // Sin la opción, la salida no cambia.
+    expect((await calibrarEncaje(raiz)).variantes).toBeUndefined()
+  })
 })

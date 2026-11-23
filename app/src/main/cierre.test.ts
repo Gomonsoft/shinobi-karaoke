@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { crearControlCierre, hayAlgoEnCurso, motivoDeCierre } from './cierre'
+import {
+  PLAZO_RENDERER_MUERTO_MS,
+  crearControlCierre,
+  hayAlgoEnCurso,
+  motivoDeCierre,
+  vigilarRenderer
+} from './cierre'
 
 function preparar(enCurso: boolean) {
   const estado = { enCurso }
@@ -195,4 +201,75 @@ it('pide vaciado con guardado pendiente y permite el cierre confirmado si el ren
   expect(pedirConfirmacion).toHaveBeenCalledOnce()
   await control.confirmar()
   expect(cierreConfirmado.preventDefault).not.toHaveBeenCalled()
+})
+
+describe('red de seguridad con el renderer caído (0374)', () => {
+  function vigilado(solicitar: boolean) {
+    const manejadores = new Map<string, () => void>()
+    const contenido = { on: (e: string, cb: () => void) => void manejadores.set(e, cb) }
+    const { control, deps, orden } = preparar(true)
+    // `preparar` no distingue intención: `pausar` y `salir` quedan en `orden`.
+    if (solicitar) control.alSalir({ preventDefault: vi.fn() })
+    const registrar = vi.fn()
+    vigilarRenderer(contenido as never, control, registrar)
+    const emitir = (e: string): void => manejadores.get(e)?.()
+    return { control, deps, orden, registrar, emitir }
+  }
+
+  it('renderer caído con solicitud pendiente: pausa (cancela con `cierre`), sale y lo anota', async () => {
+    vi.useFakeTimers()
+    const { deps, orden, registrar, emitir } = vigilado(true)
+    emitir('render-process-gone')
+    await vi.runAllTimersAsync()
+    expect(orden).toStrictEqual(['pedir', 'pausar', 'salir'])
+    expect(deps.pausar).toHaveBeenCalledWith('salir')
+    expect(registrar).toHaveBeenCalledWith(expect.stringContaining('se cayó'))
+    vi.useRealTimers()
+  })
+
+  it('en macOS una solicitud de ventana pasa a «salir»', async () => {
+    const { control, deps } = preparar(true)
+    control.alCerrarVentana({ preventDefault: vi.fn() })
+    await control.confirmar({ comoSalir: true })
+    expect(deps.salir).toHaveBeenCalledOnce()
+    expect(deps.cerrarVentana).not.toHaveBeenCalled()
+  })
+
+  it('ventana destruida con solicitud pendiente: sale', async () => {
+    const { orden, registrar, emitir } = vigilado(true)
+    emitir('destroyed')
+    await vi.waitFor(() => expect(orden).toContain('salir'))
+    expect(registrar).toHaveBeenCalledWith(expect.stringContaining('destruyó'))
+  })
+
+  it('unresponsive más de 10 s: sale; con responsive antes, sigue esperando sin límite', async () => {
+    vi.useFakeTimers()
+    const a = vigilado(true)
+    a.emitir('unresponsive')
+    await vi.advanceTimersByTimeAsync(PLAZO_RENDERER_MUERTO_MS - 1)
+    a.emitir('responsive')
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(a.orden).toStrictEqual(['pedir'])
+
+    const b = vigilado(true)
+    b.emitir('unresponsive')
+    await vi.advanceTimersByTimeAsync(PLAZO_RENDERER_MUERTO_MS)
+    expect(b.orden).toStrictEqual(['pedir', 'pausar', 'salir'])
+    vi.useRealTimers()
+  })
+
+  it('renderer que responde: no hay límite de tiempo; sin solicitud pendiente no hace nada', async () => {
+    vi.useFakeTimers()
+    const a = vigilado(true)
+    await vi.advanceTimersByTimeAsync(60 * 60_000)
+    expect(a.orden).toStrictEqual(['pedir'])
+
+    const b = vigilado(false)
+    b.emitir('render-process-gone')
+    b.emitir('destroyed')
+    b.emitir('unresponsive')
+    await vi.advanceTimersByTimeAsync(PLAZO_RENDERER_MUERTO_MS * 3)
+    expect(b.orden).toStrictEqual([])
+    vi.useRealTimers()
+  })
 })
