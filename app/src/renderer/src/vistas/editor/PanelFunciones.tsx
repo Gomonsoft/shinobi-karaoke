@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
-import { Film, Flag, Info, MoveHorizontal } from 'lucide-react'
+import { FileMusic, Film, Flag, Info, MoveHorizontal } from 'lucide-react'
 import type { ExportacionVista } from '../../exportacion/estado'
 import { lineaDeExportacion } from '../../exportacion/lineas'
 import { Boton } from '../../componentes/Boton'
@@ -23,6 +23,12 @@ interface Props {
   exportacion: {
     activa: ExportacionVista | undefined
     /** Por qué no se puede exportar (`exp.motivo.*`). */
+    motivo: string | undefined
+    exportar(): void
+  }
+  /** «Exportar la letra» (0.2.2 · feature 9, F9-E1): sigue a «Exportar video». */
+  letra: {
+    /** Por qué no se puede (`lrc.motivo.sinTiempos`); `undefined` si se puede. */
     motivo: string | undefined
     exportar(): void
   }
@@ -111,6 +117,7 @@ const textoMotivoComprobar = (m: MotivoComprobar): string =>
 export function PanelFunciones({
   estado,
   exportacion,
+  letra,
   preparacion,
   revision,
   comprobar,
@@ -148,7 +155,11 @@ export function PanelFunciones({
           idTitulo={`${id}-preparacion`}
           refTitulo={preparacion.tituloRef}
         >
-          <p>{EP.intro(preparacion.datos.fecha)}</p>
+          <p>
+            {preparacion.datos.soloFines
+              ? EP.introFines(preparacion.datos.fecha)
+              : EP.intro(preparacion.datos.fecha)}
+          </p>
           {preparacion.datos.letra && (
             <>
               <p data-prep-letra="">
@@ -312,6 +323,24 @@ export function PanelFunciones({
           <MotivoVisible id={`${id}-motivo-exportar`} texto={exportacion.motivo} />
         )}
         {lineaExp && <p>{lineaExp.texto}</p>}
+      </Seccion>
+
+      <Seccion titulo={F.letra.titulo} idTitulo={`${id}-letra`}>
+        <p>{F.letra.ayuda}</p>
+        <div className={estilos.funcionFila}>
+          <Boton
+            data-funcion="letra"
+            aria-disabled={letra.motivo ? true : undefined}
+            aria-describedby={letra.motivo ? `${id}-motivo-letra` : undefined}
+            onClick={() => {
+              if (!letra.motivo) letra.exportar()
+            }}
+          >
+            <Icono icono={FileMusic} />
+            {F.letra.boton}
+          </Boton>
+        </div>
+        {letra.motivo && <MotivoVisible id={`${id}-motivo-letra`} texto={letra.motivo} />}
       </Seccion>
 
       <Seccion titulo={F.modo.titulo} idTitulo={`${id}-modo`}>

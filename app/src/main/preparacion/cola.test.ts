@@ -61,7 +61,7 @@ let canciones: Map<string, Partial<Cancion>>
 let diario: DiarioPendientes
 let d: {
   reanudarCola: Mock<() => void>
-  iniciar: Mock<(id: string, o: string) => boolean>
+  iniciar: Mock<(id: string, o: string, opciones?: { finesSinMarca: boolean }) => boolean>
   ids: string[]
   separar: Mock<(id: string) => Promise<void>>
   reintentarDescarga: Mock<(id: string) => Promise<void>>
@@ -385,6 +385,7 @@ describe('reanudar al abrir', () => {
       orden: number
       interrupciones: number
       enCurso: boolean
+      finesSinMarca?: boolean
     }[]
   ) => {
     await mkdir(join(dir, 'trabajos'), { recursive: true })
@@ -449,6 +450,27 @@ describe('reanudar al abrir', () => {
     ])
     await cola.reanudarAlAbrir()
     expect(d.iniciar).toHaveBeenCalledWith('a', 'manual')
+  })
+
+  it('la confirmación de fines sin marca sobrevive al cierre: se anota y se pasa al reanudar', async () => {
+    canciones.set('a', cancion({ preparacion: { origen: 'manual', estado: 'detenida' } as never }))
+    oyenteCorrida({ tipo: 'inicio', id: 'a', origen: 'manual', finesSinMarca: true })
+    await diario.vaciar()
+    const siguiente = new DiarioPendientes(dir)
+    await siguiente.cargar()
+    expect(siguiente.tomarHeredadas()).toMatchObject([{ cancionId: 'a', finesSinMarca: true }])
+    await escribirDiario([
+      {
+        cancionId: 'a',
+        tipo: 'preparacion',
+        orden: 0,
+        interrupciones: 0,
+        enCurso: true,
+        finesSinMarca: true
+      }
+    ])
+    await cola.reanudarAlAbrir()
+    expect(d.iniciar).toHaveBeenCalledWith('a', 'manual', { finesSinMarca: true })
   })
 })
 

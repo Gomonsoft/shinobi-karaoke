@@ -2,16 +2,16 @@
 
 export const TEXTO = {
   titulo: 'Añadir canción',
-  pregunta: '¿De dónde sale la canción?',
+  pregunta: '¿Qué quieres añadir?',
   origen: 'Origen de la canción',
-  origenArchivo: 'Archivo de tu equipo',
-  origenYoutube: 'Enlace de YouTube',
-  arrastre: 'Arrastra aquí un archivo de audio o vídeo',
+  origenArchivo: 'Archivos de tu equipo',
+  origenYoutube: 'Enlaces de YouTube',
+  arrastre: 'Arrastra aquí un archivo, varios o una carpeta entera',
   soltar: 'Suelta para añadir',
   o: 'o',
-  elegir: 'Elegir archivo…',
+  elegir: 'Elegir archivos…',
+  elegirCarpeta: 'Elegir carpeta…',
   formatos: 'MP3, M4A, FLAC, WAV, OGG/Opus, WebM · vídeo MP4, MKV, MOV',
-  varios: 'Añade las canciones de una en una.',
   leyendo: 'Leyendo el audio…',
   datosTitulo: 'Revisa los datos de la canción',
   datosAyuda:
@@ -67,9 +67,10 @@ export const TEXTO_YT = {
   legalSoloUnaVez: 'Solo te lo mostraremos esta vez. Puedes releerlo en Ajustes.',
   legalAceptar: 'Entendido',
   legalRechazar: 'Usar un archivo en su lugar',
-  urlEtiqueta: 'Enlace del vídeo',
-  urlAyuda: 'Pega el enlace de un vídeo (no de una lista ni de un directo).',
-  buscar: 'Buscar vídeo',
+  urlEtiqueta: 'Enlaces de YouTube',
+  urlAyuda:
+    'Pega el enlace de un video, varios enlaces (uno por renglón) o el de una lista de reproducción o un álbum.',
+  buscar: 'Buscar',
   buscando: 'Buscando…',
   reintentoYtdlp:
     'Actualizando el descargador de YouTube y volviendo a buscar… Puede tardar hasta medio minuto.',

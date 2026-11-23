@@ -367,6 +367,11 @@ export class ServicioLetras {
     return puestos
   }
 
+  /** El editor tiene abierta la letra de esa canción. */
+  enEdicion(cancionId: string): boolean {
+    return this.visita?.cancionId === cancionId
+  }
+
   private invalidarEdicionDe(cancionId: string): void {
     if (this.visita?.cancionId === cancionId) this.liberarEdicion()
   }

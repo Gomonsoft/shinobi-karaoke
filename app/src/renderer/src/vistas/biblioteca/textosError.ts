@@ -7,7 +7,7 @@ const TITULOS: Record<string, string> = {
   FORMATO_NO_SOPORTADO: 'No podemos leer este archivo',
   AUDIO_DEMASIADO_CORTO: 'El audio es demasiado corto',
   URL_NO_VALIDA: 'Este enlace no es de un vídeo de YouTube',
-  URL_NO_SOPORTADA: 'Las listas y los directos no se pueden usar',
+  URL_NO_SOPORTADA: 'Este enlace no se puede usar',
   VIDEO_NO_DISPONIBLE: 'Este vídeo no está disponible',
   YOUTUBE_BLOQUEADO: 'YouTube no permite la descarga ahora mismo',
   MEMORIA_INSUFICIENTE: 'Tu equipo se quedó sin memoria',

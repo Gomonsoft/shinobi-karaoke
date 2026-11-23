@@ -377,6 +377,18 @@ describe('trabajo en vivo (0014)', () => {
     )
     expect(fuente.linea).toEqual({ tipo: 'texto', texto: 'Falta descargar el audio' })
     expect(fuente.accion).toBe('continuar')
+    // Un paquete ligero con origen en un archivo: «Falta preparar el audio» (feature 9, F9-8).
+    const archivo = datosDeTarjeta(
+      resumenPrueba({
+        fuenteTipo: 'archivo',
+        pasos: {
+          ...resumenPrueba().pasos!,
+          fuente: paso('pendiente'),
+          separacion: paso('pendiente')
+        }
+      })
+    )
+    expect(archivo.linea).toEqual({ tipo: 'texto', texto: 'Falta preparar el audio' })
     // Con trabajo vivo, la línea es la del trabajo.
     expect(
       datosDeTarjeta(

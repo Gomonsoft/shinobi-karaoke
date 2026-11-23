@@ -59,7 +59,11 @@ export interface DependenciasCola {
   }
   preparacion: {
     suscribirCorridas(cb: (e: EventoCorrida) => void): () => void
-    iniciar(cancionId: string, origen: OrigenPreparacion): boolean
+    iniciar(
+      cancionId: string,
+      origen: OrigenPreparacion,
+      opciones?: { finesSinMarca: boolean }
+    ): boolean
     ids(): string[]
   }
   biblioteca: { obtener(id: string): Cancion | null }
@@ -240,7 +244,7 @@ export class ColaPreparacion {
     for (const e of retomar) this.deps.diario.restaurar(e)
     for (const e of retomar) {
       this.anadir(e.cancionId)
-      await this.relanzar(e.cancionId, undefined, e.tipo)
+      await this.relanzar(e.cancionId, undefined, e.tipo, e.finesSinMarca)
     }
     if (retomar.length > 0) {
       this.deps.registrar?.('info', `${MODULO}: se retoman ${retomar.length} pendientes al abrir`)
@@ -253,7 +257,8 @@ export class ColaPreparacion {
   private async relanzar(
     id: string,
     origen: OrigenPreparacion = 'automatica',
-    tipo?: TipoPendiente
+    tipo?: TipoPendiente,
+    finesSinMarca = false
   ): Promise<void> {
     const cancion = this.deps.biblioteca.obtener(id)
     if (!cancion) return
@@ -264,7 +269,10 @@ export class ColaPreparacion {
       } else if (tipo === 'separacion' || (!tipo && separacion.estado !== 'completado')) {
         if (separacion.estado !== 'completado') await this.deps.separar(id)
       } else {
-        this.deps.preparacion.iniciar(id, cancion.preparacion?.origen ?? origen)
+        const origenReal = cancion.preparacion?.origen ?? origen
+        // La confirmación del usuario sobrevive a un cierre de la app (diario, ADR 0025 revisión 0278).
+        if (finesSinMarca) this.deps.preparacion.iniciar(id, origenReal, { finesSinMarca })
+        else this.deps.preparacion.iniciar(id, origenReal)
       }
     } catch (e) {
       this.deps.registrar?.('aviso', `${MODULO}: no se pudo relanzar ${id}: ${String(e)}`)
@@ -322,7 +330,8 @@ export class ColaPreparacion {
   private alCorrida(e: EventoCorrida): void {
     if (e.tipo === 'inicio') {
       this.cierre = false
-      this.deps.diario.alta(e.id, 'preparacion')
+      if (e.finesSinMarca) this.deps.diario.alta(e.id, 'preparacion', { finesSinMarca: true })
+      else this.deps.diario.alta(e.id, 'preparacion')
       this.deps.diario.enCurso(e.id, 'preparacion')
       this.anadir(e.id)
       return

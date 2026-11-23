@@ -64,6 +64,46 @@ function cantos(id: string): [number, number][] {
   })
 }
 
+/** Voz casi continua: frases de 3 s con 120 ms de pausa. */
+const CONTINUA: [number, number][] = Array.from({ length: 18 }, (_, i) => [
+  2000 + i * 3120,
+  5000 + i * 3120
+])
+
+async function escribirCancion(
+  raiz: string,
+  id: string,
+  c: [number, number][],
+  voz: [number, number][] = c
+): Promise<void> {
+  const letra = {
+    origen: 'manual',
+    lrclib_id: null,
+    offset_ms: 0,
+    lineas: c.map(([a, b], i) => ({
+      id: `${id}-${i}`,
+      tipo: 'linea',
+      texto: `Verso inventado ${i + 1}`,
+      inicio_ms: a,
+      fin_ms: b,
+      palabras: null
+    }))
+  }
+  await mkdir(join(raiz, id, 'pistas'), { recursive: true })
+  await writeFile(
+    join(raiz, id, 'cancion.json'),
+    JSON.stringify({ letra, metadatos: { titulo: `Título de ${id}`, duracion_ms: DUR } })
+  )
+  const picos = generarPicos({
+    duracionMs: DUR,
+    tramos: voz.map(([desdeMs, hastaMs]) => ({ desdeMs, hastaMs, dbfs: -6 }))
+  })
+  await writeFile(
+    join(raiz, id, 'pistas', `.picos-voz-v1-${'b'.repeat(64)}.bin`),
+    codificarPicos(picos)
+  )
+}
+
 async function arbol(dir: string): Promise<string[]> {
   const salida: string[] = []
   for (const e of await readdir(dir, { withFileTypes: true, recursive: true })) {
@@ -181,5 +221,83 @@ describe('calibrar-encaje', () => {
     expect(texto).not.toContain('Verso inventado')
     // Sin la opción, la salida no cambia.
     expect((await calibrarEncaje(raiz)).variantes).toBeUndefined()
+  })
+})
+
+describe('calibrar-encaje --inicios (0385)', () => {
+  it('mide por inicios sin tocar el árbol, sin textos de letra, y sin la opción la salida no cambia', async () => {
+    const antes = await arbol(raiz)
+    const r = await calibrarEncaje(raiz, { inicios: true, variantes: true })
+    expect(await arbol(raiz)).toStrictEqual(antes)
+    const i = r.inicios!
+    // 3 pausas × 2 ventanas; 3 × 3 × 3 reglas por cada una.
+    expect(i.ventanas).toHaveLength(6)
+    expect(i.reglas).toHaveLength(6 * 27)
+    for (const x of i.reglas) {
+      expect(x.pares).toBe(6)
+      expect(x.ajenasAceptadas).toBe(0)
+    }
+    // Voz con pausas y letra propia: la señal es alta en la propia y la mejor ajena queda lejos.
+    const fila = i.ventanas[0]!.filas.find((f) => f.id === 'cancion-a')!
+    expect(fila.propia!.ostar0).toBeGreaterThan(0.7)
+    expect(fila.mejorAjenaOstar0!).toBeLessThan(fila.propia!.ostar0)
+    const texto = formatearEncaje(r)
+    expect(texto).toContain('Inicios de línea')
+    expect(texto).toContain('Criterio de adopción (pregunta 0295)')
+    expect(texto).not.toContain('Verso inventado')
+    expect(JSON.stringify(r)).not.toContain('Verso inventado')
+
+    const normal = await calibrarEncaje(raiz)
+    expect(normal.inicios).toBeUndefined()
+    expect(formatearEncaje(normal)).not.toContain('Inicios de línea')
+  })
+})
+
+describe('calibrar-encaje con guardas de fiabilidad (0381)', () => {
+  let continua: string
+  beforeAll(async () => {
+    continua = await realpath(await mkdtemp(join(tmpdir(), 'calibrar-encaje-continua-')))
+    await escribirCancion(continua, 'cancion-a', cantos('cancion-a'))
+    await escribirCancion(continua, 'cancion-b', cantos('cancion-b'))
+    await escribirCancion(continua, 'cancion-continua', CONTINUA)
+  })
+  afterAll(() => rm(continua, { recursive: true, force: true }))
+
+  it('la propia de voz continua sale dudosa (sin guardas: coincide), la ajena no se acepta y la seguridad es SÍ', async () => {
+    const antes = await arbol(continua)
+    const r = await calibrarEncaje(continua, { variantes: true })
+    expect(await arbol(continua)).toStrictEqual(antes)
+    const c = r.propias.find((p) => p.id === 'cancion-continua')!
+    expect(c).toMatchObject({
+      veredicto: 'dudosa',
+      veredictoBase: 'coincide',
+      limitacion: 'vozContinua'
+    })
+    expect(c.densidadVozPct).toBeGreaterThanOrEqual(95)
+    expect(r.resumen).toMatchObject({ propias: 3, propiasAceptadas: 2, propiasSinGuardas: 3 })
+    expect(r.resumen).toMatchObject({
+      ajenasAceptadas: 0,
+      falsosCoincide: 0,
+      propiasDesfasadas: 0,
+      correccionesEquivocadas: 0
+    })
+    expect(r.seguridad).toStrictEqual({ cumple: true, en: ['talCual', 'sinFines'] })
+    const texto = formatearEncaje(r)
+    expect(texto).toContain('Criterio de seguridad (ADR 0024, revisión 2026-11-22): SÍ')
+    expect(texto).toContain('vozContinua')
+    expect(texto).not.toContain('Verso inventado')
+  })
+
+  it('sin las guardas el criterio de seguridad sale NO', async () => {
+    const r = await calibrarEncaje(continua, {
+      variantes: true,
+      // Desactivadas: el contraste puede ser negativo, así que basta un mínimo muy bajo.
+      parametros: { densidadVozMaxima: 1.1, contrasteMinimoF: -1 }
+    })
+    expect(r.propias.find((p) => p.id === 'cancion-continua')!.limitacion).toBeNull()
+    expect(r.seguridad.cumple).toBe(false)
+    expect(formatearEncaje(r)).toContain(
+      'Criterio de seguridad (ADR 0024, revisión 2026-11-22): NO'
+    )
   })
 })

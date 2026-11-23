@@ -3,6 +3,7 @@ import { DialogoCierre } from './DialogoCierre'
 import { registrarBorradorAlCerrar } from './salida'
 import { cuerpoCierre, listaBreve } from './textosCierre'
 import type { Vista } from './estado'
+import { iniciarSeguimiento, reiniciarPaquetes } from '../vistas/biblioteca/paquete/almacen'
 
 let solicitar: (m?: unknown) => void
 const confirmarCierre = vi.fn().mockResolvedValue(undefined)
@@ -182,5 +183,45 @@ describe('DialogoCierre', () => {
     await pedir()
     expect(confirmarCierre).toHaveBeenCalledOnce()
     baja()
+  })
+})
+
+describe('cierre con una tanda de la cola de preparación (cierre.cuerpo.cola)', () => {
+  it('dice cuántas canciones faltan y que seguirán solas', async () => {
+    instalar(['c1', 'c2'], { c1: 'Tema uno', c2: 'Tema dos' })
+    ;(window as unknown as { shinobi: { preparacion: unknown } }).shinobi.preparacion = {
+      tanda: () => Promise.resolve({ total: 5, terminadas: 2 })
+    }
+    await pedir()
+    expect(
+      screen.getByText(
+        /^Faltan 3 canciones por preparar\. Si cierras ahora, se pararán y seguirán solas/
+      )
+    ).toBeInTheDocument()
+  })
+})
+
+describe('DialogoCierre con un paquete en curso (0383)', () => {
+  it('lo cuenta como un trabajo y lo cancela al confirmar', async () => {
+    instalar([], {})
+    const cancelar = vi.fn().mockResolvedValue(undefined)
+    ;(window as unknown as { shinobi: Record<string, unknown> }).shinobi.copias = { cancelar }
+    reiniciarPaquetes()
+    iniciarSeguimiento({
+      tipo: 'exportar',
+      trabajoId: 'p1',
+      completo: true,
+      esCopia: false,
+      n: 1,
+      peticion: null
+    })
+    await pedir({ tipo: 'biblioteca' }, motivo(false, false, 'salir', true))
+    expect(screen.getByText(/Hay 1 trabajo sin terminar/)).toBeInTheDocument()
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar de todos modos' }))
+    )
+    expect(cancelar).toHaveBeenCalledWith('p1')
+    expect(confirmarCierre).toHaveBeenCalledOnce()
+    reiniciarPaquetes()
   })
 })

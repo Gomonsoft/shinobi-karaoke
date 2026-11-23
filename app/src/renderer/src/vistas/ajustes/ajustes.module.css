@@ -201,3 +201,10 @@
   height: 20px;
   margin: 0;
 }
+
+/* Copia de seguridad (docs/ux/08 · Feature 9): los dos botones, uno junto al otro. */
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}

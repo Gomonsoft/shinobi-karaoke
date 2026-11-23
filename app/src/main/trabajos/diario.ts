@@ -20,13 +20,15 @@ const entradaSchema = z.object({
   orden: z.number().int().nonnegative(),
   interrupciones: z.number().int().nonnegative().catch(0),
   /** Estaba en curso (no solo en cola) cuando se escribió por última vez. */
-  enCurso: z.boolean().catch(false)
+  enCurso: z.boolean().catch(false),
+  /** Preparación con la confirmación de poner fines a una letra sin `intacta` (ADR 0025, revisión 0278). */
+  finesSinMarca: z.boolean().catch(false)
 })
 export type EntradaPendiente = z.infer<typeof entradaSchema>
 
 /** Lo que usan el gestor y la preparación. */
 export interface PuertoDiario {
-  alta(cancionId: string, tipo: TipoPendiente): void
+  alta(cancionId: string, tipo: TipoPendiente, opciones?: { finesSinMarca?: boolean }): void
   enCurso(cancionId: string, tipo: TipoPendiente): void
   /** `conservar`: el trabajo se paró por el cierre de la app y debe retomarse. */
   baja(cancionId: string, tipo: TipoPendiente, conservar?: boolean): void
@@ -69,7 +71,7 @@ export class DiarioPendientes implements PuertoDiario {
     this.escribir()
   }
 
-  alta(cancionId: string, tipo: TipoPendiente): void {
+  alta(cancionId: string, tipo: TipoPendiente, { finesSinMarca = false } = {}): void {
     const k = clave(cancionId, tipo)
     if (!this.actuales.has(k)) {
       this.actuales.set(k, {
@@ -77,7 +79,8 @@ export class DiarioPendientes implements PuertoDiario {
         tipo,
         orden: this.siguienteOrden++,
         interrupciones: 0,
-        enCurso: false
+        enCurso: false,
+        finesSinMarca
       })
     }
     this.escribir()

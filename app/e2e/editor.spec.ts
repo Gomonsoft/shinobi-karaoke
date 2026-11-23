@@ -1,5 +1,12 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { copyFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { cpus, release, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { sembrar } from '../src/main/biblioteca/semilla'
@@ -9,6 +16,7 @@ import { TEXTO } from '../src/renderer/src/vistas/letra/textos'
 import { TEXTO_ELEGIDA } from '../src/renderer/src/vistas/letra/textosElegida'
 import { TEXTO_PEGAR } from '../src/renderer/src/vistas/letra/textosPegar'
 import { E } from '../src/renderer/src/vistas/editor/textos'
+import { K } from '../src/renderer/src/vistas/editor/comprobar/textos'
 import { R } from '../src/renderer/src/vistas/reproductor/textos'
 import {
   lanzar as lanzarSeparacion,
@@ -17,6 +25,7 @@ import {
   tarjeta
 } from './fixtures/separacion'
 import { abrirEditor, conEditor, idSemilla } from './fixtures/editor'
+import { crearTemporal } from './temporales'
 
 /**
  * Editor sin red: semilla de desarrollo con audio de 30 s, salida silenciada y LRCLIB apuntando
@@ -132,6 +141,28 @@ test.describe('editor sin red', () => {
       await expect.poll(() => soloLineas(datos, T17)[0]!.fin_ms, { timeout: 5000 }).not.toBeNull()
       expect(soloLineas(datos, T17)[1]!.inicio_ms).toBeNull()
     })
+  })
+
+  test('«Exportar la letra» justo tras mover un inicio: el archivo lleva el inicio nuevo (F9-E1)', async () => {
+    const salida = crearTemporal('editor-lrc-salida')
+    process.env.SHINOBI_LRC_PRUEBAS = salida
+    try {
+      await conEditor('editor-lrc', async (v) => {
+        await abrir(v, T19)
+        await opcionLinea(v, 1).click()
+        for (let i = 0; i < 3; i++) await v.keyboard.press('Alt+ArrowRight')
+        await expect(opcionLinea(v, 1)).toContainText('00:02.03')
+        // Sin esperar al guardado: el botón vacía el guardado pendiente antes de exportar.
+        await v.getByRole('radio', { name: 'Funciones' }).click()
+        await v.getByRole('button', { name: 'Exportar la letra (.lrc)…' }).click()
+        await expect(v.getByText(/Letra exportada/).first()).toBeVisible()
+        const archivos = readdirSync(salida).filter((n) => n.endsWith('.lrc'))
+        expect(archivos).toHaveLength(1)
+        expect(readFileSync(join(salida, archivos[0]!), 'utf8')).toContain('[00:02.03]')
+      })
+    } finally {
+      delete process.env.SHINOBI_LRC_PRUEBAS
+    }
   })
 
   test('ajuste fino, límites y deshacer/rehacer', async () => {
@@ -1123,6 +1154,56 @@ test('comprobar la letra con la voz: corrige el desfase sin tocar los tiempos y 
   )
 })
 
+// F4-E2 (revisión 2026-11-22): con una limitación, el diálogo solo tiene [Cerrar], dice el motivo y no se
+// toca `cancion.json`. Letra sin fines sobre la voz de cantos de 4 s (`sinContraste`) o de 4,5 s (`vozContinua`).
+for (const [limitacion, duracionPulsoMs] of [
+  ['sinContraste', 4000],
+  ['vozContinua', 4500]
+] as const) {
+  test(`comprobar la letra con la voz: limitación «${limitacion}» solo informa y no cambia nada (F4-E2)`, async () => {
+    test.setTimeout(90_000)
+    await conEditor(
+      `comprobar-limitada-${limitacion}`,
+      async (v, datos) => {
+        const antes = readFileSync(join(datos, 'biblioteca', idDe(T20), 'cancion.json'), 'utf8')
+        await abrir(v, T20)
+        await v.getByRole('radio', { name: 'Sincronía' }).click()
+        await esperarOnda(v)
+        await v.getByRole('radio', { name: 'Funciones' }).click()
+        await v.getByRole('button', { name: 'Comprobar la letra con la voz…' }).click()
+        const dialogo = v.getByRole('dialog', { name: K.limitada.titulo })
+        await expect(dialogo.getByText(K.limitada[limitacion])).toBeVisible()
+        await expect(dialogo.getByRole('button')).toHaveText(['Cerrar'])
+        await expect(v.getByText(K.toastCoincide)).toHaveCount(0)
+        await expect(v.getByText(/Desfase corregido:/)).toHaveCount(0)
+        await dialogo.getByRole('button', { name: 'Cerrar' }).click()
+        await expect(dialogo).toHaveCount(0)
+        expect(readFileSync(join(datos, 'biblioteca', idDe(T20), 'cancion.json'), 'utf8')).toBe(
+          antes
+        )
+      },
+      (datos) => {
+        const raiz = join(datos, 'biblioteca', idDe(T20))
+        writeFileSync(
+          join(raiz, 'pistas', 'voz.flac'),
+          pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs, desfaseMs: 2000 })
+        )
+        const cancion = leerCancion(datos, idDe(T20))
+        cancion.letra.offset_ms = 0
+        cancion.letra.lineas = [2000, 7000, 12_000, 17_000, 22_000, 27_000].map((inicio, i) => ({
+          id: `f${i}`,
+          tipo: 'linea',
+          texto: `Línea inventada ${i + 1}`,
+          inicio_ms: inicio,
+          fin_ms: null,
+          palabras: null
+        }))
+        writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
+      }
+    )
+  })
+}
+
 test('revisión guiada: dos líneas dudosas, «Está bien» se guarda y se deshace, y «Fin al final de la voz» corrige', async () => {
   test.setTimeout(90_000)
   await conEditor(
@@ -1221,4 +1302,27 @@ test('revisión guiada: dos líneas dudosas, «Está bien» se guarda y se desha
       writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
     }
   )
+})
+
+// F5-E6 (pregunta 0270). Escrita sin ejecutar: con «Revisar» no sale en ningún momento banner de la
+// preparación ni `yaSync` (fotogramas cada 50 ms el primer segundo). Falta comprobar que T17 tiene
+// registro de preparación (si no, solo cubre `yaSync`); el escenario completo está en `Editor.banner.test.tsx`.
+test('F5-E6: entrando con «Revisar» no hay banner de preparación ni yaSync en el primer segundo', async () => {
+  await conEditor('banner-revisar', async (v) => {
+    await v.evaluate(() => {
+      const w = window as unknown as { __banners: string[] }
+      w.__banners = []
+      const mirar = (): void => {
+        const t = document.body.innerText
+        if (/Shinobi Karaoke preparó esta canción|Esta letra ya viene sincronizada/.test(t))
+          w.__banners.push(t.slice(0, 80))
+      }
+      setInterval(mirar, 50)
+    })
+    await abrir(v, T17)
+    await v.waitForTimeout(1000)
+    expect(
+      await v.evaluate(() => (window as unknown as { __banners: string[] }).__banners)
+    ).toEqual([])
+  })
 })

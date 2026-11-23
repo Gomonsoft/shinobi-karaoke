@@ -115,6 +115,17 @@ describe('detectarDudosas', () => {
     expect(motivosDe(conCola(alta), null)).toBeUndefined()
   })
 
+  it('un fin más allá del audio (LRC de otra versión) se señala sin lanzar', () => {
+    // La última línea acaba 28 s después de la duración del audio y no hay voz allí.
+    const letra = letraDe([
+      linea('x', 10_000, 13_000),
+      linea('fuera', DURACION - 4000, DURACION + 28_000, 'ultima inventada')
+    ])
+    const m = motivosDe(letra, [[10_000, 13_000]], 'fuera')
+    expect(m).toBeDefined()
+    expect(m!.some((x) => x === 'sinVoz' || x === 'finTarde')).toBe(true)
+  })
+
   it('sin picos solo aplica los motivos que no necesitan la voz', () => {
     const letra = conCola(linea('x', 10_000, 13_000))
     expect(motivosDe(letra, null)).toBeUndefined()

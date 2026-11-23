@@ -53,6 +53,12 @@ export type Bloque =
   | { tipo: 'interrumpido' }
   | { tipo: 'ninguno' }
 
+/** `prog.cola.posicion` y `prog.cola.pausa` (el botón [Reanudar la cola] lo pone la vista). */
+export const textoColaTanda = (c: { k: number; n: number; pausada: boolean }): string =>
+  c.pausada
+    ? 'La cola está en pausa.'
+    : `En cola: ${c.k}.ª de ${c.n}. Empezará cuando terminen las anteriores.`
+
 export interface EntradaModelo {
   tipoFuente: 'archivo' | 'youtube'
   fuente: { estado: string; error: { codigo: string; mensaje: string } | null }
@@ -89,6 +95,8 @@ export interface EntradaModelo {
   /** Error de la descarga de Rápido aceptada en esta vista. */
   errorRapido?: { codigo: string; mensaje: string } | null
   hayLetra?: boolean
+  /** Posición de la canción en una tanda de 2 o más (`prog.cola.posicion`, spec 04 · feature 7). */
+  cola?: { k: number; n: number; pausada: boolean } | null
   /** Valor 0-1 ya mostrado en la fase determinada de la separación. */
   pisoSep?: number
 }
@@ -138,8 +146,9 @@ function filaDescarga(e: EntradaModelo): Fila {
     const t = vivo.trabajo
     if (t.estado === 'en_cola') {
       const pos = t.posicion !== null && t.posicion > 1 ? ` · ${t.posicion}.ª en la cola` : ''
-      const texto =
-        t.motivo === 'mantenimiento'
+      const texto = e.cola
+        ? textoColaTanda(e.cola)
+        : t.motivo === 'mantenimiento'
           ? TEXTO.colaMantenimiento
           : e.tituloOtra !== null
             ? textoCola(e.tituloOtra)
@@ -248,7 +257,11 @@ function filaSeparar(e: EntradaModelo): Fila {
     const t = vivo.trabajo
     if (t.estado === 'en_cola') {
       const pos = t.posicion !== null && t.posicion > 1 ? ` · ${t.posicion}.ª en la cola` : ''
-      const texto = e.tituloOtraSep ? SEP.cola(e.tituloOtraSep) : SEP.colaSinTitulo
+      const texto = e.cola
+        ? textoColaTanda(e.cola)
+        : e.tituloOtraSep
+          ? SEP.cola(e.tituloOtraSep)
+          : SEP.colaSinTitulo
       return { ...base, icono: 'cola', texto: texto + pos, eta: previa }
     }
     const p = vivo.progreso ?? t.progreso

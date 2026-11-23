@@ -173,7 +173,9 @@ function BloqueComprobacion({
         <FilaConIcono icono={icono}>{textoComprobacion(comprobacion, segundosDe)}</FilaConIcono>
       </p>
       {t === 'desfasada' && <p>{CC.desfaseAyuda(d, comprobacion.desfaseMs > 0)}</p>}
-      {t === 'dudosa' && <p>{CC.dudosaAyuda}</p>}
+      {t === 'dudosa' && (
+        <p>{comprobacion.limitacion ? CC.limitacion[comprobacion.limitacion] : CC.dudosaAyuda}</p>
+      )}
       {t === 'noCoincide' && (
         <>
           {motivos.length > 0 && (
@@ -531,6 +533,9 @@ export function BusquedaLetra({
               artistaVacio: artistaInicial.trim() === '',
               algunaEncaja: candidatos.some(
                 (c) => c.encaje?.veredicto === 'coincide' || c.encaje?.veredicto === 'desfasada'
+              ),
+              limitada: candidatos.some(
+                (c) => c.encaje?.veredicto === 'dudosa' && Boolean(c.encaje.limitacion)
               )
             })
           )}

@@ -16,7 +16,11 @@ export const PARAMETROS_ENCAJE = {
   noCoincideF: 0.85,
   noCoincideI: 0.9,
   desfaseMinimoMs: 500,
-  gananciaMinimaF: 0.02
+  gananciaMinimaF: 0.02,
+  // Guardas de fiabilidad: provisionales (revisión 2026-11-22, ADR 0024).
+  densidadVozMaxima: 0.9,
+  desfaseSensibilidadMs: 800,
+  contrasteMinimoF: 0.02
 } as const
 
 export type ParametrosEncaje = { -readonly [K in keyof typeof PARAMETROS_ENCAJE]: number }
@@ -29,6 +33,9 @@ export const VEREDICTOS_ENCAJE = [
   'no_comprobable'
 ] as const
 export type VeredictoEncaje = (typeof VEREDICTOS_ENCAJE)[number]
+
+/** Por qué un `coincide`/`desfasada` bajó a `dudosa` (ADR 0024, revisión 2026-11-22). */
+export type LimitacionEncaje = 'vozContinua' | 'sinContraste'
 
 export interface ResultadoEncaje {
   veredicto: VeredictoEncaje
@@ -44,6 +51,13 @@ export interface ResultadoEncaje {
   /** Voz de 2 s o más seguidos fuera de toda línea (tiempo de audio). */
   tramosVozSinLetra: [number, number][]
   desfaseVariable: boolean
+  /** Voz detectada / tiempo entre el inicio de la primera línea y el fin de la última (con el desfase del veredicto). */
+  densidadVoz: number
+  /** F(dv) − máx F(dv ± 800 ms): lo que la comprobación habría notado la misma letra movida 0,8 s. */
+  contrasteF: number
+  limitacion: LimitacionEncaje | null
+  /** Veredicto antes de las guardas de fiabilidad (para el script de calibración y las pruebas). */
+  veredictoBase: VeredictoEncaje
 }
 
 export interface OpcionesEncaje {
@@ -74,7 +88,11 @@ const nulo = (): ResultadoEncaje => ({
   lineasEvaluadas: 0,
   lineasSinVoz: [],
   tramosVozSinLetra: [],
-  desfaseVariable: false
+  desfaseVariable: false,
+  densidadVoz: 0,
+  contrasteF: 0,
+  limitacion: null,
+  veredictoBase: 'no_comprobable'
 })
 
 /** Tramos [inicio, fin) de las líneas con inicio en tiempo de audio, sin solaparse entre sí. */
@@ -94,6 +112,15 @@ function tramosDe(letra: Pick<Letra, 'lineas' | 'offset_ms'>, duracionMs: number
 }
 
 const redondear = (x: number): number => Math.round(x * 1e6) / 1e6
+
+/** Orden de preferencia entre veredictos de F/I (menor = mejor). */
+const ORDEN: Record<VeredictoEncaje, number> = {
+  coincide: 0,
+  desfasada: 0,
+  dudosa: 1,
+  no_coincide: 2,
+  no_comprobable: 3
+}
 
 function veredictoDe(f: number, i: number, p: ParametrosEncaje): VeredictoEncaje {
   if (f >= p.coincideF && i >= p.coincideI) return 'coincide'
@@ -178,25 +205,57 @@ export function evaluarEncaje(
 
   const mitad = Math.floor(tramos.length / 2)
   const corte = tramos[mitad]!.a
-  const d1 = mejor(tramos.slice(0, mitad), 0, corte)
-  const d2 = mejor(tramos.slice(mitad), corte, total)
-  const desfaseVariable = Math.abs(d1 - d2) > p.desfaseMinimoMs
+  const primera = tramos.slice(0, mitad)
+  const segunda = tramos.slice(mitad)
+  const d1 = mejor(primera, 0, corte)
+  const d2 = mejor(segunda, corte, total)
+  // Variable: las mitades discrepan y al menos una gana de verdad sobre su propio d = 0.
+  const gana = (l: Tramo[], dk: number, va: number, vb: number): boolean =>
+    medir(l, dk, va, vb)[0] - medir(l, 0, va, vb)[0] >= p.gananciaMinimaF
+  const desfaseVariable =
+    Math.abs(d1 - d2) > p.desfaseMinimoMs &&
+    (gana(primera, d1, 0, corte) || gana(segunda, d2, corte, total))
 
   const vMejor = veredictoDe(fMejor, iMejor, p)
   const v0 = veredictoDe(f0, i0, p)
+  const dBorde = dMejor === desfases[desfases.length - 1] || dMejor === Math.min(...desfases)
   let veredicto: VeredictoEncaje
   if (Math.abs(dMejor) < p.desfaseMinimoMs) {
-    veredicto = vMejor
-  } else if (vMejor === 'coincide') {
-    if (desfaseVariable) veredicto = 'no_coincide'
-    else if (fMejor - f0 >= p.gananciaMinimaF && iMejor >= i0) veredicto = 'desfasada'
-    else veredicto = v0
+    veredicto = ORDEN[v0] <= ORDEN[vMejor] ? v0 : vMejor
   } else {
-    veredicto = v0 === 'coincide' ? v0 : vMejor
+    const corrige =
+      fMejor - f0 >= p.gananciaMinimaF && iMejor >= i0 && vMejor === 'coincide' && !desfaseVariable
+    if (corrige && !dBorde) veredicto = 'desfasada'
+    else if (v0 === 'coincide') veredicto = 'coincide'
+    else if (vMejor === 'coincide' && desfaseVariable) veredicto = 'no_coincide'
+    else if (vMejor === 'coincide') veredicto = v0
+    else veredicto = vMejor
+  }
+  const veredictoBase = veredicto
+
+  // Guardas de fiabilidad: solo sobre `coincide` y `desfasada`.
+  const dv = veredicto === 'desfasada' ? dMejor : 0
+  const x = Math.min(bloques, Math.max(0, Math.round((tramos[0]!.a + dv) / BLOQUE_MS)))
+  const y = Math.min(
+    bloques,
+    Math.max(0, Math.round((tramos[tramos.length - 1]!.b + dv) / BLOQUE_MS))
+  )
+  const densidadVoz = y > x ? (suma[y]! - suma[x]!) / (y - x) : 0
+  const dMin = Math.min(...desfases)
+  const lados = [dv - p.desfaseSensibilidadMs, dv + p.desfaseSensibilidadMs]
+    .filter((e) => e >= dMin && e <= desfases[desfases.length - 1]!)
+    .map((e) => medir(tramos, e, 0, total)[0])
+  const fDv = dv === dMejor ? fMejor : f0
+  const contrasteF = lados.length > 0 ? fDv - Math.max(...lados) : 0
+  let limitacion: LimitacionEncaje | null = null
+  if (veredicto === 'coincide' || veredicto === 'desfasada') {
+    if (densidadVoz >= p.densidadVozMaxima) limitacion = 'vozContinua'
+    else if (contrasteF < p.contrasteMinimoF) limitacion = 'sinContraste'
+    if (limitacion) veredicto = 'dudosa'
   }
 
   // Lo que se muestra va con el desfase que se aplicaría.
-  const d = veredicto === 'desfasada' ? dMejor : 0
+  const d = veredicto === 'desfasada' ? dMejor : 0 // con limitación, d = 0
   const lineasSinVoz = tramos
     .filter((t) => vozEn(t.a + d, t.b + d) < (t.b - t.a) * (SIN_VOZ_FRACCION / BLOQUE_MS))
     .map((t) => t.id)
@@ -228,7 +287,11 @@ export function evaluarEncaje(
     lineasEvaluadas: tramos.length,
     lineasSinVoz,
     tramosVozSinLetra,
-    desfaseVariable
+    desfaseVariable,
+    densidadVoz: redondear(densidadVoz),
+    contrasteF: redondear(contrasteF),
+    limitacion,
+    veredictoBase
   }
 }
 

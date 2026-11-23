@@ -4,6 +4,7 @@ import { CODIGOS_ERROR, CODIGOS_SOLO_MAIN } from './errores'
 import { estadoPasoLetra } from './derivados'
 import {
   compararDuracion,
+  encajeCandidatoSchema,
   sincroniaDe,
   urlBaseLrclib,
   URL_BASE_LRCLIB,
@@ -196,5 +197,17 @@ describe('origen_palabras en guardarTiempos', () => {
     const [a, b] = aPeticionTiempos('c', letra).tiempos
     expect(a).toHaveProperty('origen_palabras', 'manual')
     expect(b).not.toHaveProperty('origen_palabras')
+  })
+})
+
+describe('encajeCandidatoSchema (0379)', () => {
+  it('lee la limitación, su ausencia y un valor desconocido (como ausente)', () => {
+    const base = { veredicto: 'dudosa', desfaseMs: 0 }
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: 'sinContraste' }).limitacion).toBe(
+      'sinContraste'
+    )
+    expect(encajeCandidatoSchema.parse(base).limitacion).toBeUndefined()
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: null }).limitacion).toBeNull()
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: 'otra' }).limitacion).toBeUndefined()
   })
 })

@@ -93,6 +93,11 @@ interface Opciones {
   sinAsentar?: boolean
   probarCaptura?: (ancho: number, alto: number) => Promise<boolean>
   plazoSondeoCapturaMs?: number
+  /** Lotes: carpeta que devuelve el selector de carpetas del sistema. */
+  carpetaElegida?: string | null
+  libreBytes?: number | null
+  /** Lotes: el worker de la n-ésima exportación (1, 2…) falla con este error. */
+  falla?: Record<number, { codigo: string; mensaje: string }>
 }
 
 function montar(o: Opciones = {}) {
@@ -122,6 +127,11 @@ function montar(o: Opciones = {}) {
     return new Promise((resolver, rechazar) => {
       const llamada: LlamadaExportar = { args, opciones, resolver, rechazar }
       llamadas.push(llamada)
+      const falla = o.falla?.[llamadas.length]
+      if (falla) {
+        rechazar(falla)
+        return
+      }
       const stdin: StdinFalso = { escritos: 0, cerrado: false, destruido: false }
       stdins.push(stdin)
       // El worker real crea el temporal; lo que queda tras matarlo lo limpia main.
@@ -162,6 +172,7 @@ function montar(o: Opciones = {}) {
   const destinos = new Destinos({
     disco,
     dialogoGuardar: async () => null,
+    dialogoCarpeta: async () => o.carpetaElegida ?? null,
     directorioDatos: datos,
     carpetaVideos: () => videos,
     carpetaHogar: () => videos
@@ -228,6 +239,7 @@ function montar(o: Opciones = {}) {
     ventanaPrincipal: () => null,
     mostrarEnCarpeta,
     avisarSistema,
+    ...(o.libreBytes !== undefined ? { libreBytes: async () => o.libreBytes ?? null } : {}),
     bloqueador,
     memoriaTotal: () => o.memoria ?? 16 * GIB,
     nucleos: () => 8,
@@ -1006,5 +1018,299 @@ describe('sondeo de captura (0260)', () => {
       (p) => p.formato === 'mkv_av1' && p.ancho === 640 && p.fps === 24
     )!.motivo
     expect(motivo).toBe(reintentable ? null : 'captura')
+  })
+})
+
+describe('exportar varias canciones (lote, ADR 0026 §5)', () => {
+  const IDS = ['c1', 'c2', 'c3', 'c4']
+  const PERFIL = { formato: 'mkv_av1', ancho: 640, alto: 480, fps: 24 } as const
+
+  /** Cuatro canciones sintéticas con títulos inventados (dos comparten título y artista). */
+  async function montarLote(o: Opciones = {}) {
+    const canciones: Record<string, Cancion> = {}
+    const titulos = ['Aurora', 'Brisa', 'Aurora', 'Cometa']
+    for (const [i, id] of IDS.entries()) {
+      await mkdir(join(datos, 'biblioteca', id, 'pistas'), { recursive: true })
+      await writeFile(join(datos, 'biblioteca', id, 'pistas', 'instrumental.flac'), 'i')
+      await writeFile(join(datos, 'biblioteca', id, 'pistas', 'voz.flac'), 'v')
+      canciones[id] = cancionDe(id, {}, titulos[i])
+    }
+    const carpeta = join(raiz, 'salida')
+    await mkdir(carpeta, { recursive: true })
+    const m = montar({ canciones, carpetaElegida: carpeta, ...o })
+    return { m, carpeta }
+  }
+
+  const pedir = async (
+    m: Montaje,
+    cancionIds: string[],
+    extra: {
+      siExiste?: 'numerar' | 'sustituir' | 'omitir'
+      audio?: 'instrumental' | 'instrumental_voz'
+    } = {}
+  ) => {
+    const propuesta = (await m.servicio.destinoCarpeta())!
+    return m.servicio.iniciarLote({
+      cancionIds,
+      ...PERFIL,
+      audio: extra.audio ?? 'instrumental',
+      carpetaId: propuesta.carpetaId,
+      siExiste: extra.siExiste ?? 'numerar'
+    })
+  }
+  const terminado = (m: Montaje, trabajoId: string) => m.ultimo(trabajoId)?.estado === 'terminada'
+
+  it('la carpeta se propone sin diálogo; «Cambiar…» abre el selector y rechaza la de los datos', async () => {
+    const { m, carpeta } = await montarLote({ libreBytes: 5 * GIB })
+    const propuesta = await m.servicio.destinoCarpeta()
+    expect(propuesta).toMatchObject({ ruta: videos })
+    const elegida = await m.servicio.destinoCarpeta(propuesta!.carpetaId)
+    expect(elegida).toMatchObject({ ruta: carpeta })
+    expect(elegida!.carpetaId).not.toBe(propuesta!.carpetaId)
+
+    const m2 = montar({ carpetaElegida: null })
+    const p2 = (await m2.servicio.destinoCarpeta())!
+    expect(await m2.servicio.destinoCarpeta(p2.carpetaId)).toBeNull()
+    const m3 = montar({ carpetaElegida: join(datos, 'biblioteca') })
+    const p3 = (await m3.servicio.destinoCarpeta())!
+    await expect(m3.servicio.destinoCarpeta(p3.carpetaId)).rejects.toMatchObject({
+      codigo: 'DESTINO_NO_DISPONIBLE',
+      detalle: { campo: 'destino' }
+    })
+  })
+
+  it('encola todas en orden con el mismo loteId; los nombres repetidos se numeran', async () => {
+    const { m } = await montarLote()
+    const r = await pedir(m, IDS)
+    expect(r.omitidas).toEqual([])
+    expect(r.encoladas.map((e) => e.cancionId)).toEqual(IDS)
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    const finales = r.encoladas.map((e) => m.ultimo(e.trabajoId)!)
+    expect(finales.every((f) => f.loteId === r.loteId && f.resultado === 'completada')).toBe(true)
+    expect(finales.map((f) => f.archivo)).toEqual([
+      'Aurora — Yo (karaoke).mkv',
+      'Brisa — Yo (karaoke).mkv',
+      'Aurora — Yo (karaoke) (2).mkv',
+      'Cometa — Yo (karaoke).mkv'
+    ])
+    // Concurrencia 1: una a una.
+    expect(m.llamadas.every((l) => l.args.total_fotogramas === 24)).toBe(true)
+    // Un solo aviso del sistema por el lote, ninguno por video.
+    expect(m.avisarSistema.mock.calls).toEqual([['4 videos exportados.']])
+    // La última carpeta usada y las opciones se recuerdan.
+    expect(m.config.exportacion).toMatchObject({ audio: 'instrumental', fps: 24 })
+  })
+
+  it('el carpetaId es de un solo uso', async () => {
+    const { m } = await montarLote()
+    const propuesta = (await m.servicio.destinoCarpeta())!
+    const peticion = {
+      cancionIds: ['c2'],
+      ...PERFIL,
+      audio: 'instrumental' as const,
+      carpetaId: propuesta.carpetaId,
+      siExiste: 'numerar' as const
+    }
+    await m.servicio.iniciarLote(peticion)
+    await expect(m.servicio.iniciarLote(peticion)).rejects.toMatchObject({
+      codigo: 'DESTINO_NO_DISPONIBLE'
+    })
+  })
+
+  it.each([
+    ['numerar', ['Brisa — Yo (karaoke) (2).mkv'], 'x'],
+    ['sustituir', ['Brisa — Yo (karaoke).mkv'], 'video'],
+    ['omitir', [], 'x']
+  ] as const)(
+    'siExiste «%s» con un video ya en la carpeta',
+    async (siExiste, esperados, previo) => {
+      const { m } = await montarLote()
+      const propuesta = (await m.servicio.destinoCarpeta())!
+      await writeFile(join(propuesta.ruta, 'Brisa — Yo (karaoke).mkv'), 'x')
+      const r = await m.servicio.iniciarLote({
+        cancionIds: ['c2'],
+        ...PERFIL,
+        audio: 'instrumental',
+        carpetaId: propuesta.carpetaId,
+        siExiste
+      })
+      expect(r.encoladas).toHaveLength(esperados.length)
+      expect(r.omitidas).toEqual(siExiste === 'omitir' ? [{ id: 'c2', motivo: 'YA_EXISTE' }] : [])
+      for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+      expect(r.encoladas.map((e) => m.ultimo(e.trabajoId)!.archivo)).toEqual(esperados)
+      // «Numerar» y «omitir» no tocan el existente; «sustituir» lo cambia al terminar bien.
+      expect(await readFile(join(propuesta.ruta, 'Brisa — Yo (karaoke).mkv'), 'utf8')).toBe(
+        previo === 'video' ? 'video' : 'x'
+      )
+    }
+  )
+
+  it('toma la instantánea de cada canción al confirmar, no cuando le toca', async () => {
+    const p = puerta()
+    const { m } = await montarLote({ puertaCaptura: p.esperar })
+    const r = await pedir(m, ['c1', 'c2'])
+    m.canciones.c2!.metadatos.titulo = 'Título cambiado después'
+    p.abrir()
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    expect(m.ventanas[1]!.opciones.inicial!.instantanea.titulo).toBe('Brisa')
+  })
+
+  it('una canción que ya se exporta o que no puede exportarse sale omitida', async () => {
+    const p = puerta()
+    const { m } = await montarLote({ puertaCaptura: p.esperar })
+    const suelta = await iniciar(m, 'c1')
+    m.canciones.c4!.pistas = null
+    const r = await pedir(m, ['c1', 'c2', 'c4'])
+    expect(r.omitidas).toEqual([
+      { id: 'c1', motivo: 'YA_EN_COLA' },
+      { id: 'c4', motivo: 'CANCION_NO_DISPONIBLE' }
+    ])
+    expect(r.encoladas.map((e) => e.cancionId)).toEqual(['c2'])
+    // Las del lote esperan detrás de la suelta.
+    expect(m.ultimo(r.encoladas[0]!.trabajoId)).toMatchObject({ estado: 'en_cola', posicion: 1 })
+    p.abrir()
+    await hasta(() => terminado(m, r.encoladas[0]!.trabajoId))
+    expect(m.ultimo(suelta.trabajoId)!.loteId).toBeUndefined()
+  })
+
+  it('«Instrumental y voz» sin pista de voz: esa canción sale solo con instrumental', async () => {
+    const { m } = await montarLote()
+    await rm(join(datos, 'biblioteca', 'c2', 'pistas', 'voz.flac'))
+    const r = await pedir(m, ['c1', 'c2'], { audio: 'instrumental_voz' })
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    expect(r.encoladas.map((e) => m.ultimo(e.trabajoId)!.audio)).toEqual([
+      'instrumental_voz',
+      'instrumental'
+    ])
+  })
+
+  it('espacio total insuficiente: SIN_ESPACIO antes de encolar nada y la carpeta sigue vigente', async () => {
+    let libre = 10
+    const { m } = await montarLote({ libreBytes: 10 })
+    ;(m.servicio as unknown as { deps: { libreBytes: () => Promise<number> } }).deps.libreBytes =
+      async () => libre
+    const propuesta = (await m.servicio.destinoCarpeta())!
+    const peticion = {
+      cancionIds: IDS,
+      ...PERFIL,
+      audio: 'instrumental' as const,
+      carpetaId: propuesta.carpetaId,
+      siExiste: 'numerar' as const
+    }
+    await expect(m.servicio.iniciarLote(peticion)).rejects.toMatchObject({ codigo: 'SIN_ESPACIO' })
+    expect(m.servicio.estado()).toEqual([])
+    libre = 10 * GIB
+    const r = await m.servicio.iniciarLote(peticion)
+    expect(r.encoladas).toHaveLength(4)
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+  })
+
+  it('un fallo cualquiera no detiene el lote', async () => {
+    const { m } = await montarLote({
+      falla: { 2: { codigo: 'PROCESO_TERMINADO', mensaje: 'sin memoria' } }
+    })
+    const r = await pedir(m, IDS)
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    expect(r.encoladas.map((e) => m.ultimo(e.trabajoId)!.resultado)).toEqual([
+      'completada',
+      'error',
+      'completada',
+      'completada'
+    ])
+    expect(m.ultimo(r.encoladas[1]!.trabajoId)!.error!.codigo).toBe('MEMORIA_INSUFICIENTE')
+    expect(m.avisarSistema.mock.calls).toEqual([['Se exportaron 3 de 4 videos.']])
+  })
+
+  it('SIN_ESPACIO a mitad detiene el lote: las que faltan no se intentan y se reintentan', async () => {
+    const { m } = await montarLote({
+      falla: { 2: { codigo: 'SIN_ESPACIO', mensaje: 'disco lleno' } }
+    })
+    const r = await pedir(m, IDS)
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    const finales = r.encoladas.map((e) => m.ultimo(e.trabajoId)!)
+    expect(finales.map((f) => f.resultado)).toEqual([
+      'completada',
+      'error',
+      'cancelada',
+      'cancelada'
+    ])
+    expect(finales[2]!.error).toMatchObject({ codigo: 'SIN_ESPACIO' })
+    expect(m.llamadas).toHaveLength(2)
+
+    // Reintentar: las dos no intentadas y la fallida, con los mismos nombres y una instantánea nueva.
+    m.canciones.c2!.metadatos.titulo = 'Brisa'
+    const otra = await m.servicio.reintentarLote(r.loteId)
+    expect(otra.loteId).toBe(r.loteId)
+    expect(otra.encoladas.map((e) => e.cancionId)).toEqual(['c2', 'c3', 'c4'])
+    for (const e of otra.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    expect(otra.encoladas.map((e) => m.ultimo(e.trabajoId)!.archivo)).toEqual([
+      'Brisa — Yo (karaoke).mkv',
+      'Aurora — Yo (karaoke) (2).mkv',
+      'Cometa — Yo (karaoke).mkv'
+    ])
+    expect(otra.encoladas.every((e) => m.ultimo(e.trabajoId)!.resultado === 'completada')).toBe(
+      true
+    )
+    // Nada más que reintentar.
+    expect((await m.servicio.reintentarLote(r.loteId)).encoladas).toEqual([])
+  })
+
+  it('DESTINO_NO_DISPONIBLE también detiene el lote', async () => {
+    const { m } = await montarLote({
+      falla: { 1: { codigo: 'DESTINO_NO_DISPONIBLE', mensaje: 'la carpeta ya no está' } }
+    })
+    const r = await pedir(m, IDS)
+    for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+    expect(r.encoladas.map((e) => m.ultimo(e.trabajoId)!.resultado)).toEqual([
+      'error',
+      'cancelada',
+      'cancelada',
+      'cancelada'
+    ])
+    expect(m.llamadas).toHaveLength(1)
+  })
+
+  it('cancelarLote cancela la que está en curso y las que esperan; lo terminado se conserva', async () => {
+    const p = puerta()
+    const { m } = await montarLote({ puertaCaptura: p.esperar })
+    p.abrir()
+    const primera = await pedir(m, ['c1'])
+    await hasta(() => terminado(m, primera.encoladas[0]!.trabajoId))
+    const q = puerta()
+    const { m: m2 } = await montarLote({ puertaCaptura: q.esperar })
+    const r = await pedir(m2, IDS)
+    await hasta(() => m2.ultimo(r.encoladas[0]!.trabajoId)?.estado === 'en_curso')
+    await m2.servicio.cancelarLote(r.loteId)
+    for (const e of r.encoladas) await hasta(() => terminado(m2, e.trabajoId))
+    expect(r.encoladas.map((e) => m2.ultimo(e.trabajoId)!.resultado)).toEqual([
+      'cancelada',
+      'cancelada',
+      'cancelada',
+      'cancelada'
+    ])
+    // Canceladas por el usuario: sin error y fuera de «reintentar».
+    expect(m2.ultimo(r.encoladas[1]!.trabajoId)!.error).toBeNull()
+    expect((await m2.servicio.reintentarLote(r.loteId)).encoladas).toEqual([])
+    // Lo que ya estaba terminado se conserva (la carpeta propuesta es la de Vídeos) y no queda diario.
+    expect(await existe(join(videos, 'Aurora — Yo (karaoke).mkv'))).toBe(true)
+    expect(await existe(m2.diario.ruta)).toBe(false)
+  })
+
+  it('rechaza un perfil no válido y un lote desconocido', async () => {
+    const { m } = await montarLote()
+    const propuesta = (await m.servicio.destinoCarpeta())!
+    await expect(
+      m.servicio.iniciarLote({
+        cancionIds: ['c1'],
+        ...PERFIL,
+        alto: 481,
+        audio: 'instrumental',
+        carpetaId: propuesta.carpetaId,
+        siExiste: 'numerar'
+      })
+    ).rejects.toMatchObject({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    await expect(m.servicio.reintentarLote(propuesta.carpetaId)).rejects.toMatchObject({
+      codigo: 'ARGUMENTOS_NO_VALIDOS'
+    })
   })
 })

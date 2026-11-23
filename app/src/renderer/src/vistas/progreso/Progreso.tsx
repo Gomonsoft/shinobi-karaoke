@@ -25,6 +25,7 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
 import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
 import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
+import { useTandaPreparacion } from '../../trabajos/useTandaPreparacion'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { detallesDeError } from '../biblioteca/errores'
@@ -347,6 +348,15 @@ export function Progreso({ id }: { id: string }) {
       activo = false
     }
   }, [id, modoVigente])
+  // Posición en la tanda de la cola de preparación (2 o más canciones).
+  const tanda = useTandaPreparacion()
+  const cola = useMemo(() => {
+    if (!tanda || tanda.total < 2) return null
+    const i = tanda.canciones.findIndex((c) => c.id === id)
+    const c = tanda.canciones[i]
+    if (!c || c.resultado !== null) return null
+    return { k: i + 1, n: tanda.total, pausada: tanda.pausada && tanda.motivoPausa === null }
+  }, [tanda, id])
   const modelo = useMemo(
     () =>
       datos.estado === 'listo' && datos.cancion && fuentePaso
@@ -370,6 +380,7 @@ export function Progreso({ id }: { id: string }) {
             aceptandoRapido: aceptando,
             errorRapido,
             hayLetra: contarLineas(datos.cancion.letra) > 0,
+            cola,
             pisoSep:
               pisoSep.current?.clave === `${trabajoSep?.id}|${pSep?.fase}`
                 ? pisoSep.current.valor
@@ -377,6 +388,7 @@ export function Progreso({ id }: { id: string }) {
           })
         : null,
     [
+      cola,
       datos,
       fuentePaso,
       sepPaso,
@@ -594,7 +606,8 @@ export function Progreso({ id }: { id: string }) {
     ? filasPreparacion(registro, {
         tieneLetra: !!datos.cancion && contarLineas(datos.cancion.letra) > 0,
         desfaseCorregidoMs: datos.cancion?.letra?.desfase_corregido_ms ?? null,
-        separando: resumen?.pasos?.separacion.estado !== 'completado'
+        separando: resumen?.pasos?.separacion.estado !== 'completado',
+        sinMarca: datos.cancion?.letra?.intacta !== true
       })
     : []
   const bloquePrep =
@@ -681,6 +694,16 @@ export function Progreso({ id }: { id: string }) {
             />
           )}
 
+          {cola?.pausada && (trabajo?.estado === 'en_cola' || trabajoSep?.estado === 'en_cola') && (
+            <div>
+              <Boton
+                variante="secundario"
+                onClick={() => void window.shinobi.preparacion.reanudar().catch(() => undefined)}
+              >
+                Reanudar la cola
+              </Boton>
+            </div>
+          )}
           <ul className={estilos.filas} aria-label="Subpasos">
             {[...modelo.filas, ...filasPrep].map((f) => (
               <FilaSubpaso

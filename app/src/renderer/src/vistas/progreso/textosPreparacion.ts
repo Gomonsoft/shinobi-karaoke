@@ -35,7 +35,10 @@ export const PREP = {
     fines: (n: number) =>
       n === 0 ? 'Nada que ajustar' : `${n} ${plural(n, 'fin ajustado', 'fines ajustados')}`
   },
-  omitido: { yaTieneLetra: 'Ya tiene letra' },
+  omitido: {
+    yaTieneLetra: 'Ya tiene letra',
+    sinMarca: 'Letra de una versión anterior: no se comprueba'
+  },
   botonVerLetra: 'Ver la letra',
   botonRevisar: 'Revisar',
   botonProbar: 'Probar',

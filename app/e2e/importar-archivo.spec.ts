@@ -143,7 +143,7 @@ test.describe('importar un archivo local', () => {
       const v = await app.firstWindow()
       await expect(v.getByText('Tu biblioteca está vacía')).toBeVisible()
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
         timeout: 30_000
       })
@@ -194,7 +194,7 @@ test.describe('importar un archivo local', () => {
     const anadir = async (app: ElectronApplication): Promise<Page> => {
       const v = await app.firstWindow()
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
         timeout: 30_000
       })
@@ -269,7 +269,7 @@ test.describe('importar un archivo local', () => {
     try {
       const v = await app.firstWindow()
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByLabel('Título')).toHaveValue('Tema completa', { timeout: 30_000 })
       await v.getByRole('button', { name: 'Continuar' }).click()
       await expect(v.getByRole('heading', { level: 1 })).toBeVisible()
@@ -291,7 +291,7 @@ test.describe('importar un archivo local', () => {
     try {
       const v = await app.firstWindow()
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
         timeout: 30_000
       })
@@ -311,7 +311,7 @@ test.describe('importar un archivo local', () => {
     try {
       const v = await app.firstWindow()
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByRole('alert')).toContainText('No podemos leer este archivo', {
         timeout: 30_000
       })
@@ -349,7 +349,7 @@ test.describe('importar un archivo local', () => {
     const app = await lanzar(datos, wav)
     const v = await app.firstWindow()
     await irAAnadir(v)
-    await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+    await v.getByRole('button', { name: 'Elegir archivos…' }).click()
     await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
       timeout: 30_000
     })

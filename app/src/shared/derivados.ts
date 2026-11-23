@@ -237,11 +237,15 @@ export interface EntradaAplicaPreparar {
   pendientesConLetra?: PasoPreparacion[]
   /** La preparación ya terminó en «Lista para revisar». */
   preparacionLista?: boolean
+  /** Los `pendientesConLetra` solo valen con la confirmación del usuario (letra sin `intacta`). */
+  confirmar?: 'finesSinMarca'
 }
 
 export interface AplicaPreparar {
   aplica: boolean
   pasos: PasoPreparacion[]
+  /** La letra no está marcada `intacta`: solo se aplica con `{ finesSinMarca: true }` (ADR 0025, revisión 0278). */
+  confirmar?: 'finesSinMarca'
   motivo?: 'YA_LISTA' | 'SIN_FUENTE' | 'NADA_QUE_HACER'
 }
 
@@ -260,20 +264,36 @@ export function aplicaPrepararEntrada(e: EntradaAplicaPreparar): AplicaPreparar 
       motivo: e.preparacionLista ? 'YA_LISTA' : 'NADA_QUE_HACER'
     }
   }
-  return { aplica: true, pasos }
+  return { aplica: true, pasos, ...(e.confirmar ? { confirmar: e.confirmar } : {}) }
 }
 
 /** `aplicaPreparar` de una canción completa. */
 export function aplicaPreparar(cancion: Cancion): AplicaPreparar {
   const { letra } = cancion
   const pendientes: PasoPreparacion[] = []
-  if (letra?.intacta === true) {
+  let confirmar: 'finesSinMarca' | undefined
+  const faltanFines = (letra?.lineas ?? []).some(
+    (l) => l.tipo === 'linea' && l.inicio_ms !== null && l.fin_ms === null
+  )
+  // Lista o Letra lista (pregunta 0296): solo los fines, una vez y con confirmación; la canción no cambia de estado.
+  if (cancion.estado === 'lista') {
+    const hechos = (letra?.lineas ?? []).some(
+      (l) => l.tipo === 'linea' && l.origen_fin === 'preparacion'
+    )
+    return letra && letra.intacta !== true && faltanFines && !hechos && !cancion.preparacion?.fines
+      ? { aplica: true, pasos: ['ajustando_fines'], confirmar: 'finesSinMarca' }
+      : { aplica: false, pasos: [], motivo: 'YA_LISTA' }
+  }
+  if (letra && letra.intacta !== true) {
+    // Letra anterior a 0.2.2 (o con tiempos tocados): no se deduce `intacta`. Solo pone fines, con confirmación.
+    if (faltanFines && !cancion.preparacion?.fines) {
+      pendientes.push('ajustando_fines')
+      confirmar = 'finesSinMarca'
+    }
+  } else if (letra) {
     if (letra.desfase_corregido_ms === undefined && letra.desfase_descartado !== true) {
       pendientes.push('comprobando')
     }
-    const faltanFines = letra.lineas.some(
-      (l) => l.tipo === 'linea' && l.inicio_ms !== null && l.fin_ms === null
-    )
     if (faltanFines && !cancion.preparacion?.fines) pendientes.push('ajustando_fines')
   }
   return aplicaPrepararEntrada({
@@ -281,6 +301,7 @@ export function aplicaPreparar(cancion: Cancion): AplicaPreparar {
     fuenteCompletada: cancion.pasos.fuente.estado === 'completado',
     lineas: contarLineas(letra),
     pendientesConLetra: pendientes,
-    preparacionLista: cancion.preparacion?.estado === 'lista_para_revisar'
+    preparacionLista: cancion.preparacion?.estado === 'lista_para_revisar',
+    ...(confirmar ? { confirmar } : {})
   })
 }

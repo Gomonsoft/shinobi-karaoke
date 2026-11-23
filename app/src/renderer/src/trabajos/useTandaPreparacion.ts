@@ -10,7 +10,7 @@ export function useTandaPreparacion(): TandaPreparacionIpc | null {
   useEffect(() => {
     let activo = true
     const api = window.shinobi?.preparacion
-    if (!api) return
+    if (typeof api?.tanda !== 'function' || typeof api.alTanda !== 'function') return
     void api.tanda().then(
       (t) => activo && setTanda((actual) => actual ?? t),
       () => undefined

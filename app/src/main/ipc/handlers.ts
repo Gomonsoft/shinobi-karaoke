@@ -56,7 +56,12 @@ import {
 import type { InicialExportacionIpc } from '../../shared/exportacion'
 import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
-import { origenTrasEdicion, type EventoCancion, type ResumenCancion } from '../biblioteca'
+import {
+  origenTrasEdicion,
+  type EventoCancion,
+  type ResumenCancion,
+  type ServicioLotes
+} from '../biblioteca'
 import { resueltaDeResolucion, revisionDeResumen } from '../biblioteca/resumen'
 import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
@@ -242,6 +247,10 @@ export type ExportacionServicioIpc = Pick<
   | 'destinoPropuesto'
   | 'elegirDestino'
   | 'iniciar'
+  | 'destinoCarpeta'
+  | 'iniciarLote'
+  | 'cancelarLote'
+  | 'reintentarLote'
   | 'cancelar'
   | 'cancelarTodas'
   | 'estado'
@@ -264,10 +273,25 @@ export type ActualizacionesIpc = Pick<
   'estado' | 'comprobar' | 'marcarVista' | 'suscribir'
 >
 
+interface ResultadoPrepararMain {
+  aceptadas: string[]
+  omitidas: { id: string; motivo: string }[]
+  fines?: Record<string, number>
+}
+
 /** Subconjunto de `ServicioPreparacion` (0308) que usa la IPC. La tanda y la pausa son de la 0309. */
 export interface PreparacionIpc {
-  previsualizar(ids: string[]): { id: string; aplica: boolean; pasos: string[]; motivo?: string }[]
-  preparar(ids: string[]): { aceptadas: string[]; omitidas: { id: string; motivo: string }[] }
+  previsualizar(ids: string[]): {
+    id: string
+    aplica: boolean
+    pasos: string[]
+    confirmar?: 'finesSinMarca'
+    motivo?: string
+  }[]
+  preparar(
+    ids: string[],
+    opciones?: { finesSinMarca?: boolean }
+  ): ResultadoPrepararMain | Promise<ResultadoPrepararMain>
   cancelar(id: string): Promise<void>
 }
 
@@ -303,9 +327,22 @@ export interface RecuentoRevisionIpc {
   suscribir(cb: (id: string) => void): () => void
 }
 
+/** Subconjunto de `ServicioLotes` que usa la IPC. */
+export type LotesIpc = Pick<
+  ServicioLotes,
+  | 'previsualizarDatos'
+  | 'ejecutarDatos'
+  | 'previsualizarEliminar'
+  | 'ejecutarEliminar'
+  | 'agregarACola'
+  | 'quitarDeCola'
+>
+
 export interface DependenciasIpc {
   recuentoRevision?: RecuentoRevisionIpc
   lrc?: LrcIpc
+  /** Acciones por lotes de la Biblioteca (0318); ausente, sus canales responden `ERROR_INTERNO`. */
+  lotes?: LotesIpc
   copias?: CopiasIpc
   /** Solicitud de cierre sin responder (la pregunta el renderer al montar su diálogo de cierre). */
   solicitudCierrePendiente?(): import('../../shared/sesion').SolicitudCierreIpc | null
@@ -412,16 +449,6 @@ const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
 
 /** Canales de 0.2.2 aún sin servicio (tarea 0339); cada tarea de feature saca el suyo de esta lista. */
 const CANALES_NO_IMPLEMENTADOS = [
-  CANALES.biblioteca.editarDatosVariasPrevisualizar,
-  CANALES.biblioteca.editarDatosVariasEjecutar,
-  CANALES.biblioteca.eliminarVariasPrevisualizar,
-  CANALES.biblioteca.eliminarVariasEjecutar,
-  CANALES.cola.agregarVarias,
-  CANALES.cola.quitarVarias,
-  CANALES.exportacion.destinoCarpeta,
-  CANALES.exportacion.iniciarLote,
-  CANALES.exportacion.cancelarLote,
-  CANALES.exportacion.reintentarLote,
   CANALES.alineacion.estado,
   CANALES.alineacion.descargarModelo,
   CANALES.alineacion.cancelarDescarga,
@@ -488,6 +515,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
   const temas = (): TemasIpc => {
     if (!deps.temas) throw new Error('El servicio de temas no está disponible.')
     return deps.temas
+  }
+
+  const lotes = (): LotesIpc => {
+    if (!deps.lotes) throw new Error('Las acciones por lotes no están disponibles.')
+    return deps.lotes
   }
 
   const sesion = (): SesionIpc => {
@@ -612,8 +644,8 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.preparacion.previsualizar]: envolver(CANALES.preparacion.previsualizar, ({ ids }) =>
       preparacion().previsualizar(ids)
     ),
-    [CANALES.preparacion.preparar]: envolver(CANALES.preparacion.preparar, ({ ids }) =>
-      preparacion().preparar(ids)
+    [CANALES.preparacion.preparar]: envolver(CANALES.preparacion.preparar, ({ ids }, opciones) =>
+      preparacion().preparar(ids, opciones)
     ),
     [CANALES.preparacion.pausar]: envolver(CANALES.preparacion.pausar, () =>
       colaPreparacion().pausar()
@@ -809,6 +841,28 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
         const resumen = await biblioteca.marcarPreparacionRevisada(id)
         return resumen ? aRenderer(resumen) : null
       }
+    ),
+    [CANALES.biblioteca.editarDatosVariasPrevisualizar]: envolver(
+      CANALES.biblioteca.editarDatosVariasPrevisualizar,
+      ({ ids, artista, album }) => lotes().previsualizarDatos(ids, { artista, album })
+    ),
+    [CANALES.biblioteca.editarDatosVariasEjecutar]: envolver(
+      CANALES.biblioteca.editarDatosVariasEjecutar,
+      ({ ids, artista, album, version }) => lotes().ejecutarDatos(ids, { artista, album }, version)
+    ),
+    [CANALES.biblioteca.eliminarVariasPrevisualizar]: envolver(
+      CANALES.biblioteca.eliminarVariasPrevisualizar,
+      ({ ids }) => lotes().previsualizarEliminar(ids)
+    ),
+    [CANALES.biblioteca.eliminarVariasEjecutar]: envolver(
+      CANALES.biblioteca.eliminarVariasEjecutar,
+      ({ ids, version }) => lotes().ejecutarEliminar(ids, version)
+    ),
+    [CANALES.cola.agregarVarias]: envolver(CANALES.cola.agregarVarias, ({ ids }) =>
+      lotes().agregarACola(ids)
+    ),
+    [CANALES.cola.quitarVarias]: envolver(CANALES.cola.quitarVarias, ({ entradaIds }) =>
+      lotes().quitarDeCola(entradaIds)
     ),
     [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) => {
       noActiva(id)
@@ -1034,6 +1088,28 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       exigirRol(ctx, 'principal')
       return exportacion().iniciar(p)
     }),
+    [CANALES.exportacion.destinoCarpeta]: envolverCtx(
+      CANALES.exportacion.destinoCarpeta,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().destinoCarpeta(p.desdeCarpetaId)
+      }
+    ),
+    [CANALES.exportacion.iniciarLote]: envolverCtx(CANALES.exportacion.iniciarLote, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().iniciarLote(p)
+    }),
+    [CANALES.exportacion.cancelarLote]: envolverCtx(CANALES.exportacion.cancelarLote, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().cancelarLote(p.loteId)
+    }),
+    [CANALES.exportacion.reintentarLote]: envolverCtx(
+      CANALES.exportacion.reintentarLote,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().reintentarLote(p.loteId)
+      }
+    ),
     [CANALES.exportacion.cancelar]: envolverCtx(CANALES.exportacion.cancelar, (ctx, p) => {
       exigirRol(ctx, 'principal')
       return exportacion().cancelar(p.trabajoId)

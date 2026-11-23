@@ -16,6 +16,13 @@ export const CC = {
   adelantada: (d: string): string => `Va ${d} s adelantada: la corregiremos`,
   atrasada: (d: string): string => `Va ${d} s atrasada: la corregiremos`,
   dudosa: 'No está claro si coincide con tu audio',
+  dudosaLimitada: 'No podemos comprobarla con tu audio',
+  limitacion: {
+    vozContinua:
+      'En esta canción la voz suena casi sin pausas, así que no podemos comprobar con ella si la letra es la correcta ni si va adelantada o atrasada. No hemos cambiado nada. Escúchala en el editor y, si hace falta, ajústala a oído.',
+    sinContraste:
+      'Esta letra solo marca dónde empieza cada línea, no dónde acaba, así que no podemos saber si va adelantada o atrasada. No hemos cambiado nada. Escúchala en el editor; si pones el fin de las líneas, la comprobación podrá ayudarte.'
+  },
   noCoincide: 'No coincide con tu audio: puede ser otra versión',
   pendiente: 'Se comprobará con tu audio al terminar la separación',
   noDisponible: 'No se pudo comprobar con tu audio',
@@ -57,7 +64,13 @@ export const CC = {
     atrasada: (d: string): string => `Toda la letra va ${d} s atrasada respecto a la voz.`,
     dudosa: 'No está claro si la letra coincide con la voz. Escúchala en el editor.',
     noCoincide: 'La letra no coincide con la voz de tu audio: puede ser otra versión.',
-    pendiente: 'La comprobaremos con tu audio al terminar la separación.'
+    pendiente: 'La comprobaremos con tu audio al terminar la separación.',
+    limitada: (motivo: 'vozContinua' | 'sinContraste'): string =>
+      `No podemos comprobar esta letra con tu audio: ${
+        motivo === 'vozContinua'
+          ? 'la voz casi no tiene pausas'
+          : 'la letra no marca dónde acaba cada línea'
+      }. No hemos cambiado nada.`
   },
   boton: {
     corregir: 'Corregir el desfase',

@@ -2,6 +2,10 @@
 export const EP = {
   titulo: 'Preparación automática',
   intro: (fecha: string): string => `Shinobi Karaoke preparó esta canción el ${fecha}:`,
+  introFines: (fecha: string): string =>
+    fecha
+      ? `El ${fecha} pediste ajustar los fines que faltaban:`
+      : 'Pediste ajustar los fines que faltaban:',
   letraApp: 'Letra de LRCLIB, coincidencia exacta.',
   letraUsuario: 'Letra de LRCLIB, elegida por ti.',
   verOtras: 'Ver otras candidatas',

@@ -84,7 +84,7 @@ test('añadir una canción con la configuración por defecto solo habla con el s
   try {
     const v = await app.firstWindow()
     await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-    await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+    await v.getByRole('button', { name: 'Elegir archivos…' }).click()
     await expect(v.getByLabel('Título')).toHaveValue('Tema de vigilancia', { timeout: 30_000 })
     await v.getByRole('button', { name: 'Continuar' }).click()
     // La cola automática empieza en el acto: la búsqueda llega al sumidero.

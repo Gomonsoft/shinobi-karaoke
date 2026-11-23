@@ -11,10 +11,10 @@ import { iniciarServidorLrclib } from './fixtures/lrclib/servidor'
 import { crearTemporal } from './temporales'
 
 /**
- * Importación por lotes (feature 7, 0314) con la app compilada, el worker real de desarrollo y el doble de
- * yt-dlp, sin red. Hasta que exista la interfaz del modo lote (0315) la prueba usa la API del preload
- * (`window.shinobi.fuente.*`) y comprueba el resultado en la Biblioteca y en `cancion.json`:
- *   3 WAV inventados en una carpeta + una lista falsa de 2 vídeos (y uno privado) = 5 canciones en cola.
+ * Importación por lotes (feature 7, 0314 y 0315) con la app compilada, el worker real de desarrollo y el doble de
+ * yt-dlp, sin red, **con la interfaz real**: «Elegir carpeta…» con 3 WAV inventados y, después, el enlace de una
+ * lista falsa de 2 vídeos (y uno privado) en la tabla de revisión = 5 canciones en cola, con la cabecera de la
+ * cola de preparación en el panel de actividad. Se comprueba en la Biblioteca y en `cancion.json`.
  * La búsqueda automática de letra va apagada: el lote no debe hacer ninguna petición a LRCLIB.
  */
 
@@ -57,18 +57,6 @@ const ids = (datos: string): string[] =>
       )
     : []
 
-/** Lo mínimo de la API del preload que usa esta prueba. */
-interface ApiLote {
-  fuente: {
-    leerCarpeta(ruta: string): Promise<{ filas: { ref: string; metadatos: object }[] } | null>
-    infoLista(url: string): Promise<{ entradas: { id: string; disponible: boolean }[] }>
-    lote(l: {
-      entradas: ({ tipo: 'archivo'; ref: string } | { tipo: 'youtube'; id: string })[]
-      metadatos: { titulo: string; artista: string; album: string | null }[]
-    }): Promise<{ creadas: { id: string }[]; omitidas: unknown[] }>
-  }
-}
-
 async function cerrar(app: ElectronApplication): Promise<void> {
   const ventana = app.windows()[0]
   const cierre = app.close()
@@ -82,6 +70,7 @@ async function cerrar(app: ElectronApplication): Promise<void> {
 
 test.describe('importación por lotes', () => {
   test('3 WAV de una carpeta y una lista falsa de 2 vídeos: 5 tarjetas y las 5 fuentes completadas', async () => {
+    test.setTimeout(150_000)
     const datos = crearTemporal('lote')
     const falsos = join(datos, '..', `falsos-lote-${Date.now()}`)
     const carpeta = join(datos, '..', `entrada-lote-${Date.now()}`, 'Disco de prueba')
@@ -118,6 +107,7 @@ test.describe('importación por lotes', () => {
         SHINOBI_DATOS: datos,
         SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
         SHINOBI_YTDLP_FALSO: falsos,
+        SHINOBI_DIALOGO_PRUEBAS: carpeta,
         SHINOBI_LRCLIB_URL: lrclib.url
       }
     })
@@ -126,40 +116,55 @@ test.describe('importación por lotes', () => {
       await expect(v.getByRole('heading', { level: 1, name: 'Biblioteca' })).toBeVisible({
         timeout: 30_000
       })
-      const resultado = await v.evaluate(
-        async ({ carpeta: dir, lista }) => {
-          const api = (window as unknown as { shinobi: ApiLote }).shinobi
-          const archivos = await api.fuente.leerCarpeta(dir)
-          const entradas = await api.fuente.infoLista(lista)
-          const videos = entradas.entradas.filter((e) => e.disponible)
-          return await api.fuente.lote({
-            entradas: [
-              ...(archivos?.filas ?? []).map((f) => ({ tipo: 'archivo' as const, ref: f.ref })),
-              ...videos.map((e) => ({ tipo: 'youtube' as const, id: e.id }))
-            ],
-            metadatos: [
-              ...(archivos?.filas ?? []).map((f) => ({
-                ...(f.metadatos as { titulo: string; artista: string; album: string | null }),
-                artista: 'Grupo de prueba'
-              })),
-              ...videos.map((_, i) => ({
-                titulo: `Vídeo ${i + 1}`,
-                artista: 'Grupo de prueba',
-                album: 'Disco de prueba'
-              }))
-            ]
-          })
-        },
-        { carpeta, lista: `https://music.youtube.com/playlist?list=${LISTA}` }
-      )
-      expect(resultado.creadas).toHaveLength(5)
-      expect(resultado.omitidas).toEqual([])
+      // 1. Carpeta: «Elegir carpeta…» (el diálogo nativo lo sustituye SHINOBI_DIALOGO_PRUEBAS).
+      await v.getByRole('button', { name: 'Añadir canción' }).first().click()
+      await v.getByRole('button', { name: 'Elegir carpeta…' }).click()
+      await expect(v.getByRole('heading', { level: 1, name: 'Añadir 3 canciones' })).toBeVisible({
+        timeout: 30_000
+      })
+      await expect(v.getByText('De la carpeta «Disco de prueba» · 3 archivos')).toBeVisible()
+      await expect(v.getByRole('checkbox', { name: /^Añadir «/ })).toHaveCount(3)
+      await v.getByRole('button', { name: 'Añadir 3 canciones' }).click()
+      await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible({
+        timeout: 30_000
+      })
+      await expect(
+        v.getByText(
+          'Se añadieron 3 canciones. Se están separando; la letra tendrás que buscarla tú.'
+        )
+      ).toBeVisible()
+
+      // 2. Lista de YouTube: aviso ya aceptado, tabla con 2 videos y uno privado sin casilla.
+      await v.getByRole('button', { name: 'Añadir canción' }).first().click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
+      await v
+        .getByLabel('Enlaces de YouTube')
+        .fill(`https://music.youtube.com/playlist?list=${LISTA}`)
+      await v.getByRole('button', { name: 'Buscar' }).click()
+      await expect(v.getByRole('heading', { level: 1, name: 'Añadir 2 canciones' })).toBeVisible({
+        timeout: 30_000
+      })
+      await expect(v.getByText('De la lista «Disco de prueba» · 3 videos')).toBeVisible()
+      await expect(v.getByText('No disponible: no se puede añadir')).toBeVisible()
+      await v.getByRole('button', { name: 'Descargar y añadir 2 canciones' }).click()
+      await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible({
+        timeout: 60_000
+      })
 
       // Las 5 tarjetas aparecen al momento, en el orden de la tabla.
-      for (const titulo of ['Tema Uno', 'Tema Dos', 'Tema Tres', 'Vídeo 1', 'Vídeo 2']) {
+      for (const titulo of ['Tema Uno', 'Tema Dos', 'Tema Tres']) {
         await expect(v.getByText(titulo, { exact: true }).first()).toBeVisible({ timeout: 30_000 })
       }
-      expect(ids(datos)).toHaveLength(5)
+      await expect.poll(() => ids(datos).length, { timeout: 30_000 }).toBe(5)
+      // La cola de preparación de la tanda: botón en la barra superior y cabecera en el panel de actividad.
+      const actividad = v.locator('[data-actividad]')
+      if (await actividad.isVisible()) {
+        await actividad.click()
+        await expect(
+          v.getByRole('heading', { name: /^Cola de preparación · \d de 5 terminadas$/ })
+        ).toBeVisible()
+        await v.keyboard.press('Escape')
+      }
 
       // La fuente de las 5 termina sola (cola `ligera`, de una en una).
       await expect
@@ -168,7 +173,7 @@ test.describe('importación por lotes', () => {
             ids(datos).filter((id) => leerCancion(datos, id).pasos.fuente.estado === 'completado')
               .length,
           {
-            timeout: 90_000
+            timeout: 120_000
           }
         )
         .toBe(5)

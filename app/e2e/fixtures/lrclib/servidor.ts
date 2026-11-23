@@ -29,7 +29,13 @@ export const TITULOS = {
   /** Responde a los 12 s (el cliente lo corta a los 10 s). */
   lenta: 'Tema lenta',
   /** `get` da 404; `search` devuelve tres candidatos con tiempos sobre la voz de `VOZ_SINTETICA` (feature 4). */
-  conVoz: 'Tema con voz'
+  conVoz: 'Tema con voz',
+  /**
+   * `get` da 404; `search` devuelve un único candidato con los inicios sobre la voz de `VOZ_SINTETICA`
+   * pero **sin fines** (solo marcas de inicio). Según la voz sembrada, la comprobación da la limitación
+   * `sinContraste` (cantos de 4 s cada 5 s) o `vozContinua` (cantos de 4,5 s cada 5 s): feature 4, F4-L2.
+   */
+  limitada: 'Tema limitada'
 } as const
 
 type Escenario = keyof typeof TITULOS
@@ -43,7 +49,8 @@ const ORDEN: Escenario[] = [
   'limiteLargo',
   'servicioRoto',
   'lenta',
-  'conVoz'
+  'conVoz',
+  'limitada'
 ]
 
 export const RETARDO_LENTA_MS = 12_000
@@ -89,6 +96,8 @@ export const VOZ_SINTETICA = {
   desfaseMs: 2000
 }
 export const IDS_CON_VOZ = { coincide: 9101, desfasada: 9102, noCoincide: 9103 } as const
+/** Id del candidato del escenario `limitada` (LRC sin fines). */
+export const ID_LIMITADA = 9111
 /** Cuánto antes que la voz empieza la letra del candidato `desfasada`. */
 export const DESFASE_CON_VOZ_MS = 800
 
@@ -145,6 +154,23 @@ function candidatosConVoz(duracionS: number): RegistroFixture[] {
     ),
     registro(IDS_CON_VOZ.coincide, 'Tema con voz', versosPeriodicos(2000))
   ]
+}
+
+/** Candidato con solo marcas de inicio (sin la marca vacía que cierra cada verso). */
+function candidatoSinFines(duracionS: number): RegistroFixture {
+  return {
+    id: ID_LIMITADA,
+    trackName: 'Tema limitada',
+    artistName: 'Artista inventado',
+    albumName: 'Álbum inventado',
+    duration: duracionS,
+    instrumental: false,
+    plainLyrics: Array.from({ length: 6 }, (_, i) => `Verso inventado ${i + 1}`).join('\n'),
+    syncedLyrics: versosPeriodicos(2000)
+      .map(([inicio], i) => `${marca(inicio)}Verso inventado ${i + 1}`)
+      .join('\n'),
+    hasWordSync: false
+  }
 }
 
 const fixtures = (): {
@@ -242,7 +268,8 @@ export async function iniciarServidorLrclib(): Promise<ServidorLrclib> {
         c.palabra,
         c.texto,
         fixtures().instrumental,
-        ...candidatosConVoz(duracionS)
+        ...candidatosConVoz(duracionS),
+        candidatoSinFines(duracionS)
       ]
       const r = todos.find((x) => x.id === Number(porId[1]))
       return r ? json(res, 200, r) : json(res, 404, { message: 'no existe' })
@@ -255,6 +282,7 @@ export async function iniciarServidorLrclib(): Promise<ServidorLrclib> {
     }
     if (ruta === '/api/search') {
       if (e === 'conVoz') return json(res, 200, candidatosConVoz(duracionS))
+      if (e === 'limitada') return json(res, 200, [candidatoSinFines(duracionS)])
       // Fuera de orden a propósito: la app debe ordenar palabra > línea > texto.
       return json(res, 200, conLetra ? [c.texto, c.linea, c.palabra] : [])
     }

@@ -251,7 +251,7 @@ export class BusquedaLetras {
       const r = evaluarEncajeConPicos({ lineas: c.lineas, offset_ms: 0 }, voz, {
         duracionMs: nivel.duracionMs
       })
-      return { veredicto: r.veredicto, desfaseMs: r.desfaseMs }
+      return { veredicto: r.veredicto, desfaseMs: r.desfaseMs, limitacion: r.limitacion }
     })
   }
 

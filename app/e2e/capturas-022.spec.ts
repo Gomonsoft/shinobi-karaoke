@@ -1225,7 +1225,7 @@ suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ i
 
   async function revisarArchivo(v: Page): Promise<void> {
     await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-    await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+    await v.getByRole('button', { name: 'Elegir archivos…' }).click()
     await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
       timeout: 40_000
     })
@@ -1261,9 +1261,9 @@ suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ i
     await intentar('dato-dudoso', async () => {
       await conAnadir('cap022-f6-canal', {}, async (v) => {
         await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-        await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
-        await v.getByLabel('Enlace del vídeo').fill(`https://www.youtube.com/watch?v=${ID_YT}`)
-        await v.getByRole('button', { name: 'Buscar vídeo' }).click()
+        await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
+        await v.getByLabel('Enlaces de YouTube').fill(`https://www.youtube.com/watch?v=${ID_YT}`)
+        await v.getByRole('button', { name: 'Buscar' }).click()
         await expect(
           v.getByRole('heading', { name: 'Revisa los datos de la canción' })
         ).toBeVisible({ timeout: 40_000 })
@@ -1491,7 +1491,7 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
       const v = await app.firstWindow()
       await ponerTamano(app, 1280, 800, v)
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByLabel('Título')).toBeVisible({ timeout: 30_000 })
       await v.getByLabel('Título').fill(titulo)
       if (artista) await v.getByLabel('Artista').fill(artista)
@@ -1648,8 +1648,12 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
         async (v, app) => {
           await ponerTamano(app, 1280, 720, v)
           await abrirEditor(v, TITULO)
-          // Entrando por «Revisar» el recorrido empieza y reemplaza al banner de la preparación (pregunta 0270):
-          // la captura muestra lo que ve el usuario, con la lista arriba.
+          // Se entra por otro camino que «Revisar» (el hilo de pasos: Letra y de vuelta a Editor): el banner de la
+          // preparación sale una vez, sin recorrido activo (pregunta 0270, F5-E6).
+          await v.getByRole('button', { name: /^Paso 3/ }).click()
+          await expect(v.getByRole('heading', { level: 1, name: 'Letra' })).toBeVisible()
+          await v.getByRole('button', { name: /^Paso 4/ }).click()
+          await expect(v.getByText(/Shinobi Karaoke preparó esta canción y/)).toBeVisible()
           await v.evaluate(() => {
             for (const e of document.querySelectorAll<HTMLElement>('*'))
               if (e.scrollTop > 0) e.scrollTop = 0

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { ListMusic, Mic, MonitorUp, Search, SquareCheck } from 'lucide-react'
+import { ListMusic, Mic, MonitorUp, Search, SquareCheck, X } from 'lucide-react'
 import { vistaAlContinuar } from '@shared/derivados'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
+import { BotonIcono } from '../../componentes/BotonIcono'
 import { Boton } from '../../componentes/Boton'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { Icono } from '../../componentes/Icono'
@@ -22,6 +23,19 @@ import { datosLrclibDe } from '../anadir/CamposDatos'
 import { DialogoConfirmar, DialogoEditarDatos, type InicialEditar } from './DialogosCancion'
 import { BandejaPendientes } from './BandejaPendientes'
 import { BarraSeleccion } from './BarraSeleccion'
+import { VeloArrastre } from './VeloArrastre'
+import { DialogoDatos } from './acciones/DialogoDatos'
+import { DialogoEliminar } from './acciones/DialogoEliminar'
+import { DialogoPreparar, type SalidaAccion } from './acciones/DialogoPreparar'
+import {
+  contarAplica,
+  motivoNoAplica,
+  ordenarSeleccion,
+  type AccionLote,
+  type ContextoAplica
+} from './acciones/modelo'
+import { ACC, MOTIVO } from './acciones/textos'
+import { useAgregarVarias } from './acciones/useAgregarVarias'
 import { useAvisoReanudacion } from './avisoReanudacion'
 import { DialogoResultadoPreparacion } from './DialogoResultadoPreparacion'
 import { CasillaGrupo } from './CasillaGrupo'
@@ -49,6 +63,7 @@ import { tituloDeError } from './textosError'
 import { SEL, TEMAS_NO_DISPONIBLES } from './textosSeleccion'
 import { useAgregarACola } from './useAgregarACola'
 import { useMarcarRevision } from './useMarcarRevision'
+import { useAjustarFines } from './useAjustarFines'
 import { useProbar } from './useProbar'
 import { esSeleccionable, reiniciarSeleccionDeSesion, useSeleccion } from './useSeleccion'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
@@ -59,6 +74,9 @@ import {
   useBibliotecaCompartida,
   type BibliotecaDatos
 } from './useBiblioteca'
+import { abrirExportarPaquete, abrirImportarPaquete } from './paquete/almacen'
+import { exportarLetras } from './paquete/letras'
+import { PAQ } from './paquete/textos'
 import estilos from './biblioteca.module.css'
 import { copiarDetalles } from '../../soporte/detalles'
 
@@ -87,11 +105,20 @@ function EstadoVacio() {
         Tu biblioteca está vacía
       </h1>
       <p>
-        Añade tu primera canción desde un archivo de tu ordenador o un enlace de YouTube. Shinobi
-        Karaoke separará la voz para que puedas cantar encima.
+        Añade tu primera canción desde un archivo de tu ordenador o un enlace de YouTube, o varias a
+        la vez desde una carpeta o una lista. Shinobi Karaoke separará la voz para que puedas cantar
+        encima.
       </p>
-      <Boton variante="primario" tamano="grande" onClick={() => ir({ tipo: 'anadir' })}>
+      <Boton
+        variante="primario"
+        tamano="grande"
+        data-anadir-cancion
+        onClick={() => ir({ tipo: 'anadir' })}
+      >
         Añadir canción
+      </Boton>
+      <Boton variante="fantasma" onClick={() => abrirImportarPaquete()}>
+        {PAQ.vacioEnlace}
       </Boton>
       <p className={`t-pequeno ${estilos.formatos}`}>
         Formatos: MP3, M4A, FLAC, WAV, OGG, y también vídeos MP4, MKV, MOV o WebM.
@@ -174,6 +201,15 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const [casilla, setCasillaEstado] = useState<CasillaBandeja | null>(casillaDeSesion)
   const [resultadoAbierto, setResultadoAbierto] = useState(false)
   const tanda = useTandaPreparacion()
+  // Aviso de un lote recién añadido (spec 02 · feature 7): se cierra solo al terminar la tanda o con [×].
+  const lote = vista.tipo === 'biblioteca' ? vista.lote : undefined
+  const [loteCerrado, setLoteCerrado] = useState(false)
+  const loteVisto = useRef(lote)
+  if (loteVisto.current !== lote) {
+    loteVisto.current = lote
+    if (loteCerrado) setLoteCerrado(false)
+  }
+  const abrirActividad = () => window.dispatchEvent(new CustomEvent('shinobi:abrir-actividad'))
   const reanudacion = useAvisoReanudacion()
   const [busqueda, setBusqueda] = useState('')
   const [dialogo, setDialogo] = useState<DialogoActivo | null>(null)
@@ -181,6 +217,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const rejilla = useRef<HTMLDivElement>(null)
   const enfoqueRealizado = useRef<EnfoqueBiblioteca | undefined>(undefined)
   const [resaltada, setResaltada] = useState<EnfoqueBiblioteca | null>(null)
+  // Las importadas de un paquete se resaltan juntas 2 s con borde `info` (spec 02 · Feature 9).
+  const [resaltadasInfo, setResaltadasInfo] = useState<ReadonlySet<string>>(new Set())
   const [agrupar, cambiarAgrupar] = useAgrupar()
   const [plegados, setPlegados] = useState<ReadonlySet<string>>(plegadosDeSesion)
   // Canción que sigue visible tras «Editar datos» aunque ya no coincida, hasta el siguiente cambio.
@@ -195,12 +233,18 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const [aplicarTema, setAplicarTema] = useState<{ ids: string[]; desdeTarjeta: boolean } | null>(
     null
   )
+  const [accionLote, setAccionLote] = useState<{
+    tipo: 'preparar' | 'datos' | 'eliminar'
+    ids: string[]
+  } | null>(null)
+  const agregarVarias = useAgregarVarias()
   const botonSeleccionar = useRef<HTMLButtonElement>(null)
   const botonAplicar = useRef<HTMLButtonElement>(null)
   // Foco que hay que dejar tras el siguiente render (entrar, salir o cerrar el diálogo de lote).
-  const focoPendiente = useRef<{ en: 'seleccionar' | 'aplicar' | 'tarjeta'; id?: string } | null>(
-    null
-  )
+  const focoPendiente = useRef<{
+    en: 'seleccionar' | 'aplicar' | 'mas' | 'tarjeta'
+    id?: string
+  } | null>(null)
 
   const visibles = useMemo(
     () => filtrarCanciones(canciones, filtro, busqueda, anclada, casilla),
@@ -263,6 +307,19 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         setFiltroEstado('todas')
         return
       }
+      // Tras importar un paquete: «Todas» si el filtro actual oculta alguna de las importadas.
+      if (enfocar.tambien && (filtro !== 'todas' || casilla)) {
+        const vistas = new Set(
+          filtrarCanciones(canciones, filtro, '', null, casilla).map((c) => c.id)
+        )
+        if (enfocar.tambien.some((id) => canciones.some((c) => c.id === id) && !vistas.has(id))) {
+          filtroDeSesion = 'todas'
+          casillaDeSesion = null
+          setFiltroEstado('todas')
+          setCasillaEstado(null)
+          return
+        }
+      }
       const tarjetas = rejilla.current?.querySelectorAll<HTMLElement>('[data-tarjeta]')
       const tarjeta = Array.from(tarjetas ?? []).find((nodo) => nodo.dataset.tarjeta === enfocar.id)
       if (!tarjeta) return
@@ -270,9 +327,16 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       tarjeta.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
       tarjeta.focus({ preventScroll: true })
       setResaltada(enfocar.resaltar ? enfocar : null)
+      if (enfocar.tambien) setResaltadasInfo(new Set(enfocar.tambien))
     })
     return () => cancelAnimationFrame(fotograma)
-  }, [enfocar, estado, filtro, cancionParaEnfocar])
+  }, [enfocar, estado, filtro, casilla, canciones, cancionParaEnfocar])
+
+  useEffect(() => {
+    if (resaltadasInfo.size === 0) return
+    const plazo = setTimeout(() => setResaltadasInfo(new Set()), RESALTE_MS)
+    return () => clearTimeout(plazo)
+  }, [resaltadasInfo])
 
   useEffect(() => {
     if (!resaltada) return
@@ -419,10 +483,14 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     if (!f) return
     if (f.en === 'seleccionar') {
       if (sel.activo) return
-      botonSeleccionar.current?.focus()
-    } else if (f.en === 'aplicar') {
+      // Con la biblioteca vacía (se eliminó todo), al «Añadir canción» del estado vacío.
+      ;(
+        botonSeleccionar.current ?? document.querySelector<HTMLElement>('[data-anadir-cancion]')
+      )?.focus()
+    } else if (f.en === 'aplicar' || f.en === 'mas') {
       if (!sel.activo) return
-      botonAplicar.current?.focus()
+      if (f.en === 'mas') document.querySelector<HTMLElement>('[data-menu-texto]')?.focus()
+      else botonAplicar.current?.focus()
     } else {
       const id = f.id ?? refs.current.orden[0]
       const nodo = id
@@ -646,6 +714,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const marcarRevision = useMarcarRevision(
     useCallback((id: string) => canciones.find((c) => c.id === id), [canciones])
   )
+  const ajustarFines = useAjustarFines(
+    useCallback((id: string) => canciones.find((c) => c.id === id), [canciones])
+  )
   const probarCancion = useProbar(marcarRevision.pedir)
   const probar = useCallback(
     (id: string) => probarCancion(id, tituloDe(id)),
@@ -676,6 +747,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       probar,
       marcarLista: marcarRevision.pedir,
       preparar: (id) => void preparar(id, true),
+      ajustarFines: ajustarFines.pedir,
       abrirLetra: (id) => ir({ tipo: 'cancion', id, paso: 'letra' }),
       reintentarBusqueda: (id) => void preparar(id, false),
       continuar: (id) => void continuar(id),
@@ -709,7 +781,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       abrirDialogoPantallas,
       temasUsables,
       probar,
-      preparar
+      preparar,
+      ajustarFines.pedir
     ]
   )
 
@@ -743,6 +816,93 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     }
   }
 
+  // Qué canciones admite cada acción de la barra (docs/ux/02 · Feature 8).
+  const ctxAplica: ContextoAplica = {
+    conTrabajo: new Set([
+      ...vivos.trabajos.filter((t) => t.estado !== 'terminado').map((t) => t.cancionId),
+      ...(tanda?.canciones.filter((c) => c.resultado === null).map((c) => c.id) ?? [])
+    ]),
+    exportando: new Set(
+      exportacion.exportaciones.filter((e) => e.estado !== 'terminada').map((e) => e.cancionId)
+    ),
+    activaId: sesion.haySesion ? (sesion.estado?.activa?.cancionId ?? null) : null
+  }
+  const ordenadas = ordenarSeleccion(
+    seleccionadas,
+    ordenVisual.map((c) => c.id)
+  )
+  const acciones8: AccionLote[] = [
+    'preparar',
+    'cola',
+    'exportar',
+    'paquete',
+    'letra',
+    'datos',
+    'eliminar'
+  ]
+  const cuentasAcciones = Object.fromEntries(
+    acciones8.map((a) => {
+      const motivo = ordenadas
+        .map((r) => motivoNoAplica(a, r, ctxAplica))
+        .find((m): m is string => m !== null)
+      const texto = {
+        preparar: ACC.ninguna.preparar,
+        cola: ACC.ninguna.cola,
+        exportar: ACC.ninguna.exportar,
+        letra: ACC.ninguna.letra
+      } as Partial<Record<AccionLote, string>>
+      return [
+        a,
+        {
+          aplican: contarAplica(a, ordenadas, ctxAplica),
+          motivo: texto[a] ?? (motivo ? MOTIVO[motivo] : undefined)
+        }
+      ]
+    })
+  ) as Record<AccionLote, { aplican: number; motivo?: string }>
+
+  const ejecutarAccion = (accion: AccionLote) => {
+    if (ordenadas.length === 0) return
+    const aplican = ordenadas.filter((r) => motivoNoAplica(accion, r, ctxAplica) === null)
+    if (accion === 'preparar' || accion === 'datos' || accion === 'eliminar') {
+      setAccionLote({ tipo: accion, ids: ordenadas.map((r) => r.id) })
+    } else if (accion === 'cola') {
+      void agregarVarias(aplican.map((r) => r.id)).then((ok) => {
+        if (!ok) return
+        sel.salir()
+        focoPendiente.current = { en: 'seleccionar' }
+      })
+    } else if (accion === 'paquete') {
+      abrirExportarPaquete({ tipo: 'canciones', ids: ordenadas.map((r) => r.id) })
+    } else if (accion === 'letra') {
+      void exportarLetras(aplican.map((r) => ({ id: r.id, titulo: r.titulo, artista: r.artista })))
+    } else if (accion === 'exportar') {
+      // Con una sola aplicable se abre el diálogo de una canción (A), no el de lote.
+      if (aplican.length === 1) exportacion.abrir({ cancionId: aplican[0]!.id })
+      else {
+        exportacion.abrirLote(
+          aplican.map((r) => r.id),
+          ordenadas.flatMap((r) => {
+            const motivo = motivoNoAplica('exportar', r, ctxAplica)
+            return motivo ? [{ id: r.id, titulo: r.titulo, artista: r.artista, motivo }] : []
+          })
+        )
+      }
+    }
+  }
+
+  const cerrarAccionLote = (salida: SalidaAccion) => {
+    setAccionLote(null)
+    if (salida.tipo === 'hecho') {
+      sel.salir()
+      focoPendiente.current = { en: 'seleccionar' }
+    } else if (salida.tipo === 'faltan') {
+      // Con fallos se sigue en el modo, con las fallidas seleccionadas y el foco en la acción.
+      sel.fijar(salida.ids)
+      focoPendiente.current = { en: 'mas' }
+    } else focoPendiente.current = { en: 'mas' }
+  }
+
   /** Tras «Editar datos»: la tarjeta se mueve de grupo en ese momento y se avisa si cambia su tema. */
   const alEditarDatos = (antes: ResumenCancionIpc, nuevo: ResumenCancionIpc) => {
     setAnclada(nuevo.id)
@@ -771,7 +931,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       role="listitem"
       key={c.id}
       className={estilos.item}
-      data-resaltada={resaltada?.id === c.id ? true : undefined}
+      data-resaltada={resaltada?.id === c.id || resaltadasInfo.has(c.id) ? true : undefined}
+      data-resalte={resaltadasInfo.has(c.id) ? 'info' : undefined}
     >
       <TarjetaCancion
         resumen={c}
@@ -814,6 +975,12 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       e.preventDefault()
       if (!sel.activo) setAnuncio(SEL.anuncioEntrar)
       sel.entrar(seleccionablesVisibles())
+      return
+    }
+    // Supr en el modo selección, con algo seleccionado: «Eliminar…» de la selección (spec 02 · Feature 8).
+    if (e.key === 'Delete' && sel.activo) {
+      e.preventDefault()
+      if (seleccionadas.length > 0) ejecutarAccion('eliminar')
       return
     }
     if (!(e.target instanceof HTMLElement) || e.target.dataset.tarjeta === undefined) return
@@ -894,6 +1061,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     return (
       <section aria-labelledby="titulo-vista">
         <EstadoVacio />
+        <VeloArrastre />
       </section>
     )
   }
@@ -1009,6 +1177,31 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             />
           </div>
         </div>
+        {lote &&
+          !loteCerrado &&
+          !(tanda && tanda.total >= 2 && tanda.terminadas >= tanda.total) && (
+            <div className={estilos.avisosPrep}>
+              <AvisoEnLinea
+                tipo="info"
+                accion={
+                  <>
+                    <Boton variante="secundario" onClick={abrirActividad}>
+                      Ver actividad
+                    </Boton>
+                    <BotonIcono
+                      icono={X}
+                      etiqueta="Cerrar el aviso"
+                      onClick={() => setLoteCerrado(true)}
+                    />
+                  </>
+                }
+              >
+                {lote.conLetra
+                  ? `Se añadieron ${lote.n} canciones y se están preparando solas.`
+                  : `Se añadieron ${lote.n} canciones. Se están separando; la letra tendrás que buscarla tú.`}
+              </AvisoEnLinea>
+            </div>
+          )}
         {reanudacion.aviso && (
           <div className={estilos.avisosPrep}>
             <AvisoEnLinea
@@ -1048,6 +1241,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             seleccionadas={seleccionadas.length}
             fuera={fuera}
             motivoInactivo={motivoAplicar}
+            cuentas={cuentasAcciones}
+            alAccion={ejecutarAccion}
             alAplicar={abrirAplicarLote}
             alSeleccionarVisibles={() => sel.anadir(seleccionablesVisibles())}
             alQuitar={sel.vaciar}
@@ -1134,6 +1329,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
           </div>
         )}
         {marcarRevision.dialogos}
+        {ajustarFines.dialogo}
         {dialogo?.tipo === 'datos' && (
           <DialogoEditarDatos
             inicial={dialogo.inicial}
@@ -1218,6 +1414,24 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             alCopiarDetalles={(texto) => void copiarDetalles(texto)}
           />
         )}
+        {accionLote?.tipo === 'preparar' && (
+          <DialogoPreparar
+            canciones={accionLote.ids.flatMap((id) => resumenDe(id) ?? [])}
+            alCerrar={cerrarAccionLote}
+          />
+        )}
+        {accionLote?.tipo === 'datos' && (
+          <DialogoDatos
+            canciones={accionLote.ids.flatMap((id) => resumenDe(id) ?? [])}
+            alCerrar={cerrarAccionLote}
+          />
+        )}
+        {accionLote?.tipo === 'eliminar' && (
+          <DialogoEliminar
+            canciones={accionLote.ids.flatMap((id) => resumenDe(id) ?? [])}
+            alCerrar={cerrarAccionLote}
+          />
+        )}
         {aplicarTema && (
           <DialogoAplicarTema
             canciones={aplicarTema.ids.flatMap((id) => resumenDe(id) ?? [])}
@@ -1228,6 +1442,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
         )}
       </section>
       <PanelColaHost canciones={canciones} />
+      <VeloArrastre />
     </div>
   )
 }

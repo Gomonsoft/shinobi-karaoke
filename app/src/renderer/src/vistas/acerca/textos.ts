@@ -39,6 +39,7 @@ export const AVISO_YOUTUBE = {
   puntos: [
     'Usa solo contenido que tengas derecho a descargar (por ejemplo, tus propias canciones o música con licencia que lo permita).',
     'Las condiciones de YouTube no permiten descargar la mayoría de los vídeos sin su permiso.',
-    'Lo que hagas es solo para uso personal y es tu responsabilidad. Shinobi Karaoke no comparte ni sube nada.'
+    'Lo que hagas es solo para uso personal y es tu responsabilidad. Shinobi Karaoke no comparte ni sube nada.',
+    'Esto vale también para las listas de reproducción y los álbumes: revisa qué canciones vas a descargar.'
   ]
 } as const

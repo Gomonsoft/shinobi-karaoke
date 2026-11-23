@@ -270,7 +270,7 @@ export async function irAAnadir(v: Page): Promise<void> {
  */
 export async function importar(v: Page, titulo: string): Promise<void> {
   await irAAnadir(v)
-  await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+  await v.getByRole('button', { name: 'Elegir archivos…' }).click()
   await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
     timeout: 30_000
   })

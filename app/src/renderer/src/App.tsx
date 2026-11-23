@@ -19,6 +19,7 @@ import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
 import { ProveedorSesion, useSesion } from './sesion/ProveedorSesion'
 import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
 import { Biblioteca } from './vistas/biblioteca/Biblioteca'
+import { ControladorPaquetes } from './vistas/biblioteca/paquete/ControladorPaquetes'
 import { BibliotecaContexto, useBiblioteca } from './vistas/biblioteca/useBiblioteca'
 import { Ajustes } from './vistas/ajustes/Ajustes'
 import { AnadirCancion } from './vistas/anadir/AnadirCancion'
@@ -42,8 +43,9 @@ function Contenido({ vista }: { vista: Vista }) {
     case 'anadir':
       return (
         <AnadirCancion
-          key={vista.iniciales?.cancionId ?? vista.archivo ?? 'nueva'}
+          key={vista.iniciales?.cancionId ?? vista.archivo ?? vista.archivos?.join('|') ?? 'nueva'}
           archivo={vista.archivo}
+          archivos={vista.archivos}
           iniciales={vista.iniciales}
           restaurar={vista.restaurar}
         />
@@ -96,6 +98,7 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
               <CapaReproductor />
             </ProveedorReproductor>
             <DialogoCierre vista={vista} />
+            <ControladorPaquetes />
           </ProveedorExportacion>
         </BibliotecaContexto.Provider>
       </TrabajosContexto.Provider>

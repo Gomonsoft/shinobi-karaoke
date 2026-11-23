@@ -390,3 +390,25 @@ describe('Letra lista (fase 5)', () => {
     expect(within(screen.getByRole('article')).getByText('Lista')).toBeInTheDocument()
   })
 })
+
+describe('canciones importadas de un paquete (spec 02 · Feature 9)', () => {
+  it('pasa a «Todas» si el filtro oculta alguna, enfoca la primera y resalta todas con borde info', async () => {
+    // El filtro de sesión «Listas» ocultaría el borrador importado.
+    const { unmount } = montar([lista, borrador])
+    await screen.findAllByRole('article')
+    fireEvent.click(screen.getByRole('radio', { name: /^Listas/ }))
+    expect(screen.queryByRole('article', { name: /^La flaca,/ })).toBeNull()
+    unmount()
+
+    montar([lista, borrador], {}, { id: 'a', resaltar: false, tambien: ['a', 'c'] })
+    await screen.findAllByRole('article')
+    await waitFor(() => expect(screen.getByRole('radio', { name: /^Todas/ })).toBeChecked())
+    expect(screen.getAllByRole('article')).toHaveLength(2)
+    await waitFor(() =>
+      expect(document.querySelectorAll('[data-resaltada][data-resalte="info"]')).toHaveLength(2)
+    )
+    await waitFor(() =>
+      expect(document.activeElement).toBe(document.querySelector('[data-tarjeta="a"]'))
+    )
+  })
+})

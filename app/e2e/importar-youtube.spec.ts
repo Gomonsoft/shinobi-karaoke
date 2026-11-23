@@ -102,15 +102,15 @@ const registrosWorker = (datos: string): string[] =>
 async function irAYoutube(v: Page): Promise<void> {
   await v.getByRole('button', { name: 'Añadir canción' }).first().click()
   await expect(v.getByRole('heading', { level: 1, name: 'Añadir canción' })).toBeVisible()
-  await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+  await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
   await expect(campoUrl(v)).toBeVisible()
 }
 
-const campoUrl = (v: Page): Locator => v.getByLabel('Enlace del vídeo')
+const campoUrl = (v: Page): Locator => v.getByLabel('Enlaces de YouTube')
 
 async function buscar(v: Page, url: string): Promise<void> {
   await campoUrl(v).fill(url)
-  await v.getByRole('button', { name: 'Buscar vídeo' }).click()
+  await v.getByRole('button', { name: 'Buscar' }).click()
 }
 
 async function vistaPrevia(v: Page): Promise<void> {
@@ -159,16 +159,16 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       const v = await app.firstWindow()
       await expect(v.getByText('Tu biblioteca está vacía')).toBeVisible()
       await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-      await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toBeVisible()
       await expect(campoUrl(v)).toHaveCount(0)
 
       await v.getByRole('button', { name: 'Usar un archivo en su lugar' }).click()
-      await expect(v.getByRole('button', { name: 'Elegir archivo…' })).toBeVisible()
+      await expect(v.getByRole('button', { name: 'Elegir archivos…' })).toBeVisible()
       const sinAceptar = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
       expect(sinAceptar.aviso_youtube_aceptado ?? null).toBeNull()
 
-      await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toBeVisible()
       await v.getByRole('button', { name: 'Entendido' }).click()
       await expect(campoUrl(v)).toBeVisible()
@@ -187,7 +187,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       const v = await app2.firstWindow()
       await expect(v.getByText('Tu biblioteca está vacía')).toBeVisible()
       await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-      await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
       await expect(campoUrl(v)).toBeVisible()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toHaveCount(0)
     } finally {
@@ -205,10 +205,8 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
 
       await buscar(v, 'https://vimeo.com/123456789')
       await expect(v.getByRole('alert')).toContainText('Este enlace no es de un vídeo de YouTube')
-      await buscar(v, 'https://www.youtube.com/playlist?list=PLabcdefghijklmnop')
-      await expect(v.getByRole('alert')).toContainText(
-        'Las listas y los directos no se pueden usar'
-      )
+      await buscar(v, 'https://www.youtube.com/playlist?list=RDabcdefghijklmnop')
+      await expect(v.getByRole('alert')).toContainText('Este enlace no se puede usar')
 
       // Tampoco hay vista previa ni canción, y el worker no escribió ningún registro nuevo.
       await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toHaveCount(
@@ -375,12 +373,9 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       )
       // Un directo tampoco se admite.
       await buscar(v, URL_YT(DIRECTO))
-      await expect(v.getByRole('alert')).toContainText(
-        'Las listas y los directos no se pueden usar',
-        {
-          timeout: 30_000
-        }
-      )
+      await expect(v.getByRole('alert')).toContainText('Este enlace no se puede usar', {
+        timeout: 30_000
+      })
       expect(canciones(env.datos)).toEqual([])
     } finally {
       await cerrar(app)

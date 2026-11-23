@@ -130,7 +130,10 @@ const api: ApiShinobi = {
   },
   preparacion: {
     previsualizar: (ids) => invocar(CANALES.preparacion.previsualizar, { ids }),
-    preparar: (ids) => invocar(CANALES.preparacion.preparar, { ids }),
+    preparar: (ids, opciones) =>
+      opciones
+        ? invocar(CANALES.preparacion.preparar, { ids }, opciones)
+        : invocar(CANALES.preparacion.preparar, { ids }),
     pausar: () => invocar(CANALES.preparacion.pausar),
     reanudar: () => invocar(CANALES.preparacion.reanudar),
     reintentarFallidas: () => invocar(CANALES.preparacion.reintentarFallidas),

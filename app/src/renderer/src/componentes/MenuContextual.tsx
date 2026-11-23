@@ -9,7 +9,8 @@ import {
   type KeyboardEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, Lock, type LucideIcon } from 'lucide-react'
+import { ChevronDown, Ellipsis, Lock, type LucideIcon } from 'lucide-react'
+import { Boton } from './Boton'
 import { BotonIcono } from './BotonIcono'
 import { Icono } from './Icono'
 import estilos from './componentes.module.css'
@@ -48,6 +49,10 @@ interface MenuContextualProps {
    */
   punto?: { x: number; y: number }
   alCerrar?: () => void
+  /** Disparador con texto y chevron (p. ej. «Más acciones ▾») en lugar del botón ⋯; `etiqueta` es su menú. */
+  textoBoton?: string
+  /** Nombre accesible propio del disparador con texto. */
+  ariaBoton?: string
 }
 
 export interface PosicionMenu {
@@ -102,7 +107,9 @@ export function MenuContextual({
   items,
   tabIndexDisparador,
   punto,
-  alCerrar
+  alCerrar,
+  textoBoton,
+  ariaBoton
 }: MenuContextualProps) {
   const [abierto, setAbierto] = useState(Boolean(punto))
   const [inicial, setInicial] = useState<'primero' | 'ultimo'>('primero')
@@ -238,7 +245,24 @@ export function MenuContextual({
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <span ref={raiz} className={estilos.menuEnvoltorio} onKeyDown={teclaDisparador}>
-      {!punto && (
+      {!punto && textoBoton && (
+        <Boton
+          ref={disparador}
+          data-menu-texto=""
+          aria-label={ariaBoton}
+          aria-haspopup="menu"
+          aria-expanded={abierto}
+          aria-controls={abierto ? idMenu : undefined}
+          onClick={() => {
+            setInicial('primero')
+            setAbierto((a) => !a)
+          }}
+        >
+          {textoBoton}
+          <Icono icono={ChevronDown} tamano={16} />
+        </Boton>
+      )}
+      {!punto && !textoBoton && (
         <BotonIcono
           ref={disparador}
           icono={Ellipsis}

@@ -31,7 +31,7 @@ export type DialogoComprobar =
       obsoleto: boolean
     }
   | { tipo: 'noEncaja'; detalle: DetalleNoCoincide }
-  | { tipo: 'dudosa' }
+  | { tipo: 'dudosa'; limitacion?: 'vozContinua' | 'sinContraste' }
 
 interface Opciones {
   cancionId: string
@@ -59,6 +59,8 @@ export function useComprobarLetra(opciones: Opciones) {
   const [resaltadas, setResaltadas] = useState<ReadonlySet<string>>(new Set())
   const [foco, setFoco] = useState(0)
   const [entrada, setEntrada] = useState<VeredictoEntrada>(null)
+  /** El veredicto de entrada ya llegó (con algo que decir o sin nada): el editor puede decidir su banner. */
+  const [entradaResuelta, setEntradaResuelta] = useState(false)
   const ultimo = useRef(opciones)
   const ocupado = useRef(false)
   const temporizadorResalte = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -99,7 +101,9 @@ export function useComprobarLetra(opciones: Opciones) {
     let vigente = true
     void calcular().then(
       (r) => {
-        if (!vigente || !r.ok) return
+        if (!vigente) return
+        setEntradaResuelta(true)
+        if (!r.ok) return
         const v = r.encaje.veredicto
         setEntrada(
           v === 'desfasada'
@@ -109,7 +113,7 @@ export function useComprobarLetra(opciones: Opciones) {
               : null
         )
       },
-      () => undefined
+      () => vigente && setEntradaResuelta(true)
     )
     return () => {
       vigente = false
@@ -149,7 +153,11 @@ export function useComprobarLetra(opciones: Opciones) {
           })
           break
         default:
-          setDialogo({ tipo: 'dudosa' })
+          setDialogo(
+            encaje.limitacion
+              ? { tipo: 'dudosa', limitacion: encaje.limitacion }
+              : { tipo: 'dudosa' }
+          )
       }
     } catch {
       avisarFalta('error')
@@ -249,6 +257,7 @@ export function useComprobarLetra(opciones: Opciones) {
     dialogo,
     resaltadas,
     entrada,
+    entradaResuelta,
     descartarEntrada,
     pedir,
     confirmar,

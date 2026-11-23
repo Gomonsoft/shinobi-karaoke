@@ -4,6 +4,8 @@ import { Dialogo } from '../componentes/Dialogo'
 import type { Vista } from './estado'
 import { confirmarBorradorAlCerrar, vaciarAlCerrar } from './salida'
 import type { SolicitudCierreIpc } from '../../../shared/sesion'
+import { estadoPaquetes } from '../vistas/biblioteca/paquete/almacen'
+import { COLA } from './cola'
 import { cuerpoCierre, TEXTO_CIERRE, textosSalirConSesion } from './textosCierre'
 
 interface Datos {
@@ -11,6 +13,8 @@ interface Datos {
   titulos: string[]
   /** Canciones que se están exportando o esperan en cola (`exp.cierre.item`). */
   exportando: string[]
+  /** Canciones que faltan en una tanda de 2 o más (`cierre.cuerpo.cola`). */
+  faltan: number
   motivo: Pick<SolicitudCierreIpc, 'sesion' | 'cola' | 'variante'>
 }
 
@@ -56,13 +60,28 @@ export function DialogoCierre({ vista }: Props) {
         } catch {
           // Sin la lista de exportaciones se pregunta igualmente si main sabe que hay algo.
         }
-        if (trabajos.length === 0 && exportando.length === 0 && !motivo.sesion && !motivo.cola) {
+        // Un paquete o una copia en curso cuenta como un trabajo más (spec 02 · Feature 9).
+        const paquetes = estadoPaquetes().seguimiento?.estado === 'en_curso' ? 1 : 0
+        let faltan = 0
+        try {
+          const tanda = await api.preparacion?.tanda()
+          if (tanda && tanda.total >= 2) faltan = Math.max(0, tanda.total - tanda.terminadas)
+        } catch {
+          // Sin la tanda se usa el texto de siempre.
+        }
+        if (
+          trabajos.length === 0 &&
+          exportando.length === 0 &&
+          paquetes === 0 &&
+          !motivo.sesion &&
+          !motivo.cola
+        ) {
           await vaciarAlCerrar()
           await api.app.confirmarCierre()
           return
         }
-        if (trabajos.length === 0 && exportando.length === 0) {
-          setDatos({ n: 0, titulos: [], exportando, motivo })
+        if (trabajos.length === 0 && exportando.length === 0 && paquetes === 0) {
+          setDatos({ n: 0, titulos: [], exportando, faltan: 0, motivo })
           return
         }
         const ids = [...new Set(trabajos.map((t) => t.cancionId))]
@@ -73,7 +92,13 @@ export function DialogoCierre({ vista }: Props) {
           // Se muestra el diálogo sin lista.
         }
         const titulos = ids.flatMap((id) => nombres.get(id) ?? [])
-        setDatos({ n: trabajos.length + exportando.length, titulos, exportando, motivo })
+        setDatos({
+          n: trabajos.length + exportando.length + paquetes,
+          titulos,
+          exportando,
+          faltan,
+          motivo
+        })
       })()
     }
     const baja = api.app.alSolicitudCierre(atender)
@@ -113,7 +138,9 @@ export function DialogoCierre({ vista }: Props) {
         <p>
           {sesion
             ? sesion.cuerpo
-            : cuerpoCierre(datos.n, datos.titulos, datos.motivo, datos.exportando)}
+            : datos.faltan > 0 && datos.exportando.length === 0
+              ? COLA.cierre(datos.faltan)
+              : cuerpoCierre(datos.n, datos.titulos, datos.motivo, datos.exportando)}
         </p>
       )}
     </Dialogo>
@@ -121,6 +148,10 @@ export function DialogoCierre({ vista }: Props) {
 
   async function alCerrar(): Promise<void> {
     setDatos(null)
+    const copia = estadoPaquetes().seguimiento
+    if (copia?.estado === 'en_curso') {
+      await window.shinobi.copias.cancelar(copia.trabajoId).catch(() => undefined)
+    }
     await vaciarAlCerrar()
     await window.shinobi.app.confirmarCierre()
   }

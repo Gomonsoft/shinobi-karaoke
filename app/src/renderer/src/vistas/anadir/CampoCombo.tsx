@@ -1,4 +1,14 @@
-import { useId, useMemo, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type Ref
+} from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { CampoTexto } from '../../componentes/Campos'
 import { Icono } from '../../componentes/Icono'
@@ -39,6 +49,13 @@ interface CampoComboProps {
   alResolver?: (valor: string) => void
   /** Teclas que la lista no usa (p. ej. Intro pasa al campo siguiente). */
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
+  /** La etiqueta es solo el nombre accesible (celdas de una tabla). */
+  etiquetaOculta?: boolean
+  /**
+   * `false`: con la lista cerrada, ↑ y ↓ no la abren y pasan a `onKeyDown` (la tabla del lote los usa para
+   * ir a la fila anterior o siguiente); con la lista abierta recorren la lista como siempre.
+   */
+  abrirConFlechas?: boolean
 }
 
 /** Campo de texto con lista de valores existentes: patrón *combobox* editable de la spec 03. */
@@ -53,7 +70,9 @@ export function CampoCombo({
   inputRef,
   onBlur,
   alResolver,
-  onKeyDown
+  onKeyDown,
+  etiquetaOculta,
+  abrirConFlechas = true
 }: CampoComboProps) {
   const base = useId()
   const idLista = `${base}-lista`
@@ -67,6 +86,31 @@ export function CampoCombo({
   const unicaExacta = visibles.length === 1 && visibles[0]?.valor === value.trim()
   const mostrada = abierta && visibles.length > 0 && !unicaExacta
   const idOpcion = (i: number): string => `${base}-op-${i}`
+  const idCampo = id ?? `${base}-campo`
+
+  // La lista va en un portal, por encima de la tabla del modo lote (que recorta lo que desborda), colocada
+  // bajo el campo; se cierra al desplazar cualquier contenedor (la tabla) y se recoloca al redimensionar.
+  const [caja, setCaja] = useState<{ top: number; left: number; width: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!mostrada) return
+    const colocar = (): void => {
+      const r = document.getElementById(idCampo)?.getBoundingClientRect()
+      if (r) setCaja({ top: r.bottom + 2, left: r.left, width: r.width })
+    }
+    colocar()
+    window.addEventListener('resize', colocar)
+    return () => window.removeEventListener('resize', colocar)
+  }, [mostrada, idCampo])
+  useEffect(() => {
+    if (!mostrada) return
+    const alDesplazar = (e: Event): void => {
+      if (e.target instanceof Node && document.getElementById(idLista)?.contains(e.target)) return
+      setAbierta(false)
+      setActiva(-1)
+    }
+    window.addEventListener('scroll', alDesplazar, true)
+    return () => window.removeEventListener('scroll', alDesplazar, true)
+  }, [mostrada, idLista])
 
   const cerrar = (): void => {
     setAbierta(false)
@@ -85,6 +129,7 @@ export function CampoCombo({
         ref={inputRef}
         type="text"
         etiqueta={etiqueta}
+        etiquetaOculta={etiquetaOculta}
         ayuda={ayuda}
         value={value}
         maxLength={maxLength}
@@ -97,7 +142,7 @@ export function CampoCombo({
 
   const alTeclear = (e: KeyboardEvent<HTMLInputElement>): void => {
     if (e.nativeEvent.isComposing) return
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (mostrada || abrirConFlechas)) {
       e.preventDefault()
       if (!mostrada) {
         setAbierta(true)
@@ -139,11 +184,12 @@ export function CampoCombo({
 
   return (
     <CampoTexto
-      id={id ?? `${base}-campo`}
+      id={idCampo}
       ref={inputRef}
       type="text"
       role="combobox"
       etiqueta={etiqueta}
+      etiquetaOculta={etiquetaOculta}
       ayuda={ayuda}
       value={value}
       maxLength={maxLength}
@@ -181,27 +227,40 @@ export function CampoCombo({
           >
             <Icono icono={ChevronDown} tamano={18} />
           </button>
-          {mostrada && (
-            <ul id={idLista} role="listbox" aria-label={etiqueta} className={estilos.lista}>
-              {visibles.map((o, i) => (
-                // El teclado lo gestiona el campo (aria-activedescendant); el clic es solo para el ratón.
-                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                <li
-                  key={o.valor}
-                  id={idOpcion(i)}
-                  role="option"
-                  aria-selected={i === activa}
-                  aria-label={TEXTO.opcionSugerencia(o.valor, o.canciones)}
-                  className={i === activa ? `${estilos.opcion} ${estilos.activa}` : estilos.opcion}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => elegir(o.valor)}
-                >
-                  <span className={estilos.opcionValor}>{o.valor}</span>
-                  <span className={estilos.opcionCantidad}>{TEXTO.numCanciones(o.canciones)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {mostrada &&
+            caja &&
+            createPortal(
+              <ul
+                id={idLista}
+                role="listbox"
+                aria-label={etiqueta}
+                className={estilos.lista}
+                style={{ top: caja.top, left: caja.left, width: caja.width }}
+              >
+                {visibles.map((o, i) => (
+                  // El teclado lo gestiona el campo (aria-activedescendant); el clic es solo para el ratón.
+                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                  <li
+                    key={o.valor}
+                    id={idOpcion(i)}
+                    role="option"
+                    aria-selected={i === activa}
+                    aria-label={TEXTO.opcionSugerencia(o.valor, o.canciones)}
+                    className={
+                      i === activa ? `${estilos.opcion} ${estilos.activa}` : estilos.opcion
+                    }
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => elegir(o.valor)}
+                  >
+                    <span className={estilos.opcionValor}>{o.valor}</span>
+                    <span className={estilos.opcionCantidad}>
+                      {TEXTO.numCanciones(o.canciones)}
+                    </span>
+                  </li>
+                ))}
+              </ul>,
+              document.body
+            )}
         </>
       }
     />

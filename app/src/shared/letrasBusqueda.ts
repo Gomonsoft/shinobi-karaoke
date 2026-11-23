@@ -57,7 +57,9 @@ export const MAX_BYTES_TEXTO_LETRA = 512 * 1024
 
 export const encajeCandidatoSchema = z.object({
   veredicto: z.enum(VEREDICTOS_ENCAJE),
-  desfaseMs: z.number().int()
+  desfaseMs: z.number().int(),
+  /** `dudosa` por un límite del método, no por coros (ADR 0024, revisión 2026-11-22); lectura tolerante. */
+  limitacion: z.enum(['vozContinua', 'sinContraste']).nullable().optional().catch(undefined)
 })
 export type EncajeCandidato = z.infer<typeof encajeCandidatoSchema>
 

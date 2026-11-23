@@ -58,6 +58,9 @@ import { BotonCambiarModalidad, BotonLetraLista } from './BotonLetraLista'
 import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
 import { LL } from './textosLetraLista'
 import { useExportarDesdeEditor } from './useExportarDesdeEditor'
+import { exportarLetras } from '../biblioteca/paquete/letras'
+import { LRC } from '../biblioteca/paquete/textos'
+import { EXP_GUARDADO, EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
 import { seleccionDeDisco } from './aparienciaVista'
@@ -133,6 +136,9 @@ function vecinaConInicio(letra: Letra, id: string, sentido: -1 | 1): string | nu
   }
   return null
 }
+
+/** Lo máximo que el banner espera al veredicto de la feature 4 antes de decidirse sin él (spec 06 · F5-E6). */
+export const ESPERA_COMPROBACION_BANNER_MS = 500
 
 export function desdeLinea(letra: Letra, id: string): number {
   const indice = letra.lineas.findIndex((l) => l.id === id)
@@ -880,6 +886,29 @@ function EditorActivo({
     if (aplicarPendientePreciso()) setTimeout(() => exportarActual.current(), 0)
     else exportarVideo.exportar()
   }
+  const exportarLetraActual = useRef<() => Promise<void>>(() => Promise.resolve())
+  useLayoutEffect(() => {
+    // Vacía el guardado pendiente y solo entonces exporta lo guardado (F9-E1); un fallo de guardado no exporta.
+    exportarLetraActual.current = async () => {
+      if (probarInactivo || cuentas.sincronizadas === 0) return
+      if (!(await vaciar())) {
+        mostrarToast({ tipo: 'error', mensaje: EXP_GUARDADO.titulo })
+        return
+      }
+      await exportarLetras([{ id, titulo: metadatos.titulo, artista: metadatos.artista }])
+    }
+  })
+  /** «Exportar la letra»: con el editor preciso abierto, primero aplica su borrador. */
+  function exportarLetraAplicando() {
+    if (aplicarPendientePreciso()) setTimeout(() => void exportarLetraActual.current(), 0)
+    else void exportarLetraActual.current()
+  }
+  const motivoLetra =
+    cuentas.sincronizadas === 0
+      ? LRC.sinTiempos
+      : probarInactivo
+        ? EXP_MENU.noDisponible
+        : undefined
   const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
   useLayoutEffect(() => {
     // El vaciado puede esperar una escritura o el diálogo. Usa el editor del último render.
@@ -1568,52 +1597,86 @@ function EditorActivo({
         {KC.banner.noCoincide}
       </AvisoEnLinea>
     )
-  // Preparado por la app y aún sin revisar (feature 5; con la revisión guiada, su variante de la feature 11).
-  const sinRevisar =
+  // El banner de la lista se decide UNA vez al entrar (spec 06 · F5-E6, pregunta 0270): hasta entonces su sitio
+  // queda vacío; después solo lo quitan [×], [Ahora no], editar o marcar como lista, nunca lo cambia otro.
+  const [esperaComprobacionAgotada, setEsperaComprobacionAgotada] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setEsperaComprobacionAgotada(true), ESPERA_COMPROBACION_BANNER_MS)
+    return () => clearTimeout(t)
+  }, [])
+  const entroRevisando = useRef(revisarAlEntrar).current
+  // «Ajustar los fines…» sobre una letra sin marca (sin búsqueda ni elección): lo pidió el usuario, sin banner.
+  const soloFinesPedidos =
+    !resumen.preparacion?.busqueda && !resumen.preparacion?.eleccionAutomatica
+  const preparadaSinRevisar =
     resumen.estado === 'borrador' &&
     !!resumen.preparacion &&
     !resumen.preparacion.revisada &&
-    !cerradoPrep &&
-    !edicion.sync.activo &&
-    !revision.activo &&
-    letra === letraInicial
-  const pendientesRevision = revision.pendientes.length
-  const bannerPreparada = sinRevisar ? (
-    <AvisoEnLinea
-      tipo="info"
-      accionesAbajo
-      accion={
-        <>
-          {revision.calculando ? null : pendientesRevision > 0 ? (
-            <Boton onClick={() => revision.empezar()}>{EP.banner.empezar}</Boton>
-          ) : (
-            <Boton onClick={() => void abrirPrueba()}>{EP.banner.probar}</Boton>
-          )}
-          <Boton variante="fantasma" onClick={verQueHicimos}>
-            {EP.banner.verQueHicimos}
-          </Boton>
-          <BotonIcono icono={X} etiqueta={EP.banner.cerrar} onClick={cerrarBannerPreparacion} />
-        </>
-      }
-    >
-      {revision.calculando
-        ? EP.banner.preparada
-        : pendientesRevision > 0
-          ? EP.banner.revision(pendientesRevision)
-          : EP.banner.nada}
-    </AvisoEnLinea>
-  ) : null
+    !soloFinesPedidos
+  const comprobacionResuelta =
+    !(resumen.estado === 'borrador') || comprobar.entradaResuelta || esperaComprobacionAgotada
+  const cuentaListaParaBanner = !preparadaSinRevisar || entroRevisando || !revision.calculando
+  type DecisionBanner =
+    { tipo: 'comprobacion' | 'vacio' | 'yaSync' } | { tipo: 'prep'; pendientes: number }
+  const [decision, setDecision] = useState<DecisionBanner | null>(null)
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (decision || !comprobacionResuelta || !cuentaListaParaBanner) return
+    if (comprobar.entrada && resumen.estado === 'borrador' && !edicion.sync.activo) {
+      setDecision({ tipo: 'comprobacion' })
+    } else if (entroRevisando) setDecision({ tipo: 'vacio' })
+    else if (preparadaSinRevisar) {
+      setDecision({ tipo: 'prep', pendientes: revision.pendientes.length })
+    } else if (resumen.preparacion) setDecision({ tipo: 'vacio' })
+    else setDecision({ tipo: todasAlEntrar ? 'yaSync' : 'vacio' })
+  }, [
+    decision,
+    comprobacionResuelta,
+    cuentaListaParaBanner,
+    comprobar.entrada,
+    resumen.estado,
+    edicion.sync.activo,
+    entroRevisando,
+    preparadaSinRevisar,
+    resumen.preparacion,
+    revision.pendientes.length,
+    todasAlEntrar
+  ])
+  /* eslint-enable react-hooks/set-state-in-effect */
+  const sinEditar = letra === letraInicial && !edicion.sync.activo && resumen.estado === 'borrador'
+  const bannerPreparada =
+    decision?.tipo === 'prep' && !cerradoPrep && sinEditar ? (
+      <AvisoEnLinea
+        tipo="info"
+        accionesAbajo
+        accion={
+          <>
+            {decision.pendientes > 0 ? (
+              <Boton onClick={() => revision.empezar()}>{EP.banner.empezar}</Boton>
+            ) : (
+              <Boton onClick={() => void abrirPrueba()}>{EP.banner.probar}</Boton>
+            )}
+            <Boton variante="fantasma" onClick={verQueHicimos}>
+              {EP.banner.verQueHicimos}
+            </Boton>
+            <BotonIcono icono={X} etiqueta={EP.banner.cerrar} onClick={cerrarBannerPreparacion} />
+          </>
+        }
+      >
+        {decision.pendientes > 0 ? EP.banner.revision(decision.pendientes) : EP.banner.nada}
+      </AvisoEnLinea>
+    ) : null
+  // Un veredicto de la feature 4 que llega tarde solo ocupa el sitio si estaba vacío.
+  const comprobacionVisible =
+    decision?.tipo === 'comprobacion' || (decision?.tipo === 'vacio' && comprobar.entrada)
   const banner =
     cuentas.sincronizadas === 0 ? (
       <AvisoEnLinea tipo="info">{E.sinSync}</AvisoEnLinea>
-    ) : bannerComprobacion ? (
+    ) : decision === null ? undefined : comprobacionVisible ? (
       bannerComprobacion
     ) : bannerPreparada ? (
       bannerPreparada
-    ) : todasAlEntrar &&
-      resumen.estado === 'borrador' &&
-      letra === letraInicial &&
-      !cerradoYaSync ? (
+    ) : decision.tipo === 'yaSync' && sinEditar && !cerradoYaSync ? (
       <AvisoEnLinea
         tipo="info"
         accion={
@@ -1854,6 +1917,7 @@ function EditorActivo({
                           motivo: exportarVideo.motivo,
                           exportar: exportarAplicando
                         }}
+                        letra={{ motivo: motivoLetra, exportar: exportarLetraAplicando }}
                         preparacion={{
                           datos: bloquePrep,
                           verOtras: () => {

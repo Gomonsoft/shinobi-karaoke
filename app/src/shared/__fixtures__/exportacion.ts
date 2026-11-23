@@ -20,6 +20,8 @@ import { letraSincronizada } from './index'
 
 export const ID_TRABAJO = 'b0000000-0000-4000-8000-000000000001'
 export const ID_DESTINO = 'c0000000-0000-4000-8000-000000000001'
+export const ID_CARPETA = 'c0000000-0000-4000-8000-000000000002'
+export const ID_LOTE = 'd0000000-0000-4000-8000-000000000001'
 
 export function instantaneaDePrueba(
   sobrescribir: Partial<InstantaneaExportacion> = {}
@@ -189,7 +191,22 @@ export function crearApiExportacionFalsa(
     cancelar: undefined,
     estado: [],
     mostrarEnCarpeta: undefined,
-    avisosPendientes: []
+    avisosPendientes: [],
+    destinoCarpeta: {
+      carpetaId: ID_CARPETA,
+      ruta: '/home/usuario/Videos',
+      libreBytes: 50_000_000_000
+    },
+    iniciarLote: (peticion: { cancionIds: string[] }) => ({
+      loteId: ID_LOTE,
+      encoladas: peticion.cancionIds.map((cancionId, i) => ({
+        cancionId,
+        trabajoId: `b0000000-0000-4000-8000-${String(i + 10).padStart(12, '0')}`
+      })),
+      omitidas: []
+    }),
+    cancelarLote: undefined,
+    reintentarLote: { loteId: ID_LOTE, encoladas: [], omitidas: [] }
   }
   const metodo =
     (nombre: string) =>
@@ -217,6 +234,10 @@ export function crearApiExportacionFalsa(
     estado: metodo('estado'),
     mostrarEnCarpeta: metodo('mostrarEnCarpeta'),
     avisosPendientes: metodo('avisosPendientes'),
+    destinoCarpeta: metodo('destinoCarpeta'),
+    iniciarLote: metodo('iniciarLote'),
+    cancelarLote: metodo('cancelarLote'),
+    reintentarLote: metodo('reintentarLote'),
     alAviso: suscribir(avisos),
     alCambiar: suscribir(cambios),
     alProgreso: suscribir(progresos)

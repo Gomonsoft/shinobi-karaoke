@@ -143,9 +143,12 @@ test.describe('separación con el separador falso', () => {
       await expect(filaSeparar(v)).toContainText(/Separando… \d+ %/, { timeout: 30_000 })
       await volverABiblioteca(v)
       await importar(v, 'Segunda')
-      await expect(filaSeparar(v)).toContainText('En cola: se separará cuando termine «Primera».', {
-        timeout: 30_000
-      })
+      await expect(filaSeparar(v)).toContainText(
+        'En cola: 2.ª de 2. Empezará cuando terminen las anteriores.',
+        {
+          timeout: 30_000
+        }
+      )
       await expect(v.getByText(/Tardará/)).toBeVisible()
       expect(estadoPaso(env.datos, 'Primera', 'separacion')).toBe('en_curso')
       // Cuando termina la primera, la segunda empieza sola y acaba.
@@ -207,6 +210,8 @@ test.describe('separación con el separador falso', () => {
 
   test('panel de actividad: filas, Ir, cancelar y Terminado', async () => {
     const env = preparar('sep-panel', { segundos: 6, pasos: 12 })
+    // Solo separación: con la búsqueda automática, la letra (sumidero 503) deja a las canciones en la cola 60 s.
+    sinBusquedaAutomatica(env.datos)
     const app = await lanzar(env)
     try {
       const v = await app.firstWindow()
@@ -218,22 +223,31 @@ test.describe('separación con el separador falso', () => {
       await volverABiblioteca(v)
 
       const boton = botonActividad(v)
-      await expect(boton).toHaveText('1 en curso · 1 en cola')
+      await expect(boton).toHaveText('Preparando 1 de 2')
       await boton.click()
       const panel = v.getByRole('region', { name: 'Actividad' })
       await expect(panel.getByRole('listitem')).toHaveCount(2)
       await expect(panel.getByRole('listitem').first()).toContainText('Primera')
-      await expect(panel.getByRole('listitem').nth(1)).toContainText('Segunda')
+      // Cola de la feature 7: «En cola» es un grupo plegado por defecto (spec 04, panel con cola).
+      const grupo = panel.getByRole('button', { name: 'En cola (1)' })
+      await expect(grupo).toHaveAttribute('aria-expanded', 'false')
+      await grupo.click()
+      const segunda = panel.getByRole('listitem').filter({ hasText: 'Segunda' }).last()
 
       // [Ir] navega a la vista de progreso de la canción.
-      await panel.getByRole('listitem').nth(1).getByRole('button', { name: 'Ir' }).click()
-      await expect(filaSeparar(v)).toContainText('En cola: se separará cuando termine «Primera».')
+      await segunda.getByRole('button', { name: 'Ir' }).click()
+      await expect(filaSeparar(v)).toContainText(
+        'En cola: 2.ª de 2. Empezará cuando terminen las anteriores.'
+      )
 
       // [✕] sobre la que está en cola la retira sin diálogo.
       await boton.click()
+      if ((await panel.getByRole('button', { name: 'Cancelar «Segunda»' }).count()) === 0)
+        await panel.getByRole('button', { name: 'En cola (1)' }).click()
       await panel.getByRole('button', { name: 'Cancelar «Segunda»' }).click()
       await expect(v.getByRole('dialog')).toHaveCount(0)
-      await expect(boton).toHaveText('1 en curso')
+      // La cancelada cuenta como terminada en la tanda (spec 04, progreso global): la que sigue es la 2.ª.
+      await expect(boton).toHaveText('Preparando 2 de 2')
 
       // Al terminar todo: "Terminado" y el botón desaparece.
       await expect(estadoActividad(v)).toHaveText('Terminado', { timeout: 40_000 })

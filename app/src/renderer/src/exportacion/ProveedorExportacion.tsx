@@ -12,8 +12,17 @@ import { Dialogo } from '../componentes/Dialogo'
 import { mostrarToast } from '../componentes/gestorToasts'
 import estilosComponentes from '../componentes/componentes.module.css'
 import type { AvisoExportacionIpc } from '@shared/exportacion'
-import { ExportacionContexto, type ContextoExportacion, type PeticionExportacion } from './contexto'
+import {
+  ExportacionContexto,
+  type ContextoExportacion,
+  type NoAplicaLote,
+  type PeticionExportacion
+} from './contexto'
 import { DialogoExportacion } from './dialogo/DialogoExportacion'
+import { DialogoFormularioLote } from './lote/DialogoFormularioLote'
+import { SeguimientoLote } from './lote/SeguimientoLote'
+import { filasDelLote, resumirLote, type LoteVista } from './lote/modelo'
+import { EXP_LOTE } from './lote/textos'
 import { EXP_ANUNCIO, EXP_PROGRESO, EXP_TOAST } from './dialogo/textosProgreso'
 import {
   clasificarAviso,
@@ -68,6 +77,15 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
   const exportaciones = useSyncExternalStore(almacen.suscribir, almacen.obtener)
   const [dialogo, setDialogo] = useState<PeticionExportacion | null>(null)
   const [cancelar, setCancelar] = useState<string | null>(null)
+  const [lotes, setLotes] = useState<LoteVista[]>([])
+  const [dialogoLote, setDialogoLote] = useState<
+    | { fase: 'formulario'; cancionIds: string[]; noAplican: NoAplicaLote[] }
+    | { fase: 'seguimiento'; loteId: string; confirmarCancelar: boolean }
+    | null
+  >(null)
+  const lotesAvisados = useRef(new Set<string>())
+  const lotesRef = useRef(lotes)
+  const dialogoLoteRef = useRef(dialogoLote)
   const [anuncio, setAnuncio] = useState('')
   const avisados = useRef(new Set<string>())
   const dialogoRef = useRef(dialogo)
@@ -75,9 +93,23 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
   useEffect(() => {
     dialogoRef.current = dialogo
     exportacionesRef.current = exportaciones
+    lotesRef.current = lotes
+    dialogoLoteRef.current = dialogoLote
   })
 
   const abrir = useCallback((peticion: PeticionExportacion) => {
+    // «Ver exportación» de una canción de un lote abre el seguimiento del lote (H), no el de una sola (B).
+    if (!peticion.opciones) {
+      const e = exportacionesRef.current.find((x) =>
+        peticion.trabajoId
+          ? x.trabajoId === peticion.trabajoId
+          : x.cancionId === peticion.cancionId && x.estado !== 'terminada'
+      )
+      if (e?.loteId && lotesRef.current.some((l) => l.loteId === e.loteId)) {
+        setDialogoLote({ fase: 'seguimiento', loteId: e.loteId, confirmarCancelar: false })
+        return
+      }
+    }
     const activa = peticion.opciones
       ? undefined
       : exportacionesRef.current.find(
@@ -97,6 +129,8 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
   const avisar = useCallback(
     (aviso: AvisoExportacion, e: ExportacionVista) => {
       const abierto = dialogoRef.current?.trabajoId === e.trabajoId
+      // Un solo toast por lote (`exp.lote.toast`): ningún video del lote avisa uno a uno.
+      if (e.loteId && aviso.tipo !== 'limpieza') return
       switch (aviso.tipo) {
         case 'ok':
           if (abierto) return
@@ -193,7 +227,7 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
       const previa = almacen.cambio(nueva)
       const actual = buscar(nueva.trabajoId)
       if (!actual) return
-      anunciar(hitoDe(previa, actual, textosHito))
+      if (!nueva.loteId) anunciar(hitoDe(previa, actual, textosHito))
       // Con la ventana sin foco los toasts esperan a que vuelva (como los de la spec 04).
       for (const aviso of clasificarAviso(previa, nueva)) {
         if (document.hasFocus()) avisar(aviso, actual)
@@ -204,7 +238,9 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
       const antes = buscar(p.trabajoId)
       almacen.progreso(p)
       const despues = buscar(p.trabajoId)
-      if (antes && despues && antes !== despues) anunciar(hitoDe(antes, despues, textosHito))
+      if (antes && despues && antes !== despues && !despues.loteId) {
+        anunciar(hitoDe(antes, despues, textosHito))
+      }
     }
     const alFoco = () => {
       const lista = pendientes
@@ -241,6 +277,15 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
       activaDe: (cancionId) =>
         exportaciones.find((e) => e.cancionId === cancionId && e.estado !== 'terminada'),
       abrir,
+      lotes,
+      abrirLote: (cancionIds, noAplican = []) =>
+        setDialogoLote({ fase: 'formulario', cancionIds, noAplican }),
+      verLote: (loteId, opciones) =>
+        setDialogoLote({
+          fase: 'seguimiento',
+          loteId,
+          confirmarCancelar: opciones?.confirmarCancelar ?? false
+        }),
       cerrar: () => setDialogo(null),
       iniciada: (trabajoId, cancionId) => {
         setDialogo({ cancionId, trabajoId })
@@ -260,8 +305,33 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
         } else setCancelar(trabajoId)
       }
     }),
-    [exportaciones, abrir, almacen]
+    [exportaciones, abrir, almacen, lotes]
   )
+
+  // Fin de la ronda de un lote: un solo toast con [Ver resultado] si su diálogo no está a la vista.
+  useEffect(() => {
+    for (const lote of lotes) {
+      // Un toast por ronda: `iniciadoEn` cambia con «Reintentar las fallidas».
+      const clave = `${lote.loteId}:${lote.iniciadoEn}`
+      if (lotesAvisados.current.has(clave)) continue
+      const filas = filasDelLote(lote, exportaciones)
+      const r = resumirLote(filas)
+      if (!r.acabado && filas.length > 0) continue
+      lotesAvisados.current.add(clave)
+      const visto = dialogoLote?.fase === 'seguimiento' && dialogoLote.loteId === lote.loteId
+      if (visto) continue
+      const todas = resumirLote(filasDelLote(lote, exportaciones, false))
+      mostrarToast({
+        tipo: todas.completadas === 0 ? 'error' : 'exito',
+        mensaje: EXP_LOTE.toast(todas.completadas, todas.total + lote.omitidas.length),
+        accion: {
+          etiqueta: EXP_LOTE.verResultado,
+          alAccionar: () =>
+            setDialogoLote({ fase: 'seguimiento', loteId: lote.loteId, confirmarCancelar: false })
+        }
+      })
+    }
+  }, [lotes, exportaciones, dialogoLote])
 
   const cancelando = cancelar ? exportaciones.find((e) => e.trabajoId === cancelar) : undefined
   return (
@@ -276,6 +346,38 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
         {anuncio}
       </div>
       {dialogo && <DialogoExportacion peticion={dialogo} alCerrar={() => setDialogo(null)} />}
+      {dialogoLote?.fase === 'formulario' && (
+        <DialogoFormularioLote
+          cancionIds={dialogoLote.cancionIds}
+          noAplican={dialogoLote.noAplican}
+          alCerrar={() => setDialogoLote(null)}
+          alIniciado={(lote) => {
+            setLotes((ls) => [...ls, { ...lote, iniciadoEn: Date.now() }])
+            setDialogoLote({ fase: 'seguimiento', loteId: lote.loteId, confirmarCancelar: false })
+            // El evento de cambio puede llegar después de la respuesta de `iniciarLote`.
+            void window.shinobi.exportacion.estado().then(
+              (lista) => almacen.inicial(lista),
+              () => undefined
+            )
+          }}
+        />
+      )}
+      {dialogoLote?.fase === 'seguimiento' &&
+        lotes
+          .filter((l) => l.loteId === dialogoLote.loteId)
+          .map((lote) => (
+            <SeguimientoLote
+              key={lote.loteId}
+              lote={lote}
+              confirmarInicial={dialogoLote.confirmarCancelar}
+              alCerrar={() => setDialogoLote(null)}
+              alReintentado={(cambios) =>
+                setLotes((ls) =>
+                  ls.map((l) => (l.loteId === lote.loteId ? { ...l, ...cambios } : l))
+                )
+              }
+            />
+          ))}
       {cancelando && (
         <DialogoCancelarExportacion
           existia={cancelando.destinoExistia}

@@ -178,8 +178,9 @@ const ERRORES: Record<string, TextoError> = {
     reintentable: false
   },
   URL_NO_SOPORTADA: {
-    titulo: 'Las listas y los directos no se pueden usar.',
-    cuerpo: 'Abre el vídeo concreto y copia su enlace.',
+    titulo: 'Este enlace no se puede usar.',
+    cuerpo:
+      'Los directos, los canales y las mezclas automáticas de YouTube no se pueden añadir. Usa el enlace de un video, de una lista o de un álbum.',
     reintentable: false
   },
   VIDEO_NO_DISPONIBLE: {

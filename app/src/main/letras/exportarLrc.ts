@@ -120,6 +120,8 @@ export class ExportadorLrc<V = unknown> {
     escritas: number
     omitidas: { id: string; motivo: string }[]
     ubicacionId: string
+    /** Solo el nombre de la carpeta, nunca la ruta (pregunta 0291). */
+    carpeta: string
   } | null> {
     const elegida = await this.p.dialogoCarpeta(this.p.ventana(), {
       defaultPath: this.ultimaCarpeta ?? this.documentos()
@@ -154,7 +156,12 @@ export class ExportadorLrc<V = unknown> {
       }
     }
     this.ultimaCarpeta = carpeta
-    return { escritas, omitidas, ubicacionId: this.recordar(primera ?? carpeta) }
+    return {
+      escritas,
+      omitidas,
+      ubicacionId: this.recordar(primera ?? carpeta),
+      carpeta: basename(carpeta)
+    }
   }
 
   /** Para el botón del toast: revela en el explorador lo escrito por `exportarLrc*`. */

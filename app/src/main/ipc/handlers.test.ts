@@ -297,13 +297,20 @@ describe('manejadores IPC', () => {
       valor: { aceptadas: ['a'], omitidas: [] }
     })
     expect(await m[CANALES.preparacion.cancelar]([{ id: 'a' }])).toMatchObject({ ok: true })
-    expect(preparacion.preparar).toHaveBeenCalledWith(['a'])
+    expect(preparacion.preparar).toHaveBeenCalledWith(['a'], undefined)
+    // Segundo argumento opcional: la confirmación de fines sin marca (0380); otras claves no valen.
+    await m[CANALES.preparacion.preparar]([{ ids: ['a'] }, { finesSinMarca: true }])
+    expect(preparacion.preparar).toHaveBeenLastCalledWith(['a'], { finesSinMarca: true })
+    expect(await m[CANALES.preparacion.preparar]([{ ids: ['a'] }, { otra: true }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
     expect(preparacion.cancelar).toHaveBeenCalledWith('a')
     expect(await m[CANALES.preparacion.preparar]([{ ids: [] }])).toMatchObject({
       ok: false,
       error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
     })
-    expect(preparacion.preparar).toHaveBeenCalledTimes(1)
+    expect(preparacion.preparar).toHaveBeenCalledTimes(2)
   })
 
   it('la cola de preparación (0309): pausar, reanudar, reintentarFallidas y tanda', async () => {

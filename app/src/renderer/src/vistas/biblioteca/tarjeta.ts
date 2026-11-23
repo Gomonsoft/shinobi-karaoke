@@ -1,3 +1,4 @@
+import { aplicaPrepararEntrada } from '@shared/derivados'
 import type { EventoProgresoIpc, ResumenCancionIpc, TrabajoIpc } from '@shared/ipc'
 import type { EstadoSesionIpc } from '@shared/sesion'
 import type { EstadoInsignia } from '../../componentes/InsigniaEstado'
@@ -94,6 +95,28 @@ export function esListaParaRevisar(r: ResumenCancionIpc): boolean {
     p.separacion.estado === 'completado' &&
     p.letra.estado === 'completado' &&
     r.lineasSinSincronizar === 0
+  )
+}
+
+/**
+ * «Preparar» (spec 02): borradores a los que aún les falta algo que la app puede hacer sola. Lo usan la
+ * tarjeta y la barra de selección; `hayTrabajo` = la canción tiene un trabajo vivo.
+ */
+export function puedePrepararResumen(r: ResumenCancionIpc, hayTrabajo: boolean): boolean {
+  return (
+    !r.danada &&
+    r.estado !== 'lista' &&
+    !esListaParaRevisar(r) &&
+    !hayTrabajo &&
+    r.estadoPreparacion !== 'preparando' &&
+    aplicaPrepararEntrada({
+      estado: r.estado,
+      fuenteCompletada: r.pasos?.fuente.estado === 'completado',
+      lineas: r.pasos?.letra.estado === 'completado' ? 1 : 0,
+      // Con letra, lo que falta (desfase, fines) lo decide main al pulsar: no se ve en el resumen.
+      pendientesConLetra: [],
+      preparacionLista: false
+    }).aplica
   )
 }
 
@@ -294,7 +317,10 @@ export function lineaDeBorrador(
   if (preparando) return { linea: preparando, accion: 'continuar', error: false }
   if (fuente && fuente.estado !== 'completado') {
     return {
-      linea: { tipo: 'texto', texto: 'Falta descargar el audio' },
+      linea: {
+        tipo: 'texto',
+        texto: r.fuenteTipo === 'archivo' ? 'Falta preparar el audio' : 'Falta descargar el audio'
+      },
       accion: 'continuar',
       error: false
     }

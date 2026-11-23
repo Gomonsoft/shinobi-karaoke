@@ -60,7 +60,8 @@ const casilla = (id: string) =>
   screen.getByRole('checkbox', { name: `Seleccionar «Tema ${id}»` }) as HTMLInputElement
 const tarjeta = (id: string) => document.querySelector<HTMLElement>(`[data-tarjeta="${id}"]`)!
 const botonSeleccionar = () => screen.getByRole('button', { name: 'Seleccionar' })
-const barra = () => screen.getByRole('toolbar', { name: 'Selección' })
+const barra = () =>
+  screen.getByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
 
 async function entrar() {
   await screen.findAllByRole('article')
@@ -82,7 +83,7 @@ describe('modo selección (B8)', () => {
       screen.getByText('Modo selección. Usa Espacio para marcar canciones y Esc para terminar.')
     ).toBeInTheDocument()
     // Sin acción principal ni ⋯ mientras dura el modo.
-    expect(screen.queryByRole('button', { name: /Más acciones/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Más acciones de/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Reproducir/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Seleccionar' })).toBeNull()
   })
@@ -119,7 +120,7 @@ describe('modo selección (B8)', () => {
     expect(noEditable).toHaveAttribute('aria-disabled', 'true')
     expect(noEditable).toHaveAttribute(
       'title',
-      'No se puede cambiar el tema de una canción que no se puede abrir.'
+      'Esta canción no se puede abrir. Usa su menú ⋯ para eliminarla o repararla.'
     )
     fireEvent.click(tarjeta('rj'))
     expect(noEditable).not.toBeChecked()
@@ -190,13 +191,17 @@ describe('modo selección (B8)', () => {
     await entrar()
     fireEvent.click(tarjeta('q1'))
     fireEvent.click(screen.getByRole('button', { name: 'Terminar' }))
-    expect(screen.queryByRole('toolbar', { name: 'Selección' })).toBeNull()
+    expect(
+      screen.queryByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+    ).toBeNull()
     expect(botonSeleccionar()).toHaveFocus()
 
     fireEvent.click(botonSeleccionar())
     fireEvent.click(tarjeta('q2'))
     fireEvent.keyDown(document.body, { key: 'Escape' })
-    expect(screen.queryByRole('toolbar', { name: 'Selección' })).toBeNull()
+    expect(
+      screen.queryByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+    ).toBeNull()
     expect(botonSeleccionar()).toHaveFocus()
     fireEvent.click(botonSeleccionar())
     expect(within(barra()).getByText('0 seleccionadas')).toBeInTheDocument()
@@ -323,7 +328,11 @@ describe('«Aplicar tema» (B9–B11)', () => {
     // El resultado se anuncia una sola vez.
     expect(within(resultado).getAllByRole('status')).toHaveLength(1)
     fireEvent.click(within(resultado).getByRole('button', { name: 'Cerrar' }))
-    await waitFor(() => expect(screen.queryByRole('toolbar', { name: 'Selección' })).toBeNull())
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+      ).toBeNull()
+    )
     expect(botonSeleccionar()).toHaveFocus()
   })
 
@@ -496,7 +505,9 @@ describe('«Aplicar tema…» desde el ⋯ de una tarjeta', () => {
     fireEvent.click(within(d).getByRole('button', { name: 'Cancelar' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     await waitFor(() => expect(tarjeta('q1')).toHaveFocus())
-    expect(screen.queryByRole('toolbar', { name: 'Selección' })).toBeNull()
+    expect(
+      screen.queryByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+    ).toBeNull()
   })
 
   it('con el catálogo vacío el menú no ofrece la opción', async () => {

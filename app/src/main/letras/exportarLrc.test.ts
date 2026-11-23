@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Cancion } from '../../shared'
 import { FIXTURES, idDePrueba } from '../../shared/__fixtures__'
@@ -110,6 +110,7 @@ describe('exportar varias', () => {
     const r = await e.exportarVarias([a.id, b.id, sin.id, idDePrueba(77)])
     expect(r).toMatchObject({
       escritas: 2,
+      carpeta: basename(salida),
       omitidas: [
         { id: sin.id, motivo: 'SIN_TIEMPOS' },
         { id: idDePrueba(77), motivo: 'CANCION_NO_DISPONIBLE' }

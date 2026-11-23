@@ -432,6 +432,11 @@ export interface ExportacionIpc {
   terminadaEn: string | null
   /** El temporal no se pudo borrar tras cancelar o fallar; `resultado` y `error` siguen siendo los reales. */
   limpiezaFallida: boolean
+  /**
+   * Solo las de un lote (ADR 0026 §5): agrupa sus exportaciones. Una `cancelada` **con** `error`
+   * (`SIN_ESPACIO` o `DESTINO_NO_DISPONIBLE`) es una que no se intentó porque el lote se detuvo.
+   */
+  loteId?: string
 }
 
 export const TIPOS_AVISO_EXPORTACION = ['interrumpida', 'limpieza_fallida'] as const

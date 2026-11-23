@@ -550,6 +550,10 @@ export const resumenCancionSchema = z.object({
   pasos: z.record(z.enum(NOMBRES_PASO), pasoResumenSchema).nullable(),
   incompleta: z.boolean(),
   lineasSinSincronizar: z.number(),
+  /** Líneas con inicio (`lrc.motivo.sinTiempos` con 0); ausente en versiones anteriores. */
+  lineasConTiempo: z.number().optional(),
+  /** Origen del audio (`Falta descargar el audio` frente a `Falta preparar el audio`); ausente en versiones anteriores. */
+  fuenteTipo: z.enum(['archivo', 'youtube']).optional(),
   danada: z.boolean(),
   motivo: z.enum(['json', 'pistas']).nullable(),
   /** Dañada por pistas y sin `fuente/mezcla.flac`: no se puede re-separar (0070). */
@@ -558,6 +562,10 @@ export const resumenCancionSchema = z.object({
   preparacion: resumenPreparacionSchema.nullable().optional(),
   /** Estado derivado («Lista para revisar», «Elige la letra»…); `null` si no aplica. */
   estadoPreparacion: z.enum(ESTADOS_PREPARACION_DERIVADOS).nullable().optional(),
+  /** «Preparar» solo pondría fines y exige confirmación (letra sin `intacta`); ausente = `false`. */
+  prepararFinesSinMarca: z.boolean().optional(),
+  /** Líneas con inicio y sin fin (el diálogo de «Ajustar los fines…» dice cuántas); ausente = 0. */
+  lineasSinFin: z.number().int().nonnegative().optional(),
   /**
    * Líneas por revisar calculadas por main en memoria para toda «Lista para revisar», con o sin registro de
    * preparación; `null` = aún sin calcular y sin dato guardado.
@@ -1104,7 +1112,8 @@ export const exportacionIpcSchema = z.object({
   destinoExistia: z.boolean(),
   iniciadaEn: z.string().nullable(),
   terminadaEn: z.string().nullable(),
-  limpiezaFallida: z.boolean()
+  limpiezaFallida: z.boolean(),
+  loteId: z.uuid().optional()
 }) satisfies z.ZodType<ExportacionIpc>
 
 export const avisoExportacionIpcSchema = z.object({
@@ -1172,12 +1181,17 @@ export const previsualizarPreparacionSchema = z.array(
     id: idCancionSchema,
     aplica: z.boolean(),
     pasos: z.array(z.string()),
+    /** Letra sin `intacta`: solo se aplica con `preparar(ids, { finesSinMarca: true })` (ADR 0025, revisión 0278). */
+    confirmar: z.enum(['finesSinMarca']).optional(),
     motivo: motivoSchema.optional()
   })
 )
+export const prepararOpcionesSchema = z.strictObject({ finesSinMarca: z.boolean().optional() })
 export const resultadoPrepararSchema = z.object({
   aceptadas: z.array(idCancionSchema),
-  omitidas: z.array(omitidaSchema)
+  omitidas: z.array(omitidaSchema),
+  /** Fines puestos por canción en las Listas («Ajustar los fines…» sin registro de preparación). */
+  fines: z.record(idCancionSchema, z.number().int().nonnegative()).optional()
 })
 /** Tanda de la cola de preparación (ADR 0025 §5; forma fijada en la pregunta 0166). */
 export const tandaPreparacionSchema = z.object({
@@ -1226,8 +1240,12 @@ export const filaLoteSchema = z.object({
   /** Identificador que main asocia a la ruta; válido 30 min. El renderer nunca envía rutas al confirmar. */
   ref: z.uuid(),
   nombre: z.string(),
+  /** Ruta del archivo: con un solo archivo añadible la vista sigue el flujo de una canción (`importarArchivo`). */
+  ruta: z.string().optional(),
   duracionMs: z.number().int().nonnegative().nullable(),
   metadatos: metadatosFilaLoteSchema,
+  /** Los mismos datos con su procedencia (dudoso, carpeta…): `add.lote.fila.dudoso.*` y el origen de la tabla. */
+  datos: propuestaDatosSchema.optional(),
   /** `YA_EN_BIBLIOTECA` o `REPETIDA` (ADR 0026 §1): la fila llega desmarcada. */
   duplicado: z.enum(['YA_EN_BIBLIOTECA', 'REPETIDA']).nullable(),
   /** Audio que no se puede leer (`duracionMs: null`) o de menos de 10 s: fila sin casilla (0375). */
@@ -1366,8 +1384,10 @@ export const destinoCarpetaSchema = z.strictObject({ desdeCarpetaId: z.uuid().op
 export const carpetaIpcSchema = z.object({
   carpetaId: z.uuid(),
   ruta: z.string(),
-  libreBytes: z.number().nonnegative()
+  /** `null` si no se pudo consultar el espacio libre. */
+  libreBytes: z.number().nonnegative().nullable()
 })
+export type CarpetaDestinoIpc = z.infer<typeof carpetaIpcSchema>
 export const iniciarLoteExportacionSchema = z
   .strictObject({
     cancionIds: idsCancionSchema,
@@ -1405,7 +1425,9 @@ export const resultadoExportarLrcVariasSchema = z
   .object({
     escritas: z.number().int().nonnegative(),
     omitidas: z.array(omitidaSchema),
-    ubicacionId: z.uuid()
+    ubicacionId: z.uuid(),
+    /** Solo el nombre de la carpeta (`path.basename`), nunca la ruta (pregunta 0291). */
+    carpeta: z.string().max(255).optional()
   })
   .nullable()
 export const mostrarLrcEnCarpetaSchema = z.strictObject({ ubicacionId: z.uuid() })
@@ -1839,7 +1861,7 @@ export const CONTRATO = {
     res: previsualizarPreparacionSchema
   },
   [CANALES.preparacion.preparar]: {
-    args: z.tuple([idsParejaSchema]),
+    args: z.tuple([idsParejaSchema, prepararOpcionesSchema.optional()]),
     res: resultadoPrepararSchema
   },
   [CANALES.preparacion.pausar]: { args: vacio, res: z.void() },
@@ -2101,7 +2123,10 @@ export interface ApiShinobi {
   /** Preparación desatendida y su cola (ADR 0025). */
   preparacion: {
     previsualizar(ids: string[]): Promise<z.infer<typeof previsualizarPreparacionSchema>>
-    preparar(ids: string[]): Promise<z.infer<typeof resultadoPrepararSchema>>
+    preparar(
+      ids: string[],
+      opciones?: z.infer<typeof prepararOpcionesSchema>
+    ): Promise<z.infer<typeof resultadoPrepararSchema>>
     pausar(): Promise<void>
     reanudar(): Promise<void>
     reintentarFallidas(): Promise<void>

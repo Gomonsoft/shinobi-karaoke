@@ -21,4 +21,12 @@ describe('motivoElige (let.prep.motivo.*)', () => {
       'no está claro que coincida con tu audio'
     )
   })
+
+  it('duda con el mejor candidato dudoso por una limitación: motivo propio (let.prep.motivo.limitada)', () => {
+    const m = motivoElige('duda', { artistaVacio: false, algunaEncaja: false, limitada: true })
+    expect(m).toContain('no podemos comprobarlas con tu audio')
+    expect(motivoElige('duda', { artistaVacio: false, algunaEncaja: false })).toContain(
+      'no está claro'
+    )
+  })
 })

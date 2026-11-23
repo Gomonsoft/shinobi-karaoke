@@ -17,19 +17,44 @@
  *  - desplazadas: cada letra propia movida ±0,4, ±0,8, ±1,5 y ±3 s (con `offset_ms`).
  * «Aceptada» = `coincide` (propias) o `coincide`/`desfasada` (ajenas: la preparación las daría por buenas).
  * Un desplazamiento ≥ 0,5 s está «recuperado» si sale `desfasada` y d* = −desplazamiento (± 50 ms).
+ *
+ * --inicios (tarea 0385, pregunta 0295): además imprime la señal por INICIOS de línea (arranques de voz tras una
+ * pausa, corregidos por el azar) por canción y el barrido de reglas con el criterio de adopción. Solo medida
+ * (`calibrar-inicios.ts`); no cambia ningún veredicto. Solo ids (8 primeros caracteres) y cifras.
+ *
+ * Tarea 0381 (ADR 0024, revisión 2026-11-22): además de lo anterior imprime, por canción propia, la densidad de
+ * voz, el contraste, la limitación y el veredicto sin guardas (`veredictoBase`), y una línea «Criterio de
+ * seguridad»: SÍ si no hay ajenas aceptadas, ni desplazadas de ≥ 0,8 s que digan «coincide», ni propias
+ * «desfasada», ni correcciones con error > 200 ms (en «tal cual» y, con --variantes, en «sin fines»).
  */
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { evaluarEncajeConPicos, type ResultadoEncaje } from '../src/shared/encaje'
+import {
+  evaluarEncajeConPicos,
+  PARAMETROS_ENCAJE,
+  type ParametrosEncaje,
+  type ResultadoEncaje
+} from '../src/shared/encaje'
 import { leerNivelBase, type NivelBase } from '../src/main/picos/formato'
 import { letraSchema, type Letra } from '../src/shared/letra'
 import { detectarVoz, proponerAjusteSilencios } from '../src/shared/silencios'
 import { ESPERA_LEGADA } from '../src/shared/espera'
+import {
+  DESPLAZAMIENTOS_INICIOS_MS,
+  formatearInicios,
+  medirTodoInicios,
+  type EntradaInicios,
+  type ResultadoInicios,
+  type VeredictosEncaje
+} from './calibrar-inicios'
 
 const CACHE = /^\.picos-voz-v1-[a-f0-9]{64}\.bin$/
 export const DESPLAZAMIENTOS_MS = [-3000, -1500, -800, -400, 400, 800, 1500, 3000] as const
 export const TOLERANCIA_RECUPERADO_MS = 50
+export const TOLERANCIA_CORRECCION_MS = 200
 export const DESFASE_MINIMO_MS = 500
+/** Desplazamiento mínimo del que un «coincide» es un falso «coincide» (el que la comprobación debe notar). */
+export const DESFASE_SENSIBLE_MS = 800
 
 export interface FilaPropia {
   id: string
@@ -42,6 +67,12 @@ export interface FilaPropia {
   fDesfase: number
   ganancia: number
   desfaseVariable: boolean
+  /** Voz detectada entre la primera y la última línea, en %. */
+  densidadVozPct: number
+  contrasteF: number
+  limitacion: string | null
+  /** Veredicto antes de las guardas de fiabilidad. */
+  veredictoBase: string
 }
 export interface FilaDesplazada {
   id: string
@@ -65,17 +96,43 @@ export interface ResultadoEncajeCalibracion {
   desplazadas: FilaDesplazada[]
   ajenas: FilaAjena[]
   resumen: ResumenVariante
+  seguridad: CriterioSeguridad
   /** Solo con `--variantes`. */
   variantes?: ResultadoVariantes
+  /** Solo con `--inicios`. */
+  inicios?: ResultadoInicios
 }
 export interface ResumenVariante {
+  /** Propias `coincide` (con guardas). */
   propiasAceptadas: number
+  /** Propias que serían `coincide` sin guardas (`veredictoBase`). */
+  propiasSinGuardas: number
   propias: number
+  /** Propias `desfasada`: falsas correcciones. */
+  propiasDesfasadas: number
   ajenasAceptadas: number
   pares: number
+  /** Desplazadas de ≥ 0,8 s que salen `coincide`: falsos «coincide». */
+  falsosCoincide: number
+  /** Desplazadas `desfasada` con |error| > 200 ms: correcciones equivocadas. */
+  correccionesEquivocadas: number
+  /** Desplazadas ≥ 0,5 s recuperadas (±50 ms). */
   recuperadas: number
+  /** Ídem con ±200 ms. */
+  recuperadas200: number
   desplazadas: number
 }
+export interface CriterioSeguridad {
+  /** 0 ajenas aceptadas, 0 falsos «coincide», 0 propias `desfasada` y 0 correcciones equivocadas. */
+  cumple: boolean
+  /** Variantes en las que se ha comprobado. */
+  en: NombreVariante[]
+}
+export const seguro = (r: ResumenVariante): boolean =>
+  r.ajenasAceptadas === 0 &&
+  r.falsosCoincide === 0 &&
+  r.propiasDesfasadas === 0 &&
+  r.correccionesEquivocadas === 0
 export const VARIANTES = ['talCual', 'sinFines', 'sinFinesPrudentes'] as const
 export type NombreVariante = (typeof VARIANTES)[number]
 export interface ResultadoVariantes {
@@ -140,12 +197,13 @@ async function leerCancion(raiz: string, id: string, avisos: string[]): Promise<
   return { id, titulo, letra: { ...letra.data, offset_ms: 0 }, nivel }
 }
 
-const evaluar = (letra: Letra, nivel: NivelBase): ResultadoEncaje =>
+const evaluar = (letra: Letra, nivel: NivelBase, p: ParametrosEncaje): ResultadoEncaje =>
   evaluarEncajeConPicos(
     letra,
     { pasoMs: nivel.pasoMs, pares: nivel.pares },
     {
-      duracionMs: nivel.duracionMs
+      duracionMs: nivel.duracionMs,
+      p
     }
   )
 
@@ -167,43 +225,59 @@ function variante(nombre: NombreVariante, letra: Letra, nivel: NivelBase): Letra
   }).letra
 }
 
-function resumirVariantes(canciones: Cancion[]): ResultadoVariantes {
-  const resumen = {} as Record<NombreVariante, ResumenVariante>
-  for (const nombre of VARIANTES) {
-    const r: ResumenVariante = {
-      propiasAceptadas: 0,
-      propias: 0,
-      ajenasAceptadas: 0,
-      pares: 0,
-      recuperadas: 0,
-      desplazadas: 0
-    }
-    for (const c of canciones) {
-      r.propias++
-      if (evaluar(variante(nombre, c.letra, c.nivel), c.nivel).veredicto === 'coincide') {
-        r.propiasAceptadas++
-      }
-      for (const desplazamientoMs of DESPLAZAMIENTOS_MS) {
-        if (Math.abs(desplazamientoMs) < DESFASE_MINIMO_MS) continue
-        r.desplazadas++
-        const movida = { ...c.letra, offset_ms: desplazamientoMs }
-        const d = evaluar(variante(nombre, movida, c.nivel), c.nivel)
-        if (
-          d.veredicto === 'desfasada' &&
-          Math.abs(d.desfaseMs + desplazamientoMs) <= TOLERANCIA_RECUPERADO_MS
-        ) {
-          r.recuperadas++
-        }
-      }
-      for (const otra of canciones) {
-        if (otra.id === c.id) continue
-        r.pares++
-        const a = evaluar(variante(nombre, c.letra, otra.nivel), otra.nivel).veredicto
-        if (a === 'coincide' || a === 'desfasada') r.ajenasAceptadas++
-      }
-    }
-    resumen[nombre] = r
+/** Todas las cifras de una variante: propias, desplazadas y ajenas, con las guardas puestas. */
+function medirVariante(
+  nombre: NombreVariante,
+  canciones: Cancion[],
+  p: ParametrosEncaje
+): ResumenVariante {
+  const r: ResumenVariante = {
+    propiasAceptadas: 0,
+    propiasSinGuardas: 0,
+    propias: 0,
+    propiasDesfasadas: 0,
+    ajenasAceptadas: 0,
+    pares: 0,
+    falsosCoincide: 0,
+    correccionesEquivocadas: 0,
+    recuperadas: 0,
+    recuperadas200: 0,
+    desplazadas: 0
   }
+  for (const c of canciones) {
+    r.propias++
+    const propia = evaluar(variante(nombre, c.letra, c.nivel), c.nivel, p)
+    if (propia.veredicto === 'coincide') r.propiasAceptadas++
+    if (propia.veredicto === 'desfasada') r.propiasDesfasadas++
+    if (propia.veredictoBase === 'coincide') r.propiasSinGuardas++
+    for (const desplazamientoMs of DESPLAZAMIENTOS_MS) {
+      const grande = Math.abs(desplazamientoMs) >= DESFASE_MINIMO_MS
+      const movida = { ...c.letra, offset_ms: desplazamientoMs }
+      const d = evaluar(variante(nombre, movida, c.nivel), c.nivel, p)
+      if (d.veredicto === 'coincide' && Math.abs(desplazamientoMs) >= DESFASE_SENSIBLE_MS) {
+        r.falsosCoincide++
+      }
+      if (!grande) continue
+      r.desplazadas++
+      if (d.veredicto !== 'desfasada') continue
+      const error = Math.abs(d.desfaseMs + desplazamientoMs)
+      if (error <= TOLERANCIA_RECUPERADO_MS) r.recuperadas++
+      if (error <= TOLERANCIA_CORRECCION_MS) r.recuperadas200++
+      else r.correccionesEquivocadas++
+    }
+    for (const otra of canciones) {
+      if (otra.id === c.id) continue
+      r.pares++
+      const a = evaluar(variante(nombre, c.letra, otra.nivel), otra.nivel, p).veredicto
+      if (a === 'coincide' || a === 'desfasada') r.ajenasAceptadas++
+    }
+  }
+  return r
+}
+
+function resumirVariantes(canciones: Cancion[], p: ParametrosEncaje): ResultadoVariantes {
+  const resumen = {} as Record<NombreVariante, ResumenVariante>
+  for (const nombre of VARIANTES) resumen[nombre] = medirVariante(nombre, canciones, p)
   const prop = (n: NombreVariante): number =>
     resumen[n].propias === 0 ? 0 : resumen[n].propiasAceptadas / resumen[n].propias
   const sinFinesBajan = prop('sinFines') < 0.9
@@ -220,10 +294,57 @@ function resumirVariantes(canciones: Cancion[]): ResultadoVariantes {
   }
 }
 
+/** Lo que el encaje actual dice de cada letra de la canción en una variante (para aplicar la regla por inicios). */
+function veredictosDe(
+  nombre: NombreVariante,
+  c: Cancion,
+  canciones: Cancion[],
+  p: ParametrosEncaje
+): VeredictosEncaje {
+  const veredicto = (letra: Letra, nivel: NivelBase): string =>
+    evaluar(variante(nombre, letra, nivel), nivel, p).veredicto
+  const desplazadas: Record<number, string> = {}
+  for (const s of DESPLAZAMIENTOS_INICIOS_MS) {
+    desplazadas[s] = veredicto({ ...c.letra, offset_ms: s }, c.nivel)
+  }
+  const ajenas: Record<string, string> = {}
+  for (const otra of canciones)
+    if (otra.id !== c.id) ajenas[otra.id] = veredicto(c.letra, otra.nivel)
+  return { propia: veredicto(c.letra, c.nivel), desplazadas, ajenas }
+}
+
+function medirIniciosCanciones(canciones: Cancion[], p: ParametrosEncaje): ResultadoInicios {
+  const entrada: EntradaInicios[] = canciones.map((c) => ({
+    id: c.id,
+    inicios: c.letra.lineas.flatMap((e) =>
+      e.tipo === 'linea' && e.inicio_ms !== null ? [e.inicio_ms] : []
+    ),
+    intervalos: detectarVoz({ pasoMs: c.nivel.pasoMs, pares: c.nivel.pares }).intervalos,
+    duracionMs: c.nivel.duracionMs,
+    veredictoBase: evaluar(c.letra, c.nivel, p).veredictoBase,
+    veredictos: {
+      talCual: veredictosDe('talCual', c, canciones, p),
+      sinFines: veredictosDe('sinFines', c, canciones, p)
+    }
+  }))
+  return medirTodoInicios(entrada)
+}
+
 export async function calibrarEncaje(
   raiz: string,
-  { ids, variantes = false }: { ids?: string[]; variantes?: boolean } = {}
+  {
+    ids,
+    variantes = false,
+    inicios = false,
+    parametros
+  }: {
+    ids?: string[]
+    variantes?: boolean
+    inicios?: boolean
+    parametros?: Partial<ParametrosEncaje>
+  } = {}
 ): Promise<ResultadoEncajeCalibracion> {
+  const p: ParametrosEncaje = { ...PARAMETROS_ENCAJE, ...parametros }
   const avisos: string[] = []
   const candidatas =
     ids ??
@@ -245,7 +366,7 @@ export async function calibrarEncaje(
   const desplazadas: FilaDesplazada[] = []
   const ajenas: FilaAjena[] = []
   for (const c of canciones) {
-    const r = evaluar(c.letra, c.nivel)
+    const r = evaluar(c.letra, c.nivel, p)
     propias.push({
       id: c.id,
       titulo: c.titulo,
@@ -256,10 +377,14 @@ export async function calibrarEncaje(
       desfaseMs: r.desfaseMs,
       fDesfase: redondear(r.fDesfase),
       ganancia: redondear(r.fDesfase - r.f0),
-      desfaseVariable: r.desfaseVariable
+      desfaseVariable: r.desfaseVariable,
+      densidadVozPct: Math.round(r.densidadVoz * 100),
+      contrasteF: redondear(r.contrasteF),
+      limitacion: r.limitacion,
+      veredictoBase: r.veredictoBase
     })
     for (const desplazamientoMs of DESPLAZAMIENTOS_MS) {
-      const d = evaluar({ ...c.letra, offset_ms: desplazamientoMs }, c.nivel)
+      const d = evaluar({ ...c.letra, offset_ms: desplazamientoMs }, c.nivel, p)
       const errorMs = Math.abs(d.desfaseMs + desplazamientoMs)
       desplazadas.push({
         id: c.id,
@@ -275,7 +400,7 @@ export async function calibrarEncaje(
     }
     for (const otra of canciones) {
       if (otra.id === c.id) continue
-      const a = evaluar(c.letra, otra.nivel)
+      const a = evaluar(c.letra, otra.nivel, p)
       ajenas.push({
         letra: c.id,
         voz: otra.id,
@@ -284,22 +409,21 @@ export async function calibrarEncaje(
       })
     }
   }
-  const grandes = desplazadas.filter((d) => Math.abs(d.desplazamientoMs) >= DESFASE_MINIMO_MS)
+  const resumen = medirVariante('talCual', canciones, p)
+  const variantesResultado = variantes ? resumirVariantes(canciones, p) : undefined
+  const comprobadas: NombreVariante[] = variantesResultado ? ['talCual', 'sinFines'] : ['talCual']
+  const resumenDe = (n: NombreVariante): ResumenVariante =>
+    n === 'talCual' ? resumen : variantesResultado!.resumen[n]
   return {
     canciones: canciones.map((c) => c.id),
     avisos,
     propias,
     desplazadas,
     ajenas,
-    resumen: {
-      propiasAceptadas: propias.filter((p) => p.veredicto === 'coincide').length,
-      propias: propias.length,
-      ajenasAceptadas: ajenas.filter((a) => a.aceptada).length,
-      pares: ajenas.length,
-      recuperadas: grandes.filter((d) => d.recuperado).length,
-      desplazadas: grandes.length
-    },
-    ...(variantes ? { variantes: resumirVariantes(canciones) } : {})
+    resumen,
+    seguridad: { cumple: comprobadas.every((n) => seguro(resumenDe(n))), en: comprobadas },
+    ...(variantesResultado ? { variantes: variantesResultado } : {}),
+    ...(inicios ? { inicios: medirIniciosCanciones(canciones, p) } : {})
   }
 }
 
@@ -310,12 +434,12 @@ export function formatearEncaje(r: ResultadoEncajeCalibracion): string {
   const salida = [
     ...r.avisos.map((a) => `AVISO ${a}`),
     `Canciones: ${r.canciones.length}. Propias (letra contra su voz, offset 0):`,
-    'id        líneas  veredicto       F(0)   I(0)     d*    F(d*)  ganancia  variable  título'
+    'id        líneas  veredicto       F(0)   I(0)     d*    F(d*)  ganancia  variable  voz%  contraste  limitación    sin guardas   título'
   ]
   for (const p of r.propias) {
     salida.push(
       `${p.id.slice(0, 8).padEnd(8)} ${col(p.lineas, 7)}  ${p.veredicto.padEnd(13)} ${col(p.f0, 6)} ${col(p.i0, 6)} ` +
-        `${col(p.desfaseMs, 6)} ${col(p.fDesfase, 8)} ${col(p.ganancia, 9)}  ${col(p.desfaseVariable ? 'sí' : 'no', 8)}  ${p.titulo}`
+        `${col(p.desfaseMs, 6)} ${col(p.fDesfase, 8)} ${col(p.ganancia, 9)}  ${col(p.desfaseVariable ? 'sí' : 'no', 8)}  ${col(p.densidadVozPct, 4)}  ${col(p.contrasteF, 9)}  ${(p.limitacion ?? '-').padEnd(12)}  ${p.veredictoBase.padEnd(12)}  ${p.titulo}`
     )
   }
   salida.push('', 'Desplazadas (letra propia movida; d* esperado = −desplazamiento):')
@@ -329,9 +453,12 @@ export function formatearEncaje(r: ResultadoEncajeCalibracion): string {
   salida.push(
     '',
     'Resumen:',
-    `  propias aceptadas (coincide): ${s.propiasAceptadas}/${s.propias}`,
+    `  propias aceptadas (coincide): ${s.propiasAceptadas}/${s.propias}; sin guardas: ${s.propiasSinGuardas}/${s.propias}`,
+    `  propias desfasada (falsas correcciones): ${s.propiasDesfasadas}`,
     `  ajenas aceptadas (coincide o desfasada): ${s.ajenasAceptadas}/${s.pares}`,
-    `  desplazamientos ≥ 0,5 s recuperados (±${TOLERANCIA_RECUPERADO_MS} ms): ${s.recuperadas}/${s.desplazadas}`
+    `  desplazadas ≥ 0,8 s que dicen coincide: ${s.falsosCoincide}`,
+    `  correcciones con error > ${TOLERANCIA_CORRECCION_MS} ms: ${s.correccionesEquivocadas}`,
+    `  desplazamientos ≥ 0,5 s recuperados: ${s.recuperadas}/${s.desplazadas} (±${TOLERANCIA_RECUPERADO_MS} ms), ${s.recuperadas200}/${s.desplazadas} (±${TOLERANCIA_CORRECCION_MS} ms)`
   )
   if (r.variantes) {
     const { resumen, criterio } = r.variantes
@@ -341,15 +468,14 @@ export function formatearEncaje(r: ResultadoEncajeCalibracion): string {
       sinFinesPrudentes: 'sin fines + prudentes'
     }
     const pct = (a: number, n: number): string => (n === 0 ? '-' : `${Math.round((a / n) * 100)} %`)
-    salida.push(
-      '',
-      'Variantes (propias aceptadas / ajenas aceptadas / desplazamientos recuperados):'
-    )
+    salida.push('', 'Variantes:')
     for (const n of VARIANTES) {
       const v = resumen[n]
       salida.push(
-        `  ${nombres[n].padEnd(22)} propias ${v.propiasAceptadas}/${v.propias} (${pct(v.propiasAceptadas, v.propias)})` +
-          `  ajenas ${v.ajenasAceptadas}/${v.pares}  recuperados ${v.recuperadas}/${v.desplazadas}`
+        `  ${nombres[n].padEnd(22)} propias ${v.propiasAceptadas}/${v.propias} (${pct(v.propiasAceptadas, v.propias)}; sin guardas ${v.propiasSinGuardas})` +
+          `  propias desfasada ${v.propiasDesfasadas}  ajenas ${v.ajenasAceptadas}/${v.pares}` +
+          `  falsos coincide ${v.falsosCoincide}  correcciones malas ${v.correccionesEquivocadas}` +
+          `  recuperados ${v.recuperadas}/${v.desplazadas} (±200 ms: ${v.recuperadas200})`
       )
     }
     const si = (b: boolean): string => (b ? 'sí' : 'no')
@@ -359,5 +485,10 @@ export function formatearEncaje(r: ResultadoEncajeCalibracion): string {
         ` ajenas = 0 en las tres: ${si(criterio.ajenasEnCero)})`
     )
   }
+  salida.push(
+    `Criterio de seguridad (ADR 0024, revisión 2026-11-22): ${r.seguridad.cumple ? 'SÍ' : 'NO'}` +
+      ` (${r.seguridad.en.map((n) => (n === 'talCual' ? 'tal cual' : 'sin fines')).join(' y ')}: 0 ajenas aceptadas, 0 falsos coincide, 0 propias desfasada, 0 correcciones malas)`
+  )
+  if (r.inicios) salida.push(...formatearInicios(r.inicios))
   return salida.join('\n')
 }

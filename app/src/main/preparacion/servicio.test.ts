@@ -13,8 +13,8 @@ import { cancionConFuente, nuevoDirDatos } from '../separacion/servicio.testutil
 import { ServicioPreparacion, type DependenciasPreparacion } from './servicio'
 
 const DUR = 60_000
-/** Cantos de 4,4 s cada 5 s desde el segundo 3 (voz sintética, con 0,6 s de silencio entre versos). */
-const CANTOS: [number, number][] = [3, 8, 13, 18, 23, 28].map((t) => [t * 1000, t * 1000 + 4400])
+/** Cantos de 4 s cada 5 s desde el segundo 3 (voz sintética, con 1 s de silencio entre versos: densidad < 90 %). */
+const CANTOS: [number, number][] = [3, 8, 13, 18, 23, 28].map((t) => [t * 1000, t * 1000 + 4000])
 
 const nivel = (): NivelBase => {
   const { pares } = generarPicos({
@@ -34,6 +34,12 @@ const lineas = (desfase = 0, prefijo = 'Verso inventado', conFines = false): Ele
     fin_ms: conFines ? b - desfase : null,
     palabras: null
   }))
+/**
+ * Letra con fines salvo en una línea: la comprobación habría notado un desfase de 0,8 s (sin fines
+ * no, y sale `dudosa`; ADR 0024, revisión 2026-11-22) y a la preparación le queda un fin que poner.
+ */
+const lineasBuenas = (prefijo = 'Verso inventado'): ElementoLetra[] =>
+  lineas(0, prefijo, true).map((l, i) => (i === 2 ? { ...l, fin_ms: null } : l))
 /** Desfase de las letras que deben salir `desfasada` (con fines: sin ellos la voz continua no distingue). */
 const DESFASE = 1500
 
@@ -45,7 +51,7 @@ const candidato = (id: number, extra: Partial<CandidatoLetra> = {}): CandidatoLe
   duracion_ms: DUR,
   sincronia: 'linea',
   diferencia_ms: 0,
-  lineas: lineas(),
+  lineas: lineasBuenas(),
   ...extra
 })
 
@@ -184,7 +190,7 @@ describe('cadena completa hasta «Lista para revisar»', () => {
       origen: 'manual',
       busqueda: { resultado: 'elegida', candidatas: 1, ids: [1] },
       eleccion: { por: 'app', lrclib_id: 1 },
-      fines: { metodo: 'silencios', lineas: 6 },
+      fines: { metodo: 'silencios', lineas: 1 },
       revisada: false
     })
     expect(c.estado).toBe('borrador')
@@ -199,9 +205,9 @@ describe('cadena completa hasta «Lista para revisar»', () => {
         album: 'Álbum de LRCLIB'
       }
     })
-    // Los fines son de la preparación y llegan 100 ms después del final de la voz.
+    // Solo la línea sin fin recibe uno de la preparación, 100 ms después del final de la voz.
     expect(c.letra!.lineas.map((l) => [l.fin_ms, l.origen_fin])).toStrictEqual(
-      CANTOS.map(([, fin]) => [fin + 100, 'preparacion'])
+      CANTOS.map(([, fin], i) => (i === 2 ? [fin + 100, 'preparacion'] : [fin, 'letra']))
     )
     // El álbum vacío se rellena desde LRCLIB, con su origen; título y artista no cambian.
     expect(c.metadatos.album).toBe('Álbum de LRCLIB')
@@ -253,7 +259,7 @@ describe('cadena completa hasta «Lista para revisar»', () => {
 describe('elección automática', () => {
   it('con dos letras buenas distintas no elige: elige_letra y sin letra guardada', async () => {
     respuestas = [
-      encontrados(candidato(1), candidato(2, { lineas: lineas(0, 'Otra letra inventada') }))
+      encontrados(candidato(1), candidato(2, { lineas: lineasBuenas('Otra letra inventada') }))
     ]
     await separar()
     await preparar()
@@ -270,7 +276,9 @@ describe('elección automática', () => {
     const casos: [Parameters<typeof candidato>[1], string][] = [
       [{ sincronia: 'texto' }, 'soloTexto'],
       [{ diferencia_ms: 2500 }, 'sinExacta'],
-      [{ lineas: lineas(0).map((l, i) => ({ ...l, inicio_ms: 1000 + i * 4100 })) }, 'duda']
+      // Una letra correcta pero sin fines (LRC): la comprobación no podría notar un desfase.
+      [{ lineas: lineas() }, 'duda'],
+      [{ lineas: lineas(0).map((l, i) => ({ ...l, inicio_ms: 1000 + i * 4100 })) }, 'noCoincide']
     ]
     for (const [extra, motivo] of casos) {
       respuestas = [encontrados(candidato(1, extra))]
@@ -680,7 +688,7 @@ describe('previsualizar y preparar', () => {
 
     servicio.iniciar(id, 'manual')
     expect(servicio.previsualizar([id])[0]).toMatchObject({ motivo: 'EN_CURSO' })
-    expect(servicio.preparar([id])).toStrictEqual({
+    expect(await servicio.preparar([id])).toStrictEqual({
       aceptadas: [],
       omitidas: [{ id, motivo: 'EN_CURSO' }]
     })
@@ -703,10 +711,218 @@ describe('previsualizar y preparar', () => {
 
   it('preparar acepta las que aplican y arranca su corrida', async () => {
     await separar()
-    expect(servicio.preparar([id, id])).toStrictEqual({ aceptadas: [id], omitidas: [] })
+    expect(await servicio.preparar([id, id])).toStrictEqual({ aceptadas: [id], omitidas: [] })
     expect(servicio.enCurso(id)).toBe(true)
     await servicio.enReposo()
     expect(registro()!.estado).toBe('lista_para_revisar')
+  })
+})
+
+describe('letras sin marca: fines con confirmación (pregunta 0278)', () => {
+  /** Letra de 6 líneas sin `intacta` (como las del MVP): la primera con fin fijado, el resto sin él. */
+  const guardarSinMarca = async (desfase = 0, conFinesSalvoUna = false): Promise<void> => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineas(desfase, 'Verso inventado', conFinesSalvoUna)
+        .map((l, i) =>
+          !conFinesSalvoUna && i === 0 ? { ...l, fin_ms: (l.inicio_ms ?? 0) + 3000 } : l
+        )
+        .map((l, i) => (conFinesSalvoUna && i === 2 ? { ...l, fin_ms: null } : l))
+    })
+    await biblioteca.actualizar(id, { letra: { ...cancion().letra!, intacta: undefined } })
+  }
+
+  it('previsualizar pide confirmar y preparar sin la opción omite sin escribir nada', async () => {
+    await guardarSinMarca()
+    await separar()
+    expect(servicio.previsualizar([id])).toStrictEqual([
+      { id, aplica: true, pasos: ['ajustando_fines'], confirmar: 'finesSinMarca' }
+    ])
+    const antes = JSON.stringify(cancion().letra)
+    expect(await servicio.preparar([id])).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'NADA_QUE_HACER' }]
+    })
+    expect(servicio.enCurso(id)).toBe(false)
+    expect(JSON.stringify(cancion().letra)).toBe(antes)
+    expect(registro()).toBeUndefined()
+  })
+
+  it('con la confirmación pone fines solo donde faltan, sin tocar nada más', async () => {
+    await guardarSinMarca()
+    await separar()
+    const antes = cancion().letra!
+    expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
+      aceptadas: [id],
+      omitidas: []
+    })
+    await servicio.enReposo()
+    const despues = cancion().letra!
+    expect(despues.offset_ms).toBe(antes.offset_ms)
+    expect(despues.desfase_corregido_ms).toBeUndefined()
+    despues.lineas.forEach((l, i) => {
+      const previa = antes.lineas[i]!
+      expect(l.inicio_ms).toBe(previa.inicio_ms)
+      expect(l.palabras).toStrictEqual(previa.palabras)
+      expect(l.texto).toBe(previa.texto)
+      if (previa.fin_ms !== null) expect(l).toStrictEqual(previa)
+      else expect(l).toMatchObject({ fin_ms: CANTOS[i]![1] + 100, origen_fin: 'preparacion' })
+    })
+    expect(registro()).toMatchObject({ estado: 'lista_para_revisar', fines: { lineas: 5 } })
+  })
+
+  it('una letra sin marca desplazada no se corrige sola', async () => {
+    await guardarSinMarca(DESFASE, true)
+    await separar()
+    expect((await servicio.preparar([id], { finesSinMarca: true })).aceptadas).toStrictEqual([id])
+    await servicio.enReposo()
+    expect(cancion().letra!.offset_ms).toBe(0)
+    expect(cancion().letra!.desfase_corregido_ms).toBeUndefined()
+    expect(registro()!.desfase_ms).toBeUndefined()
+    // Solo la línea sin fin recibió uno.
+    expect(registro()!.fines).toMatchObject({ lineas: 1 })
+  })
+
+  it('con el editor abierto sobre la canción no escribe', async () => {
+    await guardarSinMarca()
+    await separar()
+    bloqueada = true
+    expect((await servicio.preparar([id], { finesSinMarca: true })).omitidas).toStrictEqual([
+      { id, motivo: 'EDICION_BLOQUEADA' }
+    ])
+    // Una corrida que ya estaba en marcha espera a que el editor se cierre.
+    servicio.iniciar(id, 'manual', { finesSinMarca: true })
+    await vi.waitFor(() => expect(consultasBloqueo).toBeGreaterThan(2))
+    expect(cancion().letra!.lineas.filter((l) => l.origen_fin === 'preparacion')).toHaveLength(0)
+    bloqueada = false
+    await servicio.enReposo()
+    expect(cancion().letra!.lineas.filter((l) => l.origen_fin === 'preparacion')).toHaveLength(5)
+  })
+
+  it('la corrida reanudada conserva la confirmación; sin ella no pone fines', async () => {
+    await guardarSinMarca()
+    await separar()
+    servicio.iniciar(id, 'manual', { finesSinMarca: true })
+    await servicio.enReposo()
+    expect(registro()!.fines).toMatchObject({ lineas: 5 })
+    const sinMarca = await cancionConFuente(biblioteca, datos)
+    await letras.guardar({ cancionId: sinMarca, origen: 'lrclib', lrclib_id: 9, lineas: lineas() })
+    await biblioteca.actualizar(sinMarca, {
+      letra: { ...biblioteca.obtener(sinMarca)!.letra!, intacta: undefined },
+      pasos: {
+        separacion: { estado: 'completado', actualizado: new Date().toISOString(), error: null }
+      }
+    })
+    servicio.iniciar(sinMarca, 'manual')
+    await servicio.enReposo()
+    expect(biblioteca.obtener(sinMarca)!.letra!.lineas.every((l) => l.fin_ms === null)).toBe(true)
+  })
+
+  it('el paso comprobando de una letra sin marca llama a comprobar y no la corrige', async () => {
+    const comprobar = vi.fn(() => Promise.resolve(null))
+    servicio = montar({ comprobar })
+    await guardarSinMarca(DESFASE, true)
+    await separar()
+    servicio.iniciar(id, 'manual', { finesSinMarca: true })
+    await servicio.enReposo()
+    expect(comprobar).toHaveBeenCalledWith(id)
+    expect(cancion().letra!.offset_ms).toBe(0)
+  })
+})
+
+describe('Lista o Letra lista: «Ajustar los fines…» sin cambiar su estado (0386)', () => {
+  const listaSinMarca = async (): Promise<void> => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineas().map((l, i) => (i === 0 ? { ...l, fin_ms: (l.inicio_ms ?? 0) + 3000 } : l))
+    })
+    await biblioteca.actualizar(id, {
+      letra: { ...cancion().letra!, intacta: undefined },
+      pistas: {
+        voz: 'pistas/voz.flac',
+        instrumental: 'pistas/instrumental.flac',
+        modelo: { perfil: 'calidad', nombre: 'inventado', version: '1' }
+      }
+    })
+    await separar()
+    await biblioteca.marcarLista(id, { modalidad: 'letra_lista' })
+    expect(cancion().estado).toBe('lista')
+  }
+
+  it('pone fines sin registro, sin cambiar el estado y sin tocar nada más, y no se repite', async () => {
+    await listaSinMarca()
+    const antes = cancion().letra!
+    expect(servicio.previsualizar([id])).toStrictEqual([
+      { id, aplica: true, pasos: ['ajustando_fines'], confirmar: 'finesSinMarca' }
+    ])
+    const r = await servicio.preparar([id], { finesSinMarca: true })
+    await servicio.enReposo()
+    expect(r).toStrictEqual({ aceptadas: [id], omitidas: [], fines: { [id]: 5 } })
+    expect(cancion().estado).toBe('lista')
+    expect(cancion().preparacion).toBeUndefined()
+    const despues = cancion().letra!
+    expect(despues.offset_ms).toBe(antes.offset_ms)
+    despues.lineas.forEach((l, i) => {
+      const previa = antes.lineas[i]!
+      expect(l.inicio_ms).toBe(previa.inicio_ms)
+      expect(l.palabras).toStrictEqual(previa.palabras)
+      if (previa.fin_ms !== null) expect(l).toStrictEqual(previa)
+      else expect(l).toMatchObject({ fin_ms: CANTOS[i]![1] + 100, origen_fin: 'preparacion' })
+    })
+    expect(buscarParaPreparacion).not.toHaveBeenCalled()
+    // Una sola vez: ya hay fines de la preparación.
+    expect(servicio.previsualizar([id])[0]).toMatchObject({ aplica: false, motivo: 'YA_LISTA' })
+  })
+
+  it('sin la confirmación no hace nada', async () => {
+    await listaSinMarca()
+    const antes = JSON.stringify(cancion().letra)
+    expect(await servicio.preparar([id])).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'NADA_QUE_HACER' }]
+    })
+    expect(JSON.stringify(cancion().letra)).toBe(antes)
+  })
+
+  it('sin picos se omite y no encola separación ni búsqueda', async () => {
+    const encolar = vi.fn(() => Promise.resolve())
+    servicio = montar({
+      picos: { ...picos, nivelBase: () => Promise.resolve(null) },
+      separacion: { hayTrabajo: () => false, encolar }
+    })
+    await listaSinMarca()
+    expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'NADA_QUE_HACER' }]
+    })
+    expect(encolar).not.toHaveBeenCalled()
+    expect(buscarParaPreparacion).not.toHaveBeenCalled()
+    expect(cancion().letra!.lineas.every((l) => l.origen_fin !== 'preparacion')).toBe(true)
+  })
+
+  it('con una sesión en vivo se omite al momento, sin esperar', async () => {
+    await listaSinMarca()
+    bloqueada = true
+    expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'EDICION_BLOQUEADA' }]
+    })
+    expect(servicio.enCurso(id)).toBe(false)
+  })
+
+  it('con el editor abierto sobre la canción no escribe', async () => {
+    await listaSinMarca()
+    const sesion = letras.abrirEdicion(id)!.sesionId
+    expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'EDICION_BLOQUEADA' }]
+    })
+    letras.cerrarEdicion(sesion)
+    expect(cancion().letra!.lineas.every((l) => l.origen_fin !== 'preparacion')).toBe(true)
   })
 })
 

@@ -51,6 +51,11 @@
   content: '';
 }
 
+/* Las importadas de un paquete se resaltan con `info` (spec 02 · Feature 9). */
+.item[data-resalte='info'] .tarjeta::after {
+  border-color: var(--info);
+}
+
 @keyframes resaltarTarjeta {
   0%,
   100% {
@@ -451,10 +456,17 @@
   color: var(--texto-1);
 }
 
+.accionesLote {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--e-2);
+}
+
 .accionesSeleccion {
   display: flex;
   flex-wrap: wrap;
   gap: var(--e-2);
+  margin-left: auto;
 }
 
 .casillaTarjeta {
@@ -629,4 +641,42 @@
 }
 .lineaRevision svg {
   flex: none;
+}
+
+/* «Editar datos…» de varias: casilla + campo (spec 02 · Feature 8). */
+.campoDatosLote {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e-2);
+}
+
+.casillaDatosLote {
+  display: flex;
+  align-items: center;
+  height: 36px;
+}
+
+.campoDatosTexto {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Velo de la ventana al arrastrar varios archivos (`bib.arrastrar.soltarVarios`). */
+.veloArrastre {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--info);
+  background: color-mix(in srgb, var(--fondo-0, #000) 80%, transparent);
+  color: var(--texto-1);
+  pointer-events: none;
+}
+
+.veloArrastre p {
+  margin: 0;
+  font-size: var(--t-subtitulo, 1.25rem);
+  font-weight: 600;
 }

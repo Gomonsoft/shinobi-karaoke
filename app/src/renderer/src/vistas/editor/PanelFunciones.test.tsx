@@ -9,6 +9,7 @@ function montar(
   estado: EstadoCancion,
   opciones: {
     motivoExportar?: string
+    motivoLetra?: string
     motivos?: Motivo[]
     motivosComprobar?: MotivoComprobar[]
     desfaseCorregidoMs?: number
@@ -19,6 +20,7 @@ function montar(
 ) {
   const props = {
     exportar: vi.fn(),
+    exportarLetra: vi.fn(),
     pedir: vi.fn(),
     comprobar: vi.fn(),
     quitar: vi.fn(),
@@ -35,6 +37,7 @@ function montar(
         motivo: opciones.motivoExportar,
         exportar: props.exportar
       }}
+      letra={{ motivo: opciones.motivoLetra, exportar: props.exportarLetra }}
       revision={{
         pendientes: opciones.pendientes === undefined ? 3 : opciones.pendientes,
         buenas: opciones.buenas ?? 0,
@@ -190,5 +193,26 @@ describe('Revisar la sincronía (feature 11)', () => {
   it('sin la voz lo avisa y mientras se prepara no lleva número', () => {
     montar('borrador', { pendientes: 2, sinVoz: true })
     expect(screen.getByText(/Cuando la voz esté separada/)).toBeVisible()
+  })
+})
+
+describe('«Exportar la letra» (F9-E1, F9-E2)', () => {
+  it('va tras «Exportar video» y exporta al pulsar', () => {
+    const props = montar('lista')
+    const titulos = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(titulos.indexOf('Exportar la letra')).toBe(titulos.indexOf('Exportar video') + 1)
+    fireEvent.click(boton('Exportar la letra (.lrc)…')!)
+    expect(props.exportarLetra).toHaveBeenCalledOnce()
+  })
+
+  it('sin líneas con inicio: aria-disabled, motivo visible y no exporta', () => {
+    const props = montar('borrador', {
+      motivoLetra: 'Esta canción aún no tiene ninguna línea sincronizada.'
+    })
+    const b = boton('Exportar la letra (.lrc)…')!
+    expect(b).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText('Esta canción aún no tiene ninguna línea sincronizada.')).toBeVisible()
+    fireEvent.click(b)
+    expect(props.exportarLetra).not.toHaveBeenCalled()
   })
 })

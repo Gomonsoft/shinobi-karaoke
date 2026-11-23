@@ -2,16 +2,17 @@ import { useRef } from 'react'
 import {
   Film,
   Check,
+  FileMusic,
   Flag,
   ListChecks,
   ListPlus,
+  Package,
   Palette,
   Pencil,
   Play,
   TriangleAlert,
   WandSparkles
 } from 'lucide-react'
-import { aplicaPrepararEntrada } from '@shared/derivados'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { useExportaciones } from '../../exportacion/contexto'
@@ -27,7 +28,12 @@ import { useSesion } from '../../sesion/ProveedorSesion'
 import { BIB_COLA, EDI_BLOQUEO, SES } from '../../sesion/textos'
 import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
+import { abrirExportarPaquete } from './paquete/almacen'
+import { exportarLetras } from './paquete/letras'
+import { LRC, PAQ } from './paquete/textos'
 import { LineaPaso } from './LineaPaso'
+import { BIB_FINES } from './textosAjustarFines'
+import { puedeAjustarFines } from './useAjustarFines'
 import { BIB_PREP } from './textosPreparacion'
 import { SEL } from './textosSeleccion'
 import {
@@ -35,6 +41,7 @@ import {
   datosDeTarjeta,
   formatearDuracion,
   lineaDeCola,
+  puedePrepararResumen,
   textoAriaTarjeta,
   temaDeTarjeta,
   tituloDeTarjeta,
@@ -73,6 +80,8 @@ export interface AccionesTarjeta {
   probar(id: string): void
   /** «Preparar» del menú ⋯: continúa la cadena de preparación de esa canción. */
   preparar(id: string): void
+  /** «Ajustar los fines…» del menú ⋯ (letra sin marca): pide confirmación y pone los fines que faltan. */
+  ajustarFines?(id: string): void
   /** «Elegir la letra» / «Añadir la letra»: abren la vista Letra. */
   abrirLetra(id: string): void
   /** «Reintentar» de «Letra pendiente»: repite la búsqueda sin salir de la Biblioteca. */
@@ -195,20 +204,7 @@ export function TarjetaCancion({
     d.accion === 'anadirLetra'
   const principalBloqueada = accionBloqueable && continuaBloqueado
   // «Preparar» (spec 02): borradores a los que aún les falta algo que la app puede hacer sola.
-  const puedePreparar =
-    !resumen.danada &&
-    !lista &&
-    !paraRevisar &&
-    !vivo &&
-    resumen.estadoPreparacion !== 'preparando' &&
-    aplicaPrepararEntrada({
-      estado: resumen.estado,
-      fuenteCompletada: resumen.pasos?.fuente.estado === 'completado',
-      lineas: resumen.pasos?.letra.estado === 'completado' ? 1 : 0,
-      // Con letra, lo que falta (desfase, fines) lo decide main al pulsar: no se ve en el resumen.
-      pendientesConLetra: [],
-      preparacionLista: false
-    }).aplica
+  const puedePreparar = puedePrepararResumen(resumen, Boolean(vivo))
   const buscaraLetra = puedePreparar && resumen.pasos?.letra.estado !== 'completado'
   const alProbar = () => {
     if (haySesion) return
@@ -324,6 +320,14 @@ export function TarjetaCancion({
       alSeleccionar: () => acciones.preparar(id)
     })
   }
+  if (acciones.ajustarFines && puedeAjustarFines(resumen, Boolean(vivo))) {
+    items.push({
+      id: 'ajustarFines',
+      etiqueta: BIB_FINES.menu,
+      icono: WandSparkles,
+      alSeleccionar: () => acciones.ajustarFines?.(id)
+    })
+  }
   if (!resumen.danada) {
     items.push({
       id: 'datos',
@@ -342,6 +346,23 @@ export function TarjetaCancion({
           cancionId: id,
           ...(exportando ? { trabajoId: exportando.trabajoId } : null)
         })
+    })
+  }
+  // Feature 9: el paquete y la letra a `.lrc` (la dañada por `cancion.json` ilegible no se puede leer).
+  if (!(resumen.danada && resumen.motivo === 'json')) {
+    items.push({
+      id: 'paquete',
+      etiqueta: PAQ.menuExportar,
+      icono: Package,
+      alSeleccionar: () => abrirExportarPaquete({ tipo: 'canciones', ids: [id] })
+    })
+    items.push({
+      id: 'lrc',
+      etiqueta: LRC.menu,
+      icono: FileMusic,
+      noDisponible: resumen.lineasConTiempo === 0 ? LRC.sinTiempos : undefined,
+      alSeleccionar: () =>
+        void exportarLetras([{ id, titulo: resumen.titulo, artista: resumen.artista }])
     })
   }
   if (!resumen.danada && acciones.aplicarTema) {

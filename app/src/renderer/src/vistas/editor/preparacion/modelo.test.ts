@@ -42,8 +42,20 @@ describe('bloquePreparacion', () => {
     expect(bloquePreparacion(registro(), letra({ lrclib_id: 99, lineas: [linea('a')] }))).toBeNull()
   })
 
-  it('sin registro no hay bloque (F5-E4)', () => {
-    expect(bloquePreparacion(undefined, letra())).toBeNull()
+  it('«Ajustar los fines…» sobre una letra sin marca: solo el renglón de fines (soloFines)', () => {
+    const b = bloquePreparacion(registro({ eleccion: undefined }), letra({ lrclib_id: 99 }))
+    expect(b).toMatchObject({ letra: null, desfaseMs: null, fines: 2, soloFines: true })
+    expect(bloquePreparacion(registro(), letra())?.soloFines).toBe(false)
+  })
+
+  it('sin registro (una Lista con fines de la preparación) hay renglón de fines; sin fines, no (F5-E4)', () => {
+    expect(bloquePreparacion(undefined, letra())).toMatchObject({
+      fines: 2,
+      soloFines: true,
+      letra: null,
+      fecha: ''
+    })
+    expect(bloquePreparacion(undefined, letra({ lineas: [linea('a')] }))).toBeNull()
   })
 
   it('una letra elegida por el usuario entre las candidatas dice «elegida por ti»', () => {

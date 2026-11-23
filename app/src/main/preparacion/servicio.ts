@@ -37,6 +37,8 @@ export interface PlanPreparacion {
   aplica: boolean
   /** Pasos que haría, con los nombres de `PASOS_PREPARACION` salvo la espera de la separación. */
   pasos: PasoPreparacion[]
+  /** Letra sin `intacta`: solo se aplica con confirmación (`preparar(ids, { finesSinMarca: true })`). */
+  confirmar?: 'finesSinMarca'
   motivo?: MotivoOmitida
 }
 
@@ -71,6 +73,8 @@ export interface DependenciasPreparacion {
       }
     ): Promise<unknown>
     aplicarFinesPreparacion(cancionId: string, fines: ReadonlyMap<string, number>): Promise<number>
+    /** El editor tiene abierta la letra de esa canción (no se escribe: su copia en memoria la revertiría). */
+    enEdicion?(cancionId: string): boolean
   }
   picos: {
     solicitar(cancionId: string): Promise<EstadoPicos>
@@ -103,7 +107,7 @@ export type OrigenPreparacion = Preparacion['origen']
 
 /** Inicio y fin de cada corrida (lo usan la tanda y el diario de pendientes, tarea 0309). */
 export type EventoCorrida =
-  | { tipo: 'inicio'; id: string; origen: OrigenPreparacion }
+  | { tipo: 'inicio'; id: string; origen: OrigenPreparacion; finesSinMarca?: boolean }
   | { tipo: 'fin'; id: string; preparacion: Preparacion | null }
 
 type ResultadoBusquedaPreparacion = Awaited<
@@ -122,6 +126,8 @@ class Detenida extends Error {
 interface Corrida {
   id: string
   origen: OrigenPreparacion
+  /** El usuario confirmó poner fines a una letra sin `intacta` (ADR 0025, revisión 0278). */
+  finesSinMarca: boolean
   /** La canción no tenía registro de preparación al empezar: si se detiene sin hacer nada, se retira. */
   sinRegistroPrevio: boolean
   ctl: AbortController
@@ -214,7 +220,16 @@ export class ServicioPreparacion {
     if (regla.motivo === 'SIN_FUENTE') return omitida('SIN_FUENTE')
     if (this.deps.edicionBloqueada()) return omitida('EDICION_BLOQUEADA')
     if (!regla.aplica) return omitida(regla.motivo ?? 'NADA_QUE_HACER')
-    return { id, aplica: true, pasos: regla.pasos }
+    // Una Lista no espera: con el editor abierto sobre ella se omite al momento.
+    if (cancion.estado === 'lista' && this.deps.letras.enEdicion?.(id)) {
+      return omitida('EDICION_BLOQUEADA')
+    }
+    return {
+      id,
+      aplica: true,
+      pasos: regla.pasos,
+      ...(regla.confirmar ? { confirmar: regla.confirmar } : {})
+    }
   }
 
   // --- Entradas ----------------------------------------------------------------------------------
@@ -235,27 +250,87 @@ export class ServicioPreparacion {
    * `preparacion.preparar`: lanza la preparación desde el primer paso pendiente de cada canción. Cuenta
    * como acción del usuario aunque el interruptor esté apagado. Nunca sustituye una letra existente.
    */
-  preparar(ids: readonly string[]): {
+  async preparar(
+    ids: readonly string[],
+    opciones: { finesSinMarca?: boolean } = {}
+  ): Promise<{
     aceptadas: string[]
     omitidas: { id: string; motivo: MotivoOmitida }[]
-  } {
+    /** Fines puestos por canción en las Listas (su camino «solo fines» termina aquí; sin registro). */
+    fines?: Record<string, number>
+  }> {
     const aceptadas: string[] = []
     const omitidas: { id: string; motivo: MotivoOmitida }[] = []
+    const fines: Record<string, number> = {}
     for (const id of new Set(ids)) {
       const plan = this.plan(id)
-      if (plan.aplica && this.iniciar(id, 'manual')) aceptadas.push(id)
-      else omitidas.push({ id, motivo: plan.motivo ?? 'EN_CURSO' })
+      // Sin la confirmación, una letra sin `intacta` sigue como si no hubiera nada que hacer.
+      const sinConfirmar = plan.confirmar !== undefined && opciones.finesSinMarca !== true
+      if (sinConfirmar) omitidas.push({ id, motivo: 'NADA_QUE_HACER' })
+      else if (plan.aplica && this.deps.biblioteca.obtener(id)?.estado === 'lista') {
+        const puestos = await this.soloFinesLista(id)
+        if (puestos === null) omitidas.push({ id, motivo: 'NADA_QUE_HACER' })
+        else {
+          aceptadas.push(id)
+          fines[id] = puestos
+        }
+      } else if (
+        plan.aplica &&
+        this.iniciar(id, 'manual', { finesSinMarca: plan.confirmar !== undefined })
+      ) {
+        aceptadas.push(id)
+      } else omitidas.push({ id, motivo: plan.motivo ?? 'EN_CURSO' })
     }
-    return { aceptadas, omitidas }
+    return { aceptadas, omitidas, ...(Object.keys(fines).length > 0 ? { fines } : {}) }
+  }
+
+  /** Listas que reciben fines ahora mismo (para `enReposo`). */
+  private readonly listas = new Set<Promise<unknown>>()
+
+  /**
+   * «Ajustar los fines…» sobre una Lista o Letra lista (pregunta 0296): solo los fines de la variante
+   * prudente, sin registro `preparacion`, sin cambiar el estado, sin buscar ni separar y sin red. `null` si
+   * no hay picos. Nunca toca inicios, fines fijados, palabras ni `offset_ms`.
+   */
+  private async soloFinesLista(id: string): Promise<number | null> {
+    const trabajo = (async (): Promise<number | null> => {
+      const nivel = await this.deps.picos.nivelBase(id)
+      const letra = this.deps.biblioteca.obtener(id)?.letra
+      if (!nivel || !letra) return null
+      const propuesta = proponerAjusteSilencios(
+        letra,
+        detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }),
+        {
+          duracionMs: nivel.duracionMs,
+          espera: ESPERA_LEGADA,
+          soloFinesAutomaticos: true,
+          activarComodin: false,
+          origenFin: 'preparacion'
+        }
+      )
+      const fines = new Map(propuesta.cambios.map((x) => [x.id, x.finDespues]))
+      return this.deps.letras.aplicarFinesPreparacion(id, fines)
+    })()
+    this.listas.add(trabajo)
+    try {
+      return await trabajo
+    } finally {
+      this.listas.delete(trabajo)
+    }
   }
 
   /** Arranca la corrida de una canción. `false` si ya hay una. */
-  iniciar(cancionId: string, origen: OrigenPreparacion): boolean {
+  iniciar(
+    cancionId: string,
+    origen: OrigenPreparacion,
+    { finesSinMarca = false }: { finesSinMarca?: boolean } = {}
+  ): boolean {
     if (this.corridas.has(cancionId)) return false
     const previa = this.deps.biblioteca.obtener(cancionId)
     const c: Corrida = {
       id: cancionId,
       origen,
+      finesSinMarca,
       sinRegistroPrevio: !previa?.preparacion,
       ctl: new AbortController(),
       firma: firmaDeLetra(previa),
@@ -263,7 +338,7 @@ export class ServicioPreparacion {
       fin: Promise.resolve()
     }
     this.corridas.set(cancionId, c)
-    this.avisarCorrida({ tipo: 'inicio', id: cancionId, origen })
+    this.avisarCorrida({ tipo: 'inicio', id: cancionId, origen, finesSinMarca })
     c.fin = this.ejecutar(c).finally(() => {
       this.corridas.delete(cancionId)
       this.resultados.delete(cancionId)
@@ -580,7 +655,11 @@ export class ServicioPreparacion {
       { pasoMs: nivel.pasoMs, pares: nivel.pares },
       { duracionMs: nivel.duracionMs }
     )
-    return { veredicto: r.veredicto, desfaseMs: Math.round(r.desfaseMs) }
+    return {
+      veredicto: r.veredicto,
+      desfaseMs: Math.round(r.desfaseMs),
+      limitacion: r.limitacion
+    }
   }
 
   /** Ajustar los fines: «Ajustar los silencios» en su variante prudente (ADR 0025 §2, 0153 §11). */
@@ -588,8 +667,15 @@ export class ServicioPreparacion {
     const { id } = c
     const cancion = this.deps.biblioteca.obtener(id)
     const letra = cancion?.letra
-    // Solo con la letra intacta: un tiempo tocado por el usuario no se toca. Sin picos no hay fines.
-    if (!cancion || !letra || !nivel || letra.intacta !== true || cancion.estado !== 'borrador') {
+    // Solo con la letra intacta o con la confirmación del usuario (`finesSinMarca`): un tiempo tocado por
+    // el usuario no se toca (solo se ponen fines donde no hay). Sin picos no hay fines.
+    if (
+      !cancion ||
+      !letra ||
+      !nivel ||
+      (letra.intacta !== true && !c.finesSinMarca) ||
+      cancion.estado !== 'borrador'
+    ) {
       return
     }
     await this.fijar(c, { paso: 'ajustando_fines' })
@@ -811,6 +897,7 @@ export class ServicioPreparacion {
   async enReposo(): Promise<void> {
     await Promise.all([
       ...[...this.corridas.values()].map((c) => c.fin),
+      ...this.listas,
       ...this.recuentos.values()
     ])
   }

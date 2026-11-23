@@ -474,3 +474,32 @@ describe('reanudación y resultado', () => {
     expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'r1', paso: 'editor', revisar: true })
   })
 })
+
+describe('aviso de un lote recién añadido (bib.import.anadidas)', () => {
+  it('dice cuántas canciones se añadieron, abre la actividad y se cierra con [×]', async () => {
+    const abrir = vi.fn()
+    window.addEventListener('shinobi:abrir-actividad', abrir)
+    montar([resumenPrueba({ id: 'a', titulo: 'Tema uno' })], {
+      vista: { tipo: 'biblioteca', lote: { n: 5, conLetra: true } }
+    })
+    expect(
+      await screen.findByText('Se añadieron 5 canciones y se están preparando solas.')
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Ver actividad' }))
+    expect(abrir).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar el aviso' }))
+    expect(screen.queryByText(/Se añadieron 5 canciones/)).toBeNull()
+    window.removeEventListener('shinobi:abrir-actividad', abrir)
+  })
+
+  it('con la búsqueda automática desactivada lo dice', async () => {
+    montar([resumenPrueba({ id: 'a', titulo: 'Tema uno' })], {
+      vista: { tipo: 'biblioteca', lote: { n: 3, conLetra: false } }
+    })
+    expect(
+      await screen.findByText(
+        'Se añadieron 3 canciones. Se están separando; la letra tendrás que buscarla tú.'
+      )
+    ).toBeInTheDocument()
+  })
+})

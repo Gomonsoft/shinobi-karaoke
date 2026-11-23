@@ -234,3 +234,59 @@ test('«Letra lista» a WebM: sin barrido y con los fotogramas esperados', async
     await app.close().catch(() => undefined)
   }
 })
+
+test('exportar varias desde la barra de la Biblioteca: 2 videos a 640×480 en una carpeta temporal (0321)', async () => {
+  test.setTimeout(300_000)
+  const datos = crearTemporal('exportacion-lote')
+  const salida = crearTemporal('exportacion-lote-salida')
+  await sembrar(datos)
+  // Las dos «Reproductor» de la semilla, acortadas a 3 s.
+  for (const n of [20, 21]) {
+    const cancion = leerCancion(datos, idSemilla(n))
+    cancion.metadatos.duracion_ms = 3000
+    writeFileSync(
+      join(carpeta(datos, idSemilla(n)), 'cancion.json'),
+      JSON.stringify(cancion, null, 2)
+    )
+  }
+  const config = leerConfig(datos)
+  config.instalacion.estado = 'completa'
+  // Opciones recordadas: el diálogo de lote las usa, y la carpeta propuesta es la temporal.
+  config.exportacion = {
+    carpeta: salida,
+    formato: 'mkv_av1',
+    ancho: 640,
+    alto: 480,
+    fps: 24,
+    audio: 'instrumental'
+  }
+  writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  const app = await electron.launch({
+    args: ['.'],
+    cwd: process.cwd(),
+    env: { ...process.env, SHINOBI_DATOS: datos, SHINOBI_SILENCIAR_AUDIO: '1' }
+  })
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Seleccionar', exact: true }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista»' }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista incompleta»' }).click()
+    // `click()` desplazaría la página para centrar la barra fija y un scroll cierra el menú: se abre sin desplazar.
+    await v.getByRole('button', { name: 'Más acciones', exact: true }).dispatchEvent('click')
+    await v.getByRole('menuitem', { name: 'Exportar video…' }).click()
+    const g = v.getByRole('dialog', { name: 'Exportar 2 videos' })
+    await expect(g.getByLabel(/^Guardar en la carpeta, /)).toHaveValue(salida)
+    await g.getByRole('button', { name: 'Exportar 2 videos' }).click()
+    const i = v.getByRole('dialog', { name: 'Videos exportados' })
+    await expect(i).toBeVisible({ timeout: 240_000 })
+    await expect(i.getByText(/Se exportaron 2 videos/)).toBeVisible()
+    const archivos = readdirSync(salida).filter((n) => n.endsWith('.mkv'))
+    expect(archivos).toHaveLength(2)
+    expect(readdirSync(salida)).toHaveLength(2)
+    for (const a of archivos) expect(statSync(join(salida, a)).size).toBeGreaterThan(1000)
+    const s = sondear(join(salida, archivos[0]!))
+    expect(s).toMatchObject({ w: 640, h: 480, fps: 24, seg: 3 })
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+})

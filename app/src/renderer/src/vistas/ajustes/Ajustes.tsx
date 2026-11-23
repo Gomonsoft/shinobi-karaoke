@@ -8,6 +8,7 @@ import { hayNueva } from '../acerca/modeloActualizaciones'
 import { AJACT } from '../acerca/textosActualizaciones'
 import { useActualizaciones } from '../acerca/useActualizaciones'
 import estilos from './ajustes.module.css'
+import { CopiaAjustes } from './CopiaAjustes'
 import { PreparacionAjustes } from './PreparacionAjustes'
 import { ReproductorAjustes } from './ReproductorAjustes'
 import { SeparacionAjustes } from './SeparacionAjustes'
@@ -15,7 +16,7 @@ import { TemasAjustes } from './TemasAjustes'
 import { AJ } from './textos'
 
 /**
- * Vista Ajustes (`ux/08`): separación de voz (solo informativa), temas, reproductor y Acerca de. «Volver» y Esc
+ * Vista Ajustes (`ux/08`): separación de voz (solo informativa), temas, reproductor, copia de seguridad y Acerca de. «Volver» y Esc
  * regresan a la vista de origen (Biblioteca o editor de la canción, con la pestaña Estilo).
  */
 export function Ajustes() {
@@ -29,6 +30,8 @@ export function Ajustes() {
   const conRuntime = typeof window.shinobi.runtime?.estado === 'function'
   // Sin API de configuración (pruebas de otras vistas) no se muestra «Reproductor».
   const conConfig = typeof window.shinobi.config?.obtener === 'function'
+  // Sin API de copias (pruebas de otras vistas) no se muestra «Copia de seguridad».
+  const conCopias = conConfig && typeof window.shinobi.copias?.destinoPropuesto === 'function'
   const { estado: actualizaciones } = useActualizaciones()
   const nueva = hayNueva(actualizaciones) ? actualizaciones?.disponible : null
   // Abrir Ajustes con una versión anunciada la deja «vista» y apaga el punto del botón (ux/08 · F3).
@@ -88,6 +91,12 @@ export function Ajustes() {
       {conConfig && (
         <>
           <ReproductorAjustes />
+          <hr className={estilos.separador} />
+        </>
+      )}
+      {conCopias && (
+        <>
+          <CopiaAjustes />
           <hr className={estilos.separador} />
         </>
       )}

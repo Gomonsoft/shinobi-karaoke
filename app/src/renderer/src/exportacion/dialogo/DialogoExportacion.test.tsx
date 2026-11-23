@@ -27,6 +27,9 @@ function montar(
           exportaciones: [],
           activaDe: () => undefined,
           abrir: () => undefined,
+          lotes: [],
+          abrirLote: () => undefined,
+          verLote: () => undefined,
           cerrar: alCerrar,
           iniciada,
           pedirCancelar: () => undefined

@@ -246,14 +246,73 @@ describe('aplicaPreparar', () => {
       pasos: ['buscando_letra', 'comprobando', 'ajustando_fines']
     })
   })
-  it('lista, sin fuente o con letra del usuario: no aplica y dice por qué', () => {
+  it('lista o sin fuente: no aplica y dice por qué; una letra del usuario sin fines pide confirmación', () => {
     const l = lista()
+    l.letra!.intacta = true
     expect(aplicaPreparar(l)).toMatchObject({ aplica: false, motivo: 'YA_LISTA' })
     const sf = sinLetra()
     sf.pasos.fuente.estado = 'pendiente'
     expect(aplicaPreparar(sf)).toMatchObject({ aplica: false, motivo: 'SIN_FUENTE' })
     const b = lista()
     b.estado = 'borrador'
-    expect(aplicaPreparar(b)).toMatchObject({ aplica: false, motivo: 'NADA_QUE_HACER' })
+    // Antes de 0.2.2 esto era NADA_QUE_HACER; ahora ofrece los fines, solo con confirmación (pregunta 0278).
+    expect(aplicaPreparar(b)).toMatchObject({ aplica: true, confirmar: 'finesSinMarca' })
+  })
+
+  /** Borrador con letra con tiempos y sin fines (como un LRC de 0.2.1). */
+  const lrcSinMarca = (intacta?: boolean): Cancion => {
+    const c = lista()
+    c.estado = 'borrador'
+    c.letra!.lineas = c.letra!.lineas.map((l) => ({ ...l, fin_ms: null }))
+    delete c.letra!.intacta
+    if (intacta) c.letra!.intacta = true
+    return c
+  }
+  it('letra sin `intacta` con fines nulos: solo ajusta los fines y pide confirmación', () => {
+    expect(aplicaPreparar(lrcSinMarca())).toEqual({
+      aplica: true,
+      pasos: ['ajustando_fines'],
+      confirmar: 'finesSinMarca'
+    })
+  })
+  it('con `intacta` sigue como siempre y sin confirmación', () => {
+    const r = aplicaPreparar(lrcSinMarca(true))
+    expect(r).toEqual({ aplica: true, pasos: ['comprobando', 'ajustando_fines'] })
+    expect(r.confirmar).toBeUndefined()
+  })
+  it('sin fines nulos, sin inicios, con fines ya puestos o lista: no ofrece nada', () => {
+    const sinNulos = lrcSinMarca()
+    sinNulos.letra!.lineas = sinNulos.letra!.lineas.map((l) => ({ ...l, fin_ms: 1 }))
+    expect(aplicaPreparar(sinNulos)).toMatchObject({ aplica: false, motivo: 'NADA_QUE_HACER' })
+    const sinInicios = lrcSinMarca()
+    sinInicios.letra!.lineas = sinInicios.letra!.lineas.map((l) => ({ ...l, inicio_ms: null }))
+    expect(aplicaPreparar(sinInicios)).toMatchObject({ aplica: false, motivo: 'NADA_QUE_HACER' })
+    const conFines = lrcSinMarca()
+    conFines.preparacion = {
+      estado: 'error',
+      origen: 'manual',
+      fines: { metodo: 'silencios', lineas: 1 }
+    } as Cancion['preparacion']
+    expect(aplicaPreparar(conFines)).toMatchObject({ aplica: false, motivo: 'NADA_QUE_HACER' })
+    const l = lrcSinMarca(true)
+    l.estado = 'lista'
+    expect(aplicaPreparar(l)).toMatchObject({ aplica: false, motivo: 'YA_LISTA' })
+  })
+
+  it('Lista o Letra lista sin `intacta` y con fines nulos: solo los fines, con confirmación (0386)', () => {
+    const l = lrcSinMarca()
+    l.estado = 'lista'
+    expect(aplicaPreparar(l)).toEqual({
+      aplica: true,
+      pasos: ['ajustando_fines'],
+      confirmar: 'finesSinMarca'
+    })
+  })
+
+  it('una Lista que ya recibió fines de la preparación no se ofrece otra vez (0386)', () => {
+    const l = lrcSinMarca()
+    l.estado = 'lista'
+    l.letra!.lineas[0] = { ...l.letra!.lineas[0]!, fin_ms: 2000, origen_fin: 'preparacion' }
+    expect(aplicaPreparar(l)).toMatchObject({ aplica: false, motivo: 'YA_LISTA' })
   })
 })

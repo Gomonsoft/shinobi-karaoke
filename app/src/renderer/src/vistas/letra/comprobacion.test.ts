@@ -38,6 +38,21 @@ describe('comprobación de un candidato', () => {
     expect(v('no_coincide')).toBe('No coincide con tu audio: puede ser otra versión')
   })
 
+  it('una dudosa con limitación dice que no se puede comprobar y no propone nada', () => {
+    const c = comprobacionDe(
+      cand({ encaje: { veredicto: 'dudosa', desfaseMs: 1200, limitacion: 'vozContinua' } }),
+      'lista',
+      true
+    )
+    expect(c).toStrictEqual({ tipo: 'dudosa', limitacion: 'vozContinua' })
+    expect(texto(c)).toBe('No podemos comprobarla con tu audio')
+    expect(
+      grupoDeOrden(
+        cand({ encaje: { veredicto: 'dudosa', desfaseMs: 0, limitacion: 'sinContraste' } })
+      )
+    ).toBe(1)
+  })
+
   it('solo texto o no comprobable no muestran línea; sin picos depende de su estado', () => {
     expect(texto(comprobacionDe(cand({ sincronia: 'texto' }), 'lista', true))).toBeNull()
     expect(texto(comprobacionDe(cand({ encaje: null }), 'lista', true))).toBeNull()

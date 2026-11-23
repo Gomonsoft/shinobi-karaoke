@@ -91,7 +91,7 @@ function useComprobacionGuardada(
       return { ...ninguna, comprobacion: sinPicos(picos.estado, separada) ?? ninguna.comprobacion }
     const r = evaluarEncajeConPicos(letra, picos, { duracionMs })
     return {
-      comprobacion: deVeredicto(r.veredicto, r.desfaseMs),
+      comprobacion: deVeredicto(r.veredicto, r.desfaseMs, r.limitacion),
       motivos:
         r.veredicto === 'no_coincide'
           ? motivosNoCoincide(detalleNoCoincide(letra, r, duracionMs))
@@ -464,9 +464,14 @@ function LineaComprobacionActual({
         </p>
       )
     case 'dudosa':
+      // Con limitación es información, no un aviso: en gris, sin acciones (spec 05, F4).
       return (
-        <p>
-          <FilaConIcono icono={CircleHelp}>{CC.actual.dudosa}</FilaConIcono>
+        <p className={comprobacion.limitacion ? estilos.compTenue : undefined}>
+          <FilaConIcono icono={CircleHelp}>
+            {comprobacion.limitacion
+              ? CC.actual.limitada(comprobacion.limitacion)
+              : CC.actual.dudosa}
+          </FilaConIcono>
         </p>
       )
     case 'desfasada':

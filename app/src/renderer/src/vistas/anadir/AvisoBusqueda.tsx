@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Info } from 'lucide-react'
-import { Icono } from '../../componentes/Icono'
+import { FilaConIcono } from '../letra/FilaConIcono'
 import { TEXTO } from './textos'
 import estilos from './anadir.module.css'
 
 /** `config.preparacion.automatica` (activada por defecto); sin configuración legible, no se avisa. */
-function useBusquedaAutomatica(): boolean {
+export function useBusquedaAutomatica(): boolean {
   const [activa, setActiva] = useState(false)
   useEffect(() => {
     let activo = true
     const leer = (c: { preparacion?: { automatica?: boolean } }) =>
       activo && setActiva(c.preparacion?.automatica !== false)
-    void Promise.resolve(window.shinobi.config?.obtener?.()).then(
+    void Promise.resolve(window.shinobi?.config?.obtener?.()).then(
       (c) => c && leer(c),
       () => undefined
     )
-    const baja = window.shinobi.alCambiarConfig?.(leer)
+    const baja = window.shinobi?.alCambiarConfig?.(leer)
     return () => {
       activo = false
       baja?.()
@@ -33,10 +33,12 @@ export function AvisoBusqueda({ alCambiar }: { alCambiar: () => void }) {
   if (!activa) return null
   return (
     <p className={estilos.ayuda} data-aviso-busqueda>
-      <Icono icono={Info} tamano={16} /> {TEXTO.busquedaLrclib}{' '}
-      <button type="button" className={estilos.enlace} onClick={alCambiar}>
-        {TEXTO.cambiarEnAjustes}
-      </button>
+      <FilaConIcono icono={Info}>
+        {TEXTO.busquedaLrclib}{' '}
+        <button type="button" className={estilos.enlace} onClick={alCambiar}>
+          {TEXTO.cambiarEnAjustes}
+        </button>
+      </FilaConIcono>
     </p>
   )
 }

@@ -167,7 +167,7 @@ test.describe('flujo principal', { tag: '@critico' }, () => {
       v.on('console', (m: ConsoleMessage) => m.type() === 'error' && errores.push(m.text()))
 
       await irAAnadir(v)
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByLabel('Título')).toBeVisible({ timeout: 30_000 })
       await v.getByLabel('Título').fill(TITULOS.conVoz)
       await v.getByLabel('Artista').fill('Artista inventado')

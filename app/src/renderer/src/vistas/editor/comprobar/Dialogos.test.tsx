@@ -54,3 +54,38 @@ describe('concordancia de let.comp.detalle.silencio', () => {
     expect(CC.detalle.silencio(3, 6, [])).toBe('3 de 6 líneas caen donde no hay voz.')
   })
 })
+
+describe('diálogo de «dudosa» con limitación (0379)', () => {
+  const montarDudosa = (limitacion?: 'vozContinua' | 'sinContraste') => {
+    render(
+      <DialogosComprobar
+        dialogo={limitacion ? { tipo: 'dudosa', limitacion } : { tipo: 'dudosa' }}
+        mac={false}
+        alConfirmar={vi.fn()}
+        alCancelar={vi.fn()}
+        alIr={vi.fn()}
+        alBuscarOtra={vi.fn()}
+      />
+    )
+    return screen.getByRole('dialog')
+  }
+
+  it.each([
+    ['vozContinua', 'suena casi sin pausas'],
+    ['sinContraste', 'solo marca dónde empieza cada línea']
+  ] as const)('%s: su texto y solo [Cerrar]', (limitacion, texto) => {
+    const dlg = montarDudosa(limitacion)
+    expect(dlg).toHaveAccessibleName('No podemos comprobar esta letra con la voz')
+    expect(dlg).toHaveTextContent(texto)
+    expect(
+      within(dlg)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    ).toStrictEqual(['Cerrar'])
+  })
+
+  it('sin limitación, el texto de siempre', () => {
+    const dlg = montarDudosa()
+    expect(dlg).toHaveTextContent('puede deberse a coros')
+  })
+})

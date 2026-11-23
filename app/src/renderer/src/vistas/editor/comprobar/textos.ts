@@ -19,6 +19,13 @@ export const K = {
       'Parte coincide y parte no; puede deberse a coros o a partes sin letra. No hemos cambiado nada.',
     cerrar: 'Cerrar'
   },
+  limitada: {
+    titulo: 'No podemos comprobar esta letra con la voz',
+    vozContinua:
+      'En esta canción la voz suena casi sin pausas, así que no podemos saber si la letra va adelantada o atrasada. No hemos cambiado nada. Escúchala y, si notas que va antes o después de la voz, ajusta las líneas a oído.',
+    sinContraste:
+      'Esta letra solo marca dónde empieza cada línea, no dónde acaba, así que mover la letra apenas cambia nada y no podemos saber si va adelantada o atrasada. No hemos cambiado nada. Escúchala; si pones el fin de las líneas (por ejemplo con «Ajustar los silencios»), podrás volver a comprobarla.'
+  },
   noCoincide: {
     titulo: 'La letra no encaja con la voz',
     intro: 'Puede ser la letra de otra versión de la canción.',

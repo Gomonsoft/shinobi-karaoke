@@ -10,6 +10,8 @@ export interface BloquePreparacion {
   desfaseMs: number | null
   /** Líneas con el fin fijado por la preparación que no se han tocado después. */
   fines: number
+  /** El usuario pidió «Ajustar los fines…» sobre una letra sin marca: no hubo búsqueda ni elección. */
+  soloFines: boolean
 }
 
 const formato = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -28,7 +30,14 @@ export function bloquePreparacion(
   registro: Preparacion | null | undefined,
   letra: Pick<Letra, 'lrclib_id' | 'desfase_corregido_ms' | 'lineas'>
 ): BloquePreparacion | null {
-  if (!registro) return null
+  const fines = letra.lineas.filter(
+    (l) => l.tipo === 'linea' && l.origen_fin === 'preparacion'
+  ).length
+  // Una Lista que recibió fines no tiene registro de preparación (pregunta 0296): el renglón se ve igual,
+  // sin fecha, y «Quitar esos fines» sigue disponible.
+  if (!registro) {
+    return fines > 0 ? { fecha: '', letra: null, desfaseMs: null, fines, soloFines: true } : null
+  }
   const eleccion = registro.eleccion
   const letraPuesta =
     eleccion && letra.lrclib_id !== null && letra.lrclib_id === eleccion.lrclib_id
@@ -37,9 +46,12 @@ export function bloquePreparacion(
         : 'usuario'
       : null
   const desfaseMs = letra.desfase_corregido_ms ? letra.desfase_corregido_ms : null
-  const fines = letra.lineas.filter(
-    (l) => l.tipo === 'linea' && l.origen_fin === 'preparacion'
-  ).length
   if (letraPuesta === null && desfaseMs === null && fines === 0) return null
-  return { fecha: fechaCorta(registro.actualizado), letra: letraPuesta, desfaseMs, fines }
+  return {
+    fecha: fechaCorta(registro.actualizado),
+    letra: letraPuesta,
+    desfaseMs,
+    fines,
+    soloFines: !registro.busqueda && !registro.eleccion
+  }
 }

@@ -1,0 +1,193 @@
+/* Diálogos de paquetes y copias (docs/ux/02 y 08 · Feature 9). Solo tokens del sistema. */
+
+.cuerpo {
+  display: grid;
+  gap: var(--e-4);
+  max-height: calc(90vh - 11rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.cuerpo p {
+  margin: 0;
+}
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  color: var(--texto-2);
+}
+.suave {
+  color: var(--texto-2);
+}
+.fila {
+  display: grid;
+  gap: var(--e-1);
+}
+.etiqueta {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+
+/* ---------- Qué incluye (grupo de radio) ---------- */
+.opciones {
+  display: grid;
+  gap: var(--e-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.opciones legend {
+  padding: 0;
+  margin-bottom: var(--e-2);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+.opcion {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--e-1) var(--e-3);
+  padding: var(--e-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  cursor: pointer;
+}
+.opcion[data-elegida] {
+  border-color: var(--info);
+  background: var(--fondo-2);
+}
+.opcion input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+.opcionTitulo {
+  font-weight: 600;
+}
+.opcionAyuda {
+  grid-column: 2 / 4;
+  color: var(--texto-2);
+}
+.tamano {
+  color: var(--texto-2);
+  white-space: nowrap;
+}
+
+/* ---------- Guardar como ---------- */
+.filaDestino {
+  display: flex;
+  gap: var(--e-2);
+}
+.ruta {
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.rutaError {
+  border-color: var(--error);
+}
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+}
+.casilla input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+/* ---------- Listas con scroll propio ---------- */
+.lista {
+  display: grid;
+  max-height: 17.5rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+}
+.listaCorta {
+  max-height: 12.5rem;
+}
+.filaLista {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr auto;
+  gap: var(--e-1) var(--e-2);
+  align-items: start;
+  padding: var(--e-2) var(--e-3);
+  border-bottom: 1px solid var(--borde);
+}
+.filaLista:last-child {
+  border-bottom: 0;
+}
+.filaTexto {
+  display: grid;
+  min-width: 0;
+  gap: var(--e-1);
+}
+.filaTitulo {
+  overflow-wrap: anywhere;
+}
+.filaNota {
+  color: var(--texto-2);
+}
+.filaAtenuada .filaTitulo,
+.filaAtenuada .filaNota {
+  color: var(--texto-3);
+}
+.icono {
+  margin-top: 2px;
+}
+.iconoOk {
+  color: var(--exito);
+}
+.iconoError {
+  color: var(--error);
+}
+.iconoInfo {
+  color: var(--info);
+}
+.selectorFila {
+  min-height: 2rem;
+  padding: 0 var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+}
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+.dispersa {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+}
+.segundoPlano {
+  color: var(--texto-2);
+}
+.anuncio {
+  margin: 0;
+  color: var(--texto-2);
+}
+.nota {
+  color: var(--texto-2);
+}
+.titulosTemas {
+  margin: 0;
+  padding-left: var(--e-5);
+}
+
+/* ---------- Ajustes › Copia de seguridad ---------- */
+.seccionAcciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}

@@ -117,3 +117,13 @@ describe('argumentos de los canales de 0.2.2', () => {
     expect(args(CANALES.exportacion.iniciarLote, { ...base, siExiste: 'borrar' })).toBe(false)
   })
 })
+
+describe('resultado de exportar letras de varias (0383, pregunta 0291)', () => {
+  const base = { escritas: 2, omitidas: [], ubicacionId: '0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0' }
+  it('acepta con y sin `carpeta` (solo el nombre)', async () => {
+    const { resultadoExportarLrcVariasSchema: esquema } = await import('./ipc')
+    expect(esquema.parse(base)).toEqual(base)
+    expect(esquema.parse({ ...base, carpeta: 'Karaoke' })?.carpeta).toBe('Karaoke')
+    expect(esquema.safeParse({ ...base, carpeta: 'x'.repeat(256) }).success).toBe(false)
+  })
+})

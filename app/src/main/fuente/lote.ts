@@ -339,8 +339,10 @@ export class ServicioLote {
         return {
           ref,
           nombre,
+          ruta: c.ruta,
           duracionMs,
           metadatos,
+          datos: propuesta.datos,
           duplicado: esDuplicadoArchivo(indice, {
             nombre,
             duracionMs,

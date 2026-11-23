@@ -1,6 +1,6 @@
 import { mkdir, statfs } from 'node:fs/promises'
 import { cpus, release, setPriority, totalmem, type as tipoSO } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import {
   app,
   BrowserWindow,
@@ -22,7 +22,7 @@ import { CANALES } from '@shared/canales'
 import { ENTORNO_LRCLIB_URL } from '@shared/letrasBusqueda'
 import { hashCorto, identificador, lineaVersion, numeroVisible } from '@shared/compilacion'
 import { ID_APP_WINDOWS, ID_APP_WINDOWS_DESARROLLO, TITULO_APP } from '@shared/titulo'
-import { ServicioBiblioteca } from './biblioteca'
+import { ServicioBiblioteca, ServicioLotes } from './biblioteca'
 import { ServicioCopias } from './copias'
 import { ExportadorLrc } from './letras/exportarLrc'
 import {
@@ -37,7 +37,7 @@ import {
 } from './fuente'
 import { crearEspacioLibre } from './runtime/deteccion'
 import { shellConPapeleraDePruebas } from './biblioteca/papelera'
-import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
+import { dialogoConDoblePruebas, VARIABLE_DIALOGO_PRUEBAS } from './fuente/dialogoPruebas'
 import {
   BusquedaLetras,
   ServicioLetras,
@@ -246,7 +246,10 @@ const cierraSoloLaVentana = (intencion: IntencionCierre): boolean =>
 const fuentesDeCierre = (intencion: IntencionCierre): FuentesEnCurso => ({
   instalando: () => runtime?.servicio.instalando() ?? false,
   // Trabajos de la cola (0073). Las consultas interactivas no cuentan.
-  hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
+  hayTrabajos: () =>
+    (gestorTrabajos?.hayPendientes() ?? false) ||
+    // Un paquete o una copia en curso se cancela al salir (en macOS, cerrar la ventana no sale).
+    (!cierraSoloLaVentana(intencion) && (servicioCopias?.hayTrabajos() ?? false)),
   guardadoPendiente: () => guardadoEditorPendiente,
   sesionActiva: () => servicioSesion?.sesionActiva() ?? false,
   colaNoVacia: () => !cierraSoloLaVentana(intencion) && (servicioSesion?.colaNoVacia() ?? false),
@@ -1009,6 +1012,19 @@ if (instanciaUnica)
               : await dialog.showSaveDialog(opciones)
             return r.canceled || !r.filePath ? null : r.filePath
           },
+          // Exportar varias canciones (ADR 0026 §5): el selector de carpetas del sistema.
+          dialogoCarpeta: async (ventana, o) => {
+            const opciones = {
+              defaultPath: o.defaultPath,
+              properties: ['openDirectory', 'createDirectory'] as (
+                'openDirectory' | 'createDirectory'
+              )[]
+            }
+            const r = ventana
+              ? await dialog.showOpenDialog(ventana, opciones)
+              : await dialog.showOpenDialog(opciones)
+            return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+          },
           directorioDatos: rutaDatos(),
           carpetaVideos: () => app.getPath('videos'),
           carpetaHogar: () => app.getPath('home')
@@ -1018,6 +1034,14 @@ if (instanciaUnica)
         crearVentana: crearExportacion,
         ventanaPrincipal: () => ventanas.principal() ?? null,
         mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta),
+        libreBytes: async (carpeta) => {
+          try {
+            const s = await statfs(carpeta)
+            return Number(s.bavail) * Number(s.bsize)
+          } catch {
+            return null
+          }
+        },
         avisarSistema: (texto) => servicioAvisos?.avisarSistema(texto),
         bloqueador: powerSaveBlocker,
         memoriaTotal: () => totalmem(),
@@ -1032,6 +1056,9 @@ if (instanciaUnica)
         directorioDatos: rutaDatos(),
         ventana: () => ventanas.principal() ?? null,
         dialogoGuardar: async (ventana, o) => {
+          // E2E: `SHINOBI_LRC_PRUEBAS` es la carpeta donde «elige» guardar; se ignora empaquetada.
+          const carpetaPruebas = !app.isPackaged && process.env.SHINOBI_LRC_PRUEBAS
+          if (carpetaPruebas) return join(carpetaPruebas, basename(o.defaultPath))
           const opciones = {
             defaultPath: o.defaultPath,
             filters: [{ name: 'Letra con tiempos (LRC)', extensions: ['lrc'] }]
@@ -1086,6 +1113,9 @@ if (instanciaUnica)
             return r.canceled || !r.filePath ? null : r.filePath
           },
           dialogoAbrir: async (ventana) => {
+            // E2E: `SHINOBI_DIALOGO_PRUEBAS` es el paquete que «elige» la persona (ADR 0009 §8; nunca empaquetada).
+            const prueba = app.isPackaged ? undefined : process.env[VARIABLE_DIALOGO_PRUEBAS]
+            if (prueba) return prueba === 'cancelar' ? null : (prueba.split('|')[0] ?? null)
             const opciones = {
               properties: ['openFile'] as 'openFile'[],
               filters: [{ name: 'Paquete de Shinobi Karaoke', extensions: ['shinobi'] }]
@@ -1095,7 +1125,9 @@ if (instanciaUnica)
               : await dialog.showOpenDialog(opciones)
             return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
           },
-          carpetaDocumentos: () => app.getPath('documents'),
+          // E2E: `SHINOBI_DOCUMENTOS` sustituye a Documentos para no escribir en la carpeta real.
+          carpetaDocumentos: () =>
+            (!app.isPackaged && process.env.SHINOBI_DOCUMENTOS) || app.getPath('documents'),
           carpetaHogar: () => app.getPath('home'),
           recordarUbicacion: (ruta) => lrc.recordar(ruta),
           emitirCambio: (e) => aPrincipal(CANALES.eventos.copiasCambio, e),
@@ -1113,9 +1145,28 @@ if (instanciaUnica)
         env: process.env,
         reposo: powerMonitor
       })
+      // Acciones por lotes de la Biblioteca (0318).
+      const sesionDeLotes = servicioSesion
+      const bibliotecaDeLotes = servicioBiblioteca
+      const trabajosDe = (id: string): number =>
+        (gestorTrabajos?.listar().filter((t) => t.cancionId === id).length ?? 0) +
+        (servicioPreparacion?.enCurso(id) ? 1 : 0) +
+        (servicioExportacion?.estado().filter((e) => e.cancionId === id && e.resultado === null)
+          .length ?? 0)
+      const servicioLotes = new ServicioLotes({
+        biblioteca: bibliotecaDeLotes,
+        eliminar: (id) =>
+          servicioPicos?.duranteCambio(id, () => bibliotecaDeLotes.eliminar(id)) ??
+          bibliotecaDeLotes.eliminar(id),
+        ...(sesionDeLotes ? { sesion: sesionDeLotes } : {}),
+        trabajosDe,
+        emitirProgreso: (p) => aPrincipal(CANALES.eventos.bibliotecaProgresoLote, p),
+        registrar: (mensaje) => registro.escribir('error', 'biblioteca', mensaje)
+      })
       registrarIpc(
         ipcMain,
         {
+          lotes: servicioLotes,
           actualizaciones: servicioActualizaciones,
           preparacion: servicioPreparacion,
           ...(colaPreparacion ? { colaPreparacion } : {}),

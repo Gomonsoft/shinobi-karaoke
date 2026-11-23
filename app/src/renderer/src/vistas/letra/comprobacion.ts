@@ -1,5 +1,5 @@
 import { finEfectivo, type Letra } from '@shared/letra'
-import type { ResultadoEncaje, VeredictoEncaje } from '@shared/encaje'
+import type { LimitacionEncaje, ResultadoEncaje, VeredictoEncaje } from '@shared/encaje'
 import type { EstadoPicos } from '@shared/ipc'
 import type { CandidatoLetra } from '@shared/letrasBusqueda'
 import { CC } from './textosComprobacion'
@@ -12,18 +12,23 @@ export type Comprobacion =
   | { tipo: 'noDisponible' }
   | { tipo: 'coincide' }
   | { tipo: 'desfasada'; desfaseMs: number }
-  | { tipo: 'dudosa' }
+  | { tipo: 'dudosa'; limitacion?: LimitacionEncaje }
   | { tipo: 'noCoincide' }
 
 /** Veredicto → comprobación; `no_comprobable` (menos de 5 líneas con inicio) no muestra nada. */
-export function deVeredicto(veredicto: VeredictoEncaje, desfaseMs: number): Comprobacion {
+export function deVeredicto(
+  veredicto: VeredictoEncaje,
+  desfaseMs: number,
+  limitacion?: LimitacionEncaje | null
+): Comprobacion {
   switch (veredicto) {
     case 'coincide':
       return { tipo: 'coincide' }
     case 'desfasada':
       return { tipo: 'desfasada', desfaseMs }
     case 'dudosa':
-      return { tipo: 'dudosa' }
+      // Con limitación, `desfaseMs` es informativo: nunca se presenta como propuesta.
+      return limitacion ? { tipo: 'dudosa', limitacion } : { tipo: 'dudosa' }
     case 'no_coincide':
       return { tipo: 'noCoincide' }
     case 'no_comprobable':
@@ -50,7 +55,7 @@ export function comprobacionDe(
   separada: boolean
 ): Comprobacion {
   if (c.sincronia === 'texto') return { tipo: 'ninguna' }
-  if (c.encaje) return deVeredicto(c.encaje.veredicto, c.encaje.desfaseMs)
+  if (c.encaje) return deVeredicto(c.encaje.veredicto, c.encaje.desfaseMs, c.encaje.limitacion)
   if (c.encaje === null) return { tipo: 'ninguna' }
   return sinPicos(picos, separada) ?? { tipo: 'comprobando' }
 }
@@ -75,7 +80,7 @@ export function textoComprobacion(
     case 'coincide':
       return CC.coincide
     case 'dudosa':
-      return CC.dudosa
+      return c.limitacion ? CC.dudosaLimitada : CC.dudosa
     case 'noCoincide':
       return CC.noCoincide
     case 'desfasada':

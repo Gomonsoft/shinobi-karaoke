@@ -1,3 +1,5 @@
+import { CircleHelp } from 'lucide-react'
+import { FilaConIcono } from '../../letra/FilaConIcono'
 import { CC, mmss } from '../../letra/textosComprobacion'
 import { Boton } from '../../../componentes/Boton'
 import { Dialogo } from '../../../componentes/Dialogo'
@@ -149,10 +151,11 @@ export function DialogosComprobar({
       </Dialogo>
     )
   }
+  const limitacion = dialogo.limitacion
   return (
     <Dialogo
       abierto
-      titulo={K.dudosa.titulo}
+      titulo={limitacion ? K.limitada.titulo : K.dudosa.titulo}
       onCancelar={alCancelar}
       enfoqueInicial="[data-cerrar-dudosa]"
       acciones={
@@ -161,7 +164,13 @@ export function DialogosComprobar({
         </Boton>
       }
     >
-      <p>{K.dudosa.cuerpo}</p>
+      {limitacion ? (
+        <p className={estilos.nota}>
+          <FilaConIcono icono={CircleHelp}>{K.limitada[limitacion]}</FilaConIcono>
+        </p>
+      ) : (
+        <p>{K.dudosa.cuerpo}</p>
+      )}
     </Dialogo>
   )
 }

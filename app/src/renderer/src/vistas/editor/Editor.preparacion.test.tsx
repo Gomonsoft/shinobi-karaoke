@@ -106,11 +106,29 @@ it('F5-E1: ya revisada, no sale el banner', async () => {
   expect(screen.queryByText(/Shinobi Karaoke preparó esta canción/)).toBeNull()
 })
 
-it('F5-E4: sin registro de preparación no hay banner ni bloque', async () => {
-  montar(preparada(false))
+it('F5-E4: sin registro de preparación y sin fines suyos no hay banner ni bloque', async () => {
+  const c = preparada(false)
+  for (const l of c.letra!.lineas) delete l.origen_fin
+  montar(c)
   fireEvent.click(await screen.findByRole('radio', { name: 'Funciones' }))
   expect(screen.queryByRole('heading', { name: 'Preparación automática' })).toBeNull()
   expect(screen.queryByText(/Shinobi Karaoke preparó esta canción/)).toBeNull()
+})
+
+it('0386: una Lista sin registro con fines de la preparación ofrece [Quitar esos fines], sin banner', async () => {
+  montar(preparada(false))
+  fireEvent.click(await screen.findByRole('radio', { name: 'Funciones' }))
+  const bloque = (await screen.findByRole('heading', { name: 'Preparación automática' })).closest(
+    'section'
+  ) as HTMLElement
+  expect(within(bloque).getByText('Pediste ajustar los fines que faltaban:')).toBeVisible()
+  expect(within(bloque).getByText('· Fin de 5 líneas ajustado con la voz.')).toBeVisible()
+  expect(screen.queryByText(/Shinobi Karaoke preparó esta canción/)).toBeNull()
+  fireEvent.click(within(bloque).getByRole('button', { name: 'Quitar esos fines' }))
+  expect(await screen.findByText('5 líneas vuelven al fin automático.')).toBeVisible()
+  // Un solo paso de deshacer lo devuelve.
+  fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
+  expect(await screen.findByRole('button', { name: 'Quitar esos fines' })).toBeVisible()
 })
 
 it('F5-E2/E3: el bloque lista lo que sigue en pie y [Quitar esos fines] conserva el fin de una línea tocada', async () => {

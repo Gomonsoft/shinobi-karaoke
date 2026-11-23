@@ -19,16 +19,25 @@ export type Vista =
   | { tipo: 'primer-arranque' }
   | {
       tipo: 'biblioteca'
-      enfocar?: { id: string; resaltar: boolean }
+      enfocar?: {
+        id: string
+        resaltar: boolean
+        /** Todas las canciones que se resaltan 2 s con borde `info` (las importadas de un paquete); pasa a «Todas» si el filtro oculta alguna. */
+        tambien?: string[]
+      }
       /** Abre el diálogo «Resultado de la preparación» de la última tanda (0.2.2 · feature 5). */
       abrirResultado?: true
       /** Casilla de la bandeja de pendientes que se activa al llegar (filtro en «Borradores»). */
       casilla?: 'revisar' | 'letra' | 'error'
+      /** Acaba de añadirse un lote (spec 02 · feature 7): `bib.import.anadidas`. */
+      lote?: { n: number; conLetra: boolean }
     }
   /** `archivo`: ruta de un archivo arrastrado sobre la Biblioteca (la vista 03 lo recibe). */
   | {
       tipo: 'anadir'
       archivo?: string
+      /** Varios archivos o una carpeta arrastrados sobre la Biblioteca: abre el modo lote (spec 02 · feature 7). */
+      archivos?: string[]
       iniciales?: DatosInicialesAnadir
       /** Vuelve de Ajustes («Cambiar en Ajustes», spec 03 · F6-N8): recupera lo escrito. */
       restaurar?: true

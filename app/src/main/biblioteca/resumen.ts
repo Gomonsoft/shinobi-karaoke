@@ -21,6 +21,7 @@ import {
   estaIncompleta,
   modalidadEfectiva,
   estadoPreparacion,
+  aplicaPreparar,
   numerosLineasSinInicio,
   type EstadoPreparacionDerivado,
   type ResumenPreparacionIpc
@@ -61,6 +62,10 @@ export interface ResumenCancion {
   pasos: Record<NombrePaso, ResumenPaso> | null
   incompleta: boolean
   lineasSinSincronizar: number
+  /** Líneas con inicio: «Exportar la letra (.lrc)» solo vale con al menos una (0.2.2 · feature 9). */
+  lineasConTiempo?: number
+  /** Origen del audio: una Lista sin audio importada de un paquete ligero dice «descargar» o «preparar». */
+  fuenteTipo?: 'archivo' | 'youtube'
   danada: boolean
   motivo: MotivoDanada | null
   /** Solo con `motivo === 'pistas'`: tampoco existe `fuente/mezcla.flac` (no se puede re-separar). */
@@ -68,6 +73,10 @@ export interface ResumenCancion {
   /** Registro de la preparación (0.2.2) sin ids; `null` sin registro. */
   preparacion?: ResumenPreparacionIpc | null
   estadoPreparacion?: EstadoPreparacionDerivado | null
+  /** «Preparar» solo pondría fines y exige confirmar (letra sin `intacta`; ADR 0025, revisión 0278). */
+  prepararFinesSinMarca?: boolean
+  /** Líneas con inicio y sin fin; solo con `prepararFinesSinMarca`. */
+  lineasSinFin?: number
 }
 
 function resumenPreparacion(c: Cancion): ResumenPreparacionIpc | null {
@@ -200,11 +209,20 @@ export function resumirCancion(
     pasos,
     incompleta: estaIncompleta(cancion),
     lineasSinSincronizar: numerosLineasSinInicio(cancion.letra).length,
+    lineasConTiempo:
+      cancion.letra?.lineas.filter((l) => l.tipo === 'linea' && l.inicio_ms !== null).length ?? 0,
+    fuenteTipo: cancion.fuente.tipo,
     danada: danada !== null,
     motivo: danada,
     ...(danada === 'pistas' && sinMezcla ? { sinMezcla: true } : {}),
     preparacion: resumenPreparacion(cancion),
-    estadoPreparacion: danada ? null : estadoPreparacion(cancion)
+    estadoPreparacion: danada ? null : estadoPreparacion(cancion),
+    prepararFinesSinMarca: !danada && aplicaPreparar(cancion).confirmar === 'finesSinMarca',
+    lineasSinFin: !danada
+      ? (cancion.letra?.lineas.filter(
+          (l) => l.tipo === 'linea' && l.inicio_ms !== null && l.fin_ms === null
+        ).length ?? 0)
+      : 0
   }
 }
 
