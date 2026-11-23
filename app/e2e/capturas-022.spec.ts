@@ -12,7 +12,15 @@ import { E } from '../src/renderer/src/vistas/editor/textos'
 import { T_PANTALLA } from '../src/renderer/src/vistas/editor/estilo/textosPantalla'
 import { R } from '../src/renderer/src/vistas/reproductor/textos'
 import { abrirEditor, idSemilla, lanzar } from './fixtures/editor'
-import { leerCancion, tarjeta } from './fixtures/separacion'
+import {
+  cerrar as cerrarFalso,
+  irAAnadir,
+  lanzar as lanzarFalso,
+  leerCancion,
+  preparar as prepararFalso,
+  tarjeta
+} from './fixtures/separacion'
+import { escribirWavConVoz } from './fixtures/lrclib/wavConVoz'
 import { pulsosFlac } from '../src/main/biblioteca/flac'
 import { K } from '../src/renderer/src/vistas/editor/comprobar/textos'
 import { CC } from '../src/renderer/src/vistas/letra/textosComprobacion'
@@ -28,7 +36,8 @@ import { crearTemporal } from './temporales'
  *   SHINOBI_CAPTURAS_022_2=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
  *   SHINOBI_CAPTURAS_022_4=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
  *   SHINOBI_CAPTURAS_022_6=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 6, 0305)
- *   SHINOBI_CAPTURAS_022_11=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 11, 0335)
+ *   SHINOBI_CAPTURAS_022_11=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 11, 0335 y 0337)
+ *   SHINOBI_CAPTURAS_022_5=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 5, 0312)
  *
  * No escribe nada en el CI. Cada estado es independiente: si uno falla se anota y se sigue.
  */
@@ -38,7 +47,10 @@ const F2 = process.env.SHINOBI_CAPTURAS_022_2 === '1'
 const F4 = process.env.SHINOBI_CAPTURAS_022_4 === '1'
 const F11 = process.env.SHINOBI_CAPTURAS_022_11 === '1'
 const F6 = process.env.SHINOBI_CAPTURAS_022_6 === '1'
-const RAIZ = join(process.cwd(), '..', 'docs', 'ux', 'revisiones')
+const F5 = process.env.SHINOBI_CAPTURAS_022_5 === '1'
+// `SHINOBI_CAPTURAS_RAIZ` permite generar desde otra copia del repositorio sin el submódulo `docs/`.
+const RAIZ =
+  process.env.SHINOBI_CAPTURAS_RAIZ ?? join(process.cwd(), '..', 'docs', 'ux', 'revisiones')
 const ID = idSemilla(20)
 const TITULO = 'Reproductor: lista'
 
@@ -222,7 +234,7 @@ function suite(
         await a()
       } catch (e) {
         fallos.push(`${n}: ${String(e).split('\n')[0]}`)
-        console.log(`FALLO ${n}: ${String(e).split('\n')[0]}`)
+        console.log(`FALLO ${n}: ${String(e).split('\n').slice(0, 8).join(' | ')}`)
       }
     }
     const foto = async (p: Page, nombre: string): Promise<void> => {
@@ -1008,6 +1020,87 @@ suite(
       }
     }
 
+    // ---- Biblioteca (F11-B4): tarjeta con líneas por revisar, otra sin dudosas y el menú ⋯; y el diálogo.
+    const registroLista = (dudosas: number, importantes: number) => {
+      const ahora = new Date().toISOString()
+      return {
+        estado: 'lista_para_revisar',
+        paso: null,
+        origen: 'automatica',
+        actualizado: ahora,
+        eleccion: { por: 'app', fecha: ahora, lrclib_id: 4242 },
+        fines: { metodo: 'silencios', lineas: 3 },
+        dudosas,
+        dudosas_importantes: importantes,
+        revisada: false
+      }
+    }
+    /** 6: «Lista para revisar» con 4 por revisar (2 importantes); 5: «Lista para revisar» con 0; 15 queda sin registro. */
+    const prepararBiblioteca = (datos: string): void => {
+      const completa = (n: number): void => {
+        const c = leerCancion(datos, idSemilla(n))
+        let t = 2000
+        for (const l of c.letra.lineas) if (l.tipo === 'linea') l.inicio_ms = t += 3000
+        writeFileSync(join(datos, 'biblioteca', idSemilla(n), 'cancion.json'), JSON.stringify(c))
+      }
+      completa(6)
+      reescribir(datos, 6, {
+        preparacion: registroLista(4, 2),
+        modificada: new Date().toISOString()
+      })
+      reescribir(datos, 5, {
+        preparacion: {
+          ...registroLista(0, 0),
+          eleccion: { por: 'usuario', fecha: new Date().toISOString(), lrclib_id: null }
+        },
+        modificada: new Date(Date.now() - 60_000).toISOString(),
+        letra: {
+          origen: 'manual',
+          lrclib_id: null,
+          offset_ms: 0,
+          lineas: ['Una orilla de papel', 'Dos barcas sin viento', 'Tres luces en la bruma'].map(
+            (texto, i) => ({
+              id: `b${i}`,
+              tipo: 'linea',
+              texto,
+              inicio_ms: 3000 + i * 3000,
+              fin_ms: 5500 + i * 3000,
+              palabras: null
+            })
+          )
+        },
+        pasos: {
+          ...leerCancion(datos, idSemilla(5)).pasos,
+          fuente: { estado: 'completado', actualizado: new Date().toISOString(), error: null },
+          separacion: { estado: 'completado', actualizado: new Date().toISOString(), error: null },
+          letra: { estado: 'completado', actualizado: new Date().toISOString(), error: null }
+        }
+      })
+    }
+    test('biblioteca 1280x800 al 100 % F11-B4', async () => {
+      await intentar('biblioteca-lista-para-revisar', () =>
+        conApp('cap022-bib11', { preparar: prepararBiblioteca }, async (v, app) => {
+          await ponerTamano(app, 1280, 800, v)
+          const revisar = v.getByRole('article', { name: /^Borrador con letra a medias,/ })
+          await expect(revisar).toContainText('4 líneas por revisar')
+          await expect(v.getByRole('article', { name: /^Borrador sin letra,/ })).toContainText(
+            'Sin líneas dudosas'
+          )
+          await revisar.getByRole('button', { name: /^Más acciones de/ }).click()
+          await expect(
+            v.getByRole('menuitem', { name: 'Marcar como lista', exact: true })
+          ).toBeVisible()
+          await foto(v, 'biblioteca-1280x800-100-lista-para-revisar')
+          // El diálogo `bib.revision.dialogo`, con el foco en «Revisar ahora».
+          await v.getByRole('menuitem', { name: 'Marcar como lista', exact: true }).click()
+          const d = v.getByRole('dialog', { name: '¿Marcar como lista sin revisar?' })
+          await expect(d).toBeVisible()
+          await expect(d.getByRole('button', { name: 'Revisar ahora' })).toBeFocused()
+          await foto(v, 'biblioteca-1280x800-100-revision-dialogo')
+        })
+      )
+    })
+
     test('editor 1280x720 al 100 % F11-E16', async () => {
       await tomar(1, '100')()
     })
@@ -1108,7 +1201,7 @@ suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ i
     config.aviso_youtube_aceptado = new Date().toISOString()
     writeFileSync(ruta, JSON.stringify(config))
     const app = await electron.launch({
-      args: ['.'],
+      args: ['--force-device-scale-factor=1', '.'],
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -1208,11 +1301,15 @@ suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ i
     await intentar('unificar', () =>
       conAnadir('cap022-f6-unificar', { wav }, async (v) => {
         await revisarArchivo(v)
-        await v.getByLabel('Álbum').fill('Querido...')
-        await v.keyboard.press('Tab')
+        const album = v.getByLabel('Álbum')
+        await album.fill('Querido...')
+        // La sugerencia aparece sola (400 ms) con el foco aún en el campo (spec 03, D1 corregido).
         await expect(
           v.getByText('¿Te refieres a «Querido…», que ya está en tu biblioteca?')
         ).toBeVisible()
+        await expect(album).toBeFocused()
+        // El formulario no cabe en 800 px: se desplaza para que se vean el campo, la sugerencia y sus botones.
+        await v.getByRole('button', { name: /^Usar «Querido/ }).scrollIntoViewIfNeeded()
         await foto(v, nombre('unificar'))
       })
     )
@@ -1234,11 +1331,12 @@ suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ i
         await foto(v, 'biblioteca-1280x800-100-editar-datos-autocompletado')
         await v.keyboard.press('Escape')
         await expect(d).toBeVisible()
-        await d.getByLabel('Álbum (opcional)').fill('Querido...')
-        await v.keyboard.press('Tab')
+        const album = d.getByLabel('Álbum (opcional)')
+        await album.fill('Querido...')
         await expect(
           v.getByText('¿Te refieres a «Querido…», que ya está en tu biblioteca?')
         ).toBeVisible()
+        await expect(album).toBeFocused()
         await foto(v, 'biblioteca-1280x800-100-editar-datos-unificar')
         await artista.fill('Quimera')
         await v.keyboard.press('Escape')
@@ -1249,6 +1347,398 @@ suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ i
         await expect(artista).toHaveValue('Canción lista')
         await foto(v, 'biblioteca-1280x800-100-editar-datos-intercambio')
       })
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------- feature 5
+suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ intentar, foto }) => {
+  const ahora = (): string => new Date().toISOString()
+  const registro = (estado: string, extra: Record<string, unknown> = {}) => ({
+    estado,
+    paso: null,
+    origen: 'automatica',
+    actualizado: ahora(),
+    dudosas: 0,
+    revisada: false,
+    ...extra
+  })
+  const completa = (datos: string, n: number): void => {
+    const c = leerCancion(datos, idSemilla(n))
+    let t = 2000
+    for (const l of c.letra.lineas) if (l.tipo === 'linea') l.inicio_ms = t += 3000
+    writeFileSync(join(datos, 'biblioteca', idSemilla(n), 'cancion.json'), JSON.stringify(c))
+  }
+
+  /** Biblioteca con una Lista (1), una «Lista para revisar» (6), un «Elige la letra» (5) y un «No encontramos la letra» (4). */
+  const prepararBiblioteca = (datos: string): void => {
+    completa(datos, 6)
+    reescribir(datos, 6, {
+      preparacion: registro('lista_para_revisar', {
+        eleccion: { por: 'app', fecha: ahora(), lrclib_id: 4242 },
+        fines: { metodo: 'silencios', lineas: 3 },
+        dudosas: 2
+      }),
+      modificada: ahora()
+    })
+    reescribir(datos, 5, {
+      preparacion: registro('elige_letra', {
+        busqueda: {
+          resultado: 'elige',
+          candidatas: 3,
+          motivo: null,
+          no_elige: 'varias',
+          ids: [11, 12, 13]
+        }
+      }),
+      modificada: new Date(Date.now() - 60_000).toISOString()
+    })
+    // La 3 (una Lista de la semilla) pasa a ser un borrador sin letra: copia de la 5 con otro título.
+    const c5 = leerCancion(datos, idSemilla(5))
+    reescribir(datos, 3, {
+      ...c5,
+      id: idSemilla(3),
+      metadatos: { ...c5.metadatos, titulo: 'Borrador sin coincidencia', artista: 'Artista Tres' },
+      preparacion: registro('sin_letra', {
+        busqueda: { resultado: 'sin_letra', candidatas: 0, motivo: null, ids: [] }
+      }),
+      modificada: new Date(Date.now() - 120_000).toISOString()
+    })
+    reescribir(datos, 1, { modificada: new Date(Date.now() - 180_000).toISOString() })
+  }
+
+  test('biblioteca 1280x800 y 1024x640 al 100 % F5-B11', async () => {
+    await intentar('biblioteca-lista-para-revisar', () =>
+      conApp('cap022-bib5', { preparar: prepararBiblioteca }, async (v, app) => {
+        await ponerTamano(app, 1280, 800, v)
+        await expect(
+          v.getByRole('article', { name: /^Borrador con letra a medias,/ })
+        ).toContainText('Revisar')
+        await expect(v.getByRole('article', { name: /^Borrador sin letra,/ })).toContainText(
+          'Elige la letra'
+        )
+        await foto(v, 'biblioteca-1280x800-100-lista-para-revisar')
+        const bandeja = v.getByRole('group', { name: 'Pendientes de ti:' })
+        await expect(bandeja).toBeVisible()
+        await bandeja.getByRole('button').first().focus()
+        await foto(v, 'biblioteca-1280x800-100-bandeja')
+        await bandeja.getByRole('button', { name: /listas? para revisar/ }).click()
+        await expect(v.getByRole('article').first()).toBeVisible()
+        await foto(v, 'biblioteca-1280x800-100-bandeja-filtrada')
+        await bandeja.getByRole('button', { name: /listas? para revisar/ }).click()
+        await ponerTamano(app, 1024, 640, v)
+        await foto(v, 'biblioteca-1024x640-100-bandeja')
+      })
+    )
+    await intentar('biblioteca-retomando', async () => {
+      const env = prepararFalso('cap022-retomando', { segundos: 60, pasos: 60 })
+      await sembrar(env.datos)
+      mkdirSync(join(env.datos, 'trabajos'), { recursive: true })
+      writeFileSync(
+        join(env.datos, 'trabajos', 'pendientes.json'),
+        JSON.stringify([
+          {
+            cancionId: idSemilla(8),
+            tipo: 'separacion',
+            orden: 0,
+            interrupciones: 0,
+            enCurso: true
+          },
+          {
+            cancionId: idSemilla(14),
+            tipo: 'separacion',
+            orden: 1,
+            interrupciones: 0,
+            enCurso: false
+          }
+        ])
+      )
+      const app = await lanzarFalso(
+        env,
+        { SHINOBI_SILENCIAR_AUDIO: '1', SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1' },
+        ['--force-device-scale-factor=1']
+      )
+      try {
+        const v = await app.firstWindow()
+        await ponerTamano(app, 1280, 800, v)
+        await expect(
+          v.getByText(/Retomando 2 canciones que quedaron a medias al cerrar/)
+        ).toBeVisible({ timeout: 30_000 })
+        await foto(v, 'biblioteca-1280x800-100-retomando')
+      } finally {
+        await cerrarFalso(app)
+      }
+    })
+  })
+
+  /** Añade el WAV con voz con ese título (y artista) y deja abierta la vista de progreso. */
+  async function conFlujo(
+    nombre: string,
+    titulo: string,
+    artista: string | null,
+    prueba: (v: Page, app: ElectronApplication) => Promise<void>,
+    escenario = { segundos: 3, pasos: 6 }
+  ): Promise<void> {
+    const env = prepararFalso(nombre, escenario)
+    escribirWavConVoz(env.wav)
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzarFalso(
+      env,
+      { SHINOBI_SILENCIAR_AUDIO: '1', SHINOBI_LRCLIB_URL: lrclib.url },
+      ['--force-device-scale-factor=1']
+    )
+    try {
+      const v = await app.firstWindow()
+      await ponerTamano(app, 1280, 800, v)
+      await irAAnadir(v)
+      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await expect(v.getByLabel('Título')).toBeVisible({ timeout: 30_000 })
+      await v.getByLabel('Título').fill(titulo)
+      if (artista) await v.getByLabel('Artista').fill(artista)
+      await v.getByRole('button', { name: 'Continuar' }).click()
+      await expect(v.getByRole('heading', { level: 1 })).toBeVisible()
+      await prueba(v, app)
+    } finally {
+      await cerrarFalso(app)
+      await lrclib.cerrar()
+    }
+  }
+
+  test('progreso y letra 1280x800 al 100 % F5-P12 y F5-L8', async () => {
+    await intentar('progreso-preparando', () =>
+      conFlujo(
+        'cap022-prog-prep',
+        TITULOS.lenta,
+        'Artista inventado',
+        async (v) => {
+          await expect(v.getByText('Preparando tu canción')).toBeVisible({ timeout: 20_000 })
+          await expect(
+            v.getByRole('list', { name: 'Subpasos' }).getByText(/Buscando la letra en LRCLIB/)
+          ).toBeVisible({ timeout: 20_000 })
+          await foto(v, 'progreso-1280x800-100-preparando')
+        },
+        { segundos: 3, pasos: 40 }
+      )
+    )
+    await intentar('progreso-lista-para-revisar y letra-elegida-sola', () =>
+      conFlujo('cap022-prog-r1', TITULOS.conVoz, 'Artista inventado', async (v) => {
+        await expect(
+          v.getByText('Escúchala, corrige lo que no coincida y márcala como lista.')
+        ).toBeVisible({
+          timeout: 90_000
+        })
+        await v.getByRole('button', { name: 'Revisar', exact: true }).scrollIntoViewIfNeeded()
+        await foto(v, 'progreso-1280x800-100-lista-para-revisar')
+        await v.getByRole('button', { name: /^Paso 3/ }).click()
+        await expect(v.getByRole('heading', { level: 1, name: 'Letra' })).toBeVisible()
+        await expect(v.getByText(/Elegimos esta letra por ti/)).toBeVisible()
+        await foto(v, 'letra-1280x800-100-elegida-sola')
+      })
+    )
+    await intentar('progreso-elige-la-letra y letra-elige-la-letra', () =>
+      conFlujo('cap022-prog-r2', TITULOS.conVoz, null, async (v) => {
+        await expect(v.getByText('Elige la letra', { exact: true }).first()).toBeVisible({
+          timeout: 90_000
+        })
+        await expect(v.getByRole('button', { name: 'Elegir la letra' })).toBeVisible()
+        await v.getByRole('button', { name: 'Elegir la letra' }).scrollIntoViewIfNeeded()
+        await foto(v, 'progreso-1280x800-100-elige-la-letra')
+        await v.getByRole('button', { name: 'Elegir la letra' }).click()
+        await expect(v.getByRole('heading', { level: 1, name: 'Letra' })).toBeVisible()
+        await expect(v.getByRole('option').first()).toBeVisible({ timeout: 20_000 })
+        await v.waitForTimeout(1500)
+        await foto(v, 'letra-1280x800-100-elige-la-letra')
+      })
+    )
+    await intentar('progreso-no-encontrada', () =>
+      conFlujo('cap022-prog-r3', TITULOS.inexistente, 'Artista inventado', async (v) => {
+        await expect(v.getByText('No encontramos la letra', { exact: true }).first()).toBeVisible({
+          timeout: 90_000
+        })
+        await v.getByRole('button', { name: 'Añadir la letra' }).scrollIntoViewIfNeeded()
+        await foto(v, 'progreso-1280x800-100-no-encontrada')
+      })
+    )
+    await intentar('progreso-letra-pendiente', () =>
+      conApp(
+        'cap022-prog-r4',
+        {
+          preparar: (datos) =>
+            reescribir(datos, 5, {
+              preparacion: registro('error', {
+                busqueda: {
+                  resultado: 'pendiente',
+                  candidatas: 0,
+                  motivo: 'SIN_CONEXION',
+                  ids: []
+                },
+                error: { codigo: 'SIN_CONEXION', mensaje: '' }
+              })
+            })
+        },
+        async (v, app) => {
+          await ponerTamano(app, 1280, 800, v)
+          await v.getByRole('searchbox', { name: /^Buscar título/ }).fill('Borrador sin letra')
+          const t = tarjeta(v, 'Borrador sin letra')
+          await expect(t).toContainText('Letra pendiente')
+          // La vista de progreso de esa canción: por el paso 2 del hilo de pasos de su vista Letra.
+          await t.getByRole('button', { name: /^Más acciones de/ }).click()
+          await v
+            .getByRole('menuitem', { name: /Continuar|Añadir la letra|Elegir la letra/ })
+            .first()
+            .dispatchEvent('click')
+          await expect(v.getByRole('heading', { level: 1 })).toBeVisible()
+          await v.getByRole('button', { name: /^Paso 2/ }).click()
+          await expect(v.getByRole('heading', { name: /No pudimos buscar la letra/ })).toBeVisible({
+            timeout: 20_000
+          })
+          await foto(v, 'progreso-1280x800-100-letra-pendiente')
+        }
+      )
+    )
+  })
+
+  test('editor 1280x720 al 100 % F5-E5', async () => {
+    await intentar('editor-preparacion-automatica', () =>
+      conApp(
+        'cap022-ed5',
+        {
+          preparar: (datos) => {
+            const raiz = join(datos, 'biblioteca', ID)
+            writeFileSync(
+              join(raiz, 'pistas', 'voz.flac'),
+              pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs: 2000, desfaseMs: 2000 })
+            )
+            const c = leerCancion(datos, ID)
+            reescribir(datos, 20, {
+              estado: 'borrador',
+              pasos: { ...c.pasos, edicion: { ...c.pasos.edicion, estado: 'pendiente' } },
+              letra: {
+                ...c.letra,
+                origen: 'lrclib',
+                lrclib_id: 4242,
+                offset_ms: 0,
+                desfase_corregido_ms: 800,
+                lineas: [2000, 7000, 12_000, 17_000, 22_000, 27_000].map((inicio, i) => ({
+                  id: `p${i}`,
+                  tipo: 'linea',
+                  texto: CORTOS[i],
+                  inicio_ms: inicio,
+                  fin_ms: inicio + 2000,
+                  palabras: null,
+                  ...(i < 4 ? { origen_fin: 'preparacion' } : {})
+                }))
+              },
+              preparacion: registro('lista_para_revisar', {
+                eleccion: { por: 'app', fecha: ahora(), lrclib_id: 4242 },
+                desfase_ms: 800,
+                fines: { metodo: 'silencios', lineas: 4 },
+                dudosas: 0
+              })
+            })
+          }
+        },
+        async (v, app) => {
+          await ponerTamano(app, 1280, 720, v)
+          await abrirEditor(v, TITULO)
+          // «Revisar» abre con la revisión guiada; con 0 pendientes, el fin de la revisión.
+          await v.getByRole('radio', { name: 'Funciones' }).click()
+          await expect(v.getByRole('heading', { name: 'Preparación automática' })).toBeVisible()
+          await v.getByRole('heading', { name: 'Preparación automática' }).scrollIntoViewIfNeeded()
+          await foto(v, 'editor-1280x720-100-preparacion-automatica')
+        }
+      )
+    )
+  })
+
+  test('ajustes 1280x800 al 100 % F5-J8', async () => {
+    const config = (datos: string, automatica: boolean): void => {
+      const ruta = join(datos, 'config.json')
+      const c = existsSync(ruta) ? JSON.parse(readFileSync(ruta, 'utf8')) : { esquema: 1 }
+      writeFileSync(ruta, JSON.stringify({ ...c, preparacion: { automatica } }))
+    }
+    const hacer = async (
+      id: string,
+      automatica: boolean,
+      nombre: string,
+      conPendientes: boolean
+    ) => {
+      const datos = crearTemporal(`cap022-aj5-${id}`)
+      await sembrar(datos)
+      config(datos, automatica)
+      // La semilla trae «Borrador sin letra» (fuente lista y sin letra): cuenta como pendiente. Sin él, no hay aviso.
+      if (!conPendientes) {
+        for (const n of [4, 5, 6, 14, 15]) {
+          const c = leerCancion(datos, idSemilla(n))
+          if (c.estado === 'borrador') reescribir(datos, n, { estado: 'lista' })
+        }
+      }
+      const app = await lanzar(datos, 1)
+      try {
+        const v = await app.firstWindow()
+        await ponerTamano(app, 1280, 800, v)
+        await v.getByRole('button', { name: 'Ajustes', exact: true }).click()
+        await expect(
+          v.getByRole('checkbox', { name: /Buscar la letra automáticamente/ })
+        ).toBeVisible()
+        await v
+          .getByRole('heading', { name: 'Letras y preparación automática' })
+          .scrollIntoViewIfNeeded()
+        if (conPendientes) {
+          // Marcar la casilla con borradores «Falta la letra» muestra el aviso con el recuento (F5-J5).
+          await v.getByRole('checkbox', { name: /Buscar la letra automáticamente/ }).check()
+          await expect(v.getByText(/Tienes \d+ borradores? sin letra/)).toBeVisible({
+            timeout: 10_000
+          })
+        }
+        await foto(v, nombre)
+      } finally {
+        await app.close().catch(() => undefined)
+      }
+    }
+    await intentar('ajustes-letras', () => hacer('a', true, 'ajustes-1280x800-100-letras', false))
+    await intentar('ajustes-letras-desactivada', () =>
+      hacer('b', false, 'ajustes-1280x800-100-letras-desactivada', false)
+    )
+    await intentar('ajustes-letras-pendientes', () =>
+      hacer('c', false, 'ajustes-1280x800-100-letras-pendientes', true)
+    )
+  })
+
+  test('Editar datos con datos de LRCLIB 1280x800 al 100 % F5 (F6-N7)', async () => {
+    await intentar('editar-datos-lrclib', () =>
+      conApp(
+        'cap022-lrclib',
+        {
+          temas: true,
+          preparar: (datos) => {
+            const c = leerCancion(datos, idSemilla(15))
+            reescribir(datos, 15, {
+              metadatos: { ...c.metadatos, album: 'Cartas al mar', origen: { album: 'lrclib' } },
+              letra: {
+                ...c.letra,
+                datos_lrclib: {
+                  titulo: 'Luces sobre el río dormido',
+                  artista: 'Artista Quince',
+                  album: 'Orillas de papel'
+                }
+              }
+            })
+          }
+        },
+        async (v, app) => {
+          await ponerTamano(app, 1280, 800, v)
+          await v
+            .getByRole('searchbox', { name: /^Buscar título/ })
+            .fill('Letra de LRCLIB sincronizada')
+          const t = tarjeta(v, 'Letra de LRCLIB sincronizada')
+          await t.getByRole('button', { name: /^Más acciones de/ }).click()
+          await v.getByRole('menuitem', { name: 'Editar datos' }).click()
+          const d = v.getByRole('dialog', { name: 'Editar datos' })
+          await expect(d.getByText(/LRCLIB la llama/)).toBeVisible()
+          await foto(v, 'anadir-1280x800-100-editar-datos-lrclib')
+        }
+      )
     )
   })
 })

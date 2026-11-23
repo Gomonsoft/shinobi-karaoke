@@ -8,6 +8,7 @@ import {
   type Locator,
   type Page
 } from '@playwright/test'
+import { iniciarServidorLrclib } from './fixtures/lrclib/servidor'
 import { crearTemporal } from './temporales'
 
 /**
@@ -271,6 +272,50 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       )
     } finally {
       await cerrar(app)
+    }
+  })
+
+  test('privacidad: con «Buscar la letra automáticamente» apagado una descarga de YouTube no hace ninguna petición a LRCLIB', async () => {
+    const env = preparar('yt-privacidad')
+    const config = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
+    writeFileSync(
+      join(env.datos, 'config.json'),
+      JSON.stringify({ ...config, preparacion: { automatica: false } })
+    )
+    // El doble cuenta todas las peticiones (también un HEAD de comprobación de conexión).
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, { SHINOBI_LRCLIB_URL: lrclib.url })
+    try {
+      const v = await app.firstWindow()
+      await añadir(v, NORMAL)
+      await expect(filaDescarga(v)).toContainText('completado', { timeout: 60_000 })
+      await expect(filaPreparar(v)).toContainText('completado', { timeout: 60_000 })
+      // La cola automática empezaría en el acto: margen para cualquier búsqueda diferida.
+      await v.waitForTimeout(3000)
+      expect(lrclib.peticiones).toHaveLength(0)
+      expect(canciones(env.datos)).toHaveLength(1)
+      const c = leerCancion(env.datos, canciones(env.datos)[0]!) as unknown as {
+        preparacion?: unknown
+      }
+      expect(c.preparacion ?? null).toBeNull()
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
+    }
+  })
+
+  test('con la búsqueda automática activada, una descarga de YouTube lanza su búsqueda al doble (control de la prueba de privacidad)', async () => {
+    const env = preparar('yt-privacidad-control')
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, { SHINOBI_LRCLIB_URL: lrclib.url })
+    try {
+      const v = await app.firstWindow()
+      await añadir(v, NORMAL)
+      await expect.poll(() => lrclib.peticiones.length, { timeout: 60_000 }).toBeGreaterThan(0)
+      expect(lrclib.peticiones.every((p) => p.ruta.startsWith('/api/'))).toBe(true)
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
     }
   })
 
