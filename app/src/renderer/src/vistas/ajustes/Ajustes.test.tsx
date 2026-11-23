@@ -243,7 +243,9 @@ describe('Ajustes: Rápido en uso', () => {
 
   it('"Créditos y licencias" abre el diálogo de créditos', async () => {
     const { runtime } = await abrir({ rapido: true })
-    expect(runtime.estimarSeparacion).toHaveBeenCalledWith(240000, 'calidad')
+    await waitFor(() =>
+      expect(runtime.estimarSeparacion).toHaveBeenCalledWith(240000, 'calidad')
+    )
     const aviso = screen.getByText(/Lo usas bajo tu responsabilidad/).closest('[role="status"]')!
     fireEvent.click(
       within(aviso as HTMLElement).getByRole('button', { name: 'Créditos y licencias' })
