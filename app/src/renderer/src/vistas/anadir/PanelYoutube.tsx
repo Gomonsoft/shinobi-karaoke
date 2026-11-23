@@ -188,6 +188,8 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
       if (e.defaultPrevented || hayCapaAbierta()) return
       const campo = e.target instanceof Element ? e.target.closest('input, textarea, select') : null
       if (campo && !campo.closest('[data-panel-anadir]')) return
+      // Con la lista de sugerencias abierta, Esc solo la cierra (la cierra el propio campo).
+      if (campo?.getAttribute('aria-expanded') === 'true') return
       e.preventDefault()
       if (ref.current.buscando) cancelarBusqueda()
       else ir({ tipo: 'biblioteca' })
@@ -374,6 +376,8 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               <p className={estilos.ayuda}>{TEXTO.datosAyuda}</p>
             </div>
             <CamposDatos
+              key={info.consultaId}
+              propuesta={iniciales ? null : info.datos}
               valores={valores}
               onCambio={(v) => {
                 setValores(v)

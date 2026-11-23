@@ -185,3 +185,92 @@
 .reintento svg {
   color: var(--info);
 }
+
+/* ---------- Datos propuestos, sugerencias y unificar (0.2.2 · Feature 6) ---------- */
+.desplegar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: var(--alto-boton);
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  cursor: pointer;
+}
+
+.lista {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 0;
+  padding: var(--e-1) 0;
+  list-style: none;
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.3);
+}
+
+.opcion {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding: var(--e-2) var(--e-3);
+  color: var(--texto-1);
+  cursor: pointer;
+}
+
+.opcion:hover,
+.activa {
+  background: var(--fondo-3, var(--fondo-1));
+}
+
+.opcionValor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opcionCantidad {
+  flex: none;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+
+.procedencia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+}
+
+.procedenciaDudosa {
+  color: var(--aviso);
+}
+
+.unificar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.accionCampo {
+  justify-self: start;
+}
+
+.anuncio {
+  min-height: 0;
+  margin: 0;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+.anuncio:empty {
+  display: none;
+}

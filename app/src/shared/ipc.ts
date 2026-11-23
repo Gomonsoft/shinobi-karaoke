@@ -1,7 +1,15 @@
 import { z } from 'zod'
 import { CANALES } from './canales'
 import type { AbrirCancionIpc, AvisoTrabajoIpc } from './avisos'
-import { cancionSchema, ESTADOS_PASO, MODALIDADES, NOMBRES_PASO } from './cancion'
+import {
+  cancionSchema,
+  ESTADOS_PASO,
+  ESTADOS_PREPARACION,
+  MODALIDADES,
+  NOMBRES_PASO,
+  PASOS_PREPARACION,
+  RESULTADOS_BUSQUEDA
+} from './cancion'
 import { CODIGOS_ERROR } from './errores'
 import { compilacionSchema } from './compilacion'
 import { estiloSchema } from './estilo'
@@ -472,6 +480,32 @@ export type CrearTema = z.infer<typeof crearTemaSchema>
 export type RenombrarTema = z.infer<typeof renombrarTemaSchema>
 export type DuplicarTema = z.infer<typeof duplicarTemaSchema>
 
+export const ESTADOS_PREPARACION_DERIVADOS = [
+  'lista_para_revisar',
+  'preparando',
+  'elige_letra',
+  'sin_letra',
+  'instrumental',
+  'letra_pendiente',
+  'detenida',
+  'error'
+] as const
+export const resumenPreparacionSchema = z.object({
+  estado: z.enum(ESTADOS_PREPARACION),
+  paso: z.enum(PASOS_PREPARACION).nullable(),
+  busqueda: z
+    .object({ resultado: z.enum(RESULTADOS_BUSQUEDA), candidatas: z.number().int().nonnegative() })
+    .nullable(),
+  /** Líneas dudosas pendientes (feature 11 las mantiene al día). */
+  dudosas: z.number().int().nonnegative(),
+  revisada: z.boolean(),
+  /** La eligió la app y no la ha cambiado el usuario (línea «Letra elegida automáticamente»). */
+  eleccionAutomatica: z.boolean(),
+  /** Se corrigió el desfase al elegirla (`bib.prep.origen.autoCorregida`). */
+  desfaseCorregido: z.boolean()
+})
+export type ResumenPreparacionIpc = z.infer<typeof resumenPreparacionSchema>
+
 /** Resumen de canción tal y como lo recibe el renderer: la miniatura es una URL shinobi-media://. */
 export const resumenCancionSchema = z.object({
   id: z.string(),
@@ -501,7 +535,11 @@ export const resumenCancionSchema = z.object({
   danada: z.boolean(),
   motivo: z.enum(['json', 'pistas']).nullable(),
   /** Dañada por pistas y sin `fuente/mezcla.flac`: no se puede re-separar (0070). */
-  sinMezcla: z.boolean().optional()
+  sinMezcla: z.boolean().optional(),
+  /** Registro de la preparación sin ids ni textos (ADR 0025 §1); `null` sin registro. */
+  preparacion: resumenPreparacionSchema.nullable().optional(),
+  /** Estado derivado («Lista para revisar», «Elige la letra»…); `null` si no aplica. */
+  estadoPreparacion: z.enum(ESTADOS_PREPARACION_DERIVADOS).nullable().optional()
 })
 export type ResumenCancionIpc = z.infer<typeof resumenCancionSchema>
 
@@ -612,6 +650,7 @@ export const configParcialRendererSchema = z.strictObject({
   editor: z
     .strictObject({
       omitir_aviso_letra_lista: z.boolean().optional(),
+      revision_autoescucha: z.boolean().optional(),
       paneles: z
         .strictObject({
           lista: z
@@ -709,6 +748,37 @@ export function enlacePermitido(texto: string): boolean {
 
 export const enlaceSchema = z.string().max(2048).refine(enlacePermitido, 'Enlace no permitido')
 
+// --- Datos propuestos de la canción (ADR 0025 §6, spec 03 · Feature 6) ------------------
+
+/** De dónde sale cada dato propuesto: cada valor tiene su línea `add.dato.origen.*`. */
+export const ORIGENES_PROPUESTA = [
+  'etiquetas',
+  'nombre',
+  'carpeta',
+  'video',
+  'pista',
+  'canal',
+  'lista',
+  'biblioteca'
+] as const
+export type OrigenPropuesta = (typeof ORIGENES_PROPUESTA)[number]
+/** Un campo propuesto. `origen` es `null` si no hay valor. `alternativa`: la grafía previa si se cambió por la de la biblioteca. */
+export const campoPropuestoSchema = z.object({
+  valor: z.string(),
+  origen: z.enum(ORIGENES_PROPUESTA).nullable(),
+  dudoso: z.boolean(),
+  /** Título y artista se han intercambiado solos (regla 2 de la spec). */
+  invertido: z.boolean().optional(),
+  alternativa: z.string().optional()
+})
+export const propuestaDatosSchema = z.object({
+  titulo: campoPropuestoSchema,
+  artista: campoPropuestoSchema,
+  album: campoPropuestoSchema
+})
+export type CampoPropuesto = z.infer<typeof campoPropuestoSchema>
+export type PropuestaDatos = z.infer<typeof propuestaDatosSchema>
+
 // --- Fuente: importación de archivo local (0042) ---------------------------------
 
 /** Datos que main devuelve tras leer el audio; ganancia y rutas se quedan asociadas al id en main. */
@@ -717,6 +787,8 @@ export const importacionLeidaSchema = z.object({
   nombre: z.string(),
   duracionMs: z.number().int().nonnegative(),
   metadatos: z.object({ titulo: z.string(), artista: z.string(), album: z.string() }),
+  /** Los mismos datos con su procedencia (0.2.2). */
+  datos: propuestaDatosSchema.optional(),
   gananciaDb: z.number(),
   /** Más de 10 min: la UI muestra el aviso (no es un error). */
   larga: z.boolean()
@@ -733,6 +805,8 @@ export const infoYoutubeSchema = z.object({
   canal: z.string(),
   duracionS: z.number().nonnegative(),
   metadatos: z.object({ titulo: z.string(), artista: z.string(), album: z.string() }),
+  /** Los mismos datos con su procedencia (0.2.2). */
+  datos: propuestaDatosSchema.optional(),
   /** `data:image/jpeg;base64,…` o `null` si no hay miniatura. */
   miniaturaDataUrl: z.string().nullable(),
   /** Solo el modo lote lo usa (ADR 0026 §1; pregunta 0166). */
@@ -1184,7 +1258,15 @@ export const valoresDatosSchema = z.object({
   artistas: z.array(
     z.object({ valor: z.string(), clave: z.string(), canciones: z.number().int() })
   ),
-  albumes: z.array(z.object({ valor: z.string(), clave: z.string(), canciones: z.number().int() }))
+  albumes: z.array(
+    z.object({
+      valor: z.string(),
+      clave: z.string(),
+      canciones: z.number().int(),
+      /** Claves de los artistas con canciones de este álbum: el autocompletado los pone primero. */
+      artistas: z.array(z.string()).optional()
+    })
+  )
 })
 export type ValoresDatosIpc = z.infer<typeof valoresDatosSchema>
 const datosVariasForma = {

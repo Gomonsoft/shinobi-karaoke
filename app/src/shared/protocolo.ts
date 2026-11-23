@@ -88,10 +88,37 @@ export const metadatosCancionSchema = z.object({
 
 export type MetadatosWorker = z.infer<typeof metadatosCancionSchema>
 
+/** Etiquetas del archivo tal cual (cadena vacía si faltan; ADR 0025 §6). */
+export const etiquetasArchivoSchema = z.object({
+  title: z.string().default(''),
+  artist: z.string().default(''),
+  album: z.string().default(''),
+  album_artist: z.string().default(''),
+  /** Número de pista (sin el total). */
+  track: z.string().default(''),
+  date: z.string().default('')
+})
+export type EtiquetasArchivo = z.infer<typeof etiquetasArchivoSchema>
+
+/** Campos de música de yt-dlp y título/canal limpios por la heurística del worker (ADR 0025 §6). */
+export const musicaYoutubeSchema = z.object({
+  track: z.string().default(''),
+  artist: z.string().default(''),
+  album: z.string().default(''),
+  album_artist: z.string().default(''),
+  track_number: z.number().int().nullable().default(null),
+  release_year: z.number().int().nullable().default(null),
+  titulo_limpio: z.string().default(''),
+  canal_limpio: z.string().default('')
+})
+export type MusicaYoutube = z.infer<typeof musicaYoutubeSchema>
+
 /** `importar-archivo`: datos que necesita el formulario "Revisar datos". */
 export const resultadoImportarArchivoSchema = z.object({
   duracion_ms: z.number().int().nonnegative(),
   metadatos: metadatosCancionSchema,
+  /** Ausente en workers anteriores a 0.2.2: se tratan como sin etiquetas. */
+  etiquetas: etiquetasArchivoSchema.optional(),
   /** dB a aplicar para llegar a −16 LUFS (limitada a [−20, +20]). */
   ganancia_db: z.number().min(-20).max(20),
   /** Sonoridad integrada; `null` si el audio es silencio. */
@@ -111,6 +138,7 @@ export const resultadoInfoYoutubeSchema = z.object({
   duracion_s: z.number().nonnegative(),
   /** Metadatos sugeridos por la heurística del worker (ADR 0003). */
   metadatos: metadatosCancionSchema,
+  musica: musicaYoutubeSchema.optional(),
   /** JPEG (≤ 320 px de ancho) en base64; ausente si no se pudo obtener. */
   miniatura_jpeg_base64: z.string().optional()
 })

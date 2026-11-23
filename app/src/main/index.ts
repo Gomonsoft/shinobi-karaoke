@@ -589,6 +589,7 @@ if (instanciaUnica)
           ejecutar: ejecutarYtdlp,
           config: servicioConfig,
           dirDatos: rutaDatos(),
+          valoresDatos: () => servicioBiblioteca?.valoresDatos() ?? { artistas: [], albumes: [] },
           actualizarYtDlp,
           alEstadoInfo: (ev) => aPrincipal(CANALES.eventos.estadoInfo, ev),
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'youtube', mensaje)
@@ -607,6 +608,7 @@ if (instanciaUnica)
         biblioteca: servicioBiblioteca,
         ejecutar,
         dirDatos: rutaDatos(),
+        valoresDatos: () => servicioBiblioteca?.valoresDatos() ?? { artistas: [], albumes: [] },
         hayTrabajoVivo: (id) => gestorTrabajos?.listar().some((t) => t.cancionId === id) ?? false,
         // Archivo local: al crear la canción se encadena la separación (0065).
         alFuenteLista: (id) => void servicioSeparacion?.alCompletarFuente(id),
@@ -766,7 +768,9 @@ if (instanciaUnica)
         cliente: clienteLrclib,
         registro,
         picos: { nivelBase: (id) => servicioPicos?.nivelBase(id) ?? Promise.resolve(null) },
-        emitirEncaje: (e) => aPrincipal(CANALES.eventos.letrasEncaje, e)
+        emitirEncaje: (e) => aPrincipal(CANALES.eventos.letrasEncaje, e),
+        // Búsquedas automáticas solo con el interruptor activo (ADR 0025 §4; por defecto sí).
+        automaticaActiva: () => servicioConfig?.obtener().preparacion.automatica ?? true
       })
       const busqueda = busquedaLetras
       const biblioteca = servicioBiblioteca
@@ -884,6 +888,7 @@ if (instanciaUnica)
           // 0083: guardar, editar e importar. La búsqueda (buscar) es de 0082.
           letras: {
             buscar: (p) => busqueda.buscar(p),
+            candidatoPorId: (cancionId, lrclibId) => busqueda.candidatoPorId(cancionId, lrclibId),
             guardar: (p) => servicioLetras.guardar(p),
             abrirEdicion: (id) => servicioLetras.abrirEdicion(id),
             cerrarEdicion: (id) => servicioLetras.cerrarEdicion(id),

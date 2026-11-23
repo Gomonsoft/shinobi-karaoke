@@ -69,3 +69,37 @@ def test_limpiar_canal(entrada, esperado):
 
 def test_limpiar_titulo_es_insensible_a_mayusculas():
     assert limpiar_titulo("Algo [oFFicial AUDIO]") == "Algo"
+
+
+def test_campos_musica_de_un_video_de_youtube_music():
+    from shinobi_worker.metadatos_youtube import campos_musica
+
+    info = {
+        "title": "Tema inventado (Official Video)",
+        "channel": "Grupo Inventado - Topic",
+        "track": "Tema inventado",
+        "artists": ["Grupo Inventado", "Invitada"],
+        "album": "Disco inventado",
+        "album_artist": "Grupo Inventado",
+        "track_number": 4,
+        "release_year": 2020,
+    }
+    assert campos_musica(info) == {
+        "track": "Tema inventado",
+        "artist": "Grupo Inventado, Invitada",
+        "album": "Disco inventado",
+        "album_artist": "Grupo Inventado",
+        "track_number": 4,
+        "release_year": 2020,
+        "titulo_limpio": "Tema inventado",
+        "canal_limpio": "Grupo Inventado",
+    }
+
+
+def test_campos_musica_sin_datos_de_musica():
+    from shinobi_worker.metadatos_youtube import campos_musica
+
+    r = campos_musica({"title": "Grupo – Tema (Lyrics)", "channel": "GrupoVEVO"})
+    assert r["track"] == "" and r["artist"] == "" and r["track_number"] is None
+    assert r["titulo_limpio"] == "Grupo – Tema"
+    assert r["canal_limpio"] == "Grupo"

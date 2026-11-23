@@ -398,6 +398,7 @@ def resumen_info(fuente: FuenteYoutube, id_video: str, info: Mapping[str, Any]) 
         "canal": str(canal),
         "duracion_s": float(duracion) if isinstance(duracion, int | float) else 0.0,
         "metadatos": metadatos_youtube.sugerir(info),
+        "musica": metadatos_youtube.campos_musica(info),
     }
     jpeg = miniatura_jpeg_base64(fuente, info)
     if jpeg:

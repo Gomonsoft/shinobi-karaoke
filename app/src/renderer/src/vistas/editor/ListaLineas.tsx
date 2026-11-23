@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { CircleDashed, PanelLeftClose, Play, WholeWord } from 'lucide-react'
+import { ChevronDown, CircleDashed, Flag, PanelLeftClose, Play, WholeWord } from 'lucide-react'
 import { tienePalabrasManuales, type Letra } from '@shared/letra'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
@@ -8,6 +8,7 @@ import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
 import { Tooltip } from '../../componentes/Tooltip'
 import { BotonLayout } from './BotonLayout'
 import { E } from './textos'
+import { R } from './revision/textos'
 import estilos from './editor.module.css'
 
 interface Props {
@@ -16,6 +17,10 @@ interface Props {
   actual: number
   foco: number
   revisionSeleccion?: number
+  /** Líneas pendientes de revisar (feature 11): id → motivo principal. Llevan ⚑ y su motivo en el tooltip. */
+  dudosas?: ReadonlyMap<string, string>
+  /** «Línea dudosa siguiente» de la cabecera; sin él (o sin pendientes) no hay botón. */
+  siguienteDudosa?(): void
   seleccionar(id: string, enfocar?: boolean): void
   escuchar(id: string): void
   corregir(): void
@@ -40,6 +45,8 @@ export function ListaLineas({
   actual,
   foco,
   revisionSeleccion = 0,
+  dudosas,
+  siguienteDudosa,
   seleccionar,
   escuchar,
   corregir,
@@ -156,6 +163,21 @@ export function ListaLineas({
         ) : (
           <span className={estilos.completa}>{E.contador(sincronizadas, total)} ✓</span>
         )}
+        {siguienteDudosa && dudosas && dudosas.size > 0 && (
+          <Tooltip contenido={R.siguienteDudosa}>
+            <button
+              type="button"
+              className={estilos.botonLayout}
+              aria-label={R.siguienteDudosa}
+              aria-keyshortcuts="Control+ArrowDown Meta+ArrowDown"
+              data-siguiente-dudosa
+              onClick={siguienteDudosa}
+            >
+              <Icono icono={Flag} tamano={14} />
+              <Icono icono={ChevronDown} tamano={14} />
+            </button>
+          </Tooltip>
+        )}
         {abrirPreciso && (
           <Tooltip contenido={motivoPreciso ?? E.preciso.abrir}>
             <button
@@ -220,6 +242,7 @@ export function ListaLineas({
               )
             }
             const sonando = inicio + i === actual
+            const motivo = dudosas?.get(el.id)
             return (
               <button
                 key={el.id}
@@ -229,7 +252,8 @@ export function ListaLineas({
                 }}
                 type="button"
                 role="option"
-                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}`}
+                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}`}
+                data-dudosa={motivo ? '' : undefined}
                 aria-selected={el.id === seleccion}
                 aria-current={sonando || undefined}
                 aria-posinset={n}
@@ -252,7 +276,17 @@ export function ListaLineas({
                   setMenu({ id: el.id, x: r.left + 32, y: r.bottom })
                 }}
               >
-                {sonando ? <Icono icono={Play} tamano={14} /> : <span aria-hidden="true" />}
+                {sonando ? (
+                  <Icono icono={Play} tamano={14} />
+                ) : motivo ? (
+                  <Tooltip contenido={R.tooltip(motivo)}>
+                    <span className={estilos.marcaDudosa}>
+                      <Icono icono={Flag} tamano={14} />
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <span aria-hidden="true" />
+                )}
                 <span className={`t-tiempo ${!tiempo ? estilos.sinTiempo : ''}`}>
                   {tiempo ?? '--:--.--'}
                 </span>

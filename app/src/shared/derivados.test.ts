@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { Cancion } from './cancion'
 import {
+  estadoPreparacion,
+  recuentosBandeja,
   estaIncompleta,
   etiquetaPasoActual,
   motivosParaNoEstarLista,
@@ -140,5 +143,96 @@ describe('vistaAlContinuar (ux/00 §3)', () => {
   })
   it('lista → editor', () => {
     expect(vistaAlContinuar(lista())).toBe('editor')
+  })
+})
+
+describe('estadoPreparacion (0.2.2)', () => {
+  const prep = (extra: Partial<NonNullable<Cancion['preparacion']>>): Cancion['preparacion'] => ({
+    estado: 'en_curso',
+    paso: null,
+    origen: 'automatica',
+    actualizado: '2026-11-21T10:00:00.000Z',
+    dudosas: 0,
+    revisada: false,
+    ...extra
+  })
+
+  it('«Lista para revisar» se deriva de los pasos, la haya preparado la app o el usuario', () => {
+    const c = { ...lista(), estado: 'borrador' as const }
+    expect(estadoPreparacion(c)).toBe('lista_para_revisar')
+    expect(estadoPreparacion({ ...c, preparacion: prep({ estado: 'lista_para_revisar' }) })).toBe(
+      'lista_para_revisar'
+    )
+    // Una línea sin inicio la devuelve a borrador.
+    expect(estadoPreparacion(letraAMediasUnaSinInicio())).toBeNull()
+    // Una lista guardada no es «para revisar».
+    expect(estadoPreparacion(lista())).toBeNull()
+  })
+
+  it('sin letra sale del registro; con letra, lo de la búsqueda deja de valer', () => {
+    const base = sinLetra()
+    expect(estadoPreparacion(base)).toBeNull()
+    const con = (p: Cancion['preparacion']): Cancion => ({ ...base, preparacion: p })
+    expect(estadoPreparacion(con(prep({ estado: 'en_curso' })))).toBe('preparando')
+    expect(estadoPreparacion(con(prep({ estado: 'elige_letra' })))).toBe('elige_letra')
+    expect(estadoPreparacion(con(prep({ estado: 'sin_letra' })))).toBe('sin_letra')
+    expect(
+      estadoPreparacion(
+        con(
+          prep({
+            estado: 'sin_letra',
+            busqueda: { resultado: 'instrumental', candidatas: 0, motivo: 'INSTRUMENTAL', ids: [] }
+          })
+        )
+      )
+    ).toBe('instrumental')
+    expect(
+      estadoPreparacion(
+        con(
+          prep({
+            estado: 'error',
+            busqueda: { resultado: 'pendiente', candidatas: 0, motivo: 'SIN_CONEXION', ids: [] }
+          })
+        )
+      )
+    ).toBe('letra_pendiente')
+    expect(estadoPreparacion(con(prep({ estado: 'error' })))).toBe('error')
+    expect(estadoPreparacion(con(prep({ estado: 'detenida' })))).toBe('detenida')
+    const conLetra = { ...letraAMediasUnaSinInicio(), preparacion: prep({ estado: 'elige_letra' }) }
+    expect(estadoPreparacion(conLetra)).toBeNull()
+  })
+})
+
+describe('recuentosBandeja', () => {
+  const r = (
+    estadoPreparacion: Parameters<typeof recuentosBandeja>[0][number]['estadoPreparacion'],
+    pasos: { fuente?: string; letra?: string; separacion?: string } = {}
+  ): Parameters<typeof recuentosBandeja>[0][number] => ({
+    estado: 'borrador',
+    danada: false,
+    estadoPreparacion,
+    pasos: {
+      fuente: { estado: pasos.fuente ?? 'completado' },
+      separacion: { estado: pasos.separacion ?? 'completado' },
+      letra: { estado: pasos.letra ?? 'pendiente' },
+      edicion: { estado: 'pendiente' }
+    }
+  })
+
+  it('cuenta cada casilla una sola vez', () => {
+    const n = recuentosBandeja([
+      r('lista_para_revisar', { letra: 'completado' }),
+      r('elige_letra'),
+      r('sin_letra'),
+      r('instrumental'),
+      r('letra_pendiente'),
+      r(null), // «Falta la letra»: sin letra y sin búsqueda
+      r('preparando'),
+      r(null, { fuente: 'pendiente' }), // aún descargando
+      r('error', { separacion: 'error' }),
+      { ...r(null), estado: 'lista' },
+      { ...r(null), danada: true, pasos: null }
+    ])
+    expect(n).toEqual({ listasParaRevisar: 1, esperanLetra: 5, conError: 1 })
   })
 })

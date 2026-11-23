@@ -1,0 +1,87 @@
+.tarjeta {
+  display: grid;
+  gap: var(--e-2);
+  min-width: 0;
+  margin: var(--e-2) var(--e-1) 0;
+  padding: var(--e-3);
+  border: 1px solid var(--aviso);
+  border-radius: var(--r-m);
+  background: var(--fondo-2);
+}
+.tarjeta[data-fin] {
+  border-color: var(--exito);
+}
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+}
+.cabecera h3 {
+  margin: 0;
+  font-size: var(--t-cuerpo-fuerte);
+}
+.tarjeta p {
+  margin: 0;
+  color: var(--texto-1);
+}
+.motivo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-1);
+}
+.motivo svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--aviso);
+}
+.tambien {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  line-height: var(--t-pequeno-lh);
+}
+.tarjeta .nota {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+.filas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+  min-width: 0;
+}
+.tarjeta .corregida {
+  color: var(--exito);
+}
+.bien {
+  font-weight: 600;
+}
+.marcaPanel {
+  display: grid;
+  gap: var(--e-2);
+  justify-items: start;
+}
+.marcaPanel .motivo {
+  color: var(--texto-1);
+  font-size: var(--t-pequeno);
+}
+/* Contorno de 2 s en el botón del dock al terminar la revisión; sin animación con movimiento reducido. */
+:global([data-resaltado-revision]) {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+  animation: resalteDock 2s ease-out forwards;
+}
+@keyframes resalteDock {
+  70% {
+    outline-color: var(--info);
+  }
+  to {
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :global([data-resaltado-revision]) {
+    animation: none;
+  }
+}

@@ -1,5 +1,5 @@
 import { useId, useRef, type KeyboardEvent } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, type LucideIcon } from 'lucide-react'
 import { Icono } from './Icono'
 import { Tooltip } from './Tooltip'
 import estilos from './componentes.module.css'
@@ -14,6 +14,8 @@ export interface OpcionSegmentada<T extends string> {
   aviso?: string
   /** Punto informativo (`info`, decorativo); `aviso` tiene prioridad. Su texto va en `nombre`. */
   info?: boolean
+  /** Icono de 12 px en `texto-2` tras la etiqueta, sin color de estado (p. ej. ⚑ de la revisión). */
+  icono?: LucideIcon
   /** Nombre accesible propio del botón (sustituye a la etiqueta visible). */
   nombre?: string
 }
@@ -106,6 +108,14 @@ export function ControlSegmentado<T extends string>({
               </span>
             )}
             {o.etiqueta}
+            {o.icono && (
+              <span
+                aria-hidden="true"
+                style={{ display: 'inline-flex', marginInlineStart: 4, color: 'var(--texto-2)' }}
+              >
+                <Icono icono={o.icono} tamano={12} />
+              </span>
+            )}
             {o.aviso && <span className={estilos.puntoAviso} aria-hidden="true" data-aviso />}
             {!o.aviso && o.info && (
               <span className={estilos.puntoInfo} aria-hidden="true" data-info />

@@ -906,3 +906,95 @@ describe('campos nuevos de 0.2.2 en main', () => {
     expect(c.letra?.lineas[1]?.parte).toBe('c2')
   })
 })
+
+describe('registro de la preparación (0.2.2)', () => {
+  const registro = (extra = {}) => ({
+    estado: 'lista_para_revisar' as const,
+    paso: null,
+    origen: 'automatica' as const,
+    actualizado: '2026-11-21T10:00:00.000Z',
+    eleccion: { por: 'app' as const, fecha: '2026-11-21T10:01:00.000Z', lrclib_id: 7 },
+    dudosas: 0,
+    revisada: false,
+    ...extra
+  })
+  const conLetra = async () => {
+    const id = await cancionConFuente(biblioteca, datos)
+    await servicio.guardar(
+      {
+        cancionId: id,
+        origen: 'lrclib',
+        lrclib_id: 7,
+        lineas: [el('a', 'Uno', 1000), el('b', 'Dos', 3000)]
+      },
+      { porPreparacion: true }
+    )
+    await biblioteca.actualizar(id, { preparacion: registro() })
+    return id
+  }
+
+  it('guardar por la preparación no la da por revisada', async () => {
+    const id = await conLetra()
+    expect((await enDisco(id)).preparacion?.revisada).toBe(false)
+  })
+
+  it('editar un texto la da por revisada y conserva la elección de la app', async () => {
+    const id = await conLetra()
+    await servicio.editarTexto({ cancionId: id, texto: 'Uno\nDos cambiado' })
+    await biblioteca.flushTodo()
+    const p = (await enDisco(id)).preparacion
+    expect(p?.revisada).toBe(true)
+    expect(p?.eleccion?.por).toBe('app')
+  })
+
+  it('cambiar un tiempo desde el editor la da por revisada', async () => {
+    const id = await conLetra()
+    const edicion = servicio.abrirEdicion(id)!
+    const letra = (await enDisco(id)).letra!
+    const peticion = aPeticionTiempos(id, letra)
+    const primera = peticion.tiempos[0]!
+    await servicio.guardarTiempos(
+      {
+        ...peticion,
+        cancionId: id,
+        tiempos: [
+          { ...primera, inicio_ms: 1200, fin_ms: null, palabras: null },
+          ...peticion.tiempos.slice(1)
+        ]
+      },
+      edicion.sesionId
+    )
+    expect((await enDisco(id)).preparacion?.revisada).toBe(true)
+  })
+
+  it('elegir otra letra pasa eleccion.por a usuario', async () => {
+    const id = await conLetra()
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 99,
+      lineas: [el('c', 'Otra', 500)]
+    })
+    const p = (await enDisco(id)).preparacion
+    expect(p).toMatchObject({ revisada: true, eleccion: { por: 'usuario', lrclib_id: 7 } })
+  })
+
+  it('la corrección diferida no cuenta como edición del usuario', async () => {
+    const id = await conLetra()
+    const aplicado = await servicio.corregirDesfaseDiferido(id, 800)
+    expect(aplicado).toBe(800)
+    expect((await enDisco(id)).preparacion?.revisada).toBe(false)
+  })
+
+  it('marcarPreparacionRevisada la da por revisada y el resumen expone el registro', async () => {
+    const id = await conLetra()
+    await biblioteca.marcarPreparacionRevisada(id)
+    expect((await enDisco(id)).preparacion?.revisada).toBe(true)
+    await biblioteca.actualizar(id, { preparacion: registro() })
+    const resumen = biblioteca.obtenerResumen(id)
+    expect(resumen?.preparacion).toMatchObject({
+      estado: 'lista_para_revisar',
+      eleccionAutomatica: true
+    })
+  })
+})

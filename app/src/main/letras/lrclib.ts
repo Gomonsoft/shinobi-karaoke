@@ -7,6 +7,13 @@ import type { RegistroApp } from '../registro'
 
 export const URL_PROYECTO = 'https://github.com/Gomonsoft/shinobi-karaoke'
 export const SEPARACION_MIN_MS = 250
+/**
+ * Entre dos peticiones de la cola automática (ADR 0025 §4): como mucho 40 por minuto, por debajo de
+ * los ~45 anónimos de ADR 0005.
+ */
+export const SEPARACION_AUTOMATICA_MS = 1500
+/** Reintentos de una petición automática tras un 429 (esperando `Retry-After` con su margen). */
+export const REINTENTOS_429_AUTOMATICA = 3
 export const TIEMPO_PETICION_MS = 10_000
 export const PRESUPUESTO_BUSQUEDA_MS = 10_000
 export const MAX_BYTES_RESPUESTA = 2 * 1024 * 1024
@@ -72,12 +79,26 @@ export interface OpcionesCliente {
   /** Devuelve un número en [0, 1). */
   aleatorio?: () => number
   separacionMs?: number
+  /** Separación mínima entre peticiones automáticas (por defecto 1,5 s). */
+  separacionAutomaticaMs?: number
   tiempoPeticionMs?: number
 }
+
+export type PrioridadLrclib = 'interactiva' | 'automatica'
 
 /** Opciones de una operación. `vencimiento`: instante (`ahora()`) en que acaba el presupuesto de la búsqueda. */
 export interface OpcionesOperacion {
   vencimiento?: number
+  /**
+   * `interactiva` (por defecto: la vista Letra, con presupuesto de 10 s) adelanta a las `automatica`
+   * (la preparación desatendida, ADR 0025 §4), que van de una en una a ≥ 1,5 s y esperan `Retry-After`.
+   */
+  prioridad?: PrioridadLrclib
+  /**
+   * Solo `automatica`: se consulta justo antes de enviar; si devuelve `false` (interruptor apagado) la
+   * petición no sale y termina con `CANCELADO`.
+   */
+  permitida?: () => boolean
 }
 
 export interface ClienteLrclib {
@@ -176,6 +197,7 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
   const dormir = o.dormir ?? dormirReal
   const aleatorio = o.aleatorio ?? Math.random
   const separacion = o.separacionMs ?? SEPARACION_MIN_MS
+  const separacionAutomatica = o.separacionAutomaticaMs ?? SEPARACION_AUTOMATICA_MS
   const tiempoPeticion = o.tiempoPeticionMs ?? TIEMPO_PETICION_MS
   const valorEntorno = o.env?.[ENTORNO_LRCLIB_URL]
   const urlBase = urlBaseLrclib(valorEntorno, o.empaquetada)
@@ -190,7 +212,17 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
   }
   let ultimaPeticion = -Infinity
   let noAntes = 0
-  let cola: Promise<unknown> = Promise.resolve()
+  // Cola con prioridad: una petición a la vez; las interactivas pasan por delante de las automáticas.
+  interface Pendiente {
+    prioridad: PrioridadLrclib
+    trabajo: () => Promise<unknown>
+    resolver: (v: unknown) => void
+    rechazar: (e: unknown) => void
+  }
+  const pendientes: Record<PrioridadLrclib, Pendiente[]> = { interactiva: [], automatica: [] }
+  let bombeando = false
+  /** Despierta la espera de una automática cuando llega una interactiva. */
+  let despertar: AbortController | null = null
 
   const abortado = (señal: AbortSignal): boolean => señal.aborted
   const cancelado = (): ErrorLrclib => new ErrorLrclib('CANCELADO', 'Operación cancelada')
@@ -267,12 +299,18 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
     señal: AbortSignal,
     op: OpcionesOperacion | undefined
   ): Promise<{ status: number; cuerpo: string }> {
+    const automatica = op?.prioridad === 'automatica'
     const vencimiento = op?.vencimiento ?? ahora() + PRESUPUESTO_BUSQUEDA_MS
     for (let intento = 0; ; intento++) {
       if (abortado(señal)) throw cancelado()
-      if (ahora() < noAntes) throw new ErrorLrclib('SERVICIO_NO_DISPONIBLE', 'en espera por 429')
+      // La cola automática espera lo que dijo el 429; la interactiva falla enseguida (presupuesto de 10 s).
+      if (!automatica && ahora() < noAntes) {
+        throw new ErrorLrclib('SERVICIO_NO_DISPONIBLE', 'en espera por 429')
+      }
       if (o.enLinea && !o.enLinea()) throw fallo('SIN_CONEXION', 'sin conexión', ruta)
       await esperarTurno(señal)
+      // Interruptor apagado (o canción detenida) mientras esperaba en la cola: no sale nada.
+      if (automatica && op?.permitida && !op.permitida()) throw cancelado()
       let r
       try {
         r = await una(ruta, params, señal)
@@ -282,6 +320,15 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
       if (r.status !== 429) return r
       const base = leerRetryAfter(r.retryAfter, ahora()) ?? RETRY_AFTER_POR_DEFECTO_MS
       const espera = Math.round(base * (1 + MARGEN_RETRY_AFTER * aleatorio()))
+      if (automatica && intento < REINTENTOS_429_AUTOMATICA) {
+        noAntes = ahora() + espera
+        try {
+          await dormir(espera, señal)
+        } catch {
+          throw cancelado()
+        }
+        continue
+      }
       if (intento === 0 && ahora() + espera <= vencimiento) {
         try {
           await dormir(espera, señal)
@@ -295,10 +342,61 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
     }
   }
 
-  function encolar<T>(trabajo: () => Promise<T>): Promise<T> {
-    const p = cola.then(trabajo, trabajo)
-    cola = p.catch(() => undefined)
-    return p
+  /** Espera hasta poder lanzar la siguiente automática, o hasta que llegue una interactiva. */
+  async function esperarAutomatica(): Promise<void> {
+    const falta = Math.max(ultimaPeticion + separacionAutomatica, noAntes) - ahora()
+    if (falta <= 0) return
+    despertar = new AbortController()
+    try {
+      await dormir(falta, despertar.signal)
+    } catch {
+      // Despertada: se vuelve a elegir (una interactiva pasa primero).
+    } finally {
+      despertar = null
+    }
+  }
+
+  async function bombear(): Promise<void> {
+    if (bombeando) return
+    bombeando = true
+    try {
+      for (;;) {
+        if (pendientes.interactiva.length === 0 && pendientes.automatica.length > 0) {
+          await esperarAutomatica()
+          if (
+            pendientes.interactiva.length === 0 &&
+            ahora() < ultimaPeticion + separacionAutomatica
+          ) {
+            continue
+          }
+        }
+        const siguiente = pendientes.interactiva.shift() ?? pendientes.automatica.shift()
+        if (!siguiente) return
+        try {
+          siguiente.resolver(await siguiente.trabajo())
+        } catch (e) {
+          siguiente.rechazar(e)
+        }
+      }
+    } finally {
+      bombeando = false
+    }
+  }
+
+  function encolar<T>(
+    trabajo: () => Promise<T>,
+    prioridad: PrioridadLrclib = 'interactiva'
+  ): Promise<T> {
+    return new Promise<T>((resolver, rechazar) => {
+      pendientes[prioridad].push({
+        prioridad,
+        trabajo,
+        resolver: resolver as (v: unknown) => void,
+        rechazar
+      })
+      if (prioridad === 'interactiva') despertar?.abort()
+      void bombear()
+    })
   }
 
   function parsear(cuerpo: string, ruta: string): unknown {
@@ -327,7 +425,7 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
     señal: AbortSignal,
     op?: OpcionesOperacion
   ): Promise<RegistroLrclib | null> {
-    const r = await encolar(() => peticion(ruta, params, señal, op))
+    const r = await encolar(() => peticion(ruta, params, señal, op), op?.prioridad)
     if (r.status === 404) return null
     if (r.status !== 200) throw fallo('SERVICIO_NO_DISPONIBLE', `HTTP ${r.status}`, ruta)
     return validar(parsear(r.cuerpo, ruta))
@@ -355,7 +453,7 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
         p.set('artist_name', consulta.artista)
       }
       const ruta = '/api/search'
-      const r = await encolar(() => peticion(ruta, p, señal, op))
+      const r = await encolar(() => peticion(ruta, p, señal, op), op?.prioridad)
       if (r.status !== 200) throw fallo('SERVICIO_NO_DISPONIBLE', `HTTP ${r.status}`, ruta)
       const json = parsear(r.cuerpo, ruta)
       if (!Array.isArray(json))

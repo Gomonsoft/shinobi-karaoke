@@ -19,7 +19,10 @@ import {
   esAparienciaNeutra,
   estaIncompleta,
   modalidadEfectiva,
-  numerosLineasSinInicio
+  estadoPreparacion,
+  numerosLineasSinInicio,
+  type EstadoPreparacionDerivado,
+  type ResumenPreparacionIpc
 } from '../../shared'
 import type { ResolucionCancion } from '../temas/servicio'
 
@@ -61,6 +64,25 @@ export interface ResumenCancion {
   motivo: MotivoDanada | null
   /** Solo con `motivo === 'pistas'`: tampoco existe `fuente/mezcla.flac` (no se puede re-separar). */
   sinMezcla?: boolean
+  /** Registro de la preparación (0.2.2) sin ids; `null` sin registro. */
+  preparacion?: ResumenPreparacionIpc | null
+  estadoPreparacion?: EstadoPreparacionDerivado | null
+}
+
+function resumenPreparacion(c: Cancion): ResumenPreparacionIpc | null {
+  const p = c.preparacion
+  if (!p) return null
+  return {
+    estado: p.estado,
+    paso: p.paso,
+    busqueda: p.busqueda
+      ? { resultado: p.busqueda.resultado, candidatas: p.busqueda.candidatas }
+      : null,
+    dudosas: p.dudosas,
+    revisada: p.revisada,
+    eleccionAutomatica: p.eleccion?.por === 'app',
+    desfaseCorregido: c.letra?.desfase_corregido_ms !== undefined
+  }
 }
 
 /**
@@ -160,7 +182,9 @@ export function resumirCancion(
     lineasSinSincronizar: numerosLineasSinInicio(cancion.letra).length,
     danada: danada !== null,
     motivo: danada,
-    ...(danada === 'pistas' && sinMezcla ? { sinMezcla: true } : {})
+    ...(danada === 'pistas' && sinMezcla ? { sinMezcla: true } : {}),
+    preparacion: resumenPreparacion(cancion),
+    estadoPreparacion: danada ? null : estadoPreparacion(cancion)
   }
 }
 
@@ -193,6 +217,8 @@ export function resumenDanadaPorJson(id: string): ResumenCancion {
     incompleta: false,
     lineasSinSincronizar: 0,
     danada: true,
-    motivo: 'json'
+    motivo: 'json',
+    preparacion: null,
+    estadoPreparacion: null
   }
 }

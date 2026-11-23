@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { letra, linea, pausa } from '@shared/__fixtures__'
 import { estiloPredeterminado } from '@shared/estilo'
+import { finEfectivo } from '@shared/letra'
 import {
   aparienciaPropia,
   estadoInicial,
@@ -393,5 +394,128 @@ describe('cambiar_desfase (feature 4, pregunta 0172)', () => {
       ahora: 1
     })
     expect(solo.actual.letra.lineas[0]?.revisada).toEqual(rev)
+  })
+})
+
+describe('«Está bien» de la revisión guiada (feature 11)', () => {
+  const base = () =>
+    estadoInicial(
+      {
+        apariencia: aparienciaPropia(estiloPredeterminado()),
+        letra: letra([
+          linea('1', 'Verso 1', 1000, { fin_ms: 2000 }),
+          linea('2', 'Verso 2', 3000),
+          linea('3', 'Sin inicio', null)
+        ])
+      },
+      null
+    )
+  const bien = (id: string, ahora: number) =>
+    ({ tipo: 'marcar_revisada', id, duracionMs: 10_000, ahora }) as const
+
+  it('guarda una instantánea con el fin efectivo, en un paso que deshacer devuelve', () => {
+    const e0 = base()
+    const e1 = reducirEditor(e0, bien('2', 10))
+    expect(e1.pasado).toHaveLength(1)
+    expect(e1.actual.letra.lineas[1]?.revisada).toEqual({
+      inicio_ms: 3000,
+      fin_ms: finEfectivo(e0.actual.letra, '2', 10_000),
+      texto: 'Verso 2'
+    })
+    const e2 = reducirEditor(e1, { tipo: 'deshacer' })
+    expect(e2.actual.letra).toBe(e0.actual.letra)
+  })
+
+  it('no vale para una línea sin inicio ni inexistente, y repetirla no es un paso', () => {
+    const e0 = base()
+    expect(reducirEditor(e0, bien('3', 1))).toBe(e0)
+    expect(reducirEditor(e0, bien('nada', 1))).toBe(e0)
+    const e1 = reducirEditor(e0, bien('1', 1))
+    expect(reducirEditor(e1, bien('1', 99999))).toBe(e1)
+  })
+
+  it('«Volver a señalarlas» quita todas las marcas en un solo paso', () => {
+    let e = reducirEditor(base(), bien('1', 1))
+    e = reducirEditor(e, bien('2', 5000))
+    const antes = e
+    e = reducirEditor(e, { tipo: 'reiniciar_revisadas', ahora: 9000 })
+    expect(e.actual.letra.lineas.some((l) => l.revisada)).toBe(false)
+    expect(e.pasado).toHaveLength(antes.pasado.length + 1)
+    expect(reducirEditor(e, { tipo: 'deshacer' }).actual.letra).toBe(antes.actual.letra)
+    // Sin marcas no hay nada que hacer.
+    expect(reducirEditor(e, { tipo: 'reiniciar_revisadas', ahora: 9999 })).toBe(e)
+  })
+})
+
+describe('origen_fin al editar un fin (tarea 0370)', () => {
+  const base = () =>
+    estadoInicial(
+      {
+        apariencia: aparienciaPropia(estiloPredeterminado()),
+        letra: letra([
+          linea('1', 'Verso 1', 1000, { fin_ms: 2000, origen_fin: 'silencios' }),
+          linea('2', 'Verso 2', 3000, { fin_ms: 4000, origen_fin: 'silencios' })
+        ])
+      },
+      '1'
+    )
+
+  it('mover o fijar el fin a mano lo quita solo de esa línea; deshacer lo devuelve', () => {
+    const e0 = base()
+    const e1 = reducirEditor(e0, {
+      tipo: 'ajustar_fin',
+      deltaMs: 100,
+      duracionMs: 10_000,
+      ahora: 1
+    })
+    expect(e1.actual.letra.lineas[0]).not.toHaveProperty('origen_fin')
+    expect(e1.actual.letra.lineas[1]?.origen_fin).toBe('silencios')
+    const e2 = reducirEditor(e0, { tipo: 'fijar_fin', ms: 2500, duracionMs: 10_000, ahora: 1 })
+    expect(e2.actual.letra.lineas[0]).not.toHaveProperty('origen_fin')
+    expect(reducirEditor(e1, { tipo: 'deshacer' }).actual.letra.lineas[0]?.origen_fin).toBe(
+      'silencios'
+    )
+  })
+
+  it('volver al fin automático lo quita; mover solo el inicio no toca el fin ni su origen', () => {
+    const auto = reducirEditor(base(), { tipo: 'fin_automatico', ahora: 1 })
+    expect(auto.actual.letra.lineas[0]).not.toHaveProperty('origen_fin')
+    const inicio = reducirEditor(base(), { tipo: 'ajustar_inicio', deltaMs: 50, ahora: 1 })
+    expect(inicio.actual.letra.lineas[0]?.origen_fin).toBe('silencios')
+  })
+})
+
+describe('«Fin al final de la voz» con palabras a mano (regla 8.2)', () => {
+  it('avisa de las palabras perdidas para el toast con [Deshacer]', () => {
+    const palabras = [{ texto: 'Verso', inicio_ms: 1000, fin_ms: 1500 }]
+    const l = letra([
+      linea('1', 'Verso', 1000, { fin_ms: 5000, palabras, origen_palabras: 'manual' })
+    ])
+    const e0 = estadoInicial(
+      { apariencia: aparienciaPropia(estiloPredeterminado()), letra: l },
+      '1'
+    )
+    const nueva = {
+      ...l,
+      lineas: [{ ...l.lineas[0]!, fin_ms: 3000, palabras: null, origen_fin: 'silencios' as const }]
+    }
+    delete (nueva.lineas[0] as { origen_palabras?: string }).origen_palabras
+    const e1 = reducirEditor(e0, {
+      tipo: 'ajustar_silencios',
+      propuesta: {
+        letra: nueva,
+        cambios: [{ id: '1', finAntes: 5000, finDespues: 3000, eraFijado: true, huecoMs: null }],
+        lineasCambiadas: 1,
+        finesFijadosCambiados: 1,
+        huecosLargos: 0,
+        sinVoz: [],
+        espera: null
+      },
+      versionCalculo: e0.version,
+      ahora: 1
+    })
+    expect(e1.aviso).toMatchObject({ tipo: 'consecuencias', palabrasDescartadas: ['1'] })
+    const e2 = reducirEditor(e1, { tipo: 'deshacer' })
+    expect(e2.actual.letra.lineas[0]).toMatchObject({ fin_ms: 5000, origen_palabras: 'manual' })
   })
 })

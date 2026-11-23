@@ -160,6 +160,8 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
       // Un campo de texto ajeno a esta vista conserva su Esc (docs/ux/00 §6).
       const campo = e.target instanceof Element ? e.target.closest('input, textarea, select') : null
       if (campo && !campo.closest('[data-panel-anadir]')) return
+      // Con la lista de sugerencias abierta, Esc solo la cierra (la cierra el propio campo).
+      if (campo?.getAttribute('aria-expanded') === 'true') return
       e.preventDefault()
       if (ref.current.leyendo) cancelarLectura()
       else ir({ tipo: 'biblioteca' })
@@ -289,6 +291,8 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
           <p className={estilos.ayuda}>{TEXTO.datosAyuda}</p>
         </div>
         <CamposDatos
+          key={datos.importacionId}
+          propuesta={iniciales ? null : datos.datos}
           valores={valores}
           onCambio={(v) => {
             setValores(v)

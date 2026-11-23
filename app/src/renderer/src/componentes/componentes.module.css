@@ -253,6 +253,9 @@
   font-size: var(--t-pequeno);
   line-height: var(--t-pequeno-lh);
 }
+.junto {
+  position: relative;
+}
 .entrada {
   width: 100%;
   min-height: var(--alto-boton);

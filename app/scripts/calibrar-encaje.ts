@@ -78,7 +78,7 @@ const redondear = (n: number): number => Math.round(n * 1000) / 1000
 const lineasConInicio = (l: Letra): number =>
   l.lineas.filter((e) => e.tipo === 'linea' && e.inicio_ms !== null).length
 
-async function leerNivel(carpeta: string): Promise<NivelBase | null> {
+export async function leerNivel(carpeta: string): Promise<NivelBase | null> {
   let nombres: string[]
   try {
     nombres = (await readdir(join(carpeta, 'pistas'))).filter((n) => CACHE.test(n)).sort()

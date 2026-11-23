@@ -8,9 +8,11 @@ import {
   letraSchema,
   sinPalabras,
   validarPalabrasManuales,
+  type Cancion,
   type EdicionLetraIpc,
   type ElementoLetra,
-  type Letra
+  type Letra,
+  type Preparacion
 } from '../../shared'
 import {
   MAX_BYTES_LETRA,
@@ -97,8 +99,14 @@ export class ServicioLetras {
     this.debounceMs = opciones.debounceEdicionMs ?? DEBOUNCE_EDICION_MS
   }
 
-  /** Sustituye la letra entera. */
-  async guardar(peticion: GuardarLetra): Promise<ResumenCancion> {
+  /**
+   * Sustituye la letra entera. `porPreparacion` (solo la preparación desatendida, ADR 0025) la escribe
+   * sin contarla como una edición del usuario.
+   */
+  async guardar(
+    peticion: GuardarLetra,
+    opciones: { porPreparacion?: boolean } = {}
+  ): Promise<ResumenCancion> {
     const cancion = this.biblioteca.obtener(peticion.cancionId)
     if (!cancion) throw noValido('La canción no existe o está dañada.')
     let lineas: ElementoLetra[]
@@ -124,7 +132,7 @@ export class ServicioLetras {
     }
     if (contarLineas(letra) < 1) throw noValido('La letra necesita al menos una línea.')
     this.invalidarEdicionDe(peticion.cancionId)
-    return this.escribir(peticion.cancionId, letra, 0)
+    return this.escribir(peticion.cancionId, letra, 0, !opciones.porPreparacion)
   }
 
   /** Aplica el texto editado sobre la letra guardada en este momento (conserva ids y tiempos). */
@@ -152,7 +160,7 @@ export class ServicioLetras {
       throw noValido('Una canción lista necesita al menos una línea de letra.')
     }
     this.invalidarEdicionDe(peticion.cancionId)
-    return this.escribir(peticion.cancionId, nueva, this.debounceMs)
+    return this.escribir(peticion.cancionId, nueva, this.debounceMs, true)
   }
 
   /** Elige y lee un `.lrc`/`.txt`. No escribe nada; la ruta no sale de aquí. */
@@ -262,8 +270,12 @@ export class ServicioLetras {
   }
 
   /** Escritura sin *debounce* compartida por `guardarTiempos` y `editarTextoLinea`. */
-  private async escribirTiempos(cancionId: string, letra: Letra): Promise<ResumenCancion> {
-    const escritura = this.escribir(cancionId, letra, 0)
+  private async escribirTiempos(
+    cancionId: string,
+    letra: Letra,
+    porUsuario = true
+  ): Promise<ResumenCancion> {
+    const escritura = this.escribir(cancionId, letra, 0, porUsuario)
     this.escriturasTiempos.set(cancionId, escritura)
     try {
       return await escritura
@@ -298,7 +310,8 @@ export class ServicioLetras {
       desfase_corregido_ms: c.desfase_corregido_ms
     })
     if (!nueva.success) return null
-    await this.escribirTiempos(cancionId, nueva.data)
+    // Corrección automática: no es una edición del usuario.
+    await this.escribirTiempos(cancionId, nueva.data, false)
     return c.offset_ms - letra.offset_ms
   }
 
@@ -412,7 +425,35 @@ export class ServicioLetras {
     return this.escribirTiempos(cancionId, nueva.data)
   }
 
-  private escribir(id: string, letra: Letra, debounceMs: number): Promise<ResumenCancion> {
+  /**
+   * Una escritura del usuario sobre una canción preparada por la app la da por revisada y, si cambia de
+   * letra (otro `lrclib_id` u otro origen), `eleccion.por` pasa a `usuario` (ADR 0025 §1).
+   */
+  private preparacionTrasEscribir(
+    cancion: Cancion | null,
+    letra: Letra,
+    porUsuario: boolean
+  ): { preparacion: Preparacion } | Record<string, never> {
+    const p = cancion?.preparacion
+    if (!porUsuario || !p) return {}
+    const otraLetra =
+      p.eleccion != null &&
+      (letra.origen !== cancion.letra?.origen || letra.lrclib_id !== cancion.letra?.lrclib_id)
+    return {
+      preparacion: {
+        ...p,
+        revisada: true,
+        ...(otraLetra && p.eleccion ? { eleccion: { ...p.eleccion, por: 'usuario' as const } } : {})
+      }
+    }
+  }
+
+  private escribir(
+    id: string,
+    letra: Letra,
+    debounceMs: number,
+    porUsuario = true
+  ): Promise<ResumenCancion> {
     const cancion = this.biblioteca.obtener(id)
     // Reglas de retirada de intacta, origen_fin, revisada y alineacion (ADR 0024 §4).
     if (cancion) letra = retirarCamposObsoletos(cancion.letra, letra, cancion.metadatos.duracion_ms)
@@ -420,6 +461,7 @@ export class ServicioLetras {
       id,
       {
         letra,
+        ...this.preparacionTrasEscribir(cancion, letra, porUsuario),
         pasos: {
           letra: {
             estado: estadoPasoLetra(letra),

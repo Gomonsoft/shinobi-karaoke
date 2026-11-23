@@ -8,7 +8,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
+import { Flag, Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
 import { conSubrayadoDelEquipo } from '@shared/estilo'
@@ -78,6 +78,10 @@ import { useComprobarLetra } from './comprobar/useComprobarLetra'
 import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
 import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
 import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
+import { contarImportantes } from '@shared/dudosas'
+import { MarcaPanel, TarjetaRevision } from './revision/TarjetaRevision'
+import { R as RV, motivoPrincipal } from './revision/textos'
+import { useRevision } from './revision/useRevision'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { RielLista } from './RielLista'
 import { RielPanel } from './RielPanel'
@@ -569,6 +573,45 @@ function EditorActivo({
       setRevisionSeleccion((n) => n + 1)
     }
   })
+  // Revisión guiada (feature 11): líneas dudosas en vivo, marcas y recorrido.
+  const [zoomRevision, setZoomRevision] = useState(0)
+  const revision = useRevision({
+    cancionId: id,
+    letra,
+    duracionMs,
+    espera: esperaDelPublico,
+    version: edicion.version,
+    seleccion: edicion.seleccion,
+    separacionDisponible: separacion.disponible,
+    picos: picos.estado,
+    autoescucha: config.editor.revision_autoescucha,
+    despachar,
+    anunciar,
+    irALinea: (linea) => {
+      seleccionar(linea)
+      setPestana('sincronia')
+      setZoomRevision((n) => n + 1)
+    },
+    escucharTramo: (linea) => escucharTramoLinea(linea),
+    bloqueado: edicion.sync.activo || Boolean(audio?.error)
+  })
+  // Motivo principal de cada línea pendiente (tooltip, nombre accesible y banderita).
+  const marcasRevision = useMemo(
+    () => new Map(revision.pendientes.map((d) => [d.id, motivoPrincipal(d)])),
+    [revision.pendientes]
+  )
+  // «Marcar como lista» con pendientes: la primera pulsación de la visita pregunta (F11-E12).
+  const avisoRevisionVisto = useRef(false)
+  const primeraPulsacionRevision = useCallback(() => {
+    const antes = avisoRevisionVisto.current
+    avisoRevisionVisto.current = true
+    return !antes
+  }, [])
+  const avisoPendientes = {
+    pendientes: contarImportantes(revision.pendientes),
+    primeraPulsacion: primeraPulsacionRevision,
+    revisarAhora: revision.empezar
+  }
   // Indicadores de espera (0212): la vista previa y la prueba ven la espera efectiva de la canción.
   // Letra en pantalla (0291) y subrayado de este equipo (0293): lo ve también la prueba a pantalla completa.
   const pantallaDelPublico = pantallaVisible(tema.control.vista, apariencia, estilo)
@@ -726,6 +769,7 @@ function EditorActivo({
     desarmarBucle()
     cancelarMarcador()
     escucha?.cancelar()
+    revision.terminar()
     setPestana('sincronia')
     sync.entrar()
   }
@@ -1360,10 +1404,28 @@ function EditorActivo({
         case 'deshacer_marca':
           sync.deshacer()
           break
+        case 'revisar':
+          cerrarAplicandoPreciso()
+          if (revision.activo) terminarRevision()
+          else revision.empezar()
+          break
+        case 'revision_bien':
+          if (revision.activo) revision.estaBien()
+          break
+        case 'dudosa':
+          cerrarAplicandoPreciso()
+          if (accion.sentido === 1) revision.siguiente()
+          else revision.anterior()
+          setFocoLinea((n) => n + 1)
+          break
         case 'escapar':
           if (cancelarMarcador()) break
           if (bucle.current) {
             desarmarBucle()
+            break
+          }
+          if (revision.activo) {
+            terminarRevision()
             break
           }
           if (edicion.sync.activo) sync.terminar()
@@ -1376,6 +1438,11 @@ function EditorActivo({
     }
   )
 
+  /** Termina el recorrido y devuelve el foco a la fila seleccionada. */
+  function terminarRevision() {
+    revision.terminar()
+    setFocoLinea((n) => n + 1)
+  }
   const irALetra = () => ir({ tipo: 'cancion', id, paso: 'letra' })
   /** «Buscar otra letra» de la comprobación: abre la vista Letra en A (spec 06 · F4). */
   const irABuscarOtra = () => ir({ tipo: 'cancion', id, paso: 'letra', buscarOtra: true })
@@ -1538,6 +1605,8 @@ function EditorActivo({
                 actual={sonando ? indiceLineaActual(letra, posicion) : -1}
                 foco={focoLinea}
                 revisionSeleccion={revisionSeleccion}
+                dudosas={marcasRevision}
+                siguienteDudosa={revision.siguiente}
                 seleccionar={seleccionar}
                 escuchar={escuchar}
                 corregir={irALetra}
@@ -1637,7 +1706,13 @@ function EditorActivo({
                       etiqueta="Panel del editor"
                       valor={pestana}
                       opciones={[
-                        { valor: 'sincronia', etiqueta: 'Sincronía' },
+                        {
+                          valor: 'sincronia',
+                          etiqueta: 'Sincronía',
+                          icono: revision.activo && pestana !== 'sincronia' ? Flag : undefined,
+                          nombre:
+                            revision.activo && pestana !== 'sincronia' ? RV.pestana : undefined
+                        },
                         {
                           valor: 'estilo',
                           etiqueta: 'Estilo',
@@ -1679,6 +1754,18 @@ function EditorActivo({
                           motivo: exportarVideo.motivo,
                           exportar: exportarAplicando
                         }}
+                        revision={{
+                          pendientes: revision.calculando ? null : revision.pendientes.length,
+                          buenas: revision.buenas,
+                          sinVoz: revision.voz === null && !revision.calculando,
+                          calculando: revision.calculando,
+                          noDisponible: probarInactivo ? E.syncTitulo : undefined,
+                          empezar: () => {
+                            cerrarAplicandoPreciso()
+                            revision.empezar()
+                          },
+                          reiniciar: revision.reiniciar
+                        }}
                         comprobar={{
                           motivos: comprobar.motivos,
                           calculando: comprobar.calculando,
@@ -1710,7 +1797,33 @@ function EditorActivo({
                     </section>
                   ) : pestana === 'sincronia' ? (
                     <section aria-label="Ajuste de sincronía">
+                      {revision.activo && (
+                        <TarjetaRevision
+                          revision={revision}
+                          letra={letra}
+                          seleccion={edicion.seleccion}
+                          estado={estadoCancion}
+                          fijarInicio={() => fijar('inicio')}
+                          escuchar={() => {
+                            if (edicion.seleccion) escucharTramoLinea(edicion.seleccion)
+                          }}
+                          probar={() => void abrirPrueba()}
+                          probarInactivo={probarInactivo || cuentas.sincronizadas === 0}
+                        />
+                      )}
                       <PanelSincronia
+                        marca={
+                          !revision.activo &&
+                          lineaSeleccionada &&
+                          revision.porId.get(lineaSeleccionada.id) ? (
+                            <MarcaPanel
+                              revision={revision}
+                              d={revision.porId.get(lineaSeleccionada.id)!}
+                              fijarInicio={() => fijar('inicio')}
+                              conPalabras={tienePalabrasManuales(lineaSeleccionada)}
+                            />
+                          ) : undefined
+                        }
                         edicion={edicion}
                         duracionMs={duracionMs}
                         ayudaBluetooth={ayudaBluetooth}
@@ -1812,6 +1925,7 @@ function EditorActivo({
                         alOmitirAviso={() => setOmitirAvisoLL(true)}
                         vaciar={vaciar}
                         alEnfocarPrimera={irAPrimeraSinInicio}
+                        revision={avisoPendientes}
                       />
                     ) : (
                       <BotonCambiarModalidad
@@ -1832,6 +1946,8 @@ function EditorActivo({
                       vaciar={vaciar}
                       alEnfocarPrimera={irAPrimeraSinInicio}
                       primeraPulsacionIncompleta={primeraPulsacionIncompleta}
+                      revision={avisoPendientes}
+                      resaltado={revision.resaltarDock}
                     />
                   </>
                 }
@@ -1878,6 +1994,8 @@ function EditorActivo({
                   }
                   resaltadas={silencios.resaltadas}
                   resaltadasDesfase={comprobar.resaltadas}
+                  dudosas={marcasRevision}
+                  zoomRevision={zoomRevision}
                   onda={(vista) => (
                     <PistaOndaVoz
                       cancionId={id}

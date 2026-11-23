@@ -12,6 +12,9 @@ function montar(
     motivos?: Motivo[]
     motivosComprobar?: MotivoComprobar[]
     desfaseCorregidoMs?: number
+    pendientes?: number | null
+    buenas?: number
+    sinVoz?: boolean
   } = {}
 ) {
   const props = {
@@ -20,7 +23,9 @@ function montar(
     comprobar: vi.fn(),
     quitar: vi.fn(),
     cambiarModalidad: vi.fn(),
-    volverABorrador: vi.fn()
+    volverABorrador: vi.fn(),
+    empezar: vi.fn(),
+    reiniciar: vi.fn()
   }
   render(
     <PanelFunciones
@@ -29,6 +34,14 @@ function montar(
         activa: undefined,
         motivo: opciones.motivoExportar,
         exportar: props.exportar
+      }}
+      revision={{
+        pendientes: opciones.pendientes === undefined ? 3 : opciones.pendientes,
+        buenas: opciones.buenas ?? 0,
+        sinVoz: opciones.sinVoz ?? false,
+        calculando: opciones.pendientes === null,
+        empezar: props.empezar,
+        reiniciar: props.reiniciar
       }}
       comprobar={{
         motivos: opciones.motivosComprobar ?? [],
@@ -104,7 +117,8 @@ describe('Comprobar la letra con la voz (feature 4)', () => {
   it('F4-E1: va justo antes de «Ajustar los silencios» y antes de «Exportar video»', () => {
     montar('borrador')
     const titulos = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-    expect(titulos.slice(0, 3)).toEqual([
+    expect(titulos.slice(0, 4)).toEqual([
+      'Revisar la sincronía',
       'Comprobar la letra con la voz',
       'Ajustar los silencios',
       'Exportar video'
@@ -149,5 +163,32 @@ describe('Comprobar la letra con la voz (feature 4)', () => {
     montar('borrador')
     expect(screen.queryByText(/Desfase corregido/)).toBeNull()
     expect(boton('Quitar la corrección')).toBeNull()
+  })
+})
+
+describe('Revisar la sincronía (feature 11)', () => {
+  it('es la primera sección, con el recuento en el botón y el resumen', () => {
+    const p = montar('borrador', { pendientes: 5, buenas: 3 })
+    const titulos = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(titulos[0]).toBe('Revisar la sincronía')
+    expect(titulos.indexOf('Comprobar la letra con la voz')).toBe(1)
+    fireEvent.click(boton('Revisar (5)…')!)
+    expect(p.empezar).toHaveBeenCalledOnce()
+    expect(screen.getByText('5 líneas por revisar · 3 dadas por buenas')).toBeVisible()
+    fireEvent.click(boton('Volver a señalarlas')!)
+    expect(p.reiniciar).toHaveBeenCalledOnce()
+  })
+
+  it('sin pendientes: lo dice, el botón queda inactivo y no empieza', () => {
+    const p = montar('borrador', { pendientes: 0 })
+    expect(screen.getByText('No vemos nada raro en esta canción.')).toBeVisible()
+    fireEvent.click(boton('Revisar…')!)
+    expect(p.empezar).not.toHaveBeenCalled()
+    expect(boton('Volver a señalarlas')).toBeNull()
+  })
+
+  it('sin la voz lo avisa y mientras se prepara no lleva número', () => {
+    montar('borrador', { pendientes: 2, sinVoz: true })
+    expect(screen.getByText(/Cuando la voz esté separada/)).toBeVisible()
   })
 })

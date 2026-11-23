@@ -14,7 +14,8 @@ export const TEXTO = {
   varios: 'Añade las canciones de una en una.',
   leyendo: 'Leyendo el audio…',
   datosTitulo: 'Revisa los datos de la canción',
-  datosAyuda: 'Los usaremos para buscar la letra. Puedes cambiarlos después.',
+  datosAyuda:
+    'Los hemos rellenado por ti. Con ellos buscamos la letra y elegimos el tema. Puedes cambiarlos después.',
   campoTitulo: 'Título',
   campoArtista: 'Artista',
   campoAlbum: 'Álbum',
@@ -25,7 +26,32 @@ export const TEXTO = {
   guardado: 'Guardado',
   notaResumen: 'Para usar otro audio, añade una canción nueva.',
   otroArchivo: 'Elegir otro archivo',
-  copiarDetalles: 'Copiar detalles'
+  copiarDetalles: 'Copiar detalles',
+  // 0.2.2 · Feature 6 (`add.dato.*`)
+  sugerencias: 'Mostrar sugerencias de tu biblioteca',
+  numCanciones: (n: number): string => (n === 1 ? '1 canción' : `${n} canciones`),
+  opcionSugerencia: (nombre: string, n: number): string =>
+    `${nombre}, ${n === 1 ? '1 canción' : `${n} canciones`}`,
+  sinArtista: 'Sin artista es más difícil encontrar la letra.',
+  dudoso: (procedencia: string): string => `${procedencia}: compruébalo`,
+  dudosoInvertido: 'Hemos intercambiado título y artista: compruébalo',
+  unificar: (valor: string): string => `¿Te refieres a «${valor}», que ya está en tu biblioteca?`,
+  usar: (valor: string): string => `Usar «${valor}»`,
+  dejarlo: 'Dejarlo así',
+  intercambiar: 'Intercambiar título y artista',
+  intercambiado: 'Título y artista intercambiados.'
+} as const
+
+/** `add.dato.origen.*`: bajo cada campo prerrellenado. */
+export const ORIGEN_DATO = {
+  etiquetas: 'De las etiquetas del archivo',
+  nombre: 'Del nombre del archivo',
+  carpeta: 'Del nombre de la carpeta',
+  video: 'Del título del video',
+  pista: 'De los datos de la canción en YouTube',
+  canal: 'Del nombre del canal',
+  lista: 'Del nombre de la lista',
+  biblioteca: 'Como en tu biblioteca'
 } as const
 
 /** Pestaña "Enlace de YouTube" (docs/ux/03: `add.legal.*`, `add.url.*`, `add.pendiente.*`). */

@@ -340,6 +340,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         if (cambio.editor?.omitir_aviso_letra_lista !== undefined) {
           config.editor.omitir_aviso_letra_lista = cambio.editor.omitir_aviso_letra_lista
         }
+        if (cambio.editor?.revision_autoescucha !== undefined) {
+          config.editor.revision_autoescucha = cambio.editor.revision_autoescucha
+        }
         const paneles = cambio.editor?.paneles
         if (paneles) {
           Object.assign(config.editor.paneles.lista, paneles.lista)

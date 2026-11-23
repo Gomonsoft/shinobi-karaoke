@@ -293,3 +293,13 @@
   background: var(--texto-3);
   pointer-events: none;
 }
+/* Banderita de 8 px en la esquina superior izquierda de una región por revisar (feature 11). */
+.region[data-dudosa]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-top: 8px solid var(--aviso);
+  border-right: 8px solid transparent;
+  pointer-events: none;
+}

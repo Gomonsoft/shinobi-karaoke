@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
-import { Film, Info, MoveHorizontal } from 'lucide-react'
+import { Film, Flag, Info, MoveHorizontal } from 'lucide-react'
 import type { ExportacionVista } from '../../exportacion/estado'
 import { lineaDeExportacion } from '../../exportacion/lineas'
 import { Boton } from '../../componentes/Boton'
@@ -11,6 +11,7 @@ import { K } from './comprobar/textos'
 import { esMac, S } from './silencios/textos'
 import type { Motivo } from './silencios/useAjustarSilencios'
 import { E } from './textos'
+import { R } from './revision/textos'
 import estilos from './editor.module.css'
 
 export type EstadoCancion = 'borrador' | 'lista' | 'letra_lista'
@@ -22,6 +23,19 @@ interface Props {
     /** Por qué no se puede exportar (`exp.motivo.*`). */
     motivo: string | undefined
     exportar(): void
+  }
+  /** «Revisar la sincronía» (feature 11): primera sección de la pestaña. */
+  revision: {
+    /** Líneas pendientes; `null` mientras se prepara la forma de onda. */
+    pendientes: number | null
+    buenas: number
+    /** Sin la voz separada solo actúan los motivos que no la necesitan. */
+    sinVoz: boolean
+    calculando: boolean
+    /** Motivo por el que no se puede empezar (modo al ritmo, error de audio). */
+    noDisponible?: string
+    empezar(): void
+    reiniciar(): void
   }
   /** «Comprobar la letra con la voz» (feature 4): va justo antes de «Ajustar los silencios». */
   comprobar: {
@@ -87,6 +101,7 @@ const textoMotivoComprobar = (m: MotivoComprobar): string =>
 export function PanelFunciones({
   estado,
   exportacion,
+  revision,
   comprobar,
   silencios,
   cambiarModalidad,
@@ -116,6 +131,45 @@ export function PanelFunciones({
 
   return (
     <div className={estilos.funciones}>
+      <Seccion titulo={R.funciones.titulo} idTitulo={`${id}-revision`}>
+        <p>{R.funciones.ayuda}</p>
+        <div className={estilos.funcionFila}>
+          <Boton
+            data-funcion="revisar"
+            aria-disabled={revision.pendientes === 0 || undefined}
+            aria-describedby={revision.pendientes === 0 ? `${id}-nada-revision` : undefined}
+            noDisponible={revision.noDisponible}
+            cargando={revision.calculando}
+            textoCargando={R.funciones.boton(null)}
+            onClick={() => {
+              if (revision.pendientes !== 0) revision.empezar()
+            }}
+          >
+            <Icono icono={Flag} />
+            {R.funciones.boton(revision.pendientes)}
+          </Boton>
+        </div>
+        {revision.calculando && (
+          <MotivoVisible id={`${id}-motivo-revision`} texto={S.falta.preparando} />
+        )}
+        {revision.pendientes === 0 && !revision.noDisponible ? (
+          <p id={`${id}-nada-revision`}>{R.nada}</p>
+        ) : (
+          revision.pendientes !== null &&
+          revision.pendientes + revision.buenas > 0 && (
+            <p>{R.resumen(revision.pendientes, revision.buenas)}</p>
+          )
+        )}
+        {revision.buenas > 0 && (
+          <div className={estilos.funcionFila}>
+            <Boton variante="fantasma" onClick={revision.reiniciar}>
+              {R.reiniciar}
+            </Boton>
+          </div>
+        )}
+        {revision.sinVoz && <p>{R.sinVoz}</p>}
+      </Seccion>
+
       <Seccion titulo={K.funciones.titulo} idTitulo={`${id}-comprobar`}>
         <p>{K.funciones.ayuda}</p>
         <div className={estilos.funcionFila}>

@@ -74,6 +74,10 @@ function crearDeps() {
     biblioteca: {
       listar: vi.fn(() => [resumen('abc', '/ruta/absoluta/miniatura.jpg'), resumen('d')]),
       obtener: vi.fn<(id: string) => Cancion | null>(() => null),
+      valoresDatos: vi.fn(() => ({
+        artistas: [{ valor: 'Yo', clave: 'yo', canciones: 2 }],
+        albumes: []
+      })),
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
       guardarApariencia: vi.fn((id: string) => Promise.resolve(resumen(id))),
       resolver: vi.fn(() => ({
@@ -404,15 +408,41 @@ describe('manejadores IPC', () => {
     expect((await m[CANALES.trabajos.cancelar]([])).ok).toBe(false)
   })
 
-  it('actualizarMetadatos solo pasa metadatos al servicio', async () => {
+  it('actualizarMetadatos solo pasa metadatos al servicio y marca como del usuario lo que cambia', async () => {
     const { deps } = crearDeps()
+    deps.biblioteca.obtener.mockReturnValue(lista())
+    const previos = lista().metadatos
     const r = await crearManejadores(deps)[CANALES.biblioteca.actualizarMetadatos]([
       'abc',
-      { titulo: 'Nuevo', artista: 'Yo', album: null }
+      { titulo: 'Nuevo', artista: previos.artista, album: previos.album }
     ])
     expect(r.ok).toBe(true)
     expect(deps.biblioteca.actualizar).toHaveBeenCalledWith('abc', {
-      metadatos: { titulo: 'Nuevo', artista: 'Yo', album: null }
+      metadatos: {
+        titulo: 'Nuevo',
+        artista: previos.artista,
+        album: previos.album,
+        origen: { titulo: 'usuario' }
+      }
+    })
+  })
+
+  it('letras.candidatoPorId pide el texto de un candidato guardado', async () => {
+    const { deps } = crearDeps()
+    const candidatoPorId = vi.fn(() => Promise.resolve(null))
+    deps.letras = { candidatoPorId } as never
+    const m = crearManejadores(deps)[CANALES.letras.candidatoPorId]
+    expect(await m([{ cancionId: 'abc', lrclibId: 9001 }])).toEqual({ ok: true, valor: null })
+    expect(candidatoPorId).toHaveBeenCalledWith('abc', 9001)
+    expect((await m([{ cancionId: 'abc', lrclibId: 0 }])).ok).toBe(false)
+  })
+
+  it('biblioteca.valoresDatos devuelve artistas y álbumes del índice', async () => {
+    const { deps } = crearDeps()
+    const r = await crearManejadores(deps)[CANALES.biblioteca.valoresDatos]([])
+    expect(r).toEqual({
+      ok: true,
+      valor: { artistas: [{ valor: 'Yo', clave: 'yo', canciones: 2 }], albumes: [] }
     })
   })
 

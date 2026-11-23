@@ -49,7 +49,8 @@ def test_cli_ok_con_progreso_y_esquema(tono_estereo_30s, salida):
     assert msgs[0] == {"tipo": "progreso", "fase": "preparando", "valor": None}
     datos = msgs[-1]["datos"]
     assert set(datos) == {
-        "duracion_ms", "metadatos", "ganancia_db", "lufs", "nombre_original", "mezcla"
+        "duracion_ms", "metadatos", "etiquetas", "ganancia_db", "lufs", "nombre_original",
+        "mezcla",
     }  # fmt: skip
     assert datos["mezcla"] == "fuente/mezcla.flac"
     assert datos["nombre_original"] == "estereo_30s.wav"
@@ -123,6 +124,51 @@ def test_etiquetas_con_tildes_y_cjk(tmp_path, salida):
         "artista": ap.ETIQUETAS["artist"],
         "album": ap.ETIQUETAS["album"],
     }
+
+
+_AMPLIADAS = {
+    "TITLE": "Canción de prueba",
+    "ARTIST": "",
+    "ALBUM": "Álbum de prueba",
+    "ALBUMARTIST": "Artista de prueba",
+    "TRACKNUMBER": "3/12",
+    "DATE": "2019",
+}
+
+
+def _comprobar_ampliadas(datos):
+    assert datos["etiquetas"]["album_artist"] == "Artista de prueba"
+    assert datos["etiquetas"]["track"] == "3"
+    assert datos["etiquetas"]["date"].startswith("2019")
+    assert datos["etiquetas"]["title"] == "Canción de prueba"
+    # `artist` vacio cae a `album_artist` en los metadatos del formulario.
+    assert datos["metadatos"]["artista"] == "Artista de prueba"
+
+
+def test_etiquetas_ampliadas_en_flac(tmp_path, salida):
+    entrada = ap._codificar(
+        tmp_path / "x.flac", ap.tono(12), ap.FS, formato="flac", codec="flac", etiquetas=_AMPLIADAS
+    )
+    _comprobar_ampliadas(normalizar(entrada, salida))
+
+
+def test_etiquetas_ampliadas_en_mp3(tmp_path, salida):
+    # FFmpeg escribe ID3 con sus nombres normalizados (album_artist, track, date).
+    etiquetas = {
+        "title": "Canción de prueba",
+        "artist": "",
+        "album": "Álbum de prueba",
+        "album_artist": "Artista de prueba",
+        "track": "3/12",
+        "date": "2019",
+    }
+    entrada = ap.mp3(tmp_path / "x.mp3", ap.tono(12), etiquetas=etiquetas)
+    _comprobar_ampliadas(normalizar(entrada, salida))
+
+
+def test_sin_etiquetas_las_crudas_van_vacias(tmp_path, salida):
+    entrada = ap.mp3(tmp_path / "x.mp3", ap.tono(12))
+    assert set(normalizar(entrada, salida)["etiquetas"].values()) == {""}
 
 
 def test_etiquetas_largas_y_espacios(tmp_path, salida):

@@ -9,6 +9,7 @@ import {
   type Page
 } from '@playwright/test'
 import { crearTemporal } from './temporales'
+import { iniciarServidorLrclib } from './fixtures/lrclib/servidor'
 
 /**
  * Importar un archivo local con la app compilada y el worker real de desarrollo (0046).
@@ -17,11 +18,32 @@ import { crearTemporal } from './temporales'
  */
 
 /** WAV PCM 16 bit mono con un tono de 440 Hz. */
-function escribirWav(ruta: string, segundos = 30, tasa = 22050): void {
+function escribirWav(
+  ruta: string,
+  segundos = 30,
+  tasa = 22050,
+  etiquetas: Record<string, string> = {}
+): void {
   const n = segundos * tasa
+  // Etiquetas `LIST/INFO` (INAM título, IART artista, IPRD álbum): FFmpeg las lee como metadatos.
+  const info = Buffer.concat(
+    Object.entries(etiquetas).map(([clave, valor]) => {
+      const texto = Buffer.from(`${valor}\0`, 'utf8')
+      const relleno = texto.length % 2 ? Buffer.from([0]) : Buffer.alloc(0)
+      const cab = Buffer.alloc(8)
+      cab.write(clave, 0)
+      cab.writeUInt32LE(texto.length, 4)
+      return Buffer.concat([cab, texto, relleno])
+    })
+  )
+  const lista =
+    info.length === 0
+      ? Buffer.alloc(0)
+      : Buffer.concat([Buffer.from('LIST'), Buffer.alloc(4), Buffer.from('INFO'), info])
+  if (lista.length) lista.writeUInt32LE(lista.length - 8, 4)
   const b = Buffer.alloc(44 + n * 2)
   b.write('RIFF', 0)
-  b.writeUInt32LE(36 + n * 2, 4)
+  b.writeUInt32LE(36 + n * 2 + lista.length, 4)
   b.write('WAVEfmt ', 8)
   b.writeUInt32LE(16, 16)
   b.writeUInt16LE(1, 20) // PCM
@@ -35,7 +57,7 @@ function escribirWav(ruta: string, segundos = 30, tasa = 22050): void {
   for (let i = 0; i < n; i++) {
     b.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 440 * i) / tasa)), 44 + i * 2)
   }
-  writeFileSync(ruta, b)
+  writeFileSync(ruta, Buffer.concat([b.subarray(0, 36), lista, b.subarray(36)]))
 }
 
 const sha = (ruta: string): string => createHash('sha256').update(readFileSync(ruta)).digest('hex')
@@ -157,6 +179,103 @@ test.describe('importar un archivo local', () => {
       expect(sha(wav)).toBe(shaAntes)
     } finally {
       await cerrar(app)
+    }
+  })
+
+  test('un archivo etiquetado llega con sus datos y su procedencia, y se unifica con la biblioteca', async () => {
+    const { datos } = preparar('etiquetas')
+    const entrada = join(datos, '..', `etiquetadas-${Date.now()}`)
+    mkdirSync(entrada, { recursive: true })
+    const uno = join(entrada, 'pista01.wav')
+    const dos = join(entrada, 'pista02.wav')
+    escribirWav(uno, 30, 22050, { INAM: 'Tema Alfa', IART: 'Grupo Uno', IPRD: 'Querido…' })
+    escribirWav(dos, 30, 22050, { INAM: 'Tema Beta', IART: 'grupo uno', IPRD: 'Querido...' })
+
+    const anadir = async (app: ElectronApplication): Promise<Page> => {
+      const v = await app.firstWindow()
+      await irAAnadir(v)
+      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
+        timeout: 30_000
+      })
+      return v
+    }
+
+    const app1 = await lanzar(datos, uno)
+    try {
+      const v = await anadir(app1)
+      await expect(v.getByLabel('Título')).toHaveValue('Tema Alfa')
+      await expect(v.getByLabel('Artista')).toHaveValue('Grupo Uno')
+      await expect(v.getByLabel('Álbum')).toHaveValue('Querido…')
+      await expect(v.getByText('De las etiquetas del archivo')).toHaveCount(3)
+      // Si el usuario cambia un campo, su procedencia desaparece.
+      await v.getByLabel('Título').fill('Tema Alfa 2')
+      await expect(v.getByText('De las etiquetas del archivo')).toHaveCount(2)
+      await v.getByRole('button', { name: 'Continuar' }).click()
+      await expect(v.getByRole('heading', { level: 1 })).toBeVisible()
+    } finally {
+      await cerrar(app1)
+    }
+    const [id] = canciones(datos)
+    const json = JSON.parse(readFileSync(join(datos, 'biblioteca', id!, 'cancion.json'), 'utf8'))
+    expect(json.metadatos.origen).toEqual({ titulo: 'usuario', artista: 'fuente', album: 'fuente' })
+
+    // Segunda canción: «Querido...» y «grupo uno» se proponen con la grafía de la biblioteca.
+    const app2 = await lanzar(datos, dos)
+    try {
+      const v = await anadir(app2)
+      await expect(v.getByLabel('Álbum')).toHaveValue('Querido…')
+      await expect(v.getByText('Como en tu biblioteca')).toBeVisible()
+      await v.getByLabel('Álbum').focus()
+      await v.keyboard.press('ArrowDown')
+      await expect(v.getByRole('option', { name: 'Querido…, 1 canción' })).toBeVisible()
+      // Esc cierra la lista sin salir de la vista.
+      await v.keyboard.press('Escape')
+      await expect(v.getByRole('option')).toHaveCount(0)
+      await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible()
+    } finally {
+      await cerrar(app2)
+    }
+  })
+
+  test('privacidad: con «Buscar la letra automáticamente» apagado no sale ninguna petición a LRCLIB al añadir', async () => {
+    const { datos } = preparar('privacidad')
+    // El título coincide con una letra del doble: si saliera una petición, se vería.
+    const titulado = join(datos, '..', `Tema completa-${Date.now()}.wav`)
+    escribirWav(titulado, 30, 22050, { INAM: 'Tema completa', IART: 'Grupo inventado' })
+    const config = JSON.parse(readFileSync(join(datos, 'config.json'), 'utf8'))
+    writeFileSync(
+      join(datos, 'config.json'),
+      JSON.stringify({ ...config, preparacion: { automatica: false } })
+    )
+    const lrclib = await iniciarServidorLrclib()
+    const app = await electron.launch({
+      args: ['.'],
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        SHINOBI_DATOS: datos,
+        SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
+        SHINOBI_DIALOGO_PRUEBAS: titulado,
+        SHINOBI_LRCLIB_URL: lrclib.url
+      }
+    })
+    try {
+      const v = await app.firstWindow()
+      await irAAnadir(v)
+      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await expect(v.getByLabel('Título')).toHaveValue('Tema completa', { timeout: 30_000 })
+      await v.getByRole('button', { name: 'Continuar' }).click()
+      await expect(v.getByRole('heading', { level: 1 })).toBeVisible()
+      const fila = v.getByRole('list', { name: 'Subpasos' }).getByRole('listitem').first()
+      await expect(fila).toContainText('completado', { timeout: 30_000 })
+      // Margen para cualquier búsqueda diferida: la cola automática empezaría en el acto.
+      await v.waitForTimeout(3000)
+      expect(lrclib.peticiones).toHaveLength(0)
+      expect(canciones(datos)).toHaveLength(1)
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
     }
   })
 

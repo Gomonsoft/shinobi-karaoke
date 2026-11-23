@@ -47,6 +47,28 @@ describe('detectarVoz', () => {
 })
 
 describe('proponerAjusteSilencios', () => {
+  it('con soloIds solo cambia esas líneas, también con palabras a mano, y no toca la espera', () => {
+    const palabras = [{ texto: 'A', inicio_ms: 1000, fin_ms: 1500 }]
+    const letra = letraDe([
+      linea('a', 'A', 1000, { palabras, origen_palabras: 'manual' }),
+      linea('b', 'B', 3700),
+      linea('c', 'C', 11000)
+    ])
+    const r = proponerAjusteSilencios(letra, detectarVoz(picosBase()), {
+      duracionMs: DUR,
+      espera: ESPERA,
+      soloIds: ['a']
+    })
+    expect(r.cambios.map((c) => c.id)).toStrictEqual(['a'])
+    expect(r.letra.lineas[0]).toMatchObject({
+      fin_ms: 3300,
+      palabras: null,
+      origen_fin: 'silencios'
+    })
+    expect(r.letra.lineas[1]).toStrictEqual(letra.lineas[1])
+    expect(r.espera).toBeNull()
+  })
+
   it('fija los fines al final de la voz más el margen y cuenta el hueco largo', () => {
     const r = ajustar(tres())
     expect([fin(r.letra, 'a'), fin(r.letra, 'b'), fin(r.letra, 'c')]).toStrictEqual([
@@ -117,7 +139,9 @@ describe('proponerAjusteSilencios', () => {
 
     // Las importadas se ajustan como una línea normal y quedan sin palabras.
     const importada = ajustar(letraDe([linea('a', 'A', 1000, { palabras }), linea('b', 'B', 3700)]))
-    expect(importada.letra.lineas[0]).toStrictEqual(linea('a', 'A', 1000, { fin_ms: 3300 }))
+    expect(importada.letra.lineas[0]).toStrictEqual(
+      linea('a', 'A', 1000, { fin_ms: 3300, origen_fin: 'silencios' })
+    )
 
     const r2 = ajustar(letraDe([linea('a', 'A', 3700), pausa('p', 5000), linea('b', 'B', 11000)]))
     // La voz llega hasta la pausa: la ventana acaba ahí y no hay silencio.

@@ -10,9 +10,12 @@ import {
   type Cancion,
   type CodigoError,
   type MetadatosEditables,
-  type ResultadoInfoYoutube
+  type PropuestaDatos,
+  type ResultadoInfoYoutube,
+  type ValoresDatosIpc
 } from '../../shared'
 import type { CambioCancion, DatosNuevaCancion, ResumenCancion } from '../biblioteca'
+import { origenAlConfirmar, proponerDatos, type ResultadoPropuesta } from './propuestaDatos'
 import {
   esperarCancelable,
   type ErrorTrabajo,
@@ -125,6 +128,8 @@ export interface DependenciasYoutube {
   config: { obtener(): { aviso_youtube_aceptado: string | null } }
   /** Directorio de datos de la app (contiene `biblioteca/`). */
   dirDatos: string
+  /** Artistas y álbumes de la biblioteca para proponer su grafía (`biblioteca.valoresDatos`). */
+  valoresDatos?: () => ValoresDatosIpc
   ahora?: () => Date
   registrar?: (nivel: 'aviso' | 'error', mensaje: string) => void
   /** Actualiza yt-dlp (0050); si falta, un bloqueo no se reintenta. */
@@ -141,6 +146,8 @@ export interface InfoYoutube {
   canal: string
   duracionS: number
   metadatos: { titulo: string; artista: string; album: string }
+  /** Los mismos datos con su procedencia (0.2.2). */
+  datos: PropuestaDatos
   miniaturaDataUrl: string | null
 }
 
@@ -148,6 +155,7 @@ interface Consulta {
   id: string
   urlCanonica: string
   info: ResultadoInfoYoutube
+  propuesta: ResultadoPropuesta
   miniatura: Buffer | null
   creada: number
   confirmando: boolean
@@ -249,6 +257,15 @@ export class ServicioYoutube {
         id: consultaId,
         urlCanonica: analisis.urlCanonica,
         info: r.data,
+        propuesta: proponerDatos(
+          {
+            tipo: 'youtube',
+            musica: r.data.musica,
+            tituloLimpio: r.data.musica?.titulo_limpio ?? r.data.metadatos.titulo,
+            canalLimpio: r.data.musica?.canal_limpio ?? r.data.metadatos.artista
+          },
+          this.deps.valoresDatos?.() ?? { artistas: [], albumes: [] }
+        ),
         miniatura: miniatura && miniatura.length > 0 ? miniatura : null,
         creada: this.ahora().getTime(),
         confirmando: false
@@ -260,7 +277,12 @@ export class ServicioYoutube {
         tituloOriginal: r.data.titulo_original,
         canal: r.data.canal,
         duracionS: r.data.duracion_s,
-        metadatos: r.data.metadatos,
+        metadatos: {
+          titulo: consulta.propuesta.datos.titulo.valor,
+          artista: consulta.propuesta.datos.artista.valor,
+          album: consulta.propuesta.datos.album.valor
+        },
+        datos: consulta.propuesta.datos,
         miniaturaDataUrl: consulta.miniatura
           ? `data:image/jpeg;base64,${consulta.miniatura.toString('base64')}`
           : null
@@ -304,11 +326,16 @@ export class ServicioYoutube {
     }
     const m = metadatosEditablesSchema.safeParse(metadatos)
     if (!m.success) throw argumentos('Los metadatos no son válidos.')
+    const titulo = m.data.titulo.trim()
+    const artista = m.data.artista.trim()
+    const album = (m.data.album?.trim() ?? '') === '' ? null : (m.data.album?.trim() ?? null)
+    const origen = origenAlConfirmar(consulta.propuesta, { titulo, artista, album })
     const datos = {
-      titulo: m.data.titulo.trim(),
-      artista: m.data.artista.trim(),
-      album: (m.data.album?.trim() ?? '') === '' ? null : (m.data.album?.trim() ?? null),
-      duracion_ms: Math.max(1, Math.round(consulta.info.duracion_s * 1000))
+      titulo,
+      artista,
+      album,
+      duracion_ms: Math.max(1, Math.round(consulta.info.duracion_s * 1000)),
+      ...(origen ? { origen } : {})
     }
     consulta.confirmando = true
     try {

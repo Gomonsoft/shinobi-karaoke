@@ -101,3 +101,60 @@ describe('apariencia en cancionSchema', () => {
     expect(con({ modo: 'heredar', tema_id: idDePrueba(1) })).toBe(false)
   })
 })
+
+describe('preparacion (0.2.2)', () => {
+  const REGISTRO = {
+    estado: 'elige_letra',
+    paso: null,
+    origen: 'automatica',
+    actualizado: '2026-11-21T10:00:00.000Z',
+    busqueda: { resultado: 'elige', candidatas: 3, motivo: null, ids: [1, 2, 3] },
+    eleccion: null,
+    dudosas: 0,
+    revisada: false,
+    error: null
+  }
+  const base = () => JSON.parse(JSON.stringify(lista()))
+
+  it('un cancion.json de 0.2.1 (sin registro) se lee igual y no gana el campo', () => {
+    // Copia congelada: lo que escribía 0.2.1, sin `preparacion`.
+    const antigua = base()
+    delete antigua.preparacion
+    const c = cancionSchema.parse(antigua)
+    expect(c.preparacion).toBeUndefined()
+    expect(JSON.parse(JSON.stringify(c)).preparacion).toBeUndefined()
+  })
+
+  it('un registro válido se conserva, con sus ids', () => {
+    const c = cancionSchema.parse({ ...base(), preparacion: REGISTRO })
+    expect(c.preparacion?.busqueda?.ids).toEqual([1, 2, 3])
+  })
+
+  it('un registro ilegible se ignora y no daña la canción', () => {
+    expect(
+      cancionSchema.parse({ ...base(), preparacion: { estado: 'inventado' } }).preparacion
+    ).toBeUndefined()
+    expect(cancionSchema.parse({ ...base(), preparacion: 7 }).preparacion).toBeUndefined()
+  })
+
+  it('lo secundario ilegible cae a su valor por defecto', () => {
+    const c = cancionSchema.parse({
+      ...base(),
+      preparacion: {
+        ...REGISTRO,
+        paso: 'x',
+        revisada: 'sí',
+        dudosas: -1,
+        busqueda: { resultado: 'elige', ids: 'x' }
+      }
+    })
+    expect(c.preparacion).toMatchObject({ paso: null, revisada: false, dudosas: 0 })
+    expect(c.preparacion?.busqueda).toMatchObject({ candidatas: 0, ids: [] })
+  })
+
+  it('un 0.2.1 simulado (objeto sin la clave) descarta el campo al leer', () => {
+    const esquema021 = cancionSchema.omit({ preparacion: true })
+    const leida = esquema021.parse({ ...base(), preparacion: REGISTRO })
+    expect('preparacion' in leida).toBe(false)
+  })
+})

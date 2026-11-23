@@ -42,7 +42,8 @@ describe('configSchema (lectura tolerante)', () => {
           linea_tiempo: { alto: null, minimizado: false },
           preciso: { geometria: null, margen_ms: 500 }
         },
-        omitir_aviso_letra_lista: false
+        omitir_aviso_letra_lista: false,
+        revision_autoescucha: true
       },
       biblioteca: { agrupar: 'ninguno' },
       aviso_youtube_listas_aceptado: null,

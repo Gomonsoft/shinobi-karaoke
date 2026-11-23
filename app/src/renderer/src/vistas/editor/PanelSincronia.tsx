@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { Icono } from '../../componentes/Icono'
@@ -33,6 +34,8 @@ interface Props {
   /** La línea está abierta en el editor preciso: sus controles de tiempo quedan inactivos. */
   ocupada?: boolean
   cerrarBluetooth?(): void
+  /** Marca de revisión de la línea seleccionada (feature 11), bajo su texto. */
+  marca?: ReactNode
 }
 
 let bluetoothVisto = false
@@ -94,7 +97,8 @@ export function PanelSincronia({
   cerrarBluetooth,
   abrirPreciso,
   motivoPreciso,
-  ocupada = false
+  ocupada = false,
+  marca
 }: Props) {
   const { letra } = edicion.actual
   const { seleccion } = edicion
@@ -112,6 +116,7 @@ export function PanelSincronia({
         <div className={estilos.ajustesLinea}>
           <h3>{E.lineaN(numeroDeLinea(letra, linea.id), contarLineas(letra))}</h3>
           <p className={estilos.lineaDetalle}>«{linea.texto}»</p>
+          {marca}
           {tienePalabrasManuales(linea) && (
             <>
               <p className={estilos.indicadorPanel}>

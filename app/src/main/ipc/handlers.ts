@@ -20,8 +20,11 @@ import {
   type ProgresoRuntimeIpc,
   type RequisitosRuntimeIpc,
   type MetadatosEditables,
+  type OrigenMetadatos,
+  type ValoresDatosIpc,
   type BusquedaLetra,
   type ResultadoBusquedaLetra,
+  type CandidatoLetra,
   type GuardarLetra,
   type GuardarTiempos,
   type EdicionLetraIpc,
@@ -47,7 +50,7 @@ import {
 import type { InicialExportacionIpc } from '../../shared/exportacion'
 import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
-import type { EventoCancion, ResumenCancion } from '../biblioteca'
+import { origenTrasEdicion, type EventoCancion, type ResumenCancion } from '../biblioteca'
 import { resueltaDeResolucion } from '../biblioteca/resumen'
 import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
@@ -60,9 +63,18 @@ import type { ServicioActualizaciones } from '../actualizaciones'
 export interface BibliotecaIpc {
   listar(): ResumenCancion[]
   obtener(id: string): Cancion | null
+  /** Artistas y álbumes existentes con su número de canciones (índice en memoria). */
+  valoresDatos(): ValoresDatosIpc
   actualizar(
     id: string,
-    cambio: { metadatos: { titulo: string; artista: string; album: string | null } }
+    cambio: {
+      metadatos: {
+        titulo: string
+        artista: string
+        album: string | null
+        origen?: OrigenMetadatos
+      }
+    }
   ): Promise<ResumenCancion>
   guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion>
   /** Resolución de la canción con el catálogo vigente (`biblioteca.obtener`). */
@@ -151,6 +163,8 @@ export interface SeparacionIpc {
 /** Servicio de letras (0082 y 0083); mientras no exista, los canales responden `ERROR_INTERNO`. */
 export interface LetrasIpc {
   buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
+  /** Texto de un candidato guardado por su id de LRCLIB (ADR 0025 §7). */
+  candidatoPorId(cancionId: string, lrclibId: number): Promise<CandidatoLetra | null>
   guardar(letra: GuardarLetra): Promise<ResumenCancion>
   editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancion>
   editarTextoLinea(peticion: EditarTextoLinea, sesionId: string): Promise<ResumenCancion>
@@ -327,7 +341,6 @@ const CANALES_NO_IMPLEMENTADOS = [
   CANALES.preparacion.reintentarFallidas,
   CANALES.preparacion.tanda,
   CANALES.preparacion.cancelar,
-  CANALES.letras.candidatoPorId,
   CANALES.letras.exportarLrc,
   CANALES.letras.exportarLrcVarias,
   CANALES.letras.mostrarEnCarpeta,
@@ -335,7 +348,6 @@ const CANALES_NO_IMPLEMENTADOS = [
   CANALES.fuente.leerCarpeta,
   CANALES.fuente.infoLista,
   CANALES.fuente.lote,
-  CANALES.biblioteca.valoresDatos,
   CANALES.biblioteca.editarDatosVariasPrevisualizar,
   CANALES.biblioteca.editarDatosVariasEjecutar,
   CANALES.biblioteca.eliminarVariasPrevisualizar,
@@ -536,6 +548,10 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       temas().descartarAvisoApartado()
     ),
     [CANALES.letras.buscar]: envolver(CANALES.letras.buscar, (p) => letras().buscar(p)),
+    [CANALES.letras.candidatoPorId]: envolver(
+      CANALES.letras.candidatoPorId,
+      ({ cancionId, lrclibId }) => letras().candidatoPorId(cancionId, lrclibId)
+    ),
     [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) => {
       sinSesion()
       return resumenParaRenderer(await letras().guardar(p))
@@ -608,9 +624,20 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.biblioteca.obtener]: envolver(CANALES.biblioteca.obtener, (id) =>
       cancionParaRenderer(id)
     ),
+    [CANALES.biblioteca.valoresDatos]: envolver(CANALES.biblioteca.valoresDatos, () =>
+      biblioteca.valoresDatos()
+    ),
     [CANALES.biblioteca.actualizarMetadatos]: envolver(
       CANALES.biblioteca.actualizarMetadatos,
-      async (id, metadatos) => resumenParaRenderer(await biblioteca.actualizar(id, { metadatos }))
+      async (id, metadatos) => {
+        // «Editar datos»: lo que el usuario cambia pasa a ser suyo y nada lo sustituye solo (ADR 0025 §6).
+        const origen = origenTrasEdicion(biblioteca.obtener(id)?.metadatos, metadatos)
+        return resumenParaRenderer(
+          await biblioteca.actualizar(id, {
+            metadatos: { ...metadatos, ...(origen ? { origen } : {}) }
+          })
+        )
+      }
     ),
     [CANALES.biblioteca.guardarApariencia]: envolver(
       CANALES.biblioteca.guardarApariencia,

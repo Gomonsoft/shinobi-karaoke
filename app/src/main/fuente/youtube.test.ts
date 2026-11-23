@@ -302,6 +302,34 @@ describe.skipIf(!hayUv())('servicio de YouTube con el worker real y el doble de 
     })
   }
 
+  it('un vídeo de YouTube Music propone título, artista y álbum con origen «pista» y lo guarda', async () => {
+    await fixture(ID, {
+      title: 'Tema inventado (Official Video)',
+      channel: 'Grupo Inventado - Topic',
+      track: 'Tema inventado',
+      artists: ['Grupo Inventado'],
+      album: 'Disco inventado'
+    })
+    const { gestor, servicio } = montar()
+    const info = await servicio.info(URL)
+    expect(info.datos).toEqual({
+      titulo: { valor: 'Tema inventado', origen: 'pista', dudoso: false },
+      artista: { valor: 'Grupo Inventado', origen: 'pista', dudoso: false },
+      album: { valor: 'Disco inventado', origen: 'pista', dudoso: false }
+    })
+    const resumen = await servicio.confirmar(info.consultaId, {
+      titulo: 'Tema inventado',
+      artista: 'Grupo Inventado',
+      album: 'Mi disco'
+    })
+    await esperarFin(gestor)
+    expect((await leer(resumen.id)).metadatos.origen).toEqual({
+      titulo: 'fuente',
+      artista: 'fuente',
+      album: 'usuario'
+    })
+  }, 90_000)
+
   it('info -> confirmar -> descarga en la cola ligera -> canción completada con mezcla y miniatura', async () => {
     await fixture(ID)
     const { gestor, servicio, biblioteca } = montar()

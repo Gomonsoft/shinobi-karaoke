@@ -64,14 +64,22 @@ def metadatos_desde_nombre(nombre: str) -> dict[str, str]:
     return {"titulo": limpiar_texto(titulo), "artista": limpiar_texto(artista), "album": ""}
 
 
+_CLAVES_ETIQUETA = ("title", "artist", "album", "album_artist", "track", "date")
+
+
 def _etiquetas(contenedor: av.container.InputContainer, pista: Any) -> dict[str, str]:
-    """Etiquetas title/artist/album del contenedor y de la pista (sin distinguir mayusculas)."""
+    """Etiquetas del contenedor y de la pista (sin distinguir mayusculas).
+
+    Claves: title, artist, album, album_artist, track (numero, sin el total «3/12») y date.
+    """
     encontradas: dict[str, str] = {}
     for fuente in (contenedor.metadata, pista.metadata):
         for clave, valor in dict(fuente).items():
             k = str(clave).lower()
-            if k in ("title", "artist", "album") and k not in encontradas:
+            if k in _CLAVES_ETIQUETA and k not in encontradas:
                 texto = limpiar_texto(valor)
+                if k == "track":
+                    texto = texto.split("/")[0].strip()
                 if texto:
                     encontradas[k] = texto
     return encontradas
@@ -79,17 +87,23 @@ def _etiquetas(contenedor: av.container.InputContainer, pista: Any) -> dict[str,
 
 def _metadatos(etiquetas: dict[str, str], nombre: str) -> dict[str, str]:
     heuristica = metadatos_desde_nombre(nombre)
+    artista = etiquetas.get("artist") or etiquetas.get("album_artist", "")
     if "title" in etiquetas:
         return {
             "titulo": etiquetas["title"],
-            "artista": etiquetas.get("artist", ""),
+            "artista": artista,
             "album": etiquetas.get("album", ""),
         }
     return {
         "titulo": heuristica["titulo"],
-        "artista": etiquetas.get("artist") or heuristica["artista"],
+        "artista": artista or heuristica["artista"],
         "album": etiquetas.get("album", ""),
     }
+
+
+def _etiquetas_crudas(etiquetas: dict[str, str]) -> dict[str, str]:
+    """Lo leido del archivo tal cual (cadena vacia si falta): main decide el origen de cada dato."""
+    return {k: etiquetas.get(k, "") for k in _CLAVES_ETIQUETA}
 
 
 def _ganancia(lufs: float | None) -> float:
@@ -216,6 +230,7 @@ def normalizar(
     return {
         "duracion_ms": round(muestras * 1000 / FS),
         "metadatos": _metadatos(etiquetas, entrada.name),
+        "etiquetas": _etiquetas_crudas(etiquetas),
         "ganancia_db": _ganancia(lufs),
         "lufs": None if lufs is None else round(lufs, 2),
         "nombre_original": entrada.name,

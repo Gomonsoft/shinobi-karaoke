@@ -204,7 +204,9 @@ const panelesSchema = objetoTolerante({
 const editorSchema = objetoTolerante({
   paneles: panelesSchema,
   /** No volver a avisar al activar «Letra lista» (ADR 0018 §5). */
-  omitir_aviso_letra_lista: z.boolean().catch(false)
+  omitir_aviso_letra_lista: z.boolean().catch(false),
+  /** «Escuchar cada línea al llegar» de la revisión guiada (spec 06 · Feature 11). */
+  revision_autoescucha: z.boolean().catch(true)
 })
 
 export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album', 'fecha'] as const
