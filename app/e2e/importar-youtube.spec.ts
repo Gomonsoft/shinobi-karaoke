@@ -26,6 +26,7 @@ const NO_DISPONIBLE = 'NoDispon_01'
 const BLOQ_UNA = 'Bloq_Una_01'
 const BLOQ_SIEMPRE = 'Bloq_Siem_1'
 const DIRECTO = 'Directo_001'
+const RED_SIEMPRE = 'Red_Siem_01'
 
 const TITULO_NORMAL = 'Artista Ejemplo - Canción de prueba (Official Video) [HD]'
 
@@ -298,6 +299,46 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         preparacion?: unknown
       }
       expect(c.preparacion ?? null).toBeNull()
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
+    }
+  })
+
+  test('sin conexión con el interruptor apagado: la descarga se reintenta a los 60 s y no sale ninguna petición a LRCLIB (ADR 0025 §5)', async () => {
+    // Los 3 reintentos de la descarga (5 + 15 + 45 s) y luego la sonda a los 60 s.
+    test.setTimeout(240_000)
+    const env = preparar('yt-sin-conexion')
+    const config = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
+    writeFileSync(
+      join(env.datos, 'config.json'),
+      JSON.stringify({ ...config, preparacion: { automatica: false } })
+    )
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, { SHINOBI_LRCLIB_URL: lrclib.url })
+    try {
+      const v = await app.firstWindow()
+      await añadir(v, RED_SIEMPRE)
+      // Tras los reintentos propios de la descarga queda parada por `SIN_CONEXION`.
+      await expect
+        .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
+          timeout: 100_000,
+          intervals: [1000]
+        })
+        .toBe('error')
+      expect(leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.error.codigo).toBe(
+        'SIN_CONEXION'
+      )
+      // Vuelve la red: solo cambia el doble.
+      ajustar(env.falsos, RED_SIEMPRE, { error_descarga: undefined })
+      // A los 60 s la propia descarga hace de sonda: termina bien y nada habló con LRCLIB.
+      await expect
+        .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
+          timeout: 100_000,
+          intervals: [1000]
+        })
+        .toBe('completado')
+      expect(lrclib.peticiones).toHaveLength(0)
     } finally {
       await cerrar(app)
       await lrclib.cerrar()

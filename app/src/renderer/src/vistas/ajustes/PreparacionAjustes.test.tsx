@@ -10,15 +10,17 @@ function montar({
   automatica = true,
   actualizar = vi.fn().mockResolvedValue({}),
   abrirEnlace = vi.fn().mockResolvedValue(undefined),
-  borradoresSinLetra = 0
+  borradoresSinLetra = 0,
+  /** Borradores sin letra cuya fuente aún no está: la bandeja no los cuenta en «Esperan letra». */
+  sinFuente = 0
 } = {}) {
   const config = configPredeterminada()
   config.preparacion.automatica = automatica
-  const lista = Array.from({ length: borradoresSinLetra }, (_, i) =>
+  const lista = Array.from({ length: borradoresSinLetra + sinFuente }, (_, i) =>
     resumenPrueba({
       id: `b${i}`,
       pasos: {
-        fuente: paso('completado'),
+        fuente: paso(i < borradoresSinLetra ? 'completado' : 'pendiente'),
         separacion: paso('completado'),
         letra: paso('pendiente'),
         edicion: paso('pendiente')
@@ -80,6 +82,14 @@ describe('Letras y preparación automática', () => {
     expect(await screen.findByText(/Tienes 5 borradores sin letra/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Verlos en la Biblioteca' }))
     expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca', casilla: 'letra' })
+  })
+
+  it('F5-J5: cuenta lo mismo que la casilla «Esperan letra» (no los que aún no tienen fuente)', async () => {
+    montar({ automatica: false, borradoresSinLetra: 3, sinFuente: 4 })
+    const c = await casilla()
+    await waitFor(() => expect(c).not.toBeChecked())
+    fireEvent.click(c)
+    expect(await screen.findByText(/Tienes 3 borradores sin letra/)).toBeVisible()
   })
 
   it('«Qué es LRCLIB» abre lrclib.net', async () => {

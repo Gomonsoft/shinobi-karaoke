@@ -40,7 +40,12 @@ export const fuenteSchema = z.object({
   /** Ruta relativa a la carpeta de la canción. */
   mezcla: z.string().min(1),
   miniatura: z.string().nullable(),
-  ganancia_db: z.number()
+  ganancia_db: z.number(),
+  /**
+   * Importación por lotes (ADR 0026 §2): ruta absoluta del archivo original mientras la fuente no esté
+   * completada; main la borra al completarla. Lectura tolerante (0.2.1 la descarta).
+   */
+  ruta_pendiente: z.string().min(1).optional().catch(undefined)
 })
 
 export const pistasSchema = z.object({

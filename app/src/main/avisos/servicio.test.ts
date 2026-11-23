@@ -91,6 +91,18 @@ describe('avisoDeTrabajo', () => {
     expect(l).toMatchObject({ tipo: 'lista', etiqueta: 'Abrir editor', destino: 'editor' })
     expect(l?.texto).toBe(`«${lista().metadatos.titulo}» ya se puede marcar como lista.`)
   })
+  it('D7: con la preparación en marcha no avisa «ya se puede marcar como lista» (la preparación avisa)', () => {
+    const c = { ...lista(), preparacion: { estado: 'en_curso' } } as unknown as Cancion
+    expect(avisoDeTrabajo(trabajo(), obtener(c))).toBeNull()
+    // Sin letra completa no es «lista»: la separación avisa «voz e instrumental separadas» como siempre.
+    const sinLetraEnCurso = {
+      ...sinLetra(),
+      preparacion: { estado: 'en_curso' }
+    } as unknown as Cancion
+    expect(avisoDeTrabajo(trabajo(), obtener(sinLetraEnCurso))).toMatchObject({ tipo: 'ok' })
+    expect(avisoDeTrabajo(trabajo(), obtener(lista()))).toMatchObject({ tipo: 'lista' })
+  })
+
   it('error: título del error sin oferta de Rápido', () => {
     const a = avisoDeTrabajo(
       trabajo({
@@ -245,6 +257,38 @@ describe('tanda de varias canciones (0309)', () => {
     const m = montar({ plataforma: 'win32', enfocada: true })
     m.servicio.avisarTanda({ total: 3, listas: 3, esperanLetra: 0, conError: 0 })
     expect(m.avisos[0]!.texto).toBe('3 canciones listas para revisar.')
+  })
+})
+
+describe('fin de la preparación de una canción', () => {
+  const cambio = (estado: string) => ({
+    id: 'c1',
+    resumen: { titulo: 'Eco de Plata', estadoPreparacion: estado }
+  })
+
+  it('sin foco notifica con el texto del toast y el clic abre la canción; sin toast propio', () => {
+    const m = montar({ plataforma: 'win32' })
+    m.servicio.alCambiarCancion(cambio('preparando'))
+    expect(m.mostrar).not.toHaveBeenCalled()
+    m.servicio.alCambiarCancion(cambio('lista_para_revisar'))
+    expect(m.notificacion()!.cuerpo).toBe('«Eco de Plata» está lista para revisar.')
+    expect(m.avisos).toHaveLength(0)
+    m.notificacion()!.alClic()
+    expect(m.abrir).toEqual([{ cancionId: 'c1', destino: 'editor' }])
+  })
+
+  it('con foco, dentro de una tanda o sin haber estado preparando no notifica', () => {
+    const enfocada = montar({ plataforma: 'win32', enfocada: true })
+    enfocada.servicio.alCambiarCancion(cambio('preparando'))
+    enfocada.servicio.alCambiarCancion(cambio('lista_para_revisar'))
+    expect(enfocada.mostrar).not.toHaveBeenCalled()
+    const tanda = montar({ plataforma: 'win32', enTanda: () => true })
+    tanda.servicio.alCambiarCancion(cambio('preparando'))
+    tanda.servicio.alCambiarCancion(cambio('lista_para_revisar'))
+    expect(tanda.mostrar).not.toHaveBeenCalled()
+    const suelta = montar({ plataforma: 'win32' })
+    suelta.servicio.alCambiarCancion(cambio('lista_para_revisar'))
+    expect(suelta.mostrar).not.toHaveBeenCalled()
   })
 })
 

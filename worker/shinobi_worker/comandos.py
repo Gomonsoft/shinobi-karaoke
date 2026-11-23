@@ -86,6 +86,25 @@ def info_youtube(args: dict[str, Any]) -> None:
     comando(args)
 
 
+def info_lista_youtube(args: dict[str, Any]) -> None:
+    from .listas_youtube import info_lista_youtube as comando
+
+    comando(args)
+
+
+def leer_etiquetas(args: dict[str, Any]) -> None:
+    from .leer_etiquetas import leer_etiquetas as comando
+
+    comando(args)
+
+
+def importar_archivo_cola(args: dict[str, Any]) -> None:
+    """Como `importar-archivo`, pero lo lanza la cola dentro de la carpeta de la canción."""
+    from .importar_archivo import importar_archivo as comando
+
+    comando(args)
+
+
 def descargar_youtube(args: dict[str, Any]) -> None:
     from .youtube import descargar_youtube as comando
 
@@ -122,6 +141,9 @@ COMANDOS: dict[str, Callable[[dict[str, Any]], None]] = {
     "importar-archivo": importar_archivo,
     "diagnostico": diagnostico,
     "info-youtube": info_youtube,
+    "info-lista-youtube": info_lista_youtube,
+    "leer-etiquetas": leer_etiquetas,
+    "importar-archivo-cola": importar_archivo_cola,
     "descargar-youtube": descargar_youtube,
     "separar": separar,
     "generar-picos": generar_picos,

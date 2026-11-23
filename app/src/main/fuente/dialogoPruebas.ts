@@ -5,7 +5,8 @@ export const VARIABLE_DIALOGO_PRUEBAS = 'SHINOBI_DIALOGO_PRUEBAS'
 
 /**
  * Devuelve un diálogo que no abre ninguna ventana nativa si `SHINOBI_DIALOGO_PRUEBAS` está
- * definida: su valor es la ruta que "elige" el usuario, o `cancelar` para simular que cancela.
+ * definida: su valor es la ruta que "elige" el usuario (varias separadas por `|` en la selección
+ * múltiple del lote; una carpeta, en «Elegir carpeta…»), o `cancelar` para simular que cancela.
  * Se ignora siempre en la app empaquetada (ADR 0009 §8).
  */
 export function dialogoConDoblePruebas(
@@ -19,7 +20,7 @@ export function dialogoConDoblePruebas(
       Promise.resolve(
         valor === 'cancelar'
           ? { canceled: true, filePaths: [] }
-          : { canceled: false, filePaths: [valor] }
+          : { canceled: false, filePaths: valor.split('|').filter((r) => r !== '') }
       )
   }
 }

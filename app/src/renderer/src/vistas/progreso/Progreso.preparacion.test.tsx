@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Cancion } from '@shared/cancion'
 import type { ResumenCancionIpc } from '@shared/ipc'
+import { ContenedorToasts } from '../../componentes/Toasts'
 import { NavegacionContexto, type Vista } from '../../navegacion/estado'
 import { ReproductorContexto } from '../../navegacion/reproductor'
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
@@ -26,6 +27,8 @@ interface Opciones {
   automatica?: boolean
   desfaseMs?: number
   separacion?: 'completado' | 'en_curso'
+  revision?: { dudosas: number; dudosasImportantes: number }
+  artista?: string
 }
 
 function montar(o: Opciones = {}) {
@@ -36,7 +39,9 @@ function montar(o: Opciones = {}) {
       letra: paso(o.estado === 'lista_para_revisar' ? 'completado' : 'pendiente'),
       edicion: paso('pendiente')
     },
-    estadoPreparacion: o.estado ?? null
+    estadoPreparacion: o.estado ?? null,
+    ...(o.artista !== undefined ? { artista: o.artista } : {}),
+    ...(o.revision ? { revision: o.revision } : {})
   })
   const cancion = {
     metadatos: { album: null },
@@ -81,6 +86,7 @@ function montar(o: Opciones = {}) {
           <Progreso id="c1" />
         </TrabajosContexto.Provider>
       </ReproductorContexto.Provider>
+      <ContenedorToasts />
     </NavegacionContexto.Provider>
   )
   return { ir, preparar, abrir }
@@ -103,6 +109,16 @@ describe('Progreso con preparación (feature 5)', () => {
     const volver = await screen.findByRole('button', { name: 'Volver a la biblioteca' })
     await vi.waitFor(() => expect(volver).toHaveFocus())
     expect(screen.getByRole('button', { name: 'Ver la letra' })).toBeVisible()
+  })
+
+  it('P2: mientras se busca la letra y la separación sigue, «Comprobar» dice que empezará al terminar', async () => {
+    montar({
+      registro: registro({ estado: 'en_curso', paso: 'buscando_letra' }),
+      estado: 'preparando',
+      separacion: 'en_curso'
+    })
+    const filas = await screen.findByRole('list', { name: 'Subpasos' })
+    expect(within(filas).getByText('Empezará al terminar la separación.')).toBeVisible()
   })
 
   it('sin registro y con la búsqueda automática desactivada, la vista es la de 0.2.1', async () => {
@@ -130,10 +146,58 @@ describe('Progreso con preparación (feature 5)', () => {
       within(bloque).getByText('Desfase corregido: toda la letra 0,8 s más tarde.')
     ).toBeVisible()
     expect(within(bloque).getByText('Fin de 31 líneas ajustado con la voz.')).toBeVisible()
+    // F5-P13: título del resultado sin subtítulo, bloque bajo el título (antes de los subpasos), foco en el
+    // primario y [Volver a la biblioteca] secundario en su misma fila.
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Tu canción está lista para revisar'
+    )
+    expect(screen.queryByText(/No hace falta que esperes/)).toBeNull()
+    const subpasos = screen.getByRole('list', { name: 'Subpasos' })
+    expect(bloque.compareDocumentPosition(subpasos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await vi.waitFor(() =>
+      expect(within(bloque).getByRole('button', { name: 'Revisar' })).toHaveFocus()
+    )
+    expect(within(bloque).getByRole('button', { name: 'Volver a la biblioteca' })).toBeVisible()
     fireEvent.click(within(bloque).getByRole('button', { name: 'Revisar' }))
     expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'editor', revisar: true })
     fireEvent.click(within(bloque).getByRole('button', { name: 'Probar' }))
     expect(abrir).toHaveBeenCalledWith('c1', expect.objectContaining({ prueba: true }))
+  })
+
+  it('F11-B3: el [Marcar como lista] del toast tras «Probar» pregunta si hay líneas pendientes', async () => {
+    const { abrir } = montar({
+      estado: 'lista_para_revisar',
+      registro: registro(),
+      revision: { dudosas: 2, dudosasImportantes: 2 }
+    })
+    const r = await screen.findByText('Lista para revisar')
+    const bloque = r.closest('[data-resultado]') as HTMLElement
+    fireEvent.click(within(bloque).getByRole('button', { name: 'Probar' }))
+    act(() => abrir.mock.calls[0]![1].alCerrar())
+    fireEvent.click(await screen.findByRole('button', { name: 'Marcar como lista' }))
+    expect(
+      await screen.findByRole('dialog', { name: '¿Marcar como lista sin revisar?' })
+    ).toBeVisible()
+  })
+
+  it('R2 con el artista vacío explica `sinArtista`', async () => {
+    montar({
+      estado: 'elige_letra',
+      artista: '',
+      registro: registro({
+        estado: 'elige_letra',
+        busqueda: {
+          resultado: 'elige',
+          candidatas: 3,
+          motivo: null,
+          no_elige: 'sinExacta',
+          ids: []
+        }
+      })
+    })
+    expect(
+      await screen.findByText(/falta el artista de la canción: escríbelo arriba/)
+    ).toBeVisible()
   })
 
   it('R2, R3 y R4 con su botón', async () => {

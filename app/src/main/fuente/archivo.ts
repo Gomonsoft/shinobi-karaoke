@@ -246,6 +246,8 @@ export class ServicioImportacionArchivo {
         })
         this.actual = null
         await this.borrarCarpeta(id)
+        // Una canción de lote con el archivo perdido sigue su camino con el archivo nuevo (ADR 0026 §2).
+        this.deps.alFuenteLista?.(opciones.cancionId)
         return resumen
       }
       const resumen = await this.deps.biblioteca.materializar(id, {
@@ -362,8 +364,8 @@ export class ServicioImportacionArchivo {
 /** Subconjunto de `electron.dialog` que usa el selector. */
 export interface DialogoArchivos {
   showOpenDialog(opciones: {
-    properties: 'openFile'[]
-    filters: { name: string; extensions: string[] }[]
+    properties: ('openFile' | 'openDirectory' | 'multiSelections')[]
+    filters?: { name: string; extensions: string[] }[]
   }): Promise<{ canceled: boolean; filePaths: string[] }>
 }
 

@@ -162,3 +162,30 @@ test('la preparación se ve: insignia, línea de paso, bandeja y «Probar»', as
     await app.close()
   }
 })
+
+// D1 (pregunta 0241): una «Lista para revisar» sin registro de preparación (la 15 de la semilla, hecha a
+// mano) muestra su línea ⚑ o «Sin líneas dudosas», calculada por main en memoria sin escribir nada.
+test('una «Lista para revisar» sin registro muestra su recuento y main no escribe en su cancion.json', async () => {
+  const datos = crearTemporal('bib-revision-sin-registro')
+  await sembrar(datos)
+  const ruta = join(
+    datos,
+    'biblioteca',
+    `5eed0000-0000-4000-8000-${String(15).padStart(12, '0')}`,
+    'cancion.json'
+  )
+  const antes = readFileSync(ruta, 'utf8')
+  expect(JSON.parse(antes).preparacion).toBeUndefined()
+  const app = await lanzar(datos)
+  try {
+    const v = await app.firstWindow()
+    const tarjeta = v.getByRole('article', { name: /^Letra de LRCLIB sincronizada,/ })
+    await expect(tarjeta).toHaveAccessibleName(/Lista para revisar/)
+    await expect(tarjeta.locator('[data-linea-revision]')).toHaveText(
+      /(\d+ líneas? por revisar|Sin líneas dudosas)/
+    )
+    expect(readFileSync(ruta, 'utf8')).toBe(antes)
+  } finally {
+    await app.close()
+  }
+})

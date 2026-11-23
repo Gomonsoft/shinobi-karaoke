@@ -10,6 +10,8 @@ export interface ContextoPrep {
   tieneLetra: boolean
   /** `letra.desfase_corregido_ms`, si lo hay. */
   desfaseCorregidoMs: number | null
+  /** La separación aún no ha terminado (la búsqueda de la letra corre en paralelo). */
+  separando?: boolean
 }
 
 const segundos = (ms: number): string => (Math.abs(ms) / 1000).toFixed(1).replace('.', ',')
@@ -51,7 +53,10 @@ export function filasPreparacion(p: Preparacion | null | undefined, ctx: Context
     letra.dato = `— ${PREP.omitido.yaTieneLetra}`
   }
 
-  if (enCurso && p.paso === 'esperando_separacion') comprobar.texto = PREP.esperaSeparacion
+  // «Comprobar» espera a la separación mientras se busca la letra en paralelo (P2).
+  const esperaSeparacion =
+    enCurso && (p.paso === 'esperando_separacion' || (p.paso === 'buscando_letra' && ctx.separando))
+  if (esperaSeparacion) comprobar.texto = PREP.esperaSeparacion
   else if (enCurso && p.paso === 'comprobando') {
     Object.assign(comprobar, { icono: 'curso', texto: PREP.comprobando, barra: 'indeterminada' })
   } else if (p.eleccion || (p.fines && !enCurso)) {

@@ -72,6 +72,7 @@ type Busqueda = DependenciasPreparacion['busqueda']
 let buscarParaPreparacion: Mock<Busqueda['buscarParaPreparacion']>
 let cancelarAutomaticas: Mock<Busqueda['cancelarAutomaticas']>
 let bloqueada: boolean
+let consultasBloqueo: number
 let automatica: boolean
 let picosEstado: 'lista' | 'generando' | 'error'
 let emitir: Mock<NonNullable<DependenciasPreparacion['emitir']>>
@@ -105,7 +106,10 @@ const montar = (extra: Partial<DependenciasPreparacion> = {}): ServicioPreparaci
       ),
     contarDudosas: (c) => contarDudosasGuardadas({ picos }, c),
     config: { obtener: () => ({ preparacion: { automatica, pausada: false } }) },
-    edicionBloqueada: () => bloqueada,
+    edicionBloqueada: () => {
+      consultasBloqueo++
+      return bloqueada
+    },
     emitir,
     // Espera breve de verdad: un bucle de microtareas dejaría sin turno a los temporizadores.
     esperar: (_ms, señal) =>
@@ -127,6 +131,16 @@ const separar = (estado: 'completado' | 'error' | 'en_curso' | 'pendiente' = 'co
     pasos: { separacion: { estado, actualizado: new Date().toISOString(), error: null } }
   })
 
+/**
+ * Espera a que la corrida haya empezado a mirar la canción (se suscribió y ya hizo su primera lectura):
+ * el registro `esperando_separacion` solo dice que el paso se escribió, no que la espera esté en marcha.
+ */
+const esperandoLaCancion = async (iniciar: () => void): Promise<void> => {
+  const suscribir = vi.spyOn(biblioteca, 'suscribir')
+  iniciar()
+  await vi.waitFor(() => expect(suscribir).toHaveBeenCalled())
+}
+
 beforeEach(async () => {
   datos = await nuevoDirDatos()
   biblioteca = new ServicioBiblioteca(datos)
@@ -141,6 +155,7 @@ beforeEach(async () => {
   buscarParaPreparacion = vi.fn(() => Promise.resolve((respuestas.shift() ?? respuestas[0])!))
   cancelarAutomaticas = vi.fn()
   bloqueada = false
+  consultasBloqueo = 0
   automatica = true
   picosEstado = 'lista'
   emitir = vi.fn()
@@ -579,19 +594,26 @@ describe('detenciones', () => {
 
   it('cancelar la separación detiene la cadena sin borrar las candidatas', async () => {
     await separar('en_curso')
-    servicio.iniciar(id, 'manual')
-    await vi.waitFor(() => expect(registro()?.paso).toBe('esperando_separacion'))
-    await new Promise((r) => setTimeout(r, 20))
+    await esperandoLaCancion(() => servicio.iniciar(id, 'manual'))
+    await separar('pendiente')
+    await servicio.enReposo()
+    expect(registro()).toMatchObject({ estado: 'detenida', busqueda: { resultado: 'elige' } })
+  })
+
+  it('cancelar la separación en cola, antes de que llegue a `en_curso`, también detiene la cadena (0240)', async () => {
+    let trabajo = true
+    const encolar = vi.fn(() => Promise.resolve())
+    servicio = montar({ separacion: { hayTrabajo: () => trabajo, encolar } })
+    await esperandoLaCancion(() => servicio.iniciar(id, 'manual'))
+    // El usuario cancela el trabajo en cola: no hay trabajo y la separación sigue `pendiente`.
+    trabajo = false
     await separar('pendiente')
     await servicio.enReposo()
     expect(registro()).toMatchObject({ estado: 'detenida', busqueda: { resultado: 'elige' } })
   })
 
   it('eliminar la canción detiene la corrida sin escribir más', async () => {
-    servicio.iniciar(id, 'manual')
-    await vi.waitFor(() => expect(registro()?.paso).toBe('esperando_separacion'))
-    // Deja asentarse el último registro antes de contar los eventos.
-    await new Promise((r) => setTimeout(r, 30))
+    await esperandoLaCancion(() => servicio.iniciar(id, 'manual'))
     const antes = emitir.mock.calls.length
     await servicio.alEliminar(id)
     expect(servicio.enCurso(id)).toBe(false)
@@ -614,7 +636,8 @@ describe('detenciones', () => {
     await separar()
     servicio.iniciar(id, 'manual')
     await vi.waitFor(() => expect(registro()?.paso).toBe('comprobando'))
-    await new Promise((r) => setTimeout(r, 20))
+    // Ya consultó el bloqueo varias veces (sondeo) y sigue sin escribir.
+    await vi.waitFor(() => expect(consultasBloqueo).toBeGreaterThan(2))
     expect(cancion().letra).toBeNull()
     bloqueada = false
     await servicio.enReposo()
@@ -755,10 +778,11 @@ describe('separación pendiente que nadie lanzó (pregunta 0223 §4)', () => {
 
   it('en pausa no sale ninguna búsqueda hasta reanudar', async () => {
     let retenida = true
-    servicio = montar({ retenida: () => retenida })
+    const consultas = vi.fn(() => retenida)
+    servicio = montar({ retenida: consultas })
     await separar()
     servicio.iniciar(id, 'manual')
-    await new Promise((r) => setTimeout(r, 30))
+    await vi.waitFor(() => expect(consultas.mock.calls.length).toBeGreaterThan(2))
     expect(buscarParaPreparacion).not.toHaveBeenCalled()
     retenida = false
     await servicio.enReposo()

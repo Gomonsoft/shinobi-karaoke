@@ -1,8 +1,18 @@
+import { AVISOS } from '@shared/avisos'
+
 /** Textos de la vista de progreso para la preparación desatendida (docs/ux/04 · 0.2.2 · Feature 5). */
 const plural = (n: number, uno: string, varios: string): string => (n === 1 ? uno : varios)
 
 export const PREP = {
   titulo: 'Preparando tu canción',
+  /** `prog.prep.titulo.fin`: el título con un resultado, sin subtítulo (spec 04, F5-P13). */
+  tituloFin: {
+    revisar: 'Tu canción está lista para revisar',
+    elige: 'Falta que elijas la letra',
+    sinLetra: 'No encontramos la letra',
+    instrumental: 'No encontramos la letra',
+    pendiente: 'Falta la letra'
+  },
   subtitulo: 'No hace falta que esperes: te avisaremos cuando esté lista para revisar.',
   sub: {
     letra: 'Buscar la letra',
@@ -56,9 +66,9 @@ export const PREP = {
     cuerpo: 'Lo intentaremos de nuevo la próxima vez que abras la app.'
   },
   toast: {
-    revisar: (t: string) => `«${t}» está lista para revisar.`,
-    elige: (t: string) => `«${t}»: elige la letra.`,
-    sinLetra: (t: string) => `«${t}»: no encontramos la letra.`
+    revisar: AVISOS.preparacion.revisar,
+    elige: AVISOS.preparacion.elige,
+    sinLetra: AVISOS.preparacion.sinLetra
   },
   atencion: 'necesita tu atención'
 } as const

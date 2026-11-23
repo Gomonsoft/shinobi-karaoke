@@ -34,7 +34,7 @@ import {
   type Comprobacion
 } from './comprobacion'
 import { FilaConIcono } from './FilaConIcono'
-import { LP, type MotivoElige } from './preparacion'
+import { LP, motivoElige, type MotivoElige } from './preparacion'
 import { filasDePrevia } from './modelo'
 import type { ConfirmarSustituir } from './sustituir'
 import { TEXTO } from './textos'
@@ -525,7 +525,15 @@ export function BusquedaLetra({
       )}
       {preparacion?.elige && candidatos.length > 0 && (
         <AvisoEnLinea tipo="info">
-          <strong>{LP.elige}</strong> {LP.eligeCuerpo(LP.motivo[preparacion?.noElige ?? 'duda'])}
+          <strong>{LP.elige}</strong>{' '}
+          {LP.eligeCuerpo(
+            motivoElige(preparacion?.noElige, {
+              artistaVacio: artistaInicial.trim() === '',
+              algunaEncaja: candidatos.some(
+                (c) => c.encaje?.veredicto === 'coincide' || c.encaje?.veredicto === 'desfasada'
+              )
+            })
+          )}
         </AvisoEnLinea>
       )}
       {fase.tipo === 'listo' && candidatos.length > 0 && fase.resultado.instrumental && (

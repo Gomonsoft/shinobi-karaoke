@@ -504,12 +504,12 @@ export function TarjetaCancion({
           )}
         </div>
         {lineaPaso && <LineaPaso linea={lineaPaso} />}
-        {paraRevisar && resumen.preparacion && (
+        {paraRevisar && resumen.revision && (
           <p className={`t-pequeno ${estilos.lineaRevision}`} data-linea-revision>
-            <Icono icono={resumen.preparacion.dudosas > 0 ? Flag : Check} tamano={14} />
+            <Icono icono={resumen.revision.dudosas > 0 ? Flag : Check} tamano={14} />
             <span>
-              {resumen.preparacion.dudosas > 0
-                ? BIB_PREP.revision.linea(resumen.preparacion.dudosas)
+              {resumen.revision.dudosas > 0
+                ? BIB_PREP.revision.linea(resumen.revision.dudosas)
                 : BIB_PREP.revision.sinDudas}
             </span>
           </p>

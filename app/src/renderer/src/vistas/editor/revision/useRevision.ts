@@ -186,7 +186,7 @@ export function useRevision(opciones: Opciones) {
     setFoco((n) => n + 1)
     const primera = vecinaPendiente(letra, idsPendientes, null, 1)
     if (primera) {
-      llegarA(primera.id, { sonar: autoescucha })
+      llegarA(primera.id, { sonar: false })
       anunciarLinea(primera.id, idsPendientes.length)
     }
   }

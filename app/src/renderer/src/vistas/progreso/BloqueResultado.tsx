@@ -3,7 +3,7 @@ import { Check, Info, TriangleAlert, type LucideIcon } from 'lucide-react'
 import type { Preparacion } from '@shared/cancion'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
-import { LP } from '../letra/preparacion'
+import { motivoElige } from '../letra/preparacion'
 import { K } from '../editor/comprobar/textos'
 import type { ResultadoPrep } from './preparacion'
 import { PREP } from './textosPreparacion'
@@ -13,6 +13,8 @@ interface Props {
   resultado: ResultadoPrep
   registro: Preparacion | null | undefined
   desfaseCorregidoMs: number | null
+  /** El artista de la canción está vacío: el motivo de R2 es `sinArtista`. */
+  artistaVacio: boolean
   /** Texto del candado de sesión de «Revisar» y «Elegir/Añadir la letra». */
   atributos(etiqueta: string): { 'aria-disabled'?: true; 'aria-label'?: string }
   candado: ReactNode
@@ -20,6 +22,8 @@ interface Props {
   alProbar(): void
   alAbrirLetra(): void
   alReintentar(): void
+  /** [Volver a la biblioteca], secundario en la misma fila, a la derecha de los botones del resultado. */
+  volver: ReactNode
 }
 
 const ICONO: Record<ResultadoPrep, LucideIcon> = {
@@ -38,12 +42,14 @@ export function BloqueResultado({
   resultado,
   registro,
   desfaseCorregidoMs,
+  artistaVacio,
   atributos,
   candado,
   alRevisar,
   alProbar,
   alAbrirLetra,
-  alReintentar
+  alReintentar,
+  volver
 }: Props) {
   const Ic = ICONO[resultado]
   const candidatas = registro?.busqueda?.candidatas ?? 0
@@ -79,7 +85,10 @@ export function BloqueResultado({
       break
     case 'elige':
       titulo = PREP.r2.titulo
-      pie = PREP.r2.cuerpo(candidatas, LP.motivo[registro?.busqueda?.no_elige ?? 'duda'])
+      pie = PREP.r2.cuerpo(
+        candidatas,
+        motivoElige(registro?.busqueda?.no_elige, { artistaVacio, algunaEncaja: false })
+      )
       botones = (
         <Boton
           variante="primario"
@@ -148,7 +157,10 @@ export function BloqueResultado({
         </ul>
       )}
       {pie && <p>{pie}</p>}
-      <div className={estilos.acciones}>{botones}</div>
+      <div className={estilos.acciones}>
+        {botones}
+        {volver}
+      </div>
     </div>
   )
 }

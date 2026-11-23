@@ -34,6 +34,7 @@ const api: ApiShinobi = {
       invocar(CANALES.biblioteca.guardarApariencia, id, seleccion),
     marcarLista: (id, opciones) => invocar(CANALES.biblioteca.marcarLista, id, opciones),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
+    recuentoRevision: (id) => invocar(CANALES.biblioteca.recuentoRevision, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
     marcarPreparacionRevisada: (id) => invocar(CANALES.biblioteca.marcarPreparacionRevisada, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
@@ -148,6 +149,8 @@ const api: ApiShinobi = {
     elegirOrigen: () => invocar(CANALES.copias.elegirOrigen),
     leer: (origenId) => invocar(CANALES.copias.leer, { origenId }),
     importar: (peticion) => invocar(CANALES.copias.importar, peticion),
+    origenDeArchivo: (archivo) =>
+      invocar(CANALES.copias.origenDesdeRuta, { ruta: webUtils.getPathForFile(archivo) }),
     cancelar: (trabajoId) => invocar(CANALES.copias.cancelar, { trabajoId }),
     alCambiar: (cb) => suscribir(CANALES.eventos.copiasCambio, cb),
     alProgreso: (cb) => suscribir(CANALES.eventos.copiasProgreso, cb)
@@ -232,7 +235,8 @@ const api: ApiShinobi = {
       invocar(CANALES.fuente.leerArchivos, rutas === undefined ? {} : { rutas }),
     leerCarpeta: (ruta) => invocar(CANALES.fuente.leerCarpeta, ruta === undefined ? {} : { ruta }),
     infoLista: (url) => invocar(CANALES.fuente.infoLista, { url }),
-    lote: (lote) => invocar(CANALES.fuente.lote, lote)
+    lote: (lote) => invocar(CANALES.fuente.lote, lote),
+    espacioLibre: () => invocar(CANALES.fuente.espacioLibre)
   },
   runtime: {
     estado: () => invocar(CANALES.runtime.estado),

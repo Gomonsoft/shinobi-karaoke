@@ -11,7 +11,9 @@ export const LP = {
   eligeCuerpo: (motivo: string): string => `No la elegimos por ti porque ${motivo}.`,
   motivo: {
     varias: 'hay varias versiones que coinciden con tu audio',
-    sinExacta: 'ninguna es la coincidencia exacta de título, artista y duración',
+    sinArtista: 'falta el artista de la canción: escríbelo arriba y vuelve a buscar, o elige tú',
+    sinExacta:
+      'aunque alguna encaja con tu audio, ninguna coincide a la vez en título, artista y duración con tu canción',
     duda: 'no está claro que coincida con tu audio',
     noCoincide: 'ninguna coincide con tu audio',
     soloTexto: 'solo hay letras sin sincronizar',
@@ -20,4 +22,20 @@ export const LP = {
   continuando: 'Terminando de preparar la canción…'
 } as const
 
-export type MotivoElige = keyof typeof LP.motivo
+export type MotivoElige = Exclude<keyof typeof LP.motivo, 'sinArtista'>
+
+/**
+ * Motivo de «Elige la letra» (`let.prep.motivo.*`). `sinArtista` tiene prioridad cuando el artista está vacío
+ * y se deduce aquí (no se guarda en `busqueda.no_elige`: el artista puede escribirse después). `sinExacta`
+ * dice «aunque alguna encaja con tu audio» solo si se sabe que alguna encaja (`algunaEncaja === true`).
+ */
+export function motivoElige(
+  noElige: MotivoElige | null | undefined,
+  { artistaVacio, algunaEncaja }: { artistaVacio: boolean; algunaEncaja: boolean }
+): string {
+  if (artistaVacio) return LP.motivo.sinArtista
+  if (noElige === 'sinExacta' && !algunaEncaja) {
+    return 'ninguna coincide a la vez en título, artista y duración con tu canción'
+  }
+  return LP.motivo[noElige ?? 'duda']
+}

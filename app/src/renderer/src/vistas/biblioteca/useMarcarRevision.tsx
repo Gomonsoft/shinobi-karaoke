@@ -15,11 +15,17 @@ import { tituloDeError } from './textosError'
 import { BIB_PREP } from './textosPreparacion'
 
 export type ModalidadMarcar = 'karaoke' | 'letra_lista'
-type Fase = { id: string; modalidad: ModalidadMarcar; fase: 'revision' | 'letraLista' }
+type Fase = {
+  id: string
+  modalidad: ModalidadMarcar
+  fase: 'revision' | 'letraLista'
+  /** Líneas por revisar que mostró el diálogo de pendientes. */
+  pendientes: number
+}
 
 /**
  * «Marcar como lista» / «Marcar como letra lista» sin abrir el editor (spec 02 · Feature 11): con líneas
- * pendientes (`preparacion.dudosas`) pregunta antes con `bib.revision.dialogo`; para «Letra lista» sigue
+ * pendientes (`resumen.revision`, o `recuentoRevision` si main aún no lo ha calculado) pregunta antes con `bib.revision.dialogo`; para «Letra lista» sigue
  * el aviso de la primera activación si no está silenciado. La canción nunca pasa a lista sola.
  */
 export function useMarcarRevision(resumenDe: (id: string) => ResumenCancionIpc | undefined): {
@@ -70,7 +76,7 @@ export function useMarcarRevision(resumenDe: (id: string) => ResumenCancionIpc |
           .then((c) => c.editor.omitir_aviso_letra_lista)
           .catch(() => false)
         if (!omitido) {
-          setFase({ id, modalidad, fase: 'letraLista' })
+          setFase({ id, modalidad, fase: 'letraLista', pendientes: 0 })
           return
         }
       }
@@ -82,10 +88,20 @@ export function useMarcarRevision(resumenDe: (id: string) => ResumenCancionIpc |
 
   const pedir = useCallback(
     (id: string, modalidad: ModalidadMarcar) => {
-      const p = resumenDe(id)?.preparacion
-      if ((p?.dudosasImportantes ?? p?.dudosas ?? 0) > 0)
-        setFase({ id, modalidad, fase: 'revision' })
-      else void continuar(id, modalidad)
+      const decidir = (r: { dudosas: number; dudosasImportantes: number } | null): void => {
+        const n = r?.dudosasImportantes ?? 0
+        if (n > 0) setFase({ id, modalidad, fase: 'revision', pendientes: n })
+        else void continuar(id, modalidad)
+      }
+      const revision = resumenDe(id)?.revision
+      if (revision !== undefined && revision !== null) decidir(revision)
+      else {
+        // Sin recuento en memoria: main lo calcula al momento, igual que el editor.
+        void window.shinobi.biblioteca
+          .recuentoRevision(id)
+          .catch(() => null)
+          .then(decidir)
+      }
     },
     [resumenDe, continuar]
   )
@@ -118,10 +134,7 @@ export function useMarcarRevision(resumenDe: (id: string) => ResumenCancionIpc |
       }
     >
       <p>
-        {BIB_PREP.revision.dialogoCuerpo(
-          resumen ? tituloDeTarjeta(resumen) : '',
-          resumen?.preparacion?.dudosasImportantes ?? resumen?.preparacion?.dudosas ?? 0
-        )}
+        {BIB_PREP.revision.dialogoCuerpo(resumen ? tituloDeTarjeta(resumen) : '', fase.pendientes)}
       </p>
     </Dialogo>
   ) : (

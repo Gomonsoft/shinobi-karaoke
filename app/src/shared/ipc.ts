@@ -518,6 +518,13 @@ export const resumenPreparacionSchema = z.object({
 export type ResumenPreparacionIpc = z.infer<typeof resumenPreparacionSchema>
 
 /** Resumen de canción tal y como lo recibe el renderer: la miniatura es una URL shinobi-media://. */
+/** Recuento de líneas por revisar de una canción (ADR 0024, revisión de la pregunta 0241). */
+export const revisionResumenSchema = z.object({
+  dudosas: z.number().int().nonnegative(),
+  dudosasImportantes: z.number().int().nonnegative()
+})
+export type RevisionResumenIpc = z.infer<typeof revisionResumenSchema>
+
 export const resumenCancionSchema = z.object({
   id: z.string(),
   titulo: z.string(),
@@ -550,7 +557,12 @@ export const resumenCancionSchema = z.object({
   /** Registro de la preparación sin ids ni textos (ADR 0025 §1); `null` sin registro. */
   preparacion: resumenPreparacionSchema.nullable().optional(),
   /** Estado derivado («Lista para revisar», «Elige la letra»…); `null` si no aplica. */
-  estadoPreparacion: z.enum(ESTADOS_PREPARACION_DERIVADOS).nullable().optional()
+  estadoPreparacion: z.enum(ESTADOS_PREPARACION_DERIVADOS).nullable().optional(),
+  /**
+   * Líneas por revisar calculadas por main en memoria para toda «Lista para revisar», con o sin registro de
+   * preparación; `null` = aún sin calcular y sin dato guardado.
+   */
+  revision: revisionResumenSchema.nullable().optional()
 })
 export type ResumenCancionIpc = z.infer<typeof resumenCancionSchema>
 
@@ -1217,13 +1229,24 @@ export const filaLoteSchema = z.object({
   duracionMs: z.number().int().nonnegative().nullable(),
   metadatos: metadatosFilaLoteSchema,
   /** `YA_EN_BIBLIOTECA` o `REPETIDA` (ADR 0026 §1): la fila llega desmarcada. */
-  duplicado: z.enum(['YA_EN_BIBLIOTECA', 'REPETIDA']).nullable()
+  duplicado: z.enum(['YA_EN_BIBLIOTECA', 'REPETIDA']).nullable(),
+  /** Audio que no se puede leer (`duracionMs: null`) o de menos de 10 s: fila sin casilla (0375). */
+  problema: z.enum(['ilegible', 'corta']).nullable()
 })
+/** Bytes libres de la unidad de la biblioteca (`null` si no se sabe) y minutos de proceso por minuto de audio. */
+const estimacionLoteSchema = {
+  libreBytes: z.number().nonnegative().nullable(),
+  factorMinutos: z.number().positive().nullable()
+}
 export const lecturaLoteSchema = z.object({
   filas: z.array(filaLoteSchema),
-  /** Elementos rechazados por superar `MAX_LOTE` o no ser audio. */
-  rechazadas: z.number().int().nonnegative()
+  /** Lo que no se muestra: no es audio, está en la carpeta de datos o pasa de 500 (0375). */
+  rechazadas: z.number().int().nonnegative(),
+  /** Se cortó en 500 archivos de audio (o 5 000 entradas de carpeta): `add.lote.demasiadas`. */
+  truncada: z.boolean(),
+  ...estimacionLoteSchema
 })
+export const espacioLibreSchema = z.object({ libreBytes: z.number().nonnegative().nullable() })
 export type LecturaLoteIpc = z.infer<typeof lecturaLoteSchema>
 /** Sin rutas, main abre el diálogo del sistema (pregunta 0166). */
 export const leerArchivosSchema = z.strictObject({
@@ -1240,12 +1263,15 @@ export const listaYoutubeSchema = z.object({
       titulo: z.string(),
       canal: z.string(),
       duracionS: z.number().nonnegative().nullable(),
+      /** `problema === null`. */
       disponible: z.boolean(),
+      problema: z.enum(['no_disponible', 'directo']).nullable(),
       duplicado: z.enum(['YA_EN_BIBLIOTECA']).nullable()
     })
   ),
-  /** La lista tenía más de `MAX_LOTE` entradas y se recortó. */
-  recortada: z.boolean()
+  /** La lista tenía más de 500 entradas y se cortó en 500 (`MAX_LOTE` lo impone `fuente.lote`). */
+  recortada: z.boolean(),
+  ...estimacionLoteSchema
 })
 export type ListaYoutubeIpc = z.infer<typeof listaYoutubeSchema>
 export const entradaLoteSchema = z.discriminatedUnion('tipo', [
@@ -1409,23 +1435,65 @@ export const copiasImportarSchema = z.strictObject({
   porCancion: z.record(idCancionSchema, conflictoSchema).optional(),
   ajustes: z.boolean()
 })
+export const copiasOrigenDesdeRutaSchema = z.strictObject({ ruta: z.string().min(1).max(4096) })
 export const copiasCancelarSchema = z.strictObject({ trabajoId: z.uuid() })
 export const destinoCopiaIpcSchema = z.object({
   destinoId: z.uuid(),
   nombre: z.string(),
   carpeta: z.string(),
-  libreBytes: z.number().nonnegative().nullable()
+  libreBytes: z.number().nonnegative().nullable(),
+  /** Ya hay un archivo con ese nombre (`paq.aviso.existe`). */
+  existe: z.boolean().optional(),
+  /** Tamaño estimado de cada variante (suma de archivos + ~1 %; ADR 0027 §5): `destinoPropuesto` lo calcula. */
+  estimacion: z
+    .object({ completoBytes: z.number().nonnegative(), ligeroBytes: z.number().nonnegative() })
+    .optional()
 })
 export const origenCopiaIpcSchema = z.object({ origenId: z.uuid(), nombre: z.string() })
 export const resumenPaqueteSchema = z.object({
   tipo: z.enum(['paquete', 'copia']),
   conAudio: z.boolean(),
   canciones: z.array(
-    z.object({ id: idCancionSchema, titulo: z.string(), artista: z.string(), existe: z.boolean() })
+    z.object({
+      id: idCancionSchema,
+      titulo: z.string(),
+      artista: z.string(),
+      existe: z.boolean(),
+      /** Fecha de modificación en el paquete y en esta biblioteca (para «más antigua» o «más reciente»). */
+      modificada: z.string().optional(),
+      modificadaLocal: z.string().nullable().optional(),
+      /** Mismo `id` y misma `modificada`: «Ya la tienes igual». */
+      igual: z.boolean().optional(),
+      /** Mismo título, artista y duración (± 2 s) que otra canción con otro `id`. */
+      parecida: z.boolean().optional(),
+      /** Lleva audio (mezcla o pistas) en el paquete. */
+      conAudio: z.boolean().optional(),
+      /** Bytes que ocupa al importarla. */
+      bytes: z.number().nonnegative().optional()
+    })
   ),
   temas: z.array(
     z.object({ id: z.string(), nombre: z.string(), existe: z.enum(['igual', 'distinto', 'no']) })
-  )
+  ),
+  /** Nombre del archivo, fecha y versión con que se creó y tamaño en disco (`paq.imp.resumen`). */
+  nombre: z.string().optional(),
+  creado: z.string().optional(),
+  app: z.string().optional(),
+  bytes: z.number().nonnegative().optional(),
+  /** Espacio libre de la carpeta de la biblioteca. */
+  libreBytes: z.number().nonnegative().nullable().optional(),
+  /** La copia trae `ajustes.json`. */
+  ajustes: z.boolean().optional(),
+  /** Solo en una copia: qué asignaciones de artista y álbum se restaurarían y cuáles no. */
+  asignaciones: z
+    .object({
+      aplicables: z.number().int().nonnegative(),
+      noAplicables: z.array(z.string()),
+      predeterminado: z.enum(['aplica', 'no_aplica', 'sin'])
+    })
+    .optional(),
+  /** El catálogo de temas de este equipo es de solo lectura: no se importan temas. */
+  temasSoloLectura: z.boolean().optional()
 })
 export type ResumenPaqueteIpc = z.infer<typeof resumenPaqueteSchema>
 export const resultadoImportacionSchema = z.object({
@@ -1433,9 +1501,19 @@ export const resultadoImportacionSchema = z.object({
     z.object({
       id: idCancionSchema,
       resultado: z.enum(['importada', 'sustituida', 'omitida', 'error']),
-      motivo: motivoSchema.optional()
+      motivo: motivoSchema.optional(),
+      /** `sustituida` con un paquete ligero: solo cambió `cancion.json` y se conservó el audio (no va a la papelera). */
+      ligera: z.boolean().optional(),
+      /** Id de la canción en la biblioteca (distinto de `id` con «Conservar las dos»). */
+      idLocal: idCancionSchema.optional()
     })
-  )
+  ),
+  /** Resumen de temas, asignaciones y ajustes de lo que se restauró. */
+  temas: z.object({ importados: z.array(z.string()), reutilizados: z.number().int() }).optional(),
+  asignaciones: z
+    .object({ restauradas: z.number().int(), noAplicadas: z.array(z.string()) })
+    .optional(),
+  ajustes: z.boolean().optional()
 })
 export type ResultadoImportacionIpc = z.infer<typeof resultadoImportacionSchema>
 /** Respuesta de exportar un paquete o una copia: el trabajo que sigue `copias:cambio` (provisional). */
@@ -1443,12 +1521,27 @@ export const trabajoCopiaSchema = z.object({ trabajoId: z.uuid() })
 /** Eventos `copias:cambio` y `copias:progreso` (formas provisionales). */
 export interface CambioCopiaIpc {
   trabajoId: string
-  estado: 'en_curso' | 'terminada' | 'error' | 'cancelada'
+  estado: 'en_cola' | 'en_curso' | 'terminada' | 'error' | 'cancelada'
   codigo?: string
+  /** Qué trabajo es. */
+  tipo?: 'exportar' | 'importar'
+  /** Solo `terminada` de una exportación. `ubicacionId` sirve para `letras.mostrarEnCarpeta`. */
+  resultado?: ResultadoExportacionCopiaIpc | ResultadoImportacionIpc
+}
+export interface ResultadoExportacionCopiaIpc {
+  nombre: string
+  bytes: number
+  canciones: number
+  omitidas: { id: string; motivo: string }[]
+  /** Canciones que entraron con un trabajo en curso (sin ese paso o sin pistas): `aj.copia.nota.enCurso`. */
+  enCurso?: number
+  ubicacionId: string
 }
 export interface ProgresoCopiaIpc {
   trabajoId: string
   fraccion: number
+  /** Canción en curso («Guardando «{título}»… {hechas} de {total}»). */
+  cancion?: { hechas: number; total: number; titulo: string }
 }
 
 /** Sincronía con la voz (ADR 0028 §3; canales y formas confirmados en la pregunta 0166). */
@@ -1531,6 +1624,7 @@ export const CONTRATO = {
   [CANALES.ventana.estaEnPantallaCompleta]: { args: vacio, res: z.boolean() },
   [CANALES.ventana.evitarReposo]: { args: unBooleano, res: z.void() },
   [CANALES.biblioteca.comprobarPistas]: { args: unId, res: resumenCancionSchema.nullable() },
+  [CANALES.biblioteca.recuentoRevision]: { args: unId, res: revisionResumenSchema.nullable() },
   [CANALES.biblioteca.listar]: { args: vacio, res: z.array(resumenCancionSchema) },
   [CANALES.biblioteca.obtener]: { args: unId, res: cancionIpcSchema.nullable() },
   [CANALES.biblioteca.actualizarMetadatos]: {
@@ -1782,6 +1876,7 @@ export const CONTRATO = {
   },
   [CANALES.fuente.infoLista]: { args: z.tuple([infoListaSchema]), res: listaYoutubeSchema },
   [CANALES.fuente.lote]: { args: z.tuple([loteSchema]), res: resultadoLoteSchema },
+  [CANALES.fuente.espacioLibre]: { args: z.tuple([]), res: espacioLibreSchema },
   [CANALES.biblioteca.valoresDatos]: { args: vacio, res: valoresDatosSchema },
   [CANALES.biblioteca.editarDatosVariasPrevisualizar]: {
     args: z.tuple([previsualizarDatosVariasSchema]),
@@ -1840,7 +1935,11 @@ export const CONTRATO = {
   [CANALES.copias.leer]: { args: z.tuple([origenCopiaSchema]), res: resumenPaqueteSchema },
   [CANALES.copias.importar]: {
     args: z.tuple([copiasImportarSchema]),
-    res: resultadoImportacionSchema
+    res: trabajoCopiaSchema
+  },
+  [CANALES.copias.origenDesdeRuta]: {
+    args: z.tuple([copiasOrigenDesdeRutaSchema]),
+    res: origenCopiaIpcSchema.nullable()
   },
   [CANALES.copias.cancelar]: { args: z.tuple([copiasCancelarSchema]), res: z.void() },
   [CANALES.alineacion.estado]: { args: vacio, res: estadoAlineacionSchema },
@@ -1875,6 +1974,8 @@ export interface ApiShinobi {
     marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancionIpc>
     /** Vuelve a comprobar las pistas de la canción, que puede pasar a Dañada. */
     comprobarPistas(id: string): Promise<ResumenCancionIpc | null>
+    /** Recuento de líneas por revisar, calculado al momento (sin escribir nada); `null` sin letra. */
+    recuentoRevision(id: string): Promise<RevisionResumenIpc | null>
     volverABorrador(id: string): Promise<ResumenCancionIpc>
     /** Cierra el aviso de la preparación («Elegimos esta letra por ti»): `preparacion.revisada = true`. */
     marcarPreparacionRevisada(id: string): Promise<ResumenCancionIpc | null>
@@ -2026,7 +2127,10 @@ export interface ApiShinobi {
     elegirDestino(destinoId: string): Promise<z.infer<typeof destinoCopiaIpcSchema> | null>
     elegirOrigen(): Promise<z.infer<typeof origenCopiaIpcSchema> | null>
     leer(origenId: string): Promise<ResumenPaqueteIpc>
-    importar(peticion: z.infer<typeof copiasImportarSchema>): Promise<ResultadoImportacionIpc>
+    /** Acepta la importación; el resultado llega en `copias:cambio` `terminada` → `resultado`. */
+    importar(peticion: z.infer<typeof copiasImportarSchema>): Promise<{ trabajoId: string }>
+    /** Registra el `.shinobi` soltado en la ventana (el renderer nunca maneja la ruta). */
+    origenDeArchivo(archivo: File): Promise<z.infer<typeof origenCopiaIpcSchema> | null>
     cancelar(trabajoId: string): Promise<void>
     alCambiar(cb: (cambio: CambioCopiaIpc) => void): () => void
     alProgreso(cb: (progreso: ProgresoCopiaIpc) => void): () => void
@@ -2141,6 +2245,8 @@ export interface ApiShinobi {
     infoLista(url: string): Promise<ListaYoutubeIpc>
     /** Crea las canciones del lote con la fuente pendiente y encola su preparación. */
     lote(lote: LoteIpc): Promise<z.infer<typeof resultadoLoteSchema>>
+    /** Bytes libres de la unidad de la biblioteca (volver a comprobar al volver a la ventana). */
+    espacioLibre(): Promise<z.infer<typeof espacioLibreSchema>>
   }
   runtime: {
     estado(): Promise<EstadoRuntimeIpc>

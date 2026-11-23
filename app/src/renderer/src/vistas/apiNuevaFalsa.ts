@@ -50,6 +50,7 @@ export function apiNuevaFalsa(): Pick<
       elegirOrigen: () => Promise.resolve(null),
       leer: noImplementado,
       importar: noImplementado,
+      origenDeArchivo: () => Promise.resolve(null),
       cancelar: noImplementado,
       alCambiar: sinBaja,
       alProgreso: sinBaja
@@ -107,10 +108,11 @@ export const exportacionNuevaFalsa = (): Pick<
 
 export const fuenteNuevaFalsa = (): Pick<
   ApiShinobi['fuente'],
-  'leerArchivos' | 'leerCarpeta' | 'infoLista' | 'lote'
+  'leerArchivos' | 'leerCarpeta' | 'infoLista' | 'lote' | 'espacioLibre'
 > => ({
   leerArchivos: () => Promise.resolve(null),
   leerCarpeta: () => Promise.resolve(null),
   infoLista: noImplementado,
-  lote: noImplementado
+  lote: noImplementado,
+  espacioLibre: () => Promise.resolve({ libreBytes: null })
 })

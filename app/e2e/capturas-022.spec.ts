@@ -1527,7 +1527,16 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
         ).toBeVisible({
           timeout: 90_000
         })
-        await v.getByRole('button', { name: 'Revisar', exact: true }).scrollIntoViewIfNeeded()
+        // F5-P13: sin desplazar se ve el título del resultado y los botones del bloque.
+        await expect(v.getByRole('heading', { level: 1 })).toHaveText(
+          'Tu canción está lista para revisar'
+        )
+        await expect(v.getByRole('button', { name: 'Revisar', exact: true })).toBeInViewport({
+          ratio: 1
+        })
+        await expect(v.getByRole('button', { name: 'Volver a la biblioteca' })).toBeInViewport({
+          ratio: 1
+        })
         await foto(v, 'progreso-1280x800-100-lista-para-revisar')
         await v.getByRole('button', { name: /^Paso 3/ }).click()
         await expect(v.getByRole('heading', { level: 1, name: 'Letra' })).toBeVisible()
@@ -1541,7 +1550,6 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
           timeout: 90_000
         })
         await expect(v.getByRole('button', { name: 'Elegir la letra' })).toBeVisible()
-        await v.getByRole('button', { name: 'Elegir la letra' }).scrollIntoViewIfNeeded()
         await foto(v, 'progreso-1280x800-100-elige-la-letra')
         await v.getByRole('button', { name: 'Elegir la letra' }).click()
         await expect(v.getByRole('heading', { level: 1, name: 'Letra' })).toBeVisible()
@@ -1555,7 +1563,6 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
         await expect(v.getByText('No encontramos la letra', { exact: true }).first()).toBeVisible({
           timeout: 90_000
         })
-        await v.getByRole('button', { name: 'Añadir la letra' }).scrollIntoViewIfNeeded()
         await foto(v, 'progreso-1280x800-100-no-encontrada')
       })
     )
@@ -1641,10 +1648,21 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
         async (v, app) => {
           await ponerTamano(app, 1280, 720, v)
           await abrirEditor(v, TITULO)
-          // «Revisar» abre con la revisión guiada; con 0 pendientes, el fin de la revisión.
+          // Entrando por «Revisar» el recorrido empieza y reemplaza al banner de la preparación (pregunta 0270):
+          // la captura muestra lo que ve el usuario, con la lista arriba.
+          await v.evaluate(() => {
+            for (const e of document.querySelectorAll<HTMLElement>('*'))
+              if (e.scrollTop > 0) e.scrollTop = 0
+          })
           await v.getByRole('radio', { name: 'Funciones' }).click()
           await expect(v.getByRole('heading', { name: 'Preparación automática' })).toBeVisible()
-          await v.getByRole('heading', { name: 'Preparación automática' }).scrollIntoViewIfNeeded()
+          // Con la lista arriba, para leer entero el banner `edi.banner.preparada`.
+          await expect(v.getByText(/Shinobi Karaoke preparó esta canción/).first()).toBeVisible()
+          // La lista (donde está el banner) se desplaza a la línea seleccionada: se sube al principio.
+          await v.evaluate(() => {
+            for (const e of document.querySelectorAll<HTMLElement>('*'))
+              if (e.scrollTop > 0) e.scrollTop = 0
+          })
           await foto(v, 'editor-1280x720-100-preparacion-automatica')
         }
       )

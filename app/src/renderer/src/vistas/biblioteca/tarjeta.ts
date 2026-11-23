@@ -392,10 +392,10 @@ export function textoAriaTarjeta(r: ResumenCancionIpc, d: DatosTarjeta): string 
   const base = `${tituloDeTarjeta(r)}, ${quien}${d.textoEstado}.`
   const tema = temaDeTarjeta(r)
   const conPaso = d.linea ? `${base} ${d.linea.texto}.` : base
-  const p = r.preparacion
+  const rev = r.revision
   const conRevision =
-    d.accion === 'revisar' && p
-      ? `${conPaso} ${p.dudosas > 0 ? BIB_PREP.revision.linea(p.dudosas) : BIB_PREP.revision.sinDudas}.`
+    d.accion === 'revisar' && rev
+      ? `${conPaso} ${rev.dudosas > 0 ? BIB_PREP.revision.linea(rev.dudosas) : BIB_PREP.revision.sinDudas}.`
       : conPaso
   return tema ? `${conRevision} Tema: ${tema.texto}.` : conRevision
 }

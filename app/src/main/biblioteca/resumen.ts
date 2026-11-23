@@ -6,7 +6,8 @@ import type {
   Modalidad,
   EstadoPaso,
   NombrePaso,
-  ResueltaIpc
+  ResueltaIpc,
+  RevisionResumenIpc
 } from '../../shared'
 import {
   CREADA_POR_DEFECTO,
@@ -89,6 +90,19 @@ function resumenPreparacion(c: Cancion): ResumenPreparacionIpc | null {
     eleccionAutomatica: p.eleccion?.por === 'app',
     desfaseCorregido: c.letra?.desfase_corregido_ms !== undefined
   }
+}
+
+/**
+ * Recuento de líneas por revisar que lleva el resumen: el de memoria (`RecuentoRevision`) si ya está
+ * calculado; si no, el guardado en el registro de la preparación; sin ninguno, `null`.
+ */
+export function revisionDeResumen(
+  r: Pick<ResumenCancion, 'preparacion'>,
+  memoria: RevisionResumenIpc | null | undefined
+): RevisionResumenIpc | null {
+  if (memoria !== undefined) return memoria
+  const p = r.preparacion
+  return p ? { dudosas: p.dudosas, dudosasImportantes: p.dudosasImportantes ?? p.dudosas } : null
 }
 
 /**

@@ -452,6 +452,9 @@ export class ServicioPreparacion {
       await this.deps.separacion.encolar(id)
       this.vivo(c)
     }
+    // «Lanzada»: la separación ya tiene su trabajo (en cola o en curso). Si deja de tenerlo sin haber
+    // terminado, alguien la canceló, aunque la corrida no llegara a verla `en_curso` (pregunta 0240).
+    const lanzada = this.deps.separacion?.hayTrabajo(id) ?? false
     let vistaEnCurso = false
     const separacion = await this.esperarCancion(c, (cancion) => {
       const e = cancion.pasos.separacion.estado
@@ -459,7 +462,13 @@ export class ServicioPreparacion {
       if (e === 'error') return 'error'
       if (e === 'en_curso') vistaEnCurso = true
       // Cancelada desde la tarjeta (vuelve a `pendiente`) o interrumpida: la cadena se detiene.
-      if (e === 'interrumpido' || (e === 'pendiente' && vistaEnCurso)) return 'parada'
+      if (e === 'interrumpido') return 'parada'
+      if (
+        e === 'pendiente' &&
+        (vistaEnCurso || (lanzada && !this.deps.separacion?.hayTrabajo(id)))
+      ) {
+        return 'parada'
+      }
       return undefined
     })
     if (separacion === 'parada') throw new Detenida('cancelar')

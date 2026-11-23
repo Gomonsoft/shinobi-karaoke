@@ -16,6 +16,7 @@ import {
 } from '../../shared'
 import type { CambioCancion, DatosNuevaCancion, ResumenCancion } from '../biblioteca'
 import { origenAlConfirmar, proponerDatos, type ResultadoPropuesta } from './propuestaDatos'
+import { analizarUrlLista, resultadoInfoListaSchema, type ResultadoInfoLista } from './lista'
 import {
   esperarCancelable,
   type ErrorTrabajo,
@@ -82,7 +83,7 @@ type Ejecutar = (
   opciones?: OpcionesConCerrojo
 ) => Promise<Record<string, unknown>>
 
-const COMANDOS_YTDLP = new Set(['info-youtube', 'descargar-youtube'])
+const COMANDOS_YTDLP = new Set(['info-youtube', 'info-lista-youtube', 'descargar-youtube'])
 
 /** Envuelve el cliente del worker: los comandos de yt-dlp pasan por el cerrojo de lectura. */
 export function ejecutarConCerrojo(ejecutar: Ejecutar, cerrojo: CerrojoYtdlp): Ejecutar {
@@ -125,7 +126,13 @@ export interface DependenciasYoutube {
   gestor: GestorYoutube
   /** Cliente del worker (0013), ya con el cerrojo aplicado (`ejecutarConCerrojo`). */
   ejecutar: Ejecutar
-  config: { obtener(): { aviso_youtube_aceptado: string | null } }
+  config: {
+    obtener(): {
+      aviso_youtube_aceptado: string | null
+      /** Aviso propio de las listas y álbumes (ADR 0026 §3; pregunta 0260). */
+      aviso_youtube_listas_aceptado?: string | null | undefined
+    }
+  }
   /** Directorio de datos de la app (contiene `biblioteca/`). */
   dirDatos: string
   /** Artistas y álbumes de la biblioteca para proponer su grafía (`biblioteca.valoresDatos`). */
@@ -136,6 +143,8 @@ export interface DependenciasYoutube {
   actualizarYtDlp?: () => Promise<unknown>
   /** Avisa al renderer de que la consulta espera o provoca una actualización (`fuente.estadoInfo`). */
   alEstadoInfo?: (evento: { consultaId: string; fase: 'actualizando' }) => void
+  /** ¿Ese vídeo ya está en la biblioteca? (`duplicado` de la vista previa, ADR 0026 §1). */
+  esDuplicado?: (idVideo: string) => boolean
 }
 
 /** Lo que recibe el renderer tras consultar. La URL canónica y los bytes se quedan en main. */
@@ -149,7 +158,15 @@ export interface InfoYoutube {
   /** Los mismos datos con su procedencia (0.2.2). */
   datos: PropuestaDatos
   miniaturaDataUrl: string | null
+  /** Solo lo usa el modo lote (ADR 0026 §1). */
+  duplicado: 'YA_EN_BIBLIOTECA' | null
 }
+
+/** Máximo de vídeos recordados para el modo lote (una lista de hasta 500 entradas) y su vida (como las consultas). */
+const MAX_VIDEOS_LOTE = 500
+
+/** Título de un álbum de YouTube Music: «Album - Nombre» (se queda el nombre). */
+const PREFIJO_ALBUM = /^\s*(?:álbum|album)\s+-\s+/i
 
 interface Consulta {
   id: string
@@ -185,6 +202,15 @@ const rutaRelativaSegura = (ruta: string): boolean =>
  */
 export class ServicioYoutube {
   private readonly consultas = new Map<string, Consulta>()
+  /** Lo último consultado de cada vídeo (modo lote: `fuente.lote` solo recibe el id). */
+  private readonly videos = new Map<string, Consulta>()
+  /** Duración de las entradas de las listas leídas (modo lote). */
+  private readonly duracionesLista = new Map<string, number>()
+  /** Listas leídas en los últimos 30 min por id de lista (el álbum de sus entradas, pregunta 0261). */
+  private readonly listas = new Map<
+    string,
+    { titulo: string; tipo: 'lista' | 'album'; creada: number }
+  >()
   private lectura: { controlador: AbortController; fin: Promise<void> } | null = null
   private readonly ocupadas = new Set<string>()
 
@@ -209,42 +235,15 @@ export class ServicioYoutube {
       throw argumentos('Falta aceptar el aviso legal de YouTube.')
     }
     // Una consulta nueva cancela la anterior (y espera a que su proceso muera).
-    await this.cancelarLectura()
-    const controlador = new AbortController()
-    let terminar = (): void => undefined
-    const fin = new Promise<void>((r) => (terminar = r))
-    const propia = { controlador, fin }
-    this.lectura = propia
+    const { controlador, cerrar } = await this.abrirLectura()
     const consultaId = randomUUID()
-    const avisarActualizando = (): void => {
-      if (controlador.signal.aborted) return
-      try {
-        this.deps.alEstadoInfo?.({ consultaId, fase: 'actualizando' })
-      } catch (e) {
-        this.deps.registrar?.('aviso', `estadoInfo falló: ${String(e)}`)
-      }
-    }
-    const lanzar = (): Promise<Record<string, unknown>> =>
-      this.deps.ejecutar(
+    try {
+      const bruto = await this.leer(
         'info-youtube',
         { url: analisis.urlCanonica },
-        { señal: controlador.signal, alEsperar: avisarActualizando }
+        controlador,
+        consultaId
       )
-    try {
-      let bruto: Record<string, unknown>
-      try {
-        bruto = await lanzar()
-      } catch (e) {
-        // YouTube bloqueó la consulta: se actualiza yt-dlp y se repite una sola vez (0050).
-        const actualizar = this.deps.actualizarYtDlp
-        if (!actualizar || (e as { codigo?: unknown } | null)?.codigo !== 'YOUTUBE_BLOQUEADO') {
-          throw e
-        }
-        avisarActualizando()
-        // Cancelar la consulta no aborta la actualización: sigue en silencio.
-        await esperarCancelable(actualizar(), controlador.signal, e)
-        bruto = await lanzar()
-      }
       if (controlador.signal.aborted) throw new ErrorYoutube('CANCELADO', 'Consulta cancelada.')
       const r = resultadoInfoYoutubeSchema.safeParse(bruto)
       if (!r.success || r.data.id_video !== analisis.idVideo) {
@@ -262,7 +261,8 @@ export class ServicioYoutube {
             tipo: 'youtube',
             musica: r.data.musica,
             tituloLimpio: r.data.musica?.titulo_limpio ?? r.data.metadatos.titulo,
-            canalLimpio: r.data.musica?.canal_limpio ?? r.data.metadatos.artista
+            canalLimpio: r.data.musica?.canal_limpio ?? r.data.metadatos.artista,
+            lista: this.albumDeLista(url)
           },
           this.deps.valoresDatos?.() ?? { artistas: [], albumes: [] }
         ),
@@ -271,6 +271,7 @@ export class ServicioYoutube {
         confirmando: false
       }
       this.guardarConsulta(consulta)
+      this.recordarVideo(consulta)
       return {
         consultaId: consulta.id,
         idVideo: r.data.id_video,
@@ -285,13 +286,182 @@ export class ServicioYoutube {
         datos: consulta.propuesta.datos,
         miniaturaDataUrl: consulta.miniatura
           ? `data:image/jpeg;base64,${consulta.miniatura.toString('base64')}`
-          : null
+          : null,
+        duplicado: this.deps.esDuplicado?.(r.data.id_video) ? 'YA_EN_BIBLIOTECA' : null
       }
     } catch (e) {
       throw this.aErrorYoutube(e, 'info-youtube')
     } finally {
-      terminar()
-      if (this.lectura === propia) this.lectura = null
+      cerrar()
+    }
+  }
+
+  /**
+   * Ejecuta un comando de lectura de yt-dlp: si YouTube lo bloquea, actualiza yt-dlp y lo repite una
+   * sola vez (0050). Cancelar la consulta no aborta la actualización: sigue en silencio.
+   */
+  private async leer(
+    comando: 'info-youtube' | 'info-lista-youtube',
+    args: Record<string, unknown>,
+    controlador: AbortController,
+    consultaId: string
+  ): Promise<Record<string, unknown>> {
+    const avisarActualizando = (): void => {
+      if (controlador.signal.aborted) return
+      try {
+        this.deps.alEstadoInfo?.({ consultaId, fase: 'actualizando' })
+      } catch (e) {
+        this.deps.registrar?.('aviso', `estadoInfo falló: ${String(e)}`)
+      }
+    }
+    const lanzar = (): Promise<Record<string, unknown>> =>
+      this.deps.ejecutar(comando, args, {
+        señal: controlador.signal,
+        alEsperar: avisarActualizando
+      })
+    try {
+      return await lanzar()
+    } catch (e) {
+      const actualizar = this.deps.actualizarYtDlp
+      if (!actualizar || (e as { codigo?: unknown } | null)?.codigo !== 'YOUTUBE_BLOQUEADO') {
+        throw e
+      }
+      avisarActualizando()
+      await esperarCancelable(actualizar(), controlador.signal, e)
+      return lanzar()
+    }
+  }
+
+  /** Abre la ranura de lectura (la única a la vez, compartida con `info`) y devuelve cómo cerrarla. */
+  private async abrirLectura(): Promise<{ controlador: AbortController; cerrar: () => void }> {
+    await this.cancelarLectura()
+    const controlador = new AbortController()
+    let terminar = (): void => undefined
+    const fin = new Promise<void>((r) => (terminar = r))
+    const propia = { controlador, fin }
+    this.lectura = propia
+    return {
+      controlador,
+      cerrar: () => {
+        terminar()
+        if (this.lectura === propia) this.lectura = null
+      }
+    }
+  }
+
+  /**
+   * `fuente.infoLista` (ADR 0026 §1): lee la lista o el álbum en modo plano, sin descargar ni consultar
+   * vídeo a vídeo. Comparte con `info` la ranura de lectura, así que `cancelarInfo()` también la cancela.
+   */
+  async leerLista(url: string): Promise<ResultadoInfoLista> {
+    const analisis = analizarUrlLista(url)
+    if (!analisis.ok) {
+      throw new ErrorYoutube(
+        analisis.codigo,
+        analisis.codigo === 'URL_NO_VALIDA'
+          ? 'El enlace no es de una lista de YouTube.'
+          : 'Ese enlace no se puede usar: los directos, los canales y las mezclas automáticas no se admiten.'
+      )
+    }
+    const config = this.deps.config.obtener()
+    if (config.aviso_youtube_aceptado === null) {
+      throw argumentos('Falta aceptar el aviso legal de YouTube.')
+    }
+    // ADR 0026 §3: la primera lista muestra otra vez el aviso, con un texto que la menciona (pregunta 0260).
+    if ((config.aviso_youtube_listas_aceptado ?? null) === null) {
+      throw argumentos('Falta aceptar el aviso legal de las listas de YouTube.')
+    }
+    const { controlador, cerrar } = await this.abrirLectura()
+    try {
+      const bruto = await this.leer(
+        'info-lista-youtube',
+        { url: analisis.urlCanonica },
+        controlador,
+        randomUUID()
+      )
+      if (controlador.signal.aborted) throw new ErrorYoutube('CANCELADO', 'Consulta cancelada.')
+      const r = resultadoInfoListaSchema.safeParse(bruto)
+      if (!r.success || r.data.tipo !== analisis.tipo) {
+        throw new ErrorYoutube('ERROR_INTERNO', 'El worker devolvió un resultado no válido.')
+      }
+      this.purgarListas()
+      this.listas.set(analisis.idLista, {
+        titulo: r.data.titulo,
+        tipo: r.data.tipo,
+        creada: this.ahora().getTime()
+      })
+      for (const e of r.data.entradas) {
+        if (e.duracion_s !== null) this.duracionesLista.set(e.id, e.duracion_s)
+      }
+      while (this.duracionesLista.size > 2 * MAX_VIDEOS_LOTE) {
+        const mas = this.duracionesLista.keys().next().value
+        if (mas === undefined) break
+        this.duracionesLista.delete(mas)
+      }
+      return r.data
+    } catch (e) {
+      throw this.aErrorYoutube(e, 'info-lista-youtube')
+    } finally {
+      cerrar()
+    }
+  }
+
+  /** Título del álbum si la URL lleva el `list=` de un álbum leído hace menos de 30 min. */
+  private albumDeLista(url: string): string | null {
+    const analisis = analizarUrlLista(url)
+    if (!analisis.ok) return null
+    this.purgarListas()
+    const lista = this.listas.get(analisis.idLista)
+    if (lista?.tipo !== 'album') return null
+    const album = lista.titulo.replace(PREFIJO_ALBUM, '').trim()
+    return album === '' ? null : album
+  }
+
+  private purgarListas(): void {
+    const limite = this.ahora().getTime() - VIDA_CONSULTA_MS
+    for (const [id, l] of this.listas) if (l.creada < limite) this.listas.delete(id)
+  }
+
+  /** ¿Está ese vídeo en la biblioteca? (modo lote). */
+  esDuplicado(idVideo: string): boolean {
+    return this.deps.esDuplicado?.(idVideo) ?? false
+  }
+
+  /**
+   * Modo lote (ADR 0026 §2): crea el borrador de un vídeo con la fuente pendiente y encola su descarga.
+   * Usa lo último consultado de ese vídeo (propuesta, miniatura y duración); sin consulta, la duración de
+   * la lista o 1 ms (la descarga la corrige). El aviso legal de YouTube debe estar aceptado.
+   */
+  async crearDeLote(idVideo: string, metadatos: MetadatosEditables): Promise<ResumenCancion> {
+    if (this.deps.config.obtener().aviso_youtube_aceptado === null) {
+      throw argumentos('Falta aceptar el aviso legal de YouTube.')
+    }
+    const analisis = analizarUrlYoutube(`https://www.youtube.com/watch?v=${idVideo}`)
+    if (!analisis.ok) throw new ErrorYoutube('URL_NO_VALIDA', 'El enlace no es de un vídeo.')
+    const m = metadatosEditablesSchema.safeParse(metadatos)
+    if (!m.success) throw argumentos('Los metadatos no son válidos.')
+    this.purgarVideos()
+    const previa = this.videos.get(idVideo)
+    const titulo = m.data.titulo.trim()
+    const artista = m.data.artista.trim()
+    const album = (m.data.album?.trim() ?? '') === '' ? null : (m.data.album?.trim() ?? null)
+    const origen = previa
+      ? origenAlConfirmar(previa.propuesta, { titulo, artista, album })
+      : undefined
+    const duracionS = previa?.info.duracion_s ?? this.duracionesLista.get(idVideo) ?? 0
+    try {
+      return await this.crear(
+        { idVideo, urlCanonica: analisis.urlCanonica, miniatura: previa?.miniatura ?? null },
+        {
+          titulo,
+          artista,
+          album,
+          duracion_ms: Math.max(1, Math.round(duracionS * 1000)),
+          ...(origen ? { origen } : {})
+        }
+      )
+    } catch (e) {
+      throw this.aErrorYoutube(e, 'crear-de-lote')
     }
   }
 
@@ -341,7 +511,14 @@ export class ServicioYoutube {
     try {
       const resumen = opciones
         ? await this.sustituir(opciones.cancionId, consulta, datos)
-        : await this.crear(consulta, datos)
+        : await this.crear(
+            {
+              idVideo: consulta.info.id_video,
+              urlCanonica: consulta.urlCanonica,
+              miniatura: consulta.miniatura
+            },
+            datos
+          )
       this.consultas.delete(consultaId)
       return resumen
     } catch (e) {
@@ -394,7 +571,7 @@ export class ServicioYoutube {
   // --- internos ---
 
   private async crear(
-    consulta: Consulta,
+    consulta: { idVideo: string; urlCanonica: string; miniatura: Buffer | null },
     metadatos: DatosNuevaCancion['metadatos']
   ): Promise<ResumenCancion> {
     const { biblioteca } = this.deps
@@ -404,7 +581,7 @@ export class ServicioYoutube {
         tipo: 'youtube',
         nombre_original: null,
         url: consulta.urlCanonica,
-        youtube_id: consulta.info.id_video,
+        youtube_id: consulta.idVideo,
         mezcla: MEZCLA,
         miniatura: null,
         ganancia_db: 0
@@ -474,7 +651,8 @@ export class ServicioYoutube {
           youtube_id: consulta.info.id_video,
           mezcla: MEZCLA,
           miniatura,
-          ganancia_db: 0
+          ganancia_db: 0,
+          ruta_pendiente: undefined
         },
         pasos: {
           fuente: {
@@ -558,6 +736,23 @@ export class ServicioYoutube {
       this.consultas.delete(mas)
     }
     this.consultas.set(c.id, c)
+  }
+
+  /** Recuerda lo consultado de un vídeo para el modo lote (el más antiguo sale al llegar al tope). */
+  private recordarVideo(c: Consulta): void {
+    this.purgarVideos()
+    this.videos.delete(c.info.id_video)
+    this.videos.set(c.info.id_video, c)
+    while (this.videos.size > MAX_VIDEOS_LOTE) {
+      const mas = this.videos.keys().next().value
+      if (mas === undefined) break
+      this.videos.delete(mas)
+    }
+  }
+
+  private purgarVideos(): void {
+    const limite = this.ahora().getTime() - VIDA_CONSULTA_MS
+    for (const [id, c] of this.videos) if (c.creada < limite) this.videos.delete(id)
   }
 
   /** Descarta las consultas de más de 30 min. */

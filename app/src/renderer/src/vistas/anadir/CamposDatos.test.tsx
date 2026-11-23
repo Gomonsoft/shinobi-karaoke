@@ -179,6 +179,18 @@ describe('CamposDatos: unificar', () => {
     ).toBeTruthy()
   })
 
+  it('en «Añadir canción» (con propuesta) la ayuda del Álbum también sigue bajo la sugerencia (V1)', async () => {
+    montar({ titulo: 'T', artista: 'Grupo Uno', album: 'Querido...' }, propuesta())
+    const album = await screen.findByRole('combobox', { name: 'Álbum' })
+    fireEvent.change(album, { target: { value: 'Querido..' } })
+    fireEvent.keyDown(album, { key: 'Tab' })
+    const sugerencia = await screen.findByText(/¿Te refieres a/)
+    const ayuda = screen.getByText(/Opcional, ayuda a encontrar la letra exacta/)
+    expect(
+      sugerencia.compareDocumentPosition(ayuda) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('Dejarlo así oculta la sugerencia para ese valor; una diferencia solo de mayúsculas no la provoca', async () => {
     montar({ titulo: 'T', artista: '', album: '' })
     const album = await screen.findByRole('combobox', { name: 'Álbum' })

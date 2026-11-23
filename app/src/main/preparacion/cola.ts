@@ -68,8 +68,6 @@ export interface DependenciasCola {
     actualizar(parcial: ConfigParcial): Promise<unknown>
   }
   diario: Pick<DiarioPendientes, 'alta' | 'enCurso' | 'baja' | 'tomarHeredadas' | 'restaurar'>
-  /** `HEAD` a lrclib.net sin datos (ADR 0025 §5). */
-  hayConexion(): Promise<boolean>
   /** Minutos que faltan para esa canción (duración × factor medido); `null` si no se sabe. */
   estimarMin(cancionId: string): number | null
   /** Vuelve a encolar la descarga (`fuente.reintentar`) o la separación de una canción. */
@@ -99,6 +97,10 @@ export class ColaPreparacion {
   /** Se está cerrando (la app o la ventana en macOS): lo que se cancele ahora no es un resultado. */
   private cierre = false
   private cancelarConexion: (() => void) | null = null
+  /** Descargas paradas por `SIN_CONEXION`, en orden; la primera es la sonda (nunca se usa un tercero). */
+  private sinConexion: string[] = []
+  /** Canción cuya descarga se está reintentando como sonda; el freno la deja pasar. */
+  private sondeando: string | null = null
   private bajas: (() => void)[] = []
   private readonly ahora: () => number
   private readonly programar: (fn: () => void, ms: number) => () => void
@@ -274,6 +276,7 @@ export class ColaPreparacion {
 
   private retiene(t: TrabajoRetenible): boolean {
     if (this.pausada()) return true
+    if (this.sondeando !== null && t.cancionId === this.sondeando) return false
     return this.descargasParadas !== null && t.comando === 'descargar-youtube'
   }
 
@@ -288,13 +291,22 @@ export class ColaPreparacion {
     const hayCorrida = this.deps.preparacion.ids().includes(id)
     if (t.resultado === 'error') {
       const codigo = t.error?.codigo ?? 'ERROR_INTERNO'
-      this.registrarFallo(codigo, t.comando === 'descargar-youtube')
+      const esSonda = this.sondeando === id && t.comando === 'descargar-youtube'
+      if (esSonda) this.sondeando = null
+      this.registrarFallo(codigo, t.comando === 'descargar-youtube', id)
+      // La sonda falló por otro motivo (y no es una parada): la conexión vuelve y se liberan las demás.
+      if (esSonda && codigo !== 'SIN_CONEXION' && this.descargasParadas === 'SIN_CONEXION') {
+        this.sinConexion = this.sinConexion.filter((x) => x !== id)
+        this.liberarDescargas(true)
+      }
       // Con una corrida en marcha, el resultado de la canción lo da la corrida.
       if (!hayCorrida) this.cerrarCancion(id, 'error', codigo)
     } else if (t.resultado === 'cancelado') {
+      this.finSonda(id, t.comando)
       if (!hayCorrida) this.cerrarCancion(id, 'cancelada')
     } else if (t.resultado === 'completado') {
       this.racha = null
+      this.finSonda(id, t.comando)
       // La fuente seguida de separación y letra no termina aquí; sin preparación, la separación es el final.
       if (
         t.paso === 'separacion' &&
@@ -342,10 +354,13 @@ export class ColaPreparacion {
   }
 
   /** Paradas automáticas y racha de fallos (ADR 0025 §5). */
-  private registrarFallo(codigo: string, esDescarga: boolean): void {
+  private registrarFallo(codigo: string, esDescarga: boolean, id = ''): void {
     if (esDescarga && PARADA_DESCARGAS.has(codigo)) {
       this.descargasParadas = codigo as DescargasParadas
-      if (codigo === 'SIN_CONEXION') this.vigilarConexion()
+      if (codigo === 'SIN_CONEXION') {
+        if (id && !this.sinConexion.includes(id)) this.sinConexion.push(id)
+        this.vigilarConexion()
+      }
       this.deps.registrar?.('aviso', `${MODULO}: descargas paradas (${codigo})`)
     }
     this.racha = this.racha?.codigo === codigo ? { codigo, n: this.racha.n + 1 } : { codigo, n: 1 }
@@ -356,26 +371,52 @@ export class ColaPreparacion {
     this.emitir()
   }
 
-  /** Cada 60 s mira si vuelve la conexión y entonces reanuda las descargas solas. */
+  /** La sonda terminó bien (o la cancelaron): la conexión funciona y se liberan las demás. */
+  private finSonda(id: string, comando: string): void {
+    if (this.sondeando !== id || comando !== 'descargar-youtube') return
+    this.sondeando = null
+    this.liberarDescargas(true)
+    this.emitir()
+  }
+
+  /**
+   * Cada 60 s reintenta solo la primera descarga parada por `SIN_CONEXION` (ADR 0025 §5, revisión 0243): la
+   * comprobación va contra el destino de la propia operación, nunca contra un tercero.
+   */
   private vigilarConexion(): void {
     this.cancelarConexion?.()
     this.cancelarConexion = this.programar(() => {
       this.cancelarConexion = null
-      void this.deps
-        .hayConexion()
-        .catch(() => false)
-        .then((hay) => {
-          if (this.descargasParadas !== 'SIN_CONEXION') return
-          if (hay) {
-            this.liberarDescargas(true)
-            this.emitir()
-          } else this.vigilarConexion()
-        })
+      void this.sondear()
     }, COMPROBACION_CONEXION_MS)
+  }
+
+  private async sondear(): Promise<void> {
+    if (this.descargasParadas !== 'SIN_CONEXION') return
+    const id = this.sinConexion[0]
+    if (!id) return this.liberarDescargas(true)
+    this.sondeando = id
+    try {
+      await this.deps.reintentarDescarga(id)
+      this.deps.gestor.reanudarCola()
+    } catch {
+      // La canción ya no se puede reintentar (se eliminó…): la siguiente hace de sonda.
+    }
+    if (this.sondeando !== id) return // ya terminó (bien o mal) mientras tanto
+    const viva = this.deps.gestor
+      .listar()
+      .some((t) => t.cancionId === id && t.comando === 'descargar-youtube')
+    if (viva) return // su fin llegará por `alTrabajo`
+    this.sondeando = null
+    this.sinConexion.shift()
+    if (this.sinConexion.length === 0) this.liberarDescargas(true)
+    else void this.sondear()
   }
 
   private liberarDescargas(reanudar: boolean): void {
     this.descargasParadas = null
+    this.sinConexion = []
+    this.sondeando = null
     this.cancelarConexion?.()
     this.cancelarConexion = null
     if (reanudar) this.deps.gestor.reanudarCola()

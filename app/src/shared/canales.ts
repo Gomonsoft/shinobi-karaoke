@@ -11,6 +11,7 @@ export const CANALES = {
     guardarApariencia: 'biblioteca:guardarApariencia',
     marcarLista: 'biblioteca:marcarLista',
     comprobarPistas: 'biblioteca:comprobarPistas',
+    recuentoRevision: 'biblioteca:recuentoRevision',
     volverABorrador: 'biblioteca:volverABorrador',
     marcarPreparacionRevisada: 'biblioteca:marcarPreparacionRevisada',
     eliminar: 'biblioteca:eliminar',
@@ -121,7 +122,8 @@ export const CANALES = {
     leerArchivos: 'fuente:leerArchivos',
     leerCarpeta: 'fuente:leerCarpeta',
     infoLista: 'fuente:infoLista',
-    lote: 'fuente:lote'
+    lote: 'fuente:lote',
+    espacioLibre: 'fuente:espacioLibre'
   },
   runtime: {
     estado: 'runtime:estado',
@@ -212,6 +214,8 @@ export const CANALES = {
     elegirOrigen: 'copias:elegirOrigen',
     leer: 'copias:leer',
     importar: 'copias:importar',
+    /** Registra un `.shinobi` soltado en la ventana; la ruta la obtiene el preload de `File` (pregunta 0257). */
+    origenDesdeRuta: 'copias:origenDesdeRuta',
     cancelar: 'copias:cancelar'
   },
   /** Sincronía con la voz (ADR 0028 §3; canales confirmados en la pregunta 0166). */
@@ -319,6 +323,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.biblioteca.guardarApariencia]: PRINCIPAL,
   [CANALES.biblioteca.marcarLista]: PRINCIPAL,
   [CANALES.biblioteca.comprobarPistas]: PRINCIPAL,
+  [CANALES.biblioteca.recuentoRevision]: PRINCIPAL,
   [CANALES.biblioteca.volverABorrador]: PRINCIPAL,
   [CANALES.biblioteca.marcarPreparacionRevisada]: PRINCIPAL,
   [CANALES.biblioteca.eliminar]: PRINCIPAL,
@@ -428,6 +433,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.fuente.leerCarpeta]: PRINCIPAL,
   [CANALES.fuente.infoLista]: PRINCIPAL,
   [CANALES.fuente.lote]: PRINCIPAL,
+  [CANALES.fuente.espacioLibre]: PRINCIPAL,
   [CANALES.letras.candidatoPorId]: PRINCIPAL,
   [CANALES.letras.exportarLrc]: PRINCIPAL,
   [CANALES.letras.exportarLrcVarias]: PRINCIPAL,
@@ -449,6 +455,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.copias.elegirOrigen]: PRINCIPAL,
   [CANALES.copias.leer]: PRINCIPAL,
   [CANALES.copias.importar]: PRINCIPAL,
+  [CANALES.copias.origenDesdeRuta]: PRINCIPAL,
   [CANALES.copias.cancelar]: PRINCIPAL,
   [CANALES.alineacion.estado]: PRINCIPAL,
   [CANALES.alineacion.descargarModelo]: PRINCIPAL,

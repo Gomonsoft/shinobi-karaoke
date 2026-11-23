@@ -110,7 +110,17 @@ async function conApp(
   try {
     await prueba(await app.firstWindow(), srv, app)
   } finally {
-    await app.close().catch(() => undefined)
+    // Si al cerrar queda trabajo en segundo plano (la preparación o una búsqueda automática de la
+    // canción sembrada, según la carga), la app pregunta antes de salir y `app.close()` esperaría el
+    // tiempo de la prueba entero: se confirma el cierre.
+    const ventana = app.windows()[0]
+    const cierre = app.close().catch(() => undefined)
+    await ventana
+      ?.getByRole('dialog')
+      .getByRole('button', { name: 'Cerrar de todos modos' })
+      .click({ timeout: 3000 })
+      .catch(() => undefined)
+    await cierre
     await srv.cerrar()
   }
 }

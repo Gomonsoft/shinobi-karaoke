@@ -31,6 +31,17 @@ test.describe('preparación desatendida', () => {
     const app = await lanzar(e, { SHINOBI_LRCLIB_URL: lrclib.url })
     try {
       const v = await app.firstWindow()
+      // Anota todos los toasts que salgan (D7: «ya se puede marcar como lista» no se suma al de la preparación).
+      await v.evaluate(() => {
+        const w = window as unknown as { __toasts: string[] }
+        w.__toasts = []
+        new MutationObserver(() => {
+          for (const n of document.querySelectorAll('[data-testid="toast"]')) {
+            const t = n.textContent ?? ''
+            if (t && !w.__toasts.includes(t)) w.__toasts.push(t)
+          }
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      })
       await irAAnadir(v)
       await v.getByRole('button', { name: 'Elegir archivo…' }).click()
       await expect(v.getByLabel('Título')).toBeVisible({ timeout: 30_000 })
@@ -43,6 +54,13 @@ test.describe('preparación desatendida', () => {
       await expect
         .poll(() => leerCancion(e.datos, id).preparacion?.estado, { timeout: 90_000 })
         .toBe('lista_para_revisar')
+
+      await expect(
+        v.getByTestId('toast').filter({ hasText: 'está lista para revisar' })
+      ).toBeVisible()
+      const toasts = await v.evaluate(() => (window as unknown as { __toasts: string[] }).__toasts)
+      expect(toasts.filter((t) => t.includes('ya se puede marcar como lista'))).toHaveLength(0)
+      expect(toasts.filter((t) => t.includes('está lista para revisar'))).toHaveLength(1)
 
       const c = leerCancion(e.datos, id)
       // Nunca se marca Lista sola; la letra es de LRCLIB y la eligió la app.

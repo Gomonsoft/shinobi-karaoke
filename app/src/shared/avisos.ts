@@ -54,7 +54,13 @@ export const AVISOS = {
     ].filter((x) => x !== null)
     return `${r.total} canciones preparadas${partes.length > 0 ? `: ${partes.join(' · ')}` : ''}.`
   },
-  etiquetaTanda: 'Ver resultado'
+  etiquetaTanda: 'Ver resultado',
+  /** Notificación del sistema al terminar la preparación de una canción (mismo texto que `prog.toast.*`). */
+  preparacion: {
+    revisar: (t: string): string => `«${t}» está lista para revisar.`,
+    elige: (t: string): string => `«${t}»: elige la letra.`,
+    sinLetra: (t: string): string => `«${t}»: no encontramos la letra.`
+  }
 } as const
 
 const ERRORES_DESCARGA: Record<string, string> = {

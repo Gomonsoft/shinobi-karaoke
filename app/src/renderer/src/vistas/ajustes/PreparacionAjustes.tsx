@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { contarBandeja } from '../biblioteca/filtrado'
 import { ExternalLink } from 'lucide-react'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
@@ -64,16 +65,9 @@ export function PreparacionAjustes({ enfocarAlAbrir = false }: Props) {
       return
     }
     if (!nuevo) return
-    // Borradores «Falta la letra»: sin letra y sin ninguna preparación hecha ni en curso.
+    // Los mismos que la casilla «Esperan letra» de la bandeja de la Biblioteca (F5-J5).
     try {
-      const lista = await window.shinobi.biblioteca.listar()
-      const n = lista.filter(
-        (c) =>
-          c.estado === 'borrador' &&
-          !c.danada &&
-          c.pasos?.letra.estado !== 'completado' &&
-          !c.preparacion
-      ).length
+      const n = contarBandeja(await window.shinobi.biblioteca.listar()).letra
       setPendientes(n > 0 ? n : null)
     } catch {
       setPendientes(null)

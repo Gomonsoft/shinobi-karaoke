@@ -170,7 +170,11 @@ describe('tarjeta «Lista para revisar»', () => {
 
 describe('revisión guiada en la tarjeta (feature 11)', () => {
   const con = (dudosas: number) =>
-    resumenPrueba({ ...revisar, preparacion: prep({ dudosas }) } as ResumenCancionIpc)
+    resumenPrueba({
+      ...revisar,
+      preparacion: prep({ dudosas }),
+      revision: { dudosas, dudosasImportantes: dudosas }
+    } as ResumenCancionIpc)
 
   it('F11-B1: línea ⚑ con las pendientes y «Sin líneas dudosas»; las Listas no la muestran', async () => {
     montar([con(4), { ...lista }])
@@ -229,6 +233,36 @@ describe('revisión guiada en la tarjeta (feature 11)', () => {
     )
   })
 
+  it('D1: una «Lista para revisar» sin registro muestra ⚑ y pregunta con `revision`; sin él lo pide a main', async () => {
+    const sinRegistro = resumenPrueba({
+      ...revisar,
+      preparacion: null,
+      revision: { dudosas: 3, dudosasImportantes: 3 }
+    } as ResumenCancionIpc)
+    montar([sinRegistro])
+    const t = await tarjeta('Semestre de Otoño')
+    expect(within(t).getByText('3 líneas por revisar')).toBeVisible()
+    fireEvent.click(within(t).getByRole('button', { name: /Más acciones/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Marcar como lista' }))
+    expect(
+      await screen.findByRole('dialog', { name: '¿Marcar como lista sin revisar?' })
+    ).toBeVisible()
+    cleanup()
+    // `revision: null` (aún sin calcular): pide `recuentoRevision` antes de decidir.
+    const recuentoRevision = vi.fn(() => Promise.resolve({ dudosas: 2, dudosasImportantes: 2 }))
+    montar([{ ...sinRegistro, revision: null }])
+    ;(window as unknown as { shinobi: ApiShinobi }).shinobi.biblioteca.recuentoRevision =
+      recuentoRevision
+    fireEvent.click(
+      within(await tarjeta('Semestre de Otoño')).getByRole('button', { name: /Más acciones/ })
+    )
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Marcar como lista' }))
+    expect(
+      await screen.findByRole('dialog', { name: '¿Marcar como lista sin revisar?' })
+    ).toBeVisible()
+    expect(recuentoRevision).toHaveBeenCalledWith('r1')
+  })
+
   it('el toast tras «Probar» también pregunta con pendientes', async () => {
     const { abrir } = montar([con(3)])
     const t = await tarjeta('Semestre de Otoño')
@@ -270,7 +304,7 @@ describe('F11-B3: la Biblioteca decide como el editor', () => {
     expect(r.dudosas).toBeGreaterThan(0)
     expect(r.dudosasImportantes).toBe(0)
     const { ir } = montar([
-      resumenPrueba({ ...revisar, preparacion: prep(r) } as ResumenCancionIpc)
+      resumenPrueba({ ...revisar, preparacion: prep(r), revision: r } as ResumenCancionIpc)
     ])
     fireEvent.click(
       within(await tarjeta('Semestre de Otoño')).getByRole('button', { name: /Más acciones/ })
@@ -292,7 +326,7 @@ describe('F11-B3: la Biblioteca decide como el editor', () => {
     )
     expect(r.dudosasImportantes).toBeGreaterThan(0)
     expect(r.dudosas).toBeGreaterThan(r.dudosasImportantes)
-    montar([resumenPrueba({ ...revisar, preparacion: prep(r) } as ResumenCancionIpc)])
+    montar([resumenPrueba({ ...revisar, preparacion: prep(r), revision: r } as ResumenCancionIpc)])
     const t = await tarjeta('Semestre de Otoño')
     expect(within(t).getByText(`${r.dudosas} líneas por revisar`)).toBeVisible()
     expect(t).toHaveAccessibleName(new RegExp(`${r.dudosas} líneas por revisar`))

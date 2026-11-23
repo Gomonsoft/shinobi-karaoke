@@ -147,7 +147,6 @@ describe('errores', () => {
       'PERFIL_NO_SOPORTADO',
       'LIMPIEZA_FALLIDA',
       'CANCION_EXPORTANDOSE',
-      'LISTA_NO_DISPONIBLE',
       'ARCHIVO_NO_ENCONTRADO',
       'NADA_QUE_HACER',
       'YA_EN_COLA',

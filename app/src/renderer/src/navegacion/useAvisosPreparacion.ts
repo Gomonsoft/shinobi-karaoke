@@ -65,7 +65,13 @@ export function useAvisosPreparacion(vista: Vista, ir: (v: Vista) => void): void
                   sesionRef.current.abrirBloqueo()
                   return
                 }
-                irRef.current({ tipo: 'cancion', id: ev.id, paso: editor ? 'editor' : 'letra' })
+                irRef.current({
+                  tipo: 'cancion',
+                  id: ev.id,
+                  paso: editor ? 'editor' : 'letra',
+                  // «Revisar» de un toast abre el recorrido de revisión (spec 06, F11-E11).
+                  ...(editor ? { revisar: true } : {})
+                })
               }
             }
           })

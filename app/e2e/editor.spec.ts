@@ -513,7 +513,7 @@ test.describe('línea de tiempo del editor', () => {
         const bucle = botonBucle(v)
         const pausa = v.getByRole('button', { name: 'Pausar', exact: true })
         const reproduce = v.getByRole('button', { name: 'Reproducir', exact: true })
-        // La revisión también escucha sola la línea señalada (autoescucha): se espera a que termine.
+        // Al empezar la revisión la primera línea no suena sola (0158 n.º 24): el editor está en reposo.
         await expect(reproduce).toBeVisible({ timeout: 10_000 })
         await opcionLinea(v, 1).click()
         await tiempoEditor(v).fill('6000')

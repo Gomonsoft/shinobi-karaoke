@@ -42,6 +42,7 @@ export function fixtures({
       ...bibliotecaNuevaFalsa(),
       listar,
       obtener: () => Promise.resolve(null),
+      recuentoRevision: async () => null,
       comprobarPistas: async (id: string) => (await listar()).find((c) => c.id === id) ?? null,
       mostrarEnCarpeta: () => Promise.resolve(),
       ...biblioteca

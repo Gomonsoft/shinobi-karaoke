@@ -13,6 +13,10 @@ import {
   type RespuestaIpc,
   type ResumenCancionIpc,
   type ImportacionLeidaIpc,
+  type LecturaLoteIpc,
+  type ListaYoutubeIpc,
+  type LoteIpc,
+  type resultadoLoteSchema,
   type InfoYoutubeIpc,
   type EstadoRuntimeIpc,
   type OrigenRapido,
@@ -46,19 +50,22 @@ import {
   type ResultadoOperacionIpc,
   type OpcionesMarcarLista,
   type SeleccionApariencia,
+  type RevisionResumenIpc,
   type TemaIpc
 } from '../../shared'
 import type { InicialExportacionIpc } from '../../shared/exportacion'
 import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
 import { origenTrasEdicion, type EventoCancion, type ResumenCancion } from '../biblioteca'
-import { resueltaDeResolucion } from '../biblioteca/resumen'
+import { resueltaDeResolucion, revisionDeResumen } from '../biblioteca/resumen'
 import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
 import type { ServicioSesion } from '../sesion/servicio'
 import type { ServicioExportacion } from '../exportacion/servicio'
 import type { ServicioActualizaciones } from '../actualizaciones'
+import type { ExportadorLrc } from '../letras/exportarLrc'
+import type { ServicioCopias } from '../copias'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
@@ -127,6 +134,18 @@ export interface FuenteIpc {
     opciones?: { cancionId: string }
   ): Promise<ResumenCancion>
   descartar(id: string): Promise<void>
+}
+
+/** Importación por lotes (ADR 0026, tarea 0314): lecturas, confirmación y reintento de las fuentes de archivo. */
+export interface FuenteLoteIpc {
+  leerArchivos(rutas?: string[]): Promise<LecturaLoteIpc | null>
+  leerCarpeta(ruta?: string): Promise<LecturaLoteIpc | null>
+  infoLista(url: string): Promise<ListaYoutubeIpc>
+  lote(peticion: LoteIpc): Promise<z.output<typeof resultadoLoteSchema>>
+  espacioLibre(): Promise<{ libreBytes: number | null }>
+  /** `false` si la canción no es de un lote de archivos (el llamador prueba con YouTube). */
+  reintentar(cancionId: string): Promise<boolean>
+  cancelarLectura(): void
 }
 
 /** Subconjunto del servicio de YouTube (0049) que usa la IPC. Ausente con el módulo desactivado. */
@@ -260,10 +279,39 @@ export interface ColaPreparacionIpc {
   estado(): TandaPreparacionIpc | null
 }
 
+/** Exportar la letra a `.lrc` (ADR 0027 §4); ausente, sus canales responden `ERROR_INTERNO`. */
+export type LrcIpc = Pick<ExportadorLrc, 'exportarUna' | 'exportarVarias' | 'mostrarEnCarpeta'>
+
+/** Paquetes y copias de seguridad (ADR 0027); ausente, sus canales responden `ERROR_INTERNO`. */
+export type CopiasIpc = Pick<
+  ServicioCopias,
+  | 'destinoPropuesto'
+  | 'elegirDestino'
+  | 'exportarCanciones'
+  | 'exportarBiblioteca'
+  | 'elegirOrigen'
+  | 'leer'
+  | 'importar'
+  | 'origenDesdeRuta'
+  | 'cancelar'
+>
+
+/** Recuento de líneas por revisar en memoria (`RecuentoRevision`). */
+export interface RecuentoRevisionIpc {
+  valor(id: string, modificada: string): RevisionResumenIpc | null | undefined
+  calcular(id: string): Promise<RevisionResumenIpc | null>
+  suscribir(cb: (id: string) => void): () => void
+}
+
 export interface DependenciasIpc {
+  recuentoRevision?: RecuentoRevisionIpc
+  lrc?: LrcIpc
+  copias?: CopiasIpc
   /** Solicitud de cierre sin responder (la pregunta el renderer al montar su diálogo de cierre). */
   solicitudCierrePendiente?(): import('../../shared/sesion').SolicitudCierreIpc | null
   preparacion?: PreparacionIpc
+  /** Importación por lotes (0314); ausente, sus canales responden «no implementado». */
+  lote?: FuenteLoteIpc
   colaPreparacion?: ColaPreparacionIpc
   actualizaciones?: ActualizacionesIpc
   /** Exportación de video (ADR 0019). */
@@ -302,18 +350,27 @@ export interface DependenciasIpc {
 const ID_MEDIOS = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 /** La ruta absoluta de la miniatura no sale de main: el renderer recibe una URL de medios. */
-export function resumenParaRenderer(r: ResumenCancion): ResumenCancionIpc {
+export function resumenParaRenderer(
+  r: ResumenCancion,
+  memoria?: RevisionResumenIpc | null
+): ResumenCancionIpc {
   const miniatura =
     r.miniatura !== null && ID_MEDIOS.test(r.id)
       ? `${ESQUEMA_MEDIOS}://${r.id}/fuente/miniatura.jpg`
       : null
-  return { ...r, miniatura }
+  return { ...r, miniatura, revision: revisionDeResumen(r, memoria) }
 }
 
-export function eventoParaRenderer(e: EventoCancion): EventoCancionIpc {
+export function eventoParaRenderer(
+  e: EventoCancion,
+  recuento?: RecuentoRevisionIpc
+): EventoCancionIpc {
   return e.eliminada === true
     ? { id: e.id, eliminada: true }
-    : { id: e.id, resumen: resumenParaRenderer(e.resumen) }
+    : {
+        id: e.id,
+        resumen: resumenParaRenderer(e.resumen, recuento?.valor(e.id, e.resumen.modificada))
+      }
 }
 
 const esCodigo = (c: unknown): c is ErrorIpc['codigo'] =>
@@ -355,13 +412,6 @@ const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
 
 /** Canales de 0.2.2 aún sin servicio (tarea 0339); cada tarea de feature saca el suyo de esta lista. */
 const CANALES_NO_IMPLEMENTADOS = [
-  CANALES.letras.exportarLrc,
-  CANALES.letras.exportarLrcVarias,
-  CANALES.letras.mostrarEnCarpeta,
-  CANALES.fuente.leerArchivos,
-  CANALES.fuente.leerCarpeta,
-  CANALES.fuente.infoLista,
-  CANALES.fuente.lote,
   CANALES.biblioteca.editarDatosVariasPrevisualizar,
   CANALES.biblioteca.editarDatosVariasEjecutar,
   CANALES.biblioteca.eliminarVariasPrevisualizar,
@@ -372,14 +422,6 @@ const CANALES_NO_IMPLEMENTADOS = [
   CANALES.exportacion.iniciarLote,
   CANALES.exportacion.cancelarLote,
   CANALES.exportacion.reintentarLote,
-  CANALES.copias.exportarCanciones,
-  CANALES.copias.exportarBiblioteca,
-  CANALES.copias.destinoPropuesto,
-  CANALES.copias.elegirDestino,
-  CANALES.copias.elegirOrigen,
-  CANALES.copias.leer,
-  CANALES.copias.importar,
-  CANALES.copias.cancelar,
   CANALES.alineacion.estado,
   CANALES.alineacion.descargarModelo,
   CANALES.alineacion.cancelarDescarga,
@@ -392,6 +434,8 @@ const CANALES_NO_IMPLEMENTADOS = [
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
 export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
   const { biblioteca, config, trabajos, fuente, runtime } = deps
+  const aRenderer = (r: ResumenCancion): ResumenCancionIpc =>
+    resumenParaRenderer(r, deps.recuentoRevision?.valor(r.id, r.modificada))
   /** Módulo desactivado: los canales de YouTube responden `ARGUMENTOS_NO_VALIDOS`. */
   const youtube = (): YoutubeIpc => {
     if (!deps.youtube) {
@@ -456,6 +500,11 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.actualizaciones
   }
 
+  const lote = (): FuenteLoteIpc => {
+    if (!deps.lote) throw new Error('La importación por lotes no está disponible.')
+    return deps.lote
+  }
+
   const preparacion = (): PreparacionIpc => {
     if (!deps.preparacion) throw new Error('El servicio de preparación no está disponible.')
     return deps.preparacion
@@ -464,6 +513,16 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
   const colaPreparacion = (): ColaPreparacionIpc => {
     if (!deps.colaPreparacion) throw new Error('La cola de preparación no está disponible.')
     return deps.colaPreparacion
+  }
+
+  const lrc = (): LrcIpc => {
+    if (!deps.lrc) throw new Error('La exportación de letras no está disponible.')
+    return deps.lrc
+  }
+
+  const copias = (): CopiasIpc => {
+    if (!deps.copias) throw new Error('El servicio de copias no está disponible.')
+    return deps.copias
   }
 
   const exportacion = (): ExportacionServicioIpc => {
@@ -599,24 +658,24 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) => {
       sinSesion()
-      return resumenParaRenderer(await letras().guardar(p))
+      return aRenderer(await letras().guardar(p))
     }),
     [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) => {
       sinSesion()
-      return resumenParaRenderer(await letras().editarTexto(p))
+      return aRenderer(await letras().editarTexto(p))
     }),
     [CANALES.letras.editarTextoLinea]: envolver(
       CANALES.letras.editarTextoLinea,
       async (p, sesionId) => {
         sinSesion()
-        return resumenParaRenderer(await letras().editarTextoLinea(p, sesionId))
+        return aRenderer(await letras().editarTextoLinea(p, sesionId))
       }
     ),
     [CANALES.letras.guardarTiempos]: envolver(
       CANALES.letras.guardarTiempos,
       async (p, sesionId) => {
         sinSesion()
-        return resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
+        return aRenderer(await letras().guardarTiempos(p, sesionId))
       }
     ),
     [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) => {
@@ -625,6 +684,39 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     }),
     [CANALES.letras.cerrarEdicion]: envolver(CANALES.letras.cerrarEdicion, (id) =>
       letras().cerrarEdicion(id)
+    ),
+    [CANALES.letras.exportarLrc]: envolver(CANALES.letras.exportarLrc, ({ cancionId }) =>
+      lrc().exportarUna(cancionId)
+    ),
+    [CANALES.letras.exportarLrcVarias]: envolver(CANALES.letras.exportarLrcVarias, ({ ids }) =>
+      lrc().exportarVarias(ids)
+    ),
+    [CANALES.letras.mostrarEnCarpeta]: envolver(
+      CANALES.letras.mostrarEnCarpeta,
+      ({ ubicacionId }) => lrc().mostrarEnCarpeta(ubicacionId)
+    ),
+    [CANALES.copias.destinoPropuesto]: envolver(CANALES.copias.destinoPropuesto, (p) =>
+      copias().destinoPropuesto(p)
+    ),
+    [CANALES.copias.elegirDestino]: envolver(CANALES.copias.elegirDestino, ({ destinoId }) =>
+      copias().elegirDestino(destinoId)
+    ),
+    [CANALES.copias.exportarCanciones]: envolver(CANALES.copias.exportarCanciones, (p) =>
+      copias().exportarCanciones(p)
+    ),
+    [CANALES.copias.exportarBiblioteca]: envolver(CANALES.copias.exportarBiblioteca, (p) =>
+      copias().exportarBiblioteca(p)
+    ),
+    [CANALES.copias.elegirOrigen]: envolver(CANALES.copias.elegirOrigen, () =>
+      copias().elegirOrigen()
+    ),
+    [CANALES.copias.leer]: envolver(CANALES.copias.leer, ({ origenId }) => copias().leer(origenId)),
+    [CANALES.copias.importar]: envolver(CANALES.copias.importar, (p) => copias().importar(p)),
+    [CANALES.copias.origenDesdeRuta]: envolver(CANALES.copias.origenDesdeRuta, ({ ruta }) =>
+      copias().origenDesdeRuta(ruta)
+    ),
+    [CANALES.copias.cancelar]: envolver(CANALES.copias.cancelar, ({ trabajoId }) =>
+      copias().cancelar(trabajoId)
     ),
     [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () => {
       sinSesion()
@@ -660,11 +752,15 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       CANALES.biblioteca.comprobarPistas,
       async (id) => {
         const resumen = await biblioteca.comprobarPistas(id)
-        return resumen ? resumenParaRenderer(resumen) : null
+        return resumen ? aRenderer(resumen) : null
       }
     ),
+    [CANALES.biblioteca.recuentoRevision]: envolver(
+      CANALES.biblioteca.recuentoRevision,
+      (id) => deps.recuentoRevision?.calcular(id) ?? Promise.resolve(null)
+    ),
     [CANALES.biblioteca.listar]: envolver(CANALES.biblioteca.listar, () =>
-      biblioteca.listar().map(resumenParaRenderer)
+      biblioteca.listar().map(aRenderer)
     ),
     [CANALES.biblioteca.obtener]: envolver(CANALES.biblioteca.obtener, (id) =>
       cancionParaRenderer(id)
@@ -677,7 +773,7 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       async (id, metadatos) => {
         // «Editar datos»: lo que el usuario cambia pasa a ser suyo y nada lo sustituye solo (ADR 0025 §6).
         const origen = origenTrasEdicion(biblioteca.obtener(id)?.metadatos, metadatos)
-        return resumenParaRenderer(
+        return aRenderer(
           await biblioteca.actualizar(id, {
             metadatos: { ...metadatos, ...(origen ? { origen } : {}) }
           })
@@ -688,14 +784,14 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       CANALES.biblioteca.guardarApariencia,
       async (id, seleccion) => {
         sinSesion()
-        return resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
+        return aRenderer(await biblioteca.guardarApariencia(id, seleccion))
       }
     ),
     [CANALES.biblioteca.marcarLista]: envolver(
       CANALES.biblioteca.marcarLista,
       async (id, opciones) => {
         sinSesion()
-        return resumenParaRenderer(
+        return aRenderer(
           await (opciones ? biblioteca.marcarLista(id, opciones) : biblioteca.marcarLista(id))
         )
       }
@@ -704,14 +800,14 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       CANALES.biblioteca.volverABorrador,
       async (id) => {
         noActiva(id)
-        return resumenParaRenderer(await biblioteca.volverABorrador(id))
+        return aRenderer(await biblioteca.volverABorrador(id))
       }
     ),
     [CANALES.biblioteca.marcarPreparacionRevisada]: envolver(
       CANALES.biblioteca.marcarPreparacionRevisada,
       async (id) => {
         const resumen = await biblioteca.marcarPreparacionRevisada(id)
-        return resumen ? resumenParaRenderer(resumen) : null
+        return resumen ? aRenderer(resumen) : null
       }
     ),
     [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) => {
@@ -754,13 +850,27 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.fuente.importarArchivo]: envolver(CANALES.fuente.importarArchivo, (ruta) =>
       fuente.importar(ruta)
     ),
-    [CANALES.fuente.cancelarImportacion]: envolver(CANALES.fuente.cancelarImportacion, (...ids) =>
-      fuente.cancelar(ids[0])
+    [CANALES.fuente.cancelarImportacion]: envolver(CANALES.fuente.cancelarImportacion, (...ids) => {
+      if (ids[0] === undefined) deps.lote?.cancelarLectura()
+      return fuente.cancelar(ids[0])
+    }),
+    [CANALES.fuente.leerArchivos]: envolver(CANALES.fuente.leerArchivos, ({ rutas }) =>
+      lote().leerArchivos(rutas)
+    ),
+    [CANALES.fuente.leerCarpeta]: envolver(CANALES.fuente.leerCarpeta, ({ ruta }) =>
+      lote().leerCarpeta(ruta)
+    ),
+    [CANALES.fuente.infoLista]: envolver(CANALES.fuente.infoLista, ({ url }) =>
+      lote().infoLista(url)
+    ),
+    [CANALES.fuente.lote]: envolver(CANALES.fuente.lote, (peticion) => lote().lote(peticion)),
+    [CANALES.fuente.espacioLibre]: envolver(CANALES.fuente.espacioLibre, () =>
+      lote().espacioLibre()
     ),
     [CANALES.fuente.confirmarArchivo]: envolver(
       CANALES.fuente.confirmarArchivo,
       async (id, metadatos, opciones?: { cancionId: string }) =>
-        resumenParaRenderer(await fuente.confirmar(id, metadatos, opciones))
+        aRenderer(await fuente.confirmar(id, metadatos, opciones))
     ),
     [CANALES.fuente.descartarImportacion]: envolver(CANALES.fuente.descartarImportacion, (id) =>
       fuente.descartar(id)
@@ -774,11 +884,13 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.fuente.confirmarYoutube]: envolver(
       CANALES.fuente.confirmarYoutube,
       async (id, metadatos, opciones?: { cancionId: string }) =>
-        resumenParaRenderer(await youtube().confirmar(id, metadatos, opciones))
+        aRenderer(await youtube().confirmar(id, metadatos, opciones))
     ),
-    [CANALES.fuente.reintentar]: envolver(CANALES.fuente.reintentar, (id) =>
-      youtube().reintentar(id)
-    ),
+    [CANALES.fuente.reintentar]: envolver(CANALES.fuente.reintentar, async (id) => {
+      // Una canción de un lote de archivos reintenta su importación; el resto, la descarga.
+      if (deps.lote && (await deps.lote.reintentar(id))) return
+      await youtube().reintentar(id)
+    }),
     [CANALES.runtime.estado]: envolver(CANALES.runtime.estado, () => runtime.estado()),
     [CANALES.runtime.requisitos]: envolver(CANALES.runtime.requisitos, (opciones) =>
       runtime.requisitos(opciones.recalcularEspacio)
@@ -1012,8 +1124,17 @@ export function registrarIpc(
     aPrincipal(CANALES.eventos.pantallaCompleta, activa)
   )
   const bajaCancion = deps.biblioteca.suscribir((e) =>
-    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e))
+    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e, deps.recuentoRevision))
   )
+  // Un recuento calculado en segundo plano que cambia lo que ya se mostraba llega como un resumen nuevo.
+  const bajaRecuento = deps.recuentoRevision?.suscribir((id) => {
+    const r = deps.biblioteca.listar().find((x) => x.id === id)
+    if (r)
+      aPrincipal(
+        CANALES.eventos.cancion,
+        eventoParaRenderer({ id, resumen: r }, deps.recuentoRevision)
+      )
+  })
   // La secundaria solo recibe `config.reproductor`, y solo cuando cambia (ADR 0017 §11).
   let reproductorPrevio = JSON.stringify(deps.config.obtener().reproductor)
   const bajaConfig = deps.config.suscribir((c) => {
@@ -1046,6 +1167,7 @@ export function registrarIpc(
     bajaRtProgreso()
     bajaRtCambio()
     bajaCancion()
+    bajaRecuento?.()
     bajaConfig()
     bajaTrabajo()
     bajaProgreso()

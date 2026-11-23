@@ -114,13 +114,23 @@ it('F11-E4/E5/E10: el recorrido guía por las pendientes, «Está bien» se guar
   const tarjeta = await empezar()
   expect(tarjeta).toHaveTextContent('Revisión · quedan 2 de 2')
   expect(tarjeta).toHaveTextContent('El fin llega 1,5 s después de la voz.')
-  // Selecciona la primera pendiente y suena su tramo (0,5 s antes y después) tras el anuncio.
+  // Al empezar, la primera línea no suena sola (decisión provisional 0158 n.º 24) y el foco queda en
+  // [✓ Está bien]; «Escuchar otra vez» la hace sonar (0,5 s antes y después).
+  await waitFor(() =>
+    expect(within(tarjeta).getByRole('button', { name: 'Está bien' })).toHaveFocus()
+  )
+  await new Promise((r) => setTimeout(r, 400))
+  expect(motor.reproducir).not.toHaveBeenCalled()
+  fireEvent.click(within(tarjeta).getByRole('button', { name: /^Escuchar la línea otra vez/ }))
   await waitFor(() =>
     expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 4500, hastaMs: 7500 })
   )
+  motor.reproducir.mockClear()
 
+  // Desde la segunda, la autoescucha suena sola.
   fireEvent.click(within(tarjeta).getByRole('button', { name: 'Está bien' }))
   expect(await screen.findByText('Revisión · quedan 1 de 2')).toBeVisible()
+  await waitFor(() => expect(motor.reproducir).toHaveBeenCalledTimes(1))
   expect(screen.getByText('Casi no se oye voz mientras dura esta línea.')).toBeVisible()
   expect(screen.getByText('Línea 4 de 6')).toBeVisible()
 

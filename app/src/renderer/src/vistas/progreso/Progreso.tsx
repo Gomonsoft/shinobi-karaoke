@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Check,
   CircleX,
@@ -54,6 +54,7 @@ import {
 } from './textos'
 import estilos from './progreso.module.css'
 import { copiarDetalles } from '../../soporte/detalles'
+import { useMarcarRevision } from '../biblioteca/useMarcarRevision'
 import { useProbar } from '../biblioteca/useProbar'
 import { BloqueResultado } from './BloqueResultado'
 import { filasPreparacion, resultadoDe } from './preparacion'
@@ -256,7 +257,12 @@ export function Progreso({ id }: { id: string }) {
   const piso = useRef<{ trabajo: string; valor: number } | null>(null)
   const bytes = useRef<number | null>(null)
   const enfocada = useRef(false)
-  const probar = useProbar()
+  // El [Marcar como lista] del toast tras «Probar» pasa por el diálogo de pendientes como en la Biblioteca (F11-B3).
+  const resumenVivo = datos.resumen
+  const marcarRevision = useMarcarRevision(
+    useCallback((rid: string) => (resumenVivo?.id === rid ? resumenVivo : undefined), [resumenVivo])
+  )
+  const probar = useProbar(marcarRevision.pedir)
   // `config.preparacion.automatica`: con ella desactivada y sin «Preparar» la vista es la de 0.2.1.
   const [automatica, setAutomatica] = useState(false)
   useEffect(() => {
@@ -587,7 +593,8 @@ export function Progreso({ id }: { id: string }) {
   const filasPrep = hayPrep
     ? filasPreparacion(registro, {
         tieneLetra: !!datos.cancion && contarLineas(datos.cancion.letra) > 0,
-        desfaseCorregidoMs: datos.cancion?.letra?.desfase_corregido_ms ?? null
+        desfaseCorregidoMs: datos.cancion?.letra?.desfase_corregido_ms ?? null,
+        separando: resumen?.pasos?.separacion.estado !== 'completado'
       })
     : []
   const bloquePrep =
@@ -613,14 +620,29 @@ export function Progreso({ id }: { id: string }) {
       {TEXTO.botonBiblioteca}
     </Boton>
   )
+  // Con resultado (R1–R4) el título es el del resultado, sin subtítulo, y el bloque va bajo el título (F5-P13).
+  const resultadoVisible = bloquePrep && resultado ? resultado : null
+  // Al llegar el resultado el primario del bloque recibe el foco (F5-P13) si no lo tenía otro campo de fuera.
+  useEffect(() => {
+    if (!resultadoVisible) return
+    const activo = document.activeElement
+    if (activo && activo !== document.body && !raiz.current?.contains(activo)) return
+    raiz.current?.querySelector<HTMLElement>('[data-resultado] [data-foco-inicial]')?.focus()
+  }, [resultadoVisible])
   const mostrarModelo = !!trabajoSep || aceptando !== null || fuentePaso?.estado === 'completado'
   return (
     <section ref={raiz} className={estilos.vista} aria-labelledby="titulo-vista">
       <CabeceraCancion resumen={resumen} actual="progreso" />
       <h1 id="titulo-vista" className="t-titulo" tabIndex={-1}>
-        {hayPrep ? PREP.titulo : TEXTO.titulo}
+        {hayPrep
+          ? resultadoVisible
+            ? PREP.tituloFin[resultadoVisible]
+            : PREP.titulo
+          : TEXTO.titulo}
       </h1>
-      <p className={estilos.subtitulo}>{hayPrep ? PREP.subtitulo : TEXTO.subtitulo}</p>
+      {!resultadoVisible && (
+        <p className={estilos.subtitulo}>{hayPrep ? PREP.subtitulo : TEXTO.subtitulo}</p>
+      )}
 
       {datos.estado === 'error' && (
         <>
@@ -633,6 +655,32 @@ export function Progreso({ id }: { id: string }) {
 
       {modelo && (
         <>
+          {resultadoVisible && resultado && (
+            <BloqueResultado
+              resultado={resultado}
+              registro={registro}
+              artistaVacio={(resumen?.artista ?? '').trim() === ''}
+              desfaseCorregidoMs={datos.cancion?.letra?.desfase_corregido_ms ?? null}
+              atributos={bloqueo.atributos}
+              candado={bloqueo.candado}
+              alRevisar={() =>
+                bloqueo.intentar(() => ir({ tipo: 'cancion', id, paso: 'editor', revisar: true }))
+              }
+              alProbar={() => probar(id, titulo)}
+              alAbrirLetra={() => irAPasoLetra(false)}
+              alReintentar={() =>
+                void window.shinobi.preparacion
+                  .preparar([id])
+                  .catch((err) => avisarFallo('No se pudo repetir la búsqueda.', err))
+              }
+              volver={
+                <Boton variante="secundario" onClick={() => ir({ tipo: 'biblioteca' })}>
+                  {TEXTO.botonBiblioteca}
+                </Boton>
+              }
+            />
+          )}
+
           <ul className={estilos.filas} aria-label="Subpasos">
             {[...modelo.filas, ...filasPrep].map((f) => (
               <FilaSubpaso
@@ -654,27 +702,7 @@ export function Progreso({ id }: { id: string }) {
           {bloquePrep && (
             <>
               {bloque?.tipo === 'terminado' && <Escucha cancionId={id} />}
-              {resultado ? (
-                <BloqueResultado
-                  resultado={resultado}
-                  registro={registro}
-                  desfaseCorregidoMs={datos.cancion?.letra?.desfase_corregido_ms ?? null}
-                  atributos={bloqueo.atributos}
-                  candado={bloqueo.candado}
-                  alRevisar={() =>
-                    bloqueo.intentar(() =>
-                      ir({ tipo: 'cancion', id, paso: 'editor', revisar: true })
-                    )
-                  }
-                  alProbar={() => probar(id, titulo)}
-                  alAbrirLetra={() => irAPasoLetra(false)}
-                  alReintentar={() =>
-                    void window.shinobi.preparacion
-                      .preparar([id])
-                      .catch((err) => avisarFallo('No se pudo repetir la búsqueda.', err))
-                  }
-                />
-              ) : (
+              {!resultado && (
                 <div className={estilos.acciones}>
                   {volverPrimario}
                   <Boton
@@ -904,6 +932,7 @@ export function Progreso({ id }: { id: string }) {
         {anunciado}
       </div>
 
+      {marcarRevision.dialogos}
       <DialogoCancelarDescarga
         abierto={confirmando}
         titulo={titulo}

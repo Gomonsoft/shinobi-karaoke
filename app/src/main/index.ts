@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, statfs } from 'node:fs/promises'
 import { cpus, release, setPriority, totalmem, type as tipoSO } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
@@ -19,18 +19,23 @@ import {
 } from 'electron'
 import { estiloPredeterminado } from '@shared/estilo'
 import { CANALES } from '@shared/canales'
-import { ENTORNO_LRCLIB_URL, urlBaseLrclib } from '@shared/letrasBusqueda'
+import { ENTORNO_LRCLIB_URL } from '@shared/letrasBusqueda'
 import { hashCorto, identificador, lineaVersion, numeroVisible } from '@shared/compilacion'
 import { ID_APP_WINDOWS, ID_APP_WINDOWS_DESARROLLO, TITULO_APP } from '@shared/titulo'
 import { ServicioBiblioteca } from './biblioteca'
+import { ServicioCopias } from './copias'
+import { ExportadorLrc } from './letras/exportarLrc'
 import {
+  crearDialogoLote,
   ejecutarConCerrojo,
   elegirArchivoAudio,
   entornoYtdlpFalso,
   ServicioImportacionArchivo,
+  ServicioLote,
   ServicioYoutube,
   YOUTUBE_ACTIVO
 } from './fuente'
+import { crearEspacioLibre } from './runtime/deteccion'
 import { shellConPapeleraDePruebas } from './biblioteca/papelera'
 import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
 import {
@@ -41,6 +46,7 @@ import {
   type ResultadoComprobacionGuardada
 } from './letras'
 import { contarDudosasGuardadas } from './letras/dudosas'
+import { RecuentoRevision } from './biblioteca/recuentoRevision'
 import { ColaPreparacion, ServicioPreparacion } from './preparacion'
 import { DiarioPendientes } from './trabajos/diario'
 import { ServicioConfig } from './configuracion'
@@ -137,6 +143,9 @@ export let servicioSesion: ServicioSesion | null = null
 /** Importación de archivo local (0042). */
 export let importacionArchivo: ServicioImportacionArchivo | null = null
 
+/** Importación por lotes (0314): archivos, carpeta y listas. */
+export let servicioLote: ServicioLote | null = null
+
 /** Servicio de YouTube (0049); `null` con el módulo desactivado. */
 export let servicioYoutube: ServicioYoutube | null = null
 
@@ -146,11 +155,16 @@ export let runtime: RuntimeReal | null = null
 /** Servicio de separación (0065): cola pesada, pistas y factor medido. */
 export let servicioSeparacion: ServicioSeparacion | null = null
 let servicioPicos: ServicioPicos | null = null
+/** Paquetes de canción y copias de seguridad (ADR 0027). */
+let servicioCopias: ServicioCopias<BrowserWindow | null> | null = null
+/** Exportar la letra a `.lrc` (ADR 0027 §4). */
+let exportadorLrc: ExportadorLrc<BrowserWindow | null> | null = null
 let busquedaLetras: BusquedaLetras | null = null
 /** Preparación desatendida hasta «Lista para revisar» (ADR 0025, tarea 0308). */
 let servicioPreparacion: ServicioPreparacion | null = null
 /** Tanda, pausa, paradas y reanudar al abrir (tarea 0309). */
 let colaPreparacion: ColaPreparacion | null = null
+let recuentoRevision: RecuentoRevision | null = null
 /** Diario `trabajos/pendientes.json` (ADR 0025 §5). */
 let diarioPendientes: DiarioPendientes | null = null
 /** `preparacion:reanudada` que salió antes de que la ventana terminara de cargar. */
@@ -544,6 +558,7 @@ if (instanciaUnica)
         tieneVoz: (id) => servicioBiblioteca?.tieneVozSeparada(id) ?? false,
         ejecutar,
         alListos: (id) => {
+          recuentoRevision?.recalcular(id)
           void busquedaLetras?.alPicosListos(id).catch(() => undefined)
           void comprobarLetraDiferida?.(id).catch(() => undefined)
         }
@@ -620,6 +635,8 @@ if (instanciaUnica)
           valoresDatos: () => servicioBiblioteca?.valoresDatos() ?? { artistas: [], albumes: [] },
           actualizarYtDlp,
           alEstadoInfo: (ev) => aPrincipal(CANALES.eventos.estadoInfo, ev),
+          esDuplicado: (id) =>
+            servicioBiblioteca?.indiceDuplicados().some((c) => c.youtubeId === id) ?? false,
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'youtube', mensaje)
         })
       }
@@ -645,6 +662,44 @@ if (instanciaUnica)
           servicioPreparacion?.alFuenteLista(id)
         },
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'importacion', mensaje)
+      })
+      // Lotes (0314): canciones con la fuente pendiente en la cola `ligera`; al completarse encadenan la
+      // separación y la preparación como las de YouTube.
+      const espacio = crearEspacioLibre()
+      servicioLote = new ServicioLote({
+        biblioteca: servicioBiblioteca,
+        gestor: gestorTrabajos,
+        ejecutar,
+        ...(servicioYoutube ? { youtube: servicioYoutube } : {}),
+        // `SHINOBI_DIALOGO_PRUEBAS` sustituye los diálogos nativos en E2E; se ignora empaquetada (0046).
+        dialogo: crearDialogoLote(
+          dialogoConDoblePruebas(
+            { showOpenDialog: (o) => dialog.showOpenDialog(o) },
+            { env: process.env, empaquetada: app.isPackaged }
+          )
+        ),
+        dirDatos: rutaDatos(),
+        espacioLibre: (ruta) => espacio.bytesLibres(ruta).catch(() => null),
+        // Minutos de proceso por minuto de audio: la pendiente de la estimación de separación (sin el arranque fijo).
+        factorMinutos: () => {
+          const uno = runtime?.servicio.estimarSeparacion(60_000)
+          const diez = runtime?.servicio.estimarSeparacion(600_000)
+          if (!uno || !diez) return null
+          const f = ((diez.min + diez.max) / 2 - (uno.min + uno.max) / 2) / 9
+          return f > 0 ? f : null
+        },
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'lote', mensaje)
+      })
+      gestorTrabajos.suscribir((t) => {
+        if (
+          t.estado === 'terminado' &&
+          t.paso === 'fuente' &&
+          t.comando === 'importar-archivo-cola' &&
+          t.resultado === 'completado'
+        ) {
+          void servicioSeparacion?.alCompletarFuente(t.cancionId)
+          servicioPreparacion?.alFuenteLista(t.cancionId)
+        }
       })
     }
     if (servicioConfig) {
@@ -754,6 +809,7 @@ if (instanciaUnica)
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'avisos', mensaje)
       })
       gestorTrabajos.suscribir((t) => servicioAvisos?.alCambiarTrabajo(t))
+      biblioteca.suscribir((e) => servicioAvisos?.alCambiarCancion(e))
     }
     const dirBiblioteca = join(rutaDatos(), 'biblioteca')
     protocol.handle(ESQUEMA_MEDIOS, (peticion) =>
@@ -854,6 +910,14 @@ if (instanciaUnica)
           servicioPreparacion?.alFuenteLista(t.cancionId)
         }
       })
+      // Recuento de líneas por revisar en memoria, para toda «Lista para revisar» con o sin registro
+      // (pregunta 0241): en segundo plano y en serie, ya pasada la comprobación del runtime.
+      recuentoRevision = new RecuentoRevision({
+        biblioteca,
+        contar: (c) => contarDudosasGuardadas({ picos: picosPreparacion }, c),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'biblioteca', mensaje)
+      })
+      recuentoRevision.arrancar()
       // Un registro `en_curso` de una caída no se queda «Preparando» para siempre.
       await servicioPreparacion.normalizarAlArrancar()
       const preparacionActual = servicioPreparacion
@@ -864,24 +928,15 @@ if (instanciaUnica)
           biblioteca,
           config,
           diario: diarioPendientes,
-          hayConexion: async () => {
-            const base = urlBaseLrclib(
-              process.env[ENTORNO_LRCLIB_URL],
-              app.isPackaged,
-              process.env.SHINOBI_E2E === '1'
-            )
-            try {
-              const r = await net.fetch(base, { method: 'HEAD', signal: AbortSignal.timeout(8000) })
-              return r.status > 0
-            } catch {
-              return false
-            }
-          },
           estimarMin: (id) => {
             const e = servicioSeparacion?.estimar(id)
             return e ? (e.min + e.max) / 2 : null
           },
-          reintentarDescarga: (id) => servicioYoutube?.reintentar(id) ?? Promise.resolve(),
+          reintentarDescarga: async (id) => {
+            // La fuente de una canción de lote de archivos se reimporta; la de YouTube se vuelve a descargar.
+            if (await servicioLote?.reintentar(id)) return
+            await servicioYoutube?.reintentar(id)
+          },
           separar: (id) => servicioSeparacion?.separar(id) ?? Promise.resolve(),
           emitirTanda: (t) => aPrincipal(CANALES.eventos.preparacionTanda, t),
           emitirReanudada: (e) => {
@@ -971,6 +1026,83 @@ if (instanciaUnica)
       })
       // Restos de una caída: el aviso espera a que la principal lo pida (antes de crearla).
       await servicioExportacion.recuperarAlArrancar()
+      // Letra a `.lrc`, paquetes y copias (ADR 0027): main abre los diálogos del sistema.
+      exportadorLrc = new ExportadorLrc<BrowserWindow | null>({
+        biblioteca: exportacionBiblioteca,
+        directorioDatos: rutaDatos(),
+        ventana: () => ventanas.principal() ?? null,
+        dialogoGuardar: async (ventana, o) => {
+          const opciones = {
+            defaultPath: o.defaultPath,
+            filters: [{ name: 'Letra con tiempos (LRC)', extensions: ['lrc'] }]
+          }
+          const r = ventana
+            ? await dialog.showSaveDialog(ventana, opciones)
+            : await dialog.showSaveDialog(opciones)
+          return r.canceled || !r.filePath ? null : r.filePath
+        },
+        dialogoCarpeta: async (ventana, o) => {
+          const opciones = {
+            defaultPath: o.defaultPath,
+            properties: ['openDirectory', 'createDirectory'] as (
+              'openDirectory' | 'createDirectory'
+            )[]
+          }
+          const r = ventana
+            ? await dialog.showOpenDialog(ventana, opciones)
+            : await dialog.showOpenDialog(opciones)
+          return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+        },
+        carpetaDocumentos: () => app.getPath('documents'),
+        mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta)
+      })
+      if (servicioConfig) {
+        const lrc = exportadorLrc
+        servicioCopias = new ServicioCopias<BrowserWindow | null>({
+          dirBiblioteca: join(rutaDatos(), 'biblioteca'),
+          directorioDatos: rutaDatos(),
+          biblioteca,
+          ...(servicioTemas ? { temas: servicioTemas } : {}),
+          config: servicioConfig,
+          libreBytes: async (carpeta) => {
+            try {
+              const s = await statfs(carpeta)
+              return Number(s.bavail) * Number(s.bsize)
+            } catch {
+              return null
+            }
+          },
+          puedeSustituir: (id) => !(servicioSesion?.cancionActiva(id) ?? false),
+          version: app.getVersion(),
+          ventana: () => ventanas.principal() ?? null,
+          dialogoGuardar: async (ventana, o) => {
+            const opciones = {
+              defaultPath: o.defaultPath,
+              filters: [{ name: 'Paquete de Shinobi Karaoke', extensions: ['shinobi'] }]
+            }
+            const r = ventana
+              ? await dialog.showSaveDialog(ventana, opciones)
+              : await dialog.showSaveDialog(opciones)
+            return r.canceled || !r.filePath ? null : r.filePath
+          },
+          dialogoAbrir: async (ventana) => {
+            const opciones = {
+              properties: ['openFile'] as 'openFile'[],
+              filters: [{ name: 'Paquete de Shinobi Karaoke', extensions: ['shinobi'] }]
+            }
+            const r = ventana
+              ? await dialog.showOpenDialog(ventana, opciones)
+              : await dialog.showOpenDialog(opciones)
+            return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+          },
+          carpetaDocumentos: () => app.getPath('documents'),
+          carpetaHogar: () => app.getPath('home'),
+          recordarUbicacion: (ruta) => lrc.recordar(ruta),
+          emitirCambio: (e) => aPrincipal(CANALES.eventos.copiasCambio, e),
+          emitirProgreso: (e) => aPrincipal(CANALES.eventos.copiasProgreso, e),
+          registrar: (nivel, mensaje) => registro.escribir(nivel, 'copias', mensaje)
+        })
+      }
       servicioActualizaciones = new ServicioActualizaciones({
         config,
         fetch: (url, init) => net.fetch(url, init),
@@ -988,7 +1120,10 @@ if (instanciaUnica)
           preparacion: servicioPreparacion,
           ...(colaPreparacion ? { colaPreparacion } : {}),
           biblioteca: servicioBiblioteca,
+          ...(recuentoRevision ? { recuentoRevision } : {}),
           exportacion: servicioExportacion,
+          ...(exportadorLrc ? { lrc: exportadorLrc } : {}),
+          ...(servicioCopias ? { copias: servicioCopias } : {}),
           ventanaExportacion: () => ventanaExportacionVigente,
           ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
@@ -1028,6 +1163,7 @@ if (instanciaUnica)
             leerArchivo: () => servicioLetras.leerArchivo()
           },
           ...(servicioYoutube ? { youtube: servicioYoutube } : {}),
+          ...(servicioLote ? { lote: servicioLote } : {}),
           elegirArchivoAudio: () =>
             // `SHINOBI_DIALOGO_PRUEBAS` sustituye el selector nativo en E2E; se ignora empaquetada (0046).
             elegirArchivoAudio(
@@ -1139,6 +1275,8 @@ app.on('before-quit', (evento) => {
       .then(() => gestorTrabajos?.cancelarTodos()),
     // Cancela las exportaciones con limpieza y suelta el bloqueo de suspensión (0237).
     servicioExportacion?.cerrar(),
+    // Cancela los paquetes y copias en curso: su temporal se borra y el archivo anterior queda intacto.
+    servicioCopias?.cerrar(),
     servicioPicos?.cerrar(),
     Promise.resolve(servicioTemas?.cerrar()),
     // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).
@@ -1147,6 +1285,7 @@ app.on('before-quit', (evento) => {
     servicioSeparacion?.cerrar(),
     Promise.resolve(busquedaLetras?.cerrar()),
     servicioYoutube?.cerrar(),
+    servicioLote?.cerrar(),
     // Espera a uv ≤ 10 s y después mata el árbol de procesos (0050).
     actualizadorYtDlp?.cerrar()
   ]).then(() =>

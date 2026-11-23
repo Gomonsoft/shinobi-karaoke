@@ -42,7 +42,7 @@ describe('toasts del resultado de una canción', () => {
     await pasar(evento('preparando'), evento('lista_para_revisar'))
     expect(screen.getByText('«Eco de Plata» está lista para revisar.')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
-    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'editor' })
+    expect(ir).toHaveBeenCalledWith({ tipo: 'cancion', id: 'c1', paso: 'editor', revisar: true })
   })
 
   it('«Elige la letra» da su toast; «Letra pendiente» no da ninguno', async () => {

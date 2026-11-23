@@ -270,6 +270,10 @@
 .lineaAyuda {
   display: block;
 }
+/* Bajo los botones de la sugerencia de unificar: 8 px de separación (V1). */
+.lineaAyudaTrasUnificar {
+  margin-top: var(--e-2);
+}
 .botonesUnificar {
   display: flex;
   flex-wrap: wrap;

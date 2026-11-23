@@ -133,10 +133,16 @@ export function MenuContextual({
     )
   }, [abierto, punto])
 
-  const cerrarSimple = useCallback(() => {
-    setAbierto(false)
-    alCerrar?.()
-  }, [alCerrar])
+  const cerrarSimple = useCallback(
+    (devolverFoco = false) => {
+      // Abierto con teclado el foco está dentro del menú: al cerrarse por fuera vuelve a su botón.
+      const foco = !!lista.current?.contains(document.activeElement)
+      setAbierto(false)
+      alCerrar?.()
+      if (devolverFoco && foco && !punto) disparador.current?.focus()
+    },
+    [alCerrar, punto]
+  )
 
   useEffect(() => {
     if (!abierto) return
@@ -145,19 +151,31 @@ export function MenuContextual({
     const cerrarSiFuera = (e: Event) => {
       if (!dentro(e.target)) cerrarSimple()
     }
+    const cerrarAlRedimensionar = () => cerrarSimple(true)
     const cerrarSiempre = () => cerrarSimple()
+    // Solo cierra el desplazamiento de la página o de un contenedor de su botón (no el del propio menú ni
+    // el de otra zona), y el de cualquiera si el menú salió de un clic derecho (`punto`).
+    const cerrarAlDesplazar = (e: Event) => {
+      if (dentro(e.target)) return
+      const t = e.target
+      const delBoton = punto
+        ? true
+        : t instanceof Document ||
+          (t instanceof Node && !!disparador.current && t.contains(disparador.current))
+      if (delBoton) cerrarSimple(true)
+    }
     document.addEventListener('mousedown', cerrarSiFuera)
-    // En captura: cualquier contenedor con desplazamiento (la rejilla) cierra el menú.
-    window.addEventListener('scroll', cerrarSiFuera, true)
-    window.addEventListener('resize', cerrarSiempre)
+    // En captura: el desplazamiento de la página o de un contenedor del botón (la rejilla) cierra el menú.
+    window.addEventListener('scroll', cerrarAlDesplazar, true)
+    window.addEventListener('resize', cerrarAlRedimensionar)
     window.addEventListener('blur', cerrarSiempre)
     return () => {
       document.removeEventListener('mousedown', cerrarSiFuera)
-      window.removeEventListener('scroll', cerrarSiFuera, true)
-      window.removeEventListener('resize', cerrarSiempre)
+      window.removeEventListener('scroll', cerrarAlDesplazar, true)
+      window.removeEventListener('resize', cerrarAlRedimensionar)
       window.removeEventListener('blur', cerrarSiempre)
     }
-  }, [abierto, inicial, cerrarSimple])
+  }, [abierto, inicial, cerrarSimple, punto])
 
   // El foco solo puede entrar cuando el menú ya está colocado (hasta entonces es `visibility: hidden`).
   const colocado = posicion !== null

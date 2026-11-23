@@ -248,6 +248,32 @@ export class ServicioBiblioteca {
     return { artistas: lista(artistas, false), albumes: lista(albumes, true) }
   }
 
+  /**
+   * Lo mínimo de cada canción para detectar duplicados al importar un lote (ADR 0026 §1), del índice en
+   * memoria y sin copiar nada. Las canciones dañadas por JSON no están.
+   */
+  indiceDuplicados(): {
+    youtubeId: string | null
+    nombreOriginal: string | null
+    titulo: string
+    artista: string
+    duracionMs: number
+  }[] {
+    return [...this.indice.values()].flatMap(({ cancion }) =>
+      cancion
+        ? [
+            {
+              youtubeId: cancion.fuente.youtube_id,
+              nombreOriginal: cancion.fuente.nombre_original,
+              titulo: cancion.metadatos.titulo,
+              artista: cancion.metadatos.artista,
+              duracionMs: cancion.metadatos.duracion_ms
+            }
+          ]
+        : []
+    )
+  }
+
   /** Canción completa validada (copia), o null si no existe o está dañada por JSON. */
   obtener(id: string): Cancion | null {
     const c = this.indice.get(id)?.cancion
@@ -329,6 +355,19 @@ export class ServicioBiblioteca {
           throw new ErrorBiblioteca('ERROR_INTERNO', `No se pudo crear la canción: ${String(e)}`)
         }
         return this.indexar(id, cancion)
+      })
+    ).then((r) => this.tras(r))
+  }
+
+  /**
+   * Indexa una canción cuya carpeta ya está completa en `biblioteca/<id>/` con su `cancion.json` escrito
+   * (importar un paquete, ADR 0027 §3). Conserva `creada` y `modificada` tal como vienen.
+   */
+  incorporar(id: string, cancion: Cancion): Promise<ResumenCancion> {
+    return this.enColaDeTemas(() =>
+      this.enSerie(id, async () => {
+        this.exigirIdSeguro(id)
+        return this.indexar(id, this.validar(cancion))
       })
     ).then((r) => this.tras(r))
   }

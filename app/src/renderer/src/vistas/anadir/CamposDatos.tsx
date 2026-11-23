@@ -286,7 +286,18 @@ export function CamposDatos({
           </Boton>
         </span>
       ) : (
-        <span className={estilos.lineaAyuda}>{linea('album', TEXTO.campoAlbumAyuda)}</span>
+        // Mientras sale la sugerencia de unificar, la ayuda sigue visible bajo los botones (V1).
+        <span
+          className={
+            unificar.album !== undefined && propuesta
+              ? `${estilos.lineaAyuda} ${estilos.lineaAyudaTrasUnificar}`
+              : estilos.lineaAyuda
+          }
+        >
+          {unificar.album !== undefined
+            ? TEXTO.campoAlbumAyuda
+            : linea('album', TEXTO.campoAlbumAyuda)}
+        </span>
       )}
     </>
   )

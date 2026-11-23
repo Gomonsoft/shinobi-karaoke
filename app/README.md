@@ -40,6 +40,10 @@ En desarrollo el worker se lanza con `uv run --project <repo>/worker python -m s
 
 Dos colas independientes (`pesada` y `ligera`, concurrencia 1 cada una) que lanzan comandos del worker, reflejan el estado en `pasos.<paso>` de la canción y avisan al renderer (`window.shinobi.trabajos`). Para verlo a mano: `npm run dev` y menú **Desarrollo → Lanzar demo** (varias veces para ver la cola). Al cerrar la app se cancelan todos los trabajos sin dejar procesos hijos.
 
+## Paquetes `.shinobi`, copia de seguridad y letra `.lrc` (`src/main/copias/`, `src/main/letras/exportarLrc.ts`)
+
+Un `.shinobi` es un ZIP con `manifiesto.json` (versión del formato, SHA-256 y tamaño de cada archivo), una carpeta por canción, `temas.json` y, en una copia, `ajustes.json` (ADR 0027). Se escribe con `yazl` en un temporal junto al destino y `rename`; se lee con `yauzl` rechazando rutas peligrosas, enlaces simbólicos y bombas de entradas o de tamaño. Importar y restaurar **fusionan**: nunca borran nada que el usuario no haya pedido sustituir (la sustituida va a la papelera). Las pruebas (`src/main/copias/*.test.ts`) usan bibliotecas sintéticas en carpetas temporales; para probarlo a mano con la interfaz hay que esperar a la tarea 0326. Exportar la letra a `.lrc` es `exportarLrc` (`src/shared/letras/lrc.ts`) más los diálogos de `ExportadorLrc`.
+
 ## Instalación real del runtime (manual, con red)
 
 El workflow `.github/workflows/runtime-real.yml` (solo `workflow_dispatch`) instala el runtime real en Windows, macOS y Linux con `scripts/instalar-runtime.mjs` y publica un JSON con tamaños, duraciones y versiones. Para probarlo en local (descarga PyTorch y el modelo): `SHINOBI_DATOS=/tmp/datos-real node --experimental-transform-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/instalar-runtime.mjs --salida runtime-real.json`.

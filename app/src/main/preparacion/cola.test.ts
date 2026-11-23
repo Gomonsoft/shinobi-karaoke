@@ -58,7 +58,6 @@ let oyenteCorrida: (e: EventoCorrida) => void
 let programados: { fn: () => void; ms: number; cancelado: boolean }[]
 let freno: ((t: TrabajoRetenible) => boolean) | null
 let canciones: Map<string, Partial<Cancion>>
-let conexion: boolean
 let diario: DiarioPendientes
 let d: {
   reanudarCola: Mock<() => void>
@@ -103,7 +102,6 @@ const montar = (extra: Partial<DependenciasCola> = {}): ColaPreparacion =>
       }
     },
     diario,
-    hayConexion: () => Promise.resolve(conexion),
     estimarMin: () => 2,
     reintentarDescarga: d.reintentarDescarga,
     separar: d.separar,
@@ -133,7 +131,6 @@ beforeEach(async () => {
   trabajos = []
   programados = []
   freno = null
-  conexion = false
   canciones = new Map(['a', 'b', 'c', 'd'].map((id) => [id, cancion()]))
   d = {
     reanudarCola: vi.fn(),
@@ -264,21 +261,49 @@ describe('paradas automáticas', () => {
     expect(freno!({ cancionId: 'b', comando: 'separar', paso: 'separacion' })).toBe(false)
   })
 
-  it('SIN_CONEXION comprueba cada 60 s y reanuda sola las descargas al volver la red', async () => {
+  it('SIN_CONEXION reintenta cada 60 s solo la primera descarga parada; las demás siguen paradas hasta que termina', async () => {
     gestor(trabajo('a', {}, 'descargar-youtube'))
     gestor(terminado('a', 'error', 'descargar-youtube', 'SIN_CONEXION'))
+    gestor(trabajo('b', {}, 'descargar-youtube'))
+    gestor(terminado('b', 'error', 'descargar-youtube', 'SIN_CONEXION'))
     expect(cola.estado()!.descargasParadas).toBe('SIN_CONEXION')
-    expect(programados).toHaveLength(1)
-    expect(programados[0]!.ms).toBe(COMPROBACION_CONEXION_MS)
-    // Sigue sin red: se vuelve a programar.
-    programados[0]!.fn()
-    await vi.waitFor(() => expect(programados).toHaveLength(2))
+    expect(programados.at(-1)!.ms).toBe(COMPROBACION_CONEXION_MS)
+    // Como en producción, reintentar encola el trabajo antes de resolver.
+    d.reintentarDescarga.mockImplementation((id) => {
+      gestor(trabajo(id, {}, 'descargar-youtube'))
+      return Promise.resolve()
+    })
+    // A los 60 s: solo la primera se reintenta; el freno la deja pasar y retiene a las demás.
+    programados.at(-1)!.fn()
+    await vi.waitFor(() => expect(d.reintentarDescarga).toHaveBeenCalledTimes(1))
+    expect(d.reintentarDescarga).toHaveBeenCalledWith('a')
+    expect(freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente' })).toBe(false)
+    expect(freno!({ cancionId: 'c', comando: 'descargar-youtube', paso: 'fuente' })).toBe(true)
+    // Vuelve a fallar sin red: se reprograma y siguen paradas.
+    gestor(terminado('a', 'error', 'descargar-youtube', 'SIN_CONEXION'))
     expect(cola.estado()!.descargasParadas).toBe('SIN_CONEXION')
-    conexion = true
-    programados[1]!.fn()
-    await vi.waitFor(() => expect(cola.estado()!.descargasParadas).toBeNull())
+    expect(freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente' })).toBe(true)
+    const antes = programados.length
+    programados.at(-1)!.fn()
+    await vi.waitFor(() => expect(d.reintentarDescarga).toHaveBeenCalledTimes(2))
+    expect(d.reintentarDescarga).toHaveBeenLastCalledWith('a')
+    gestor(terminado('a', 'completado', 'descargar-youtube'))
+    expect(cola.estado()!.descargasParadas).toBeNull()
     expect(d.reanudarCola).toHaveBeenCalled()
-    expect(programados).toHaveLength(2)
+    expect(programados.length).toBeGreaterThanOrEqual(antes)
+  })
+
+  it('si la descarga de la sonda falla por otro motivo, se liberan las demás', async () => {
+    gestor(trabajo('a', {}, 'descargar-youtube'))
+    gestor(terminado('a', 'error', 'descargar-youtube', 'SIN_CONEXION'))
+    d.reintentarDescarga.mockImplementation((id) => {
+      gestor(trabajo(id, {}, 'descargar-youtube'))
+      return Promise.resolve()
+    })
+    programados.at(-1)!.fn()
+    await vi.waitFor(() => expect(d.reintentarDescarga).toHaveBeenCalledWith('a'))
+    gestor(terminado('a', 'error', 'descargar-youtube', 'ERROR_INTERNO'))
+    expect(cola.estado()!.descargasParadas).toBeNull()
   })
 
   it('SIN_ESPACIO y RUNTIME_NO_DISPONIBLE paran toda la cola con su motivo', () => {
