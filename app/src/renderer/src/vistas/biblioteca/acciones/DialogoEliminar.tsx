@@ -106,7 +106,7 @@ export function DialogoEliminar({ canciones, alCerrar }: Props) {
         texto: `${n.texto} · ${r ? estadoDe(r) : ''}${c.aplica && c.entradasCola > 0 ? ' · En la cola' : ''}`,
         nota: notas.join('. ') || undefined,
         atenuada: !c.aplica,
-        aria: `${n.aria}: ${notas.join('. ') || estadoDe(r!)}`
+        aria: `${n.aria}: ${notas.join('. ') || (r ? estadoDe(r) : '')}`
       }
     })
   }
