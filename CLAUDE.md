@@ -2,13 +2,13 @@
 
 Software libre y gratuito para crear karaokes: fuente (archivo/YouTube) → separación voz/instrumental → letra → editor (estilo + sincronía) → borrador/lista → reproductor a pantalla completa.
 
-- Versión en curso: `docs/versiones/0.2.2/plan-4.md` y `docs/versiones/0.2.2/backlog.md`. Para retomar el trabajo en un equipo o una sesión nuevos, empieza por `docs/versiones/0.2.2/traspaso.md`.
+- Versión en curso: 0.2.3, varios cantantes y coros (`docs/versiones/0.2.3/plan-5.md` y `docs/versiones/0.2.3/backlog.md`). La 0.2.2 está integrada en `develop` y no se publica en `main` por ahora: el usuario probará a mano 0.2.2 y 0.2.3 juntas en `develop`; lo que queda de ella (guías manuales y decisiones del usuario) está en `docs/versiones/0.2.2/traspaso.md` y en la pregunta `docs/preguntas/0280-…`.
 - Alcance por versión: `docs/00-vision-y-alcance.md` (no añadir funcionalidades fuera del alcance autorizado sin preguntar al usuario).
 - Pipeline: `docs/01-pipeline.md`.
 - Toda la documentación generada va en `docs/`. Idioma: español.
 - Ideas fuera del alcance: no se implementan; se registran en `docs/propuestas/` (una por archivo) para que el usuario decida.
-- Rama de trabajo de la versión en curso: `version-0.2.2` (sale de `develop`), con `docs/` en la rama `version-0.2.2` de shinobidocs. Una feature = una fase; un único PR por versión hacia `develop`.
-- Siguiente versión: 0.2.3, varios cantantes y coros (`docs/versiones/0.2.3/plan-5.md`).
+- Rama de trabajo de la versión en curso: `version-0.2.3` (sale de `version-0.2.2`, ya fusionada en `develop`), con `docs/` en la rama `version-0.2.3` de shinobidocs. Una feature = una fase; un único PR por versión hacia `develop`.
+- Siguiente versión: sin definir. La feature 10 de 0.2.2 (sincronía automática con la voz) está en 0.2.3 como condicionada a su prueba técnica.
 
 ## Agentes (`.claude/agents/`)
 - `arquitecto` — decisiones tecnológicas (ADRs en `docs/adr/`), arquitectura y tareas.
