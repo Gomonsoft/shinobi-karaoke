@@ -154,7 +154,7 @@ describe('sección Tema del panel Estilo (0170)', () => {
       () =>
         expect(llamadasApariencia(llamadas).at(-1)?.args).toEqual([
           expect.any(String),
-          { modo: 'tema', temaId: NEON, reemplazos: null }
+          { modo: 'tema', temaId: NEON, reemplazos: null, reemplazo_pantalla: null }
         ]),
       { timeout: 3000 }
     )
@@ -165,7 +165,8 @@ describe('sección Tema del panel Estilo (0170)', () => {
       () =>
         expect(llamadasApariencia(llamadas).at(-1)?.args[1]).toEqual({
           modo: 'heredar',
-          reemplazos: null
+          reemplazos: null,
+          reemplazo_pantalla: null
         }),
       { timeout: 3000 }
     )

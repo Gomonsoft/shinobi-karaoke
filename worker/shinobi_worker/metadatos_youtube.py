@@ -82,5 +82,30 @@ def sugerir(info: Mapping[str, Any]) -> dict[str, str]:
     return {"titulo": titulo, "artista": artista or _canal(info), "album": album}
 
 
+def _numero(valor: Any) -> int | None:
+    return valor if isinstance(valor, int) and not isinstance(valor, bool) and valor > 0 else None
+
+
+def campos_musica(info: Mapping[str, Any]) -> dict[str, Any]:
+    """Campos de musica de yt-dlp (videos de YouTube Music) y titulo/canal limpios (ADR 0025 §6).
+
+    Main decide el origen de cada dato; aqui solo se leen. Cadenas vacias o `None` si faltan.
+    """
+    artistas = info.get("artists")
+    artista = _texto(info, "artist")
+    if not artista and isinstance(artistas, list):
+        artista = ", ".join(_espacios(a) for a in artistas if isinstance(a, str) and a.strip())
+    return {
+        "track": _texto(info, "track"),
+        "artist": artista,
+        "album": _texto(info, "album"),
+        "album_artist": _texto(info, "album_artist"),
+        "track_number": _numero(info.get("track_number")),
+        "release_year": _numero(info.get("release_year")),
+        "titulo_limpio": limpiar_titulo(_texto(info, "title")),
+        "canal_limpio": _canal(info),
+    }
+
+
 def _canal(info: Mapping[str, Any]) -> str:
     return limpiar_canal(_texto(info, "channel") or _texto(info, "uploader"))

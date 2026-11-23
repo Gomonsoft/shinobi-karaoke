@@ -66,6 +66,7 @@ function instalarApi({ instalacion = 'completa', canciones = 2 }: Opciones = {})
     rutaDeArchivo: (f: File) => `/ruta/${f.name}`,
     fuente: {
       importarArchivo: vi.fn(() => new Promise(() => undefined)),
+      leerArchivos: vi.fn(() => new Promise(() => undefined)),
       cancelarImportacion: () => Promise.resolve(),
       descartarImportacion: () => Promise.resolve()
     },
@@ -384,7 +385,7 @@ describe('arrastrar un archivo', () => {
     expect(window.shinobi.fuente.importarArchivo).toHaveBeenCalledWith('/ruta/tema.MP3')
   })
 
-  it('un formato no admitido avisa y no navega; varios archivos avisan y usan el primero', async () => {
+  it('un formato no admitido avisa y no navega; varios archivos abren el modo lote', async () => {
     await abrir()
     soltar(['notas.txt'])
     expect(screen.getByRole('heading', { level: 1, name: 'Biblioteca' })).toBeInTheDocument()
@@ -394,9 +395,9 @@ describe('arrastrar un archivo', () => {
       )
     ).toBeInTheDocument()
     soltar(['a.flac', 'b.wav'])
-    expect(screen.getByText('Añade las canciones de una en una.')).toBeInTheDocument()
-    expect(screen.getByText('a.flac')).toBeInTheDocument()
-    expect(window.shinobi.fuente.importarArchivo).toHaveBeenCalledWith('/ruta/a.flac')
+    expect(screen.getByRole('heading', { level: 1, name: 'Añadir canción' })).toBeInTheDocument()
+    expect(screen.queryByText('Añade las canciones de una en una.')).toBeNull()
+    expect(window.shinobi.fuente.leerArchivos).toHaveBeenCalledWith(['/ruta/a.flac', '/ruta/b.wav'])
   })
 
   it('fuera de la Biblioteca no navega', async () => {

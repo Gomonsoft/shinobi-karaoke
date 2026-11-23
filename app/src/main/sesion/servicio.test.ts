@@ -340,6 +340,20 @@ describe('apertura y cierre', () => {
     for (const c of b.comandos()) expect(comandoSecundariaIpcSchema.parse(c)).toEqual(c)
   })
 
+  it('F2-R8: el subrayado de este equipo se resuelve al cargar la entrada', async () => {
+    const quien = async (equipo: boolean) => {
+      const b = new Banco()
+      b.config.reproductor.subrayar_cantado = equipo
+      b.cancion(1)
+      await b.servicio.agregar('cancion-1', 'final')
+      await b.abrirYSonar()
+      const cargar = b.ultimoComando('cargar')
+      return cargar?.tipo === 'cargar' ? cargar.entrada.estilo.letra.subrayar_cantado : 'sin cargar'
+    }
+    expect(await quien(true)).toBe(true)
+    expect(await quien(false)).toBeUndefined()
+  })
+
   it('la entrada activa lleva la modalidad efectiva de la canción', async () => {
     const b = new Banco()
     b.cancion(1, { modalidad: 'letra_lista' })

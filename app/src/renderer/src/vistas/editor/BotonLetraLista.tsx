@@ -13,7 +13,7 @@ import { useNavegacion } from '../../navegacion/estado'
 import { useReproductor } from '../../navegacion/reproductor'
 import { useSesion } from '../../sesion/ProveedorSesion'
 import { mensajeListaMarcada } from '../biblioteca/tarjeta'
-import { avisarError, RenglonesFaltas } from './BotonLista'
+import { avisarError, PopoverPendientes, RenglonesFaltas, type AvisoRevision } from './BotonLista'
 import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
 import { E } from './textos'
 import { LL } from './textosLetraLista'
@@ -29,6 +29,8 @@ interface Props {
   alOmitirAviso(): void
   vaciar(): Promise<boolean>
   alEnfocarPrimera(): void
+  /** Líneas dudosas pendientes (feature 11): la primera pulsación de la visita pregunta. */
+  revision?: AvisoRevision
 }
 
 /** «Marcar como letra lista» (spec 06, LL): mismos requisitos que «Marcar como lista». */
@@ -40,13 +42,15 @@ export function BotonLetraLista({
   omitirAviso,
   alOmitirAviso,
   vaciar,
-  alEnfocarPrimera
+  alEnfocarPrimera,
+  revision
 }: Props) {
   const { ir } = useNavegacion()
   const { abrir } = useReproductor()
   const { haySesion } = useSesion()
   const ancla = useRef<HTMLButtonElement>(null)
   const [popover, setPopover] = useState(false)
+  const [avisoRevision, setAvisoRevision] = useState(false)
   const [dialogo, setDialogo] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const marcando = useRef(false)
@@ -90,7 +94,13 @@ export function BotonLetraLista({
   function pulsar() {
     if (marcando.current) return
     if (falta) setPopover(true)
-    else if (omitirAviso) void marcar(false)
+    else if (revision && revision.pendientes > 0 && revision.primeraPulsacion())
+      setAvisoRevision(true)
+    else continuar()
+  }
+
+  function continuar() {
+    if (omitirAviso) void marcar(false)
     else setDialogo(true)
   }
 
@@ -134,6 +144,20 @@ export function BotonLetraLista({
           ))}
         />
       </Popover>
+      <PopoverPendientes
+        abierto={avisoRevision}
+        ancla={ancla}
+        pendientes={revision?.pendientes ?? 0}
+        alCerrar={() => setAvisoRevision(false)}
+        revisarAhora={() => {
+          setAvisoRevision(false)
+          revision?.revisarAhora()
+        }}
+        marcarIgualmente={() => {
+          setAvisoRevision(false)
+          continuar()
+        }}
+      />
       {dialogo && (
         <DialogoLetraLista
           variante="marcar"

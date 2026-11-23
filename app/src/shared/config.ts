@@ -132,9 +132,15 @@ export const reproductorSchema = z
       .min(TRANSICION_S.min)
       .max(TRANSICION_S.max)
       .catch(TRANSICION_S.defecto),
+    /** Subrayar siempre lo ya cantado (ADR 0022 §5, 0.2.2); ausente o inválido = apagado. */
+    subrayar_cantado: z.boolean().catch(false),
     secundaria: secundariaSchema
   })
-  .prefault(() => ({ transicion_s: TRANSICION_S.defecto, secundaria: null }))
+  .prefault(() => ({
+    transicion_s: TRANSICION_S.defecto,
+    subrayar_cantado: false,
+    secundaria: null
+  }))
 export type ConfigReproductor = z.infer<typeof reproductorSchema>
 
 /** Objeto cuyo valor, si no es un objeto, se lee como `{}` (cada hoja toma su defecto). */
@@ -198,7 +204,9 @@ const panelesSchema = objetoTolerante({
 const editorSchema = objetoTolerante({
   paneles: panelesSchema,
   /** No volver a avisar al activar «Letra lista» (ADR 0018 §5). */
-  omitir_aviso_letra_lista: z.boolean().catch(false)
+  omitir_aviso_letra_lista: z.boolean().catch(false),
+  /** «Escuchar cada línea al llegar» de la revisión guiada (spec 06 · Feature 11). */
+  revision_autoescucha: z.boolean().catch(true)
 })
 
 export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album', 'fecha'] as const
@@ -247,6 +255,54 @@ const exportacionSchema = z.preprocess(
 )
 export type ConfigExportacion = z.infer<typeof exportacionSchema>
 
+const fechaOpcional = z.iso.datetime().nullable().catch(null)
+
+/**
+ * Aviso de versión nueva (ADR 0023 §4, 0.2.2). Solo `avisar` lo escribe el renderer; el resto lo
+ * escribe main. Lectura tolerante por campo.
+ */
+const actualizacionesSchema = objetoTolerante({
+  avisar: z.boolean().catch(true),
+  ultima_comprobacion: fechaOpcional,
+  disponible: z
+    .object({
+      version: z.string().min(1).max(64),
+      publicada: z.iso.datetime(),
+      recursos: z.array(z.string().max(200)).max(50).catch([])
+    })
+    .nullable()
+    .catch(null),
+  /** Última versión cuyo aviso vio el usuario (punto del botón de Ajustes). */
+  vista: z.string().min(1).max(64).nullable().catch(null)
+})
+
+/**
+ * Preparación desatendida (ADR 0025 §4 y §5, 0.2.2). `automatica` activada por defecto (provisional,
+ * pregunta 0159); `pausada` solo la escribe main.
+ */
+const preparacionSchema = objetoTolerante({
+  automatica: z.boolean().catch(true),
+  pausada: z.boolean().catch(false)
+})
+
+/** Última copia de seguridad de la biblioteca (ADR 0027 §5, 0.2.2); solo la escribe main. */
+const copiasSchema = objetoTolerante({
+  ultima: z
+    .object({
+      fecha: z.iso.datetime(),
+      canciones: z.number().int().nonnegative(),
+      bytes: z.number().int().nonnegative(),
+      tipo: z.enum(['completa', 'ligera'])
+    })
+    .nullable()
+    .catch(null)
+})
+
+/** Modelos de alineación descargados por idioma (ADR 0028 §3.2); solo los cambia main. */
+const alineacionSchema = objetoTolerante({
+  modelos_descargados: z.array(z.string().min(1).max(16)).max(32).catch([])
+})
+
 export const configSchema = z.object({
   esquema: z.literal(VERSION_ESQUEMA_CONFIG).default(VERSION_ESQUEMA_CONFIG),
   instalacion: instalacionSchema,
@@ -256,6 +312,12 @@ export const configSchema = z.object({
   biblioteca: bibliotecaSchema,
   exportacion: exportacionSchema,
   aviso_youtube_aceptado: z.iso.datetime().nullable().default(null),
+  /** Aviso legal propio de las listas de YouTube (ADR 0026 §3, 0.2.2). */
+  aviso_youtube_listas_aceptado: fechaOpcional,
+  actualizaciones: actualizacionesSchema,
+  preparacion: preparacionSchema,
+  copias: copiasSchema,
+  alineacion: alineacionSchema,
   ultima_comprobacion_ytdlp: z.iso.datetime().nullable().default(null),
   estilo_predeterminado: estiloSchema.default(() => estiloPredeterminado())
 })

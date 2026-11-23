@@ -22,6 +22,8 @@ import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from
 import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
 import { paradasRepartidas } from './estilo/paradas'
 import { SeccionEspera, type ControlEspera } from './estilo/SeccionEspera'
+import { SeccionPantalla, type ControlPantalla } from './estilo/SeccionPantalla'
+import { T_SUBRAYADO as TS } from './estilo/textosSubrayado'
 import { E } from './textos'
 import { LL } from './textosLetraLista'
 import estilos from './panelEstilo.module.css'
@@ -37,6 +39,10 @@ export interface PanelEstiloProps {
   tema: ControlTema
   /** Sección «Indicadores de espera» (0212); sin él no se muestra. */
   espera?: ControlEspera
+  /** Sección «Letra en pantalla» (0291); sin él no se muestra. */
+  pantalla?: ControlPantalla
+  /** Ajustes activa «Subrayar siempre lo ya cantado» en este equipo: nota bajo la casilla. */
+  subrayadoDelEquipo?: boolean
 }
 
 type OrigenColor = 'hex' | 'nativo' | 'sugerido'
@@ -45,7 +51,8 @@ type CampoColorLetra = 'color' | 'color_resaltado'
 const AVISOS = {
   letra: E.contrasteLetra,
   resaltado: E.contrasteResaltado,
-  diferencia: E.contrasteDiferencia
+  diferencia: E.contrasteDiferencia,
+  daltonismo: TS.daltonismo
 }
 const TEXTO_NIVEL = {
   ok: E.contrasteOk,
@@ -111,6 +118,7 @@ function ResumenSoloLectura({ estilo }: { estilo: Estilo }) {
             />
             Lo ya cantado {letra.color_resaltado}
           </span>
+          {letra.subrayar_cantado && <span>{TS.resumen}</span>}
         </dd>
       </dl>
     </section>
@@ -143,9 +151,13 @@ function PanelEstiloActivo({
   inactivo,
   alCambiar,
   tema,
-  espera
+  espera,
+  pantalla,
+  subrayadoDelEquipo = false
 }: PanelEstiloProps) {
   const id = useId()
+  const idSubrayado = useId()
+  const casillaSubrayado = useRef<HTMLInputElement>(null)
   const secuencia = useRef(0)
   const selectorNativo = useRef<{ campo: string; clave: string } | null>(null)
   const raiz = useRef<HTMLDivElement>(null)
@@ -178,6 +190,21 @@ function PanelEstiloActivo({
 
   function cambiarFondo(nuevo: Fondo, clave: string, agruparGesto?: boolean): void {
     if (!inactivo) alCambiar({ ...estilo, fondo: nuevo }, clave, agruparGesto)
+  }
+
+  function cambiarSubrayado(activo: boolean): void {
+    if (inactivo) return
+    const { subrayar_cantado: _anterior, ...resto } = letra
+    void _anterior
+    alCambiar(
+      { ...estilo, letra: activo ? { ...resto, subrayar_cantado: true } : resto },
+      'letra.subrayar_cantado'
+    )
+  }
+
+  function accionSubrayar(): void {
+    cambiarSubrayado(true)
+    casillaSubrayado.current?.focus()
   }
 
   function accionColor(campo: CampoColorLetra, color: string): void {
@@ -337,9 +364,27 @@ function PanelEstiloActivo({
                 </div>
               )
             })}
+            <label className={estilos.casilla}>
+              <input
+                ref={casillaSubrayado}
+                type="checkbox"
+                checked={!!letra.subrayar_cantado}
+                aria-describedby={idSubrayado}
+                onChange={(e) => cambiarSubrayado(e.currentTarget.checked)}
+              />
+              {TS.etiqueta}
+            </label>
+            <div id={idSubrayado}>
+              <p className={estilos.nota}>{TS.ayuda}</p>
+              {subrayadoDelEquipo && <p className={estilos.nota}>ⓘ {TS.global}</p>}
+              {soloEditor && vista.estado !== 'd3' && (
+                <p className={estilos.nota}>{LL.contrasteSoloEditor}</p>
+              )}
+            </div>
           </section>
         </>
       )}
+      {pantalla && <SeccionPantalla control={pantalla} inactivo={inactivo} />}
       {espera && <SeccionEspera control={espera} inactivo={inactivo} />}
       <div className={estilos.bloque}>
         <div role="status">
@@ -390,12 +435,24 @@ function PanelEstiloActivo({
                 </div>
               </>
             ) : (
-              <Boton onClick={() => accionColor('color_resaltado', sugerirResaltado(estilo))}>
-                {E.sugerirResaltado}
-              </Boton>
+              <div className={estilos.acciones}>
+                {aviso !== 'resaltado' && <Boton onClick={accionSubrayar}>{TS.subrayar}</Boton>}
+                <Boton onClick={() => accionColor('color_resaltado', sugerirResaltado(estilo))}>
+                  {E.sugerirResaltado}
+                </Boton>
+              </div>
             )}
           </MensajeContraste>
         ))}
+        {editable &&
+          contraste.informativos.map((aviso) => (
+            <MensajeContraste key={aviso} tipo="info">
+              <p>{TS.diferenciaSubrayado}</p>
+              <Boton onClick={() => accionColor('color_resaltado', sugerirResaltado(estilo))}>
+                {E.sugerirResaltado}
+              </Boton>
+            </MensajeContraste>
+          ))}
       </div>
       {vista.estado === 'd3' && (
         <div className={estilos.pie}>

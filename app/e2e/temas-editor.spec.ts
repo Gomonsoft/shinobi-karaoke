@@ -92,7 +92,7 @@ test.describe('editor: sección Tema', () => {
       const antes = hashesCanciones(datos)
       await abrirEditor(v, BOHEMIAN)
       await enEstilo(v)
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await expect(v.getByRole('heading', { name: 'Editando el tema «Sol»' })).toBeVisible()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
@@ -121,7 +121,7 @@ test.describe('editor: sección Tema', () => {
       const antes = hashesCanciones(datos)
       await abrirEditor(v, BOHEMIAN)
       await enEstilo(v)
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
       const dialogo = v.getByRole('dialog', { name: TEMA.guardar.titulo('Sol') })
@@ -162,7 +162,7 @@ test.describe('editor: sección Tema', () => {
       await enEstilo(v)
 
       // Guardar como tema nuevo desde la edición del tema.
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar como tema nuevo…' }).click()
       const nombre = v.getByRole('dialog', { name: TEMA.nombre.tituloNuevo })
@@ -372,7 +372,7 @@ test.describe('editor: tema no disponible, salir y cerrar con borrador (T12, T22
     await conTemas('tema-borrador-salir', async (v, datos, app) => {
       await abrirEditor(v, BOHEMIAN)
       await enEstilo(v)
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
 
       // «‹ Biblioteca» pregunta; «Seguir editando» no cambia nada.
@@ -441,7 +441,7 @@ test.describe('editor: los botones de los diálogos de tres acciones caben en el
           await v.waitForTimeout(400)
           await abrirEditor(v, 'Zeta uno')
           await enEstilo(v)
-          await v.getByRole('button', { name: 'Editar tema' }).click()
+          await v.getByRole('button', { name: 'Editar tema' }).first().click()
           await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
 
           // «Tienes cambios sin guardar…» (tres botones).

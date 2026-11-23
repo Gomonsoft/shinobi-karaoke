@@ -4,6 +4,7 @@ import { CODIGOS_ERROR, CODIGOS_SOLO_MAIN } from './errores'
 import { estadoPasoLetra } from './derivados'
 import {
   compararDuracion,
+  encajeCandidatoSchema,
   sincroniaDe,
   urlBaseLrclib,
   URL_BASE_LRCLIB,
@@ -71,6 +72,15 @@ describe('urlBaseLrclib', () => {
     expect(urlBaseLrclib('http://lrclib.invalid', false)).toBe('http://lrclib.invalid')
     expect(urlBaseLrclib('http://127.0.0.1:4455', true)).toBe(URL_BASE_LRCLIB)
     expect(urlBaseLrclib('https://otro.example', false)).toBe(URL_BASE_LRCLIB)
+  })
+
+  it('en los E2E nunca devuelve la URL real sin empaquetar', () => {
+    expect(urlBaseLrclib(undefined, false, true)).toBe('http://lrclib.invalid')
+    expect(urlBaseLrclib('https://otro.example', false, true)).toBe('http://lrclib.invalid')
+    expect(urlBaseLrclib('http://127.0.0.1:1234', false, true)).toBe('http://127.0.0.1:1234')
+    expect(urlBaseLrclib('http://127.0.0.1:1234', true, true)).toBe(URL_BASE_LRCLIB)
+    expect(urlBaseLrclib(undefined, true, true)).toBe(URL_BASE_LRCLIB)
+    expect(urlBaseLrclib(undefined, false, false)).toBe(URL_BASE_LRCLIB)
   })
 })
 
@@ -187,5 +197,17 @@ describe('origen_palabras en guardarTiempos', () => {
     const [a, b] = aPeticionTiempos('c', letra).tiempos
     expect(a).toHaveProperty('origen_palabras', 'manual')
     expect(b).not.toHaveProperty('origen_palabras')
+  })
+})
+
+describe('encajeCandidatoSchema (0379)', () => {
+  it('lee la limitación, su ausencia y un valor desconocido (como ausente)', () => {
+    const base = { veredicto: 'dudosa', desfaseMs: 0 }
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: 'sinContraste' }).limitacion).toBe(
+      'sinContraste'
+    )
+    expect(encajeCandidatoSchema.parse(base).limitacion).toBeUndefined()
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: null }).limitacion).toBeNull()
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: 'otra' }).limitacion).toBeUndefined()
   })
 })

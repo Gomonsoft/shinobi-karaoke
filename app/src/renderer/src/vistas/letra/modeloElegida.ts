@@ -25,10 +25,14 @@ export const tieneLineas = (texto: string): boolean =>
   texto.split('\n').some((r) => r.trim() !== '')
 
 /** Contenido de la letra sin ids, para saber si dos letras son la misma. */
-export function huella(letra: Pick<Letra, 'origen' | 'lineas'> | null): string {
+export function huella(
+  letra: Pick<Letra, 'origen' | 'lineas' | 'offset_ms' | 'desfase_corregido_ms'> | null
+): string {
   if (!letra) return ''
   return JSON.stringify([
     letra.origen,
+    letra.offset_ms,
+    letra.desfase_corregido_ms ?? null,
     letra.lineas.map((e) => [e.tipo, e.texto, e.inicio_ms, e.fin_ms, e.palabras])
   ])
 }

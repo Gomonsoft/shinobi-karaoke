@@ -250,6 +250,7 @@ test.describe('reproductor sin red', () => {
   })
 
   test('Biblioteca: la pantalla final vuelve sola al terminar la cuenta atrás', async () => {
+    test.setTimeout(150_000)
     const { app, ventana } = await iniciar('reproductor-final-auto')
     try {
       await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
@@ -261,11 +262,25 @@ test.describe('reproductor sin red', () => {
       // Apartar el puntero antes de llegar al final evita actividad al cambiar la pantalla.
       const area = await capa.boundingBox()
       if (!area) throw new Error('No se pudo medir el reproductor')
-      await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
-      await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000')
-      await expect(capa.getByRole('button', { name: R.otravez })).toBeVisible({ timeout: 5_000 })
-      await expect(capa.getByText(/^Se cerrará en \d+ s…$/)).toBeVisible()
-      await expect(capa).toHaveCount(0, { timeout: 12_000 })
+      // Cualquier actividad (puntero o teclado) en la pantalla final detiene la cuenta atrás, por diseño. En una
+      // pasada completa, con varias ventanas de Electron a la vez, el sistema entrega a veces un movimiento de
+      // puntero sintético justo ahí y la cuenta se detenía (el diálogo seguía abierto con «Otra vez»). Lo que se
+      // comprueba es «sin actividad, la cuenta atrás cierra sola»: si una actividad ajena la detuvo, se vuelve a
+      // empezar la pantalla final (hasta 3 veces) en lugar de esperar un cierre que ya no va a llegar.
+      await expect(async () => {
+        await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
+        await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000')
+        await expect(capa.getByRole('button', { name: R.otravez })).toBeVisible({ timeout: 5_000 })
+        await expect(capa.getByText(/^Se cerrará en \d+ s…$/)).toBeVisible()
+        try {
+          // 10 s de cuenta en temporizadores de 1 s: con la CPU ocupada se retrasa, por eso el margen.
+          await expect(capa).toHaveCount(0, { timeout: 20_000 })
+        } catch (e) {
+          // La cuenta se detuvo: se reinicia la reproducción para repetir el final.
+          await capa.getByRole('button', { name: R.otravez }).click()
+          throw e
+        }
+      }).toPass({ timeout: 90_000, intervals: [0] })
     } finally {
       await app.close()
     }
@@ -320,8 +335,10 @@ test.describe('reproductor sin red', () => {
       await ventana.getByRole('menuitem', { name: 'Volver a borrador' }).click()
       const confirmar = ventana.getByRole('dialog', { name: /¿Volver a borrador\?/ })
       await confirmar.getByRole('button', { name: 'Volver a borrador' }).click()
-      await expect(cancion.getByRole('button', { name: /^Continuar/ })).toBeVisible()
-      await cancion.getByRole('button', { name: /^Continuar/ }).click()
+      // Una lista a la que no le falta nada, vuelta a borrador, es «Lista para revisar» (ADR 0025 §1):
+      // su botón es «Revisar», que abre el editor.
+      await expect(cancion.getByRole('button', { name: /^Revisar/ })).toBeVisible()
+      await cancion.getByRole('button', { name: /^Revisar/ }).click()
       await expect(ventana.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()
       await ventana.getByRole('button', { name: E.marcarLista }).click()
       await expect(ventana.getByText(`«${lista}» está lista para cantar.`)).toBeVisible()

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { FIXTURES } from '../../shared/__fixtures__'
+import { FIXTURES, lista } from '../../shared/__fixtures__'
 import type { Cancion } from '../../shared'
 import { silencioFlac } from './flac'
 import { ServicioBiblioteca } from './servicio'
@@ -209,5 +209,90 @@ describe('ServicioBiblioteca', () => {
     const ms = performance.now() - t0
     expect(lista).toHaveLength(300)
     expect(ms).toBeLessThan(1000)
+  })
+
+  describe('preparación (0.2.2)', () => {
+    it('marcar como lista la da por revisada, conserva el registro y no se marca sola', async () => {
+      const c = {
+        ...lista(),
+        // Un test anterior de este archivo muta las pistas compartidas de la fixture.
+        pistas: {
+          voz: 'pistas/voz.flac',
+          instrumental: 'pistas/instrumental.flac',
+          modelo: { perfil: 'rapido', nombre: 'm', version: '1' }
+        },
+        estado: 'borrador' as const,
+        preparacion: {
+          estado: 'lista_para_revisar' as const,
+          paso: null,
+          origen: 'automatica' as const,
+          actualizado: '2026-11-21T10:00:00.000Z',
+          dudosas: 2,
+          revisada: false
+        }
+      }
+      await crear('a', c)
+      const s = new ServicioBiblioteca(datos)
+      await s.escanear()
+      const antes = s.obtenerResumen('a')
+      expect(antes).toMatchObject({
+        estado: 'borrador',
+        estadoPreparacion: 'lista_para_revisar',
+        preparacion: { dudosas: 2, revisada: false }
+      })
+      await s.marcarLista('a')
+      expect(s.obtener('a')).toMatchObject({ estado: 'lista', preparacion: { revisada: true } })
+    })
+  })
+
+  describe('datos de la canción (0.2.2)', () => {
+    const con = (m: Partial<Cancion['metadatos']>, modificada: string): Cancion => {
+      const base = FIXTURES.lista()
+      return { ...base, modificada, metadatos: { ...base.metadatos, ...m } }
+    }
+
+    it('valoresDatos agrupa por clave, cuenta y usa la grafía más reciente', async () => {
+      await crear('a', con({ artista: 'Grupo Uno', album: 'Querido…' }, '2026-01-01T00:00:00Z'))
+      await crear('b', con({ artista: 'grupo uno', album: 'Querido…' }, '2026-02-01T00:00:00Z'))
+      await crear('c', con({ artista: 'Grupo Dos', album: null }, '2026-03-01T00:00:00Z'))
+      const s = new ServicioBiblioteca(datos)
+      await s.escanear()
+      const v = s.valoresDatos()
+      expect(v.artistas).toEqual([
+        { valor: 'grupo uno', clave: 'grupo uno', canciones: 2 },
+        { valor: 'Grupo Dos', clave: 'grupo dos', canciones: 1 }
+      ])
+      expect(v.albumes).toEqual([
+        { valor: 'Querido…', clave: 'querido…', canciones: 2, artistas: ['grupo uno'] }
+      ])
+    })
+
+    it('el origen se fusiona campo a campo y sobrevive a la escritura', async () => {
+      await crear('a', con({ origen: { artista: 'fuente' } }, '2026-01-01T00:00:00Z'))
+      const s = new ServicioBiblioteca(datos)
+      await s.escanear()
+      const m = FIXTURES.lista().metadatos
+      await s.actualizar('a', {
+        metadatos: {
+          titulo: 'Otro',
+          artista: m.artista,
+          album: m.album,
+          origen: { titulo: 'usuario' }
+        }
+      })
+      expect(s.obtener('a')?.metadatos.origen).toEqual({ titulo: 'usuario', artista: 'fuente' })
+      const json = JSON.parse(await readFile(join(biblio, 'a', 'cancion.json'), 'utf8'))
+      expect(json.metadatos.origen).toEqual({ titulo: 'usuario', artista: 'fuente' })
+    })
+
+    it('un origen ilegible no daña la canción (lectura tolerante)', async () => {
+      const c = JSON.parse(JSON.stringify(con({}, '2026-01-01T00:00:00Z')))
+      c.metadatos.origen = { titulo: 'inventado', album: 7 }
+      await crear('a', JSON.stringify(c))
+      const s = new ServicioBiblioteca(datos)
+      const [r] = await s.escanear()
+      expect(r?.id).toBe('a')
+      expect(s.obtener('a')?.metadatos.origen).toEqual({})
+    })
   })
 })

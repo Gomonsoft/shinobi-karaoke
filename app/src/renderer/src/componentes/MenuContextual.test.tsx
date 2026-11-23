@@ -154,6 +154,32 @@ describe('MenuContextual en portal', () => {
     expect(screen.getByRole('menu')).toBeTruthy()
   })
 
+  it('el desplazamiento de un contenedor ajeno a su botón no lo cierra; el de un contenedor suyo sí', () => {
+    const ajeno = document.createElement('div')
+    document.body.appendChild(ajeno)
+    const { container } = render(
+      <div data-contenedor>
+        <MenuContextual etiqueta="X" items={[{ id: 'a', etiqueta: 'A', alSeleccionar: vi.fn() }]} />
+      </div>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'X' }))
+    fireEvent.scroll(ajeno)
+    expect(screen.getByRole('menu')).toBeTruthy()
+    fireEvent.scroll(container.querySelector('[data-contenedor]')!)
+    expect(screen.queryByRole('menu')).toBeNull()
+    ajeno.remove()
+  })
+
+  it('abierto con teclado, al cerrarse por desplazamiento el foco vuelve al botón', () => {
+    const t = montar()
+    t.focus()
+    fireEvent.keyDown(t, { key: 'ArrowDown' })
+    expect(screen.getByRole('menuitem', { name: 'Duplicar' })).toHaveFocus()
+    act(() => void document.body.dispatchEvent(new Event('scroll')))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(t).toHaveFocus()
+  })
+
   it('oculta el tooltip del disparador al abrir y no lo vuelve a mostrar hasta reentrar', () => {
     vi.useFakeTimers()
     try {

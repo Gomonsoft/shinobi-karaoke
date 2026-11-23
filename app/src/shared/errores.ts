@@ -47,7 +47,19 @@ export const CODIGOS_ERROR = [
   'DESTINO_OCUPADO',
   'PERFIL_NO_SOPORTADO',
   'LIMPIEZA_FALLIDA',
-  'CANCION_EXPORTANDOSE'
+  'CANCION_EXPORTANDOSE',
+  'LISTA_NO_DISPONIBLE',
+  'ARCHIVO_NO_ENCONTRADO',
+  'NADA_QUE_HACER',
+  'YA_EN_COLA',
+  'YA_EXISTE',
+  'PAQUETE_NO_VALIDO',
+  'PAQUETE_VERSION_NUEVA',
+  'PAQUETE_INCOMPLETO',
+  'CANCION_MAS_NUEVA',
+  'EN_CURSO',
+  'ALINEACION_NO_DISPONIBLE',
+  'IDIOMA_NO_ADMITIDO'
 ] as const
 
 /**
@@ -73,6 +85,15 @@ export const CODIGOS_ERROR = [
  * tras cancelar o fallar se indica con `ExportacionIpc.limpiezaFallida` (ADR 0019 §10).
  * 0.2.1 (ADR 0019 §10, revisión): `CANCION_EXPORTANDOSE` (esa canción ya tiene una exportación en curso o
  * en cola; lleva `detalle.trabajoId`).
+ * 0.2.2 (ADR 0026, 0027, 0028): `ARCHIVO_NO_ENCONTRADO` (el archivo de un lote ya no está al llegarle el
+ * turno), `NADA_QUE_HACER`,
+ * `YA_EN_COLA` (esa canción ya tiene una exportación), `YA_EXISTE` (el archivo de destino existe con
+ * `siExiste: 'omitir'`), `PAQUETE_NO_VALIDO`, `PAQUETE_VERSION_NUEVA`, `PAQUETE_INCOMPLETO`,
+ * `CANCION_MAS_NUEVA` (canción de un paquete con un esquema más nuevo), `EN_CURSO` (una copia o paquete
+ * ya en marcha), `ALINEACION_NO_DISPONIBLE` e `IDIOMA_NO_ADMITIDO`. Todos se declaran solo de main por
+ * prudencia (la paridad con `errores.py` del worker). `LISTA_NO_DISPONIBLE` (lista de YouTube privada, vacía o
+ * inexistente) la emite el worker (`info-lista-youtube`, tarea 0313) y por eso está en `errores.py`.
+ * `CONFIRMACION_OBSOLETA` ya existía (ADR 0016).
  */
 export const CODIGOS_SOLO_MAIN = [
   'PROCESO_TERMINADO',
@@ -94,7 +115,18 @@ export const CODIGOS_SOLO_MAIN = [
   'DESTINO_OCUPADO',
   'PERFIL_NO_SOPORTADO',
   'LIMPIEZA_FALLIDA',
-  'CANCION_EXPORTANDOSE'
+  'CANCION_EXPORTANDOSE',
+  'ARCHIVO_NO_ENCONTRADO',
+  'NADA_QUE_HACER',
+  'YA_EN_COLA',
+  'YA_EXISTE',
+  'PAQUETE_NO_VALIDO',
+  'PAQUETE_VERSION_NUEVA',
+  'PAQUETE_INCOMPLETO',
+  'CANCION_MAS_NUEVA',
+  'EN_CURSO',
+  'ALINEACION_NO_DISPONIBLE',
+  'IDIOMA_NO_ADMITIDO'
 ] as const
 
 export type CodigoError = (typeof CODIGOS_ERROR)[number]

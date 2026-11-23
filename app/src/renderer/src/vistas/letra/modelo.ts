@@ -18,11 +18,17 @@ export interface FilaPrevia {
 }
 
 /** Filas de la vista previa: las pausas son renglones vacíos. */
-export function filasDePrevia(lineas: readonly ElementoLetra[]): FilaPrevia[] {
+export function filasDePrevia(
+  lineas: readonly ElementoLetra[],
+  desplazamientoMs = 0
+): FilaPrevia[] {
   return lineas.map((e) => ({
     id: e.id,
     pausa: e.tipo === 'pausa',
-    marca: e.tipo === 'linea' && e.inicio_ms !== null ? marcaDeTiempo(e.inicio_ms) : null,
+    marca:
+      e.tipo === 'linea' && e.inicio_ms !== null
+        ? marcaDeTiempo(e.inicio_ms + desplazamientoMs)
+        : null,
     texto: e.tipo === 'linea' ? e.texto : ''
   }))
 }

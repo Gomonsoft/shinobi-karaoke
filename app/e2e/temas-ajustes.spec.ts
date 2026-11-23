@@ -116,7 +116,7 @@ test.describe('Ajustes › Temas: predeterminado', () => {
       await abrirEditor(v, 'Dancing Queen')
       await v.getByRole('radio', { name: 'Estilo' }).click()
       await expect(v.getByText(AJ_TEMAS.origenAnterior, { exact: true })).toBeVisible()
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
       await v
@@ -191,7 +191,11 @@ test.describe('Ajustes › Temas: predeterminado', () => {
     await conTemas('aj-borrar-predet', async (v, datos) => {
       const seccion = await irATemas(v)
       const fila = seccion.getByRole('listitem', { name: /^Noche ninja, predeterminado/ })
-      await fila.getByRole('button', { name: AJT.menu.etiqueta('Noche ninja') }).click()
+      const mas = fila.getByRole('button', { name: AJT.menu.etiqueta('Noche ninja') })
+      // La sección «Letras y preparación automática» (feature 5) baja Temas: el ⋯ queda fuera de la
+      // ventana y el menú se cerraría al desplazar. Se trae a la vista antes de abrirlo.
+      await mas.scrollIntoViewIfNeeded()
+      await mas.click()
       await v.getByRole('menuitem', { name: AJT.menu.eliminar }).click()
       const d = v.getByRole('dialog', { name: TEMA.eliminar.titulo('Noche ninja') })
       await expect(d.getByText(TEMA.eliminar.predeterminado)).toBeVisible()

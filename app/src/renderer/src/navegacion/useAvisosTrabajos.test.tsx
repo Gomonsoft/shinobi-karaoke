@@ -89,6 +89,38 @@ describe('useAvisosTrabajos', () => {
     expect(screen.getAllByTestId('toast')).toHaveLength(1)
   })
 
+  it('el aviso de una tanda abre el «Resultado de la preparación», no una canción', () => {
+    const ir = vi.fn()
+    render(<Sonda vista={biblioteca} ir={ir} />)
+    act(() =>
+      aviso!({
+        cancionId: '',
+        tipo: 'tanda',
+        texto: '12 canciones listas para revisar.',
+        etiqueta: 'Ver resultado',
+        destino: 'biblioteca'
+      })
+    )
+    act(() => screen.getByRole('button', { name: 'Ver resultado' }).click())
+    expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca', abrirResultado: true })
+  })
+
+  it('el clic en la notificación de una tanda (preparacion:abrirResultado) va a la Biblioteca con el resultado', () => {
+    const ir = vi.fn()
+    let abrirResultado: (() => void) | null = null
+    Object.assign((window as unknown as { shinobi: object }).shinobi, {
+      preparacion: {
+        alAbrirResultado: (cb: () => void) => {
+          abrirResultado = cb
+          return () => undefined
+        }
+      }
+    })
+    render(<Sonda vista={{ tipo: 'cancion', id: 'c1', paso: 'letra' }} ir={ir} />)
+    act(() => abrirResultado!())
+    expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca', abrirResultado: true })
+  })
+
   it('el error no caduca solo', () => {
     vi.useFakeTimers()
     render(<Sonda vista={biblioteca} ir={vi.fn()} />)
@@ -173,5 +205,41 @@ describe('textos de aviso en sintonía con la vista de progreso', () => {
     act(() => screen.getByRole('button', { name: 'Abrir editor' }).click())
     expect(ir).not.toHaveBeenCalled()
     expect(await screen.findByRole('dialog', { name: EDI_BLOQUEO.titulo })).toBeInTheDocument()
+  })
+
+  it('corrección diferida del desfase: toast con [Deshacer] que quita la corrección, también en su progreso', async () => {
+    const escrituras: unknown[] = []
+    const letra = {
+      origen: 'lrclib',
+      lrclib_id: null,
+      offset_ms: 800,
+      desfase_corregido_ms: 800,
+      lineas: [
+        { id: 'a', tipo: 'linea', texto: 'Uno', inicio_ms: 1000, fin_ms: null, palabras: null }
+      ]
+    }
+    Object.assign((window as unknown as { shinobi: object }).shinobi, {
+      letras: {
+        abrirEdicion: () => Promise.resolve({ cancion: { letra }, sesionId: 's1' }),
+        guardarTiempos: (p: unknown) => {
+          escrituras.push(p)
+          return Promise.resolve({})
+        },
+        cerrarEdicion: () => Promise.resolve()
+      }
+    })
+    render(<Sonda vista={{ tipo: 'cancion', id: 'c1', paso: 'progreso' }} ir={vi.fn()} />)
+    act(() =>
+      aviso!({
+        cancionId: 'c1',
+        tipo: 'desfase',
+        texto: 'Movimos la letra de «Canción» 0,8 s más tarde para que coincida con la voz.',
+        etiqueta: 'Deshacer',
+        destino: 'editor'
+      })
+    )
+    expect(screen.getByText(/Movimos la letra de «Canción» 0,8 s más tarde/)).toBeInTheDocument()
+    await act(async () => screen.getByRole('button', { name: 'Deshacer' }).click())
+    expect(escrituras[0]).toMatchObject({ offset_ms: 0, desfase_corregido_ms: null })
   })
 })

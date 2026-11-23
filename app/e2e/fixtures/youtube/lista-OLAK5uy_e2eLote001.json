@@ -1,0 +1,19 @@
+{
+  "_type": "playlist",
+  "title": "Album - Disco de prueba",
+  "entries": [
+    {
+      "id": "Normal_0001",
+      "title": "Canción de prueba",
+      "channel": "ArtistaEjemploVEVO",
+      "duration": 35
+    },
+    {
+      "id": "Normal_0002",
+      "title": "Otra canción de prueba",
+      "channel": "ArtistaEjemploVEVO",
+      "duration": 35
+    },
+    { "id": "Privado_001", "title": "[Private video]", "duration": null }
+  ]
+}

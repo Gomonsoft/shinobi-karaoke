@@ -28,6 +28,7 @@ import {
   type VistaLineaTiempo
 } from './lineaTiempo'
 import { E } from './textos'
+import { R } from './revision/textos'
 import estilos from './pistaSincronia.module.css'
 
 type Borde = 'inicio' | 'fin'
@@ -62,6 +63,12 @@ interface Props {
   botonSilencios?: ReactNode
   /** Líneas recién ajustadas: se resaltan 2 s (spec AS, «Cómo se ve después»). */
   resaltadas?: ReadonlySet<string>
+  /** Líneas movidas por «Corregir el desfase»: borde `info` 2 s (spec 06 · Feature 4, «Aplicar»). */
+  resaltadasDesfase?: ReadonlySet<string>
+  /** Líneas pendientes de revisar (feature 11): id → motivo principal. Llevan una banderita. */
+  dudosas?: ReadonlyMap<string, string>
+  /** Cada cambio pide acercar la línea seleccionada si su región es pequeña o no cabe. */
+  zoomRevision?: number
 }
 
 interface PropsTirador {
@@ -191,7 +198,10 @@ export function PistaSincronia({
   expandirNoDisponible,
   alternarMinimizada,
   botonSilencios,
-  resaltadas
+  resaltadas,
+  resaltadasDesfase,
+  dudosas,
+  zoomRevision = 0
 }: Props) {
   const [vistaGuardada, setVista] = useState<VistaLineaTiempo | null>(null)
   const vista = vistaGuardada
@@ -223,6 +233,20 @@ export function PistaSincronia({
     return () => clearTimeout(t)
   }, [fuera])
   const eje = useRef<HTMLDivElement>(null)
+  // Revisión guiada: al llegar a una línea, «Zoom a la línea» si su región mide menos de 120 px o no cabe.
+  const zoomAtendido = useRef(zoomRevision)
+  useEffect(() => {
+    if (zoomRevision === zoomAtendido.current) return
+    zoomAtendido.current = zoomRevision
+    const ancho = eje.current?.getBoundingClientRect().width ?? 0
+    const audible = activa?.audible
+    if (!audible || !ancho || inactiva) return
+    const caja = (audible.finMs - audible.inicioMs) / (vista.finMs - vista.inicioMs)
+    const cabe = audible.inicioMs >= vista.inicioMs && audible.finMs <= vista.finMs
+    if (caja * ancho < 120 || !cabe) setVista(zoomALinea(audible, duracionMs))
+    // Solo reacciona a una petición nueva.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomRevision])
   const cabezal = useRef<HTMLDivElement>(null)
 
   const alGirar = useEffectEvent((e: WheelEvent) => {
@@ -407,8 +431,16 @@ export function PistaSincronia({
                   data-inicio-recortado={visible.inicioRecortado || undefined}
                   data-fin-recortado={visible.finRecortado || undefined}
                   data-resaltada={resaltadas?.has(r.id) || undefined}
+                  data-resaltada-desfase={resaltadasDesfase?.has(r.id) || undefined}
+                  data-dudosa={dudosas?.has(r.id) || undefined}
                   disabled={inactiva}
-                  title={r.id === ocupadaId ? E.preciso.ocupado : E.regionTooltip(r.texto)}
+                  title={
+                    r.id === ocupadaId
+                      ? E.preciso.ocupado
+                      : dudosas?.has(r.id)
+                        ? `${E.regionTooltip(r.texto)} · ${R.tooltip(dudosas.get(r.id)!)}`
+                        : E.regionTooltip(r.texto)
+                  }
                   style={{
                     left: `${tiempoAPixel(vista, 100, visible.inicioMs)}%`,
                     width: `${tiempoAPixel(vista, 100, visible.finMs) - tiempoAPixel(vista, 100, visible.inicioMs)}%`

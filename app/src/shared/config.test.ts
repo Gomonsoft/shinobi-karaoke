@@ -32,6 +32,7 @@ describe('configSchema (lectura tolerante)', () => {
         voz_guia: 0.3,
         voz_guia_silenciada: true,
         transicion_s: 4,
+        subrayar_cantado: false,
         secundaria: null
       },
       editor: {
@@ -41,9 +42,15 @@ describe('configSchema (lectura tolerante)', () => {
           linea_tiempo: { alto: null, minimizado: false },
           preciso: { geometria: null, margen_ms: 500 }
         },
-        omitir_aviso_letra_lista: false
+        omitir_aviso_letra_lista: false,
+        revision_autoescucha: true
       },
       biblioteca: { agrupar: 'ninguno' },
+      aviso_youtube_listas_aceptado: null,
+      actualizaciones: { avisar: true, ultima_comprobacion: null, disponible: null, vista: null },
+      preparacion: { automatica: true, pausada: false },
+      copias: { ultima: null },
+      alineacion: { modelos_descargados: [] },
       exportacion: {
         formato: 'mkv_av1',
         audio: 'instrumental',
@@ -82,6 +89,7 @@ describe('configSchema (lectura tolerante)', () => {
       voz_guia: 0.3,
       voz_guia_silenciada: true,
       transicion_s: 4,
+      subrayar_cantado: false,
       secundaria: null
     })
   })
@@ -110,6 +118,7 @@ describe('configSchema (lectura tolerante)', () => {
         voz_guia: 0.3,
         voz_guia_silenciada: true,
         transicion_s: 4,
+        subrayar_cantado: false,
         secundaria: null
       },
       aviso_youtube_aceptado: '2026-11-03T10:00:00Z',
@@ -329,5 +338,73 @@ describe('biblioteca.agrupar (lectura tolerante, ADR 0016 §9)', () => {
     expect(ok({})).toBe(false)
     expect(ok({ agrupar: 'artista', otro: 1 })).toBe(false)
     expect(ok(3)).toBe(false)
+  })
+})
+
+describe('campos de 0.2.2 (lectura tolerante por campo)', () => {
+  it('una instalación anterior los lee con sus valores por defecto', () => {
+    const c = configSchema.parse({})
+    expect(c.reproductor.subrayar_cantado).toBe(false)
+    expect(c.actualizaciones).toEqual({
+      avisar: true,
+      ultima_comprobacion: null,
+      disponible: null,
+      vista: null
+    })
+    expect(c.preparacion).toEqual({ automatica: true, pausada: false })
+    expect(c.aviso_youtube_listas_aceptado).toBeNull()
+    expect(c.copias).toEqual({ ultima: null })
+    expect(c.alineacion).toEqual({ modelos_descargados: [] })
+  })
+
+  it('un valor inválido en un campo solo vuelve a su defecto sin tocar los demás', () => {
+    const c = configSchema.parse({
+      reproductor: { subrayar_cantado: 'sí', volumen: 0.5 },
+      actualizaciones: { avisar: false, ultima_comprobacion: 'ayer', disponible: { version: 3 } },
+      preparacion: { automatica: 'no', pausada: true },
+      aviso_youtube_listas_aceptado: 7,
+      copias: { ultima: { fecha: 'x', canciones: 3, bytes: 1, tipo: 'completa' } },
+      alineacion: { modelos_descargados: 'es' }
+    })
+    expect(c.reproductor).toMatchObject({ subrayar_cantado: false, volumen: 0.5 })
+    expect(c.actualizaciones).toMatchObject({
+      avisar: false,
+      ultima_comprobacion: null,
+      disponible: null
+    })
+    expect(c.preparacion).toEqual({ automatica: true, pausada: true })
+    expect(c.aviso_youtube_listas_aceptado).toBeNull()
+    expect(c.copias.ultima).toBeNull()
+    expect(c.alineacion.modelos_descargados).toEqual([])
+  })
+
+  it('conserva los valores válidos', () => {
+    const ultima = {
+      fecha: '2026-11-21T10:00:00Z',
+      canciones: 4,
+      bytes: 10,
+      tipo: 'ligera' as const
+    }
+    const c = configSchema.parse({
+      copias: { ultima },
+      alineacion: { modelos_descargados: ['es'] },
+      aviso_youtube_listas_aceptado: '2026-11-21T10:00:00Z'
+    })
+    expect(c.copias.ultima).toEqual(ultima)
+    expect(c.alineacion.modelos_descargados).toEqual(['es'])
+    expect(c.aviso_youtube_listas_aceptado).toBe('2026-11-21T10:00:00Z')
+  })
+
+  it('el renderer solo escribe sus campos', () => {
+    const ok = (v: unknown) => configParcialRendererSchema.safeParse(v).success
+    expect(ok({ reproductor: { subrayar_cantado: true } })).toBe(true)
+    expect(ok({ actualizaciones: { avisar: false } })).toBe(true)
+    expect(ok({ preparacion: { automatica: false } })).toBe(true)
+    expect(ok({ aviso_youtube_listas_aceptado: '2026-11-21T10:00:00Z' })).toBe(true)
+    expect(ok({ preparacion: { pausada: true } })).toBe(false)
+    expect(ok({ actualizaciones: { vista: '0.2.2' } })).toBe(false)
+    expect(ok({ copias: { ultima: null } })).toBe(false)
+    expect(ok({ alineacion: { modelos_descargados: [] } })).toBe(false)
+    expect(ok({ reproductor: { subrayar_cantado: 1 } })).toBe(false)
   })
 })

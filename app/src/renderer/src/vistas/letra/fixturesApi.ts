@@ -1,5 +1,6 @@
 import type { ApiShinobi, ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
 import type { ElementoLetra } from '@shared/letra'
+import { letrasNuevasFalsas } from '../apiNuevaFalsa'
 import { identidadResumenPrueba } from '../biblioteca/resumenPrueba'
 import { sincroniaDe, type ArchivoLetraLeido, type CandidatoLetra } from '@shared/letrasBusqueda'
 
@@ -115,6 +116,7 @@ export function apiLetrasFalsa(opciones: OpcionesApiLetrasFalsa = {}): {
     ...opciones.resumen
   })
   const letras: ApiShinobi['letras'] = {
+    ...letrasNuevasFalsas(),
     async buscar(p) {
       llamadas.push({ canal: 'buscar', args: [p] })
       await espera()

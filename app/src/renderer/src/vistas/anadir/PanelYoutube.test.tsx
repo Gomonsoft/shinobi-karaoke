@@ -83,9 +83,9 @@ function montar(o: Opciones = {}) {
 }
 
 const elegirYoutube = async () => {
-  fireEvent.click(await screen.findByRole('radio', { name: 'Enlace de YouTube' }))
+  fireEvent.click(await screen.findByRole('radio', { name: 'Enlaces de YouTube' }))
 }
-const campo = () => screen.findByLabelText('Enlace del vídeo')
+const campo = () => screen.findByLabelText('Enlaces de YouTube')
 
 const ACEPTADO = '2026-11-01T10:00:00.000Z'
 
@@ -97,7 +97,7 @@ async function conCampo(o: Opciones = {}) {
 
 function buscar(c: HTMLElement, url = URL_BUENA) {
   fireEvent.change(c, { target: { value: url } })
-  fireEvent.click(screen.getByRole('button', { name: 'Buscar vídeo' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Buscar' }))
 }
 
 describe('selector de origen', () => {
@@ -110,8 +110,8 @@ describe('selector de origen', () => {
 
   it('se muestra con YouTube activo', async () => {
     montar()
-    expect(await screen.findByRole('radio', { name: 'Archivo de tu equipo' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Enlace de YouTube' })).toBeInTheDocument()
+    expect(await screen.findByRole('radio', { name: 'Archivos de tu equipo' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Enlaces de YouTube' })).toBeInTheDocument()
   })
 })
 
@@ -121,7 +121,7 @@ describe('aviso legal', () => {
     await elegirYoutube()
     expect(await screen.findByText('Antes de usar YouTube')).toBeInTheDocument()
     expect(screen.getByText(/Solo te lo mostraremos esta vez/)).toBeInTheDocument()
-    expect(screen.queryByLabelText('Enlace del vídeo')).toBeNull()
+    expect(screen.queryByLabelText('Enlaces de YouTube')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Entendido' }))
     const c = await campo()
     expect(api.config.actualizar).toHaveBeenCalledTimes(1)
@@ -142,7 +142,7 @@ describe('aviso legal', () => {
     const { api } = montar({ aceptado: null })
     await elegirYoutube()
     fireEvent.click(await screen.findByRole('button', { name: 'Usar un archivo en su lugar' }))
-    expect(await screen.findByRole('button', { name: 'Elegir archivo…' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Elegir archivos…' })).toBeInTheDocument()
     expect(api.config.actualizar).not.toHaveBeenCalled()
   })
 })
@@ -154,8 +154,9 @@ describe('enlace', () => {
     ['https://vimeo.com/12345', 'Este enlace no es de un vídeo de YouTube.'],
     ['javascript:alert(1)', 'Este enlace no es de un vídeo de YouTube.'],
     ['https://www.youtube.com/watch?v=corto', 'Este enlace no es de un vídeo de YouTube.'],
-    ['https://www.youtube.com/playlist?list=PL123', 'Las listas y los directos no se pueden usar.'],
-    ['https://www.youtube.com/live/dQw4w9WgXcQ', 'Las listas y los directos no se pueden usar.']
+    ['https://www.youtube.com/playlist?list=PL123', 'Este enlace no se puede usar.'],
+    ['https://www.youtube.com/playlist?list=RDdQw4w9WgXcQ', 'Este enlace no se puede usar.'],
+    ['https://www.youtube.com/live/dQw4w9WgXcQ', 'Este enlace no se puede usar.']
   ])('valida en local %j sin llamar a la red', async (url, titulo) => {
     const { api, campo: c } = await conCampo()
     buscar(c, url)
@@ -178,14 +179,14 @@ describe('enlace', () => {
     fireEvent.change(c, { target: { value: URL_BUENA } })
     fireEvent.submit(c.closest('form')!)
     expect(await screen.findByText('Buscando…')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Buscar vídeo' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Buscar' })).toBeNull()
     expect(c).toHaveAttribute('readonly')
     fireEvent.keyDown(c, { key: 'Escape' })
     await waitFor(() => expect(api.fuente.cancelarInfo).toHaveBeenCalled())
     expect(c).not.toHaveAttribute('readonly')
     expect(c).toHaveValue(URL_BUENA)
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Buscar vídeo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Buscar' })).toBeInTheDocument()
     // El resultado tardío de una consulta cancelada se descarta.
     await act(async () => d.resolver(info()))
     expect(screen.queryByText('Queen – Bohemian Rhapsody (Official Video)')).toBeNull()
@@ -296,12 +297,12 @@ describe('C1: actualización automática del descargador', () => {
     act(() => emitir('actualizando'))
     const aviso = await screen.findByText(/Actualizando el descargador de YouTube/)
     expect(aviso.closest('[role="status"]')).not.toBeNull()
-    expect(screen.queryByText(/Pega el enlace de un vídeo/)).toBeNull()
+    expect(screen.queryByText(/Pega el enlace de un video/)).toBeNull()
     expect(c).toHaveAttribute('readonly')
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
     await waitFor(() => expect(api.fuente.cancelarInfo).toHaveBeenCalled())
     expect(c).not.toHaveAttribute('readonly')
-    expect(screen.getByText(/Pega el enlace de un vídeo/)).toBeInTheDocument()
+    expect(screen.getByText(/Pega el enlace de un video/)).toBeInTheDocument()
     expect(screen.queryByText(/Actualizando el descargador/)).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -341,7 +342,7 @@ describe('errores', () => {
     })
     buscar(c)
     fireEvent.click(await screen.findByRole('button', { name: 'Usar un archivo de tu equipo' }))
-    expect(await screen.findByRole('button', { name: 'Elegir archivo…' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Elegir archivos…' })).toBeInTheDocument()
   })
 
   it('un error desconocido es genérico con "Copiar detalles"', async () => {

@@ -8,6 +8,7 @@ import {
   type Locator,
   type Page
 } from '@playwright/test'
+import { iniciarServidorLrclib } from './fixtures/lrclib/servidor'
 import { crearTemporal } from './temporales'
 
 /**
@@ -25,6 +26,7 @@ const NO_DISPONIBLE = 'NoDispon_01'
 const BLOQ_UNA = 'Bloq_Una_01'
 const BLOQ_SIEMPRE = 'Bloq_Siem_1'
 const DIRECTO = 'Directo_001'
+const RED_SIEMPRE = 'Red_Siem_01'
 
 const TITULO_NORMAL = 'Artista Ejemplo - Canción de prueba (Official Video) [HD]'
 
@@ -100,15 +102,15 @@ const registrosWorker = (datos: string): string[] =>
 async function irAYoutube(v: Page): Promise<void> {
   await v.getByRole('button', { name: 'Añadir canción' }).first().click()
   await expect(v.getByRole('heading', { level: 1, name: 'Añadir canción' })).toBeVisible()
-  await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+  await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
   await expect(campoUrl(v)).toBeVisible()
 }
 
-const campoUrl = (v: Page): Locator => v.getByLabel('Enlace del vídeo')
+const campoUrl = (v: Page): Locator => v.getByLabel('Enlaces de YouTube')
 
 async function buscar(v: Page, url: string): Promise<void> {
   await campoUrl(v).fill(url)
-  await v.getByRole('button', { name: 'Buscar vídeo' }).click()
+  await v.getByRole('button', { name: 'Buscar' }).click()
 }
 
 async function vistaPrevia(v: Page): Promise<void> {
@@ -157,16 +159,16 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       const v = await app.firstWindow()
       await expect(v.getByText('Tu biblioteca está vacía')).toBeVisible()
       await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-      await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toBeVisible()
       await expect(campoUrl(v)).toHaveCount(0)
 
       await v.getByRole('button', { name: 'Usar un archivo en su lugar' }).click()
-      await expect(v.getByRole('button', { name: 'Elegir archivo…' })).toBeVisible()
+      await expect(v.getByRole('button', { name: 'Elegir archivos…' })).toBeVisible()
       const sinAceptar = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
       expect(sinAceptar.aviso_youtube_aceptado ?? null).toBeNull()
 
-      await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toBeVisible()
       await v.getByRole('button', { name: 'Entendido' }).click()
       await expect(campoUrl(v)).toBeVisible()
@@ -185,7 +187,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       const v = await app2.firstWindow()
       await expect(v.getByText('Tu biblioteca está vacía')).toBeVisible()
       await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-      await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+      await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
       await expect(campoUrl(v)).toBeVisible()
       await expect(v.getByRole('heading', { name: 'Antes de usar YouTube' })).toHaveCount(0)
     } finally {
@@ -203,10 +205,8 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
 
       await buscar(v, 'https://vimeo.com/123456789')
       await expect(v.getByRole('alert')).toContainText('Este enlace no es de un vídeo de YouTube')
-      await buscar(v, 'https://www.youtube.com/playlist?list=PLabcdefghijklmnop')
-      await expect(v.getByRole('alert')).toContainText(
-        'Las listas y los directos no se pueden usar'
-      )
+      await buscar(v, 'https://www.youtube.com/playlist?list=RDabcdefghijklmnop')
+      await expect(v.getByRole('alert')).toContainText('Este enlace no se puede usar')
 
       // Tampoco hay vista previa ni canción, y el worker no escribió ningún registro nuevo.
       await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toHaveCount(
@@ -274,6 +274,90 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
     }
   })
 
+  test('privacidad: con «Buscar la letra automáticamente» apagado una descarga de YouTube no hace ninguna petición a LRCLIB', async () => {
+    const env = preparar('yt-privacidad')
+    const config = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
+    writeFileSync(
+      join(env.datos, 'config.json'),
+      JSON.stringify({ ...config, preparacion: { automatica: false } })
+    )
+    // El doble cuenta todas las peticiones (también un HEAD de comprobación de conexión).
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, { SHINOBI_LRCLIB_URL: lrclib.url })
+    try {
+      const v = await app.firstWindow()
+      await añadir(v, NORMAL)
+      await expect(filaDescarga(v)).toContainText('completado', { timeout: 60_000 })
+      await expect(filaPreparar(v)).toContainText('completado', { timeout: 60_000 })
+      // La cola automática empezaría en el acto: margen para cualquier búsqueda diferida.
+      await v.waitForTimeout(3000)
+      expect(lrclib.peticiones).toHaveLength(0)
+      expect(canciones(env.datos)).toHaveLength(1)
+      const c = leerCancion(env.datos, canciones(env.datos)[0]!) as unknown as {
+        preparacion?: unknown
+      }
+      expect(c.preparacion ?? null).toBeNull()
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
+    }
+  })
+
+  test('sin conexión con el interruptor apagado: la descarga se reintenta a los 60 s y no sale ninguna petición a LRCLIB (ADR 0025 §5)', async () => {
+    // Los 3 reintentos de la descarga (5 + 15 + 45 s) y luego la sonda a los 60 s.
+    test.setTimeout(240_000)
+    const env = preparar('yt-sin-conexion')
+    const config = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
+    writeFileSync(
+      join(env.datos, 'config.json'),
+      JSON.stringify({ ...config, preparacion: { automatica: false } })
+    )
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, { SHINOBI_LRCLIB_URL: lrclib.url })
+    try {
+      const v = await app.firstWindow()
+      await añadir(v, RED_SIEMPRE)
+      // Tras los reintentos propios de la descarga queda parada por `SIN_CONEXION`.
+      await expect
+        .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
+          timeout: 100_000,
+          intervals: [1000]
+        })
+        .toBe('error')
+      expect(leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.error.codigo).toBe(
+        'SIN_CONEXION'
+      )
+      // Vuelve la red: solo cambia el doble.
+      ajustar(env.falsos, RED_SIEMPRE, { error_descarga: undefined })
+      // A los 60 s la propia descarga hace de sonda: termina bien y nada habló con LRCLIB.
+      await expect
+        .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
+          timeout: 100_000,
+          intervals: [1000]
+        })
+        .toBe('completado')
+      expect(lrclib.peticiones).toHaveLength(0)
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
+    }
+  })
+
+  test('con la búsqueda automática activada, una descarga de YouTube lanza su búsqueda al doble (control de la prueba de privacidad)', async () => {
+    const env = preparar('yt-privacidad-control')
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, { SHINOBI_LRCLIB_URL: lrclib.url })
+    try {
+      const v = await app.firstWindow()
+      await añadir(v, NORMAL)
+      await expect.poll(() => lrclib.peticiones.length, { timeout: 60_000 }).toBeGreaterThan(0)
+      expect(lrclib.peticiones.every((p) => p.ruta.startsWith('/api/'))).toBe(true)
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
+    }
+  })
+
   test('vídeo no disponible: error en la vista previa y ninguna canción', async () => {
     const env = preparar('yt-nodisp')
     const app = await lanzar(env)
@@ -289,12 +373,9 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       )
       // Un directo tampoco se admite.
       await buscar(v, URL_YT(DIRECTO))
-      await expect(v.getByRole('alert')).toContainText(
-        'Las listas y los directos no se pueden usar',
-        {
-          timeout: 30_000
-        }
-      )
+      await expect(v.getByRole('alert')).toContainText('Este enlace no se puede usar', {
+        timeout: 30_000
+      })
       expect(canciones(env.datos)).toEqual([])
     } finally {
       await cerrar(app)
@@ -346,7 +427,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
     }
   })
 
-  test('cerrar la app durante la descarga: queda interrumpida y Reintentar la completa', async () => {
+  test('cerrar la app durante la descarga: al reabrir se retoma sola y termina (ADR 0025 §5)', async () => {
     const env = preparar('yt-cierre')
     ajustar(env.falsos, NORMAL, { ritmo: 60 })
     const app = await lanzar(env)
@@ -357,16 +438,15 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
     const cierre = app.close()
     await v.getByRole('dialog').getByRole('button', { name: 'Cerrar de todos modos' }).click()
     await cierre
+    // El diario deja la descarga para el siguiente arranque.
+    const diario = JSON.parse(readFileSync(join(env.datos, 'trabajos', 'pendientes.json'), 'utf8'))
+    expect(diario).toEqual([expect.objectContaining({ tipo: 'fuente', enCurso: true })])
 
     ajustar(env.falsos, NORMAL, { ritmo: 1 })
     const app2 = await lanzar(env)
     try {
-      const v2 = await app2.firstWindow()
-      const tarjeta = v2.getByRole('article', { name: /^Tema interrumpido,/ })
-      await expect(tarjeta).toContainText('Interrumpido')
-      await v2.getByRole('button', { name: 'Reintentar «Tema interrumpido»' }).click()
-      // Desde 0070, Reintentar relanza el paso sin salir de la Biblioteca.
-      await expect(v2.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      await app2.firstWindow()
+      // Sin pulsar nada: la descarga empieza de nuevo (yt-dlp no reanuda) y termina.
       await expect
         .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
           timeout: 60_000
@@ -374,8 +454,6 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         .toBe('completado')
       const [id, ...resto] = canciones(env.datos)
       expect(resto).toEqual([])
-      const json = leerCancion(env.datos, id!)
-      expect(json.pasos.fuente.estado).toBe('completado')
       expect(existsSync(join(env.datos, 'biblioteca', id!, 'fuente', 'mezcla.flac'))).toBe(true)
     } finally {
       await cerrar(app2)

@@ -132,6 +132,7 @@
   color: var(--error);
 }
 
+.ind_atencion .circulo,
 .ind_interrumpido .circulo {
   border-color: var(--aviso);
   color: var(--aviso);

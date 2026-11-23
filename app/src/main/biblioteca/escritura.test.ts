@@ -391,6 +391,34 @@ describe('modalidad Letra lista y reemplazos de espera (0203)', () => {
   })
 })
 
+describe('guardarApariencia con reemplazo_pantalla (0287)', () => {
+  it('ausente conserva, null quita, objeto sustituye y propio lo retira', async () => {
+    const s = await servicio()
+    const id = await cancionLista(s)
+    const enDisco = async (): Promise<unknown> =>
+      (await leerDisco(id)).apariencia?.reemplazo_pantalla
+    const a = { lineas: 3, pasadas: 0, transicion: 'fundido' as const }
+
+    await s.guardarApariencia(id, { modo: 'heredar', reemplazo_pantalla: a })
+    expect(await enDisco()).toEqual(a)
+    const r = await s.guardarApariencia(id, { modo: 'heredar' })
+    expect(await enDisco()).toEqual(a)
+    expect(r.apariencia.procedenciaPantalla).toBe('cancion')
+    expect((await leerDisco(id)).estilo.pantalla).toEqual(a)
+
+    const b = { ...a, lineas: 6, pasadas: 2 }
+    await s.guardarApariencia(id, { modo: 'heredar', reemplazo_pantalla: b })
+    expect(await enDisco()).toEqual(b)
+    const sin = await s.guardarApariencia(id, { modo: 'heredar', reemplazo_pantalla: null })
+    expect(await enDisco()).toBeUndefined()
+    expect(sin.apariencia.procedenciaPantalla).not.toBe('cancion')
+
+    await s.guardarApariencia(id, { modo: 'heredar', reemplazo_pantalla: a })
+    await s.guardarApariencia(id, { modo: 'propio', estilo: ESTILO_PREDETERMINADO })
+    expect((await leerDisco(id)).apariencia).toEqual({ modo: 'propio' })
+  })
+})
+
 describe('eliminar y mostrar en carpeta', () => {
   it('envía a la papelera, quita del índice y emite eliminada', async () => {
     const s = await servicio()

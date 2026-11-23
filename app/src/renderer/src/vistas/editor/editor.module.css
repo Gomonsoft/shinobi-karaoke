@@ -525,3 +525,9 @@
 .panelSincronia .avisoPanel {
   color: var(--texto-3);
 }
+
+/* ⚑ de una línea por revisar en la lista (feature 11). */
+.marcaDudosa {
+  display: inline-flex;
+  color: var(--aviso);
+}

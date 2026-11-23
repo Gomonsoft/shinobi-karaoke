@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
-import { CampoTexto } from '../../componentes/Campos'
 import { Dialogo } from '../../componentes/Dialogo'
+import { CamposDatos, MAX_METADATO, type DatosLrclib } from '../anadir/CamposDatos'
 import { mensajeDeError } from './errores'
 
-export const MAX_METADATO = 200
+export { MAX_METADATO }
 
 interface ConfirmarProps {
   titulo: string
@@ -66,8 +66,13 @@ export interface DatosEditables {
   album: string | null
 }
 
+/** Lo que se muestra al abrir «Editar datos»: los datos y lo que LRCLIB dejó en la canción. */
+export interface InicialEditar extends DatosEditables {
+  lrclib?: DatosLrclib | null
+}
+
 interface EditarProps {
-  inicial: DatosEditables
+  inicial: InicialEditar
   alGuardar: (datos: DatosEditables) => Promise<void>
   alCancelar: () => void
 }
@@ -122,25 +127,18 @@ export function DialogoEditarDatos({ inicial, alGuardar, alCancelar }: EditarPro
         onSubmit={(e) => void enviar(e)}
         style={{ display: 'flex', flexDirection: 'column', gap: 'var(--e-3)' }}
       >
-        <CampoTexto
-          id="editar-titulo"
-          etiqueta="Título"
-          value={titulo}
-          maxLength={MAX_METADATO}
-          error={errorTitulo}
-          onChange={(e) => setTitulo(e.target.value)}
-        />
-        <CampoTexto
-          etiqueta="Artista"
-          value={artista}
-          maxLength={MAX_METADATO}
-          onChange={(e) => setArtista(e.target.value)}
-        />
-        <CampoTexto
-          etiqueta="Álbum (opcional)"
-          value={album}
-          maxLength={MAX_METADATO}
-          onChange={(e) => setAlbum(e.target.value)}
+        <CamposDatos
+          valores={{ titulo, artista, album }}
+          onCambio={(v) => {
+            setTitulo(v.titulo)
+            setArtista(v.artista)
+            setAlbum(v.album)
+          }}
+          idTitulo="editar-titulo"
+          etiquetaTitulo="Título"
+          etiquetaAlbum="Álbum (opcional)"
+          errorTitulo={errorTitulo}
+          lrclib={inicial.lrclib}
         />
         {errorGeneral && <AvisoEnLinea tipo="error">{errorGeneral}</AvisoEnLinea>}
       </form>

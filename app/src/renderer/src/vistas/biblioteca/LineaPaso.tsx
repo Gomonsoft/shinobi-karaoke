@@ -1,4 +1,12 @@
-import { CircleX, Clock, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
+import {
+  CircleAlert,
+  CircleX,
+  Clock,
+  RefreshCw,
+  TriangleAlert,
+  WifiOff,
+  type LucideIcon
+} from 'lucide-react'
 import { BarraProgreso } from '../../componentes/BarraProgreso'
 import { Icono } from '../../componentes/Icono'
 import type { LineaPasoDatos, TipoLinea } from './tarjeta'
@@ -8,7 +16,9 @@ const ICONOS: Partial<Record<TipoLinea, LucideIcon>> = {
   curso: RefreshCw,
   cola: Clock,
   error: CircleX,
-  aviso: TriangleAlert
+  aviso: TriangleAlert,
+  atencion: CircleAlert,
+  sinRed: WifiOff
 }
 
 /** Línea informativa bajo la insignia: icono + texto (el color nunca es el único portador). */

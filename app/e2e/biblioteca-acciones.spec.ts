@@ -61,7 +61,8 @@ test('volver a borrador y eliminar una canción de la semilla', async () => {
     await v.getByRole('menuitem', { name: 'Volver a borrador' }).click()
     await expect(v.getByRole('dialog', { name: '¿Volver a borrador?' })).toBeVisible()
     await v.getByRole('button', { name: 'Volver a borrador' }).click()
-    await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Borrador\./)
+    // Una lista a la que no le falta nada, vuelta a borrador, es «Lista para revisar» (ADR 0025 §1).
+    await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Lista para revisar\./)
     const json = JSON.parse(
       readFileSync(join(datos, 'biblioteca', idLista, 'cancion.json'), 'utf8')
     )
@@ -129,6 +130,124 @@ test('Editar datos guarda título, artista y álbum', async () => {
           JSON.parse(readFileSync(join(datos, 'biblioteca', id, 'cancion.json'), 'utf8')).metadatos
       )
       .toMatchObject({ titulo: 'Otro título', album: 'Mi álbum' })
+  } finally {
+    await app.close()
+  }
+})
+
+test('«Eliminar…» de varias (0318): previsualiza, exige la versión y mueve cada carpeta a la papelera', async () => {
+  const datos = crearDatos('eliminar-varias')
+  await sembrar(datos)
+  const app = await lanzar(datos)
+  try {
+    const v = await app.firstWindow()
+    await expect(v.getByRole('article')).toHaveCount(20)
+    // Tres borradores de la semilla por su título (la interfaz de la barra de selección es de 0320).
+    const titulos = ['Borrador sin letra', 'Borrador con letra a medias', 'Borrador recién creado']
+    const ids: string[] = []
+    for (const t of titulos) {
+      const tarjeta = v.getByRole('article', { name: new RegExp(`^${t},`) })
+      if (await tarjeta.count()) ids.push((await tarjeta.first().getAttribute('data-tarjeta'))!)
+    }
+    expect(ids.length).toBeGreaterThanOrEqual(2)
+    const prev = await v.evaluate(
+      (lista) =>
+        (
+          globalThis as unknown as {
+            shinobi: {
+              biblioteca: { eliminarVarias: { previsualizar(ids: string[]): Promise<unknown> } }
+            }
+          }
+        ).shinobi.biblioteca.eliminarVarias.previsualizar(lista),
+      ids
+    )
+    const { version, canciones } = prev as {
+      version: string
+      canciones: { id: string; aplica: boolean }[]
+    }
+    expect(canciones.map((c) => c.id)).toEqual(ids)
+    expect(canciones.every((c) => c.aplica)).toBe(true)
+
+    // Una versión que no es la de la confirmación no borra nada.
+    const obsoleta = await v.evaluate(async (lista) => {
+      const api = (
+        globalThis as unknown as {
+          shinobi: {
+            biblioteca: {
+              eliminarVarias: { ejecutar(ids: string[], version: string): Promise<unknown> }
+            }
+          }
+        }
+      ).shinobi.biblioteca
+      return api.eliminarVarias.ejecutar(lista, 'version-vieja').then(
+        () => null,
+        (e: { codigo: string }) => e.codigo
+      )
+    }, ids)
+    expect(obsoleta).toBe('CONFIRMACION_OBSOLETA')
+    for (const id of ids) expect(existsSync(join(datos, 'biblioteca', id))).toBe(true)
+
+    const resultado = (await v.evaluate(
+      ([lista, ver]) =>
+        (
+          globalThis as unknown as {
+            shinobi: {
+              biblioteca: {
+                eliminarVarias: { ejecutar(ids: string[], version: string): Promise<unknown> }
+              }
+            }
+          }
+        ).shinobi.biblioteca.eliminarVarias.ejecutar(lista as string[], ver as string),
+      [ids, version]
+    )) as { resultados: { id: string; resultado: string }[] }
+    expect(resultado.resultados.map((r) => r.resultado)).toEqual(ids.map(() => 'hecho'))
+    await expect(v.getByRole('article')).toHaveCount(20 - ids.length)
+    const papelera = readdirSync(join(datos, 'papelera'))
+    for (const id of ids) {
+      expect(existsSync(join(datos, 'biblioteca', id))).toBe(false)
+      expect(papelera.some((n) => n.startsWith(`${id}-`))).toBe(true)
+    }
+  } finally {
+    await app.close()
+  }
+})
+
+test('barra de selección (0320): Supr abre «Eliminar…» con 3 canciones y cada carpeta va a la papelera', async () => {
+  const datos = crearDatos('eliminar-barra')
+  await sembrar(datos)
+  const app = await lanzar(datos)
+  try {
+    const v = await app.firstWindow()
+    await expect(v.getByRole('article')).toHaveCount(20)
+    const titulos = ['Borrador sin letra', 'Borrador con letra a medias', 'Borrador recién creado']
+    const ids: string[] = []
+    for (const t of titulos) {
+      ids.push(
+        (await v
+          .getByRole('article', { name: new RegExp(`^${t},`) })
+          .first()
+          .getAttribute('data-tarjeta'))!
+      )
+    }
+    await v.getByRole('button', { name: 'Seleccionar', exact: true }).click()
+    for (const t of titulos)
+      await v.getByRole('checkbox', { name: `Seleccionar «${t}»` }).dispatchEvent('click')
+    await expect(v.getByText('3 seleccionadas')).toBeVisible()
+    // Supr con el foco en la rejilla abre la confirmación, con el foco en «Cancelar».
+    await v.getByRole('article', { name: /^Borrador recién creado,/ }).focus()
+    await v.keyboard.press('Delete')
+    const d = v.getByRole('dialog', { name: '¿Eliminar 3 canciones?' })
+    await expect(d.getByRole('button', { name: 'Cancelar' })).toBeFocused()
+    await expect(d.getByText(/Se moverán a la papelera de tu sistema/)).toBeVisible()
+    await d.getByRole('button', { name: 'Eliminar 3 canciones' }).click()
+    await expect(v.getByText('3 canciones se movieron a la papelera.')).toBeVisible()
+    await expect(v.getByRole('article')).toHaveCount(17)
+    const papelera = readdirSync(join(datos, 'papelera'))
+    for (const id of ids) {
+      expect(existsSync(join(datos, 'biblioteca', id))).toBe(false)
+      expect(papelera.some((n) => n.startsWith(`${id}-`))).toBe(true)
+    }
+    await expect(v.getByRole('button', { name: 'Seleccionar', exact: true })).toBeFocused()
   } finally {
     await app.close()
   }

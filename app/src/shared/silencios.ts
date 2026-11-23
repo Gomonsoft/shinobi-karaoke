@@ -132,6 +132,20 @@ export interface OpcionesAjuste {
   espera: Espera
   comodin?: 'puntos' | 'barra' | 'cuenta'
   p?: ParametrosSilencios
+  /**
+   * Solo estas líneas («Fin al final de la voz», feature 11): sin tocar la espera y, como las pide la
+   * persona expresamente, también las que tienen palabras hechas a mano (se descartan al aplicar).
+   */
+  soloIds?: readonly string[]
+  /**
+   * Variante prudente de la preparación desatendida (ADR 0018, revisión 0.2.2; ADR 0025 §2): solo toca las
+   * líneas con fin automático (`fin_ms: null`); un fin que traía la letra o que fijó alguien no cambia.
+   */
+  soloFinesAutomaticos?: boolean
+  /** `false` no activa ningún indicador de la espera (la cuenta 3·2·1 por defecto): `espera` sale `null`. */
+  activarComodin?: boolean
+  /** Quién anota los fines que cambia: `silencios` (el editor) o `preparacion` (la preparación desatendida). */
+  origenFin?: 'silencios' | 'preparacion'
 }
 
 /** Fin de la voz previa al primer silencio de la ventana [a, b) (tiempo de audio), o null. */
@@ -162,7 +176,16 @@ function hayVoz(intervalos: readonly [number, number][], a: number, b: number): 
 export function proponerAjusteSilencios(
   letra: Letra,
   voz: Pick<VozDetectada, 'intervalos'>,
-  { duracionMs, espera, comodin = 'cuenta', p = PARAMETROS_SILENCIOS }: OpcionesAjuste
+  {
+    duracionMs,
+    espera,
+    comodin = 'cuenta',
+    p = PARAMETROS_SILENCIOS,
+    soloIds,
+    soloFinesAutomaticos = false,
+    activarComodin = true,
+    origenFin = 'silencios'
+  }: OpcionesAjuste
 ): PropuestaSilencios {
   const offset = letra.offset_ms
   const lineas: ElementoLetra[] = letra.lineas.map((e) => ({ ...e }))
@@ -172,7 +195,9 @@ export function proponerAjusteSilencios(
   let huecosLargos = 0
 
   lineas.forEach((el, i) => {
-    if (el.tipo !== 'linea' || el.inicio_ms === null || tienePalabrasManuales(el)) return
+    if (el.tipo !== 'linea' || el.inicio_ms === null) return
+    if (soloIds ? !soloIds.includes(el.id) : tienePalabrasManuales(el)) return
+    if (soloFinesAutomaticos && el.fin_ms !== null) return
     const inicio = el.inicio_ms
     const siguiente = letra.lineas.slice(i + 1).find((e) => e.inicio_ms !== null)
     const limiteLetra = siguiente ? siguiente.inicio_ms! : duracionMs - offset
@@ -196,7 +221,7 @@ export function proponerAjusteSilencios(
     const eraFijado = el.fin_ms !== null
     if (eraFijado) finesFijadosCambiados++
     cambios.push({ id: el.id, finAntes: el.fin_ms, finDespues: fin, eraFijado, huecoMs })
-    lineas[i] = { ...sinPalabras(el), fin_ms: fin }
+    lineas[i] = { ...sinPalabras(el), fin_ms: fin, origen_fin: origenFin }
   })
 
   return {
@@ -206,6 +231,9 @@ export function proponerAjusteSilencios(
     finesFijadosCambiados,
     huecosLargos,
     sinVoz,
-    espera: huecosLargos > 0 && !espera[comodin] ? { ...espera, [comodin]: true } : null
+    espera:
+      !soloIds && activarComodin && huecosLargos > 0 && !espera[comodin]
+        ? { ...espera, [comodin]: true }
+        : null
   }
 }

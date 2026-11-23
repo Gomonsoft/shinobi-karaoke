@@ -13,6 +13,8 @@ interface Props {
   alto: number
   fps: number
   formato: FormatoId
+  /** Sustituye a `exp.muestra.marca` (en un lote: `exp.lote.muestra`). */
+  nota?: string
 }
 
 /**
@@ -21,7 +23,7 @@ interface Props {
  * real del video y se reduce a la anchura disponible, para que las proporciones sean las del
  * video. Decorativa: el formato no la cambia. La marca de agua es la misma del video (0235).
  */
-export function MuestraExportacion({ cancion, ancho, alto, fps, formato }: Props) {
+export function MuestraExportacion({ cancion, ancho, alto, fps, formato, nota }: Props) {
   const caja = useRef<HTMLDivElement>(null)
   const [escala, setEscala] = useState(256 / ancho)
   useLayoutEffect(() => {
@@ -79,7 +81,7 @@ export function MuestraExportacion({ cancion, ancho, alto, fps, formato }: Props
       <p className="t-pequeno" data-muestra-resumen>
         {medidas(ancho, alto)} · {fps} FPS · {FORMATOS[formato].nombreCorto}
       </p>
-      <p className={`t-pequeno ${estilos.texto2}`}>{EXP.muestraMarca}</p>
+      <p className={`t-pequeno ${estilos.texto2}`}>{nota ?? EXP.muestraMarca}</p>
     </div>
   )
 }

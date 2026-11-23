@@ -19,9 +19,11 @@ export type AccionAtajo =
         | 'probar'
         | 'atajos'
         | 'exportar'
+        | 'revisar'
+        | 'revision_bien'
     }
   | { tipo: 'ajustar_inicio' | 'ajustar_fin' | 'buscar'; deltaMs: number }
-  | { tipo: 'mover_seleccion'; sentido: -1 | 1 }
+  | { tipo: 'mover_seleccion' | 'dudosa'; sentido: -1 | 1 }
   | { tipo: 'pista'; pista: Pista }
 
 export type FocoEditor = 'lista' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'divisor' | 'otro'
@@ -50,6 +52,9 @@ export function accionDeTecla(
     if (tecla === 'z') return { tipo: e.shiftKey ? 'rehacer' : 'deshacer' }
     if (tecla === 'e' && !e.shiftKey) return { tipo: 'exportar' }
     if (tecla === 'y' && e.ctrlKey && !e.metaKey && !mac) return { tipo: 'rehacer' }
+    // Línea dudosa siguiente / anterior (feature 11): también fuera del recorrido.
+    if ((tecla === 'arrowdown' || tecla === 'arrowup') && !sync && !e.shiftKey)
+      return { tipo: 'dudosa', sentido: tecla === 'arrowup' ? -1 : 1 }
   }
 
   if (tecla === 'arrowleft' || tecla === 'arrowright') {
@@ -83,6 +88,8 @@ export function accionDeTecla(
   if (tecla === 'i' && !sync) return { tipo: 'fijar_inicio' }
   if (tecla === 'o' && !sync) return { tipo: 'fijar_fin' }
   if (tecla === 'p' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'abrir_preciso' }
+  if (tecla === 'r' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'revisar' }
+  if (tecla === 'n' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'revision_bien' }
   if (tecla === 'l' && !sync)
     return { tipo: e.shiftKey ? 'escuchar_tramo_linea' : 'escuchar_linea' }
   const pistas: Record<string, Pista> = { '1': 'original', '2': 'voz', '3': 'instrumental' }

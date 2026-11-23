@@ -1,4 +1,4 @@
-import type { Cancion, CodigoError, Estilo, Letra, Pasos } from '../../shared'
+import type { Cancion, CodigoError, Estilo, Letra, Pasos, Preparacion } from '../../shared'
 import type { ResumenCancion } from './resumen'
 
 /** Error de una operación de escritura de la biblioteca, con código estable. */
@@ -29,6 +29,8 @@ export interface CambioCancion {
   pistas?: Cancion['pistas']
   letra?: Letra | null
   estilo?: Estilo
+  /** `null` retira el registro (la preparación detenida sin haber hecho nada). */
+  preparacion?: Preparacion | null
   /** Por paso, se fusionan los campos indicados. */
   pasos?: { [P in keyof Pasos]?: Partial<Pasos[P]> }
 }

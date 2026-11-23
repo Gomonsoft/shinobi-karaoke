@@ -37,6 +37,13 @@ export function crearAcciones(api: () => ApiShinobi, aplicar: Aplicar) {
         aplicar(r.estado)
         return r
       },
+      /** «A la cola» de varias: el estado nuevo llega por el evento de la sesión. */
+      agregarVarias: (ids: string[]) => api().cola.agregarVarias(ids),
+      quitarVarias: async (entradaIds: string[]) => {
+        const r = await api().cola.quitarVarias(entradaIds)
+        aplicar(r.estado)
+        return r
+      },
       mover: (entradaId: string, antesDe: string | null) =>
         estado(api().cola.mover(entradaId, antesDe)),
       quitar: async (entradaId: string) => {

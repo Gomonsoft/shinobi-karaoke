@@ -253,6 +253,9 @@
   font-size: var(--t-pequeno);
   line-height: var(--t-pequeno-lh);
 }
+.junto {
+  position: relative;
+}
 .entrada {
   width: 100%;
   min-height: var(--alto-boton);
@@ -342,6 +345,21 @@
 .bannerTexto {
   flex: 1;
   color: var(--texto-1);
+}
+.bannerApilado {
+  flex-wrap: wrap;
+}
+.bannerApilado .bannerTexto {
+  min-width: 0;
+  flex: 1 1 0;
+}
+/* Fila de acciones bajo el texto, alineada con él; se parte en dos si no cabe. */
+.bannerAcciones {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+  padding-inline-start: calc(20px + var(--e-3));
 }
 .bannerIcono {
   flex: none;
@@ -442,6 +460,18 @@
 .item:hover,
 .item:focus-visible {
   background: var(--fondo-3-hover);
+}
+.itemConDescripcion {
+  height: auto;
+  min-height: var(--objetivo-minimo);
+  padding-block: var(--e-2);
+}
+.itemTexto {
+  display: flex;
+  flex-direction: column;
+}
+.itemDescripcion {
+  color: var(--texto-3);
 }
 .menuSeparador {
   height: 1px;

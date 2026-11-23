@@ -3,7 +3,7 @@ import { lstat, readdir, realpath, rename, rm } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { EstadoPicos, LecturaPicos, PeticionPicos } from '../../shared/ipc'
 import type { ejecutar } from '../trabajos/worker'
-import { conPicos, leerVentana } from './formato'
+import { conPicos, leerNivelBase, leerVentana, type NivelBase } from './formato'
 
 const VOZ = 'pistas/voz.flac'
 const ID_SEGURO = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/
@@ -26,6 +26,8 @@ interface DependenciasPicos {
   dirBiblioteca: string
   tieneVoz(id: string): boolean
   ejecutar: typeof ejecutar
+  /** Los picos de la canción acaban de quedar listos (letras:encaje, preparación…). */
+  alListos?(id: string): void
 }
 
 /** La forma de onda es derivada. Su estado no se guarda en la canción. */
@@ -80,6 +82,31 @@ export class ServicioPicos {
     return { estado: 'generando' }
   }
 
+  /** Nivel base de la caché si está lista (para el encaje en main); null si no. */
+  async nivelBase(id: string): Promise<NivelBase | null> {
+    const voz = await this.voz(id)
+    if (!voz || this.generando(id, voz)) return null
+    return leerNivelBase(voz.cache)
+  }
+
+  /**
+   * Pide los picos al terminar la separación (ADR 0024 §2) como trabajo aparte: si hay otra
+   * generación en curso espera a que acabe (una a la vez) y vuelve a pedir.
+   */
+  async generarTrasSeparar(id: string): Promise<void> {
+    for (let intento = 0; intento < 20 && !this.cerrado; intento++) {
+      const e = await this.solicitar(id, true)
+      if (e.estado !== 'generando') return
+      const activo = this.activo
+      if (activo?.id === id) {
+        await activo.fin
+        return
+      }
+      if (!activo) return
+      await activo.fin
+    }
+  }
+
   async leer(peticion: PeticionPicos): Promise<LecturaPicos | null> {
     const id = peticion.cancionId
     const voz = await this.voz(id)
@@ -114,6 +141,7 @@ export class ServicioPicos {
         return
       }
       await this.limpiar(dirname(voz.ruta), voz.cache)
+      this.deps.alListos?.(id)
     } catch {
       if (!señal.aborted && (await this.voz(id))?.generacion === voz.generacion) {
         this.fallos.set(id, voz.generacion)

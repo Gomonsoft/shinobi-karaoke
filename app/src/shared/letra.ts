@@ -8,6 +8,15 @@ export const palabraSchema = z.object({
   fin_ms: tiempoMs
 })
 
+export const ORIGENES_FIN = ['letra', 'silencios', 'preparacion', 'alineacion'] as const
+export type OrigenFin = (typeof ORIGENES_FIN)[number]
+
+/** Reserva del reparto (ADR 0029 §1): ausente = `c1`, que nunca se escribe. */
+const PARTES = ['c2', 'c3', 'c4', 'todos', 'coro'] as const
+
+export const revisadaSchema = z.object({ inicio_ms: tiempoMs, fin_ms: tiempoMs, texto: z.string() })
+export type Revisada = z.infer<typeof revisadaSchema>
+
 export const elementoLetraSchema = z.object({
   id: z.string().min(1),
   tipo: z.enum(['linea', 'pausa']),
@@ -23,7 +32,21 @@ export const elementoLetraSchema = z.object({
    * se usan); "manual" = hechas en el editor preciso. Lectura tolerante: un
    * valor fuera del catálogo se lee como ausente.
    */
-  origen_palabras: z.enum(['importada', 'manual']).optional().catch(undefined)
+  origen_palabras: z.enum(['importada', 'manual', 'auto']).optional().catch(undefined),
+  /**
+   * Quién fijó `fin_ms` (ADR 0024 §4); ausente = a mano. Main lo retira si `fin_ms` es null.
+   * Lectura tolerante: un valor fuera del catálogo se lee como ausente.
+   */
+  origen_fin: z.enum(ORIGENES_FIN).optional().catch(undefined),
+  /** Instantánea de lo que había al dar la línea por buena (ADR 0024 §4); main la retira si deja de coincidir. */
+  revisada: revisadaSchema.optional().catch(undefined),
+  /** Confianza de la alineación forzada (ADR 0028 §3.3); main la retira si cambian los tiempos o el texto. */
+  alineacion: z
+    .object({ confianza: z.number().min(0).max(1) })
+    .optional()
+    .catch(undefined),
+  /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
+  parte: z.enum(PARTES).optional().catch(undefined)
 })
 
 export type Palabra = z.infer<typeof palabraSchema>
@@ -224,7 +247,7 @@ export function validarPalabrasManuales(
 }
 
 /**
- * Palabras que se usan (pintan, fin efectivo): solo las hechas a mano y válidas
+ * Palabras que se usan (pintan, fin efectivo): solo las hechas a mano o automáticas (`auto`) y válidas
  * contra `finLinea` (fin fijado) o, si no hay, contra `inicioSiguienteMs`
  * (inicio del siguiente elemento con inicio; null/ausente = sin tope). Si no, null.
  */
@@ -232,9 +255,8 @@ export function palabrasVisibles(
   el: LineaConPalabras & Pick<ElementoLetra, 'fin_ms' | 'origen_palabras'>,
   inicioSiguienteMs: number | null = null
 ): Palabra[] | null {
-  if (el.origen_palabras !== 'manual' || el.palabras === null || el.palabras.length === 0) {
-    return null
-  }
+  const usables = el.origen_palabras === 'manual' || el.origen_palabras === 'auto'
+  if (!usables || el.palabras === null || el.palabras.length === 0) return null
   const tope = el.fin_ms ?? inicioSiguienteMs
   return validarPalabrasManuales(el, tope).length === 0 ? el.palabras : null
 }
@@ -256,7 +278,43 @@ export const letraSchema = z
     origen: z.enum(['lrclib', 'manual', 'archivo']),
     lrclib_id: z.number().int().nullable(),
     offset_ms: z.number().int(),
-    lineas: z.array(elementoLetraSchema)
+    lineas: z.array(elementoLetraSchema),
+    /** Letra tal como se importó, sin tocar tiempos (ADR 0024 §2); la pone main al guardar una letra nueva. */
+    intacta: z.literal(true).optional().catch(undefined),
+    /** Desfase corregido por «Comprobar la letra» (ADR 0024 §2); ya sumado a `offset_ms`. */
+    desfase_corregido_ms: z.number().int().optional().catch(undefined),
+    /** Se quitó una corrección: ni la comprobación diferida ni la preparación la vuelven a corregir sola (ADR 0024, pregunta 0207). */
+    desfase_descartado: z.literal(true).optional().catch(undefined),
+    /**
+     * Metadatos del registro de LRCLIB del que viene la letra (ADR 0025, revisión de la pregunta 0220):
+     * título, artista y álbum, **no** el texto. Sirven para la sugerencia «Usar estos datos». Lectura tolerante.
+     */
+    datos_lrclib: z
+      .object({
+        titulo: z.string().max(500),
+        artista: z.string().max(500),
+        album: z.string().max(500).nullable().catch(null)
+      })
+      .optional()
+      .catch(undefined),
+    /** Idioma de la letra (ADR 0028 §3.3): `es`, `en`… */
+    idioma: z.string().min(2).max(16).optional().catch(undefined),
+    /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
+    partes: z
+      .object({
+        cantantes: z
+          .array(
+            z.object({
+              id: z.enum(['c1', 'c2', 'c3', 'c4']),
+              nombre: z.string().max(40).nullable().catch(null)
+            })
+          )
+          .min(1)
+          .max(4),
+        voz_en_coros: z.number().min(0).max(1).optional().catch(undefined)
+      })
+      .optional()
+      .catch(undefined)
   })
   .superRefine((letra, ctx) => {
     for (const mensaje of validarInvariantesLetra(letra.lineas)) {

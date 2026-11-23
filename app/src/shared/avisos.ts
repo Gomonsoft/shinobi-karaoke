@@ -4,12 +4,12 @@
  * La oferta del modelo Rápido nunca se incluye en un aviso (ux/04 criterio 8b).
  */
 
-export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error'] as const
+export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error', 'desfase', 'tanda'] as const
 export const TITULO_MOTOR_INCOMPLETO = 'Hay que reparar el motor de audio'
 export type TipoAvisoTrabajo = (typeof TIPOS_AVISO_TRABAJO)[number]
 
 /** Vista de la canción a la que lleva el aviso. */
-export type DestinoAviso = 'progreso' | 'editor'
+export type DestinoAviso = 'progreso' | 'editor' | 'biblioteca'
 
 /** Evento main → renderer: un trabajo terminó o falló (el renderer decide si muestra el toast). */
 export interface AvisoTrabajoIpc {
@@ -34,14 +34,40 @@ export const AVISOS = {
   error: (titulo: string, tituloError: string): string => `«${titulo}»: ${tituloError}`,
   etiquetaOk: 'Abrir',
   etiquetaLista: 'Abrir editor',
-  etiquetaError: 'Ver'
+  etiquetaError: 'Ver',
+  /** `let.comp.toast.corregida` (spec 05, feature 4): `desfaseMs` > 0 = la letra se movió más tarde. */
+  desfase: (titulo: string, desfaseMs: number): string => {
+    const d = (Math.abs(desfaseMs) / 1000).toFixed(1).replace('.', ',')
+    return `Movimos la letra de «${titulo}» ${d} s ${desfaseMs > 0 ? 'más tarde' : 'antes'} para que coincida con la voz.`
+  },
+  etiquetaDesfase: 'Deshacer',
+  /**
+   * `act.cola.fin` (spec 04, feature 7): una sola vez al vaciarse una tanda de 2 o más canciones. Se omiten
+   * las partes con 0; si todas están listas para revisar, «{n} canciones listas para revisar.».
+   */
+  tanda: (r: { total: number; listas: number; esperanLetra: number; conError: number }): string => {
+    if (r.listas === r.total) return `${r.total} canciones listas para revisar.`
+    const partes = [
+      r.listas > 0 ? `${r.listas} ${r.listas === 1 ? 'lista' : 'listas'} para revisar` : null,
+      r.esperanLetra > 0 ? `${r.esperanLetra} esperan letra` : null,
+      r.conError > 0 ? `${r.conError} con error` : null
+    ].filter((x) => x !== null)
+    return `${r.total} canciones preparadas${partes.length > 0 ? `: ${partes.join(' · ')}` : ''}.`
+  },
+  etiquetaTanda: 'Ver resultado',
+  /** Notificación del sistema al terminar la preparación de una canción (mismo texto que `prog.toast.*`). */
+  preparacion: {
+    revisar: (t: string): string => `«${t}» está lista para revisar.`,
+    elige: (t: string): string => `«${t}»: elige la letra.`,
+    sinLetra: (t: string): string => `«${t}»: no encontramos la letra.`
+  }
 } as const
 
 const ERRORES_DESCARGA: Record<string, string> = {
   FORMATO_NO_SOPORTADO: 'No podemos leer este archivo.',
   AUDIO_DEMASIADO_CORTO: 'El audio es demasiado corto.',
   URL_NO_VALIDA: 'Este enlace no es de un vídeo de YouTube.',
-  URL_NO_SOPORTADA: 'Las listas y los directos no se pueden usar.',
+  URL_NO_SOPORTADA: 'Este enlace no se puede usar.',
   VIDEO_NO_DISPONIBLE: 'Este vídeo no está disponible.',
   YOUTUBE_BLOQUEADO: 'YouTube no permite la descarga ahora mismo.',
   SIN_CONEXION: 'Sin conexión a internet.',

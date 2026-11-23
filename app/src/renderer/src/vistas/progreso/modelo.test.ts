@@ -34,6 +34,19 @@ describe('modelo de progreso', () => {
     expect(m.filas[0]!.barra).toBe(50)
   })
 
+  it('una canción en cola de una tanda dice su posición (prog.cola.posicion) o la pausa', () => {
+    const enCola = {
+      trabajo: { id: 't', estado: 'en_cola', posicion: 2, progreso: null },
+      progreso: null
+    } as never
+    const m = modeloDeProgreso({ ...base, vivo: enCola, cola: { k: 4, n: 9, pausada: false } })
+    expect(m.filas[0]!.texto).toContain(
+      'En cola: 4.ª de 9. Empezará cuando terminen las anteriores.'
+    )
+    const p = modeloDeProgreso({ ...base, vivo: enCola, cola: { k: 4, n: 9, pausada: true } })
+    expect(p.filas[0]!.texto).toContain('La cola está en pausa.')
+  })
+
   it('anuncia inicio, tramos, fin y error', () => {
     const a = (v: number | null) => modeloDeProgreso({ ...base, vivo: vivo(v) })
     const m0 = a(0.1)

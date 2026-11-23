@@ -1,0 +1,41 @@
+.obsoleto {
+  margin: 0;
+  padding: var(--e-2) var(--e-3);
+  border-radius: var(--r-m);
+  background: var(--aviso-tenue);
+  color: var(--aviso);
+}
+
+.nota {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: 0.875rem;
+}
+
+.motivos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  margin: 0;
+  padding: 0 0 0 var(--e-4);
+  list-style: disc;
+}
+
+.tramos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-1);
+  max-height: 12rem;
+  margin: var(--e-1) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.tramo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-3);
+  color: var(--texto-2);
+}

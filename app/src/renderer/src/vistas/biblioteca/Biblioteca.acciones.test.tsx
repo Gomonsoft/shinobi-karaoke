@@ -205,6 +205,8 @@ describe('menú ⋯', () => {
       'Editar',
       'Editar datos',
       'Exportar video…',
+      'Exportar paquete…',
+      'Exportar la letra (.lrc)…',
       'Aplicar tema…',
       'Volver a borrador',
       'Mostrar en la carpeta',
@@ -214,7 +216,10 @@ describe('menú ⋯', () => {
     await abrirMenu('La flaca')
     expect(opciones()).toEqual([
       'Continuar',
+      'PrepararBusca la letra en LRCLIB con el título y el artista',
       'Editar datos',
+      'Exportar paquete…',
+      'Exportar la letra (.lrc)…',
       'Aplicar tema…',
       'Mostrar en la carpeta',
       'Eliminar…'
@@ -545,7 +550,13 @@ describe('Reintentar, Cancelar trabajo y Re-separar pistas (0070)', () => {
       montar([sinPistas])
       instalar(m)
       await abrirMenu('Sin pistas')
-      expect(opciones()).toEqual(['Re-separar pistas', 'Mostrar en la carpeta', 'Eliminar…'])
+      expect(opciones()).toEqual([
+        'Exportar paquete…',
+        'Exportar la letra (.lrc)…',
+        'Re-separar pistas',
+        'Mostrar en la carpeta',
+        'Eliminar…'
+      ])
       fireEvent.click(screen.getByRole('menuitem', { name: 'Re-separar pistas' }))
       await waitFor(() => expect(m.separar).toHaveBeenCalledWith('p'))
     })
@@ -578,7 +589,13 @@ describe('Reintentar, Cancelar trabajo y Re-separar pistas (0070)', () => {
       )
       expect(await screen.findByText('En cola para separar')).toBeInTheDocument()
       await abrirMenu('Sin pistas')
-      expect(opciones()).toEqual(['Cancelar trabajo', 'Mostrar en la carpeta', 'Eliminar…'])
+      expect(opciones()).toEqual([
+        'Exportar paquete…',
+        'Exportar la letra (.lrc)…',
+        'Cancelar trabajo',
+        'Mostrar en la carpeta',
+        'Eliminar…'
+      ])
     })
   })
 })

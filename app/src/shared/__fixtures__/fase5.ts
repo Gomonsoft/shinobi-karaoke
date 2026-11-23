@@ -20,7 +20,8 @@ export function resumenDePrueba(
     temaNombre: null,
     neutra: true,
     alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
-    procedenciaEspera: apariencia?.procedencia ?? 'propio'
+    procedenciaEspera: apariencia?.procedencia ?? 'propio',
+    procedenciaPantalla: apariencia?.procedencia ?? 'propio'
   }
   return {
     id: 'cancion-1',

@@ -17,7 +17,7 @@ export const SEL = {
   terminar: 'Terminar',
   casilla: (titulo: string): string => `Seleccionar «${titulo}»`,
   grupo: (grupo: string): string => `Seleccionar las canciones de ${grupo}`,
-  noEditable: 'No se puede cambiar el tema de una canción que no se puede abrir.',
+  noEditable: 'Esta canción no se puede abrir. Usa su menú ⋯ para eliminarla o repararla.',
   ninguna: 'Selecciona al menos una canción.',
   anuncioEntrar: 'Modo selección. Usa Espacio para marcar canciones y Esc para terminar.',
   aplicarTema: 'Aplicar tema…'

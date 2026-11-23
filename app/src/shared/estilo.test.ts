@@ -3,10 +3,12 @@ import { estiloSchema010 } from './__fixtures__/estilo-0.1.0'
 import { ESPERA_LEGADA } from './espera'
 import {
   ESTILO_PREDETERMINADO,
+  conSubrayadoDelEquipo,
   estiloPredeterminado,
   estiloSchema,
   normalizarEstilo
 } from './estilo'
+import { PANTALLA_PREDETERMINADA } from './pantalla'
 import { FUENTE_PREDETERMINADA, FUENTES_INCLUIDAS } from './fuentes'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,4 +155,71 @@ it.each([
   const e = estilo()
   e.fondo.paradas = posiciones.map((posicion) => ({ color: '#112233', posicion }))
   expect(estiloSchema.safeParse(e).success).toBe(valida)
+})
+
+describe('estilo.pantalla y colores_partes (ADR 0022 §1)', () => {
+  it('un estilo sin pantalla se normaliza con el predeterminado y no se reescribe', () => {
+    const base = estiloPredeterminado()
+    const parsed = estiloSchema.parse(base)
+    expect(parsed).not.toHaveProperty('pantalla')
+    expect(normalizarEstilo(parsed).pantalla).toEqual(PANTALLA_PREDETERMINADA)
+    expect(estiloSchema.parse(base)).toEqual(base)
+  })
+  it('conserva pantalla; un valor suelto inválido no daña el estilo y uno entero ilegible se descarta', () => {
+    const e = {
+      ...estiloPredeterminado(),
+      pantalla: { lineas: 7, pasadas: 2, transicion: 'fundido' }
+    }
+    expect(estiloSchema.parse(e).pantalla).toEqual(e.pantalla)
+    expect(estiloSchema.parse({ ...e, pantalla: { ...e.pantalla, lineas: 99 } }).pantalla).toEqual({
+      ...e.pantalla,
+      lineas: 5
+    })
+    expect(estiloSchema.parse({ ...e, pantalla: 'x' }).pantalla).toBeUndefined()
+  })
+  it('pantalla.zonas (reservado para 0.2.3) se conserva tras leer y normalizar', () => {
+    const e = {
+      ...estiloPredeterminado(),
+      pantalla: { ...PANTALLA_PREDETERMINADA, zonas: 'por_parte' }
+    }
+    const una = estiloSchema.parse(JSON.parse(JSON.stringify(e)))
+    expect(una.pantalla?.zonas).toBe('por_parte')
+    expect(normalizarEstilo(una).pantalla.zonas).toBe('por_parte')
+  })
+  it('colores_partes (reservado para 0.2.3) se conserva tras leer y volver a escribir', () => {
+    const e = estiloPredeterminado()
+    e.letra = { ...e.letra, colores_partes: { c2: '#4ADEDE', todos: '#B388FF', coro: '#FF9F1C' } }
+    const una = estiloSchema.parse(JSON.parse(JSON.stringify(e)))
+    expect(una.letra.colores_partes).toEqual(e.letra.colores_partes)
+    expect(estiloSchema.parse(JSON.parse(JSON.stringify(una)))).toEqual(una)
+  })
+  it('colores_partes es tolerante: un color inválido se descarta y un valor ilegible no daña el estilo', () => {
+    const e = estiloPredeterminado()
+    const letra = (cp: unknown): unknown => ({ ...e, letra: { ...e.letra, colores_partes: cp } })
+    expect(estiloSchema.parse(letra({ c1: 'rojo', c2: '#4ADEDE' })).letra.colores_partes).toEqual({
+      c2: '#4ADEDE'
+    })
+    expect(estiloSchema.parse(letra(5)).letra.colores_partes).toBeUndefined()
+  })
+})
+
+describe('subrayar_cantado (0.2.2)', () => {
+  it('es opcional y tolerante: un valor ilegible se lee como ausente y no se escribe al leer', () => {
+    const base = estiloPredeterminado()
+    expect(estiloSchema.parse(base).letra).not.toHaveProperty('subrayar_cantado')
+    const raro = { ...base, letra: { ...base.letra, subrayar_cantado: 'sí' } }
+    expect(estiloSchema.parse(raro).letra.subrayar_cantado).toBeUndefined()
+    const activo = { ...base, letra: { ...base.letra, subrayar_cantado: true } }
+    expect(estiloSchema.parse(activo).letra.subrayar_cantado).toBe(true)
+  })
+
+  it('conSubrayadoDelEquipo suma la preferencia del equipo sin tocar el estilo original', () => {
+    const base = estiloPredeterminado()
+    expect(conSubrayadoDelEquipo(base, false)).toBe(base)
+    const con = conSubrayadoDelEquipo(base, true)
+    expect(con.letra.subrayar_cantado).toBe(true)
+    expect(base.letra.subrayar_cantado).toBeUndefined()
+    const propio = { ...base, letra: { ...base.letra, subrayar_cantado: true } }
+    expect(conSubrayadoDelEquipo(propio, false)).toBe(propio)
+  })
 })

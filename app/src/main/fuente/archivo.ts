@@ -6,7 +6,9 @@ import {
   resultadoImportarArchivoSchema,
   type CodigoError,
   type MetadatosEditables,
-  type ResultadoImportarArchivo
+  type PropuestaDatos,
+  type ResultadoImportarArchivo,
+  type ValoresDatosIpc
 } from '../../shared'
 import type {
   DatosNuevaCancion,
@@ -14,6 +16,7 @@ import type {
   ImportacionPreparada,
   ResumenCancion
 } from '../biblioteca'
+import { origenAlConfirmar, proponerDatos, type ResultadoPropuesta } from './propuestaDatos'
 import type { ErrorTrabajo, OpcionesEjecucion } from '../trabajos'
 
 /** Extensiones anunciadas en `add.formatos` (ux/03), para el filtro "Audio y vídeo". */
@@ -52,6 +55,8 @@ export interface ImportacionLeida {
   nombre: string
   duracionMs: number
   metadatos: { titulo: string; artista: string; album: string }
+  /** Los mismos datos con su procedencia (0.2.2). */
+  datos: PropuestaDatos
   gananciaDb: number
   larga: boolean
 }
@@ -74,6 +79,8 @@ export interface DependenciasImportacion {
   ) => Promise<Record<string, unknown>>
   /** Directorio de datos de la app: no se importa nada desde dentro. */
   dirDatos: string
+  /** Artistas y álbumes de la biblioteca para proponer su grafía (`biblioteca.valoresDatos`). */
+  valoresDatos?: () => ValoresDatosIpc
   /** ¿Hay un trabajo vivo (en cola o en curso) de esa canción? (gestor de trabajos). */
   hayTrabajoVivo?: (cancionId: string) => boolean
   /** Se llama tras crear la canción con la fuente completada (encadena la separación, 0065). */
@@ -88,6 +95,7 @@ interface Importacion {
   controlador: AbortController
   estado: 'leyendo' | 'lista' | 'confirmando'
   resultado?: ResultadoImportarArchivo
+  propuesta?: ResultadoPropuesta
   /** Se resuelve cuando el proceso del worker ha terminado (nunca rechaza). */
   fin: Promise<void>
   /** Marca `fin` como resuelto. */
@@ -143,16 +151,22 @@ export class ServicioImportacionArchivo {
       if (imp.controlador.signal.aborted)
         throw new ErrorImportacion('CANCELADO', 'Importación cancelada.')
       imp.resultado = r.data
+      const propuesta = proponerDatos(
+        { tipo: 'archivo', nombre: r.data.nombre_original, etiquetas: r.data.etiquetas },
+        this.deps.valoresDatos?.() ?? { artistas: [], albumes: [] }
+      )
+      imp.propuesta = propuesta
       imp.estado = 'lista'
       return {
         importacionId: imp.id,
         nombre: r.data.nombre_original,
         duracionMs: r.data.duracion_ms,
         metadatos: {
-          titulo: r.data.metadatos.titulo,
-          artista: r.data.metadatos.artista,
-          album: r.data.metadatos.album
+          titulo: propuesta.datos.titulo.valor,
+          artista: propuesta.datos.artista.valor,
+          album: propuesta.datos.album.valor
         },
+        datos: propuesta.datos,
         gananciaDb: r.data.ganancia_db,
         larga: r.data.duracion_ms > UMBRAL_LARGA_MS
       }
@@ -197,6 +211,13 @@ export class ServicioImportacionArchivo {
     }
     const r = imp.resultado
     const album = m.data.album?.trim() ?? ''
+    const origen = imp.propuesta
+      ? origenAlConfirmar(imp.propuesta, {
+          titulo: m.data.titulo.trim(),
+          artista: m.data.artista.trim(),
+          album
+        })
+      : undefined
     if (opciones && this.deps.hayTrabajoVivo?.(opciones.cancionId)) {
       throw new ErrorImportacion('ARGUMENTOS_NO_VALIDOS', 'La canción tiene un trabajo en marcha.')
     }
@@ -210,7 +231,8 @@ export class ServicioImportacionArchivo {
             titulo: m.data.titulo.trim(),
             artista: m.data.artista.trim(),
             album: album === '' ? null : album,
-            duracion_ms: r.duracion_ms
+            duracion_ms: r.duracion_ms,
+            ...(origen ? { origen } : {})
           },
           fuente: {
             tipo: 'archivo',
@@ -224,6 +246,8 @@ export class ServicioImportacionArchivo {
         })
         this.actual = null
         await this.borrarCarpeta(id)
+        // Una canción de lote con el archivo perdido sigue su camino con el archivo nuevo (ADR 0026 §2).
+        this.deps.alFuenteLista?.(opciones.cancionId)
         return resumen
       }
       const resumen = await this.deps.biblioteca.materializar(id, {
@@ -231,7 +255,8 @@ export class ServicioImportacionArchivo {
           titulo: m.data.titulo.trim(),
           artista: m.data.artista.trim(),
           album: album === '' ? null : album,
-          duracion_ms: r.duracion_ms
+          duracion_ms: r.duracion_ms,
+          ...(origen ? { origen } : {})
         },
         fuente: {
           tipo: 'archivo',
@@ -339,8 +364,8 @@ export class ServicioImportacionArchivo {
 /** Subconjunto de `electron.dialog` que usa el selector. */
 export interface DialogoArchivos {
   showOpenDialog(opciones: {
-    properties: 'openFile'[]
-    filters: { name: string; extensions: string[] }[]
+    properties: ('openFile' | 'openDirectory' | 'multiSelections')[]
+    filters?: { name: string; extensions: string[] }[]
   }): Promise<{ canceled: boolean; filePaths: string[] }>
 }
 

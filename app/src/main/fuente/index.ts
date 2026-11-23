@@ -1,2 +1,5 @@
 export * from './archivo'
 export * from './youtube'
+export * from './lote'
+export * from './lista'
+export * from './carpeta'

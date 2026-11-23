@@ -1,0 +1,40 @@
+/* Sección «Letra en pantalla»: motivo bajo el control y grupo de radios con descripción. */
+.motivo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+}
+
+.motivo > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.cambios {
+  display: grid;
+  gap: var(--e-2);
+}
+
+.cambio {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+}
+
+.cambio input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+}
+
+.cambioNombre {
+  display: block;
+  color: var(--texto-1);
+  font-weight: 600;
+}
+
+.cambio .nota {
+  display: block;
+}

@@ -39,13 +39,12 @@ describe('aparienciaSchema.reemplazos (0201)', () => {
         .success
     ).toBe(true)
   })
-  it('rechaza propio y claves fuera de la lista blanca', () => {
+  it('rechaza propio y descarta al leer las claves fuera de la lista blanca (ADR 0022 §1)', () => {
     expect(aparienciaSchema.safeParse({ modo: 'propio', reemplazos: { espera } }).success).toBe(
       false
     )
-    expect(aparienciaSchema.safeParse({ modo: 'heredar', reemplazos: { fondo: 1 } }).success).toBe(
-      false
-    )
+    const leido = aparienciaSchema.parse({ modo: 'heredar', reemplazos: { fondo: 1 } })
+    expect(leido.reemplazos).toEqual({})
   })
 })
 

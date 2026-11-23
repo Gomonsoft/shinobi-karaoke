@@ -1,6 +1,6 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, statfs } from 'node:fs/promises'
 import { cpus, release, setPriority, totalmem, type as tipoSO } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 import {
   app,
   BrowserWindow,
@@ -9,6 +9,7 @@ import {
   Menu,
   net,
   Notification,
+  powerMonitor,
   powerSaveBlocker,
   protocol,
   screen,
@@ -21,18 +22,33 @@ import { CANALES } from '@shared/canales'
 import { ENTORNO_LRCLIB_URL } from '@shared/letrasBusqueda'
 import { hashCorto, identificador, lineaVersion, numeroVisible } from '@shared/compilacion'
 import { ID_APP_WINDOWS, ID_APP_WINDOWS_DESARROLLO, TITULO_APP } from '@shared/titulo'
-import { ServicioBiblioteca } from './biblioteca'
+import { ServicioBiblioteca, ServicioLotes } from './biblioteca'
+import { ServicioCopias } from './copias'
+import { ExportadorLrc } from './letras/exportarLrc'
 import {
+  crearDialogoLote,
   ejecutarConCerrojo,
   elegirArchivoAudio,
   entornoYtdlpFalso,
   ServicioImportacionArchivo,
+  ServicioLote,
   ServicioYoutube,
   YOUTUBE_ACTIVO
 } from './fuente'
+import { crearEspacioLibre } from './runtime/deteccion'
 import { shellConPapeleraDePruebas } from './biblioteca/papelera'
-import { dialogoConDoblePruebas } from './fuente/dialogoPruebas'
-import { BusquedaLetras, ServicioLetras, crearClienteLrclib } from './letras'
+import { dialogoConDoblePruebas, VARIABLE_DIALOGO_PRUEBAS } from './fuente/dialogoPruebas'
+import {
+  BusquedaLetras,
+  ServicioLetras,
+  comprobarLetraGuardada,
+  crearClienteLrclib,
+  type ResultadoComprobacionGuardada
+} from './letras'
+import { contarDudosasGuardadas } from './letras/dudosas'
+import { RecuentoRevision } from './biblioteca/recuentoRevision'
+import { ColaPreparacion, ServicioPreparacion } from './preparacion'
+import { DiarioPendientes } from './trabajos/diario'
 import { ServicioConfig } from './configuracion'
 import { ServicioTemas } from './temas'
 import { registrarIpc } from './ipc'
@@ -40,8 +56,9 @@ import { IDS_ZOOM, plantillaMenu } from './menu'
 import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
 import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
-import { RegistroArchivo } from './registro'
+import { instalarErroresGlobales, RegistroArchivo } from './registro'
 import { COMPILACION } from './compilacion'
+import { ServicioActualizaciones } from './actualizaciones'
 import {
   bloquearNavegacionTotal,
   conPlazo,
@@ -59,6 +76,7 @@ import {
   hayAlgoEnCurso,
   motivoDeCierre,
   type FuentesEnCurso,
+  vigilarRenderer,
   type IntencionCierre
 } from './cierre'
 import {
@@ -125,6 +143,9 @@ export let servicioSesion: ServicioSesion | null = null
 /** Importación de archivo local (0042). */
 export let importacionArchivo: ServicioImportacionArchivo | null = null
 
+/** Importación por lotes (0314): archivos, carpeta y listas. */
+export let servicioLote: ServicioLote | null = null
+
 /** Servicio de YouTube (0049); `null` con el módulo desactivado. */
 export let servicioYoutube: ServicioYoutube | null = null
 
@@ -134,7 +155,24 @@ export let runtime: RuntimeReal | null = null
 /** Servicio de separación (0065): cola pesada, pistas y factor medido. */
 export let servicioSeparacion: ServicioSeparacion | null = null
 let servicioPicos: ServicioPicos | null = null
+/** Paquetes de canción y copias de seguridad (ADR 0027). */
+let servicioCopias: ServicioCopias<BrowserWindow | null> | null = null
+/** Exportar la letra a `.lrc` (ADR 0027 §4). */
+let exportadorLrc: ExportadorLrc<BrowserWindow | null> | null = null
 let busquedaLetras: BusquedaLetras | null = null
+/** Preparación desatendida hasta «Lista para revisar» (ADR 0025, tarea 0308). */
+let servicioPreparacion: ServicioPreparacion | null = null
+/** Tanda, pausa, paradas y reanudar al abrir (tarea 0309). */
+let colaPreparacion: ColaPreparacion | null = null
+let recuentoRevision: RecuentoRevision | null = null
+/** Diario `trabajos/pendientes.json` (ADR 0025 §5). */
+let diarioPendientes: DiarioPendientes | null = null
+/** `preparacion:reanudada` que salió antes de que la ventana terminara de cargar. */
+let reanudadaPendiente: { total: number } | null = null
+/** Comprobación diferida de la letra al quedar listos los picos (F4-L7, tarea 0367). */
+let comprobarLetraDiferida: ((id: string) => Promise<ResultadoComprobacionGuardada | null>) | null =
+  null
+let servicioActualizaciones: ServicioActualizaciones | null = null
 
 /** Avisos del sistema al terminar o fallar un trabajo (0072). */
 let servicioAvisos: ServicioAvisos | null = null
@@ -208,7 +246,10 @@ const cierraSoloLaVentana = (intencion: IntencionCierre): boolean =>
 const fuentesDeCierre = (intencion: IntencionCierre): FuentesEnCurso => ({
   instalando: () => runtime?.servicio.instalando() ?? false,
   // Trabajos de la cola (0073). Las consultas interactivas no cuentan.
-  hayTrabajos: () => gestorTrabajos?.hayPendientes() ?? false,
+  hayTrabajos: () =>
+    (gestorTrabajos?.hayPendientes() ?? false) ||
+    // Un paquete o una copia en curso se cancela al salir (en macOS, cerrar la ventana no sale).
+    (!cierraSoloLaVentana(intencion) && (servicioCopias?.hayTrabajos() ?? false)),
   guardadoPendiente: () => guardadoEditorPendiente,
   sesionActiva: () => servicioSesion?.sesionActiva() ?? false,
   colaNoVacia: () => !cierraSoloLaVentana(intencion) && (servicioSesion?.colaNoVacia() ?? false),
@@ -227,6 +268,9 @@ const controlCierre = crearControlCierre({
   // Sin `cancelarTodos()`: en macOS cerrar la ventana no sale de la app y el gestor debe seguir vivo.
   pausar: async (intencion) => {
     const g = gestorTrabajos
+    // Primero la preparación (quedan `detenida` por cierre): luego las cancelaciones de la cola.
+    colaPreparacion?.alCierre()
+    await servicioPreparacion?.detenerPorCierre().catch(() => undefined)
     await Promise.allSettled([
       runtime?.servicio.pausar(),
       cierraSoloLaVentana(intencion) ? undefined : servicioExportacion?.cancelarTodas(),
@@ -306,11 +350,16 @@ function crearVentana(): BrowserWindow {
 
   // Con una instalación en curso, cerrar pide confirmación al renderer (0036).
   ventana.on('close', (evento) => controlCierre.alCerrarVentana(evento))
+  vigilarRenderer(ventana.webContents, controlCierre, (m) => console.warn(m))
   ventana.on('closed', () => {
     guardadoEditorPendiente = false
   })
   ventana.on('focus', () => servicioAvisos?.alRecuperarFoco())
-  ventana.once('ready-to-show', () => ventana.show())
+  ventana.once('ready-to-show', () => {
+    ventana.show()
+    // El aviso de versión nueva espera a que la ventana se muestre (ADR 0023 §3).
+    servicioActualizaciones?.iniciar()
+  })
 
   const urlDev = process.env.ELECTRON_RENDERER_URL
   if (!app.isPackaged && urlDev) {
@@ -384,10 +433,20 @@ app.on('second-instance', () => {
   ventana.focus()
 })
 
+// Errores no capturados (0391): se registran y la app sigue; en E2E se vuelven a lanzar. Se instala antes de
+// crear ventanas y servicios; el registro de archivo existe cuando arranca la app, hasta entonces va a la consola.
+let registrarError: (modulo: string, mensaje: string) => void = (modulo, mensaje) =>
+  console.error(`[${modulo}] ${mensaje}`)
+instalarErroresGlobales({
+  registrar: (_nivel, modulo, mensaje) => registrarError(modulo, mensaje),
+  estricto: !app.isPackaged && process.env.SHINOBI_E2E === '1'
+})
+
 if (instanciaUnica)
   void app.whenReady().then(async () => {
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
+    registrarError = (modulo, mensaje) => registro.escribir('error', modulo, mensaje)
     registro.escribir(
       'info',
       'arranque',
@@ -443,6 +502,8 @@ if (instanciaUnica)
         // Y las exportaciones de la canción, con limpieza, antes de la papelera (0237).
         antesDeEliminar: async (id) => {
           await Promise.all([
+            // La preparación se detiene sin escribir más en una canción que se va a la papelera.
+            servicioPreparacion?.alEliminar(id),
             gestorTrabajos?.cancelarDeCancion(id),
             servicioExportacion?.cancelarDeCancion(id)
           ])
@@ -508,7 +569,12 @@ if (instanciaUnica)
       servicioPicos = new ServicioPicos({
         dirBiblioteca: join(rutaDatos(), 'biblioteca'),
         tieneVoz: (id) => servicioBiblioteca?.tieneVozSeparada(id) ?? false,
-        ejecutar
+        ejecutar,
+        alListos: (id) => {
+          recuentoRevision?.recalcular(id)
+          void busquedaLetras?.alPicosListos(id).catch(() => undefined)
+          void comprobarLetraDiferida?.(id).catch(() => undefined)
+        }
       })
       // Cerrojo lectores/escritor de yt-dlp (0050): `info-youtube` y `descargar-youtube` leen.
       const cerrojo = new CerrojoLecturaEscritura()
@@ -557,7 +623,15 @@ if (instanciaUnica)
       const actualizarYtDlp = (): Promise<unknown> =>
         actualizadorYtDlp!.actualizar({ motivo: 'bloqueo' })
       const ejecutarYtdlp = ejecutarConCerrojo(ejecutar, cerrojo)
+      // Lo que estaba en curso o en cola al cerrar se retoma al abrir (ADR 0025 §5).
+      diarioPendientes = new DiarioPendientes(rutaDatos(), (nivel, mensaje) =>
+        registro.escribir(nivel, 'trabajos', mensaje)
+      )
+      await diarioPendientes.cargar()
       gestorTrabajos = new GestorTrabajos({
+        diario: diarioPendientes,
+        // Entre dos descargas de YouTube seguidas, de 3 a 8 s (reduce los bloqueos).
+        pausaEntreDescargasMs: () => 3000 + Math.random() * 5000,
         biblioteca: servicioBiblioteca,
         ejecutar: ejecutarYtdlp,
         mantenimiento: cerrojo,
@@ -571,8 +645,11 @@ if (instanciaUnica)
           ejecutar: ejecutarYtdlp,
           config: servicioConfig,
           dirDatos: rutaDatos(),
+          valoresDatos: () => servicioBiblioteca?.valoresDatos() ?? { artistas: [], albumes: [] },
           actualizarYtDlp,
           alEstadoInfo: (ev) => aPrincipal(CANALES.eventos.estadoInfo, ev),
+          esDuplicado: (id) =>
+            servicioBiblioteca?.indiceDuplicados().some((c) => c.youtubeId === id) ?? false,
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'youtube', mensaje)
         })
       }
@@ -589,10 +666,53 @@ if (instanciaUnica)
         biblioteca: servicioBiblioteca,
         ejecutar,
         dirDatos: rutaDatos(),
+        valoresDatos: () => servicioBiblioteca?.valoresDatos() ?? { artistas: [], albumes: [] },
         hayTrabajoVivo: (id) => gestorTrabajos?.listar().some((t) => t.cancionId === id) ?? false,
         // Archivo local: al crear la canción se encadena la separación (0065).
-        alFuenteLista: (id) => void servicioSeparacion?.alCompletarFuente(id),
+        alFuenteLista: (id) => {
+          void servicioSeparacion?.alCompletarFuente(id)
+          // La preparación desatendida (con el interruptor activo) busca la letra en paralelo.
+          servicioPreparacion?.alFuenteLista(id)
+        },
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'importacion', mensaje)
+      })
+      // Lotes (0314): canciones con la fuente pendiente en la cola `ligera`; al completarse encadenan la
+      // separación y la preparación como las de YouTube.
+      const espacio = crearEspacioLibre()
+      servicioLote = new ServicioLote({
+        biblioteca: servicioBiblioteca,
+        gestor: gestorTrabajos,
+        ejecutar,
+        ...(servicioYoutube ? { youtube: servicioYoutube } : {}),
+        // `SHINOBI_DIALOGO_PRUEBAS` sustituye los diálogos nativos en E2E; se ignora empaquetada (0046).
+        dialogo: crearDialogoLote(
+          dialogoConDoblePruebas(
+            { showOpenDialog: (o) => dialog.showOpenDialog(o) },
+            { env: process.env, empaquetada: app.isPackaged }
+          )
+        ),
+        dirDatos: rutaDatos(),
+        espacioLibre: (ruta) => espacio.bytesLibres(ruta).catch(() => null),
+        // Minutos de proceso por minuto de audio: la pendiente de la estimación de separación (sin el arranque fijo).
+        factorMinutos: () => {
+          const uno = runtime?.servicio.estimarSeparacion(60_000)
+          const diez = runtime?.servicio.estimarSeparacion(600_000)
+          if (!uno || !diez) return null
+          const f = ((diez.min + diez.max) / 2 - (uno.min + uno.max) / 2) / 9
+          return f > 0 ? f : null
+        },
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'lote', mensaje)
+      })
+      gestorTrabajos.suscribir((t) => {
+        if (
+          t.estado === 'terminado' &&
+          t.paso === 'fuente' &&
+          t.comando === 'importar-archivo-cola' &&
+          t.resultado === 'completado'
+        ) {
+          void servicioSeparacion?.alCompletarFuente(t.cancionId)
+          servicioPreparacion?.alFuenteLista(t.cancionId)
+        }
       })
     }
     if (servicioConfig) {
@@ -621,6 +741,8 @@ if (instanciaUnica)
       const rt = runtime
       servicioSeparacion = new ServicioSeparacion({
         publicarPistas: (id, publicar) => servicioPicos?.duranteCambio(id, publicar) ?? publicar(),
+        // Los picos no esperan al editor (ADR 0024 §2): se piden en cuanto la voz está separada.
+        alSepararVoz: (id) => void servicioPicos?.generarTrasSeparar(id).catch(() => undefined),
         biblioteca: servicioBiblioteca,
         gestor: gestorTrabajos,
         config: servicioConfig,
@@ -692,10 +814,15 @@ if (instanciaUnica)
         dock: puertos.dock,
         difundirAviso: (a) => aPrincipal(CANALES.eventos.avisoTrabajo, a),
         difundirAbrir: (e) => aPrincipal(CANALES.eventos.abrirCancion, e),
+        difundirAbrirResultado: () =>
+          aPrincipal(CANALES.eventos.abrirResultadoPreparacion, undefined),
         obtenerCancion: (id) => biblioteca.obtener(id),
+        // En una tanda de 2 o más canciones no hay aviso por canción: sale uno al terminar (0309).
+        enTandaDeVarias: () => colaPreparacion?.enTandaDeVarias() ?? false,
         registrar: (nivel, mensaje) => registro.escribir(nivel, 'avisos', mensaje)
       })
       gestorTrabajos.suscribir((t) => servicioAvisos?.alCambiarTrabajo(t))
+      biblioteca.suscribir((e) => servicioAvisos?.alCambiarCancion(e))
     }
     const dirBiblioteca = join(rutaDatos(), 'biblioteca')
     protocol.handle(ESQUEMA_MEDIOS, (peticion) =>
@@ -716,8 +843,27 @@ if (instanciaUnica)
         dialogo: dialogoConDoblePruebas(
           { showOpenDialog: (o) => dialog.showOpenDialog(o) },
           { env: process.env, empaquetada: app.isPackaged }
-        )
+        ),
+        // La letra elegida en la vista Letra rellena el álbum y guarda `datos_lrclib` (ADR 0025 §6).
+        datosLrclib: (cancionId, lrclibId) =>
+          busquedaLetras?.datosDeCandidato(cancionId, lrclibId) ?? null
       })
+      const bibliotecaLetras = servicioBiblioteca
+      comprobarLetraDiferida = (id) =>
+        comprobarLetraGuardada(
+          {
+            biblioteca: bibliotecaLetras,
+            letras: servicioLetras,
+            picos: { nivelBase: (c) => servicioPicos?.nivelBase(c) ?? Promise.resolve(null) },
+            avisar: (a) => servicioAvisos?.avisar(a),
+            // Dentro de una tanda de varias canciones no hay toast por canción (spec 04, F5-P8).
+            enTandaDeVarias: (c) =>
+              colaPreparacion?.enTandaDeVarias(c) ??
+              servicioPreparacion?.enTandaDeVarias(c) ??
+              false
+          },
+          id
+        )
       app.on('browser-window-created', (_evento, ventana) => {
         ventana.once('closed', () => servicioLetras.liberarEdicion())
       })
@@ -732,11 +878,97 @@ if (instanciaUnica)
       busquedaLetras = new BusquedaLetras({
         biblioteca: servicioBiblioteca,
         cliente: clienteLrclib,
-        registro
+        registro,
+        picos: { nivelBase: (id) => servicioPicos?.nivelBase(id) ?? Promise.resolve(null) },
+        emitirEncaje: (e) => aPrincipal(CANALES.eventos.letrasEncaje, e),
+        // Búsquedas automáticas solo con el interruptor activo (ADR 0025 §4; por defecto sí).
+        automaticaActiva: () => servicioConfig?.obtener().preparacion.automatica ?? true
       })
       const busqueda = busquedaLetras
       const biblioteca = servicioBiblioteca
       const config = servicioConfig
+      const picosPreparacion = {
+        solicitar: (id: string) =>
+          servicioPicos?.solicitar(id) ?? Promise.resolve({ estado: 'no_disponible' as const }),
+        nivelBase: (id: string) => servicioPicos?.nivelBase(id) ?? Promise.resolve(null)
+      }
+      servicioPreparacion = new ServicioPreparacion({
+        biblioteca,
+        busqueda,
+        letras: servicioLetras,
+        picos: picosPreparacion,
+        comprobar: (id) => comprobarLetraDiferida?.(id) ?? Promise.resolve(null),
+        contarDudosas: (c) => contarDudosasGuardadas({ picos: picosPreparacion }, c),
+        config,
+        edicionBloqueada: () => servicioSesion?.edicionBloqueada() ?? false,
+        // La separación pendiente que nadie lanzó se encola por el camino de siempre (pregunta 0223).
+        separacion: {
+          hayTrabajo: (id) =>
+            gestorTrabajos?.listar().some((t) => t.cancionId === id && t.comando === 'separar') ??
+            false,
+          encolar: (id) => servicioSeparacion?.alCompletarFuente(id) ?? Promise.resolve()
+        },
+        retenida: () => colaPreparacion?.pausada() ?? false,
+        emitir: (cambio) => aPrincipal(CANALES.eventos.preparacionCambio, cambio),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'preparacion', mensaje)
+      })
+      // YouTube: al completarse la descarga (la fuente) empieza la preparación, como la separación.
+      gestorTrabajos.suscribir((t) => {
+        if (
+          t.estado === 'terminado' &&
+          t.paso === 'fuente' &&
+          t.comando === 'descargar-youtube' &&
+          t.resultado === 'completado'
+        ) {
+          servicioPreparacion?.alFuenteLista(t.cancionId)
+        }
+      })
+      // Recuento de líneas por revisar en memoria, para toda «Lista para revisar» con o sin registro
+      // (pregunta 0241): en segundo plano y en serie, ya pasada la comprobación del runtime.
+      recuentoRevision = new RecuentoRevision({
+        biblioteca,
+        contar: (c) => contarDudosasGuardadas({ picos: picosPreparacion }, c),
+        registrar: (nivel, mensaje) => registro.escribir(nivel, 'biblioteca', mensaje)
+      })
+      recuentoRevision.arrancar()
+      // Un registro `en_curso` de una caída no se queda «Preparando» para siempre.
+      await servicioPreparacion.normalizarAlArrancar()
+      const preparacionActual = servicioPreparacion
+      if (diarioPendientes) {
+        colaPreparacion = new ColaPreparacion({
+          gestor: gestorTrabajos,
+          preparacion: preparacionActual,
+          biblioteca,
+          config,
+          diario: diarioPendientes,
+          estimarMin: (id) => {
+            const e = servicioSeparacion?.estimar(id)
+            return e ? (e.min + e.max) / 2 : null
+          },
+          reintentarDescarga: async (id) => {
+            // La fuente de una canción de lote de archivos se reimporta; la de YouTube se vuelve a descargar.
+            if (await servicioLote?.reintentar(id)) return
+            await servicioYoutube?.reintentar(id)
+          },
+          separar: (id) => servicioSeparacion?.separar(id) ?? Promise.resolve(),
+          emitirTanda: (t) => aPrincipal(CANALES.eventos.preparacionTanda, t),
+          emitirReanudada: (e) => {
+            const v = ventanas.principal()
+            if (v && !v.webContents.isLoading()) aPrincipal(CANALES.eventos.preparacionReanudada, e)
+            else reanudadaPendiente = e
+          },
+          avisarTanda: (r) => servicioAvisos?.avisarTanda(r),
+          registrar: (nivel, mensaje) => registro.escribir(nivel, 'preparacion', mensaje)
+        })
+        colaPreparacion.arrancar()
+        // Reparar el motor (la instalación vuelve a `completa`) libera las separaciones paradas (0390).
+        let motorCompleto = config.obtener().instalacion.estado === 'completa'
+        config.suscribir((c) => {
+          const completo = c.instalacion.estado === 'completa'
+          if (completo && !motorCompleto) colaPreparacion?.motorReparado()
+          motorCompleto = completo
+        })
+      }
       // `SHINOBI_PANTALLAS_SIMULADAS` sustituye `screen` en E2E; se ignora empaquetada (ADR 0017 §13).
       const pantallasSistema: ScreenLike =
         pantallasSimuladas({ env: process.env, empaquetada: app.isPackaged }) ??
@@ -797,6 +1029,19 @@ if (instanciaUnica)
               : await dialog.showSaveDialog(opciones)
             return r.canceled || !r.filePath ? null : r.filePath
           },
+          // Exportar varias canciones (ADR 0026 §5): el selector de carpetas del sistema.
+          dialogoCarpeta: async (ventana, o) => {
+            const opciones = {
+              defaultPath: o.defaultPath,
+              properties: ['openDirectory', 'createDirectory'] as (
+                'openDirectory' | 'createDirectory'
+              )[]
+            }
+            const r = ventana
+              ? await dialog.showOpenDialog(ventana, opciones)
+              : await dialog.showOpenDialog(opciones)
+            return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+          },
           directorioDatos: rutaDatos(),
           carpetaVideos: () => app.getPath('videos'),
           carpetaHogar: () => app.getPath('home')
@@ -806,6 +1051,15 @@ if (instanciaUnica)
         crearVentana: crearExportacion,
         ventanaPrincipal: () => ventanas.principal() ?? null,
         mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta),
+        abrirCarpeta: (ruta) => shell.openPath(ruta),
+        libreBytes: async (carpeta) => {
+          try {
+            const s = await statfs(carpeta)
+            return Number(s.bavail) * Number(s.bsize)
+          } catch {
+            return null
+          }
+        },
         avisarSistema: (texto) => servicioAvisos?.avisarSistema(texto),
         bloqueador: powerSaveBlocker,
         memoriaTotal: () => totalmem(),
@@ -814,17 +1068,146 @@ if (instanciaUnica)
       })
       // Restos de una caída: el aviso espera a que la principal lo pida (antes de crearla).
       await servicioExportacion.recuperarAlArrancar()
+      // Letra a `.lrc`, paquetes y copias (ADR 0027): main abre los diálogos del sistema.
+      exportadorLrc = new ExportadorLrc<BrowserWindow | null>({
+        biblioteca: exportacionBiblioteca,
+        directorioDatos: rutaDatos(),
+        ventana: () => ventanas.principal() ?? null,
+        dialogoGuardar: async (ventana, o) => {
+          // E2E: `SHINOBI_LRC_PRUEBAS` es la carpeta donde «elige» guardar; se ignora empaquetada.
+          const carpetaPruebas = !app.isPackaged && process.env.SHINOBI_LRC_PRUEBAS
+          if (carpetaPruebas) return join(carpetaPruebas, basename(o.defaultPath))
+          const opciones = {
+            defaultPath: o.defaultPath,
+            filters: [{ name: 'Letra con tiempos (LRC)', extensions: ['lrc'] }]
+          }
+          const r = ventana
+            ? await dialog.showSaveDialog(ventana, opciones)
+            : await dialog.showSaveDialog(opciones)
+          return r.canceled || !r.filePath ? null : r.filePath
+        },
+        dialogoCarpeta: async (ventana, o) => {
+          const opciones = {
+            defaultPath: o.defaultPath,
+            properties: ['openDirectory', 'createDirectory'] as (
+              'openDirectory' | 'createDirectory'
+            )[]
+          }
+          const r = ventana
+            ? await dialog.showOpenDialog(ventana, opciones)
+            : await dialog.showOpenDialog(opciones)
+          return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+        },
+        carpetaDocumentos: () => app.getPath('documents'),
+        mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta)
+      })
+      if (servicioConfig) {
+        const lrc = exportadorLrc
+        servicioCopias = new ServicioCopias<BrowserWindow | null>({
+          dirBiblioteca: join(rutaDatos(), 'biblioteca'),
+          directorioDatos: rutaDatos(),
+          biblioteca,
+          ...(servicioTemas ? { temas: servicioTemas } : {}),
+          config: servicioConfig,
+          libreBytes: async (carpeta) => {
+            try {
+              const s = await statfs(carpeta)
+              return Number(s.bavail) * Number(s.bsize)
+            } catch {
+              return null
+            }
+          },
+          puedeSustituir: (id) => !(servicioSesion?.cancionActiva(id) ?? false),
+          version: app.getVersion(),
+          ventana: () => ventanas.principal() ?? null,
+          dialogoGuardar: async (ventana, o) => {
+            const opciones = {
+              defaultPath: o.defaultPath,
+              filters: [{ name: 'Paquete de Shinobi Karaoke', extensions: ['shinobi'] }]
+            }
+            const r = ventana
+              ? await dialog.showSaveDialog(ventana, opciones)
+              : await dialog.showSaveDialog(opciones)
+            return r.canceled || !r.filePath ? null : r.filePath
+          },
+          dialogoAbrir: async (ventana) => {
+            // E2E: `SHINOBI_DIALOGO_PRUEBAS` es el paquete que «elige» la persona (ADR 0009 §8; nunca empaquetada).
+            const prueba = app.isPackaged ? undefined : process.env[VARIABLE_DIALOGO_PRUEBAS]
+            if (prueba) return prueba === 'cancelar' ? null : (prueba.split('|')[0] ?? null)
+            const opciones = {
+              properties: ['openFile'] as 'openFile'[],
+              filters: [{ name: 'Paquete de Shinobi Karaoke', extensions: ['shinobi'] }]
+            }
+            const r = ventana
+              ? await dialog.showOpenDialog(ventana, opciones)
+              : await dialog.showOpenDialog(opciones)
+            return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+          },
+          // E2E: `SHINOBI_DOCUMENTOS` sustituye a Documentos para no escribir en la carpeta real.
+          carpetaDocumentos: () =>
+            (!app.isPackaged && process.env.SHINOBI_DOCUMENTOS) || app.getPath('documents'),
+          carpetaHogar: () => app.getPath('home'),
+          recordarUbicacion: (ruta) => lrc.recordar(ruta),
+          emitirCambio: (e) => aPrincipal(CANALES.eventos.copiasCambio, e),
+          emitirProgreso: (e) => aPrincipal(CANALES.eventos.copiasProgreso, e),
+          registrar: (nivel, mensaje) => registro.escribir(nivel, 'copias', mensaje)
+        })
+      }
+      servicioActualizaciones = new ServicioActualizaciones({
+        config,
+        fetch: (url, init) => net.fetch(url, init),
+        registro,
+        version: app.getVersion(),
+        canal: COMPILACION.canal,
+        empaquetada: app.isPackaged,
+        env: process.env,
+        reposo: powerMonitor
+      })
+      // Acciones por lotes de la Biblioteca (0318).
+      const sesionDeLotes = servicioSesion
+      const bibliotecaDeLotes = servicioBiblioteca
+      const trabajosDe = (id: string): number =>
+        (gestorTrabajos?.listar().filter((t) => t.cancionId === id).length ?? 0) +
+        (servicioPreparacion?.enCurso(id) ? 1 : 0) +
+        (servicioExportacion?.estado().filter((e) => e.cancionId === id && e.resultado === null)
+          .length ?? 0)
+      const servicioLotes = new ServicioLotes({
+        biblioteca: bibliotecaDeLotes,
+        eliminar: (id) =>
+          servicioPicos?.duranteCambio(id, () => bibliotecaDeLotes.eliminar(id)) ??
+          bibliotecaDeLotes.eliminar(id),
+        ...(sesionDeLotes ? { sesion: sesionDeLotes } : {}),
+        trabajosDe,
+        emitirProgreso: (p) => aPrincipal(CANALES.eventos.bibliotecaProgresoLote, p),
+        registrar: (mensaje) => registro.escribir('error', 'biblioteca', mensaje)
+      })
       registrarIpc(
         ipcMain,
         {
+          lotes: servicioLotes,
+          actualizaciones: servicioActualizaciones,
+          preparacion: servicioPreparacion,
+          ...(colaPreparacion ? { colaPreparacion } : {}),
           biblioteca: servicioBiblioteca,
+          ...(recuentoRevision ? { recuentoRevision } : {}),
           exportacion: servicioExportacion,
+          ...(exportadorLrc ? { lrc: exportadorLrc } : {}),
+          ...(servicioCopias ? { copias: servicioCopias } : {}),
           ventanaExportacion: () => ventanaExportacionVigente,
           ...(servicioTemas ? { temas: servicioTemas } : {}),
           ventana: modoReproductor,
           sesion: servicioSesion,
           guardadoPendiente: () => guardadoEditorPendiente,
           runtime: runtime.servicio,
+          solicitudCierrePendiente: () => {
+            const intencion = controlCierre.pendiente()
+            return intencion === null
+              ? null
+              : {
+                  ...motivoDeCierre(fuentesDeCierre(intencion)),
+                  variante: cierraSoloLaVentana(intencion) ? 'cerrarVentanaMac' : 'salir'
+                }
+          },
           confirmarCierre: async () => {
             await controlCierre.confirmar()
           },
@@ -839,6 +1222,7 @@ if (instanciaUnica)
           // 0083: guardar, editar e importar. La búsqueda (buscar) es de 0082.
           letras: {
             buscar: (p) => busqueda.buscar(p),
+            candidatoPorId: (cancionId, lrclibId) => busqueda.candidatoPorId(cancionId, lrclibId),
             guardar: (p) => servicioLetras.guardar(p),
             abrirEdicion: (id) => servicioLetras.abrirEdicion(id),
             cerrarEdicion: (id) => servicioLetras.cerrarEdicion(id),
@@ -848,6 +1232,7 @@ if (instanciaUnica)
             leerArchivo: () => servicioLetras.leerArchivo()
           },
           ...(servicioYoutube ? { youtube: servicioYoutube } : {}),
+          ...(servicioLote ? { lote: servicioLote } : {}),
           elegirArchivoAudio: () =>
             // `SHINOBI_DIALOGO_PRUEBAS` sustituye el selector nativo en E2E; se ignora empaquetada (0046).
             elegirArchivoAudio(
@@ -912,7 +1297,20 @@ if (instanciaUnica)
       )
     )
     if (!app.isPackaged) instalarMenuDesarrollo()
-    crearVentana()
+    const principalNueva = crearVentana()
+    principalNueva.webContents.once('did-finish-load', () => {
+      if (reanudadaPendiente) aPrincipal(CANALES.eventos.preparacionReanudada, reanudadaPendiente)
+      reanudadaPendiente = null
+    })
+    // Retomar lo que quedó en curso o en cola (tras la comprobación del runtime: con el motor dañado o
+    // sin instalar no se reanuda nada hasta repararlo, ADR 0025 §5).
+    if (servicioConfig?.obtener().instalacion.estado === 'completa') {
+      void colaPreparacion
+        ?.reanudarAlAbrir()
+        .catch((e: unknown) =>
+          registro.escribir('error', 'preparacion', `no se pudo reanudar al abrir: ${String(e)}`)
+        )
+    }
     app.on('activate', () => {
       // Aunque siga abierta la secundaria, se recrea la principal si falta (ADR 0017 §1).
       const principal = ventanas.principal()
@@ -933,14 +1331,21 @@ app.on('before-quit', (evento) => {
   // La secundaria se cierra sin su diálogo de cola y se sueltan bloqueos, silencio y reposo.
   void servicioSesion?.prepararSalida()
   gestorReposo.liberarTodo()
+  servicioActualizaciones?.detener()
   // Se espera a las escrituras pendientes (0010) antes de salir de verdad.
   evento.preventDefault()
   escriturasVolcadas = true
   // Primero se cancelan los trabajos (sin procesos hijos vivos, 0014) y luego se vuelca todo.
   const cierre = Promise.allSettled([
-    gestorTrabajos?.cancelarTodos(),
+    // La preparación va primero: quedan `detenida` por cierre antes de que se cancelen los trabajos.
+    Promise.resolve(colaPreparacion?.alCierre())
+      .then(() => servicioPreparacion?.cerrar())
+      .catch(() => undefined)
+      .then(() => gestorTrabajos?.cancelarTodos()),
     // Cancela las exportaciones con limpieza y suelta el bloqueo de suspensión (0237).
     servicioExportacion?.cerrar(),
+    // Cancela los paquetes y copias en curso: su temporal se borra y el archivo anterior queda intacto.
+    servicioCopias?.cerrar(),
     servicioPicos?.cerrar(),
     Promise.resolve(servicioTemas?.cerrar()),
     // "Volver a Calidad" y Rápido sueltos: se abortan sin preguntar y queda el `.descarga` (0057).
@@ -949,9 +1354,12 @@ app.on('before-quit', (evento) => {
     servicioSeparacion?.cerrar(),
     Promise.resolve(busquedaLetras?.cerrar()),
     servicioYoutube?.cerrar(),
+    servicioLote?.cerrar(),
     // Espera a uv ≤ 10 s y después mata el árbol de procesos (0050).
     actualizadorYtDlp?.cerrar()
-  ]).then(() => Promise.allSettled([servicioBiblioteca?.flushTodo(), flush()]))
+  ]).then(() =>
+    Promise.allSettled([servicioBiblioteca?.flushTodo(), diarioPendientes?.vaciar(), flush()])
+  )
   // Cierre acotado: 10 s de espera a uv más el tiempo de matar su árbol (si no, se registra y se sale).
   void conPlazo(cierre, 15_000, () =>
     console.error('[cierre] plazo de 10 s agotado; se sale sin terminar de volcar')

@@ -1,13 +1,19 @@
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
-import { Film, Info } from 'lucide-react'
+import { FileMusic, Film, Flag, Info, MoveHorizontal } from 'lucide-react'
 import type { ExportacionVista } from '../../exportacion/estado'
 import { lineaDeExportacion } from '../../exportacion/lineas'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
+import type { MotivoComprobar } from './comprobar/calcular'
 import { BotonAjustarSilencios, textoMotivo } from './silencios/BotonAjustarSilencios'
-import { esMac } from './silencios/textos'
+import { FilaConIcono } from '../letra/FilaConIcono'
+import { K } from './comprobar/textos'
+import { esMac, S } from './silencios/textos'
 import type { Motivo } from './silencios/useAjustarSilencios'
 import { E } from './textos'
+import { R } from './revision/textos'
+import type { BloquePreparacion } from './preparacion/modelo'
+import { EP } from './preparacion/textos'
 import estilos from './editor.module.css'
 
 export type EstadoCancion = 'borrador' | 'lista' | 'letra_lista'
@@ -19,6 +25,43 @@ interface Props {
     /** Por qué no se puede exportar (`exp.motivo.*`). */
     motivo: string | undefined
     exportar(): void
+  }
+  /** «Exportar la letra» (0.2.2 · feature 9, F9-E1): sigue a «Exportar video». */
+  letra: {
+    /** Por qué no se puede (`lrc.motivo.sinTiempos`); `undefined` si se puede. */
+    motivo: string | undefined
+    exportar(): void
+  }
+  /** «Preparación automática» (feature 5): primera sección, solo si queda algo que contar. */
+  preparacion?: {
+    datos: BloquePreparacion | null
+    verOtras(): void
+    quitarFines(): void
+    /** Recibe el foco con «Ver qué hicimos» del banner. */
+    tituloRef: RefObject<HTMLHeadingElement | null>
+  }
+  /** «Revisar la sincronía» (feature 11): sigue a la preparación automática. */
+  revision: {
+    /** Líneas pendientes; `null` mientras se prepara la forma de onda. */
+    pendientes: number | null
+    buenas: number
+    /** Sin la voz separada solo actúan los motivos que no la necesitan. */
+    sinVoz: boolean
+    calculando: boolean
+    /** Motivo por el que no se puede empezar (modo al ritmo, error de audio). */
+    noDisponible?: string
+    empezar(): void
+    reiniciar(): void
+  }
+  /** «Comprobar la letra con la voz» (feature 4): va justo antes de «Ajustar los silencios». */
+  comprobar: {
+    motivos: MotivoComprobar[]
+    calculando: boolean
+    pedir(): void
+    reintentar(): void
+    /** `letra.desfase_corregido_ms` si la canción recuerda una corrección. */
+    desfaseCorregidoMs: number | null
+    quitar(): void
   }
   silencios: {
     motivos: Motivo[]
@@ -68,9 +111,16 @@ function MotivoVisible({ id, texto }: { id: string; texto: string }) {
  * estado de la canción. Cada acción hace lo mismo que su antigua entrada del menú ⋯. Todos los
  * botones son secundarios; lo que no está disponible lo explica siempre a la vista.
  */
+const textoMotivoComprobar = (m: MotivoComprobar): string =>
+  m.tipo === 'lineas' ? K.falta.lineas : S.falta[m.tipo]
+
 export function PanelFunciones({
   estado,
   exportacion,
+  letra,
+  preparacion,
+  revision,
+  comprobar,
   silencios,
   cambiarModalidad,
   volverABorrador,
@@ -80,6 +130,8 @@ export function PanelFunciones({
   const F = E.funciones
   const atajo = esMac() ? '⌘ E' : 'Ctrl + E'
   const lineaExp = lineaDeExportacion(exportacion.activa)
+  const motivoComp = comprobar.motivos[0]
+  const textoComp = motivoComp ? textoMotivoComprobar(motivoComp) : undefined
   const motivoSilencios = silencios.motivos[0]
   const textoSilencios = motivoSilencios ? textoMotivo(motivoSilencios) : undefined
 
@@ -97,6 +149,161 @@ export function PanelFunciones({
 
   return (
     <div className={estilos.funciones}>
+      {preparacion?.datos && (
+        <Seccion
+          titulo={EP.titulo}
+          idTitulo={`${id}-preparacion`}
+          refTitulo={preparacion.tituloRef}
+        >
+          <p>
+            {preparacion.datos.soloFines
+              ? EP.introFines(preparacion.datos.fecha)
+              : EP.intro(preparacion.datos.fecha)}
+          </p>
+          {preparacion.datos.letra && (
+            <>
+              <p data-prep-letra="">
+                · {preparacion.datos.letra === 'app' ? EP.letraApp : EP.letraUsuario}
+              </p>
+              <div className={estilos.funcionFila}>
+                <Boton variante="fantasma" onClick={preparacion.verOtras}>
+                  {EP.verOtras}
+                </Boton>
+              </div>
+            </>
+          )}
+          {preparacion.datos.desfaseMs !== null && (
+            <>
+              <p data-prep-desfase="">· {K.desfase.corregido(preparacion.datos.desfaseMs)}</p>
+              <div className={estilos.funcionFila}>
+                <Boton
+                  data-funcion="quitar-correccion"
+                  variante="fantasma"
+                  onClick={comprobar.quitar}
+                >
+                  {K.desfase.quitar}
+                </Boton>
+              </div>
+            </>
+          )}
+          {preparacion.datos.fines > 0 && (
+            <>
+              <p data-prep-fines="">· {EP.fines(preparacion.datos.fines)}</p>
+              <div className={estilos.funcionFila}>
+                <Boton
+                  data-funcion="quitar-fines"
+                  variante="fantasma"
+                  onClick={preparacion.quitarFines}
+                >
+                  {EP.quitarFines}
+                </Boton>
+              </div>
+            </>
+          )}
+        </Seccion>
+      )}
+
+      <Seccion titulo={R.funciones.titulo} idTitulo={`${id}-revision`}>
+        <p>{R.funciones.ayuda}</p>
+        <div className={estilos.funcionFila}>
+          <Boton
+            data-funcion="revisar"
+            aria-disabled={revision.pendientes === 0 || undefined}
+            aria-describedby={revision.pendientes === 0 ? `${id}-nada-revision` : undefined}
+            noDisponible={revision.noDisponible}
+            cargando={revision.calculando}
+            textoCargando={R.funciones.boton(null)}
+            onClick={() => {
+              if (revision.pendientes !== 0) revision.empezar()
+            }}
+          >
+            <Icono icono={Flag} />
+            {R.funciones.boton(revision.pendientes)}
+          </Boton>
+        </div>
+        {revision.calculando && (
+          <MotivoVisible id={`${id}-motivo-revision`} texto={S.falta.preparando} />
+        )}
+        {revision.pendientes === 0 && !revision.noDisponible ? (
+          <p id={`${id}-nada-revision`}>{R.nada}</p>
+        ) : (
+          revision.pendientes !== null &&
+          revision.pendientes + revision.buenas > 0 && (
+            <p>{R.resumen(revision.pendientes, revision.buenas)}</p>
+          )
+        )}
+        {revision.buenas > 0 && (
+          <div className={estilos.funcionFila}>
+            <Boton variante="fantasma" onClick={revision.reiniciar}>
+              {R.reiniciar}
+            </Boton>
+          </div>
+        )}
+        {revision.sinVoz && <p>{R.sinVoz}</p>}
+      </Seccion>
+
+      <Seccion titulo={K.funciones.titulo} idTitulo={`${id}-comprobar`}>
+        <p>{K.funciones.ayuda}</p>
+        <div className={estilos.funcionFila}>
+          <Boton
+            data-comprobar-boton=""
+            aria-disabled={motivoComp ? true : undefined}
+            aria-describedby={textoComp ? `${id}-motivo-comprobar` : undefined}
+            cargando={comprobar.calculando}
+            textoCargando={K.calculando}
+            onClick={() => {
+              if (!motivoComp) comprobar.pedir()
+            }}
+          >
+            <Icono icono={MoveHorizontal} />
+            {K.funciones.boton}
+          </Boton>
+        </div>
+        {textoComp && <MotivoVisible id={`${id}-motivo-comprobar`} texto={textoComp} />}
+        {motivoComp?.tipo === 'error' && (
+          <div className={estilos.funcionFila}>
+            <Boton variante="fantasma" onClick={comprobar.reintentar}>
+              {S.falta.reintentar}
+            </Boton>
+          </div>
+        )}
+        {comprobar.desfaseCorregidoMs && preparacion?.datos?.desfaseMs == null ? (
+          <>
+            <p data-desfase-corregido="">
+              <FilaConIcono icono={Info}>
+                {K.desfase.corregido(comprobar.desfaseCorregidoMs)}
+              </FilaConIcono>
+            </p>
+            <div className={estilos.funcionFila}>
+              <Boton
+                data-funcion="quitar-correccion"
+                variante="fantasma"
+                onClick={comprobar.quitar}
+              >
+                {K.desfase.quitar}
+              </Boton>
+            </div>
+          </>
+        ) : null}
+      </Seccion>
+
+      <Seccion titulo={F.silencios.titulo} idTitulo={`${id}-silencios`}>
+        <p>{F.silencios.ayuda}</p>
+        <div className={estilos.funcionFila}>
+          <BotonAjustarSilencios
+            variante="funciones"
+            describedBy={textoSilencios ? `${id}-motivo-silencios` : undefined}
+            motivos={silencios.motivos}
+            ritmo={false}
+            buscando={silencios.buscando}
+            alPulsar={silencios.pedir}
+            alReintentar={silencios.reintentar}
+            alIrAPrimera={silencios.irAPrimera}
+          />
+        </div>
+        {textoSilencios && <MotivoVisible id={`${id}-motivo-silencios`} texto={textoSilencios} />}
+      </Seccion>
+
       <Seccion titulo={F.exportar.titulo} idTitulo={`${id}-exportar`}>
         <p>{F.exportar.ayuda}</p>
         <div className={estilos.funcionFila}>
@@ -118,21 +325,22 @@ export function PanelFunciones({
         {lineaExp && <p>{lineaExp.texto}</p>}
       </Seccion>
 
-      <Seccion titulo={F.silencios.titulo} idTitulo={`${id}-silencios`}>
-        <p>{F.silencios.ayuda}</p>
+      <Seccion titulo={F.letra.titulo} idTitulo={`${id}-letra`}>
+        <p>{F.letra.ayuda}</p>
         <div className={estilos.funcionFila}>
-          <BotonAjustarSilencios
-            variante="funciones"
-            describedBy={textoSilencios ? `${id}-motivo-silencios` : undefined}
-            motivos={silencios.motivos}
-            ritmo={false}
-            buscando={silencios.buscando}
-            alPulsar={silencios.pedir}
-            alReintentar={silencios.reintentar}
-            alIrAPrimera={silencios.irAPrimera}
-          />
+          <Boton
+            data-funcion="letra"
+            aria-disabled={letra.motivo ? true : undefined}
+            aria-describedby={letra.motivo ? `${id}-motivo-letra` : undefined}
+            onClick={() => {
+              if (!letra.motivo) letra.exportar()
+            }}
+          >
+            <Icono icono={FileMusic} />
+            {F.letra.boton}
+          </Boton>
         </div>
-        {textoSilencios && <MotivoVisible id={`${id}-motivo-silencios`} texto={textoSilencios} />}
+        {letra.motivo && <MotivoVisible id={`${id}-motivo-letra`} texto={letra.motivo} />}
       </Seccion>
 
       <Seccion titulo={F.modo.titulo} idTitulo={`${id}-modo`}>

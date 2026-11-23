@@ -35,6 +35,8 @@ export interface AlmacenExportaciones {
 const ORDEN_ESTADO = { en_cola: 0, en_curso: 1, terminada: 2 } as const
 /** Terminadas que se conservan para poder reabrirlas (toasts, «Ver exportación»). */
 export const MAX_TERMINADAS = 20
+/** Las terminadas de un lote se conservan más (su resultado las lista todas); el tope evita crecer sin fin. */
+export const MAX_TERMINADAS_LOTE = 500
 
 const indiceFase = (fase: ProgresoExportacionIpc['fase']): number => FASES_EXPORTACION.indexOf(fase)
 
@@ -58,7 +60,12 @@ export function crearAlmacenExportaciones(): AlmacenExportaciones {
 
   const publicar = () => {
     const terminadas = [...porId.values()].filter((e) => e.estado === 'terminada')
-    for (const e of terminadas.slice(0, Math.max(0, terminadas.length - MAX_TERMINADAS))) {
+    const sueltas = terminadas.filter((e) => !e.loteId)
+    const deLote = terminadas.filter((e) => e.loteId)
+    for (const e of [
+      ...sueltas.slice(0, Math.max(0, sueltas.length - MAX_TERMINADAS)),
+      ...deLote.slice(0, Math.max(0, deLote.length - MAX_TERMINADAS_LOTE))
+    ]) {
       porId.delete(e.trabajoId)
     }
     instantanea = [...porId.values()]

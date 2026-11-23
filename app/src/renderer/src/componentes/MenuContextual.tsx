@@ -9,7 +9,8 @@ import {
   type KeyboardEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Ellipsis, Lock, type LucideIcon } from 'lucide-react'
+import { ChevronDown, Ellipsis, Lock, type LucideIcon } from 'lucide-react'
+import { Boton } from './Boton'
 import { BotonIcono } from './BotonIcono'
 import { Icono } from './Icono'
 import estilos from './componentes.module.css'
@@ -31,6 +32,8 @@ export interface ItemMenu {
   bloqueado?: boolean
   /** Nombre accesible propio (p. ej. con `edi.bloqueo.aria` añadido). */
   ariaEtiqueta?: string
+  /** Segunda línea del ítem, en `texto-3` (p. ej. `bib.prep.menu.ayuda`). */
+  descripcion?: string
   alSeleccionar: () => void
 }
 
@@ -46,6 +49,10 @@ interface MenuContextualProps {
    */
   punto?: { x: number; y: number }
   alCerrar?: () => void
+  /** Disparador con texto y chevron (p. ej. «Más acciones ▾») en lugar del botón ⋯; `etiqueta` es su menú. */
+  textoBoton?: string
+  /** Nombre accesible propio del disparador con texto. */
+  ariaBoton?: string
 }
 
 export interface PosicionMenu {
@@ -100,7 +107,9 @@ export function MenuContextual({
   items,
   tabIndexDisparador,
   punto,
-  alCerrar
+  alCerrar,
+  textoBoton,
+  ariaBoton
 }: MenuContextualProps) {
   const [abierto, setAbierto] = useState(Boolean(punto))
   const [inicial, setInicial] = useState<'primero' | 'ultimo'>('primero')
@@ -131,10 +140,16 @@ export function MenuContextual({
     )
   }, [abierto, punto])
 
-  const cerrarSimple = useCallback(() => {
-    setAbierto(false)
-    alCerrar?.()
-  }, [alCerrar])
+  const cerrarSimple = useCallback(
+    (devolverFoco = false) => {
+      // Abierto con teclado el foco está dentro del menú: al cerrarse por fuera vuelve a su botón.
+      const foco = !!lista.current?.contains(document.activeElement)
+      setAbierto(false)
+      alCerrar?.()
+      if (devolverFoco && foco && !punto) disparador.current?.focus()
+    },
+    [alCerrar, punto]
+  )
 
   useEffect(() => {
     if (!abierto) return
@@ -143,19 +158,31 @@ export function MenuContextual({
     const cerrarSiFuera = (e: Event) => {
       if (!dentro(e.target)) cerrarSimple()
     }
+    const cerrarAlRedimensionar = () => cerrarSimple(true)
     const cerrarSiempre = () => cerrarSimple()
+    // Solo cierra el desplazamiento de la página o de un contenedor de su botón (no el del propio menú ni
+    // el de otra zona), y el de cualquiera si el menú salió de un clic derecho (`punto`).
+    const cerrarAlDesplazar = (e: Event) => {
+      if (dentro(e.target)) return
+      const t = e.target
+      const delBoton = punto
+        ? true
+        : t instanceof Document ||
+          (t instanceof Node && !!disparador.current && t.contains(disparador.current))
+      if (delBoton) cerrarSimple(true)
+    }
     document.addEventListener('mousedown', cerrarSiFuera)
-    // En captura: cualquier contenedor con desplazamiento (la rejilla) cierra el menú.
-    window.addEventListener('scroll', cerrarSiFuera, true)
-    window.addEventListener('resize', cerrarSiempre)
+    // En captura: el desplazamiento de la página o de un contenedor del botón (la rejilla) cierra el menú.
+    window.addEventListener('scroll', cerrarAlDesplazar, true)
+    window.addEventListener('resize', cerrarAlRedimensionar)
     window.addEventListener('blur', cerrarSiempre)
     return () => {
       document.removeEventListener('mousedown', cerrarSiFuera)
-      window.removeEventListener('scroll', cerrarSiFuera, true)
-      window.removeEventListener('resize', cerrarSiempre)
+      window.removeEventListener('scroll', cerrarAlDesplazar, true)
+      window.removeEventListener('resize', cerrarAlRedimensionar)
       window.removeEventListener('blur', cerrarSiempre)
     }
-  }, [abierto, inicial, cerrarSimple])
+  }, [abierto, inicial, cerrarSimple, punto])
 
   // El foco solo puede entrar cuando el menú ya está colocado (hasta entonces es `visibility: hidden`).
   const colocado = posicion !== null
@@ -218,7 +245,24 @@ export function MenuContextual({
   return (
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <span ref={raiz} className={estilos.menuEnvoltorio} onKeyDown={teclaDisparador}>
-      {!punto && (
+      {!punto && textoBoton && (
+        <Boton
+          ref={disparador}
+          data-menu-texto=""
+          aria-label={ariaBoton}
+          aria-haspopup="menu"
+          aria-expanded={abierto}
+          aria-controls={abierto ? idMenu : undefined}
+          onClick={() => {
+            setInicial('primero')
+            setAbierto((a) => !a)
+          }}
+        >
+          {textoBoton}
+          <Icono icono={ChevronDown} tamano={16} />
+        </Boton>
+      )}
+      {!punto && !textoBoton && (
         <BotonIcono
           ref={disparador}
           icono={Ellipsis}
@@ -257,7 +301,7 @@ export function MenuContextual({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  className={`${estilos.item} ${it.destructivo ? estilos.itemDestructivo : ''}`}
+                  className={`${estilos.item} ${it.destructivo ? estilos.itemDestructivo : ''} ${it.descripcion ? estilos.itemConDescripcion : ''}`}
                   aria-disabled={it.noDisponible || it.bloqueado ? true : undefined}
                   aria-label={it.ariaEtiqueta}
                   title={it.noDisponible}
@@ -268,7 +312,16 @@ export function MenuContextual({
                   }}
                 >
                   {it.icono && <Icono icono={it.icono} tamano={16} />}
-                  {it.etiqueta}
+                  {it.descripcion ? (
+                    <span className={estilos.itemTexto}>
+                      {it.etiqueta}
+                      <span className={`t-pequeno ${estilos.itemDescripcion}`}>
+                        {it.descripcion}
+                      </span>
+                    </span>
+                  ) : (
+                    it.etiqueta
+                  )}
                   {it.bloqueado && <Icono icono={Lock} tamano={14} />}
                 </button>
               </Fragment>

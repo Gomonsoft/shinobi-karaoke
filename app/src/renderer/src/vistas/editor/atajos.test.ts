@@ -100,3 +100,25 @@ it('Ctrl/Cmd + E exporta, salvo en un campo de texto', () => {
   ).toBeNull()
   expect(accionDeTecla(tecla('e'), opciones)).toBeNull()
 })
+
+it('feature 11: R y N, y Ctrl/Cmd + ↓ / ↑ para las líneas dudosas; nada en campos de texto ni al ritmo', () => {
+  expect(accionDeTecla(tecla('r'), opciones)).toEqual({ tipo: 'revisar' })
+  expect(accionDeTecla(tecla('n'), opciones)).toEqual({ tipo: 'revision_bien' })
+  expect(accionDeTecla(tecla('ArrowDown', { ctrlKey: true }), opciones)).toEqual({
+    tipo: 'dudosa',
+    sentido: 1
+  })
+  expect(accionDeTecla(tecla('ArrowUp', { metaKey: true }), opciones)).toEqual({
+    tipo: 'dudosa',
+    sentido: -1
+  })
+  const campo = { ...opciones, enCampoTexto: true }
+  const ritmo = { ...opciones, sync: true }
+  for (const t of [tecla('r'), tecla('n'), tecla('ArrowDown', { ctrlKey: true })]) {
+    expect(accionDeTecla(t, campo)).toBeNull()
+    expect(accionDeTecla(t, ritmo)).toBeNull()
+  }
+  // Cmd + R (recargar) y Mayús + R no son el atajo.
+  expect(accionDeTecla(tecla('r', { metaKey: true }), opciones)).toBeNull()
+  expect(accionDeTecla(tecla('R', { shiftKey: true }), opciones)).toBeNull()
+})

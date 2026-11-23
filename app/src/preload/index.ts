@@ -34,9 +34,23 @@ const api: ApiShinobi = {
       invocar(CANALES.biblioteca.guardarApariencia, id, seleccion),
     marcarLista: (id, opciones) => invocar(CANALES.biblioteca.marcarLista, id, opciones),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
+    recuentoRevision: (id) => invocar(CANALES.biblioteca.recuentoRevision, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
+    marcarPreparacionRevisada: (id) => invocar(CANALES.biblioteca.marcarPreparacionRevisada, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
-    mostrarEnCarpeta: (id) => invocar(CANALES.biblioteca.mostrarEnCarpeta, id)
+    mostrarEnCarpeta: (id) => invocar(CANALES.biblioteca.mostrarEnCarpeta, id),
+    valoresDatos: () => invocar(CANALES.biblioteca.valoresDatos),
+    editarDatosVarias: {
+      previsualizar: (peticion) =>
+        invocar(CANALES.biblioteca.editarDatosVariasPrevisualizar, peticion),
+      ejecutar: (peticion) => invocar(CANALES.biblioteca.editarDatosVariasEjecutar, peticion)
+    },
+    eliminarVarias: {
+      previsualizar: (ids) => invocar(CANALES.biblioteca.eliminarVariasPrevisualizar, { ids }),
+      ejecutar: (ids, version) =>
+        invocar(CANALES.biblioteca.eliminarVariasEjecutar, { ids, version })
+    },
+    alProgresoLote: (cb) => suscribir(CANALES.eventos.bibliotecaProgresoLote, cb)
   },
   temas: {
     catalogo: () => invocar(CANALES.temas.catalogo),
@@ -82,6 +96,8 @@ const api: ApiShinobi = {
     agregar: (cancionId, donde) => invocar(CANALES.cola.agregar, { cancionId, donde }),
     mover: (entradaId, antesDe) => invocar(CANALES.cola.mover, { entradaId, antesDe }),
     quitar: (entradaId) => invocar(CANALES.cola.quitar, { entradaId }),
+    agregarVarias: (ids) => invocar(CANALES.cola.agregarVarias, { ids }),
+    quitarVarias: (entradaIds) => invocar(CANALES.cola.quitarVarias, { entradaIds }),
     vaciar: (contexto) => invocar(CANALES.cola.vaciar, { contexto })
   },
   exportacion: {
@@ -96,7 +112,64 @@ const api: ApiShinobi = {
     avisosPendientes: () => invocar(CANALES.exportacion.avisosPendientes),
     alAviso: (cb) => suscribir(CANALES.eventos.exportacionAviso, cb),
     alCambiar: (cb) => suscribir(CANALES.eventos.exportacionCambio, cb),
-    alProgreso: (cb) => suscribir(CANALES.eventos.exportacionProgreso, cb)
+    alProgreso: (cb) => suscribir(CANALES.eventos.exportacionProgreso, cb),
+    destinoCarpeta: (desdeCarpetaId) =>
+      invocar(
+        CANALES.exportacion.destinoCarpeta,
+        desdeCarpetaId === undefined ? {} : { desdeCarpetaId }
+      ),
+    iniciarLote: (peticion) => invocar(CANALES.exportacion.iniciarLote, peticion),
+    previsualizarLote: (peticion) => invocar(CANALES.exportacion.previsualizarLote, peticion),
+    mostrarCarpetaLote: (loteId) => invocar(CANALES.exportacion.mostrarCarpetaLote, { loteId }),
+    cancelarLote: (loteId) => invocar(CANALES.exportacion.cancelarLote, { loteId }),
+    reintentarLote: (loteId) => invocar(CANALES.exportacion.reintentarLote, { loteId })
+  },
+  actualizaciones: {
+    estado: () => invocar(CANALES.actualizaciones.estado),
+    comprobar: () => invocar(CANALES.actualizaciones.comprobar),
+    marcarVista: (version) => invocar(CANALES.actualizaciones.marcarVista, { version }),
+    alCambiar: (cb) => suscribir(CANALES.eventos.actualizacionesCambio, cb)
+  },
+  preparacion: {
+    previsualizar: (ids) => invocar(CANALES.preparacion.previsualizar, { ids }),
+    preparar: (ids, opciones) =>
+      opciones
+        ? invocar(CANALES.preparacion.preparar, { ids }, opciones)
+        : invocar(CANALES.preparacion.preparar, { ids }),
+    pausar: () => invocar(CANALES.preparacion.pausar),
+    reanudar: () => invocar(CANALES.preparacion.reanudar),
+    reintentarFallidas: () => invocar(CANALES.preparacion.reintentarFallidas),
+    tanda: () => invocar(CANALES.preparacion.tanda),
+    cancelar: (id) => invocar(CANALES.preparacion.cancelar, { id }),
+    alCambiar: (cb) => suscribir(CANALES.eventos.preparacionCambio, cb),
+    alTanda: (cb) => suscribir(CANALES.eventos.preparacionTanda, cb),
+    alReanudar: (cb) => suscribir(CANALES.eventos.preparacionReanudada, cb),
+    alAbrirResultado: (cb) => suscribir(CANALES.eventos.abrirResultadoPreparacion, cb)
+  },
+  copias: {
+    exportarCanciones: (peticion) => invocar(CANALES.copias.exportarCanciones, peticion),
+    exportarBiblioteca: (peticion) => invocar(CANALES.copias.exportarBiblioteca, peticion),
+    destinoPropuesto: (peticion) => invocar(CANALES.copias.destinoPropuesto, peticion),
+    elegirDestino: (destinoId) => invocar(CANALES.copias.elegirDestino, { destinoId }),
+    elegirOrigen: () => invocar(CANALES.copias.elegirOrigen),
+    leer: (origenId) => invocar(CANALES.copias.leer, { origenId }),
+    importar: (peticion) => invocar(CANALES.copias.importar, peticion),
+    origenDeArchivo: (archivo) =>
+      invocar(CANALES.copias.origenDesdeRuta, { ruta: webUtils.getPathForFile(archivo) }),
+    cancelar: (trabajoId) => invocar(CANALES.copias.cancelar, { trabajoId }),
+    alCambiar: (cb) => suscribir(CANALES.eventos.copiasCambio, cb),
+    alProgreso: (cb) => suscribir(CANALES.eventos.copiasProgreso, cb)
+  },
+  alineacion: {
+    estado: () => invocar(CANALES.alineacion.estado),
+    descargarModelo: (idioma) => invocar(CANALES.alineacion.descargarModelo, { idioma }),
+    cancelarDescarga: (idioma) => invocar(CANALES.alineacion.cancelarDescarga, { idioma }),
+    quitarModelo: (idioma) => invocar(CANALES.alineacion.quitarModelo, { idioma }),
+    previsualizar: (peticion) => invocar(CANALES.alineacion.previsualizar, peticion),
+    alinear: (peticion) => invocar(CANALES.alineacion.alinear, peticion),
+    cancelar: (trabajoId) => invocar(CANALES.alineacion.cancelar, { trabajoId }),
+    alProgreso: (cb) => suscribir(CANALES.eventos.alineacionProgreso, cb),
+    alResultado: (cb) => suscribir(CANALES.eventos.alineacionResultado, cb)
   },
   trabajos: {
     listar: () => invocar(CANALES.trabajos.listar),
@@ -123,7 +196,13 @@ const api: ApiShinobi = {
       invocar(CANALES.letras.guardarTiempos, peticion, sesionId),
     abrirEdicion: (id) => invocar(CANALES.letras.abrirEdicion, id),
     cerrarEdicion: (sesionId) => invocar(CANALES.letras.cerrarEdicion, sesionId),
-    leerArchivo: () => invocar(CANALES.letras.leerArchivo)
+    leerArchivo: () => invocar(CANALES.letras.leerArchivo),
+    candidatoPorId: (cancionId, lrclibId) =>
+      invocar(CANALES.letras.candidatoPorId, { cancionId, lrclibId }),
+    exportarLrc: (cancionId) => invocar(CANALES.letras.exportarLrc, { cancionId }),
+    exportarLrcVarias: (ids) => invocar(CANALES.letras.exportarLrcVarias, { ids }),
+    mostrarEnCarpeta: (ubicacionId) => invocar(CANALES.letras.mostrarEnCarpeta, { ubicacionId }),
+    alEncaje: (cb) => suscribir(CANALES.eventos.letrasEncaje, cb)
   },
   config: {
     obtener: () => invocar(CANALES.config.obtener),
@@ -137,7 +216,7 @@ const api: ApiShinobi = {
     elegirArchivoAudio: () => invocar(CANALES.sistema.elegirArchivoAudio)
   },
   fuente: {
-    importarArchivo: (ruta) => invocar(CANALES.fuente.importarArchivo, ruta),
+    importarArchivo: (entrada) => invocar(CANALES.fuente.importarArchivo, entrada),
     cancelarImportacion: (id) =>
       id === undefined
         ? invocar(CANALES.fuente.cancelarImportacion)
@@ -156,7 +235,13 @@ const api: ApiShinobi = {
       opciones === undefined
         ? invocar(CANALES.fuente.confirmarYoutube, id, metadatos)
         : invocar(CANALES.fuente.confirmarYoutube, id, metadatos, opciones),
-    reintentar: (id) => invocar(CANALES.fuente.reintentar, id)
+    reintentar: (id) => invocar(CANALES.fuente.reintentar, id),
+    leerArchivos: (rutas) =>
+      invocar(CANALES.fuente.leerArchivos, rutas === undefined ? {} : { rutas }),
+    leerCarpeta: (ruta) => invocar(CANALES.fuente.leerCarpeta, ruta === undefined ? {} : { ruta }),
+    infoLista: (url) => invocar(CANALES.fuente.infoLista, { url }),
+    lote: (lote) => invocar(CANALES.fuente.lote, lote),
+    espacioLibre: () => invocar(CANALES.fuente.espacioLibre)
   },
   runtime: {
     estado: () => invocar(CANALES.runtime.estado),
@@ -176,6 +261,7 @@ const api: ApiShinobi = {
     guardadoPendiente: (pendiente) => invocar(CANALES.app.guardadoPendiente, pendiente),
     confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
     salir: () => invocar(CANALES.app.salir),
+    solicitudCierrePendiente: () => invocar(CANALES.app.solicitudCierrePendiente),
     alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, cb)
   },
   avisos: {

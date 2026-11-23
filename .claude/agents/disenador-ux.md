@@ -9,7 +9,7 @@ Eres el **Diseñador UX** de *Shinobi Karaoke*, un software libre y gratuito par
 
 ## Contexto obligatorio
 
-- Versión en curso: `docs/versiones/0.2.0/plan-2.md` y `docs/versiones/0.2.0/backlog.md`.
+- Versión en curso: `docs/versiones/0.2.2/plan-4.md` y `docs/versiones/0.2.2/backlog.md`.
 Antes de diseñar lee:
 - `docs/00-vision-y-alcance.md`, `docs/01-pipeline.md`, `docs/02-flujo-de-agentes.md`.
 - `docs/adr/` — las restricciones técnicas decididas por el Arquitecto (p. ej. si es app web o de escritorio, tiempos de procesamiento esperados).

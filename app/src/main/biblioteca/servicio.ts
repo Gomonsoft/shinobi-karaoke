@@ -3,7 +3,9 @@ import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises'
 import { isAbsolute, join, normalize } from 'node:path'
 import {
   NOMBRES_PASO,
+  claveTexto,
   crearIndiceCatalogo,
+  nombreVisibleGrupo,
   estiloPredeterminado,
   migrarCancion,
   motivosParaNoEstarLista,
@@ -13,7 +15,8 @@ import {
   type Estilo,
   type OpcionesMarcarLista,
   type PasoCancion,
-  type SeleccionApariencia
+  type SeleccionApariencia,
+  type ValoresDatosIpc
 } from '../../shared'
 import { escribirJsonAtomico, flush, leerJson } from '../persistencia'
 import { registroNulo, type RegistroApp } from '../registro'
@@ -206,6 +209,71 @@ export class ServicioBiblioteca {
       .sort((a, b) => b.modificada.localeCompare(a.modificada) || a.id.localeCompare(b.id))
   }
 
+  /**
+   * Artistas y álbumes existentes con su grafía visible (la de la canción modificada más
+   * recientemente), su clave de identidad y su número de canciones. Sale del índice en memoria.
+   */
+  valoresDatos(): ValoresDatosIpc {
+    type Grupo = { textos: { texto: string; modificada: string }[]; artistas: Set<string> }
+    const agrupar = (
+      grupos: Map<string, Grupo>,
+      texto: string | null | undefined,
+      c: Cancion,
+      artista: string | null
+    ): void => {
+      const clave = claveTexto(texto)
+      if (clave === null || texto == null) return
+      const g = grupos.get(clave) ?? { textos: [], artistas: new Set<string>() }
+      g.textos.push({ texto, modificada: c.modificada })
+      if (artista !== null) g.artistas.add(artista)
+      grupos.set(clave, g)
+    }
+    const artistas = new Map<string, Grupo>()
+    const albumes = new Map<string, Grupo>()
+    for (const { cancion } of this.indice.values()) {
+      if (!cancion) continue
+      const { artista, album } = cancion.metadatos
+      agrupar(artistas, artista, cancion, null)
+      agrupar(albumes, album, cancion, claveTexto(artista))
+    }
+    const lista = (grupos: Map<string, Grupo>, conArtistas: boolean): ValoresDatosIpc['artistas'] =>
+      [...grupos.entries()]
+        .map(([clave, g]) => ({
+          valor: nombreVisibleGrupo(g.textos),
+          clave,
+          canciones: g.textos.length,
+          ...(conArtistas ? { artistas: [...g.artistas] } : {})
+        }))
+        .sort((a, b) => b.canciones - a.canciones || a.valor.localeCompare(b.valor))
+    return { artistas: lista(artistas, false), albumes: lista(albumes, true) }
+  }
+
+  /**
+   * Lo mínimo de cada canción para detectar duplicados al importar un lote (ADR 0026 §1), del índice en
+   * memoria y sin copiar nada. Las canciones dañadas por JSON no están.
+   */
+  indiceDuplicados(): {
+    youtubeId: string | null
+    nombreOriginal: string | null
+    titulo: string
+    artista: string
+    duracionMs: number
+  }[] {
+    return [...this.indice.values()].flatMap(({ cancion }) =>
+      cancion
+        ? [
+            {
+              youtubeId: cancion.fuente.youtube_id,
+              nombreOriginal: cancion.fuente.nombre_original,
+              titulo: cancion.metadatos.titulo,
+              artista: cancion.metadatos.artista,
+              duracionMs: cancion.metadatos.duracion_ms
+            }
+          ]
+        : []
+    )
+  }
+
   /** Canción completa validada (copia), o null si no existe o está dañada por JSON. */
   obtener(id: string): Cancion | null {
     const c = this.indice.get(id)?.cancion
@@ -287,6 +355,19 @@ export class ServicioBiblioteca {
           throw new ErrorBiblioteca('ERROR_INTERNO', `No se pudo crear la canción: ${String(e)}`)
         }
         return this.indexar(id, cancion)
+      })
+    ).then((r) => this.tras(r))
+  }
+
+  /**
+   * Indexa una canción cuya carpeta ya está completa en `biblioteca/<id>/` con su `cancion.json` escrito
+   * (importar un paquete, ADR 0027 §3). Conserva `creada` y `modificada` tal como vienen.
+   */
+  incorporar(id: string, cancion: Cancion): Promise<ResumenCancion> {
+    return this.enColaDeTemas(() =>
+      this.enSerie(id, async () => {
+        this.exigirIdSeguro(id)
+        return this.indexar(id, this.validar(cancion))
       })
     ).then((r) => this.tras(r))
   }
@@ -429,6 +510,10 @@ export class ServicioBiblioteca {
           seleccion.reemplazos === undefined
             ? previa.apariencia?.reemplazos
             : (seleccion.reemplazos ?? undefined)
+        const reemplazoPantalla =
+          seleccion.reemplazo_pantalla === undefined
+            ? previa.apariencia?.reemplazo_pantalla
+            : (seleccion.reemplazo_pantalla ?? undefined)
         const catalogo = this.temas?.datos() ?? null
         if (!catalogo) {
           throw new ErrorBiblioteca('TEMAS_SOLO_LECTURA', 'Los temas están en solo lectura.')
@@ -444,13 +529,15 @@ export class ServicioBiblioteca {
             modo: 'tema',
             tema_id: seleccion.temaId,
             ...(base ? { base } : {}),
-            ...(reemplazos ? { reemplazos } : {})
+            ...(reemplazos ? { reemplazos } : {}),
+            ...(reemplazoPantalla ? { reemplazo_pantalla: reemplazoPantalla } : {})
           }
         } else {
           c.apariencia = {
             modo: 'heredar',
             ...(base ? { base } : {}),
-            ...(reemplazos ? { reemplazos } : {})
+            ...(reemplazos ? { reemplazos } : {}),
+            ...(reemplazoPantalla ? { reemplazo_pantalla: reemplazoPantalla } : {})
           }
         }
       }
@@ -483,6 +570,8 @@ export class ServicioBiblioteca {
     candidata.estado = 'lista'
     if (letraLista) candidata.modalidad = 'letra_lista'
     else delete candidata.modalidad
+    // Marcarla es darla por revisada (ADR 0025 §1); el registro se conserva.
+    if (candidata.preparacion) candidata.preparacion.revisada = true
     candidata.pasos.edicion = {
       ...candidata.pasos.edicion,
       estado: 'completado',
@@ -490,6 +579,16 @@ export class ServicioBiblioteca {
       error: null
     }
     return this.guardar(id, candidata, 0)
+  }
+
+  /**
+   * El usuario da por vista la preparación (cierra el aviso, cambia un tiempo o un texto): `revisada`
+   * pasa a `true` y nunca se borra sola. Sin registro o ya revisada, no escribe.
+   */
+  async marcarPreparacionRevisada(id: string): Promise<ResumenCancion | null> {
+    const previa = this.exigirCancion(id)
+    if (!previa.preparacion || previa.preparacion.revisada) return this.obtenerResumen(id)
+    return this.actualizar(id, { preparacion: { ...previa.preparacion, revisada: true } })
   }
 
   /** Cambia `estado` a borrador y retira `modalidad`. */
@@ -659,11 +758,20 @@ export class ServicioBiblioteca {
 
   private aplicarCambio(previa: Cancion, cambio: CambioCancion): Cancion {
     const c = structuredClone(previa) as Cancion
-    if (cambio.metadatos) Object.assign(c.metadatos, structuredClone(cambio.metadatos))
+    if (cambio.metadatos) {
+      const { origen, ...resto } = structuredClone(cambio.metadatos)
+      Object.assign(c.metadatos, resto)
+      // El origen se fusiona campo a campo: quien cambia el título no borra el del artista.
+      if (origen) c.metadatos.origen = { ...c.metadatos.origen, ...origen }
+    }
     if (cambio.fuente) Object.assign(c.fuente, structuredClone(cambio.fuente))
     if ('pistas' in cambio && cambio.pistas !== undefined) c.pistas = structuredClone(cambio.pistas)
     if ('letra' in cambio && cambio.letra !== undefined) c.letra = structuredClone(cambio.letra)
     if (cambio.estilo) c.estilo = structuredClone(cambio.estilo)
+    if ('preparacion' in cambio) {
+      if (cambio.preparacion) c.preparacion = structuredClone(cambio.preparacion)
+      else delete c.preparacion
+    }
     if (cambio.pasos) {
       for (const n of NOMBRES_PASO) {
         const p = cambio.pasos[n]
