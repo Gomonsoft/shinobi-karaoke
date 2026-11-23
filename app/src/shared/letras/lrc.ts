@@ -5,6 +5,7 @@ import {
   type Letra,
   type Palabra
 } from '../letra'
+import { textoEnPantalla } from '../reparto'
 import { comprobarTamanoTexto, limpiarTexto, normalizarLetra, type GeneradorId } from './normalizar'
 
 const MARCA_LINEA = /^\[(\d+):(\d{2})(?:[.:](\d{1,3}))?\]/
@@ -255,7 +256,9 @@ export function exportarLrc(
   const lineas = letra.lineas
   lineas.forEach((e, i) => {
     if (e.tipo !== 'linea' || e.inicio_ms === null) return
-    salida.push(`${marca(e.inicio_ms)}${e.texto}`)
+    // Sin partes; el coro va entre paréntesis (sin duplicarlos) para que al importar se reconozca (ADR 0029 §2).
+    const { texto, parentesis } = textoEnPantalla(e)
+    salida.push(`${marca(e.inicio_ms)}${parentesis ? `(${texto})` : texto}`)
     const fin = finEfectivo(letra, e.id, opciones.duracionMs)
     if (fin === null) return
     const siguiente = lineas.slice(i + 1).find((x) => x.tipo === 'linea' && x.inicio_ms !== null)

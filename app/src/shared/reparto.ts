@@ -22,7 +22,7 @@ export const VOZ_EN_COROS_PREDETERMINADA = 0.5
 
 /** Colores de las cinco ranuras que no son `c1` (`c1` es `color_resaltado`). */
 export const COLORES_PARTES_PREDETERMINADOS = {
-  c2: '#4ADEDE',
+  c2: '#35C6E8',
   c3: '#FF5C8A',
   c4: '#7CFF6B',
   todos: '#B388FF',

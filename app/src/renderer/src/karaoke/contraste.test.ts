@@ -13,10 +13,13 @@ import {
   deltaE76,
   deltaESimulado,
   evaluarContraste,
+  evaluarPartes,
   grisDeLetra,
   luminancia,
   muestrasFondo,
+  peorRatio,
   ratio,
+  sugerirColorParte,
   sugerirResaltado,
   suelosDeOpacidad
 } from './contraste'
@@ -254,5 +257,73 @@ describe('confusionDaltonismo (0.2.2 · Feature 2)', () => {
     expect(deltaESimulado('#E53935', sugerido)).toBeGreaterThanOrEqual(25)
     e.letra.color_resaltado = sugerido
     expect(evaluarContraste(e).avisos).not.toContain('daltonismo')
+  })
+})
+
+// --- 0.2.3 · tarea 0347: avisos por parte (ADR 0029 §4) ---
+
+describe('contraste por parte', () => {
+  const nivelesDe = (avisos: ReturnType<typeof evaluarPartes>) =>
+    avisos.map((a) => `${a.tipo}:${a.parte}${a.otra ? `+${a.otra}` : ''}:${a.nivel}`)
+
+  it('solo mira las partes en uso: una ranura que nadie usa no avisa', () => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.colores_partes = { c3: '#2A1A44', c4: '#1B1033' }
+    expect(nivelesDe(evaluarPartes(estilo, ['c1', 'coro'])).join()).not.toMatch(/c3|c4/)
+    expect(evaluarContraste(estilo, ['c1', 'coro']).avisos).toEqual([])
+    expect(evaluarContraste(estilo).partes).toEqual([])
+  })
+
+  it('color de parte frente al fondo < 3:1: ⚠ y enciende el aviso de la pestaña', () => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.colores_partes = { c3: '#2A1A44' }
+    const e = evaluarContraste(estilo, ['c1', 'c3'])
+    expect(nivelesDe(e.partes)).toContain('parte:c3:aviso')
+    expect(e.avisos).toEqual(['parte'])
+    expect(e.nivel).toBe('aviso')
+  })
+
+  it('frente a la letra: ΔE < 25 es ⚠, o ⓘ con subrayado; con daltonismo, ⚠ sin subrayado', () => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.colores_partes = { c3: '#F2F3F7' }
+    expect(nivelesDe(evaluarPartes(estilo, ['c1', 'c3']))).toContain('parteLetra:c3:aviso')
+    estilo.letra.subrayar_cantado = true
+    expect(nivelesDe(evaluarPartes(estilo, ['c1', 'c3']))).toContain('parteLetra:c3:info')
+    // Un cian claro sobre letra blanca se confunde con protanopía (pregunta 0345).
+    const predeterminado = estiloPredeterminado()
+    predeterminado.letra.colores_partes = { c2: '#4ADEDE' }
+    expect(nivelesDe(evaluarPartes(predeterminado, ['c1', 'c2']))).toContain(
+      'daltonismoLetra:c2:aviso'
+    )
+    predeterminado.letra.subrayar_cantado = true
+    expect(nivelesDe(evaluarPartes(predeterminado, ['c1', 'c2']))).toEqual([])
+  })
+
+  it('dos partes en uso parecidas dan solo un ⓘ que no enciende la pestaña', () => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.colores_partes = { c2: '#FFD500' }
+    const e = evaluarContraste(estilo, ['c1', 'c2'])
+    expect(nivelesDe(e.partes)).toContain('partesParecidas:c1+c2:info')
+    expect(e.avisos).toEqual([])
+    expect(e.nivel).toBe('ok')
+  })
+
+  it('con los colores predeterminados y el tema «Shinobi» no hay ningún ⚠', () => {
+    const avisos = evaluarPartes(estiloPredeterminado(), ['c1', 'c2', 'c3', 'c4', 'todos', 'coro'])
+    expect(nivelesDe(avisos).filter((a) => a.endsWith(':aviso'))).toEqual([])
+    expect(
+      evaluarContraste(estiloPredeterminado(), ['c1', 'c2', 'c3', 'c4', 'todos', 'coro']).avisos
+    ).toEqual([])
+  })
+
+  it('«Sugerir un color»: visible (≥ 3:1) y distinto de la letra y de las otras partes en uso', () => {
+    const estilo = estiloPredeterminado()
+    estilo.letra.colores_partes = { c3: '#2A1A44' }
+    const enUso = ['c1', 'c2', 'c3', 'coro'] as const
+    const sugerido = sugerirColorParte(estilo, 'c3', enUso)
+    expect(peorRatio(sugerido, estilo.fondo)).toBeGreaterThanOrEqual(3)
+    for (const otro of [estilo.letra.color, estilo.letra.color_resaltado, '#35C6E8', '#FF9F1C']) {
+      expect(deltaE76(sugerido, otro)).toBeGreaterThanOrEqual(25)
+    }
   })
 })

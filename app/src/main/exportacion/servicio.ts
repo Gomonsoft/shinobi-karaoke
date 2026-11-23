@@ -5,6 +5,7 @@ import type { Writable } from 'node:stream'
 import { modalidadEfectiva, type Cancion } from '../../shared/cancion'
 import type { Config } from '../../shared/config'
 import { esCodigoError, type CodigoError } from '../../shared/errores'
+import { envolvente, tramosCoro, type PuntoEnvolvente } from '../../shared/coros'
 import type { Estilo } from '../../shared/estilo'
 import {
   FORMATOS,
@@ -44,6 +45,7 @@ import type {
   ResultadoLoteExportacionIpc
 } from '../../shared/ipc'
 import type { MensajeWorker } from '../../shared/protocolo'
+import { vozEnCoros } from '../../shared/reparto'
 import type { ConfigParcial } from '../configuracion'
 import { EstimadorProgreso } from '../trabajos/progreso'
 import type { OpcionesEjecucion } from '../trabajos/worker'
@@ -180,6 +182,8 @@ interface Lote {
   id: string
   perfil: { formato: FormatoId; ancho: number; alto: number; fps: 24 | 30 | 60 }
   audio: AudioExportacion
+  /** Voz original en los coros (ADR 0030 §5): solo cuenta con `audio: "instrumental"`. */
+  coros: boolean
   siExiste: IniciarLoteExportacion['siExiste']
   carpeta: string
   /** Último destino de cada canción en este lote. */
@@ -207,7 +211,11 @@ interface Trabajo {
   destino: string
   temporal: string
   instantanea: InstantaneaExportacion
-  rutas: { instrumental: string; voz: string | null }
+  /**
+   * `voz` solo con «Instrumental y voz» o con coros; `envolvente` (puntos `[ms, nivel]`) solo cuando la voz
+   * entra únicamente en los coros (ADR 0030 §5).
+   */
+  rutas: { instrumental: string; voz: string | null; envolvente: PuntoEnvolvente[] | null }
   total: number
   estado: ExportacionIpc['estado']
   resultado: ExportacionIpc['resultado']
@@ -493,7 +501,7 @@ export class ServicioExportacion<V = unknown> {
 
   async iniciar(p: IniciarExportacion): Promise<{ trabajoId: string }> {
     await this.exigirPerfil({ formato: p.formato, ancho: p.ancho, alto: p.alto, fps: p.fps })
-    const exportable = await this.leerCancion(p.cancionId, p.audio)
+    const exportable = await this.leerCancion(p.cancionId, p.audio, p.coros === true)
     const destinoRuta = this.deps.destinos.rutaDe(p.destinoId)
     if (destinoRuta === null) {
       throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
@@ -644,6 +652,7 @@ export class ServicioExportacion<V = unknown> {
       id: this.uuid(),
       perfil,
       audio: p.audio,
+      coros: p.coros === true,
       siExiste: p.siExiste,
       carpeta,
       destinos: new Map(),
@@ -720,7 +729,7 @@ export class ServicioExportacion<V = unknown> {
         try {
           // «Instrumental y voz» sin pista de voz utilizable: esa canción sale solo con instrumental.
           try {
-            exportable = await this.leerCancion(cancionId, lote.audio)
+            exportable = await this.leerCancion(cancionId, lote.audio, lote.coros)
           } catch (e) {
             if (lote.audio === 'instrumental') throw e
             exportable = await this.leerCancion(cancionId, 'instrumental')
@@ -1063,7 +1072,8 @@ export class ServicioExportacion<V = unknown> {
   /** Valida la canción y toma la instantánea de lo guardado (ADR 0019 §3). */
   private async leerCancion(
     cancionId: string,
-    audio: AudioExportacion
+    audio: AudioExportacion,
+    coros = false
   ): Promise<{ instantanea: InstantaneaExportacion; rutas: Trabajo['rutas'] }> {
     const noDisponible = (mensaje: string): ErrorExportacion =>
       new ErrorExportacion('CANCION_NO_DISPONIBLE', mensaje)
@@ -1100,9 +1110,22 @@ export class ServicioExportacion<V = unknown> {
       gananciaDb: Math.min(60, Math.max(-60, cancion.fuente.ganancia_db)),
       vozDisponible
     }
+    // Voz en los coros (ADR 0030 §5): solo «Solo instrumental», con voz separada y nivel de la canción > 0.
+    const puntos =
+      coros && audio === 'instrumental' && vozDisponible
+        ? envolvente(
+            tramosCoro(instantanea.letra, instantanea.duracionMs),
+            vozEnCoros(instantanea.letra)
+          )
+        : []
+    const conCoros = puntos.length > 0
     return {
       instantanea,
-      rutas: { instrumental, voz: audio === 'instrumental_voz' ? voz : null }
+      rutas: {
+        instrumental,
+        voz: audio === 'instrumental_voz' || conCoros ? voz : null,
+        envolvente: conCoros ? puntos : null
+      }
     }
   }
 
@@ -1236,6 +1259,7 @@ export class ServicioExportacion<V = unknown> {
         audio: {
           instrumental: t.rutas.instrumental,
           voz: t.rutas.voz,
+          ...(t.rutas.envolvente ? { voz_envolvente: t.rutas.envolvente } : {}),
           ganancia_db: t.instantanea.gananciaDb
         },
         parametros: parametrosDe(t.formato, t.alto),

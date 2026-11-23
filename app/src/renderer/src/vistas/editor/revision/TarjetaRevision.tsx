@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Check, Flag, X } from 'lucide-react'
 import type { LineaDudosa } from '@shared/dudosas'
 import { tienePalabrasManuales, type Letra } from '@shared/letra'
@@ -54,6 +54,8 @@ interface PropsTarjeta {
   escuchar(): void
   probar(): void
   probarInactivo: boolean
+  /** Chip de la parte de la línea (0.2.3), solo lectura; solo con reparto. */
+  chipParte?: ReactNode
 }
 
 /** La tarjeta del recorrido, sobre los controles de siempre del panel Sincronía. */
@@ -65,7 +67,8 @@ export function TarjetaRevision({
   fijarInicio,
   escuchar,
   probar,
-  probarInactivo
+  probarInactivo,
+  chipParte
 }: PropsTarjeta) {
   const { vista } = revision
   const principal = useRef<HTMLButtonElement>(null)
@@ -120,6 +123,7 @@ export function TarjetaRevision({
   const cabecera = (
     <div className={css.cabecera}>
       <h3 id={idTitulo}>{titulo}</h3>
+      {chipParte}
       <BotonIcono icono={X} etiqueta={R.salir} onClick={revision.terminar} />
     </div>
   )

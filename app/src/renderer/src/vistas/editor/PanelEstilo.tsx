@@ -1,6 +1,8 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CircleCheck, Info, Plus, TriangleAlert, X } from 'lucide-react'
 import type { Estilo, Fondo } from '@shared/estilo'
+import type { Letra } from '@shared/letra'
+import { colorDeParte, type Parte } from '@shared/reparto'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
@@ -15,12 +17,21 @@ import {
   SUGERIDOS_LETRA,
   variarLuminosidad30
 } from '../../karaoke/colores'
-import { sugerirResaltado, type EvaluacionContraste } from '../../karaoke/contraste'
+import {
+  evaluarPartes,
+  sugerirColorParte,
+  sugerirResaltado,
+  type AvisoParte,
+  type EvaluacionContraste
+} from '../../karaoke/contraste'
 import { fondoCss } from '../../karaoke/estiloCss'
 import { buscarFuente } from '@shared/fuentes'
 import { ofreceEditarTema, puedeEditarTema, SeccionTema, type ControlTema } from './SeccionTema'
 import { ControlesFondo, ControlesMovimiento, resumenFondo } from './estilo/ControlesFondo'
+import { ChipParte } from './estilo/ChipParte'
 import { paradasRepartidas } from './estilo/paradas'
+import { SeccionColoresPartes, partesVisibles } from './estilo/SeccionColoresPartes'
+import { nombreDeParte, T_PARTES as TP } from './estilo/textosPartes'
 import { SeccionEspera, type ControlEspera } from './estilo/SeccionEspera'
 import { SeccionPantalla, type ControlPantalla } from './estilo/SeccionPantalla'
 import { T_SUBRAYADO as TS } from './estilo/textosSubrayado'
@@ -43,6 +54,8 @@ export interface PanelEstiloProps {
   pantalla?: ControlPantalla
   /** Ajustes activa «Subrayar siempre lo ya cantado» en este equipo: nota bajo la casilla. */
   subrayadoDelEquipo?: boolean
+  /** Letra de la canción (reparto): «Colores de los cantantes» y sus avisos. Sin ella, no se muestran. */
+  letra?: Pick<Letra, 'partes' | 'lineas'>
 }
 
 type OrigenColor = 'hex' | 'nativo' | 'sugerido'
@@ -64,6 +77,20 @@ const ACCIONES_LETRA = {
   negra: { etiqueta: E.usarNegra, color: '#111111' }
 }
 
+function textoAvisoParte(letra: Pick<Letra, 'partes'>, a: AvisoParte): string {
+  const nombre = nombreDeParte(letra, a.parte)
+  switch (a.tipo) {
+    case 'parte':
+      return TP.contraste.parte(nombre)
+    case 'parteLetra':
+      return TP.contraste.parteLetra(nombre)
+    case 'daltonismoLetra':
+      return TP.contraste.daltonismo(nombre)
+    case 'partesParecidas':
+      return TP.contraste.parecidas(nombre, nombreDeParte(letra, a.otra!))
+  }
+}
+
 function MensajeContraste({
   tipo,
   children
@@ -81,8 +108,15 @@ function MensajeContraste({
 }
 
 /** D1 y D4: fondo y letra del tema en solo lectura (texto seleccionable, sin controles). */
-function ResumenSoloLectura({ estilo }: { estilo: Estilo }) {
+function ResumenSoloLectura({
+  estilo,
+  cancion
+}: {
+  estilo: Estilo
+  cancion?: Pick<Letra, 'partes' | 'lineas'>
+}) {
   const { fondo, letra } = estilo
+  const partes = cancion ? partesVisibles(cancion, false).enUso.filter((p) => p !== 'c1') : []
   const fuente = buscarFuente(letra.fuente.familia)?.familia ?? letra.fuente.familia
   return (
     <section
@@ -120,6 +154,24 @@ function ResumenSoloLectura({ estilo }: { estilo: Estilo }) {
           </span>
           {letra.subrayar_cantado && <span>{TS.resumen}</span>}
         </dd>
+        {cancion && partes.length > 0 && (
+          <>
+            <dt>{TP.titulo}</dt>
+            <dd>
+              {partes.map((parte) => (
+                <span key={parte} className={estilos.colorResumen}>
+                  <ChipParte letra={cancion} parte={parte} color={colorDeParte(estilo, parte)} />
+                  <span
+                    className={estilos.muestraColor}
+                    style={{ background: colorDeParte(estilo, parte) }}
+                    aria-hidden="true"
+                  />
+                  {nombreDeParte(cancion, parte)} {colorDeParte(estilo, parte)}
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
       </dl>
     </section>
   )
@@ -153,7 +205,8 @@ function PanelEstiloActivo({
   tema,
   espera,
   pantalla,
-  subrayadoDelEquipo = false
+  subrayadoDelEquipo = false,
+  letra: cancion
 }: PanelEstiloProps) {
   const id = useId()
   const idSubrayado = useId()
@@ -167,6 +220,14 @@ function PanelEstiloActivo({
   const puedeEditar = puedeEditarTema(vista)
   const ofreceEditar = ofreceEditarTema(vista)
   const { fondo, letra } = estilo
+  const [desplegado, setDesplegado] = useState(false)
+  const visibles = useMemo(
+    () => (cancion ? partesVisibles(cancion, desplegado).visibles : []),
+    [cancion, desplegado]
+  )
+  const avisosPartes = useMemo(() => evaluarPartes(estilo, visibles), [estilo, visibles])
+  // `'parte'` solo enciende el punto de la pestaña: sus avisos se pintan aparte, por parte.
+  const avisosGenerales = contraste.avisos.filter((a) => a !== 'parte')
   const forma = fondo.tipo === 'degradado' ? (fondo.forma ?? 'lineal') : 'lineal'
 
   function claveNueva(campo: string): string {
@@ -207,6 +268,32 @@ function PanelEstiloActivo({
     casillaSubrayado.current?.focus()
   }
 
+  function colorDeUnaParte(parte: Parte, color: string): Estilo {
+    return {
+      ...estilo,
+      letra: {
+        ...letra,
+        colores_partes: { ...letra.colores_partes, [parte]: color } as NonNullable<
+          Estilo['letra']['colores_partes']
+        >
+      }
+    }
+  }
+
+  function accionColorParte(parte: Parte): void {
+    if (inactivo) return
+    alCambiar(
+      colorDeUnaParte(parte, sugerirColorParte(estilo, parte, visibles)),
+      claveNueva('parte')
+    )
+  }
+
+  function irAlResaltado(): void {
+    raiz.current
+      ?.querySelector<HTMLElement>('[data-color-resaltado] input:not([type="color"])')
+      ?.focus()
+  }
+
   function accionColor(campo: CampoColorLetra, color: string): void {
     if (!inactivo) alCambiar({ ...estilo, letra: { ...letra, [campo]: color } }, claveNueva(campo))
   }
@@ -220,7 +307,7 @@ function PanelEstiloActivo({
       aria-disabled={inactivo || undefined}
     >
       <SeccionTema control={tema} inactivo={inactivo} />
-      {!editable && <ResumenSoloLectura estilo={estilo} />}
+      {!editable && <ResumenSoloLectura estilo={estilo} cancion={cancion} />}
       {editable && (
         <>
           <section className={estilos.bloque}>
@@ -347,7 +434,11 @@ function PanelEstiloActivo({
             {(['color', 'color_resaltado'] as const).map((campo) => {
               const clave = 'letra.' + campo
               return (
-                <div key={campo} data-foco-editor="segmentado">
+                <div
+                  key={campo}
+                  data-foco-editor="segmentado"
+                  data-color-resaltado={campo === 'color_resaltado' ? '' : undefined}
+                >
                   <SelectorColor
                     etiqueta={campo === 'color' ? E.colorLetra : E.colorResaltado}
                     valor={letra[campo]}
@@ -381,6 +472,24 @@ function PanelEstiloActivo({
                 <p className={estilos.nota}>{LL.contrasteSoloEditor}</p>
               )}
             </div>
+            {cancion && (
+              <SeccionColoresPartes
+                estilo={estilo}
+                letra={cancion}
+                d3={vista.estado === 'd3'}
+                desplegado={desplegado}
+                alDesplegar={setDesplegado}
+                alAbrirNativo={(parte) => abrirNativo('letra.colores_partes.' + parte)}
+                alCambiar={(parte, color, origen) =>
+                  cambiarColor(
+                    colorDeUnaParte(parte, color),
+                    'letra.colores_partes.' + parte,
+                    origen
+                  )
+                }
+                alIrAlResaltado={irAlResaltado}
+              />
+            )}
           </section>
         </>
       )}
@@ -396,7 +505,7 @@ function PanelEstiloActivo({
             </MensajeContraste>
           )}
         </div>
-        {(editable ? contraste.avisos : contraste.avisos.slice(0, 1)).map((aviso) => (
+        {(editable ? avisosGenerales : avisosGenerales.slice(0, 1)).map((aviso) => (
           <MensajeContraste
             key={aviso}
             tipo={soloEditor && aviso !== 'letra' && vista.estado !== 'd3' ? 'info' : 'aviso'}
@@ -453,6 +562,41 @@ function PanelEstiloActivo({
               </Boton>
             </MensajeContraste>
           ))}
+        {cancion &&
+          avisosPartes
+            .filter((a) => editable || (a.nivel === 'aviso' && a.tipo !== 'partesParecidas'))
+            .map((a) => (
+              <MensajeContraste
+                key={`${a.tipo}:${a.parte}:${a.otra ?? ''}`}
+                tipo={a.nivel === 'aviso' ? 'aviso' : 'info'}
+              >
+                <p>{textoAvisoParte(cancion, a)}</p>
+                {!editable ? (
+                  <div className={estilos.acciones}>
+                    <Boton onClick={tema.acciones.personalizar}>{E.tema.personalizar}</Boton>
+                    {ofreceEditar && (
+                      <Boton
+                        noDisponible={puedeEditar ? undefined : E.tema.sinTemaQueEditar}
+                        onClick={tema.acciones.editar}
+                      >
+                        {E.tema.editar}
+                      </Boton>
+                    )}
+                  </div>
+                ) : (
+                  a.tipo !== 'partesParecidas' && (
+                    <div className={estilos.acciones}>
+                      {a.tipo !== 'parte' && a.nivel === 'aviso' && (
+                        <Boton onClick={accionSubrayar}>{TS.subrayar}</Boton>
+                      )}
+                      <Boton onClick={() => accionColorParte(a.parte)}>
+                        {TP.contraste.sugerir}
+                      </Boton>
+                    </div>
+                  )
+                )}
+              </MensajeContraste>
+            ))}
       </div>
       {vista.estado === 'd3' && (
         <div className={estilos.pie}>

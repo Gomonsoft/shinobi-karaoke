@@ -238,15 +238,29 @@ export function aPeticionTiempos(cancionId: string, letra: Letra): GuardarTiempo
     offset_ms: letra.offset_ms,
     // Estado completo: `null` borra la corrección que main tenga anotada (quitar la corrección).
     desfase_corregido_ms: letra.desfase_corregido_ms ?? null,
+    // Reparto (ADR 0029 §2): `parte` ausente = `c1`; `partes` ausente = conservar el de main (para quitarlo,
+    // quien llama añade `partes: null`). Una letra sin reparto produce la misma petición que en 0.2.2.
+    ...(letra.partes ? { partes: letra.partes } : {}),
     tiempos: letra.lineas.map(
-      ({ id, inicio_ms, fin_ms, palabras, origen_palabras, origen_fin, revisada }) => ({
+      ({
+        id,
+        tipo,
+        inicio_ms,
+        fin_ms,
+        palabras,
+        origen_palabras,
+        origen_fin,
+        revisada,
+        parte
+      }) => ({
         id,
         inicio_ms,
         fin_ms,
         palabras,
         ...(palabras !== null && origen_palabras === 'manual' ? { origen_palabras } : {}),
         ...(fin_ms !== null && origen_fin ? { origen_fin } : {}),
-        ...(revisada ? { revisada } : {})
+        ...(revisada ? { revisada } : {}),
+        ...(tipo === 'linea' && parte ? { parte } : {})
       })
     )
   }

@@ -9,6 +9,7 @@ import {
   useState,
   type KeyboardEvent as TeclaReact,
   type PointerEvent,
+  type ReactNode,
   type Ref
 } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
@@ -113,6 +114,8 @@ export interface EditorPrecisoProps {
   /** «Línea {n} de {total}» del título. */
   numeroLinea: number
   totalLineas: number
+  /** Chip de la parte de la línea en la barra de título (0.2.3, solo lectura; solo con reparto). */
+  chipParte?: ReactNode
   hayAnterior: boolean
   haySiguiente: boolean
   // --- Motor de audio (el mismo del transporte) ---
@@ -659,7 +662,15 @@ export function EditorPreciso(props: EditorPrecisoProps) {
   return (
     <VentanaFlotante
       ref={ventana}
-      titulo={T.titulo(numeroLinea, totalLineas)}
+      titulo={
+        props.chipParte ? (
+          <>
+            {T.titulo(numeroLinea, totalLineas)} {props.chipParte}
+          </>
+        ) : (
+          T.titulo(numeroLinea, totalLineas)
+        )
+      }
       botones={botones}
       limites={props.limites}
       referencia={props.referencia}

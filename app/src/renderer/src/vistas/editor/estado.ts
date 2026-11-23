@@ -18,6 +18,16 @@ import {
 } from '@shared/letras/tiempos'
 import { aplicarEdicionPrecisa, type BorradorLinea } from '@shared/letras/palabras'
 import type { PropuestaSilencios } from '@shared/silencios'
+import {
+  anadirCantante,
+  asignar,
+  cantantesDe,
+  lineasEntreParentesis,
+  normalizarReparto,
+  quitarCantante,
+  renombrar,
+  type Parte
+} from '@shared/reparto'
 import { tiempoAudioALetra } from './lineaTiempo'
 
 /** Selección de apariencia de la canción (ADR 0016): estilo propio, tema asignado o herencia. */
@@ -105,7 +115,15 @@ export interface EstadoEditor {
   actual: Instantanea
   pasado: EntradaHistorial[]
   futuro: EntradaFutura[]
+  /** La línea principal: la que siguen la línea de tiempo, el panel, el editor preciso y los atajos de tiempos. */
   seleccion: string | null
+  /**
+   * Líneas seleccionadas (ADR 0029 §5): siempre incluye la principal (y `[]` solo sin selección). Solo
+   * sirven para asignar parte; todo lo demás lee `seleccion`.
+   */
+  seleccionadas: string[]
+  /** Extremo fijo de «Mayús + clic» y «Mayús + ↑/↓»: la última selección sin Mayús. */
+  ancla: string | null
   sync: { activo: boolean; sesion: number; siguiente: string | null }
   aviso: (Aviso & { n: number }) | null
   version: number
@@ -126,7 +144,31 @@ export interface GestoMarcador {
 export type AccionEditor =
   | { tipo: 'cargar'; instantanea: InstantaneaInicial; seleccion: string | null }
   | { tipo: 'seleccionar'; id: string | null }
-  | { tipo: 'mover_seleccion'; sentido: -1 | 1 }
+  /** Con `extender` (Mayús + ↑/↓) la selección crece o encoge desde el ancla, saltando pausas. */
+  | { tipo: 'mover_seleccion'; sentido: -1 | 1; extender?: boolean }
+  /** Ctrl/Cmd + clic: añade o quita una línea; la tocada pasa a ser la principal. */
+  | { tipo: 'alternar_seleccion'; id: string }
+  /** Clic secundario sobre otra fila ya seleccionada: pasa a ser la principal sin tocar la selección. */
+  | { tipo: 'hacer_principal'; id: string }
+  /** Mayús + clic: el rango entre el ancla y la línea (saltando pausas). */
+  | { tipo: 'extender_seleccion'; id: string }
+  /** Esc con varias seleccionadas: deja solo la principal. */
+  | { tipo: 'solo_principal' }
+  /** Selecciona esas líneas (la primera es la principal): el recuento de «Cantantes y coros». */
+  | { tipo: 'seleccionar_ids'; ids: string[] }
+  /**
+   * Reparto (ADR 0029 §3 y §5). Cada acción es un solo paso de deshacer aunque afecte a varias líneas.
+   * `ids` ausente = las seleccionadas; `agrupar` junta las pulsaciones seguidas de menos de 1 s (Alt + ↑/↓).
+   */
+  | { tipo: 'asignar_parte'; parte: Parte; ids?: string[]; agrupar?: boolean; ahora: number }
+  /** Crea el cantante de la primera ranura libre y, con `asignarA`, le pasa esas líneas en el mismo paso. */
+  | { tipo: 'anadir_cantante'; asignarA?: string[]; ahora: number }
+  | { tipo: 'quitar_cantante'; id: Parte; ahora: number }
+  | { tipo: 'renombrar_cantante'; id: Parte; nombre: string | null; ahora: number }
+  /** «Marcarlas como coro»: las líneas `c1` enteras entre paréntesis pasan al coro. */
+  | { tipo: 'marcar_como_coro'; ahora: number }
+  /** Nivel de la voz en los coros (ADR 0030); una ráfaga del deslizador agrupa en un paso. */
+  | { tipo: 'fijar_voz_en_coros'; valor: number; ahora: number; agruparGesto?: boolean }
   | { tipo: 'ajustar_inicio'; deltaMs: number; ahora: number }
   | { tipo: 'ajustar_fin'; deltaMs: number; duracionMs: number; ahora: number }
   | { tipo: 'fijar_inicio'; ms: number; ahora: number }
@@ -206,6 +248,8 @@ export function estadoInicial(actual: InstantaneaInicial, seleccion: string | nu
   return {
     actual: { ...actual, borrador: actual.borrador ?? null },
     seleccion,
+    seleccionadas: seleccion === null ? [] : [seleccion],
+    ancla: seleccion,
     pasado: [],
     futuro: [],
     sync: { activo: false, sesion: 0, siguiente: null },
@@ -337,6 +381,22 @@ function conPantalla(ap: AparienciaEditor, pantalla: Pantalla | null): Aparienci
   return { ...ap, reemplazos: conReemplazo(ap.reemplazos, { pantalla: pantalla ?? undefined }) }
 }
 
+/**
+ * Un cambio del reparto es un solo paso de deshacer; sin cambio real (parte no disponible, nada que
+ * asignar) no hay paso. Asignar una parte nunca toca tiempos, textos ni marcas (ADR 0029 §1).
+ */
+function conReparto(
+  e: EstadoEditor,
+  nueva: Letra,
+  clave: string,
+  ahora: number,
+  agruparGesto?: boolean
+): EstadoEditor {
+  return mismoJson(nueva, e.actual.letra)
+    ? e
+    : guardarPaso(e, { ...e.actual, letra: nueva }, clave, ahora, { agruparGesto })
+}
+
 function esLinea(letra: Letra, id: string | null): id is string {
   return id !== null && letra.lineas.some((l) => l.id === id && l.tipo === 'linea')
 }
@@ -443,7 +503,86 @@ function sinBorrador(e: EstadoEditor): EstadoEditor {
 const asignaTema = (i: Instantanea, temaId: string): boolean =>
   i.apariencia.seleccion.modo === 'tema' && i.apariencia.seleccion.temaId === temaId
 
+/** Ids de las líneas (sin pausas) entre dos extremos, inclusive y en el orden de la letra. */
+function rangoDeLineas(letra: Letra, a: string, b: string): string[] {
+  const i = letra.lineas.findIndex((l) => l.id === a)
+  const j = letra.lineas.findIndex((l) => l.id === b)
+  if (i < 0 || j < 0) return [b]
+  const [desde, hasta] = i <= j ? [i, j] : [j, i]
+  return letra.lineas
+    .slice(desde, hasta + 1)
+    .filter((l) => l.tipo === 'linea')
+    .map((l) => l.id)
+}
+
+/** Solo una línea seleccionada (y ancla): lo que deja cualquier selección sin Ctrl ni Mayús. */
+const soloUna = (e: EstadoEditor, id: string | null): EstadoEditor =>
+  e.seleccion === id && e.ancla === id && e.seleccionadas.length === (id === null ? 0 : 1)
+    ? e
+    : { ...e, seleccion: id, seleccionadas: id === null ? [] : [id], ancla: id }
+
+/** Selección múltiple (ADR 0029 §5): inactiva durante «Sincronizar al ritmo». */
+function reducirSeleccion(e: EstadoEditor, a: AccionEditor): EstadoEditor | null {
+  const { letra } = e.actual
+  switch (a.tipo) {
+    case 'alternar_seleccion': {
+      if (e.sync.activo || !esLinea(letra, a.id)) return e
+      if (!e.seleccionadas.includes(a.id)) {
+        return { ...e, seleccion: a.id, seleccionadas: [...e.seleccionadas, a.id], ancla: a.id }
+      }
+      if (e.seleccionadas.length === 1) return e
+      const quedan = e.seleccionadas.filter((id) => id !== a.id)
+      const seleccion = a.id === e.seleccion ? quedan[quedan.length - 1]! : e.seleccion
+      return { ...e, seleccion, seleccionadas: quedan, ancla: a.id }
+    }
+    case 'extender_seleccion':
+    case 'mover_seleccion': {
+      if (a.tipo === 'mover_seleccion' && !a.extender) return null
+      if (e.sync.activo) return e
+      const destino =
+        a.tipo === 'extender_seleccion' ? a.id : lineaVecina(letra, e.seleccion, a.sentido)
+      if (destino === null || !esLinea(letra, destino)) return e
+      const ancla = e.ancla !== null && esLinea(letra, e.ancla) ? e.ancla : (e.seleccion ?? destino)
+      return {
+        ...e,
+        seleccion: destino,
+        seleccionadas: rangoDeLineas(letra, ancla, destino),
+        ancla
+      }
+    }
+    case 'hacer_principal':
+      return e.sync.activo || !e.seleccionadas.includes(a.id) || a.id === e.seleccion
+        ? e
+        : { ...e, seleccion: a.id }
+    case 'solo_principal':
+      return e.seleccionadas.length > 1 ? soloUna(e, e.seleccion) : e
+    case 'seleccionar_ids': {
+      if (e.sync.activo) return e
+      const ids = a.ids.filter((id) => esLinea(letra, id))
+      return ids.length === 0 ? e : { ...e, seleccion: ids[0]!, seleccionadas: ids, ancla: ids[0]! }
+    }
+    default:
+      return null
+  }
+}
+
+/** Acciones que dejan una sola línea seleccionada aunque la principal no cambie. */
+const COLAPSAN = new Set<AccionEditor['tipo']>([
+  'seleccionar',
+  'mover_seleccion',
+  'entrar_sync',
+  'salir_sync'
+])
+
 export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
+  const multiple = reducirSeleccion(e, a)
+  if (multiple) return multiple
+  const r = reducirBase(e, a)
+  // Cualquier otro cambio de la principal (marcar al ritmo, deshacer una marca, cargar…) deja una sola.
+  return r.seleccion !== e.seleccion || COLAPSAN.has(a.tipo) ? soloUna(r, r.seleccion) : r
+}
+
+function reducirBase(e: EstadoEditor, a: AccionEditor): EstadoEditor {
   const { letra, apariencia, borrador } = e.actual
   const estilo = apariencia.estilo
   const id = e.seleccion
@@ -453,6 +592,12 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       return estadoInicial(a.instantanea, a.seleccion)
     case 'seleccionar':
       return a.id === null || esLinea(letra, a.id) ? { ...e, seleccion: a.id } : e
+    case 'alternar_seleccion':
+    case 'extender_seleccion':
+    case 'hacer_principal':
+    case 'solo_principal':
+    case 'seleccionar_ids':
+      return e // los resuelve `reducirSeleccion`
     case 'mover_seleccion': {
       if (e.sync.activo) return e
       const seleccion = lineaVecina(letra, id, a.sentido)
@@ -511,6 +656,52 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       return !e.sync.activo && esLinea(letra, id)
         ? cambiarTiempos(e, borrarTiempos(letra, id), unica(`borrar:${id}`), a.ahora)
         : e
+    case 'asignar_parte': {
+      const ids = (a.ids ?? e.seleccionadas).filter((id) => esLinea(letra, id))
+      return ids.length === 0 || e.sync.activo
+        ? e
+        : conReparto(
+            e,
+            asignar(letra, ids, a.parte),
+            a.agrupar ? 'parte:rafaga' : unica('parte'),
+            a.ahora
+          )
+    }
+    case 'anadir_cantante':
+      return e.sync.activo
+        ? e
+        : conReparto(
+            e,
+            anadirCantante(
+              letra,
+              a.asignarA?.filter((id) => esLinea(letra, id))
+            ),
+            unica('cantante'),
+            a.ahora
+          )
+    case 'quitar_cantante':
+      return e.sync.activo
+        ? e
+        : conReparto(e, quitarCantante(letra, a.id), unica(`quitar:${a.id}`), a.ahora)
+    case 'renombrar_cantante':
+      return e.sync.activo
+        ? e
+        : conReparto(e, renombrar(letra, a.id, a.nombre), unica(`nombre:${a.id}`), a.ahora)
+    case 'marcar_como_coro': {
+      const ids = lineasEntreParentesis(letra)
+      return e.sync.activo || ids.length === 0
+        ? e
+        : conReparto(e, asignar(letra, ids, 'coro'), unica('marcar_coro'), a.ahora)
+    }
+    case 'fijar_voz_en_coros': {
+      if (e.sync.activo || !Number.isFinite(a.valor)) return e
+      const valor = Math.min(1, Math.max(0, Math.round(a.valor * 20) / 20))
+      const nueva = normalizarReparto({
+        ...letra,
+        partes: { cantantes: cantantesDe(letra), voz_en_coros: valor }
+      })
+      return conReparto(e, nueva, 'voz_en_coros', a.ahora, a.agruparGesto)
+    }
     case 'estilo':
       return e.sync.activo ||
         borrador !== null ||

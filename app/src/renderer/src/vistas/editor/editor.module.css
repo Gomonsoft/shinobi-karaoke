@@ -531,3 +531,148 @@
   display: inline-flex;
   color: var(--aviso);
 }
+
+/* Chip de parte (0.2.3 · feature 1): inicial en texto-1 y borde de 2 px en el color de la parte. */
+.chipParte {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 24px;
+  max-width: 40px;
+  height: 20px;
+  padding: 0 var(--e-1);
+  overflow: hidden;
+  border: 2px solid var(--color-parte, var(--borde-control));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--texto-1);
+  font-size: var(--t-pequeno);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+/* Área de clic de 24 × 24 sin ensanchar la fila. */
+.chipClicable {
+  position: relative;
+  cursor: pointer;
+}
+.chipClicable::after {
+  position: absolute;
+  inset: -2px;
+  content: '';
+}
+.lineaConParte {
+  grid-template-columns: 14px max-content 40px minmax(0, 1fr) auto auto;
+}
+.textoCoro {
+  color: var(--texto-2);
+}
+/* Seleccionada sin ser la principal (selección múltiple). */
+.lineaSecundaria[aria-selected='true'] {
+  background: var(--fondo-2);
+  border-inline-start-color: var(--acento-texto);
+}
+.lineaPrincipalMulti {
+  box-shadow: inset 0 0 0 1px var(--acento-texto);
+}
+
+/* Menú «¿Quién canta?». */
+.menuPartes {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  min-width: 15rem;
+  max-width: min(22rem, calc(100vw - 16px));
+  padding: var(--e-1);
+  border-radius: var(--r-m);
+  background: var(--fondo-3);
+  box-shadow: var(--elevacion);
+}
+.menuPartesTitulo {
+  padding: var(--e-1) var(--e-2);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+.menuPartesItem {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 16px;
+  gap: var(--e-2);
+  align-items: center;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-1);
+  text-align: start;
+}
+.menuPartesItem:hover,
+.menuPartesItem:focus-visible {
+  background: var(--fondo-3-hover);
+}
+.menuPartesNombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menuPartesAtajo {
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+.menuPartesSeparador {
+  height: 1px;
+  margin: var(--e-1) 0;
+  background: var(--borde);
+}
+
+/* Fila «Canta» del panel Sincronía y chip del riel (0.2.3 · feature 1). */
+.filaCanta {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+.filaCanta > span:first-child {
+  flex: none;
+  color: var(--texto-2);
+}
+.botonCanta {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: var(--e-2);
+  align-items: center;
+  min-width: 0;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-1);
+}
+.botonCanta:hover,
+.botonCanta:focus-visible {
+  background: var(--fondo-2);
+}
+.botonCanta[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+.botonCantaTexto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.botonCantaRiel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--objetivo-minimo);
+  min-height: var(--objetivo-minimo);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}

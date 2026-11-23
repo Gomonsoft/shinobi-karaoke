@@ -1,4 +1,5 @@
 import type { Estilo } from '@shared/estilo'
+import { colorDeParte, type Parte } from '@shared/reparto'
 import { buscarFuente, FUENTE_PREDETERMINADA } from '@shared/fuentes'
 
 import { grisDeLetra } from './contraste'
@@ -34,12 +35,34 @@ export function fondoCssEn(
   return fondoCss(fondo, geometriaFondoEn(fondo, tAudioMs, opciones))
 }
 
+/** Parte de cada línea por id, solo en una canción con reparto (ADR 0029 §4). Sin ella todo es `c1`. */
+export type PartesPorLinea = ReadonlyMap<string, Parte>
+
 /**
- * Color del barrido de una línea (preparación 0.2.3: por parte). En 0.2.2 es siempre el
- * `color_resaltado` del estilo; la línea se pasa ya para que el cambio no toque a los llamadores.
+ * Color del barrido, el subrayado y los indicadores de espera de una línea: el de su parte
+ * (ADR 0029 §4). Sin reparto, o para el Cantante 1, es el `color_resaltado` del estilo.
  */
-export function colorDeLinea(_linea: { id: string } | null, estilo: Estilo): string {
-  return estilo.letra.color_resaltado
+export function colorDeLinea(
+  linea: { id: string } | null,
+  estilo: Estilo,
+  partes?: PartesPorLinea
+): string {
+  return colorDeParte(estilo, (linea && partes?.get(linea.id)) || 'c1')
+}
+
+/**
+ * Color del texto entero en Letra lista (spec 07, «Reglas de color»): el de su parte con varios
+ * cantantes y el del Coro en las líneas de coro; `undefined` = el de la letra.
+ */
+export function colorDeTextoListo(
+  linea: { id: string } | null,
+  estilo: Estilo,
+  partes: PartesPorLinea | undefined,
+  varios: boolean
+): string | undefined {
+  const parte = linea && partes?.get(linea.id)
+  if (!parte || (!varios && parte !== 'coro')) return undefined
+  return colorDeParte(estilo, parte)
 }
 
 export function variablesEstilo(estilo: Estilo): Record<string, string> {

@@ -4,6 +4,7 @@ import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Cancion } from '../../shared'
 import { FIXTURES, idDePrueba } from '../../shared/__fixtures__'
+import { cancionDosCantantes } from '../../shared/__fixtures__/reparto'
 import { lrcALetra } from '../../shared/letras'
 import { ExportadorLrc, nombreLrc } from './exportarLrc'
 
@@ -126,6 +127,21 @@ describe('exportar varias', () => {
     )
     e.mostrarEnCarpeta(r!.ubicacionId)
     expect(mostradas).toHaveLength(1)
+  })
+
+  it('con reparto: sin cantantes y los coros entre paréntesis, también al exportar varias', async () => {
+    const c = { ...cancionDosCantantes(), id: idDePrueba(8) }
+    c.letra!.lineas.find((l) => l.id === 'd6')!.texto = 'Ya duerme la bahía' // sin paréntesis
+    const e = exportador([c], { carpeta: salida })
+    await e.exportarVarias([c.id])
+    const texto = await readFile(join(salida, (await readdir(salida))[0]!), 'utf8')
+    expect(texto).toContain('[00:14.00](Ah, ah, la marea)\n') // ya los traía: sin duplicar
+    expect(texto).toContain('(Ya duerme la bahía)')
+    expect(texto).toContain('[00:05.00]Responde el viento del sur')
+    expect(texto).not.toMatch(/Luis|Ana|\bc2\b/)
+    const otra = exportador([c], { guardar: join(salida, 'una.lrc') })
+    await otra.exportarUna(c.id)
+    expect(await readFile(join(salida, 'una.lrc'), 'utf8')).toBe(texto)
   })
 
   it('cancelar «Elegir carpeta» devuelve null', async () => {

@@ -49,8 +49,42 @@
   font-size: calc(var(--k-tamano) * var(--k-reduccion, 1));
   opacity: var(--k-opacidad, 0);
   transform: translateY(calc(var(--k-y, 0px) - 50%)) scale(var(--k-escala, 1));
-  color: color-mix(in srgb, var(--k-color-gris) calc(var(--k-gris, 0) * 100%), var(--k-color));
+  color: color-mix(
+    in srgb,
+    var(--k-color-gris) calc(var(--k-gris, 0) * 100%),
+    var(--k-color-linea, var(--k-color))
+  );
   pointer-events: none;
+}
+
+/*
+ * Insignia del cantante (sistema visual · 0.2.3): píldora sin relleno, fuera del flujo, a la
+ * izquierda de la primera caja de renglón (`--k-insignia-x` la mide el componente). Medidas en
+ * em de la línea: texto 0,4, alto 0,6, relleno 0,2 y separación 0,3, que aquí son 2,5× de su 0,4.
+ */
+.insignia {
+  position: absolute;
+  top: 1.5em;
+  left: var(--k-insignia-x, 0px);
+  display: flex;
+  min-width: 1.5em;
+  height: 1.5em;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5em;
+  border: max(2px, 0.15em) solid
+    color-mix(
+      in srgb,
+      var(--k-color-gris) calc(var(--k-gris, 0) * 100%),
+      var(--k-resaltado-linea, var(--k-resaltado))
+    );
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--k-color-gris) calc(var(--k-gris, 0) * 100%), var(--k-color));
+  font-size: 0.4em;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(calc(-100% - 0.75em), -50%);
 }
 
 .barrido {

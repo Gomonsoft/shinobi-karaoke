@@ -11,6 +11,7 @@ import { ESTILO_PREDETERMINADO, estiloPredeterminado, estiloSchema, type Estilo 
 import { ESPERA_LEGADA } from './espera'
 import { PANTALLA_PREDETERMINADA, type Pantalla } from './pantalla'
 import { migrarCancion } from './migraciones'
+import { colorDeParte, COLORES_PARTES_PREDETERMINADOS } from './reparto'
 import {
   aparienciaSchema,
   catalogoInicial,
@@ -545,5 +546,42 @@ describe('reemplazo_pantalla (ADR 0022 §1)', () => {
     )
     expect(leido.temas[0]!.estilo.letra.colores_partes).toEqual({ c2: '#4ADEDE' })
     expect(estiloSchema.parse(leido.temas[0]!.estilo)).toEqual(leido.temas[0]!.estilo)
+  })
+})
+
+describe('colores_partes y herencia de temas (0.2.3 · 0347)', () => {
+  const A = idDePrueba(1)
+  const B = idDePrueba(2)
+  const conColores = estiloPredeterminado()
+  conColores.letra.colores_partes = { c2: '#112233', coro: '#445566' }
+  const indice = crearIndiceCatalogo(
+    catalogoDePrueba({
+      predeterminado: A,
+      temas: [
+        temaDePrueba({ id: A, nombre: 'Con colores', estilo: conColores }),
+        temaDePrueba({ id: B, nombre: 'Sin colores' })
+      ]
+    })
+  )
+  const cancion = (tema_id: string): CancionResoluble => ({
+    metadatos: { artista: 'X', album: null },
+    estilo: estiloPredeterminado(),
+    apariencia: { modo: 'tema', tema_id }
+  })
+
+  it('la canción hereda los colores del tema y, sin ellos, usa los predeterminados', () => {
+    const con = resolverApariencia(cancion(A), indice).estilo
+    expect(colorDeParte(con, 'c2')).toBe('#112233')
+    expect(colorDeParte(con, 'c3')).toBe(COLORES_PARTES_PREDETERMINADOS.c3)
+    const sin = resolverApariencia(cancion(B), indice).estilo
+    expect(sin.letra.colores_partes).toBeUndefined()
+    expect(colorDeParte(sin, 'c2')).toBe(COLORES_PARTES_PREDETERMINADOS.c2)
+  })
+
+  it('«ausente» y «predeterminado» son el mismo estilo; un color distinto, no', () => {
+    const explicito = estiloPredeterminado()
+    explicito.letra.colores_partes = { ...COLORES_PARTES_PREDETERMINADOS }
+    expect(estilosIguales(explicito, estiloPredeterminado())).toBe(true)
+    expect(estilosIguales(conColores, estiloPredeterminado())).toBe(false)
   })
 })

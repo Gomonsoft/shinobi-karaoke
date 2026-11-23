@@ -6,7 +6,8 @@ import { configPredeterminada, type Config } from '../../shared/config'
 import type { Cancion } from '../../shared/cancion'
 import { estiloPredeterminado } from '../../shared/estilo'
 import type { ExportacionIpc } from '../../shared/exportacion'
-import { lista } from '../../shared/__fixtures__'
+import { lista, linea } from '../../shared/__fixtures__'
+import { envolvente, tramosCoro } from '../../shared/coros'
 import type { OpcionesEjecucion } from '../trabajos/worker'
 import { Destinos, discoReal, type DiscoDestinos } from './destinos'
 import { DiarioExportacion } from './diario'
@@ -285,6 +286,8 @@ async function iniciar(
     ancho?: number
     alto?: number
     fps?: 24 | 30 | 60
+    audio?: 'instrumental' | 'instrumental_voz'
+    coros?: boolean
   } = {}
 ) {
   const formato = extra.formato ?? 'mkv_av1'
@@ -295,7 +298,8 @@ async function iniciar(
     ancho: extra.ancho ?? 640,
     alto: extra.alto ?? 480,
     fps: extra.fps ?? 24,
-    audio: 'instrumental',
+    audio: extra.audio ?? 'instrumental',
+    ...(extra.coros !== undefined ? { coros: extra.coros } : {}),
     destinoId: destino.destinoId
   })
   return { ...r, destino }
@@ -1050,6 +1054,7 @@ describe('exportar varias canciones (lote, ADR 0026 §5)', () => {
     extra: {
       siExiste?: 'numerar' | 'sustituir' | 'omitir'
       audio?: 'instrumental' | 'instrumental_voz'
+      coros?: boolean
     } = {}
   ) => {
     const propuesta = (await m.servicio.destinoCarpeta())!
@@ -1057,6 +1062,7 @@ describe('exportar varias canciones (lote, ADR 0026 §5)', () => {
       cancionIds,
       ...PERFIL,
       audio: extra.audio ?? 'instrumental',
+      ...(extra.coros !== undefined ? { coros: extra.coros } : {}),
       carpetaId: propuesta.carpetaId,
       siExiste: extra.siExiste ?? 'numerar'
     })
@@ -1426,5 +1432,119 @@ describe('exportar varias canciones (lote, ADR 0026 §5)', () => {
     await expect(m.servicio.reintentarLote(propuesta.carpetaId)).rejects.toMatchObject({
       codigo: 'ARGUMENTOS_NO_VALIDOS'
     })
+  })
+})
+
+describe('voz en los coros (0.2.3, ADR 0030 §5)', () => {
+  /** Una línea normal y una de coro dentro de una canción de 1 s; `nivel` ausente = 0,5. */
+  const conCoros = (id: string, nivel?: number, sinCoro = false): Cancion => {
+    const c = cancionDe(id)
+    c.letra = {
+      origen: 'manual',
+      lrclib_id: null,
+      offset_ms: 0,
+      ...(nivel === undefined
+        ? {}
+        : { partes: { cantantes: [{ id: 'c1' as const, nombre: null }], voz_en_coros: nivel } }),
+      lineas: [
+        { ...linea('x1', 'Verso inventado', 0), fin_ms: 100 },
+        { ...linea('x2', 'Eco inventado', 300, sinCoro ? {} : { parte: 'coro' }), fin_ms: 600 }
+      ]
+    }
+    return c
+  }
+  const esperado = (c: Cancion) =>
+    envolvente(tramosCoro(c.letra!, c.metadatos.duracion_ms), c.letra!.partes?.voz_en_coros ?? 0.5)
+  const vozDe = (id: string) => join(datos, 'biblioteca', id, 'pistas', 'voz.flac')
+
+  it('con la casilla, «Solo instrumental» y coros: la voz y los puntos de tramosCoro llegan al worker', async () => {
+    const c = conCoros(ID_A)
+    const m = montar({ canciones: { [ID_A]: c } })
+    await iniciar(m, ID_A, { coros: true })
+    await hasta(() => m.llamadas.length === 1)
+    const audio = m.llamadas[0]!.args.audio as Record<string, unknown>
+    expect(audio.voz).toBe(vozDe(ID_A))
+    expect(audio.voz_envolvente).toEqual(esperado(c))
+    expect(esperado(c)).toEqual([
+      [150, 0],
+      [300, 0.5],
+      [750, 0.5],
+      [900, 0]
+    ])
+  })
+
+  it('regresión 0.2.2: sin la casilla (o ausente) el audio del worker es el de siempre', async () => {
+    for (const coros of [undefined, false]) {
+      const m = montar({ canciones: { [ID_A]: conCoros(ID_A) } })
+      await iniciar(m, ID_A, coros === undefined ? {} : { coros })
+      await hasta(() => m.llamadas.length === 1)
+      expect(m.llamadas[0]!.args.audio).toStrictEqual({
+        instrumental: join(datos, 'biblioteca', ID_A, 'pistas', 'instrumental.flac'),
+        voz: null,
+        ganancia_db: -2.5
+      })
+    }
+  })
+
+  it.each([
+    ['«Instrumental y voz»', conCoros(ID_A), { audio: 'instrumental_voz' as const }],
+    ['nivel 0', conCoros(ID_A, 0), {}],
+    ['una canción sin coros', conCoros(ID_A, undefined, true), {}]
+  ])('%s: sin envolvente', async (_n, c, extra) => {
+    const m = montar({ canciones: { [ID_A]: c } })
+    await iniciar(m, ID_A, { coros: true, ...extra })
+    await hasta(() => m.llamadas.length === 1)
+    const audio = m.llamadas[0]!.args.audio as Record<string, unknown>
+    expect(audio).not.toHaveProperty('voz_envolvente')
+    expect(audio.voz).toBe('audio' in extra ? vozDe(ID_A) : null)
+  })
+
+  it('sin pista de voz utilizable no hay envolvente', async () => {
+    await rm(vozDe(ID_A))
+    const m = montar({ canciones: { [ID_A]: conCoros(ID_A) } })
+    await iniciar(m, ID_A, { coros: true })
+    await hasta(() => m.llamadas.length === 1)
+    expect(m.llamadas[0]!.args.audio).not.toHaveProperty('voz_envolvente')
+  })
+
+  it('lote: cada canción usa su nivel; las que no tienen coros no llevan envolvente', async () => {
+    const IDS = ['c1', 'c2', 'c3', 'c4']
+    const canciones: Record<string, Cancion> = {
+      c1: conCoros('c1', 0.2),
+      c2: conCoros('c2', 0.7),
+      c3: conCoros('c3', undefined, true),
+      c4: conCoros('c4', 0.7)
+    }
+    for (const id of IDS) {
+      await mkdir(join(datos, 'biblioteca', id, 'pistas'), { recursive: true })
+      await writeFile(join(datos, 'biblioteca', id, 'pistas', 'instrumental.flac'), 'i')
+      if (id !== 'c4') await writeFile(vozDe(id), 'v')
+    }
+    const carpeta = join(raiz, 'salida')
+    await mkdir(carpeta, { recursive: true })
+    const m = montar({ canciones, carpetaElegida: carpeta })
+    const propuesta = (await m.servicio.destinoCarpeta())!
+    const r = await m.servicio.iniciarLote({
+      cancionIds: IDS,
+      formato: 'mkv_av1',
+      ancho: 640,
+      alto: 480,
+      fps: 24,
+      audio: 'instrumental',
+      coros: true,
+      carpetaId: propuesta.carpetaId,
+      siExiste: 'numerar'
+    })
+    for (const e of r.encoladas) await hasta(() => m.ultimo(e.trabajoId)?.estado === 'terminada')
+    const audioDe = (id: string) =>
+      m.llamadas.find((l) =>
+        String((l.args.audio as { instrumental: string }).instrumental).includes(`/${id}/`)
+      )!.args.audio as Record<string, unknown>
+    expect(audioDe('c1').voz_envolvente).toEqual(esperado(canciones.c1!))
+    expect(audioDe('c2').voz_envolvente).toEqual(esperado(canciones.c2!))
+    expect((audioDe('c1').voz_envolvente as number[][])[1]![1]).toBe(0.2)
+    expect((audioDe('c2').voz_envolvente as number[][])[1]![1]).toBe(0.7)
+    expect(audioDe('c3')).not.toHaveProperty('voz_envolvente')
+    expect(audioDe('c4')).not.toHaveProperty('voz_envolvente')
   })
 })

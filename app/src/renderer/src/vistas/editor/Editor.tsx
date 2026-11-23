@@ -61,10 +61,16 @@ import { useExportarDesdeEditor } from './useExportarDesdeEditor'
 import { exportarLetras } from '../biblioteca/paquete/letras'
 import { LRC } from '../biblioteca/paquete/textos'
 import { EXP_GUARDADO, EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
+import { cantantesDe, parteDe, tieneReparto, type Parte } from '@shared/reparto'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { ChipParte } from './ChipParte'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
+import { MenuQuienCanta, type AnclaMenu } from './MenuQuienCanta'
+import { etiquetaParte, P, parteComun, parteVecina, ranuraDe } from './partes'
 import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
+import { partesEnUso } from './estilo/partesEnUso'
 import { PanelFunciones, type EstadoCancion } from './PanelFunciones'
 import { EditorPreciso, type EditorPrecisoApi, type CambiosPreciso } from './preciso/EditorPreciso'
 import type { Area, Geometria } from '../../componentes/VentanaFlotante'
@@ -324,8 +330,15 @@ function EditorActivo({
   const [fondoDetenido, setFondoDetenido] = useState(false)
   const movimientoReducido = useMovimientoReducido()
   const hayMovimiento = estilo.fondo.tipo === 'degradado' && Boolean(estilo.fondo.movimiento)
-  const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
+  // Con reparto, el contraste también mira los colores de las partes en uso (0.2.3 · 0347).
+  const contraste = useMemo(() => evaluarContraste(estilo, partesEnUso(letra)), [estilo, letra])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
+  // Reparto (0.2.3): menú «¿Quién canta?» abierto, con su ancla y el elemento al que vuelve el foco.
+  const { edicionBloqueada } = useSesion()
+  const [menuPartes, setMenuPartes] = useState<{
+    ancla: AnclaMenu
+    origen: HTMLElement | null
+  } | null>(null)
   // Editor preciso de línea (fase 9): línea abierta, su borrador vivo y quién lo abrió.
   const [precisoId, setPrecisoId] = useState<string | null>(null)
   const [borradorPreciso, setBorradorPreciso] = useState<BorradorLinea | null>(null)
@@ -365,7 +378,7 @@ function EditorActivo({
     resumen.estado === 'borrador' ? 'borrador' : esLetraLista ? 'letra_lista' : 'lista'
   // En Letra lista, «resaltado» y «diferencia» solo afectan al editor: no encienden el punto (LL7).
   const avisosPestana = contraste.avisos.filter(
-    (a) => !(esLetraLista && !tema.editando && a !== 'letra')
+    (a) => !(esLetraLista && !tema.editando && a !== 'letra' && a !== 'parte')
   )
   const [prueba, setPrueba] = useState<Prueba | null>(null)
   const abrirPendiente = useRef<AbortController | null>(null)
@@ -1353,15 +1366,133 @@ function EditorActivo({
     }
   }
 
-  function moverSeleccion(sentido: -1 | 1, enfocar: boolean) {
+  function moverSeleccion(sentido: -1 | 1, enfocar: boolean, extender = false) {
     const id = lineaVecina(letra, edicion.seleccion, sentido)
     if (id && id !== edicion.seleccion) {
       desarmarBucle()
       cancelarMarcador()
     }
-    despachar({ tipo: 'mover_seleccion', sentido })
+    despachar({ tipo: 'mover_seleccion', sentido, extender })
     setPestana('sincronia')
     if (enfocar) setFocoLinea((n) => n + 1)
+  }
+
+  // --- Reparto (0.2.3 · feature 1) ---
+  // Asignar, añadir y la selección múltiple no actúan al ritmo ni con la sesión en otra pantalla (C1-E21).
+  const repartoEditable = !edicion.sync.activo && !edicionBloqueada
+  const conReparto = tieneReparto(letra)
+  const lineaPrincipal = letra.lineas.find((l) => l.id === edicion.seleccion && l.tipo === 'linea')
+  const soloPrincipalTexto =
+    edicion.seleccionadas.length > 1 && edicion.seleccion
+      ? P.soloPrincipal(numeroDeLinea(letra, edicion.seleccion))
+      : undefined
+
+  /** Abre «¿Quién canta?» sobre la selección; `ancla` y `origen` por defecto: la fila principal. */
+  function abrirMenuPartes(ancla: AnclaMenu | null, origen: HTMLElement | null) {
+    if (!repartoEditable || edicion.seleccion === null) return
+    const raizEditor = refRaiz.current
+    const destino =
+      ancla ??
+      raizEditor?.querySelector<HTMLElement>('[role="option"][data-principal]') ??
+      raizEditor?.querySelector<HTMLElement>('[data-boton-layout="lista-expandir"]') ??
+      raizEditor
+    if (!destino) return
+    if (menuPartes?.ancla === destino) {
+      cerrarMenuPartes(true)
+      return
+    }
+    // Si lo abrió la lista, el foco vuelve a la fila principal; si no, al elemento que lo abrió.
+    setMenuPartes({
+      ancla: destino,
+      origen: origen?.getAttribute('role') === 'option' ? null : origen
+    })
+  }
+  function cerrarMenuPartes(devolverFoco: boolean) {
+    const origen = menuPartes?.origen ?? null
+    setMenuPartes(null)
+    if (!devolverFoco) return
+    if (origen?.isConnected) origen.focus({ preventScroll: true })
+    else setFocoLinea((n) => n + 1)
+  }
+
+  /** Asigna la selección a `parte` en un paso y lo anuncia; `agrupar` junta las pulsaciones de Alt + ↑/↓. */
+  function asignarParte(parte: Parte, agrupar = false): boolean {
+    if (!repartoEditable) return false
+    const ids = edicion.seleccionadas
+    const accion = { tipo: 'asignar_parte', parte, ids, agrupar, ahora: performance.now() } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return false
+    despachar(accion)
+    anunciar(P.anuncio(ids.length, etiquetaParte(siguiente.actual.letra, parte)))
+    return true
+  }
+  function asignarAlCantante(n: 1 | 2 | 3 | 4) {
+    if (!repartoEditable) return
+    if (!cantantesDe(letra).some((c) => ranuraDe(c.id) === n)) anunciar(P.noExiste(n))
+    else asignarParte(`c${n}` as Parte)
+  }
+  function irAParteVecina(sentido: -1 | 1) {
+    if (!lineaPrincipal) return
+    const destino = parteVecina(letra, parteDe(lineaPrincipal, letra), sentido)
+    if (destino) asignarParte(destino, true)
+  }
+  /** «+ Añadir cantante» del menú: crea el cantante y le asigna la selección, en un solo paso. */
+  function anadirCantanteDesdeMenu() {
+    if (!repartoEditable) return
+    const accion = {
+      tipo: 'anadir_cantante',
+      asignarA: edicion.seleccionadas,
+      ahora: performance.now()
+    } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return
+    const antes = new Set(cantantesDe(letra).map((c) => c.id))
+    const nuevo = cantantesDe(siguiente.actual.letra).find((c) => !antes.has(c.id))
+    despachar(accion)
+    if (nuevo) {
+      anunciar(
+        P.anuncioNuevo(
+          etiquetaParte(siguiente.actual.letra, nuevo.id),
+          edicion.seleccionadas.length
+        )
+      )
+    }
+    cerrarMenuPartes(true)
+  }
+  function seleccionarVarias(id: string, modo: 'alternar' | 'rango' | 'principal') {
+    if (id !== edicion.seleccion) {
+      desarmarBucle()
+      cancelarMarcador()
+    }
+    despachar(
+      modo === 'alternar'
+        ? { tipo: 'alternar_seleccion', id }
+        : modo === 'rango'
+          ? { tipo: 'extender_seleccion', id }
+          : { tipo: 'hacer_principal', id }
+    )
+  }
+  /** Fila «Canta» del panel y chip del riel: la parte común de la selección o «Varias» (solo con reparto). */
+  const parteComunSeleccion = parteComun(letra, edicion.seleccionadas)
+  const canta =
+    conReparto && lineaPrincipal
+      ? {
+          chip: parteComunSeleccion ? (
+            <ChipParte letra={letra} estilo={estilo} parte={parteComunSeleccion} decorativo />
+          ) : null,
+          etiqueta: parteComunSeleccion ? etiquetaParte(letra, parteComunSeleccion) : P.varias,
+          abierto: menuPartes !== null,
+          abrir: repartoEditable
+            ? (origen: HTMLElement) => abrirMenuPartes(origen, origen)
+            : undefined
+        }
+      : undefined
+  /** Chip de solo lectura de la línea `id` (editor preciso, tarjeta de la revisión, riel de la lista). */
+  const chipDeLinea = (id: string | null) => {
+    const el = letra.lineas.find((l) => l.id === id && l.tipo === 'linea')
+    return conReparto && el ? (
+      <ChipParte letra={letra} estilo={estilo} parte={parteDe(el, letra)} />
+    ) : null
   }
 
   // Foco tras cambiar de modo: el botón equivalente de la zona; nunca queda en `body`.
@@ -1407,7 +1538,7 @@ function EditorActivo({
     const raizEditor = refRaiz.current
     const destino = listaMinimizada
       ? raizEditor?.querySelector<HTMLElement>('[data-boton-layout="lista-expandir"]')
-      : (raizEditor?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]') ??
+      : (raizEditor?.querySelector<HTMLElement>('[role="option"][data-principal]') ??
         raizEditor?.querySelector<HTMLElement>('#lineas-editor'))
     destino?.focus({ preventScroll: true })
     // Solo al entrar.
@@ -1431,7 +1562,24 @@ function EditorActivo({
           usarPista(accion.pista)
           break
         case 'mover_seleccion':
-          moverSeleccion(accion.sentido, !listaMinimizada)
+          moverSeleccion(accion.sentido, !listaMinimizada, accion.extender && repartoEditable)
+          break
+        case 'quien_canta': {
+          const activo = document.activeElement
+          const dentro =
+            activo instanceof HTMLElement &&
+            activo !== refRaiz.current &&
+            refRaiz.current?.contains(activo)
+              ? activo
+              : null
+          abrirMenuPartes(dentro, dentro)
+          break
+        }
+        case 'parte_n':
+          asignarAlCantante(accion.n)
+          break
+        case 'parte_vecina':
+          irAParteVecina(accion.sentido)
           break
         case 'deshacer':
           deshacerEditor()
@@ -1489,6 +1637,12 @@ function EditorActivo({
           setFocoLinea((n) => n + 1)
           break
         case 'escapar':
+          // Orden de Esc (ADR 0029 §5): menú o popover (ya cerrado: el menú captura Esc), arrastre en
+          // curso (0345), varias seleccionadas → solo la principal y, si no, lo de siempre.
+          if (edicion.seleccionadas.length > 1) {
+            despachar({ tipo: 'solo_principal' })
+            break
+          }
           if (cancelarMarcador()) break
           if (bucle.current) {
             desarmarBucle()
@@ -1760,6 +1914,8 @@ function EditorActivo({
                 abrirPreciso={abrirPreciso}
                 motivoPreciso={motivoPreciso}
                 ocupada={ocupada}
+                chipParte={chipDeLinea(edicion.seleccion)}
+                soloPrincipal={soloPrincipalTexto}
               />
             ) : (
               <ListaLineas
@@ -1778,6 +1934,11 @@ function EditorActivo({
                 motivoPreciso={motivoPreciso}
                 escucharLinea={escucharTramoLinea}
                 borrarTiempos={borrar}
+                seleccionadas={edicion.seleccionadas}
+                estilo={estilo}
+                seleccionarVarias={repartoEditable ? seleccionarVarias : undefined}
+                abrirQuienCanta={repartoEditable ? abrirMenuPartes : undefined}
+                soloPrincipal={soloPrincipalTexto}
                 minimizar={
                   distribucion.bajoMinimo === 'ancho'
                     ? undefined
@@ -1860,6 +2021,7 @@ function EditorActivo({
                 expandir={() => alternarZona('panel', 'boton')}
                 abrirFunciones={expandirEnFunciones}
                 ocupada={ocupada}
+                canta={canta}
               />
             ) : (
               <>
@@ -1982,6 +2144,7 @@ function EditorActivo({
                           }}
                           probar={() => void abrirPrueba()}
                           probarInactivo={probarInactivo || cuentas.sincronizadas === 0}
+                          chipParte={chipDeLinea(edicion.seleccion)}
                         />
                       )}
                       <PanelSincronia
@@ -2003,6 +2166,7 @@ function EditorActivo({
                         abrirPreciso={abrirPreciso}
                         motivoPreciso={motivoPreciso}
                         ocupada={ocupada}
+                        canta={canta}
                         cerrarBluetooth={() => setAyudaBluetooth(false)}
                         escucharAjustes={escucharAjustes}
                         fijarEscucharAjustes={setEscucharAjustes}
@@ -2033,6 +2197,7 @@ function EditorActivo({
                         espera={controlEspera}
                         pantalla={controlPantalla}
                         subrayadoDelEquipo={subrayadoDelEquipo}
+                        letra={letra}
                         alCambiar={(nuevo, clave, agruparGesto) =>
                           despachar({
                             tipo: tema.editando ? 'estilo_borrador' : 'estilo',
@@ -2265,6 +2430,7 @@ function EditorActivo({
           duracionMs={duracionMs}
           cancionId={id}
           separada={separacion.disponible}
+          chipParte={chipDeLinea(precisoId)}
           numeroLinea={numeroDeLinea(letra, precisoId)}
           totalLineas={cuentas.total}
           hayAnterior={vecinaConInicio(letra, precisoId, -1) !== null}
@@ -2317,6 +2483,25 @@ function EditorActivo({
         />
       )}
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {menuPartes && repartoEditable && (
+        <MenuQuienCanta
+          letra={letra}
+          estilo={estilo}
+          ids={edicion.seleccionadas}
+          ancla={menuPartes.ancla}
+          elegir={(parte) => {
+            asignarParte(parte)
+            cerrarMenuPartes(true)
+          }}
+          anadir={anadirCantanteDesdeMenu}
+          nombres={() => {
+            // El foco en el nombre del primer cantante de la selección es de «Cantantes y coros» (0346).
+            cerrarMenuPartes(false)
+            expandirEnFunciones()
+          }}
+          cerrar={cerrarMenuPartes}
+        />
+      )}
       {silencios.abierta && (
         <DialogoAjustarSilencios
           abierta={silencios.abierta}

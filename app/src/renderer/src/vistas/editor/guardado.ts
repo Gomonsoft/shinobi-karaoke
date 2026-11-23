@@ -2,6 +2,7 @@ import type { ErrorIpc, SeleccionApariencia } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import type { GuardarTiempos } from '@shared/letrasBusqueda'
 import { aPeticionTiempos } from '@shared/letras/tiempos'
+import { normalizarReparto } from '@shared/reparto'
 
 export type EstadoGuardado =
   { estado: 'guardado' | 'guardando' } | { estado: 'error'; error: ErrorIpc }
@@ -72,7 +73,13 @@ export class GuardadoEditor {
         this.textos.set(linea.id, linea.texto)
       }
     }
-    await api.guardarTiempos(aPeticionTiempos(cancionId, letra))
+    // El reparto viaja siempre completo y en su forma canónica; `null` quita `partes` cuando ya no
+    // guarda nada (ADR 0029 §2). Normalizar aquí cubre también datos raros que se leyeron con tolerancia.
+    const canonica = normalizarReparto(letra)
+    await api.guardarTiempos({
+      ...aPeticionTiempos(cancionId, canonica),
+      partes: canonica.partes ?? null
+    })
   }
 
   cambiarLetra(letra: Letra): void {

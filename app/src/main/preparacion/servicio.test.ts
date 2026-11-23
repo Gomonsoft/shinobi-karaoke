@@ -1122,3 +1122,112 @@ describe('separación pendiente que nadie lanzó (pregunta 0223 §4)', () => {
     expect(registro()!.estado).toBe('lista_para_revisar')
   })
 })
+
+describe('reparto de la letra (0.2.3, tarea 0341)', () => {
+  const DUO = {
+    cantantes: [
+      { id: 'c1' as const, nombre: 'Ana' },
+      { id: 'c2' as const, nombre: null }
+    ]
+  }
+
+  it('la preparación desatendida no asigna ninguna parte ni crea `partes`', async () => {
+    await separar()
+    await preparar('automatica')
+    const letra = cancion().letra!
+    expect(letra.lineas.some((l) => 'parte' in l)).toBe(false)
+    expect(letra).not.toHaveProperty('partes')
+  })
+
+  it('ajustar los fines conserva `parte` y `partes`, y quitarlos también', async () => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineas(0, 'Verso inventado', false)
+    })
+    const letra = cancion().letra!
+    await biblioteca.actualizar(id, {
+      letra: {
+        ...letra,
+        intacta: undefined,
+        partes: DUO,
+        lineas: letra.lineas.map((l, i) => (i % 2 === 1 ? { ...l, parte: 'c2' as const } : l))
+      }
+    })
+    await separar()
+    await servicio.preparar([id], { finesSinMarca: true })
+    await servicio.enReposo()
+    const despues = cancion().letra!
+    expect(despues.partes).toEqual(DUO)
+    expect(despues.lineas.map((l) => l.parte)).toEqual([
+      undefined,
+      'c2',
+      undefined,
+      'c2',
+      undefined,
+      'c2'
+    ])
+    expect(despues.lineas.every((l) => l.origen_fin === 'preparacion')).toBe(true)
+    // «Quitar esos fines»: el editor reenvía las líneas con su parte y sin fin.
+    const { cancion: c, sesionId } = letras.abrirEdicion(id)!
+    await letras.guardarTiempos(
+      {
+        cancionId: id,
+        offset_ms: 0,
+        partes: DUO,
+        tiempos: c.letra!.lineas.map((l) => ({
+          id: l.id,
+          inicio_ms: l.inicio_ms,
+          fin_ms: null,
+          palabras: null,
+          ...(l.parte ? { parte: l.parte } : {})
+        }))
+      },
+      sesionId
+    )
+    const sinFines = cancion().letra!
+    expect(sinFines.lineas.map((l) => l.parte)).toEqual(despues.lineas.map((l) => l.parte))
+    expect(sinFines.lineas.some((l) => l.fin_ms !== null || l.origen_fin)).toBe(false)
+    expect(sinFines.partes).toEqual(DUO)
+  })
+
+  it('guardar solo partes no cambia el recuento de dudosas ni retira intacta', async () => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineasBuenas()
+    })
+    await separar()
+    const antes = await contarDudosasGuardadas({ picos }, cancion())
+    expect(cancion().letra!.intacta).toBe(true)
+    await guardarSoloPartes(true)
+    expect(await contarDudosasGuardadas({ picos }, cancion())).toEqual(antes)
+    const l = cancion().letra!
+    expect(l.intacta).toBe(true)
+    expect(l.lineas.map((x) => x.parte)).toContain('coro')
+  })
+
+  /** Reenvía la letra tal cual y, con `asignar`, pone dos líneas de coro y un dúo. */
+  async function guardarSoloPartes(asignar = false): Promise<void> {
+    const { cancion: c, sesionId } = letras.abrirEdicion(id)!
+    await letras.guardarTiempos(
+      {
+        cancionId: id,
+        offset_ms: c.letra!.offset_ms,
+        ...(asignar ? { partes: DUO } : {}),
+        tiempos: c.letra!.lineas.map((l, i) => ({
+          id: l.id,
+          inicio_ms: l.inicio_ms,
+          fin_ms: l.fin_ms,
+          palabras: l.palabras,
+          ...(l.origen_fin ? { origen_fin: l.origen_fin } : {}),
+          ...(asignar && i % 2 === 1 ? { parte: 'coro' as const } : {})
+        }))
+      },
+      sesionId
+    )
+    letras.cerrarEdicion(sesionId)
+  }
+})

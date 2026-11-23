@@ -118,5 +118,24 @@ export function aplicarTextoEditado(letra: Letra, texto: string, generarId?: Gen
     if (deNuevo.has(p)) e.id = entrada[p]!.id
     p++
   }
+  heredarParte(salida, conservados)
   return { ...letra, lineas: salida }
+}
+
+/**
+ * Una línea nueva o cambiada hereda la parte de la línea anterior; la primera, la de la siguiente
+ * (ADR 0029 §2, decisión 17 de 0160). Las pausas no cuentan. Sin reparto en la letra no cambia nada.
+ */
+function heredarParte(lineas: ElementoLetra[], conservados: ReadonlySet<string>): void {
+  const textos = lineas.filter((e) => e.tipo === 'linea')
+  let previa: ElementoLetra | undefined
+  textos.forEach((e, k) => {
+    if (conservados.has(e.id)) {
+      previa = e
+      return
+    }
+    const fuente = previa ?? textos.slice(k + 1).find((x) => conservados.has(x.id))
+    if (fuente?.parte) e.parte = fuente.parte
+    previa = e
+  })
 }

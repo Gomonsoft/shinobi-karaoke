@@ -149,3 +149,27 @@ it('llama a editarTextoLinea antes de guardarTiempos, solo por las líneas con t
   await vi.advanceTimersByTimeAsync(1000)
   expect(editarTextoLinea).toHaveBeenCalledOnce()
 })
+
+it('envía el reparto completo y normalizado; sin reparto, `partes: null` (ADR 0029 §2)', async () => {
+  const { editor, guardarTiempos } = preparar()
+  const conReparto = {
+    ...letra([linea('a', 'El viento', 2000), linea('b', 'La sal', 4000, { parte: 'c2' })]),
+    partes: {
+      cantantes: [
+        { id: 'c1' as const, nombre: null },
+        { id: 'c2' as const, nombre: 'Luis' }
+      ]
+    }
+  }
+  editor.cambiarLetra(conReparto)
+  await vi.advanceTimersByTimeAsync(1000)
+  const [primera] = guardarTiempos.mock.calls[0] as unknown as [
+    { partes: unknown; tiempos: { parte?: string }[] }
+  ]
+  expect(primera.partes).toEqual(conReparto.partes)
+  expect(primera.tiempos.map((t) => t.parte)).toEqual([undefined, 'c2'])
+
+  editor.cambiarLetra(l(0))
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(guardarTiempos).toHaveBeenLastCalledWith(expect.objectContaining({ partes: null }))
+})

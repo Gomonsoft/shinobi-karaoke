@@ -249,3 +249,57 @@ describe('aplicarTextoEditado conserva los campos de las líneas que no cambian 
     expect(r).toMatchObject({ intacta: true, idioma: 'es', partes: l.partes })
   })
 })
+
+describe('aplicarTextoEditado con reparto (0.2.3)', () => {
+  const base = (): Letra => ({
+    origen: 'manual',
+    lrclib_id: null,
+    offset_ms: 0,
+    partes: {
+      cantantes: [
+        { id: 'c1', nombre: null },
+        { id: 'c2', nombre: null }
+      ]
+    },
+    lineas: [
+      lin('a', 'Uno', 1000),
+      lin('b', 'Dos', 2000, { parte: 'c2' }),
+      pausa('p'),
+      lin('c', 'Tres', 3000, { parte: 'coro' })
+    ]
+  })
+  const partes = (l: Letra) =>
+    l.lineas.filter((e) => e.tipo === 'linea').map((e) => [e.texto, e.parte])
+
+  it('las emparejadas conservan la parte; la nueva hereda la de la anterior', () => {
+    const r = aplicarTextoEditado(base(), 'Uno\nDos\nDos y medio\n\nTres', contador())
+    expect(partes(r)).toEqual([
+      ['Uno', undefined],
+      ['Dos', 'c2'],
+      ['Dos y medio', 'c2'],
+      ['Tres', 'coro']
+    ])
+  })
+
+  it('la primera línea nueva hereda la de la siguiente; una pausa no cuenta', () => {
+    const r = aplicarTextoEditado(base(), 'Cero\nDos\n\nUna\nTres', contador())
+    expect(partes(r)).toEqual([
+      ['Cero', 'c2'],
+      ['Dos', 'c2'],
+      ['Una', 'c2'],
+      ['Tres', 'coro']
+    ])
+  })
+
+  it('sin reparto no aparece ningún campo nuevo', () => {
+    const sin: Letra = {
+      origen: 'manual',
+      lrclib_id: null,
+      offset_ms: 0,
+      lineas: [lin('a', 'Uno', 1000), lin('b', 'Dos', 2000)]
+    }
+    const r = aplicarTextoEditado(sin, 'Uno\nNueva\nDos', contador())
+    expect(r.lineas.some((e) => 'parte' in e)).toBe(false)
+    expect(r).not.toHaveProperty('partes')
+  })
+})

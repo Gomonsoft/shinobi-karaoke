@@ -7,14 +7,23 @@ import {
   useState,
   type CSSProperties
 } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import { LoaderCircle, Users } from 'lucide-react'
 import { normalizarEstilo, type Estilo } from '@shared/estilo'
 import { palabrasVisibles, type Letra } from '@shared/letra'
+import {
+  insignia,
+  parteDe,
+  textoEnPantalla,
+  tieneReparto,
+  variosCantantes,
+  type InicialParte,
+  type Parte
+} from '@shared/reparto'
 import { Icono } from '../componentes/Icono'
 import estilosComponentes from '../componentes/componentes.module.css'
 import { recorteBarrido } from './barrido'
 import { suelosDeOpacidad } from './contraste'
-import { colorDeLinea, fondoCss, fondoCssEn, variablesEstilo } from './estiloCss'
+import { colorDeLinea, colorDeTextoListo, fondoCss, fondoCssEn, variablesEstilo } from './estiloCss'
 import { disponerBloque } from './pantalla'
 import {
   fotogramaEn,
@@ -110,6 +119,26 @@ function medirBarridos(nodo: HTMLElement | null, subrayar: boolean): MedicionBar
   })
 }
 
+/**
+ * Pone la insignia a la izquierda de la primera caja de renglón del texto (ADR 0029 §4). La posición
+ * va en px sin transformar, relativa al nodo, como las cajas del barrido.
+ */
+function colocarInsignia(nodo: HTMLElement): void {
+  const marca = nodo.querySelector<HTMLElement>('[data-insignia]')
+  const texto = nodo.querySelector<HTMLElement>('[data-texto]')
+  if (!marca || !texto) return
+  const rango = document.createRange()
+  rango.selectNodeContents(texto)
+  // jsdom no mide: sin cajas no hay posición (la insignia se queda en 0).
+  const primera = Array.from(rango.getClientRects ? rango.getClientRects() : [])
+    .filter((caja) => caja.width > 0)
+    .sort((a, b) => a.top - b.top)[0]
+  const origen = nodo.getBoundingClientRect()
+  const escala = origen.width / nodo.offsetWidth
+  if (!primera || !(escala > 0) || !Number.isFinite(escala)) return
+  marca.style.setProperty('--k-insignia-x', `${(primera.left - origen.left) / escala}px`)
+}
+
 function aplicarProgreso(barridos: readonly MedicionBarrido[], linea: LineaRender): void {
   barridos.forEach(({ capa, cajas, margen }, i) => {
     const progreso = linea.palabras ? (linea.palabras[i]?.progreso ?? 0) : linea.progreso
@@ -142,19 +171,35 @@ function Barrido({ texto, barrido }: { texto: string; barrido: boolean }) {
 function TextoLinea({
   texto,
   palabras,
-  barrido
+  barrido,
+  parentesis = false
 }: {
   texto: string
   palabras: string[] | null
   barrido: boolean
+  /** Coro: «(» con la primera palabra y «)» con la última; el texto guardado no los trae. */
+  parentesis?: boolean
 }) {
-  if (!barrido || !palabras) return <Barrido texto={texto} barrido={barrido} />
+  if (!barrido || !palabras) {
+    return <Barrido texto={parentesis ? `(${texto})` : texto} barrido={barrido} />
+  }
   return palabras.map((palabra, i) => (
     <span key={i} className={estilos.palabra}>
       {i > 0 && ' '}
-      <Barrido texto={palabra} barrido />
+      <Barrido
+        texto={`${parentesis && i === 0 ? '(' : ''}${palabra}${parentesis && i === palabras.length - 1 ? ')' : ''}`}
+        barrido
+      />
     </span>
   ))
+}
+
+function Insignia({ valor }: { valor: InicialParte }) {
+  return (
+    <span className={estilos.insignia} data-insignia="" aria-hidden="true">
+      {valor.tipo === 'texto' ? valor.texto : <Users size="1em" strokeWidth={2} />}
+    </span>
+  )
 }
 
 const copiasDe = (f: FotogramaLetra, l: LineaEnPantalla): Rol[] =>
@@ -224,6 +269,23 @@ export function PantallaLetra({
     () => new Map(letra.lineas.map((linea) => [linea.id, linea])),
     [letra.lineas]
   )
+  // Reparto (ADR 0029 §4): solo con 2 o más cantantes o coros; sin él, nada de esto existe.
+  const reparto = useMemo(() => {
+    if (!tieneReparto(letra)) return null
+    const partes = new Map<string, Parte>()
+    const insignias = new Map<string, InicialParte>()
+    const parentesis = new Set<string>()
+    for (const linea of letra.lineas) {
+      if (linea.tipo !== 'linea') continue
+      const parte = parteDe(linea, letra)
+      partes.set(linea.id, parte)
+      const marca = insignia(letra, parte)
+      if (marca) insignias.set(linea.id, marca)
+      if (textoEnPantalla(linea).parentesis) parentesis.add(linea.id)
+    }
+    return { partes, insignias, parentesis, varios: variosCantantes(letra) }
+  }, [letra])
+  const variosCant = !!reparto?.varios
   const animarFondo =
     fondo.tipo === 'degradado' && !!fondo.movimiento && !fondoEstatico && !reducido
   const espera = estilo.espera
@@ -325,6 +387,7 @@ export function PantallaLetra({
         if (nodo.dataset.linea === undefined) return
         if (!todo && medidos.current.has(nodo)) return
         ajustarReduccion(nodo)
+        colocarInsignia(nodo)
         medidos.current.set(nodo, medirBarridos(nodo, subrayar))
         if (nodo.offsetHeight > 0) alturas.current[nodo.dataset.linea] = nodo.offsetHeight
       })
@@ -355,7 +418,7 @@ export function PantallaLetra({
       fuentes?.removeEventListener('loadingdone', volver)
       fuentes?.removeEventListener('loadingerror', volver)
     }
-  }, [letra.lineas, estilo.letra.fuente.familia, cuentaAtras, subrayar])
+  }, [letra.lineas, letra.partes, estilo.letra.fuente.familia, cuentaAtras, subrayar])
 
   useLayoutEffect(() => {
     medirRef.current(false)
@@ -472,7 +535,13 @@ export function PantallaLetra({
       aria-hidden="true"
       className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} ${subrayar ? estilos.subrayado : ''} ${vistaPrevia ? estilos.vistaPrevia : ''} foco-doble ${className ?? ''}`}
       data-movimiento={reducido ? 'reducido' : 'completo'}
-      style={variablesEstilo(estilo) as CSSProperties}
+      style={
+        {
+          ...variablesEstilo(estilo),
+          // Con varios cantantes la insignia necesita sitio: 80 % en lugar de 88 % (ADR 0029 §4).
+          ...(variosCant && { '--k-ancho-linea': '80%' })
+        } as CSSProperties
+      }
     >
       {cuentaAtras ? (
         <div className={estilos.cuenta}>{cuentaAtras}</div>
@@ -497,9 +566,16 @@ export function PantallaLetra({
           const f = fotogramas[i]!
           const hueco = f.espera
           // Los indicadores toman el color de la línea que viene (en 0.2.2, el de lo ya cantado).
+          const colorListo = barrido
+            ? undefined
+            : colorDeTextoListo(f.siguiente, estilo, reparto?.partes, variosCant)
           const colorIndicadores = barrido
-            ? ({ '--k-indicador': colorDeLinea(f.siguiente, estilo) } as CSSProperties)
-            : undefined
+            ? ({
+                '--k-indicador': colorDeLinea(f.siguiente, estilo, reparto?.partes)
+              } as CSSProperties)
+            : colorListo
+              ? ({ '--k-indicador': colorListo } as CSSProperties)
+              : undefined
           return (
             <Fragment key={zona.id}>
               {hueco?.barra && (
@@ -542,6 +618,20 @@ export function PantallaLetra({
                 copiasDe(f, linea).map((rol) => {
                   const clave = claveNodo(zona.id, linea.id, rol)
                   const original = lineasPorId.get(linea.id)
+                  const marca = reparto?.insignias.get(linea.id)
+                  const colorTexto = barrido
+                    ? undefined
+                    : colorDeTextoListo(linea, estilo, reparto?.partes, variosCant)
+                  const contenido = (
+                    <TextoLinea
+                      texto={linea.texto}
+                      palabras={
+                        (original && palabrasVisibles(original)?.map((p) => p.texto)) || null
+                      }
+                      barrido={barrido}
+                      parentesis={reparto?.parentesis.has(linea.id)}
+                    />
+                  )
                   return (
                     <div
                       key={clave}
@@ -551,16 +641,20 @@ export function PantallaLetra({
                       data-copia={rol}
                       className={estilos.linea}
                       style={
-                        { '--k-resaltado-linea': colorDeLinea(linea, estilo) } as CSSProperties
+                        {
+                          '--k-resaltado-linea': colorDeLinea(linea, estilo, reparto?.partes),
+                          ...(colorTexto && { '--k-color-linea': colorTexto })
+                        } as CSSProperties
                       }
                     >
-                      <TextoLinea
-                        texto={linea.texto}
-                        palabras={
-                          (original && palabrasVisibles(original)?.map((p) => p.texto)) || null
-                        }
-                        barrido={barrido}
-                      />
+                      {marca ? (
+                        <>
+                          <Insignia valor={marca} />
+                          <span data-texto="">{contenido}</span>
+                        </>
+                      ) : (
+                        contenido
+                      )}
                     </div>
                   )
                 })

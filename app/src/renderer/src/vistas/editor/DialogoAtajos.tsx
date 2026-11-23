@@ -1,6 +1,7 @@
 import { Dialogo } from '../../componentes/Dialogo'
 import { Boton } from '../../componentes/Boton'
 import { E } from './textos'
+import { P } from './partes'
 import estilos from './editor.module.css'
 
 const ATAJOS = [
@@ -23,12 +24,17 @@ const ATAJOS = [
   ['N', 'Está bien y siguiente (en la revisión); siguiente, si la línea ya está corregida'],
   ['Ctrl/Cmd + ↓ / ↑', 'Línea dudosa siguiente / anterior'],
   ['F6 / Mayús + F6', 'Pasar el foco entre el editor preciso y el resto del editor'],
+  P.atajos.quienCanta,
+  P.atajos.asignar,
+  P.atajos.vecina,
+  P.atajos.varias,
+  P.atajos.esc,
   ['1 / 2 / 3', 'Escuchar Original / Voz / Instrumental'],
   ['Ctrl/Cmd + Z', 'Deshacer'],
   ['Ctrl/Cmd + Mayús + Z (Ctrl + Y)', 'Rehacer'],
   ['Ctrl/Cmd + E', 'Exportar video'],
   ['F1 / ?', E.atajos]
-] as const
+] as readonly (readonly [string, string])[]
 
 const ATAJOS_PRECISO = [
   ['Espacio', 'Reproducir / pausar el bucle de la línea'],

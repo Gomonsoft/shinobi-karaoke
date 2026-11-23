@@ -122,3 +122,64 @@ it('feature 11: R y N, y Ctrl/Cmd + ↓ / ↑ para las líneas dudosas; nada en 
   expect(accionDeTecla(tecla('r', { metaKey: true }), opciones)).toBeNull()
   expect(accionDeTecla(tecla('R', { shiftKey: true }), opciones)).toBeNull()
 })
+
+// --- Reparto (0.2.3 · feature 1) ---
+const con = (key: string, code: string, extra: Partial<KeyboardEvent> = {}) =>
+  tecla(key, { code, ...extra })
+
+it('C abre «¿Quién canta?» fuera de campos de texto, sin Mayús y fuera del modo al ritmo', () => {
+  expect(accionDeTecla(con('c', 'KeyC'), opciones)).toEqual({ tipo: 'quien_canta' })
+  expect(accionDeTecla(con('c', 'KeyC'), { ...opciones, enCampoTexto: true })).toBeNull()
+  expect(accionDeTecla(con('c', 'KeyC'), { ...opciones, sync: true })).toBeNull()
+  expect(accionDeTecla(con('C', 'KeyC', { shiftKey: true }), opciones)).toBeNull()
+  expect(accionDeTecla(con('c', 'KeyC', { ctrlKey: true }), opciones)).toBeNull()
+})
+
+it.each([
+  ['1', 'Digit1', 1],
+  ['2', 'Digit2', 2],
+  ['@', 'Digit2', 2], // distribución española con Mayús
+  ['¡', 'Digit1', 1], // Opción + 1 en macOS cambia `key`
+  ['4', 'Digit4', 4]
+])('Alt + %s (%s) asigna al cantante %i leyendo la tecla física', (key, code, n) => {
+  expect(accionDeTecla(con(key, code, { altKey: true }), opciones)).toEqual({
+    tipo: 'parte_n',
+    n
+  })
+})
+
+it('Alt + número no actúa con AltGr (Ctrl + Alt), Cmd, campos de texto ni al ritmo; 5 no existe', () => {
+  const alt = { altKey: true }
+  expect(accionDeTecla(con('|', 'Digit1', { ...alt, ctrlKey: true }), opciones)).toBeNull()
+  expect(accionDeTecla(con('1', 'Digit1', { ...alt, metaKey: true }), opciones)).toBeNull()
+  expect(accionDeTecla(con('1', 'Digit1', alt), { ...opciones, enCampoTexto: true })).toBeNull()
+  expect(accionDeTecla(con('1', 'Digit1', alt), { ...opciones, sync: true })).toBeNull()
+  expect(accionDeTecla(con('5', 'Digit5', alt), opciones)).toBeNull()
+  // El 1 sin Alt sigue escuchando la pista original.
+  expect(accionDeTecla(con('1', 'Digit1'), opciones)).toEqual({ tipo: 'pista', pista: 'original' })
+})
+
+it('Alt + ↑/↓ va a la parte vecina solo con el foco en la lista o en una región', () => {
+  const alt = { altKey: true }
+  expect(accionDeTecla(tecla('ArrowDown', alt), { ...opciones, focoEn: 'lista' })).toEqual({
+    tipo: 'parte_vecina',
+    sentido: 1
+  })
+  expect(accionDeTecla(tecla('ArrowUp', alt), { ...opciones, focoEn: 'region' })).toEqual({
+    tipo: 'parte_vecina',
+    sentido: -1
+  })
+  expect(accionDeTecla(tecla('ArrowUp', alt), { ...opciones, focoEn: 'barra' })).toBeNull()
+  expect(
+    accionDeTecla(tecla('ArrowUp', alt), { ...opciones, focoEn: 'lista', sync: true })
+  ).toBeNull()
+})
+
+it('Mayús + ↑/↓ extiende la selección en la lista; sin Mayús mueve una sola', () => {
+  const lista = { ...opciones, focoEn: 'lista' as const }
+  expect(accionDeTecla(tecla('ArrowDown', { shiftKey: true }), lista)).toMatchObject({
+    tipo: 'mover_seleccion',
+    extender: true
+  })
+  expect(accionDeTecla(tecla('ArrowDown'), lista)).toMatchObject({ extender: false })
+})
