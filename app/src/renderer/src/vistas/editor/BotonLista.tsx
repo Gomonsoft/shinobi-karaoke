@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Play } from 'lucide-react'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
@@ -59,6 +59,11 @@ export function PopoverPendientes({
   revisarAhora(): void
   marcarIgualmente(): void
 }) {
+  // El foco va a «Revisar ahora» al abrirse (spec 06 · F11-E12).
+  const primero = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (abierto) primero.current?.focus()
+  }, [abierto])
   return (
     <Popover
       abierto={abierto}
@@ -68,7 +73,7 @@ export function PopoverPendientes({
       anunciar
     >
       <p>{R.pendientes(pendientes)}</p>
-      <Boton variante="primario" onClick={revisarAhora}>
+      <Boton ref={primero} variante="primario" onClick={revisarAhora}>
         {R.revisarAhora}
       </Boton>
       <Boton variante="fantasma" onClick={marcarIgualmente}>

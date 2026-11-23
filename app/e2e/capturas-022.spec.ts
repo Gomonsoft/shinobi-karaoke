@@ -27,6 +27,7 @@ import { crearTemporal } from './temporales'
  *   SHINOBI_CAPTURAS_022_1=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
  *   SHINOBI_CAPTURAS_022_2=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
  *   SHINOBI_CAPTURAS_022_4=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
+ *   SHINOBI_CAPTURAS_022_11=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 11, 0335)
  *
  * No escribe nada en el CI. Cada estado es independiente: si uno falla se anota y se sigue.
  */
@@ -34,6 +35,7 @@ import { crearTemporal } from './temporales'
 const F1 = process.env.SHINOBI_CAPTURAS_022_1 === '1'
 const F2 = process.env.SHINOBI_CAPTURAS_022_2 === '1'
 const F4 = process.env.SHINOBI_CAPTURAS_022_4 === '1'
+const F11 = process.env.SHINOBI_CAPTURAS_022_11 === '1'
 const RAIZ = join(process.cwd(), '..', 'docs', 'ux', 'revisiones')
 const ID = idSemilla(20)
 const TITULO = 'Reproductor: lista'
@@ -837,3 +839,168 @@ suite('capturas de revisión de 0.2.2 · feature 4', F4, '0.2.2-feature-4', ({ i
     )
   })
 })
+
+// ---------------------------------------------------------------------- feature 11 (F11-E16)
+suite(
+  'capturas de revisión de 0.2.2 · feature 11',
+  F11,
+  '0.2.2-feature-11',
+  ({ intentar, foto }) => {
+    /** Voz de 2 s cada 5 s desde el segundo 2; la 2.ª línea acaba 3 s tarde (finTarde) y la 4.ª empieza 0,8 s antes (vozTarde). */
+    const CON_DUDAS: [number, number][] = [
+      [2000, 4000],
+      [7000, 12_000],
+      [12_500, 14_000],
+      [16_200, 18_200],
+      [22_000, 24_000],
+      [27_000, 29_000]
+    ]
+    const SIN_DUDAS: [number, number][] = [2000, 7000, 12_000, 17_000, 22_000, 27_000].map((t) => [
+      t,
+      t + 2000
+    ])
+    const preparar =
+      (tiempos: [number, number][], borrador: boolean, panel300 = false) =>
+      (datos: string) => {
+        const raiz = join(datos, 'biblioteca', ID)
+        writeFileSync(
+          join(raiz, 'pistas', 'voz.flac'),
+          pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs: 2000, desfaseMs: 2000 })
+        )
+        const c = leerCancion(datos, ID)
+        reescribir(datos, 20, {
+          ...(borrador
+            ? {
+                estado: 'borrador',
+                pasos: { ...c.pasos, edicion: { ...c.pasos.edicion, estado: 'pendiente' } }
+              }
+            : {}),
+          letra: {
+            ...c.letra,
+            offset_ms: 0,
+            lineas: tiempos.map(([inicio, fin], i) => ({
+              id: `r${i}`,
+              tipo: 'linea',
+              texto: CORTOS[i % CORTOS.length],
+              inicio_ms: inicio,
+              fin_ms: fin,
+              palabras: null
+            }))
+          }
+        })
+        if (panel300) {
+          const ruta = join(datos, 'config.json')
+          const config = existsSync(ruta) ? JSON.parse(readFileSync(ruta, 'utf8')) : { esquema: 1 }
+          config.editor = {
+            ...(config.editor ?? {}),
+            paneles: { ...(config.editor?.paneles ?? {}), panel: { ancho: 300, minimizado: false } }
+          }
+          writeFileSync(ruta, JSON.stringify(config))
+        }
+      }
+
+    const tomar = (dpr: number, sufijo: string) => {
+      const nombre = (estado: string) => `editor-1280x720-${sufijo}-${estado}`
+      const con = (id: string, conf: Conf, prueba: (v: Page) => Promise<void>): Promise<void> =>
+        conApp(`cap022-ed11-${sufijo}-${id}`, { ...conf, dpr }, async (v, app) => {
+          await ponerTamano(app, 1280, 720, v)
+          await abrirEditor(v, TITULO)
+          await v.getByRole('radio', { name: 'Sincronía' }).click()
+          // Con la voz leída, la lista lleva sus marcas (o, sin dudas, el botón cuenta 0).
+          await expect(v.getByRole('radio', { name: 'Funciones' })).toBeVisible()
+          await v.waitForTimeout(3000)
+          await prueba(v)
+        })
+      const empezar = async (v: Page) => {
+        await v.getByRole('radio', { name: 'Funciones' }).click()
+        await v.getByRole('button', { name: /^Revisar \(\d+\)…/ }).click()
+        await expect(v.getByRole('region', { name: /Revisión · quedan/ })).toBeVisible()
+      }
+      const sinScroll = async (v: Page, donde: string) => {
+        const m = await v.evaluate(() => [
+          document.documentElement.scrollHeight,
+          window.innerHeight
+        ])
+        if (m[0]! > m[1]!) console.log(`AVISO scroll de página en ${donde}: ${m[0]} > ${m[1]}`)
+      }
+      return async () => {
+        await intentar(`funciones-revisar-${sufijo}`, () =>
+          con('func', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+            await v.getByRole('radio', { name: 'Funciones' }).click()
+            await expect(v.getByRole('button', { name: 'Revisar (2)…' })).toBeVisible()
+            await foto(v, nombre('funciones-revisar'))
+          })
+        )
+        await intentar(`lista-con-marcas-${sufijo}`, () =>
+          con('lista', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+            await expect(v.getByRole('option', { name: /por revisar/ }).first()).toBeVisible()
+            await foto(v, nombre('lista-con-marcas'))
+          })
+        )
+        await intentar(`recorrido-${sufijo}`, () =>
+          con('rec', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+            await empezar(v)
+            await sinScroll(v, 'recorrido')
+            await foto(v, nombre('recorrido'))
+          })
+        )
+        await intentar(`recorrido-corregida-${sufijo}`, () =>
+          con('corr', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+            await empezar(v)
+            await v.getByRole('button', { name: 'Fin al final de la voz' }).click()
+            await expect(v.getByText('✓ Ya no vemos nada raro en esta línea.')).toBeVisible()
+            await foto(v, nombre('recorrido-corregida'))
+          })
+        )
+        await intentar(`recorrido-fuera-${sufijo}`, () =>
+          con('fuera', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+            await empezar(v)
+            await v.getByRole('option', { name: /^Línea 1,/ }).click()
+            await expect(v.getByText('Esta línea no está señalada.')).toBeVisible()
+            await foto(v, nombre('recorrido-fuera'))
+          })
+        )
+        await intentar(`recorrido-fin-${sufijo}`, () =>
+          con('fin', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+            await empezar(v)
+            await v.getByRole('button', { name: /Está bien \(2\)/ }).click()
+            await v.getByRole('button', { name: /Está bien \(1\)/ }).click()
+            await expect(v.getByRole('region', { name: 'Revisión terminada' })).toBeVisible()
+            await foto(v, nombre('recorrido-fin'))
+          })
+        )
+        await intentar(`popover-pendientes-${sufijo}`, () =>
+          con('pop', { preparar: preparar(CON_DUDAS, true) }, async (v) => {
+            await expect(v.getByRole('option', { name: /por revisar/ }).first()).toBeVisible()
+            await v.getByRole('button', { name: E.marcarLista }).click()
+            await expect(v.getByRole('dialog', { name: /por revisar/ })).toBeVisible()
+            await foto(v, nombre('popover-pendientes'))
+          })
+        )
+        await intentar(`sin-dudas-${sufijo}`, () =>
+          con('nada', { preparar: preparar(SIN_DUDAS, false) }, async (v) => {
+            await v.getByRole('radio', { name: 'Funciones' }).click()
+            await expect(v.getByText('No vemos nada raro en esta canción.')).toBeVisible()
+            await foto(v, nombre('sin-dudas'))
+          })
+        )
+        if (sufijo === '100') {
+          await intentar('recorrido-panel-300', () =>
+            con('p300', { preparar: preparar(CON_DUDAS, false, true) }, async (v) => {
+              await empezar(v)
+              await sinScroll(v, 'panel de 300 px')
+              await foto(v, nombre('recorrido-panel-300'))
+            })
+          )
+        }
+      }
+    }
+
+    test('editor 1280x720 al 100 % F11-E16', async () => {
+      await tomar(1, '100')()
+    })
+    test('editor 1280x720 al 125 % F11-E16', async () => {
+      await tomar(1.25, '125')()
+    })
+  }
+)
