@@ -33,13 +33,15 @@ describe('velo al arrastrar varios archivos (bib.arrastrar.soltarVarios)', () =>
     expect(screen.getByRole('status')).toHaveTextContent(SOLTAR_VARIOS.carpeta)
   })
 
-  it('un .shinobi suelto: «Suelta para importar el paquete» (por su nombre o por su tipo vacío)', () => {
+  it('un .shinobi suelto: «Suelta para importar el paquete» (por su nombre) y neutro si no se sabe qué es', () => {
     render(<VeloArrastre />)
     arrastrar('dragenter', [{ nombre: 'canciones.shinobi', tipo: '' }])
     expect(screen.getByRole('status')).toHaveTextContent(SOLTAR_VARIOS.paquete)
     arrastrar('drop')
+    // Sin nombre ni tipo no se sabe qué es: texto neutro, nunca «paquete».
     arrastrar('dragenter', [{ tipo: '' }])
-    expect(screen.getByRole('status')).toHaveTextContent('Suelta para importar el paquete')
+    expect(screen.getByRole('status')).toHaveTextContent(SOLTAR_VARIOS.neutro)
+    expect(screen.getByRole('status')).not.toHaveTextContent('paquete')
     arrastrar('drop')
     arrastrar('dragenter', [{ nombre: 'tema.mp3' }])
     expect(screen.queryByRole('status')).toBeNull()

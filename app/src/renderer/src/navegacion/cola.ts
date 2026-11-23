@@ -48,6 +48,11 @@ export const COLA = {
   reintentarAhora: 'Reintentar ahora',
   espacio: 'No queda espacio en el disco. La cola está parada. Libera espacio y reanúdala.',
   motor: 'Hay que reparar el motor de audio. La cola está parada hasta entonces.',
+  /** `act.cola.motor.separaciones`: solo las separaciones paradas; lo demás sigue. */
+  motorSeparaciones: (k: number): string =>
+    k === 1
+      ? 'Hay que reparar el motor de audio para separar las pistas. Hemos parado la separación que falta. Las descargas y la búsqueda de letras siguen.'
+      : `Hay que reparar el motor de audio para separar las pistas. Hemos parado las ${k} separaciones que faltan. Las descargas y la búsqueda de letras siguen.`,
   repararMotor: 'Reparar el motor de audio',
   repetido: (titulo: string): string =>
     `Tres canciones seguidas han fallado: ${titulo}. Hemos parado la cola.`,
@@ -79,12 +84,24 @@ export const pausaDelUsuario = (t: TandaPreparacionIpc): boolean =>
 export const paradaAutomatica = (t: TandaPreparacionIpc): boolean =>
   t.motivoPausa !== null || t.descargasParadas !== null
 
-export type EstadoBotonCola = 'curso' | 'pausa' | 'parada'
+/** `aviso`: sigue en marcha, pero con las separaciones paradas (icono ⚠). */
+export type EstadoBotonCola = 'curso' | 'pausa' | 'parada' | 'aviso'
 
-export function botonDeCola(t: TandaPreparacionIpc): { texto: string; estado: EstadoBotonCola } {
+/**
+ * Texto y estado del botón de la barra. Con las separaciones paradas (`act.cola.boton.parada` solo si no queda nada
+ * en marcha): mientras algo sigue, «Preparando {i} de {n}» con el icono ⚠.
+ */
+export function botonDeCola(
+  t: TandaPreparacionIpc,
+  algoEnMarcha = true
+): { texto: string; estado: EstadoBotonCola } {
   if (paradaAutomatica(t)) return { texto: COLA.botonParada(faltan(t)), estado: 'parada' }
   if (pausaDelUsuario(t)) return { texto: COLA.botonPausa(faltan(t)), estado: 'pausa' }
-  return { texto: COLA.boton(Math.min(t.total, t.terminadas + 1), t.total), estado: 'curso' }
+  if (t.separacionesParadas !== null && !algoEnMarcha) {
+    return { texto: COLA.botonParada(faltan(t)), estado: 'parada' }
+  }
+  const texto = COLA.boton(Math.min(t.total, t.terminadas + 1), t.total)
+  return { texto, estado: t.separacionesParadas !== null ? 'aviso' : 'curso' }
 }
 
 /** Texto del resultado de una canción terminada (`act.cola.res.*`). */

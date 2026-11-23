@@ -326,4 +326,25 @@ describe('Crear copia de seguridad', () => {
       await screen.findByRole('dialog', { name: 'Creando la copia de seguridad' })
     ).toBeInTheDocument()
   })
+
+  it('cancelar una copia da UN solo toast, el de la copia (no también el del paquete) (K2)', async () => {
+    const fake = montar({
+      copias: {
+        destinoPropuesto: () => Promise.resolve(destino()),
+        exportarBiblioteca: () => Promise.resolve({ trabajoId: TRABAJO }),
+        cancelar: vi.fn(() => Promise.resolve())
+      }
+    })
+    act(() => abrirExportarPaquete({ tipo: 'biblioteca' }))
+    const dialogo = await screen.findByRole('dialog', { name: 'Crear copia de seguridad' })
+    fireEvent.click(
+      await within(dialogo).findByRole('button', { name: 'Crear copia de seguridad' })
+    )
+    await screen.findByRole('dialog', { name: 'Creando la copia de seguridad' })
+    act(() => fake.cambio({ trabajoId: TRABAJO, estado: 'cancelada', tipo: 'exportar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(await screen.findAllByText(/cancelad[ao]\. No se ha guardado nada\./)).toHaveLength(1)
+    expect(screen.getByText('Copia cancelada. No se ha guardado nada.')).toBeInTheDocument()
+    expect(screen.queryByText('Paquete cancelado. No se ha guardado nada.')).toBeNull()
+  })
 })

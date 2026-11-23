@@ -342,7 +342,11 @@ export function IndicadorActividad() {
       void window.shinobi.preparacion.cancelar(c.id).catch(() => undefined)
     }
   }
-  const botonCola = cola && colaViva ? botonDeCola(cola) : null
+  // Lo que sigue en marcha con las separaciones paradas: lo que ya corre o espera en la cola ligera.
+  const algoEnMarcha = trabajos.some(
+    (t) => t.estado === 'en_curso' || (t.estado === 'en_cola' && t.cola !== 'pesada')
+  )
+  const botonCola = cola && colaViva ? botonDeCola(cola, algoEnMarcha) : null
   const resto = exportando.length + (paquete ? 1 : 0)
   const textoBoton = botonCola
     ? resto > 0
@@ -403,7 +407,7 @@ export function IndicadorActividad() {
           icono={
             botonCola?.estado === 'pausa'
               ? Pause
-              : botonCola?.estado === 'parada'
+              : botonCola?.estado === 'parada' || botonCola?.estado === 'aviso'
                 ? TriangleAlert
                 : RefreshCw
           }

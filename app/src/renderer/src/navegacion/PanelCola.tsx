@@ -139,7 +139,7 @@ export function CabeceraCola({
           accionesAbajo
           accion={<Boton onClick={alReparar}>{COLA.repararMotor}</Boton>}
         >
-          {COLA.motor}
+          {COLA.motorSeparaciones(k)}
         </AvisoEnLinea>
       )}
       {!terminada && tanda.motivoPausa === 'RUNTIME_NO_DISPONIBLE' && (

@@ -84,6 +84,12 @@ beforeEach(() => {
 })
 
 describe('botonDeCola y textos', () => {
+  it('con las separaciones paradas: «Preparando» con ⚠ si algo sigue; «Cola parada» si no queda nada en marcha', () => {
+    const t = tanda({ separacionesParadas: 'RUNTIME_NO_DISPONIBLE' })
+    expect(botonDeCola(t, true)).toEqual({ texto: 'Preparando 3 de 5', estado: 'aviso' })
+    expect(botonDeCola(t, false)).toEqual({ texto: 'Cola parada · faltan 3', estado: 'parada' })
+  })
+
   it('elige el texto y el estado del botón', () => {
     expect(botonDeCola(tanda())).toEqual({ texto: 'Preparando 3 de 5', estado: 'curso' })
     expect(botonDeCola(tanda({ pausada: true }))).toEqual({
@@ -194,7 +200,14 @@ describe('IndicadorActividad con cola de preparación', () => {
 
   it('sin motor de separación (0390) la cola sigue, con su aviso y «Reparar el motor» (texto de la parada total)', async () => {
     const b = await pintar(tanda({ separacionesParadas: 'RUNTIME_NO_DISPONIBLE' }))
+    // Algo sigue en marcha (hay un trabajo en curso): el botón sigue en «Preparando» y la línea es la nueva.
+    expect(b).toHaveTextContent('Preparando 3 de 5')
     fireEvent.click(b)
+    expect(
+      screen.getByText(
+        'Hay que reparar el motor de audio para separar las pistas. Hemos parado las 3 separaciones que faltan. Las descargas y la búsqueda de letras siguen.'
+      )
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reparar el motor de audio' }))
     expect(ir).toHaveBeenCalledWith({ tipo: 'primer-arranque' })
   })

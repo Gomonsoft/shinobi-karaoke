@@ -6,7 +6,9 @@ export const SOLTAR_VARIOS = {
   n: (n: number): string => `Suelta para añadir ${n} canciones`,
   carpeta: 'Suelta para añadir las canciones de la carpeta',
   /** `paq.arrastrar.soltar` (docs/ux/02 · 0323): un `.shinobi` suelto. */
-  paquete: 'Suelta para importar el paquete'
+  paquete: 'Suelta para importar el paquete',
+  /** `bib.arrastrar.soltarNeutro`: no se sabe qué se arrastra. */
+  neutro: 'Suelta para añadir'
 } as const
 
 const traeArchivos = (e: DragEvent): boolean =>
@@ -18,13 +20,14 @@ export function textoDelVelo(e: DragEvent): string | null {
   const carpeta = items.some((i) => i.webkitGetAsEntry?.()?.isDirectory === true)
   if (carpeta) return SOLTAR_VARIOS.carpeta
   if (items.length > 1) return SOLTAR_VARIOS.n(items.length)
-  // Un solo archivo: el sistema no suele dar su nombre al entrar (solo el tipo). Con nombre, `.shinobi`; sin
-  // él, un archivo de tipo desconocido (vacío) es lo que da un `.shinobi`: el audio y el video traen el suyo.
+  // Un solo archivo: el sistema no suele dar su nombre al entrar (solo el tipo). Con nombre: `.shinobi` → paquete.
+  // Con un tipo conocido (audio, video) no hay velo, como siempre. Si no se sabe qué es (sin nombre ni tipo), el
+  // texto neutro: nunca uno que pueda ser falso; al soltar, la app decide por la extensión real.
   const item = items[0]
   if (!item) return null
   const nombre = item.getAsFile?.()?.name
   if (nombre) return /\.shinobi$/i.test(nombre) ? SOLTAR_VARIOS.paquete : null
-  return item.type === '' ? SOLTAR_VARIOS.paquete : null
+  return item.type === '' ? SOLTAR_VARIOS.neutro : null
 }
 
 /**

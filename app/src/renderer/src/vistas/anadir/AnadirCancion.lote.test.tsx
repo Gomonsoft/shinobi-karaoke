@@ -264,7 +264,7 @@ describe('modo lote · archivos', () => {
     expect(screen.queryByText(/Caben unas/)).toBeNull()
   })
 
-  it('las filas sin artista dan un solo aviso con «Artista para todas…», no una marca por fila (0323)', async () => {
+  it('las filas MARCADAS sin artista dan un solo aviso sin botón que se recalcula; con 0 no sale (0323, L6)', async () => {
     const base = lectura(3)
     montar({
       lectura: {
@@ -276,12 +276,21 @@ describe('modo lote · archivos', () => {
     })
     soltar(['a.mp3', 'b.mp3', 'c.mp3'])
     await tabla()
-    expect(
-      screen.getAllByText('2 canciones no tienen artista: con él es más fácil encontrar su letra.')
-    ).toHaveLength(1)
+    const texto = (k: string) =>
+      `${k} no tienen artista: con él es más fácil encontrar su letra. Puedes ponerlo con «Artista para todas…».`
+    expect(screen.getAllByText(texto('2 canciones'))).toHaveLength(1)
+    // Sin botón propio: el de la barra es el único «Artista para todas…».
+    expect(screen.getAllByRole('button', { name: 'Artista para todas…' })).toHaveLength(1)
     expect(screen.queryByText('Sin artista es más difícil encontrar la letra.')).toBeNull()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Artista para todas…' })[0]!)
-    expect(await screen.findByRole('dialog', { name: 'Artista para todas…' })).toBeInTheDocument()
+    // Desmarcar una sin artista baja la cuenta (singular); desmarcar las dos lo oculta.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Añadir «Canción 1»' }))
+    expect(
+      await screen.findByText(
+        '1 canción no tiene artista: con él es más fácil encontrar su letra. Puedes ponerlo con «Artista para todas…».'
+      )
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Añadir «Canción 2»' }))
+    await waitFor(() => expect(screen.queryByText(/no tiene(n)? artista/)).toBeNull())
   })
 
   it('con libreBytes null no avisa; un SIN_ESPACIO de main al pulsar lo muestra y no navega', async () => {

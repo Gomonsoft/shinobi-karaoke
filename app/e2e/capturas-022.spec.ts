@@ -2322,7 +2322,10 @@ suite('capturas de revisión de 0.2.2 · feature 9', F9, '0.2.2-feature-9', ({ i
         await v.keyboard.press('Escape')
       })
       await intentar('copia-creando', async () => {
-        await v.waitForTimeout(1500)
+        // El toast «Paquete cancelado» del paso anterior no debe colarse en la foto de la copia.
+        await expect(v.getByText('Paquete cancelado. No se ha guardado nada.')).toHaveCount(0, {
+          timeout: 20_000
+        })
         await v.getByRole('button', { name: 'Ajustes' }).click()
         await v.getByRole('button', { name: 'Crear copia de seguridad…' }).click()
         await v
@@ -2339,6 +2342,7 @@ suite('capturas de revisión de 0.2.2 · feature 9', F9, '0.2.2-feature-9', ({ i
         await expect(v.getByText('Copia cancelada. No se ha guardado nada.')).toBeVisible({
           timeout: 20_000
         })
+        await expect(v.getByText('Paquete cancelado. No se ha guardado nada.')).toHaveCount(0)
         await foto(v, aj('copia-cancelada'))
       })
     })
@@ -2668,7 +2672,7 @@ suite('capturas de revisión de 0.2.2 · feature 7', F7, '0.2.2-feature-7', ({ i
     ajustes?: Record<string, unknown>
     ancho?: number
     alto?: number
-    separador?: { segundos: number; pasos: number }
+    separador?: { segundos: number; pasos: number; fallos?: unknown[] }
     /** Antes de abrir la app (semilla ya escrita). */
     preparar?: (datos: string, dir: string) => void
   }
@@ -3054,6 +3058,38 @@ suite('capturas de revisión de 0.2.2 · feature 7', F7, '0.2.2-feature-7', ({ i
           await abrirCola(v)
           await expect(v.getByText(/YouTube no permite descargas ahora mismo/)).toBeVisible()
           await foto(v, act('cola-youtube-parada'))
+        }
+      )
+    )
+    await intentar('cola-separaciones-paradas', () =>
+      con7(
+        'cap022-f7-sin-motor',
+        {
+          separador: {
+            segundos: 1,
+            pasos: 2,
+            fallos: [{ cuando: {}, codigo: 'RUNTIME_NO_DISPONIBLE', reintentable: false }]
+          },
+          falsos: (f) =>
+            lista(f, 'OLAK5uy_cap7SinMotor1', 'Album - Disco sin motor', [
+              { id: 'Normal_0001', title: 'Tema Uno', duration: 35 },
+              { id: 'Normal_0002', title: 'Tema Dos', duration: 35 },
+              { id: 'Normal_0003', title: 'Tema Tres', duration: 35 }
+            ])
+        },
+        async (v) => {
+          await irAAnadir(v)
+          await buscarEnlaces(v, L('OLAK5uy_cap7SinMotor1'))
+          await expect(tabla(v)).toBeVisible({ timeout: 60_000 })
+          await v.getByRole('button', { name: /^Descargar y añadir \d+ canciones$/ }).click()
+          await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible({
+            timeout: 60_000
+          })
+          await abrirCola(v)
+          await expect(v.getByText(/Hemos parado (la|las \d+) separaci/)).toBeVisible({
+            timeout: 150_000
+          })
+          await foto(v, act('cola-separaciones-paradas'))
         }
       )
     )

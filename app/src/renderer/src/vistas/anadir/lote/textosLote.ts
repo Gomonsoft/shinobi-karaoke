@@ -82,8 +82,8 @@ export const LOTE = {
       : `Caben unas ${k}. Desmarca algunas o libera espacio en el disco.`,
   sinArtista: (k: number): string =>
     k === 1
-      ? '1 canción no tiene artista: con él es más fácil encontrar su letra.'
-      : `${k} canciones no tienen artista: con él es más fácil encontrar su letra.`,
+      ? '1 canción no tiene artista: con él es más fácil encontrar su letra. Puedes ponerlo con «Artista para todas…».'
+      : `${k} canciones no tienen artista: con él es más fácil encontrar su letra. Puedes ponerlo con «Artista para todas…».`,
   nada: 'No hay ninguna canción que añadir.',
   boton: (n: number, youtube: boolean): string => {
     const base = youtube ? 'Descargar y añadir' : 'Añadir'

@@ -56,7 +56,7 @@ import { IDS_ZOOM, plantillaMenu } from './menu'
 import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
 import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
-import { RegistroArchivo } from './registro'
+import { instalarErroresGlobales, RegistroArchivo } from './registro'
 import { COMPILACION } from './compilacion'
 import { ServicioActualizaciones } from './actualizaciones'
 import {
@@ -433,10 +433,20 @@ app.on('second-instance', () => {
   ventana.focus()
 })
 
+// Errores no capturados (0391): se registran y la app sigue; en E2E se vuelven a lanzar. Se instala antes de
+// crear ventanas y servicios; el registro de archivo existe cuando arranca la app, hasta entonces va a la consola.
+let registrarError: (modulo: string, mensaje: string) => void = (modulo, mensaje) =>
+  console.error(`[${modulo}] ${mensaje}`)
+instalarErroresGlobales({
+  registrar: (_nivel, modulo, mensaje) => registrarError(modulo, mensaje),
+  estricto: !app.isPackaged && process.env.SHINOBI_E2E === '1'
+})
+
 if (instanciaUnica)
   void app.whenReady().then(async () => {
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
+    registrarError = (modulo, mensaje) => registro.escribir('error', modulo, mensaje)
     registro.escribir(
       'info',
       'arranque',
