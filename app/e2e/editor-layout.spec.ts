@@ -919,10 +919,15 @@ test.describe('otras vistas a 1024 × 576 (mínimo de ventana de 0155)', () => {
       await sinDesbordeHorizontal(v, 'Biblioteca')
 
       const t = tarjeta(v, 'Canción lista')
-      await t.getByRole('button', { name: 'Más acciones de «Canción lista»' }).click()
+      // La bandeja «Pendientes de ti» baja la rejilla: el ⋯ queda bajo el borde y el menú se cerraría
+      // al desplazar la tarjeta. Se trae a la vista antes de abrirlo.
+      const mas = t.getByRole('button', { name: 'Más acciones de «Canción lista»' })
+      await mas.scrollIntoViewIfNeeded()
+      await mas.click()
       await v.getByRole('menuitem', { name: 'Editar datos' }).click()
       await alcanzable(v, 'Editar datos', 'Cancelar')
-      await t.getByRole('button', { name: 'Más acciones de «Canción lista»' }).click()
+      await mas.scrollIntoViewIfNeeded()
+      await mas.click()
       await v.getByRole('menuitem', { name: /^Eliminar/ }).click()
       await alcanzable(v, /^¿Eliminar/, 'Cancelar')
 

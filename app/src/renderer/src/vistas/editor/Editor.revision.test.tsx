@@ -47,7 +47,12 @@ function conFines(cancion: Cancion): Cancion {
   return cancion
 }
 
-function montar(cancion: Cancion = cancionSincronizadaLrclib(), cantos = CANTOS, fines = true) {
+function montar(
+  cancion: Cancion = cancionSincronizadaLrclib(),
+  cantos = CANTOS,
+  fines = true,
+  revisar = false
+) {
   const falso = apiEditorFalsa({ cancion: fines ? conFines(cancion) : cancion })
   window.shinobi = {
     ...falso.api,
@@ -56,7 +61,15 @@ function montar(cancion: Cancion = cancionSincronizadaLrclib(), cantos = CANTOS,
   const ir = vi.fn()
   render(
     <NavegacionContexto.Provider
-      value={{ vista: { tipo: 'cancion', id: cancion.id, paso: 'editor' }, ir }}
+      value={{
+        vista: {
+          tipo: 'cancion',
+          id: cancion.id,
+          paso: 'editor',
+          ...(revisar ? { revisar: true } : {})
+        },
+        ir
+      }}
     >
       <Editor id={cancion.id} />
       <ContenedorToasts />
@@ -106,7 +119,7 @@ it('F11-E4/E5/E10: el recorrido guía por las pendientes, «Está bien» se guar
     expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 4500, hastaMs: 7500 })
   )
 
-  fireEvent.click(within(tarjeta).getByRole('button', { name: /Está bien \(2\)/ }))
+  fireEvent.click(within(tarjeta).getByRole('button', { name: 'Está bien' }))
   expect(await screen.findByText('Revisión · quedan 1 de 2')).toBeVisible()
   expect(screen.getByText('Casi no se oye voz mientras dura esta línea.')).toBeVisible()
   expect(screen.getByText('Línea 4 de 6')).toBeVisible()
@@ -114,9 +127,9 @@ it('F11-E4/E5/E10: el recorrido guía por las pendientes, «Está bien» se guar
   // Ctrl/Cmd + Z devuelve la línea a pendiente y el contador lo refleja.
   await teclear({ key: 'z', ctrlKey: true })
   expect(await screen.findByText('Revisión · quedan 2 de 2')).toBeVisible()
-  fireEvent.click(screen.getByRole('button', { name: /Está bien \(2\)/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Está bien' }))
   await screen.findByText('Revisión · quedan 1 de 2')
-  fireEvent.click(screen.getByRole('button', { name: /Está bien \(1\)/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Está bien' }))
 
   const fin = await screen.findByRole('region', { name: 'Revisión terminada' })
   expect(fin).toHaveTextContent('Has revisado las 2 líneas señaladas.')
@@ -137,6 +150,25 @@ it('F11-E4/E5/E10: el recorrido guía por las pendientes, «Está bien» se guar
   expect(llamadas.some((x) => x.metodo === 'biblioteca.marcarLista')).toBe(false)
 })
 
+it('R1/R2: «Está bien» va justo tras el motivo, sin número, con la tecla N aparte', async () => {
+  montar()
+  const tarjeta = await empezar()
+  const bien = within(tarjeta).getByRole('button', { name: 'Está bien' })
+  expect(bien).toHaveAttribute('aria-keyshortcuts', 'N')
+  expect(bien).toHaveTextContent('✓ Está bienN')
+  // Orden: motivo · Está bien · navegación · escuchar / arreglo · casilla.
+  const botones = within(tarjeta)
+    .getAllByRole('button')
+    .map((b) => b.getAttribute('aria-label') ?? b.textContent)
+  expect(botones.slice(1, 5)).toEqual([
+    'Está bien',
+    'Anterior (Ctrl + ↑ / ⌘↑)',
+    'Siguiente (Ctrl + ↓ / ⌘↓)',
+    'Escuchar la línea otra vez (Mayús + L)'
+  ])
+  expect(tarjeta.querySelector('p')).toHaveTextContent('El fin llega 1,5 s después de la voz.')
+})
+
 it('F11-E7/E8: «Fin al final de la voz» es un paso que corrige la línea y N pasa de línea sin marcar', async () => {
   const { llamadas } = montar()
   const tarjeta = await empezar()
@@ -146,7 +178,13 @@ it('F11-E7/E8: «Fin al final de la voz» es un paso que corrige la línea y N p
   await waitFor(() =>
     expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 4500, hastaMs: 6100 })
   )
-  expect(screen.getByRole('button', { name: 'Siguiente (1)' })).toBeVisible()
+  // R3: el principal pasa a «Siguiente» y el de la navegación se oculta (queda solo «Anterior»).
+  expect(screen.getAllByRole('button', { name: /^Siguiente/ })).toHaveLength(1)
+  expect(screen.getByRole('button', { name: 'Siguiente' })).toHaveAttribute(
+    'aria-keyshortcuts',
+    'N'
+  )
+  expect(screen.getByRole('button', { name: /^Anterior/ })).toBeVisible()
 
   await teclear({ key: 'n' })
   expect(await screen.findByText('Casi no se oye voz mientras dura esta línea.')).toBeVisible()
@@ -236,4 +274,19 @@ it('F11-E12: sin líneas importantes (solo fines automáticos) «Marcar como lis
   await waitFor(() =>
     expect(llamadas.some((x) => x.metodo === 'biblioteca.marcarLista')).toBe(true)
   )
+})
+
+it('F11-B2: abierto con `revisar` el recorrido empieza solo, con todos los motivos de la voz', async () => {
+  montar(cancionSincronizadaLrclib(), CANTOS, true, true)
+  const tarjeta = await screen.findByRole('region', { name: /Revisión · quedan/ })
+  await waitFor(() => expect(tarjeta).toHaveTextContent('Revisión · quedan 2 de 2'))
+  expect(tarjeta).toHaveTextContent('El fin llega 1,5 s después de la voz.')
+})
+
+it('F11-B2: abierto con `revisar` y sin pendientes muestra el fin con «Probar a pantalla completa»', async () => {
+  const cantos: [number, number][] = [...CANTOS, [15_000, 17_050]]
+  const ajustados = cantos.map(([a, b]) => (a === 5000 ? ([a, 7000] as [number, number]) : [a, b]))
+  montar(cancionSincronizadaLrclib(), ajustados as [number, number][], true, true)
+  const fin = await screen.findByRole('region', { name: 'Revisión terminada' })
+  expect(fin).toHaveTextContent('No vemos nada raro. Puedes probarla a pantalla completa.')
 })

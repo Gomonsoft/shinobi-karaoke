@@ -6,6 +6,7 @@ import {
   type ErrorIpc,
   type EventoCancionIpc,
   type EventoProgresoIpc,
+  type TandaPreparacionIpc,
   type TrabajoIpc,
   type InfoSistema,
   type TextoLegal,
@@ -82,6 +83,7 @@ export interface BibliotecaIpc {
   marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion>
   comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
+  marcarPreparacionRevisada(id: string): Promise<ResumenCancion | null>
   eliminar(id: string): Promise<void>
   mostrarEnCarpeta(id: string): Promise<void>
   suscribir(cb: (evento: EventoCancion) => void): () => void
@@ -243,7 +245,26 @@ export type ActualizacionesIpc = Pick<
   'estado' | 'comprobar' | 'marcarVista' | 'suscribir'
 >
 
+/** Subconjunto de `ServicioPreparacion` (0308) que usa la IPC. La tanda y la pausa son de la 0309. */
+export interface PreparacionIpc {
+  previsualizar(ids: string[]): { id: string; aplica: boolean; pasos: string[]; motivo?: string }[]
+  preparar(ids: string[]): { aceptadas: string[]; omitidas: { id: string; motivo: string }[] }
+  cancelar(id: string): Promise<void>
+}
+
+/** Subconjunto de `ColaPreparacion` (0309): la tanda, la pausa y «Reintentar las fallidas». */
+export interface ColaPreparacionIpc {
+  pausar(): Promise<void>
+  reanudar(): Promise<void>
+  reintentarFallidas(): Promise<void>
+  estado(): TandaPreparacionIpc | null
+}
+
 export interface DependenciasIpc {
+  /** Solicitud de cierre sin responder (la pregunta el renderer al montar su diálogo de cierre). */
+  solicitudCierrePendiente?(): import('../../shared/sesion').SolicitudCierreIpc | null
+  preparacion?: PreparacionIpc
+  colaPreparacion?: ColaPreparacionIpc
   actualizaciones?: ActualizacionesIpc
   /** Exportación de video (ADR 0019). */
   exportacion?: ExportacionServicioIpc
@@ -334,13 +355,6 @@ const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
 
 /** Canales de 0.2.2 aún sin servicio (tarea 0339); cada tarea de feature saca el suyo de esta lista. */
 const CANALES_NO_IMPLEMENTADOS = [
-  CANALES.preparacion.previsualizar,
-  CANALES.preparacion.preparar,
-  CANALES.preparacion.pausar,
-  CANALES.preparacion.reanudar,
-  CANALES.preparacion.reintentarFallidas,
-  CANALES.preparacion.tanda,
-  CANALES.preparacion.cancelar,
   CANALES.letras.exportarLrc,
   CANALES.letras.exportarLrcVarias,
   CANALES.letras.mostrarEnCarpeta,
@@ -442,6 +456,16 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.actualizaciones
   }
 
+  const preparacion = (): PreparacionIpc => {
+    if (!deps.preparacion) throw new Error('El servicio de preparación no está disponible.')
+    return deps.preparacion
+  }
+
+  const colaPreparacion = (): ColaPreparacionIpc => {
+    if (!deps.colaPreparacion) throw new Error('La cola de preparación no está disponible.')
+    return deps.colaPreparacion
+  }
+
   const exportacion = (): ExportacionServicioIpc => {
     if (!deps.exportacion) throw new Error('El servicio de exportación no está disponible.')
     return deps.exportacion
@@ -525,6 +549,27 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.actualizaciones.marcarVista]: envolver(
       CANALES.actualizaciones.marcarVista,
       ({ version }) => actualizaciones().marcarVista(version)
+    ),
+    [CANALES.preparacion.previsualizar]: envolver(CANALES.preparacion.previsualizar, ({ ids }) =>
+      preparacion().previsualizar(ids)
+    ),
+    [CANALES.preparacion.preparar]: envolver(CANALES.preparacion.preparar, ({ ids }) =>
+      preparacion().preparar(ids)
+    ),
+    [CANALES.preparacion.pausar]: envolver(CANALES.preparacion.pausar, () =>
+      colaPreparacion().pausar()
+    ),
+    [CANALES.preparacion.reanudar]: envolver(CANALES.preparacion.reanudar, () =>
+      colaPreparacion().reanudar()
+    ),
+    [CANALES.preparacion.reintentarFallidas]: envolver(CANALES.preparacion.reintentarFallidas, () =>
+      colaPreparacion().reintentarFallidas()
+    ),
+    [CANALES.preparacion.tanda]: envolver(CANALES.preparacion.tanda, () =>
+      colaPreparacion().estado()
+    ),
+    [CANALES.preparacion.cancelar]: envolver(CANALES.preparacion.cancelar, ({ id }) =>
+      preparacion().cancelar(id)
     ),
     [CANALES.temas.catalogo]: envolver(CANALES.temas.catalogo, () => temas().catalogo()),
     [CANALES.temas.previsualizar]: envolver(CANALES.temas.previsualizar, (op) =>
@@ -660,6 +705,13 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       async (id) => {
         noActiva(id)
         return resumenParaRenderer(await biblioteca.volverABorrador(id))
+      }
+    ),
+    [CANALES.biblioteca.marcarPreparacionRevisada]: envolver(
+      CANALES.biblioteca.marcarPreparacionRevisada,
+      async (id) => {
+        const resumen = await biblioteca.marcarPreparacionRevisada(id)
+        return resumen ? resumenParaRenderer(resumen) : null
       }
     ),
     [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) => {
@@ -906,6 +958,10 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ),
     [CANALES.app.confirmarCierre]: envolver(CANALES.app.confirmarCierre, () =>
       deps.confirmarCierre()
+    ),
+    [CANALES.app.solicitudCierrePendiente]: envolver(
+      CANALES.app.solicitudCierrePendiente,
+      () => deps.solicitudCierrePendiente?.() ?? null
     ),
     [CANALES.app.salir]: envolver(CANALES.app.salir, () => deps.salir())
   }

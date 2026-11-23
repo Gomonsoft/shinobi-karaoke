@@ -69,6 +69,26 @@ describe('proponerAjusteSilencios', () => {
     expect(r.espera).toBeNull()
   })
 
+  it('variante prudente: solo fines automáticos, sin comodín y con origen preparacion', () => {
+    const letra = letraDe([
+      linea('a', 'A', 1000, { fin_ms: 3000, origen_fin: 'letra' }),
+      linea('b', 'B', 3700),
+      linea('c', 'C', 11000)
+    ])
+    const r = proponerAjusteSilencios(letra, detectarVoz(picosBase()), {
+      duracionMs: DUR,
+      espera: ESPERA,
+      soloFinesAutomaticos: true,
+      activarComodin: false,
+      origenFin: 'preparacion'
+    })
+    expect(r.cambios.map((c) => c.id)).toStrictEqual(['b', 'c'])
+    expect(r.letra.lineas[0]).toStrictEqual(letra.lineas[0])
+    expect(r.letra.lineas[1]).toMatchObject({ fin_ms: 6100, origen_fin: 'preparacion' })
+    expect(r.huecosLargos).toBeGreaterThan(0)
+    expect(r.espera).toBeNull()
+  })
+
   it('fija los fines al final de la voz más el margen y cuenta el hueco largo', () => {
     const r = ajustar(tres())
     expect([fin(r.letra, 'a'), fin(r.letra, 'b'), fin(r.letra, 'c')]).toStrictEqual([

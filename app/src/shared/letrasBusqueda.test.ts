@@ -72,6 +72,15 @@ describe('urlBaseLrclib', () => {
     expect(urlBaseLrclib('http://127.0.0.1:4455', true)).toBe(URL_BASE_LRCLIB)
     expect(urlBaseLrclib('https://otro.example', false)).toBe(URL_BASE_LRCLIB)
   })
+
+  it('en los E2E nunca devuelve la URL real sin empaquetar', () => {
+    expect(urlBaseLrclib(undefined, false, true)).toBe('http://lrclib.invalid')
+    expect(urlBaseLrclib('https://otro.example', false, true)).toBe('http://lrclib.invalid')
+    expect(urlBaseLrclib('http://127.0.0.1:1234', false, true)).toBe('http://127.0.0.1:1234')
+    expect(urlBaseLrclib('http://127.0.0.1:1234', true, true)).toBe(URL_BASE_LRCLIB)
+    expect(urlBaseLrclib(undefined, true, true)).toBe(URL_BASE_LRCLIB)
+    expect(urlBaseLrclib(undefined, false, false)).toBe(URL_BASE_LRCLIB)
+  })
 })
 
 describe('contrato Zod de letras.*', () => {

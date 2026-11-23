@@ -6,7 +6,7 @@ import { SEP, TEXTO, textoCola, textoDeError } from './textos'
 /** Lógica pura de la vista de progreso (docs/ux/04 §1): filas, bloque inferior y anuncios. */
 
 export type IconoFila = 'pendiente' | 'curso' | 'completado' | 'error' | 'interrumpido' | 'cola'
-export type IdFila = 'descargar' | 'preparar' | 'separar'
+export type IdFila = 'descargar' | 'preparar' | 'separar' | 'letra' | 'comprobar' | 'fines'
 
 export interface Fila {
   id: IdFila

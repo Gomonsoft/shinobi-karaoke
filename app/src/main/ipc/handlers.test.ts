@@ -91,6 +91,7 @@ function crearDeps() {
       marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
       comprobarPistas: vi.fn((id: string) => Promise.resolve(resumen(id))),
       volverABorrador: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      marcarPreparacionRevisada: vi.fn((id: string) => Promise.resolve(resumen(id))),
       eliminar: vi.fn(() => Promise.resolve()),
       mostrarEnCarpeta: vi.fn(() => Promise.resolve()),
       suscribir: vi.fn((cb: (e: EventoCancion) => void) => {
@@ -261,20 +262,71 @@ describe('manejadores IPC', () => {
   it('los canales de 0.2.2 responden «no implementado», validan argumentos y exigen la principal', async () => {
     const { deps } = crearDeps()
     const m = crearManejadores(deps)
-    const canal = CANALES.preparacion.preparar
-    expect(await m[canal]([{ ids: ['a'] }])).toEqual({
+    // Alineación: aún sin servicio (feature 10).
+    const canal = CANALES.alineacion.estado
+    expect(await m[canal]([])).toEqual({
       ok: false,
       error: { codigo: 'ERROR_INTERNO', mensaje: 'No implementado.' }
     })
-    expect(await m[canal]([{ ids: [] }])).toMatchObject({
+    expect(await m[canal](['sobra'])).toMatchObject({
       ok: false,
       error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
     })
-    const r = await m[canal]([{ ids: ['a'] }], { rol: 'secundaria', sender: null })
+    const r = await m[canal]([], { rol: 'secundaria', sender: null })
     expect(r).toMatchObject({ ok: false })
     expect(r.ok === false && r.error.codigo).not.toBe('ERROR_INTERNO')
     expect(await m[CANALES.alineacion.estado]([])).toMatchObject({
       error: { codigo: 'ERROR_INTERNO' }
+    })
+  })
+
+  it('la preparación (0308): previsualizar, preparar y cancelar llaman al servicio con ids válidos', async () => {
+    const { deps } = crearDeps()
+    const preparacion = {
+      previsualizar: vi.fn(() => [{ id: 'a', aplica: true, pasos: ['buscando_letra'] }]),
+      preparar: vi.fn(() => ({ aceptadas: ['a'], omitidas: [] })),
+      cancelar: vi.fn(() => Promise.resolve())
+    }
+    const m = crearManejadores({ ...deps, preparacion })
+    expect(await m[CANALES.preparacion.previsualizar]([{ ids: ['a'] }])).toMatchObject({
+      ok: true,
+      valor: [{ id: 'a', aplica: true }]
+    })
+    expect(await m[CANALES.preparacion.preparar]([{ ids: ['a'] }])).toMatchObject({
+      ok: true,
+      valor: { aceptadas: ['a'], omitidas: [] }
+    })
+    expect(await m[CANALES.preparacion.cancelar]([{ id: 'a' }])).toMatchObject({ ok: true })
+    expect(preparacion.preparar).toHaveBeenCalledWith(['a'])
+    expect(preparacion.cancelar).toHaveBeenCalledWith('a')
+    expect(await m[CANALES.preparacion.preparar]([{ ids: [] }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    expect(preparacion.preparar).toHaveBeenCalledTimes(1)
+  })
+
+  it('la cola de preparación (0309): pausar, reanudar, reintentarFallidas y tanda', async () => {
+    const { deps } = crearDeps()
+    const cola = {
+      pausar: vi.fn(() => Promise.resolve()),
+      reanudar: vi.fn(() => Promise.resolve()),
+      reintentarFallidas: vi.fn(() => Promise.resolve()),
+      estado: vi.fn(() => null)
+    }
+    const m = crearManejadores({ ...deps, colaPreparacion: cola })
+    for (const [canal, f] of [
+      [CANALES.preparacion.pausar, cola.pausar],
+      [CANALES.preparacion.reanudar, cola.reanudar],
+      [CANALES.preparacion.reintentarFallidas, cola.reintentarFallidas]
+    ] as const) {
+      expect(await m[canal]([])).toMatchObject({ ok: true })
+      expect(f).toHaveBeenCalledOnce()
+    }
+    expect(await m[CANALES.preparacion.tanda]([])).toEqual({ ok: true, valor: null })
+    expect(await m[CANALES.preparacion.pausar](['sobra'])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
     })
   })
 
@@ -488,6 +540,14 @@ describe('manejadores IPC', () => {
     const cfg = await m[CANALES.config.actualizar]([{ reproductor: { silenciado: true } }])
     expect(cfg).toMatchObject({ ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } })
     expect(JSON.stringify(cfg)).not.toContain('detalle interno')
+  })
+
+  it('marcarPreparacionRevisada cierra el aviso de la preparación y devuelve el resumen', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    const r = await m[CANALES.biblioteca.marcarPreparacionRevisada](['x'])
+    expect(r.ok).toBe(true)
+    expect(deps.biblioteca.marcarPreparacionRevisada).toHaveBeenCalledWith('x')
   })
 
   it('abrirEnlace llama al navegador solo con enlaces de la lista blanca', async () => {

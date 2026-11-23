@@ -101,6 +101,16 @@ export const PASOS_PREPARACION = [
   'ajustando_fines'
 ] as const
 export type PasoPreparacion = (typeof PASOS_PREPARACION)[number]
+/** Por qué la elección automática no eligió (ADR 0025 §3, revisión de 0235): mismo catálogo que `let.prep.motivo.*`. */
+export const MOTIVOS_NO_ELIGE = [
+  'varias',
+  'sinExacta',
+  'duda',
+  'noCoincide',
+  'soloTexto',
+  'sinComprobar'
+] as const
+export type MotivoNoElige = (typeof MOTIVOS_NO_ELIGE)[number]
 export const RESULTADOS_BUSQUEDA = [
   'elegida',
   'elige',
@@ -125,6 +135,8 @@ export const preparacionSchema = z.object({
       resultado: z.enum(RESULTADOS_BUSQUEDA),
       candidatas: z.number().int().nonnegative().catch(0),
       motivo: z.string().nullable().catch(null),
+      /** Motivo de «Elige la letra»; con un fallo de búsqueda, `null` (el código va en `motivo`). */
+      no_elige: z.enum(MOTIVOS_NO_ELIGE).nullable().catch(null).optional(),
       ids: z.array(z.number().int()).max(MAX_IDS_BUSQUEDA).catch([])
     })
     .nullable()
@@ -149,6 +161,8 @@ export const preparacionSchema = z.object({
     .optional()
     .catch(undefined),
   dudosas: z.number().int().nonnegative().catch(0),
+  /** Las que hacen preguntar al marcar como lista (F11-E12); ausente en lo preparado antes: se usa `dudosas`. */
+  dudosas_importantes: z.number().int().nonnegative().optional().catch(undefined),
   revisada: z.boolean().catch(false),
   /** `{ codigo: "CIERRE" }` con `detenida` por cierre de la app. */
   error: z

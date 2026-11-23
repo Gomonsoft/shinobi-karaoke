@@ -33,6 +33,7 @@ import {
 } from '../../shared/letrasBusqueda'
 import { corregirDesfase } from '../../shared/encaje'
 import { ErrorBiblioteca } from '../biblioteca/operaciones'
+import { rellenarAlbumDesdeLrclib, type RegistroLrclibDatos } from '../biblioteca/origen'
 import type { ServicioBiblioteca } from '../biblioteca/servicio'
 import type { ResumenCancion } from '../biblioteca/resumen'
 import type { DialogoArchivos } from '../fuente/archivo'
@@ -46,6 +47,11 @@ export interface OpcionesServicioLetras {
   dialogo: DialogoArchivos
   ahora?: () => Date
   debounceEdicionMs?: number
+  /**
+   * Metadatos (título, artista, álbum; no la letra) del candidato de LRCLIB que el usuario elige en la
+   * vista Letra: de la búsqueda reciente en memoria. Alimentan `letra.datos_lrclib` y el álbum (ADR 0025).
+   */
+  datosLrclib?: (cancionId: string, lrclibId: number) => RegistroLrclibDatos | null
 }
 
 const sinLetra = (mensaje: string): ErrorBiblioteca =>
@@ -89,6 +95,7 @@ export class ServicioLetras {
   private readonly dialogo: DialogoArchivos
   private readonly ahora: () => Date
   private readonly debounceMs: number
+  private readonly datosLrclib: OpcionesServicioLetras['datosLrclib']
   private visita: { id: string; cancionId: string; referencia: Letra | null } | null = null
   private readonly escriturasTiempos = new Map<string, Promise<ResumenCancion>>()
 
@@ -97,15 +104,18 @@ export class ServicioLetras {
     this.dialogo = opciones.dialogo
     this.ahora = opciones.ahora ?? (() => new Date())
     this.debounceMs = opciones.debounceEdicionMs ?? DEBOUNCE_EDICION_MS
+    this.datosLrclib = opciones.datosLrclib
   }
 
   /**
    * Sustituye la letra entera. `porPreparacion` (solo la preparación desatendida, ADR 0025) la escribe
-   * sin contarla como una edición del usuario.
+   * sin contarla como una edición del usuario. Con origen LRCLIB guarda `datos_lrclib` y rellena el álbum
+   * si estaba vacío (`rellenarAlbumDesdeLrclib`): `opciones.datosLrclib` los da la preparación; en la vista
+   * Letra salen de la búsqueda reciente.
    */
   async guardar(
     peticion: GuardarLetra,
-    opciones: { porPreparacion?: boolean } = {}
+    opciones: { porPreparacion?: boolean; datosLrclib?: RegistroLrclibDatos } = {}
   ): Promise<ResumenCancion> {
     const cancion = this.biblioteca.obtener(peticion.cancionId)
     if (!cancion) throw noValido('La canción no existe o está dañada.')
@@ -113,6 +123,10 @@ export class ServicioLetras {
     let letra: Letra
     // Con `desfase_ms` la letra se guarda ya corregida: solo cambia `offset_ms` (ADR 0024 §1).
     const correccion = corregirDesfase({ offset_ms: 0 }, peticion.desfase_ms ?? 0)
+    const datos =
+      peticion.origen === 'lrclib' && peticion.lrclib_id !== null
+        ? (opciones.datosLrclib ?? this.datosLrclib?.(peticion.cancionId, peticion.lrclib_id))
+        : undefined
     try {
       // Letra nueva: solo cuentan texto y tiempos; el fin que traía es `origen_fin: "letra"` (ADR 0024 §4).
       lineas = normalizarLetra(peticion.lineas.map(soloTextoYTiempos)).map((l) =>
@@ -125,6 +139,7 @@ export class ServicioLetras {
         ...correccion,
         lineas,
         intacta: true,
+        ...(datos ? { datos_lrclib: datos } : {}),
         ...(idioma ? { idioma } : {})
       })
     } catch {
@@ -132,7 +147,15 @@ export class ServicioLetras {
     }
     if (contarLineas(letra) < 1) throw noValido('La letra necesita al menos una línea.')
     this.invalidarEdicionDe(peticion.cancionId)
-    return this.escribir(peticion.cancionId, letra, 0, !opciones.porPreparacion)
+    const resumen = await this.escribir(peticion.cancionId, letra, 0, !opciones.porPreparacion)
+    if (!datos) return resumen
+    // El álbum es un extra: si no se puede escribir, la letra ya está guardada.
+    const rellenado = await rellenarAlbumDesdeLrclib(
+      this.biblioteca,
+      peticion.cancionId,
+      datos
+    ).catch(() => false)
+    return (rellenado && this.biblioteca.obtenerResumen(peticion.cancionId)) || resumen
   }
 
   /** Aplica el texto editado sobre la letra guardada en este momento (conserva ids y tiempos). */
@@ -313,6 +336,35 @@ export class ServicioLetras {
     // Corrección automática: no es una edición del usuario.
     await this.escribirTiempos(cancionId, nueva.data, false)
     return c.offset_ms - letra.offset_ms
+  }
+
+  /**
+   * Fines de la preparación desatendida (ADR 0025 §2, variante prudente): pone `fin_ms` con
+   * `origen_fin: "preparacion"` solo en las líneas que **ahora** siguen con fin automático, por el mismo
+   * camino de escritura que `guardarTiempos` y sin contarse como edición del usuario. Con el editor
+   * abierto sobre la canción no escribe (su copia en memoria lo revertiría). Devuelve cuántos puso.
+   */
+  async aplicarFinesPreparacion(
+    cancionId: string,
+    fines: ReadonlyMap<string, number>
+  ): Promise<number> {
+    const cancion = this.biblioteca.obtener(cancionId)
+    const letra = cancion?.letra
+    if (!cancion || !letra || this.visita?.cancionId === cancionId) return 0
+    let puestos = 0
+    const lineas = letra.lineas.map((e): ElementoLetra => {
+      const fin = fines.get(e.id)
+      if (fin === undefined || e.tipo !== 'linea' || e.inicio_ms === null || e.fin_ms !== null) {
+        return e
+      }
+      puestos++
+      return { ...e, fin_ms: fin, origen_fin: 'preparacion' }
+    })
+    if (puestos === 0) return 0
+    const nueva = letraSchema.safeParse({ ...letra, lineas })
+    if (!nueva.success) return 0
+    await this.escribirTiempos(cancionId, nueva.data, false)
+    return puestos
   }
 
   private invalidarEdicionDe(cancionId: string): void {

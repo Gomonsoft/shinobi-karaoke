@@ -32,6 +32,11 @@ interface CampoComboProps {
   id?: string
   inputRef?: Ref<HTMLInputElement>
   onBlur?: () => void
+  /**
+   * El valor quedó definido sin salir del campo: se eligió de la lista o se cerró (Esc, Tab, ▾). Con él
+   * se calcula la sugerencia de unificar (spec 03: nunca en el `blur`).
+   */
+  alResolver?: (valor: string) => void
   /** Teclas que la lista no usa (p. ej. Intro pasa al campo siguiente). */
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void
 }
@@ -47,6 +52,7 @@ export function CampoCombo({
   id,
   inputRef,
   onBlur,
+  alResolver,
   onKeyDown
 }: CampoComboProps) {
   const base = useId()
@@ -57,7 +63,9 @@ export function CampoCombo({
     () => filtrarOpciones(opciones, value).slice(0, MAX_SUGERENCIAS),
     [opciones, value]
   )
-  const mostrada = abierta && visibles.length > 0
+  // La lista se cierra sola cuando lo escrito coincide exactamente con la única opción.
+  const unicaExacta = visibles.length === 1 && visibles[0]?.valor === value.trim()
+  const mostrada = abierta && visibles.length > 0 && !unicaExacta
   const idOpcion = (i: number): string => `${base}-op-${i}`
 
   const cerrar = (): void => {
@@ -67,6 +75,7 @@ export function CampoCombo({
   const elegir = (valor: string): void => {
     onChange(valor)
     cerrar()
+    alResolver?.(valor)
   }
 
   if (opciones.length === 0) {
@@ -96,7 +105,14 @@ export function CampoCombo({
         return
       }
       const paso = e.key === 'ArrowDown' ? 1 : -1
-      setActiva((a) => (a + paso + visibles.length) % visibles.length)
+      // Sin opción activa, ↓ activa la primera y ↑ la última.
+      setActiva((a) =>
+        a < 0
+          ? paso === 1
+            ? 0
+            : visibles.length - 1
+          : (a + paso + visibles.length) % visibles.length
+      )
       return
     }
     if (e.key === 'Escape' && mostrada) {
@@ -104,6 +120,7 @@ export function CampoCombo({
       e.preventDefault()
       e.stopPropagation()
       cerrar()
+      alResolver?.(value)
       return
     }
     if (e.key === 'Enter' && mostrada && activa >= 0) {
@@ -112,7 +129,11 @@ export function CampoCombo({
       if (o) elegir(o.valor)
       return
     }
-    if (e.key === 'Tab') cerrar()
+    if (e.key === 'Tab') {
+      cerrar()
+      // Antes de que el foco salte: así el Tab siguiente ya encuentra [Usar «…»].
+      alResolver?.(value)
+    }
     onKeyDown?.(e)
   }
 
@@ -152,8 +173,10 @@ export function CampoCombo({
             // Sin quitar el foco al campo.
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
-              if (mostrada) cerrar()
-              else setAbierta(true)
+              if (mostrada) {
+                cerrar()
+                alResolver?.(value)
+              } else setAbierta(true)
             }}
           >
             <Icono icono={ChevronDown} tamano={18} />

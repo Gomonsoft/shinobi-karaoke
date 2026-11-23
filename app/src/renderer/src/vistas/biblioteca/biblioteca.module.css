@@ -214,6 +214,12 @@
 .linea_error {
   color: var(--error);
 }
+.linea_atencion {
+  color: var(--texto-1);
+}
+.linea_atencion > svg {
+  color: var(--aviso);
+}
 .linea_curso,
 .linea_cola {
   color: var(--info);
@@ -534,4 +540,93 @@
 .principal {
   flex: 1;
   min-width: 0;
+}
+
+/* ---------- Bandeja de pendientes (0.2.2 · feature 5) ---------- */
+.bandeja {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+  margin-top: var(--e-3);
+}
+.bandejaTitulo {
+  color: var(--texto-2);
+}
+.casillaBandeja {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-3);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-pildora);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+}
+.casillaBandeja:hover {
+  background: var(--fondo-3-hover);
+}
+.casillaBandeja[aria-pressed='true'] {
+  border-color: var(--acento);
+  background: var(--info-tenue);
+}
+.avisosPrep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  margin-top: var(--e-3);
+}
+
+/* ---------- Resultado de la preparación ---------- */
+.listaResultado {
+  max-height: 20rem;
+  margin: var(--e-3) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+}
+.filaResultado {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  padding: var(--e-2) var(--e-3);
+}
+.filaResultado + .filaResultado {
+  border-top: 1px solid var(--borde);
+}
+.filaResultadoTexto {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resultado_exito {
+  color: var(--exito);
+}
+.resultado_info {
+  color: var(--info);
+}
+.resultado_neutro {
+  color: var(--texto-3);
+}
+.resultado_error {
+  color: var(--error);
+}
+
+/* Línea ⚑ «n líneas por revisar» de una «Lista para revisar» (feature 11). */
+.lineaRevision {
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+  margin: 0;
+  color: var(--texto-2);
+}
+.lineaRevision svg {
+  flex: none;
 }

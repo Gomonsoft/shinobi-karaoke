@@ -254,7 +254,23 @@
   color: var(--aviso);
 }
 
+/* Sugerencia de unificar: texto y, debajo, sus dos botones; 8 px antes de la línea de ayuda. */
+.regionUnificar {
+  display: block;
+}
+.regionUnificar:not(:empty) {
+  margin-bottom: var(--e-2);
+}
 .unificar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--e-2);
+}
+.lineaAyuda {
+  display: block;
+}
+.botonesUnificar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -273,4 +289,13 @@
 }
 .anuncio:empty {
   display: none;
+}
+
+.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  text-decoration: underline;
+  cursor: pointer;
 }

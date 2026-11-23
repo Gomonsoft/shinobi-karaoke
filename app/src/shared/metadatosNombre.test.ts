@@ -29,9 +29,43 @@ const CASOS: [string, string, string, string, string][] = [
   ['Grupo Tres - Tema - Versión.mp3', 'Tema - Versión', 'Grupo Tres', '', 'artista-titulo']
 ]
 
+// Número descartado solo por un espacio (con cero a la izquierda): el campo que sigue es dudoso (0231).
+const NUMERO_DUDOSO = ['03 Tema Alfa.mp3', '03 Grupo Uno - Tema Alfa.mp3']
+
 describe('metadatosDeNombre', () => {
   it.each(CASOS)('%s', (nombre, titulo, artista, album, patron) => {
-    expect(metadatosDeNombre(nombre)).toEqual({ titulo, artista, album, patron })
+    expect(metadatosDeNombre(nombre)).toEqual({
+      titulo,
+      artista,
+      album,
+      patron,
+      numeroDudoso: NUMERO_DUDOSO.includes(nombre)
+    })
+  })
+
+  // F6-N12: un número inicial solo es pista con puntuación o con cero a la izquierda.
+  it.each([
+    ['3 Doors Down - Kryptonite.mp3', '3 Doors Down', 'Kryptonite'],
+    ['50 Cent - In Da Club.mp3', '50 Cent', 'In Da Club'],
+    ['03_Título.mp3', '', 'Título'],
+    ['3. Título.mp3', '', 'Título'],
+    ['3) Título.mp3', '', 'Título'],
+    ['03 - Título.mp3', '', 'Título'],
+    ['03 Artista - Título.mp3', 'Artista', 'Título']
+  ])('F6-N12: %s', (nombre, artista, titulo) => {
+    const r = metadatosDeNombre(nombre)
+    expect({ artista: r.artista, titulo: r.titulo }).toEqual({ artista, titulo })
+  })
+
+  it('F6-N12: «21 Guns» se conserva entero y «03 Artista - Título» marca el número como dudoso', () => {
+    expect(metadatosDeNombre('21 Guns.mp3')).toMatchObject({
+      titulo: '21 Guns',
+      patron: 'ninguno',
+      numeroDudoso: false
+    })
+    expect(metadatosDeNombre('03 Artista - Título.mp3').numeroDudoso).toBe(true)
+    expect(metadatosDeNombre('3. Título.mp3').numeroDudoso).toBe(false)
+    expect(metadatosDeNombre('03_Título.mp3').numeroDudoso).toBe(false)
   })
 })
 

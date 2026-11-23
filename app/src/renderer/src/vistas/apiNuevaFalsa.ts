@@ -39,7 +39,8 @@ export function apiNuevaFalsa(): Pick<
       cancelar: noImplementado,
       alCambiar: sinBaja,
       alTanda: sinBaja,
-      alReanudar: sinBaja
+      alReanudar: sinBaja,
+      alAbrirResultado: sinBaja
     },
     copias: {
       exportarCanciones: noImplementado,

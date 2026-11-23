@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Flag, X } from 'lucide-react'
+import { Check, Flag, X } from 'lucide-react'
 import type { LineaDudosa } from '@shared/dudosas'
 import { tienePalabrasManuales, type Letra } from '@shared/letra'
 import { E } from '../textos'
@@ -92,7 +92,8 @@ export function TarjetaRevision({
           <h3 id={idTitulo}>{R.finTitulo}</h3>
           <BotonIcono icono={X} etiqueta={R.salir} onClick={revision.terminar} />
         </div>
-        <p>
+        <p className={vista === 'fin' ? css.finTexto : undefined}>
+          {vista === 'fin' && <Icono icono={Check} tamano={16} />}
           {vista === 'nada'
             ? R.nadaFin
             : revision.sinInicioPendientes > 0
@@ -163,6 +164,29 @@ export function TarjetaRevision({
         )
       )}
       {soloSinInicio && <p className={css.nota}>{R.faltaInicio(revision.sinInicioPendientes)}</p>}
+      <Boton
+        ref={principal}
+        className={css.bien}
+        aria-label={corregida ? R.bienCorregida : R.bienNombre}
+        noDisponible={!corregida && sinInicio ? R.noSinInicio : undefined}
+        aria-keyshortcuts="N"
+        onClick={revision.estaBien}
+      >
+        <span aria-hidden="true">{corregida ? R.bienCorregida : `✓ ${R.bienNombre}`}</span>
+        <kbd aria-hidden="true" className={css.tecla}>
+          N
+        </kbd>
+      </Boton>
+      <div className={css.filas}>
+        <Boton aria-label={R.anteriorAtajo} onClick={revision.anterior}>
+          ‹ {R.anterior}
+        </Boton>
+        {!corregida && (
+          <Boton aria-label={R.siguienteAtajo} onClick={revision.siguiente}>
+            {R.siguiente} ›
+          </Boton>
+        )}
+      </div>
       <div className={css.filas}>
         <Boton aria-label={R.escucharNombre} onClick={escuchar} disabled={el?.inicio_ms == null}>
           ▶ {R.escuchar}
@@ -175,23 +199,6 @@ export function TarjetaRevision({
             conPalabras={el ? tienePalabrasManuales(el) : false}
           />
         )}
-      </div>
-      <div className={css.filas}>
-        <Boton aria-label={R.anteriorAtajo} onClick={revision.anterior}>
-          ‹ {R.anterior}
-        </Boton>
-        <Boton aria-label={R.siguienteAtajo} onClick={revision.siguiente}>
-          {R.siguiente} ›
-        </Boton>
-        <Boton
-          ref={principal}
-          className={css.bien}
-          noDisponible={!corregida && sinInicio ? R.noSinInicio : undefined}
-          aria-keyshortcuts="N"
-          onClick={revision.estaBien}
-        >
-          {corregida ? R.bienCorregida(revision.quedan) : `✓ ${R.bien(revision.quedan)}`}
-        </Boton>
       </div>
       <label className={css.filas}>
         <input

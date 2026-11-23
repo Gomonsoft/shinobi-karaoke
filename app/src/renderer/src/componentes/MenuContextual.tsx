@@ -31,6 +31,8 @@ export interface ItemMenu {
   bloqueado?: boolean
   /** Nombre accesible propio (p. ej. con `edi.bloqueo.aria` añadido). */
   ariaEtiqueta?: string
+  /** Segunda línea del ítem, en `texto-3` (p. ej. `bib.prep.menu.ayuda`). */
+  descripcion?: string
   alSeleccionar: () => void
 }
 
@@ -257,7 +259,7 @@ export function MenuContextual({
                   type="button"
                   role="menuitem"
                   tabIndex={-1}
-                  className={`${estilos.item} ${it.destructivo ? estilos.itemDestructivo : ''}`}
+                  className={`${estilos.item} ${it.destructivo ? estilos.itemDestructivo : ''} ${it.descripcion ? estilos.itemConDescripcion : ''}`}
                   aria-disabled={it.noDisponible || it.bloqueado ? true : undefined}
                   aria-label={it.ariaEtiqueta}
                   title={it.noDisponible}
@@ -268,7 +270,16 @@ export function MenuContextual({
                   }}
                 >
                   {it.icono && <Icono icono={it.icono} tamano={16} />}
-                  {it.etiqueta}
+                  {it.descripcion ? (
+                    <span className={estilos.itemTexto}>
+                      {it.etiqueta}
+                      <span className={`t-pequeno ${estilos.itemDescripcion}`}>
+                        {it.descripcion}
+                      </span>
+                    </span>
+                  ) : (
+                    it.etiqueta
+                  )}
                   {it.bloqueado && <Icono icono={Lock} tamano={14} />}
                 </button>
               </Fragment>

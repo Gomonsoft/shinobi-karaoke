@@ -14,6 +14,7 @@ import { crearNavegacionGuardada } from './navegacion/salida'
 import { CapaReproductor, ProveedorReproductor } from './navegacion/reproductor'
 import { useArrastrarArchivo } from './navegacion/useArrastrarArchivo'
 import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
+import { useAvisosPreparacion } from './navegacion/useAvisosPreparacion'
 import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
 import { ProveedorSesion, useSesion } from './sesion/ProveedorSesion'
 import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
@@ -44,6 +45,7 @@ function Contenido({ vista }: { vista: Vista }) {
           key={vista.iniciales?.cancionId ?? vista.archivo ?? 'nueva'}
           archivo={vista.archivo}
           iniciales={vista.iniciales}
+          restaurar={vista.restaurar}
         />
       )
     case 'cancion':
@@ -80,6 +82,7 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
   useAtajosGlobales(vista, navegar)
   useArrastrarArchivo(vista, navegar)
   useAvisosTrabajos(vista, navegar)
+  useAvisosPreparacion(vista, navegar)
 
   return (
     <NavegacionContexto.Provider value={navegacion}>

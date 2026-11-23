@@ -133,9 +133,26 @@ describe('como en tu biblioteca', () => {
     })
     expect(guardado.album).toBe('fuente')
   })
-  it('una diferencia solo de mayúsculas no cambia nada (mismo grupo)', () => {
-    const { datos } = archivo('x.mp3', { title: 'T', artist: 'GRUPO UNO' }, valores)
-    expect(datos.artista).toMatchObject({ valor: 'GRUPO UNO', origen: 'etiquetas' })
+  it('una propuesta que solo difiere en mayúsculas usa la grafía de la biblioteca (D3, pregunta 0232)', () => {
+    const { datos } = archivo('x.mp3', { title: 'T', artist: 'grupo uno' }, valores)
+    expect(datos.artista).toMatchObject({
+      valor: 'Grupo Uno',
+      origen: 'biblioteca',
+      alternativa: 'grupo uno'
+    })
+  })
+  it('una propuesta idéntica a la de la biblioteca conserva su procedencia', () => {
+    const { datos } = archivo('x.mp3', { title: 'T', artist: 'Grupo Uno' }, valores)
+    expect(datos.artista).toMatchObject({ valor: 'Grupo Uno', origen: 'etiquetas' })
+  })
+  it('«03 Artista - Título»: el número se descarta y el artista sale dudoso (0231)', () => {
+    const { datos } = archivo('03 Artista Nuevo - Tema Alfa.mp3')
+    expect(datos.artista).toMatchObject({ valor: 'Artista Nuevo', origen: 'nombre', dudoso: true })
+    expect(datos.titulo.dudoso).toBe(false)
+  })
+  it('«3 Doors Down - Tema» conserva el número y el artista no es dudoso', () => {
+    const { datos } = archivo('3 Doors Down - Tema Alfa.mp3')
+    expect(datos.artista).toMatchObject({ valor: '3 Doors Down', dudoso: false })
   })
 })
 

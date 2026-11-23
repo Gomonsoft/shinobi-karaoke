@@ -170,6 +170,11 @@ export type AccionEditor =
    */
   | { tipo: 'cambiar_desfase'; offsetMs: number; desfaseCorregidoMs: number | null; ahora: number }
   /**
+   * «Quitar esos fines» (spec 06 · Feature 5): vuelve a automático el fin de las líneas que fijó la
+   * preparación y siguen con ese valor (`origen_fin: "preparacion"`; una edición manual ya lo retiró).
+   */
+  | { tipo: 'quitar_fines_preparacion'; ahora: number }
+  /**
    * «Está bien» de la revisión guiada (ADR 0024 §4): anota en la línea lo que había al darla por buena.
    * Un paso del historial. No vale para una línea sin inicio.
    */
@@ -589,6 +594,21 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       if (a.desfaseCorregidoMs === null) delete nueva.desfase_corregido_ms
       else nueva.desfase_corregido_ms = a.desfaseCorregidoMs
       return guardarPaso(e, { ...e.actual, letra: nueva }, unica('desfase'), a.ahora)
+    }
+    case 'quitar_fines_preparacion': {
+      if (e.sync.activo || !letra.lineas.some((l) => l.origen_fin === 'preparacion')) return e
+      const lineas = letra.lineas.map((l) => {
+        if (l.origen_fin !== 'preparacion') return l
+        const copia = { ...l, fin_ms: null }
+        delete copia.origen_fin
+        return copia
+      })
+      return guardarPaso(
+        e,
+        { ...e.actual, letra: { ...letra, lineas } },
+        unica('quitar_fines'),
+        a.ahora
+      )
     }
     case 'marcar_revisada': {
       if (e.sync.activo || !esLinea(letra, a.id)) return e

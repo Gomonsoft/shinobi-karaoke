@@ -4,12 +4,12 @@
  * La oferta del modelo Rápido nunca se incluye en un aviso (ux/04 criterio 8b).
  */
 
-export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error', 'desfase'] as const
+export const TIPOS_AVISO_TRABAJO = ['ok', 'lista', 'error', 'desfase', 'tanda'] as const
 export const TITULO_MOTOR_INCOMPLETO = 'Hay que reparar el motor de audio'
 export type TipoAvisoTrabajo = (typeof TIPOS_AVISO_TRABAJO)[number]
 
 /** Vista de la canción a la que lleva el aviso. */
-export type DestinoAviso = 'progreso' | 'editor'
+export type DestinoAviso = 'progreso' | 'editor' | 'biblioteca'
 
 /** Evento main → renderer: un trabajo terminó o falló (el renderer decide si muestra el toast). */
 export interface AvisoTrabajoIpc {
@@ -40,7 +40,21 @@ export const AVISOS = {
     const d = (Math.abs(desfaseMs) / 1000).toFixed(1).replace('.', ',')
     return `Movimos la letra de «${titulo}» ${d} s ${desfaseMs > 0 ? 'más tarde' : 'antes'} para que coincida con la voz.`
   },
-  etiquetaDesfase: 'Deshacer'
+  etiquetaDesfase: 'Deshacer',
+  /**
+   * `act.cola.fin` (spec 04, feature 7): una sola vez al vaciarse una tanda de 2 o más canciones. Se omiten
+   * las partes con 0; si todas están listas para revisar, «{n} canciones listas para revisar.».
+   */
+  tanda: (r: { total: number; listas: number; esperanLetra: number; conError: number }): string => {
+    if (r.listas === r.total) return `${r.total} canciones listas para revisar.`
+    const partes = [
+      r.listas > 0 ? `${r.listas} ${r.listas === 1 ? 'lista' : 'listas'} para revisar` : null,
+      r.esperanLetra > 0 ? `${r.esperanLetra} esperan letra` : null,
+      r.conError > 0 ? `${r.conError} con error` : null
+    ].filter((x) => x !== null)
+    return `${r.total} canciones preparadas${partes.length > 0 ? `: ${partes.join(' · ')}` : ''}.`
+  },
+  etiquetaTanda: 'Ver resultado'
 } as const
 
 const ERRORES_DESCARGA: Record<string, string> = {

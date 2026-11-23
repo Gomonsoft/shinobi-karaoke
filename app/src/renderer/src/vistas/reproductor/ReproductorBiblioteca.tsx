@@ -133,7 +133,16 @@ function CancionCargada({
   )
 }
 
-export function ReproductorBiblioteca({ id, alCerrar }: { id: string; alCerrar(): void }) {
+export function ReproductorBiblioteca({
+  id,
+  prueba = false,
+  alCerrar
+}: {
+  id: string
+  /** «Probar»: admite un borrador con pistas (ADR 0025 §1); no cambia su estado. */
+  prueba?: boolean
+  alCerrar(): void
+}) {
   const resumen = useBibliotecaCompartida()?.canciones.find((cancion) => cancion.id === id)
   const [datos, setDatos] = useState<{ cancion: Cancion; config: Config } | null>(null)
 
@@ -153,7 +162,7 @@ export function ReproductorBiblioteca({ id, alCerrar }: { id: string; alCerrar()
     void Promise.all([api.biblioteca.obtener(id), api.config.obtener()]).then(
       ([cancion, config]) => {
         if (!activo) return
-        if (cancion?.estado !== 'lista') noSePudoAbrir()
+        if (!cancion || (cancion.estado !== 'lista' && !prueba)) noSePudoAbrir()
         else setDatos({ cancion, config })
       },
       noSePudoAbrir
@@ -161,7 +170,7 @@ export function ReproductorBiblioteca({ id, alCerrar }: { id: string; alCerrar()
     return () => {
       activo = false
     }
-  }, [id, alCerrar])
+  }, [id, alCerrar, prueba])
 
   if (!datos) return <Preparando resumen={resumen} alCerrar={alCerrar} />
   return (

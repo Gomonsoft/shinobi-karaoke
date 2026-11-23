@@ -32,7 +32,7 @@ export function DialogoCierre({ vista }: Props) {
 
   useEffect(() => {
     const api = window.shinobi
-    return api.app.alSolicitudCierre((solicitud) => {
+    const atender = (solicitud: SolicitudCierreIpc | null): void => {
       const motivo = {
         sesion: solicitud?.sesion ?? false,
         cola: solicitud?.cola ?? false,
@@ -75,7 +75,16 @@ export function DialogoCierre({ vista }: Props) {
         const titulos = ids.flatMap((id) => nombres.get(id) ?? [])
         setDatos({ n: trabajos.length + exportando.length, titulos, exportando, motivo })
       })()
-    })
+    }
+    const baja = api.app.alSolicitudCierre(atender)
+    // Una solicitud enviada antes de suscribirse (cerrar nada más abrir) no se pierde: se pregunta a main.
+    // (los dobles de prueba sin este método simplemente no la tienen)
+    void Promise.resolve(api.app.solicitudCierrePendiente?.())
+      .then((pendiente) => {
+        if (pendiente) atender(pendiente)
+      })
+      .catch(() => undefined)
+    return baja
   }, [])
 
   const sesion = datos !== null && datos.n === 0 ? textosSalirConSesion(datos.motivo) : null

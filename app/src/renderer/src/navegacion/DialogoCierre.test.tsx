@@ -50,6 +50,33 @@ const motivo = (sesion: boolean, cola: boolean, variante = 'salir', trabajos = f
   variante
 })
 
+describe('solicitud de cierre que llegó antes de montar el diálogo (0236)', () => {
+  it('se pregunta a main al montar y, con trabajos, sale el diálogo sin esperar otro evento', async () => {
+    instalar(['c1'], { c1: 'Tema inventado' })
+    ;(
+      window as unknown as { shinobi: { app: Record<string, unknown> } }
+    ).shinobi.app.solicitudCierrePendiente = () =>
+      Promise.resolve(motivo(false, false, 'salir', true))
+    await act(async () => {
+      render(<DialogoCierre vista={{ tipo: 'biblioteca' }} />)
+    })
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText(/«Tema inventado»/)).toBeInTheDocument()
+    expect(confirmarCierre).not.toHaveBeenCalled()
+  })
+
+  it('sin solicitud pendiente no sale nada', async () => {
+    instalar(['c1'], { c1: 'Tema inventado' })
+    ;(
+      window as unknown as { shinobi: { app: Record<string, unknown> } }
+    ).shinobi.app.solicitudCierrePendiente = () => Promise.resolve(null)
+    await act(async () => {
+      render(<DialogoCierre vista={{ tipo: 'biblioteca' }} />)
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
 describe('DialogoCierre con sesión o cola (S13)', () => {
   const biblio = { tipo: 'biblioteca' } as const
   it('con sesión pregunta ses.salir con el foco en Cancelar', async () => {

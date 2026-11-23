@@ -12,6 +12,7 @@ export const CANALES = {
     marcarLista: 'biblioteca:marcarLista',
     comprobarPistas: 'biblioteca:comprobarPistas',
     volverABorrador: 'biblioteca:volverABorrador',
+    marcarPreparacionRevisada: 'biblioteca:marcarPreparacionRevisada',
     eliminar: 'biblioteca:eliminar',
     mostrarEnCarpeta: 'biblioteca:mostrarEnCarpeta',
     /** 0.2.2 (ADR 0025 §6): artistas y álbumes existentes con su clave, del índice en memoria. */
@@ -139,6 +140,11 @@ export const CANALES = {
     guardadoPendiente: 'app:guardadoPendiente',
     /** El renderer confirma el cierre pedido por `eventos.solicitudCierre` (0036). */
     confirmarCierre: 'app:confirmarCierre',
+    /**
+     * Solicitud de cierre que main pidió y aún no se ha respondido (o `null`). El renderer la pregunta al
+     * montar el diálogo de cierre: la que se envió antes de que se suscribiera no se pierde (tarea 0236).
+     */
+    solicitudCierrePendiente: 'app:solicitudCierrePendiente',
     /** Sale de la aplicación (`app.quit()`), también en macOS donde cerrar la ventana no basta. */
     salir: 'app:salir'
   },
@@ -271,6 +277,8 @@ export const CANALES = {
     preparacionTanda: 'preparacion:tanda',
     /** Se reanudó trabajo pendiente al abrir (ADR 0025 §5). */
     preparacionReanudada: 'preparacion:reanudada',
+    /** El clic en la notificación de una tanda terminada pide abrir su resultado (sin carga). */
+    abrirResultadoPreparacion: 'preparacion:abrirResultado',
     /** Encajes de los candidatos cuando los picos terminan (ADR 0024 §2). */
     letrasEncaje: 'letras:encaje',
     /** Avance `{ hechas, total }` de una acción por lotes de la Biblioteca (ADR 0026 §4). */
@@ -312,6 +320,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.biblioteca.marcarLista]: PRINCIPAL,
   [CANALES.biblioteca.comprobarPistas]: PRINCIPAL,
   [CANALES.biblioteca.volverABorrador]: PRINCIPAL,
+  [CANALES.biblioteca.marcarPreparacionRevisada]: PRINCIPAL,
   [CANALES.biblioteca.eliminar]: PRINCIPAL,
   [CANALES.biblioteca.mostrarEnCarpeta]: PRINCIPAL,
   [CANALES.temas.catalogo]: PRINCIPAL,
@@ -365,6 +374,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.app.guardadoPendiente]: PRINCIPAL,
   [CANALES.app.confirmarCierre]: PRINCIPAL,
   [CANALES.app.salir]: PRINCIPAL,
+  [CANALES.app.solicitudCierrePendiente]: PRINCIPAL,
   [CANALES.trabajos.listar]: PRINCIPAL,
   [CANALES.trabajos.cancelar]: PRINCIPAL,
   [CANALES.trabajos.hayPendientes]: PRINCIPAL,

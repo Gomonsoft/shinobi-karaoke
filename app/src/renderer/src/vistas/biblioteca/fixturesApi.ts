@@ -16,6 +16,8 @@ type Parcial = {
   alCambiarConfig?: ApiShinobi['alCambiarConfig']
   /** Doble de `temas` y `alCambiarTemas`; por defecto un catálogo en memoria con un tema. */
   temas?: TemasFalsos
+  /** Sustituye operaciones de `preparacion` (preparar, tanda, pausar…). */
+  preparacion?: Partial<ApiShinobi['preparacion']>
 }
 
 /** `window.shinobi` mínimo para pruebas de la Biblioteca. */
@@ -26,12 +28,16 @@ export function fixtures({
   agrupar = 'ninguno',
   actualizarConfig = () => Promise.resolve({}),
   alCambiarConfig,
-  temas = temasFalsos()
+  temas = temasFalsos(),
+  preparacion
 }: Parcial): ApiShinobi & { ventana: ReturnType<typeof ventanaFalsa> } {
   return {
     ventana: ventanaFalsa(),
     ...temas.api,
-    ...apiNuevaFalsa(),
+    ...(() => {
+      const nueva = apiNuevaFalsa()
+      return { ...nueva, preparacion: { ...nueva.preparacion, ...preparacion } }
+    })(),
     biblioteca: {
       ...bibliotecaNuevaFalsa(),
       listar,

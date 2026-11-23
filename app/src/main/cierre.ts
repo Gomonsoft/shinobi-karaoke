@@ -68,6 +68,8 @@ export interface ControlCierre {
   alSalir(evento: EventoCancelable): void
   /** El renderer confirmó: pausa y vuelve a cerrar o salir según lo que se pidió. */
   confirmar(): Promise<void>
+  /** Lo que se pidió y aún no se confirmó (`null` si nada). Para reenviarlo a un renderer que llegó tarde. */
+  pendiente(): IntencionCierre | null
 }
 
 export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
@@ -86,6 +88,7 @@ export function crearControlCierre(deps: DependenciasCierre): ControlCierre {
   return {
     alCerrarVentana: (evento) => interceptar(evento, 'ventana'),
     alSalir: (evento) => interceptar(evento, 'salir'),
+    pendiente: () => (confirmando ? null : pendiente),
     async confirmar() {
       // Una confirmación sin solicitud previa no cierra nada.
       const intencion = pendiente

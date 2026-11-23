@@ -164,10 +164,10 @@ test.describe('letras con el doble local de LRCLIB', () => {
       await v.getByLabel('Artista').fill('Artista inventado')
       await v.getByRole('button', { name: 'Continuar' }).click()
 
-      await v.getByRole('button', { name: 'Buscar la letra mientras tanto' }).click({
-        timeout: 30_000
-      })
-      // La búsqueda se lanza sola: tres resultados; el de sincronía por palabra va primero pero
+      // Con la preparación automática (feature 5, spec 04) la búsqueda ya se lanzó al añadir la
+      // canción: «Buscar la letra mientras tanto» es ahora «Ver la letra».
+      await v.getByRole('button', { name: 'Ver la letra' }).click({ timeout: 30_000 })
+      // La búsqueda ya se hizo sola: tres resultados; el de sincronía por palabra va primero pero
       // se muestra «por línea» (ya no se importan palabras, 0149).
       const opciones = v.getByRole('option')
       await expect(opciones).toHaveCount(3)

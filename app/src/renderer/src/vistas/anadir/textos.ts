@@ -39,7 +39,15 @@ export const TEXTO = {
   usar: (valor: string): string => `Usar «${valor}»`,
   dejarlo: 'Dejarlo así',
   intercambiar: 'Intercambiar título y artista',
-  intercambiado: 'Título y artista intercambiados.'
+  intercambiado: 'Título y artista intercambiados.',
+  // 0.2.2 · Feature 5 (F6-N7 y F6-N8)
+  busquedaLrclib: 'Al continuar buscaremos la letra en LRCLIB con estos datos.',
+  cambiarEnAjustes: 'Cambiar en Ajustes',
+  origenLrclib: 'Tomado de LRCLIB',
+  quitar: 'Quitar',
+  sugerenciaLrclib: (titulo: string, artista: string): string =>
+    `LRCLIB la llama «${titulo}», de «${artista}».`,
+  usarEstosDatos: 'Usar estos datos'
 } as const
 
 /** `add.dato.origen.*`: bajo cada campo prerrellenado. */

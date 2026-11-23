@@ -29,13 +29,13 @@ describe('contarDudosasGuardadas', () => {
       { picos: { nivelBase: async () => nivel } },
       { id: 'x', letra, metadatos: { duracion_ms: 10_000 } }
     )
-    expect(cuenta).toBe(1) // «b» cae donde no hay voz
+    expect(cuenta).toEqual({ dudosas: 1, importantes: 1 }) // «b» cae donde no hay voz (`sinVoz`)
   })
 
   it('sin picos solo cuentan los motivos que no la necesitan; sin letra, null', async () => {
     const deps = { picos: { nivelBase: async () => null } }
     const cancion = { id: 'x', letra, metadatos: { duracion_ms: 10_000 } }
-    expect(await contarDudosasGuardadas(deps, cancion)).toBe(0)
+    expect(await contarDudosasGuardadas(deps, cancion)).toEqual({ dudosas: 0, importantes: 0 })
     expect(await contarDudosasGuardadas(deps, { ...cancion, letra: null })).toBeNull()
   })
 })

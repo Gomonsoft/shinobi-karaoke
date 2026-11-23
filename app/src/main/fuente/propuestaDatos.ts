@@ -1,6 +1,5 @@
 import {
   claveFlexible,
-  claveTexto,
   metadatosDeCarpeta,
   metadatosDeNombre,
   partirPorSeparador,
@@ -86,12 +85,19 @@ function deArchivo(e: EntradaArchivo, valores: ValoresDatosIpc): [Candidato, Can
   const c = e.carpeta ? metadatosDeCarpeta(e.carpeta) : { artista: '', album: '' }
   let titulo = primero(
     cand(t.title, 'etiquetas'),
-    cand(n.titulo, 'nombre', n.patron === 'ninguno' || tituloConRestos(n.titulo))
+    cand(
+      n.titulo,
+      'nombre',
+      n.patron === 'ninguno' ||
+        tituloConRestos(n.titulo) ||
+        // «03 Título»: el número se descartó sin puntuación, el campo que sigue es dudoso (0231).
+        (n.patron === 'pista-titulo' && n.numeroDudoso)
+    )
   )
   let artista = primero(
     cand(t.artist, 'etiquetas'),
     cand(t.album_artist, 'etiquetas'),
-    cand(n.artista, 'nombre'),
+    cand(n.artista, 'nombre', n.patron === 'artista-titulo' && n.numeroDudoso),
     cand(c.artista, 'carpeta')
   )
   const album = primero(
@@ -137,7 +143,11 @@ function deYoutube(e: EntradaYoutube, valores: ValoresDatosIpc): [Candidato, Can
   return [titulo, artista, album]
 }
 
-/** «Como en tu biblioteca»: si solo difiere en tildes, puntuación o espacios, se usa la grafía existente. */
+/**
+ * «Como en tu biblioteca»: si solo difiere en mayúsculas, tildes, puntuación o espacios, se usa la grafía
+ * existente (respuesta a 0232: también cuando solo difieren las mayúsculas, aunque la clave de identidad ya
+ * coincida; así el nombre visible del grupo no cambia a una grafía que nadie eligió).
+ */
 function comoEnBiblioteca(
   c: Candidato,
   lista: ValoresDatosIpc['artistas']
@@ -145,8 +155,7 @@ function comoEnBiblioteca(
   alternativa?: string
 } {
   if (c.valor === '') return c
-  const clave = claveTexto(c.valor)
-  if (lista.some((v) => claveTexto(v.valor) === clave)) return c
+  if (lista.some((v) => v.valor === c.valor)) return c
   const igual = lista.find((v) => coincide(v.valor, c.valor))
   return igual ? { ...c, valor: igual.valor, origen: 'biblioteca', alternativa: c.valor } : c
 }

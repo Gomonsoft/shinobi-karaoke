@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
 import {
@@ -52,6 +52,15 @@ async function esperarPaso(
       { timeout }
     )
     .toBe(estado)
+}
+
+/** Sin búsqueda automática de letra: estas pruebas son de la separación y no deben salir a la red. */
+function sinBusquedaAutomatica(datos: string): void {
+  const config = leerConfig(datos)
+  writeFileSync(
+    join(datos, 'config.json'),
+    JSON.stringify({ ...config, preparacion: { automatica: false } })
+  )
 }
 
 test.describe('separación con el separador falso', () => {
@@ -236,8 +245,10 @@ test.describe('separación con el separador falso', () => {
     }
   })
 
-  test('cierre con trabajos: diálogo, Interrumpido y Reintentar sin salir de la Biblioteca', async () => {
+  test('cierre con trabajos: diálogo y, tras dos cierres seguidos, Interrumpido y Reintentar sin salir de la Biblioteca', async () => {
+    test.setTimeout(120_000)
     const env = preparar('sep-cierre', LARGO)
+    sinBusquedaAutomatica(env.datos)
     const app = await lanzar(env)
     const v = await app.firstWindow()
     await importar(v, 'Tema interrumpido')
@@ -260,6 +271,23 @@ test.describe('separación con el separador falso', () => {
     expect(estadoPaso(env.datos, 'Tema interrumpido', 'separacion')).toBe('interrumpido')
     expect(existsSync(join(carpeta(env.datos, id), 'pistas.tmp'))).toBe(false)
 
+    // Primer cierre: al reabrir se retoma sola (0309). Se vuelve a cerrar a mitad: dos arranques seguidos.
+    const retomada = await lanzar(env)
+    const vr = await retomada.firstWindow()
+    await expect
+      .poll(() => estadoPaso(env.datos, 'Tema interrumpido', 'separacion'), { timeout: 30_000 })
+      .toBe('en_curso')
+    // Se cierra en cuanto arranca, sin esperar a ver el progreso: la solicitud de cierre no se pierde
+    // aunque el diálogo aún no esté montado (0236).
+    const cierre2 = retomada.close()
+    await vr
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Cerrar de todos modos' })
+      .click({ timeout: 10_000 })
+    await cierre2
+    expect(estadoPaso(env.datos, 'Tema interrumpido', 'separacion')).toBe('interrumpido')
+
+    // Tercer arranque: ya no se retoma; queda «Interrumpido» con [Reintentar].
     escribirEscenario(env, CORTO)
     const app2 = await lanzar(env)
     try {
@@ -271,6 +299,41 @@ test.describe('separación con el separador falso', () => {
       await expect(t).not.toContainText('Interrumpido')
       await esperarPaso(env.datos, 'Tema interrumpido', 'completado')
       expect(leerCancion(env.datos, id).pistas.voz).toBe('pistas/voz.flac')
+    } finally {
+      await cerrar(app2)
+    }
+    expect(procesosWorker(env.datos)).toEqual([])
+  })
+
+  test('cerrar con una separación en curso y otra en cola y reabrir las retoma solas, en orden', async () => {
+    const env = preparar('sep-reanuda', LARGO)
+    sinBusquedaAutomatica(env.datos)
+    const app = await lanzar(env)
+    const v = await app.firstWindow()
+    await importar(v, 'Tema primero')
+    await volverABiblioteca(v)
+    await importar(v, 'Tema segundo')
+    await volverABiblioteca(v)
+    await esperarPaso(env.datos, 'Tema primero', 'en_curso')
+    const cierre = app.close()
+    await v
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Cerrar de todos modos' })
+      .click({ timeout: 5000 })
+      .catch(() => undefined)
+    await cierre
+    // El diario deja lo pendiente para el siguiente arranque.
+    const diario = JSON.parse(
+      readFileSync(join(env.datos, 'trabajos', 'pendientes.json'), 'utf8')
+    ) as { tipo: string }[]
+    expect(diario.filter((e) => e.tipo === 'separacion')).toHaveLength(2)
+
+    escribirEscenario(env, CORTO)
+    const app2 = await lanzar(env)
+    try {
+      await app2.firstWindow()
+      await esperarPaso(env.datos, 'Tema primero', 'completado', 90_000)
+      await esperarPaso(env.datos, 'Tema segundo', 'completado', 90_000)
     } finally {
       await cerrar(app2)
     }

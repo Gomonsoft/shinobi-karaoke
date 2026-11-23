@@ -17,19 +17,44 @@ export interface DatosInicialesAnadir {
 /** Estado de navegación propio (ADR 0007: sin router). */
 export type Vista =
   | { tipo: 'primer-arranque' }
-  | { tipo: 'biblioteca'; enfocar?: { id: string; resaltar: boolean } }
+  | {
+      tipo: 'biblioteca'
+      enfocar?: { id: string; resaltar: boolean }
+      /** Abre el diálogo «Resultado de la preparación» de la última tanda (0.2.2 · feature 5). */
+      abrirResultado?: true
+      /** Casilla de la bandeja de pendientes que se activa al llegar (filtro en «Borradores»). */
+      casilla?: 'revisar' | 'letra' | 'error'
+    }
   /** `archivo`: ruta de un archivo arrastrado sobre la Biblioteca (la vista 03 lo recibe). */
-  | { tipo: 'anadir'; archivo?: string; iniciales?: DatosInicialesAnadir }
+  | {
+      tipo: 'anadir'
+      archivo?: string
+      iniciales?: DatosInicialesAnadir
+      /** Vuelve de Ajustes («Cambiar en Ajustes», spec 03 · F6-N8): recupera lo escrito. */
+      restaurar?: true
+    }
   /** `pestana`: pestaña con la que abre el editor (al volver de Ajustes, `estilo`; 0175). `buscarOtra`: la vista Letra abre en «Buscar otra letra» (A) aunque ya haya letra. */
-  | { tipo: 'cancion'; id: string; paso: PasoCancion; pestana?: 'estilo'; buscarOtra?: true }
+  | {
+      tipo: 'cancion'
+      id: string
+      paso: PasoCancion
+      pestana?: 'estilo'
+      buscarOtra?: true
+      /** Con `paso: 'editor'`: abre con la revisión guiada ya empezada (0.2.2 · feature 11). */
+      revisar?: true
+    }
   /** `origen`: vista a la que regresa «Volver» y Esc; `seccion`: sección a la que se baja al abrir. */
   | { tipo: 'ajustes'; origen?: OrigenAjustes; seccion?: SeccionAjustes }
 
 export type TipoVista = Vista['tipo']
 
 /** Vistas desde las que se abre Ajustes y a las que se regresa (docs/ux/08, A10). */
-export type OrigenAjustes = { tipo: 'biblioteca' } | { tipo: 'editor'; id: string }
-export type SeccionAjustes = 'temas'
+export type OrigenAjustes =
+  | { tipo: 'biblioteca' }
+  | { tipo: 'editor'; id: string }
+  /** «Añadir canción» (solo con «Cambiar en Ajustes»): al volver se recupera el formulario. */
+  | { tipo: 'anadir' }
+export type SeccionAjustes = 'temas' | 'preparacion'
 
 /** Origen que recuerda Ajustes al abrirse desde `vista`: el editor de una canción o, si no, la Biblioteca. */
 export function origenAjustes(vista: Vista): OrigenAjustes {
@@ -40,6 +65,7 @@ export function origenAjustes(vista: Vista): OrigenAjustes {
 
 /** Vista a la que regresan «Volver» y Esc en Ajustes (el editor reabre con la pestaña Estilo). */
 export function vistaDeOrigen(origen: OrigenAjustes | undefined): Vista {
+  if (origen?.tipo === 'anadir') return { tipo: 'anadir', restaurar: true }
   if (origen?.tipo === 'editor') {
     return { tipo: 'cancion', id: origen.id, paso: 'editor', pestana: 'estilo' }
   }

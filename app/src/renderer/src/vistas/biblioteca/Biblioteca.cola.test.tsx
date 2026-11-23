@@ -127,10 +127,10 @@ describe('tarjetas durante la sesión (S10, E1)', () => {
     expect(ir).not.toHaveBeenCalled()
   })
 
-  it('E1: «Continuar» hacia Letra o Editor y su portada muestran el bloqueo', async () => {
+  it('E1: «Revisar» hacia el Editor y su portada muestran el bloqueo', async () => {
     const { ir } = await conSesion(estadoP1())
     const t = await tarjeta('Casi lista')
-    fireEvent.click(within(t).getByRole('button', { name: /^Continuar/ }))
+    fireEvent.click(within(t).getByRole('button', { name: /^Revisar/ }))
     expect(await screen.findByRole('dialog', { name: EDI_BLOQUEO.titulo })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: EDI_BLOQUEO.entendido }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())

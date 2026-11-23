@@ -3,6 +3,7 @@ import { ControlSegmentado, type OpcionSegmentada } from '../../componentes/Cont
 import type { DatosInicialesAnadir } from '../../navegacion/estado'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { PanelArchivo } from './PanelArchivo'
+import { leerBorrador, olvidarBorrador } from './borrador'
 import { PanelYoutube } from './PanelYoutube'
 import { TEXTO } from './textos'
 import estilos from './anadir.module.css'
@@ -26,14 +27,21 @@ interface AnadirCancionProps {
   archivo?: string
   /** Sustituir la fuente de una canción existente conservando sus metadatos. */
   iniciales?: DatosInicialesAnadir
+  /** Vuelve de Ajustes con «Cambiar en Ajustes»: recupera lo escrito (spec 03 · F6-N8). */
+  restaurar?: boolean
 }
 
 /** Vista 03 en modo "Nueva canción" (y "otra fuente para una canción sin audio"). */
-export function AnadirCancion({ archivo, iniciales }: AnadirCancionProps) {
+export function AnadirCancion({ archivo, iniciales, restaurar }: AnadirCancionProps) {
+  // Un borrador de una vuelta anterior solo vale al volver de Ajustes; en cualquier otra entrada se olvida.
+  const borrador = restaurar ? leerBorrador() : null
+  useEffect(() => {
+    if (!restaurar) olvidarBorrador()
+  }, [restaurar])
   // El módulo de YouTube puede estar desactivado en la build (ADR 0003, mitigación 5).
   const [youtube, setYoutube] = useState<boolean | null>(null)
   const [origenElegido, setOrigen] = useState<OrigenAnadir>(
-    iniciales?.origen ?? (archivo ? 'archivo' : origenRecordado)
+    borrador?.origen ?? iniciales?.origen ?? (archivo ? 'archivo' : origenRecordado)
   )
   useEffect(() => {
     let activo = true
@@ -73,9 +81,15 @@ export function AnadirCancion({ archivo, iniciales }: AnadirCancionProps) {
           />
         </>
       )}
-      {origen === 'archivo' && <PanelArchivo archivoInicial={archivo} iniciales={iniciales} />}
+      {origen === 'archivo' && (
+        <PanelArchivo archivoInicial={archivo} iniciales={iniciales} restaurar={restaurar} />
+      )}
       {origen === 'youtube' && (
-        <PanelYoutube iniciales={iniciales} alUsarArchivo={() => cambiarOrigen('archivo')} />
+        <PanelYoutube
+          iniciales={iniciales}
+          restaurar={restaurar}
+          alUsarArchivo={() => cambiarOrigen('archivo')}
+        />
       )}
     </section>
   )

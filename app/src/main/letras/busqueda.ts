@@ -452,6 +452,20 @@ export class BusquedaLetras {
     }
   }
 
+  /**
+   * Título, artista y álbum del candidato de la búsqueda reciente (solo en memoria; nunca texto de letra):
+   * lo que `ServicioLetras.guardar` anota en `letra.datos_lrclib` cuando el usuario elige una letra.
+   */
+  datosDeCandidato(
+    cancionId: string,
+    lrclibId: number
+  ): { titulo: string; artista: string; album: string | null } | null {
+    const previa = this.cache.get(cancionId)
+    if (!previa || previa.hasta <= this.ahora()) return null
+    const c = previa.resultado.candidatos.find((x) => x.lrclib_id === lrclibId)
+    return c ? { titulo: c.titulo, artista: c.artista, album: c.album } : null
+  }
+
   private aCandidato(r: RegistroLrclib, duracionMs: number): CandidatoLetra | null {
     const lineas = convertirRegistro(r)
     if (!lineas) return null

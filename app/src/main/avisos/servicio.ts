@@ -37,7 +37,14 @@ export interface DepsAvisos {
   /** Envía un evento al renderer. */
   difundirAviso: (aviso: AvisoTrabajoIpc) => void
   difundirAbrir: (evento: AbrirCancionIpc) => void
+  /** Clic en la notificación de una tanda: abrir su resultado (evento sin carga). */
+  difundirAbrirResultado?: () => void
   obtenerCancion: (id: string) => Cancion | null
+  /**
+   * Hay una tanda de 2 o más canciones en marcha (ADR 0025 §5): no se avisa por cada canción; al vaciarse
+   * la cola sale un solo aviso `tanda` (`avisarTanda`).
+   */
+  enTandaDeVarias?: () => boolean
   registrar?: (nivel: 'aviso', mensaje: string) => void
 }
 
@@ -88,12 +95,33 @@ export class ServicioAvisos {
   /** Cambio de un trabajo del gestor (suscripción). */
   alCambiarTrabajo(t: TrabajoIpc): void {
     const aviso = avisoDeTrabajo(t, this.deps.obtenerCancion)
-    if (aviso) this.avisar(aviso)
+    if (aviso && !this.deps.enTandaDeVarias?.()) this.avisar(aviso)
+  }
+
+  /** Resumen de una tanda terminada: un solo aviso (toast y notificación del sistema). */
+  avisarTanda(resumen: {
+    total: number
+    listas: number
+    esperanLetra: number
+    conError: number
+  }): void {
+    this.avisar({
+      cancionId: '',
+      tipo: 'tanda',
+      texto: AVISOS.tanda(resumen),
+      etiqueta: AVISOS.etiquetaTanda,
+      destino: 'biblioteca'
+    })
   }
 
   avisar(aviso: AvisoTrabajoIpc): void {
     this.deps.difundirAviso(aviso)
-    this.alertarSistema(aviso.texto, () => this.abrir(aviso.cancionId, aviso.destino))
+    this.alertarSistema(aviso.texto, () => {
+      if (aviso.tipo === 'tanda') {
+        this.deps.ventana()?.traer()
+        this.deps.difundirAbrirResultado?.()
+      } else this.abrir(aviso.cancionId, aviso.destino)
+    })
   }
 
   /**

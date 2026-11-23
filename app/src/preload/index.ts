@@ -35,6 +35,7 @@ const api: ApiShinobi = {
     marcarLista: (id, opciones) => invocar(CANALES.biblioteca.marcarLista, id, opciones),
     comprobarPistas: (id) => invocar(CANALES.biblioteca.comprobarPistas, id),
     volverABorrador: (id) => invocar(CANALES.biblioteca.volverABorrador, id),
+    marcarPreparacionRevisada: (id) => invocar(CANALES.biblioteca.marcarPreparacionRevisada, id),
     eliminar: (id) => invocar(CANALES.biblioteca.eliminar, id),
     mostrarEnCarpeta: (id) => invocar(CANALES.biblioteca.mostrarEnCarpeta, id),
     valoresDatos: () => invocar(CANALES.biblioteca.valoresDatos),
@@ -136,7 +137,8 @@ const api: ApiShinobi = {
     cancelar: (id) => invocar(CANALES.preparacion.cancelar, { id }),
     alCambiar: (cb) => suscribir(CANALES.eventos.preparacionCambio, cb),
     alTanda: (cb) => suscribir(CANALES.eventos.preparacionTanda, cb),
-    alReanudar: (cb) => suscribir(CANALES.eventos.preparacionReanudada, cb)
+    alReanudar: (cb) => suscribir(CANALES.eventos.preparacionReanudada, cb),
+    alAbrirResultado: (cb) => suscribir(CANALES.eventos.abrirResultadoPreparacion, cb)
   },
   copias: {
     exportarCanciones: (peticion) => invocar(CANALES.copias.exportarCanciones, peticion),
@@ -250,6 +252,7 @@ const api: ApiShinobi = {
     guardadoPendiente: (pendiente) => invocar(CANALES.app.guardadoPendiente, pendiente),
     confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
     salir: () => invocar(CANALES.app.salir),
+    solicitudCierrePendiente: () => invocar(CANALES.app.solicitudCierrePendiente),
     alSolicitudCierre: (cb) => suscribir(CANALES.eventos.solicitudCierre, cb)
   },
   avisos: {

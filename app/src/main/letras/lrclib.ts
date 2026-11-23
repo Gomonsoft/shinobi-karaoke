@@ -200,8 +200,8 @@ export function crearClienteLrclib(o: OpcionesCliente): ClienteLrclib {
   const separacionAutomatica = o.separacionAutomaticaMs ?? SEPARACION_AUTOMATICA_MS
   const tiempoPeticion = o.tiempoPeticionMs ?? TIEMPO_PETICION_MS
   const valorEntorno = o.env?.[ENTORNO_LRCLIB_URL]
-  const urlBase = urlBaseLrclib(valorEntorno, o.empaquetada)
-  if (valorEntorno && !o.empaquetada && urlBase === URL_BASE_LRCLIB) {
+  const urlBase = urlBaseLrclib(valorEntorno, o.empaquetada, o.env?.SHINOBI_E2E === '1')
+  if (valorEntorno && !o.empaquetada && urlBaseLrclib(valorEntorno, false) === URL_BASE_LRCLIB) {
     o.registro.escribir('aviso', 'lrclib', `${ENTORNO_LRCLIB_URL} ignorada: valor no admitido`)
   }
   o.registro.escribir('info', 'lrclib', `URL base: ${urlBase}`)

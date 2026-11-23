@@ -29,6 +29,7 @@ test('aviso, vista previa y descarga real de un vídeo CC BY', async () => {
     })
   )
   const env = { ...process.env, SHINOBI_DATOS: datos } as Record<string, string>
+  delete env.SHINOBI_E2E // opt-in de red: desactiva la barrera de 0372
   delete env.SHINOBI_YTDLP_FALSO
   const app = await electron.launch({ args: ['.'], cwd: process.cwd(), env })
   try {

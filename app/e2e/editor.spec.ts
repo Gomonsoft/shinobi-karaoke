@@ -504,11 +504,19 @@ test.describe('línea de tiempo del editor', () => {
           }
         })
         await abrir(v, T17)
-        await opcionLinea(v, 1).click()
-        await tiempoEditor(v).fill('6000')
+        // Entrando por «Revisar» (borrador completo = «Lista para revisar»), la revisión guiada hace
+        // «Zoom a la línea» al llegar a la línea señalada (spec 06, feature 11). La medida del cabezal
+        // asume la canción completa: se espera ese zoom y se vuelve a ver la canción entera.
+        await expect(timeline(v).getByText('00:01.00', { exact: true })).toBeVisible()
+        await v.getByRole('button', { name: 'Ver canción completa' }).click()
+        await expect(timeline(v).getByText('00:30.00', { exact: true })).toBeVisible()
         const bucle = botonBucle(v)
         const pausa = v.getByRole('button', { name: 'Pausar', exact: true })
         const reproduce = v.getByRole('button', { name: 'Reproducir', exact: true })
+        // La revisión también escucha sola la línea señalada (autoescucha): se espera a que termine.
+        await expect(reproduce).toBeVisible({ timeout: 10_000 })
+        await opcionLinea(v, 1).click()
+        await tiempoEditor(v).fill('6000')
         await bucle.check()
         await expect(pausa).toBeVisible()
         const fase = await cabezalTimeline(v).evaluate(
@@ -1159,9 +1167,9 @@ test('revisión guiada: dos líneas dudosas, «Está bien» se guarda y se desha
       await expect.poll(() => lineas()[1]!.fin_ms, { timeout: 5000 }).toBe(12_000)
 
       // «Está bien» en las dos: se guardan las marcas y aparece el fin del recorrido.
-      await tarjeta.getByRole('button', { name: /Está bien \(2\)/ }).click()
+      await tarjeta.getByRole('button', { name: 'Está bien' }).click()
       await expect(tarjeta).toContainText('Revisión · quedan 1 de 2')
-      await v.getByRole('button', { name: /Está bien \(1\)/ }).click()
+      await v.getByRole('button', { name: 'Está bien' }).click()
       await expect(v.getByRole('region', { name: 'Revisión terminada' })).toContainText(
         'Has revisado las 2 líneas señaladas.'
       )

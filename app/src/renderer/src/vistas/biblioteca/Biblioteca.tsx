@@ -16,9 +16,14 @@ import { useSesion } from '../../sesion/ProveedorSesion'
 import { ATRIBUTO_BOTON_COLA } from '../../sesion/foco'
 import { BIB_COLA, COLA, SES } from '../../sesion/textos'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
+import { useTandaPreparacion } from '../../trabajos/useTandaPreparacion'
 import { useCatalogoTemas } from '../../temas/useCatalogoTemas'
-import { DialogoConfirmar, DialogoEditarDatos, type DatosEditables } from './DialogosCancion'
+import { datosLrclibDe } from '../anadir/CamposDatos'
+import { DialogoConfirmar, DialogoEditarDatos, type InicialEditar } from './DialogosCancion'
+import { BandejaPendientes } from './BandejaPendientes'
 import { BarraSeleccion } from './BarraSeleccion'
+import { useAvisoReanudacion } from './avisoReanudacion'
+import { DialogoResultadoPreparacion } from './DialogoResultadoPreparacion'
 import { CasillaGrupo } from './CasillaGrupo'
 import { DialogoAplicarTema, type SalidaLote } from './DialogoAplicarTema'
 import { EncabezadoGrupo } from './EncabezadoGrupo'
@@ -29,13 +34,22 @@ import { TemaGrupo } from './TemaGrupo'
 import { TarjetaCancion, type AccionesTarjeta } from './TarjetaCancion'
 import { agruparCanciones, idGrupoDe, textoAnuncioResultados } from './agrupacion'
 import { detallesDeError } from './errores'
-import { contarPorFiltro, filtrarCanciones, type FiltroBiblioteca } from './filtrado'
+import {
+  casillaDe,
+  contarBandeja,
+  contarPorFiltro,
+  filtrarCanciones,
+  type FiltroBiblioteca
+} from './filtrado'
 import { pasoConProblema, tituloDeTarjeta, type TrabajoVivo } from './tarjeta'
+import { BIB_PREP, type CasillaBandeja } from './textosPreparacion'
 import { procedenciaCorta } from '../../temas/textos'
 import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
 import { SEL, TEMAS_NO_DISPONIBLES } from './textosSeleccion'
 import { useAgregarACola } from './useAgregarACola'
+import { useMarcarRevision } from './useMarcarRevision'
+import { useProbar } from './useProbar'
 import { esSeleccionable, reiniciarSeleccionDeSesion, useSeleccion } from './useSeleccion'
 import { DialogoCancelarDescarga, DialogoCancelarSeparacion } from '../progreso/DialogosCancelar'
 import {
@@ -88,6 +102,8 @@ function EstadoVacio() {
 
 // El filtro persiste durante la sesión (aunque se salga de la vista); la búsqueda no.
 let filtroDeSesion: FiltroBiblioteca = 'todas'
+// La casilla de la bandeja de pendientes también dura la sesión (spec 02 · Feature 5).
+let casillaDeSesion: CasillaBandeja | null = null
 // Los grupos plegados también viven solo en la sesión (no se guardan; al reiniciar, todo desplegado).
 let plegadosDeSesion: ReadonlySet<string> = new Set()
 /** Espera tras la última pulsación antes de anunciar el recuento (`bib.anuncio.resultados`). */
@@ -95,13 +111,14 @@ export const RETRASO_ANUNCIO_MS = 500
 /** Solo para pruebas. */
 export function reiniciarFiltroDeSesion(): void {
   filtroDeSesion = 'todas'
+  casillaDeSesion = null
   plegadosDeSesion = new Set()
   reiniciarAgruparDeSesion()
   reiniciarSeleccionDeSesion()
 }
 
 type DialogoActivo =
-  | { tipo: 'datos'; id: string; inicial: DatosEditables }
+  | { tipo: 'datos'; id: string; inicial: InicialEditar }
   | { tipo: 'borrador'; id: string }
   | { tipo: 'eliminar'; id: string }
   | { tipo: 'cancelar'; id: string; paso: 'fuente' | 'separacion'; trabajoId: string }
@@ -145,6 +162,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const { ir, vista } = useNavegacion()
   const { abrir } = useReproductor()
   const enfocar = vista.tipo === 'biblioteca' ? vista.enfocar : undefined
+  const pedido = vista.tipo === 'biblioteca' ? vista : undefined
   const { estado, lenta, canciones, reintentar } = datos
   const vivos = useTrabajosVivos()
   const exportacion = useExportaciones()
@@ -153,6 +171,10 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const agregarACola = useAgregarACola()
   const [activa, setActiva] = useState<string | null>(null)
   const [filtro, setFiltroEstado] = useState<FiltroBiblioteca>(filtroDeSesion)
+  const [casilla, setCasillaEstado] = useState<CasillaBandeja | null>(casillaDeSesion)
+  const [resultadoAbierto, setResultadoAbierto] = useState(false)
+  const tanda = useTandaPreparacion()
+  const reanudacion = useAvisoReanudacion()
   const [busqueda, setBusqueda] = useState('')
   const [dialogo, setDialogo] = useState<DialogoActivo | null>(null)
   const campoBusqueda = useRef<HTMLInputElement>(null)
@@ -181,8 +203,8 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   )
 
   const visibles = useMemo(
-    () => filtrarCanciones(canciones, filtro, busqueda, anclada),
-    [canciones, filtro, busqueda, anclada]
+    () => filtrarCanciones(canciones, filtro, busqueda, anclada, casilla),
+    [canciones, filtro, busqueda, anclada, casilla]
   )
   // Los grupos por fecha se calculan al mostrar la vista (no bajo el cursor ni al pasar la medianoche).
   const [ahora] = useState(() => new Date())
@@ -260,12 +282,53 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
 
   const volverArriba = () => seccion.current?.closest('main')?.scrollTo?.({ top: 0 })
 
+  const fijarCasilla = useCallback((c: CasillaBandeja | null) => {
+    casillaDeSesion = c
+    setCasillaEstado(c)
+  }, [])
+
+  // Cualquier opción del filtro de estado quita la casilla de la bandeja.
   const setFiltro = (f: FiltroBiblioteca) => {
     filtroDeSesion = f
     setFiltroEstado(f)
+    fijarCasilla(null)
     setAnclada(null)
     setCambioDeVista((n) => n + 1)
   }
+
+  /** Pulsar una casilla filtra a «Borradores» con ella; pulsarla de nuevo la quita. */
+  const alternarCasilla = (c: CasillaBandeja) => {
+    const siguiente = casilla === c ? null : c
+    fijarCasilla(siguiente)
+    if (siguiente) {
+      filtroDeSesion = 'borradores'
+      setFiltroEstado('borradores')
+    }
+    setAnclada(null)
+    setCambioDeVista((n) => n + 1)
+  }
+
+  // Llegadas pedidas desde fuera: el «Resultado de la preparación» y la casilla de Ajustes.
+  const pedidoAtendido = useRef<unknown>(null)
+  useEffect(() => {
+    if (!pedido || pedidoAtendido.current === pedido) return
+    pedidoAtendido.current = pedido
+    if (pedido.abrirResultado) setResultadoAbierto(true)
+    if (pedido.casilla) {
+      casillaDeSesion = pedido.casilla
+      setCasillaEstado(pedido.casilla)
+      filtroDeSesion = 'borradores'
+      setFiltroEstado('borradores')
+    }
+  }, [pedido])
+
+  // Una casilla que se queda en 0 se desactiva sola y la rejilla vuelve a «Borradores».
+  useEffect(() => {
+    if (casilla && estado === 'listo' && !canciones.some((c) => casillaDe(c) === casilla)) {
+      casillaDeSesion = null
+      setCasillaEstado(null)
+    }
+  }, [casilla, canciones, estado])
 
   const setAgrupacion = (a: typeof agrupar) => {
     cambiarAgrupar(a)
@@ -410,7 +473,12 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       setDialogo({
         tipo: 'datos',
         id,
-        inicial: { titulo: m.titulo, artista: m.artista, album: m.album }
+        inicial: {
+          titulo: m.titulo,
+          artista: m.artista,
+          album: m.album,
+          lrclib: datosLrclibDe(cancion)
+        }
       })
     } catch {
       mostrarToast({ tipo: 'error', mensaje: 'No se pudo abrir la canción.' })
@@ -575,9 +643,41 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     [canciones]
   )
 
+  const marcarRevision = useMarcarRevision(
+    useCallback((id: string) => canciones.find((c) => c.id === id), [canciones])
+  )
+  const probarCancion = useProbar(marcarRevision.pedir)
+  const probar = useCallback(
+    (id: string) => probarCancion(id, tituloDe(id)),
+    [probarCancion, tituloDe]
+  )
+
+  /** «Preparar» / «Reintentar» de una letra pendiente: continúa la cadena sin salir de la Biblioteca. */
+  const preparar = useCallback(
+    async (id: string, avisar: boolean) => {
+      try {
+        const r = await window.shinobi.preparacion.preparar([id])
+        if (r.aceptadas.length === 0) {
+          mostrarToast({ tipo: 'info', mensaje: BIB_PREP.noSePuedePreparar(tituloDe(id)) })
+        } else if (avisar) {
+          mostrarToast({ tipo: 'info', mensaje: BIB_PREP.toastPreparando(tituloDe(id)) })
+        }
+      } catch (err) {
+        avisarError(err)
+      }
+    },
+    [avisarError, tituloDe]
+  )
+
   const acciones = useMemo<AccionesTarjeta>(
     () => ({
       reproducir: abrir,
+      revisar: (id) => ir({ tipo: 'cancion', id, paso: 'editor', revisar: true }),
+      probar,
+      marcarLista: marcarRevision.pedir,
+      preparar: (id) => void preparar(id, true),
+      abrirLetra: (id) => ir({ tipo: 'cancion', id, paso: 'letra' }),
+      reintentarBusqueda: (id) => void preparar(id, false),
       continuar: (id) => void continuar(id),
       editar: (id) => ir({ tipo: 'cancion', id, paso: 'editor' }),
       agregarAlFinal: (id) => void agregarACola(id, tituloDe(id), 'final'),
@@ -598,6 +698,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
     [
       ir,
       abrir,
+      marcarRevision.pedir,
       continuar,
       abrirEditarDatos,
       reintentarPaso,
@@ -606,7 +707,9 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       agregarACola,
       tituloDe,
       abrirDialogoPantallas,
-      temasUsables
+      temasUsables,
+      probar,
+      preparar
     ]
   )
 
@@ -906,6 +1009,39 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             />
           </div>
         </div>
+        {reanudacion.aviso && (
+          <div className={estilos.avisosPrep}>
+            <AvisoEnLinea
+              tipo="info"
+              accion={
+                reanudacion.aviso.tipo === 'retomando' ? (
+                  <Boton
+                    variante="secundario"
+                    onClick={() => void reanudacion.detener().catch(avisarError)}
+                  >
+                    {BIB_PREP.detener}
+                  </Boton>
+                ) : (
+                  <Boton
+                    variante="secundario"
+                    onClick={() => void reanudacion.reanudar().catch(avisarError)}
+                  >
+                    {BIB_PREP.reanudar}
+                  </Boton>
+                )
+              }
+            >
+              {reanudacion.aviso.tipo === 'retomando'
+                ? BIB_PREP.retomando(reanudacion.aviso.n)
+                : BIB_PREP.enPausa(reanudacion.aviso.n)}
+            </AvisoEnLinea>
+          </div>
+        )}
+        <BandejaPendientes
+          cuentas={contarBandeja(canciones)}
+          activa={casilla}
+          alAlternar={alternarCasilla}
+        />
         {sel.activo && (
           <BarraSeleccion
             ref={botonAplicar}
@@ -997,6 +1133,7 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             )}
           </div>
         )}
+        {marcarRevision.dialogos}
         {dialogo?.tipo === 'datos' && (
           <DialogoEditarDatos
             inicial={dialogo.inicial}
@@ -1049,6 +1186,38 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             return r ? { titulo: tituloDeTarjeta(r), artista: r.artista } : undefined
           }}
         />
+        {resultadoAbierto && (
+          <DialogoResultadoPreparacion
+            tanda={tanda}
+            canciones={canciones}
+            alCerrar={() => setResultadoAbierto(false)}
+            alVerEnBiblioteca={(hayListas) => {
+              setResultadoAbierto(false)
+              if (hayListas) {
+                fijarCasilla('revisar')
+                filtroDeSesion = 'borradores'
+                setFiltroEstado('borradores')
+              } else {
+                fijarCasilla(null)
+                filtroDeSesion = 'todas'
+                setFiltroEstado('todas')
+              }
+            }}
+            alRevisar={(id) => {
+              setResultadoAbierto(false)
+              ir({ tipo: 'cancion', id, paso: 'editor', revisar: true })
+            }}
+            alAbrirLetra={(id) => {
+              setResultadoAbierto(false)
+              ir({ tipo: 'cancion', id, paso: 'letra' })
+            }}
+            alReintentarFallidas={() => {
+              setResultadoAbierto(false)
+              void window.shinobi.preparacion.reintentarFallidas().catch(avisarError)
+            }}
+            alCopiarDetalles={(texto) => void copiarDetalles(texto)}
+          />
+        )}
         {aplicarTema && (
           <DialogoAplicarTema
             canciones={aplicarTema.ids.flatMap((id) => resumenDe(id) ?? [])}

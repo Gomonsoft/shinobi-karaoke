@@ -6,9 +6,10 @@ import { textoReintentoRed } from '../../trabajos/useCuentaAtras'
 import { textoDeError } from '../progreso/textos'
 import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
+import { BIB_PREP } from './textosPreparacion'
 
 /** Tipo de línea bajo la insignia; decide el icono y el color. */
-export type TipoLinea = 'curso' | 'cola' | 'error' | 'aviso' | 'texto'
+export type TipoLinea = 'curso' | 'cola' | 'error' | 'aviso' | 'texto' | 'sinRed' | 'atencion'
 
 export interface LineaPasoDatos {
   tipo: TipoLinea
@@ -26,7 +27,16 @@ export interface TrabajoVivo {
 }
 
 /** `ver`: error que repetir no arregla; abre la vista de progreso como "Continuar". */
-export type AccionTarjeta = 'reproducir' | 'continuar' | 'reintentar' | 'ver'
+export type AccionTarjeta =
+  | 'reproducir'
+  | 'continuar'
+  | 'reintentar'
+  | 'ver'
+  | 'revisar'
+  | 'elegirLetra'
+  | 'anadirLetra'
+  /** «Reintentar» de «Letra pendiente»: repite la búsqueda sin salir de la Biblioteca. */
+  | 'reintentarBusqueda'
 
 /** `bib.paso.modelo` / `bib.paso.reintento.memoria`. */
 export const textoPasoModelo = (n: number): string => `Descargando el modelo ${n} %`
@@ -66,6 +76,85 @@ export interface DatosTarjeta {
   linea: LineaPasoDatos | null
   /** Acción principal visible (botón de la tarjeta); `null` en dañadas. */
   accion: AccionTarjeta | null
+  /** Segundo botón de la fila (solo «Lista para revisar»: «▶ Probar»). */
+  secundaria?: 'probar'
+}
+
+/**
+ * ¿Es una «Lista para revisar»? Lo deriva main (`estadoPreparacion`); sin ese dato (resúmenes de
+ * antes de 0.2.2 en pruebas) se deduce de los pasos con la misma regla.
+ */
+export function esListaParaRevisar(r: ResumenCancionIpc): boolean {
+  if (r.danada || r.estado !== 'borrador') return false
+  if (r.estadoPreparacion !== undefined) return r.estadoPreparacion === 'lista_para_revisar'
+  const p = r.pasos
+  return (
+    p !== null &&
+    p.fuente.estado === 'completado' &&
+    p.separacion.estado === 'completado' &&
+    p.letra.estado === 'completado' &&
+    r.lineasSinSincronizar === 0
+  )
+}
+
+/** Línea de origen de la letra elegida por la app (`bib.prep.origen.*`); `null` si no aplica. */
+export function lineaDeOrigen(r: ResumenCancionIpc): LineaPasoDatos | null {
+  const p = r.preparacion
+  if (!p || !p.eleccionAutomatica || p.revisada) return null
+  return {
+    tipo: 'texto',
+    texto: p.desfaseCorregido ? BIB_PREP.origen.autoCorregida : BIB_PREP.origen.auto
+  }
+}
+
+/** Línea ⟳ de un paso de la preparación en curso (buscar, comprobar, ajustar fines). */
+function lineaDePreparando(r: ResumenCancionIpc): LineaPasoDatos | null {
+  if (r.estadoPreparacion !== 'preparando') return null
+  const texto = {
+    buscando_letra: BIB_PREP.paso.buscando,
+    comprobando: BIB_PREP.paso.comprobando,
+    ajustando_fines: BIB_PREP.paso.fines
+  }[r.preparacion?.paso as 'buscando_letra' | 'comprobando' | 'ajustando_fines']
+  return texto ? { tipo: 'curso', texto, barra: null } : null
+}
+
+/** Resultado de la búsqueda que necesita al usuario o a la red (spec 02, «Línea de paso»). */
+function lineaDeResultado(
+  r: ResumenCancionIpc
+): { linea: LineaPasoDatos; accion: AccionTarjeta } | null {
+  switch (r.estadoPreparacion) {
+    case 'elige_letra':
+      return {
+        linea: {
+          tipo: 'atencion',
+          texto: BIB_PREP.paso.elige(r.preparacion?.busqueda?.candidatas ?? 0)
+        },
+        accion: 'elegirLetra'
+      }
+    case 'sin_letra':
+      return {
+        linea: { tipo: 'atencion', texto: BIB_PREP.paso.noEncontrada },
+        accion: 'anadirLetra'
+      }
+    case 'instrumental':
+      return {
+        linea: { tipo: 'atencion', texto: BIB_PREP.paso.instrumental },
+        accion: 'anadirLetra'
+      }
+    case 'letra_pendiente':
+      return {
+        linea: {
+          tipo: 'sinRed',
+          texto:
+            r.preparacion?.busqueda?.motivo === 'SERVICIO_NO_DISPONIBLE'
+              ? BIB_PREP.paso.pendienteServicio
+              : BIB_PREP.paso.pendiente
+        },
+        accion: 'reintentarBusqueda'
+      }
+    default:
+      return null
+  }
 }
 
 /** `bib.paso.sincronia` / `bib.lista.incompleta` (sin el icono ⚠: lo pone el componente). */
@@ -201,6 +290,8 @@ export function lineaDeBorrador(
       error: false
     }
   }
+  const preparando = lineaDePreparando(r)
+  if (preparando) return { linea: preparando, accion: 'continuar', error: false }
   if (fuente && fuente.estado !== 'completado') {
     return {
       linea: { tipo: 'texto', texto: 'Falta descargar el audio' },
@@ -222,6 +313,8 @@ export function lineaDeBorrador(
       error: false
     }
   }
+  const resultado = lineaDeResultado(r)
+  if (resultado) return { ...resultado, error: false }
   if (pasos?.letra.estado !== 'completado') {
     return { linea: { tipo: 'texto', texto: 'Falta la letra' }, accion: 'continuar', error: false }
   }
@@ -269,6 +362,16 @@ export function datosDeTarjeta(r: ResumenCancionIpc, vivo?: TrabajoVivo | null):
       accion: 'reproducir'
     }
   }
+  if (!vivo && esListaParaRevisar(r)) {
+    return {
+      insignia: 'revisar',
+      textoEstado: BIB_PREP.estado.revisar,
+      ayudaEstado: BIB_PREP.ayudaRevisar,
+      linea: lineaDeOrigen(r),
+      accion: 'revisar',
+      secundaria: 'probar'
+    }
+  }
   const { linea, accion, error } = lineaDeBorrador(r, vivo)
   return {
     insignia: error ? 'error' : 'borrador',
@@ -289,7 +392,12 @@ export function textoAriaTarjeta(r: ResumenCancionIpc, d: DatosTarjeta): string 
   const base = `${tituloDeTarjeta(r)}, ${quien}${d.textoEstado}.`
   const tema = temaDeTarjeta(r)
   const conPaso = d.linea ? `${base} ${d.linea.texto}.` : base
-  return tema ? `${conPaso} Tema: ${tema.texto}.` : conPaso
+  const p = r.preparacion
+  const conRevision =
+    d.accion === 'revisar' && p
+      ? `${conPaso} ${p.dudosas > 0 ? BIB_PREP.revision.linea(p.dudosas) : BIB_PREP.revision.sinDudas}.`
+      : conPaso
+  return tema ? `${conRevision} Tema: ${tema.texto}.` : conRevision
 }
 
 /**

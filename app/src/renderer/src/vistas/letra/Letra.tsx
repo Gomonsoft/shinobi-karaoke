@@ -8,7 +8,10 @@ import { Boton } from '../../componentes/Boton'
 import { useNavegacion } from '../../navegacion/estado'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { BusquedaLetra } from './BusquedaLetra'
+import { AvisoEleccion } from './AvisoEleccion'
 import { LetraElegida } from './LetraElegida'
+import { LP } from './preparacion'
+import { segundosDe } from './textosComprobacion'
 import { useImportarArchivo } from './importar'
 import { PegarLetra } from './PegarLetra'
 import { existenteDe, useConfirmarSustituir, type LetraExistente } from './sustituir'
@@ -39,6 +42,9 @@ export function Letra({ id }: { id: string }) {
   // Letra que muestra C (la clave la remonta al sustituirla) y si A busca sin caché ("Buscar otra letra").
   const [letraC, setLetraC] = useState<{ letra: LetraGuardada; clave: number } | null>(null)
   const [sinCache, setSinCache] = useState(abrirEnBusqueda)
+  // «Ver otras candidatas» del aviso de la preparación: A con la lista ya cargada y la letra actual marcada.
+  const [letraActualId, setLetraActualId] = useState<number | null>(null)
+  const [avisoCerrado, setAvisoCerrado] = useState(false)
   const raiz = useRef<HTMLElement>(null)
   const refEditor = useRef<HTMLButtonElement>(null)
   const enfocarEditor = useRef(false)
@@ -103,6 +109,29 @@ export function Letra({ id }: { id: string }) {
   )
 
   const { resumen, cancion } = carga
+  // Preparación desatendida (docs/ux/05 · Feature 5): qué encuentra el usuario al entrar.
+  const prep = resumen?.preparacion
+  const estadoPrep = resumen?.estadoPreparacion
+  const previo = !abrirEnBusqueda
+    ? estadoPrep === 'sin_letra'
+      ? 'sin_letra'
+      : estadoPrep === 'instrumental'
+        ? 'instrumental'
+        : undefined
+    : undefined
+  const esperando =
+    estadoPrep === 'preparando' && prep?.paso === 'buscando_letra' && !abrirEnBusqueda
+  const desfaseMs = cancion?.letra?.desfase_corregido_ms ?? 0
+  const textoEleccion =
+    prep?.eleccionAutomatica && !prep.revisada && !avisoCerrado
+      ? desfaseMs !== 0
+        ? LP.elegidaCorregida(segundosDe(desfaseMs), desfaseMs > 0)
+        : LP.elegida
+      : null
+  const cerrarAviso = () => {
+    setAvisoCerrado(true)
+    void window.shinobi.biblioteca.marcarPreparacionRevisada(id).catch(() => undefined)
+  }
   const separada = resumen?.pasos?.separacion.estado === 'completado' && !resumen.danada
   const duracionMs = cancion?.metadatos.duracion_ms ?? 0
   return (
@@ -144,12 +173,42 @@ export function Letra({ id }: { id: string }) {
           sinCacheInicial={sinCache}
           separada={separada}
           duracionMs={duracionMs}
-          onUsada={(nuevo, _n, lineas, correccion) =>
+          preparacion={{
+            previo,
+            esperando,
+            elige: estadoPrep === 'elige_letra',
+            noElige: prep?.busqueda?.noElige ?? null,
+            letraActualId:
+              letraActualId ??
+              (abrirEnBusqueda && prep?.eleccionAutomatica
+                ? (cancion.letra?.lrclib_id ?? null)
+                : null)
+          }}
+          onUsada={(nuevo, _n, lineas, correccion) => {
             guardada(nuevo, lineas, 0, 'lrclib', correccion)
-          }
+            // «Elige la letra»: al elegir, la preparación sigue sola con los fines (spec 05 · Feature 5).
+            if (prep && estadoPrep === 'elige_letra') {
+              void window.shinobi.preparacion?.preparar([id]).catch(() => undefined)
+            }
+          }}
         />
       )}
 
+      {carga.estado === 'listo' && elegida !== null && textoEleccion && (
+        <AvisoEleccion
+          texto={textoEleccion}
+          alCerrar={cerrarAviso}
+          alVerOtras={() => {
+            setLetraActualId(letraC?.letra.lrclib_id ?? null)
+            setSinCache(false)
+            setIgnoradasImportadas(0)
+            setElegida(null)
+          }}
+        />
+      )}
+      {carga.estado === 'listo' && elegida !== null && estadoPrep === 'preparando' && (
+        <p role="status">{LP.continuando}</p>
+      )}
       {carga.estado === 'listo' && elegida !== null && letraC && (
         <LetraElegida
           key={letraC.clave}

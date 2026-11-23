@@ -10,6 +10,8 @@ import { useNavegacion, type DatosInicialesAnadir } from '../../navegacion/estad
 import { detallesDeError } from '../biblioteca/errores'
 import { formatearDuracion } from '../biblioteca/tarjeta'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
+import { AvisoBusqueda } from './AvisoBusqueda'
+import { guardarBorrador, leerBorrador, olvidarBorrador } from './borrador'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { AvisoLarga } from './AvisoLarga'
 import { TEXTO, textoLeido } from './textos'
@@ -48,14 +50,26 @@ interface PanelArchivoProps {
   archivoInicial?: string
   /** Canción existente cuya fuente se sustituye ("Usar otro enlace"/"Elegir otro archivo"). */
   iniciales?: DatosInicialesAnadir
+  /** Vuelve de Ajustes: se vuelve a leer el archivo y se recupera lo escrito (F6-N8). */
+  restaurar?: boolean
 }
 
 /** Origen "Archivo de tu equipo": zona de arrastre, lectura y formulario "Revisar datos". */
-export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
+export function PanelArchivo({ archivoInicial, iniciales, restaurar }: PanelArchivoProps) {
   const { ir } = useNavegacion()
+  // Lo recuperado de Ajustes (lectura sin consumir: sobrevive a un doble montaje).
+  const [restaurado] = useState(() => {
+    const b = restaurar ? leerBorrador() : null
+    return b?.origen === 'archivo' ? b : null
+  })
+  const rutaInicial = archivoInicial ?? restaurado?.ruta
   const [estado, setEstado] = useState<Estado>(
-    archivoInicial ? { tipo: 'leyendo', nombre: nombreDeRuta(archivoInicial) } : { tipo: 'vacio' }
+    rutaInicial ? { tipo: 'leyendo', nombre: nombreDeRuta(rutaInicial) } : { tipo: 'vacio' }
   )
+  // Lo recuperado de Ajustes: sustituye a lo propuesto al volver a leer el archivo.
+  const valoresRestaurados = useRef(restaurado?.valores ?? null)
+  const rutaActual = useRef<string | null>(rutaInicial ?? null)
+  const [recuperado, setRecuperado] = useState(false)
   const [sobre, setSobre] = useState(false)
   const [valores, setValores] = useState<ValoresDatos>({ titulo: '', artista: '', album: '' })
   const [errorTitulo, setErrorTitulo] = useState<string | undefined>()
@@ -73,6 +87,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
     async (ruta: string) => {
       const gen = ++ref.current.gen
       ref.current.leyendo = true
+      rutaActual.current = ruta
       try {
         const datos = await window.shinobi.fuente.importarArchivo(ruta)
         if (gen !== ref.current.gen) {
@@ -83,18 +98,22 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         ref.current.leyendo = false
         ref.current.pendiente = datos.importacionId
         // Con `iniciales` (sustituir la fuente de la misma canción) se conservan sus metadatos.
+        const recuperados = valoresRestaurados.current
+        valoresRestaurados.current = null
+        setRecuperado(recuperados !== null)
         setValores(
-          iniciales
-            ? {
-                titulo: iniciales.titulo,
-                artista: iniciales.artista,
-                album: iniciales.album ?? ''
-              }
-            : {
-                titulo: datos.metadatos.titulo,
-                artista: datos.metadatos.artista,
-                album: datos.metadatos.album
-              }
+          recuperados ??
+            (iniciales
+              ? {
+                  titulo: iniciales.titulo,
+                  artista: iniciales.artista,
+                  album: iniciales.album ?? ''
+                }
+              : {
+                  titulo: datos.metadatos.titulo,
+                  artista: datos.metadatos.artista,
+                  album: datos.metadatos.album
+                })
         )
         setErrorTitulo(undefined)
         setEstado({ tipo: 'leido', datos })
@@ -134,8 +153,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
   useEffect(() => {
     const op = ref.current
     // `lanzar` solo cambia el estado tras esperar a main (no hay renders en cascada).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (archivoInicial) void lanzar(archivoInicial)
+    if (rutaInicial) void lanzar(rutaInicial)
     return () => {
       op.gen++
       if (op.leyendo) {
@@ -197,6 +215,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         iniciales ? { cancionId: iniciales.cancionId } : undefined
       )
       ref.current.pendiente = null
+      olvidarBorrador()
       ir({ tipo: 'cancion', id: resumen.id, paso: 'progreso' })
     } catch (err) {
       setErrorConfirmar(comoErrorVista(err))
@@ -292,7 +311,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         </div>
         <CamposDatos
           key={datos.importacionId}
-          propuesta={iniciales ? null : datos.datos}
+          propuesta={iniciales || recuperado ? null : datos.datos}
           valores={valores}
           onCambio={(v) => {
             setValores(v)
@@ -302,6 +321,16 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
           refTitulo={refTitulo}
           onIntroUltimo={() => void continuar()}
         />
+        {!iniciales && (
+          <AvisoBusqueda
+            alCambiar={() => {
+              if (rutaActual.current) {
+                guardarBorrador({ origen: 'archivo', ruta: rutaActual.current, valores })
+              }
+              ir({ tipo: 'ajustes', origen: { tipo: 'anadir' }, seccion: 'preparacion' })
+            }}
+          />
+        )}
         {datos.larga && <AvisoLarga duracion={duracion} duracionMs={datos.duracionMs} />}
         {err && (
           <AvisoEnLinea

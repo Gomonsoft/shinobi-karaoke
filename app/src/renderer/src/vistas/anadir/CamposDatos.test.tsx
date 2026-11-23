@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropuestaDatos, ValoresDatosIpc } from '@shared/ipc'
-import { CamposDatos, type ValoresDatos } from './CamposDatos'
+import { CamposDatos, RETRASO_UNIFICAR_MS, type ValoresDatos } from './CamposDatos'
 
 const BIBLIOTECA: ValoresDatosIpc = {
   artistas: [
@@ -120,31 +120,106 @@ describe('CamposDatos: autocompletado', () => {
 })
 
 describe('CamposDatos: unificar', () => {
-  it('al salir con «Querido...» ofrece «Querido…»; Usar lo sustituye (F6-N3)', async () => {
+  const esperar400 = () => act(() => void vi.advanceTimersByTime(RETRASO_UNIFICAR_MS))
+
+  afterEach(() => vi.useRealTimers())
+
+  it('400 ms después de la última tecla ofrece «Querido…» con el foco aún en el campo; Usar lo sustituye (F6-N3)', async () => {
     montar({ titulo: 'T', artista: '', album: '' })
     const album = await screen.findByRole('combobox', { name: 'Álbum' })
+    vi.useFakeTimers()
+    album.focus()
     fireEvent.change(album, { target: { value: 'Querido...' } })
-    fireEvent.blur(album)
+    expect(screen.queryByText(/¿Te refieres a/)).toBeNull()
+    esperar400()
     expect(
       screen.getByText('¿Te refieres a «Querido…», que ya está en tu biblioteca?')
     ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Usar «Querido…»' }))
+    expect(album).toHaveFocus()
+    // Tab lleva a [Usar «Querido…»]: la sugerencia ya estaba antes de salir del campo.
+    const usar = screen.getByRole('button', { name: 'Usar «Querido…»' })
+    fireEvent.click(usar)
     expect(album).toHaveValue('Querido…')
     expect(screen.queryByText(/¿Te refieres a/)).toBeNull()
+  })
+
+  it('salir del campo no calcula nada (nunca en el blur)', async () => {
+    montar({ titulo: 'T', artista: '', album: '' })
+    const album = await screen.findByRole('combobox', { name: 'Álbum' })
+    vi.useFakeTimers()
+    fireEvent.change(album, { target: { value: 'Querido...' } })
+    fireEvent.blur(album)
+    expect(screen.queryByText(/¿Te refieres a/)).toBeNull()
+  })
+
+  it('con Tab se calcula antes de que el foco salte', async () => {
+    montar({ titulo: 'T', artista: '', album: '' })
+    const album = await screen.findByRole('combobox', { name: 'Álbum' })
+    fireEvent.change(album, { target: { value: 'Querido...' } })
+    fireEvent.keyDown(album, { key: 'Tab' })
+    expect(screen.getByRole('button', { name: 'Usar «Querido…»' })).toBeInTheDocument()
+  })
+
+  it('la región de estado existe vacía desde el principio', async () => {
+    montar({ titulo: 'T', artista: '', album: '' })
+    await screen.findByRole('combobox', { name: 'Álbum' })
+    const regiones = document.querySelectorAll('[role="status"]:empty')
+    expect(regiones.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('con la sugerencia a la vista, la ayuda del Álbum sigue debajo (V1)', async () => {
+    montar({ titulo: 'T', artista: '', album: '' })
+    const album = await screen.findByRole('combobox', { name: 'Álbum' })
+    fireEvent.change(album, { target: { value: 'Querido...' } })
+    fireEvent.keyDown(album, { key: 'Tab' })
+    const ayuda = screen.getByText(/Opcional, ayuda a encontrar la letra exacta/)
+    const sugerencia = screen.getByText(/¿Te refieres a/)
+    expect(
+      sugerencia.compareDocumentPosition(ayuda) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it('Dejarlo así oculta la sugerencia para ese valor; una diferencia solo de mayúsculas no la provoca', async () => {
     montar({ titulo: 'T', artista: '', album: '' })
     const album = await screen.findByRole('combobox', { name: 'Álbum' })
     fireEvent.change(album, { target: { value: 'Querido...' } })
-    fireEvent.blur(album)
+    fireEvent.keyDown(album, { key: 'Tab' })
     fireEvent.click(screen.getByRole('button', { name: 'Dejarlo así' }))
     expect(screen.queryByText(/¿Te refieres a/)).toBeNull()
-    fireEvent.blur(album)
+    fireEvent.keyDown(album, { key: 'Tab' })
     expect(screen.queryByText(/¿Te refieres a/)).toBeNull()
     fireEvent.change(album, { target: { value: 'QUERIDO…' } })
-    fireEvent.blur(album)
+    fireEvent.keyDown(album, { key: 'Tab' })
     expect(screen.queryByText(/¿Te refieres a/)).toBeNull()
+  })
+
+  it('D5: «Intercambiar» conserva la sugerencia del Álbum', async () => {
+    montar({ titulo: 'Tema Alfa', artista: 'Otra Voz', album: '' })
+    const album = await screen.findByRole('combobox', { name: 'Álbum' })
+    fireEvent.change(album, { target: { value: 'Querido...' } })
+    fireEvent.keyDown(album, { key: 'Tab' })
+    fireEvent.click(screen.getByRole('button', { name: /Intercambiar título y artista/ }))
+    expect(screen.getByText(/¿Te refieres a «Querido…»/)).toBeInTheDocument()
+  })
+})
+
+describe('CamposDatos: teclado de la lista', () => {
+  it('D4: con la lista abierta y ninguna opción activa, ↑ activa la última', async () => {
+    montar({ titulo: 'T', artista: '', album: '' })
+    const artista = await screen.findByRole('combobox', { name: 'Artista' })
+    fireEvent.change(artista, { target: { value: 'grupo' } })
+    const opciones = await screen.findAllByRole('option')
+    fireEvent.keyDown(artista, { key: 'ArrowUp' })
+    expect(artista.getAttribute('aria-activedescendant')).toBe(opciones.at(-1)?.id)
+  })
+
+  it('la lista se cierra sola cuando lo escrito coincide exactamente con la única opción', async () => {
+    montar({ titulo: 'T', artista: '', album: '' })
+    const artista = await screen.findByRole('combobox', { name: 'Artista' })
+    fireEvent.change(artista, { target: { value: 'Otra' } })
+    expect(await screen.findByRole('listbox')).toBeInTheDocument()
+    fireEvent.change(artista, { target: { value: 'Otra Voz' } })
+    expect(screen.queryByRole('listbox')).toBeNull()
   })
 })
 

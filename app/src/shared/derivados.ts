@@ -1,4 +1,4 @@
-import type { Cancion, NombrePaso } from './cancion'
+import type { Cancion, NombrePaso, PasoPreparacion } from './cancion'
 import { NOMBRES_PASO } from './cancion'
 import { contarLineas, finEfectivo, numerosLineasSinInicio, type Letra } from './letra'
 
@@ -225,4 +225,62 @@ export function recuentosBandeja(resumenes: ResumenParaBandeja[]): RecuentosBand
     }
   }
   return r
+}
+
+/** Lo mínimo para decidir si «Preparar» tiene algo que hacer (ADR 0025 §7). */
+export interface EntradaAplicaPreparar {
+  estado: 'borrador' | 'lista'
+  fuenteCompletada: boolean
+  /** Líneas de la letra (0 = sin letra). */
+  lineas: number
+  /** Solo con letra: la letra sigue intacta, no se corrigió ni se descartó el desfase y faltan fines. */
+  pendientesConLetra?: PasoPreparacion[]
+  /** La preparación ya terminó en «Lista para revisar». */
+  preparacionLista?: boolean
+}
+
+export interface AplicaPreparar {
+  aplica: boolean
+  pasos: PasoPreparacion[]
+  motivo?: 'YA_LISTA' | 'SIN_FUENTE' | 'NADA_QUE_HACER'
+}
+
+/** Regla común de `preparacion.previsualizar` y de «Preparar» de la tarjeta (pura, sin estado de la corrida). */
+export function aplicaPrepararEntrada(e: EntradaAplicaPreparar): AplicaPreparar {
+  if (e.estado === 'lista') return { aplica: false, pasos: [], motivo: 'YA_LISTA' }
+  if (!e.fuenteCompletada) return { aplica: false, pasos: [], motivo: 'SIN_FUENTE' }
+  const pasos: PasoPreparacion[] =
+    e.lineas === 0
+      ? ['buscando_letra', 'comprobando', 'ajustando_fines']
+      : (e.pendientesConLetra ?? [])
+  if (pasos.length === 0) {
+    return {
+      aplica: false,
+      pasos,
+      motivo: e.preparacionLista ? 'YA_LISTA' : 'NADA_QUE_HACER'
+    }
+  }
+  return { aplica: true, pasos }
+}
+
+/** `aplicaPreparar` de una canción completa. */
+export function aplicaPreparar(cancion: Cancion): AplicaPreparar {
+  const { letra } = cancion
+  const pendientes: PasoPreparacion[] = []
+  if (letra?.intacta === true) {
+    if (letra.desfase_corregido_ms === undefined && letra.desfase_descartado !== true) {
+      pendientes.push('comprobando')
+    }
+    const faltanFines = letra.lineas.some(
+      (l) => l.tipo === 'linea' && l.inicio_ms !== null && l.fin_ms === null
+    )
+    if (faltanFines && !cancion.preparacion?.fines) pendientes.push('ajustando_fines')
+  }
+  return aplicaPrepararEntrada({
+    estado: cancion.estado,
+    fuenteCompletada: cancion.pasos.fuente.estado === 'completado',
+    lineas: contarLineas(letra),
+    pendientesConLetra: pendientes,
+    preparacionLista: cancion.preparacion?.estado === 'lista_para_revisar'
+  })
 }

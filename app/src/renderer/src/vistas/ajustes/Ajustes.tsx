@@ -8,6 +8,7 @@ import { hayNueva } from '../acerca/modeloActualizaciones'
 import { AJACT } from '../acerca/textosActualizaciones'
 import { useActualizaciones } from '../acerca/useActualizaciones'
 import estilos from './ajustes.module.css'
+import { PreparacionAjustes } from './PreparacionAjustes'
 import { ReproductorAjustes } from './ReproductorAjustes'
 import { SeparacionAjustes } from './SeparacionAjustes'
 import { TemasAjustes } from './TemasAjustes'
@@ -21,6 +22,7 @@ export function Ajustes() {
   const { vista, ir } = useNavegacion()
   const origen = vista.tipo === 'ajustes' ? vista.origen : undefined
   const enTemas = vista.tipo === 'ajustes' && vista.seccion === 'temas'
+  const enPreparacion = vista.tipo === 'ajustes' && vista.seccion === 'preparacion'
   // Sin API de temas (pruebas de otras vistas) no se muestra la sección.
   const conTemas = typeof window.shinobi.temas?.catalogo === 'function'
   // Sin API de runtime (pruebas de otras vistas) solo se muestra Acerca de.
@@ -49,7 +51,7 @@ export function Ajustes() {
         id="titulo-vista"
         className="t-titulo"
         tabIndex={-1}
-        data-foco-inicial={enTemas && conTemas ? undefined : ''}
+        data-foco-inicial={(enTemas && conTemas) || enPreparacion ? undefined : ''}
       >
         {AJ.titulo}
       </h1>
@@ -68,6 +70,12 @@ export function Ajustes() {
       {conRuntime && (
         <>
           <SeparacionAjustes />
+          <hr className={estilos.separador} />
+        </>
+      )}
+      {conConfig && (
+        <>
+          <PreparacionAjustes enfocarAlAbrir={enPreparacion} />
           <hr className={estilos.separador} />
         </>
       )}

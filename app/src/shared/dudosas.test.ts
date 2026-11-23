@@ -203,3 +203,21 @@ describe('importantes para «Marcar como lista» (F11-E12)', () => {
     expect(contarImportantes(lista)).toBe(1)
   })
 })
+
+describe('finTarde con fin automático (R4)', () => {
+  it('se marca como automático y no cuenta como importante', () => {
+    const letra = letraDe([linea('x', 10_000, null), linea('y', 16_000, 18_000)])
+    const [d] = detectarDudosas(
+      letra,
+      {
+        intervalos: [
+          [10_000, 13_000],
+          [16_000, 18_000]
+        ]
+      },
+      { duracionMs: DURACION }
+    )
+    expect(d).toMatchObject({ id: 'x', motivos: ['finTarde'], finAutomatico: true })
+    expect(contarImportantes([d!])).toBe(0)
+  })
+})

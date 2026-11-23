@@ -214,6 +214,7 @@ describe('menú ⋯', () => {
     await abrirMenu('La flaca')
     expect(opciones()).toEqual([
       'Continuar',
+      'PrepararBusca la letra en LRCLIB con el título y el artista',
       'Editar datos',
       'Aplicar tema…',
       'Mostrar en la carpeta',

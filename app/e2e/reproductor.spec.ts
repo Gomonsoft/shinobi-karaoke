@@ -320,8 +320,10 @@ test.describe('reproductor sin red', () => {
       await ventana.getByRole('menuitem', { name: 'Volver a borrador' }).click()
       const confirmar = ventana.getByRole('dialog', { name: /¿Volver a borrador\?/ })
       await confirmar.getByRole('button', { name: 'Volver a borrador' }).click()
-      await expect(cancion.getByRole('button', { name: /^Continuar/ })).toBeVisible()
-      await cancion.getByRole('button', { name: /^Continuar/ }).click()
+      // Una lista a la que no le falta nada, vuelta a borrador, es «Lista para revisar» (ADR 0025 §1):
+      // su botón es «Revisar», que abre el editor.
+      await expect(cancion.getByRole('button', { name: /^Revisar/ })).toBeVisible()
+      await cancion.getByRole('button', { name: /^Revisar/ }).click()
       await expect(ventana.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()
       await ventana.getByRole('button', { name: E.marcarLista }).click()
       await expect(ventana.getByText(`«${lista}» está lista para cantar.`)).toBeVisible()

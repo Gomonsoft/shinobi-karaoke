@@ -97,7 +97,9 @@ export function infoSoporte(info: InfoSistema, config: Config): string {
     `Modelo de separación: ${lineaModelo(config)}`,
     `Dispositivo: ${perfil === 'cuda' || perfil === 'cpu' ? perfil : (perfil ?? SIN_INSTALAR)}`,
     `yt-dlp: ${info.ytdlp?.version ?? SIN_INSTALAR}`,
-    `Última comprobación de yt-dlp: ${comprobacion ?? SIN_INSTALAR}`
+    `Última comprobación de yt-dlp: ${comprobacion ?? SIN_INSTALAR}`,
+    // `aj.soporte.busqueda` (0.2.2 · feature 5): activada salvo que el usuario la apagara.
+    `Búsqueda automática de letra: ${config.preparacion?.automatica === false ? 'desactivada' : 'activada'}`
   ].join('\n')
 }
 

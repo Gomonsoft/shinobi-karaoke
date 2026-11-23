@@ -18,6 +18,8 @@ export interface Toast {
   /** Segunda acción (p. ej. «Copiar detalles» junto a «Reintentar»). */
   accionSecundaria?: AccionToast
   persistente?: boolean
+  /** Caduca a los `duracionMs` aunque tenga acción (por defecto, las que tienen acción no caducan). */
+  duracionMs?: number
 }
 
 // Gestor global (sin librería de estado, ADR 0007): almacén externo + useSyncExternalStore.

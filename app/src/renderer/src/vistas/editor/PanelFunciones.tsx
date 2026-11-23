@@ -12,6 +12,8 @@ import { esMac, S } from './silencios/textos'
 import type { Motivo } from './silencios/useAjustarSilencios'
 import { E } from './textos'
 import { R } from './revision/textos'
+import type { BloquePreparacion } from './preparacion/modelo'
+import { EP } from './preparacion/textos'
 import estilos from './editor.module.css'
 
 export type EstadoCancion = 'borrador' | 'lista' | 'letra_lista'
@@ -24,7 +26,15 @@ interface Props {
     motivo: string | undefined
     exportar(): void
   }
-  /** «Revisar la sincronía» (feature 11): primera sección de la pestaña. */
+  /** «Preparación automática» (feature 5): primera sección, solo si queda algo que contar. */
+  preparacion?: {
+    datos: BloquePreparacion | null
+    verOtras(): void
+    quitarFines(): void
+    /** Recibe el foco con «Ver qué hicimos» del banner. */
+    tituloRef: RefObject<HTMLHeadingElement | null>
+  }
+  /** «Revisar la sincronía» (feature 11): sigue a la preparación automática. */
   revision: {
     /** Líneas pendientes; `null` mientras se prepara la forma de onda. */
     pendientes: number | null
@@ -101,6 +111,7 @@ const textoMotivoComprobar = (m: MotivoComprobar): string =>
 export function PanelFunciones({
   estado,
   exportacion,
+  preparacion,
   revision,
   comprobar,
   silencios,
@@ -131,6 +142,56 @@ export function PanelFunciones({
 
   return (
     <div className={estilos.funciones}>
+      {preparacion?.datos && (
+        <Seccion
+          titulo={EP.titulo}
+          idTitulo={`${id}-preparacion`}
+          refTitulo={preparacion.tituloRef}
+        >
+          <p>{EP.intro(preparacion.datos.fecha)}</p>
+          {preparacion.datos.letra && (
+            <>
+              <p data-prep-letra="">
+                · {preparacion.datos.letra === 'app' ? EP.letraApp : EP.letraUsuario}
+              </p>
+              <div className={estilos.funcionFila}>
+                <Boton variante="fantasma" onClick={preparacion.verOtras}>
+                  {EP.verOtras}
+                </Boton>
+              </div>
+            </>
+          )}
+          {preparacion.datos.desfaseMs !== null && (
+            <>
+              <p data-prep-desfase="">· {K.desfase.corregido(preparacion.datos.desfaseMs)}</p>
+              <div className={estilos.funcionFila}>
+                <Boton
+                  data-funcion="quitar-correccion"
+                  variante="fantasma"
+                  onClick={comprobar.quitar}
+                >
+                  {K.desfase.quitar}
+                </Boton>
+              </div>
+            </>
+          )}
+          {preparacion.datos.fines > 0 && (
+            <>
+              <p data-prep-fines="">· {EP.fines(preparacion.datos.fines)}</p>
+              <div className={estilos.funcionFila}>
+                <Boton
+                  data-funcion="quitar-fines"
+                  variante="fantasma"
+                  onClick={preparacion.quitarFines}
+                >
+                  {EP.quitarFines}
+                </Boton>
+              </div>
+            </>
+          )}
+        </Seccion>
+      )}
+
       <Seccion titulo={R.funciones.titulo} idTitulo={`${id}-revision`}>
         <p>{R.funciones.ayuda}</p>
         <div className={estilos.funcionFila}>
@@ -195,7 +256,7 @@ export function PanelFunciones({
             </Boton>
           </div>
         )}
-        {comprobar.desfaseCorregidoMs ? (
+        {comprobar.desfaseCorregidoMs && preparacion?.datos?.desfaseMs == null ? (
           <>
             <p data-desfase-corregido="">
               <FilaConIcono icono={Info}>

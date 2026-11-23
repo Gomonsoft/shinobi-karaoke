@@ -30,6 +30,8 @@ function montar(opciones: {
   soportado?: boolean
   cancion?: Cancion | null
   lanza?: boolean
+  enTanda?: () => boolean
+  abrirResultado?: () => void
 }) {
   let enfocada = opciones.enfocada ?? false
   const ventana: Ventana & {
@@ -57,6 +59,8 @@ function montar(opciones: {
     difundirAviso: (a) => avisos.push(a),
     difundirAbrir: (e) => abrir.push(e),
     obtenerCancion: () => (opciones.cancion === undefined ? sinLetra() : opciones.cancion),
+    ...(opciones.abrirResultado ? { difundirAbrirResultado: opciones.abrirResultado } : {}),
+    ...(opciones.enTanda ? { enTandaDeVarias: opciones.enTanda } : {}),
     registrar
   })
   return {
@@ -199,6 +203,48 @@ describe('ServicioAvisos', () => {
     m.servicio.alCambiarTrabajo(trabajo({ resultado: 'cancelado' }))
     expect(m.avisos).toHaveLength(0)
     expect(m.dock.rebotar).not.toHaveBeenCalled()
+  })
+})
+
+describe('tanda de varias canciones (0309)', () => {
+  it('no avisa por canción dentro de una tanda y avisa una sola vez al terminar', () => {
+    let enTanda = true
+    const m = montar({ plataforma: 'win32', enTanda: () => enTanda })
+    m.servicio.alCambiarTrabajo(trabajo())
+    m.servicio.alCambiarTrabajo(
+      trabajo({ resultado: 'error', error: { codigo: 'SIN_ESPACIO', mensaje: '' } })
+    )
+    expect(m.avisos).toHaveLength(0)
+    expect(m.mostrar).not.toHaveBeenCalled()
+    enTanda = false
+    m.servicio.avisarTanda({ total: 12, listas: 9, esperanLetra: 2, conError: 1 })
+    expect(m.avisos).toEqual([
+      expect.objectContaining({
+        tipo: 'tanda',
+        destino: 'biblioteca',
+        texto: '12 canciones preparadas: 9 listas para revisar · 2 esperan letra · 1 con error.'
+      })
+    ])
+    expect(m.mostrar).toHaveBeenCalledTimes(1)
+    // Fuera de una tanda, el aviso por canción de siempre.
+    m.servicio.alCambiarTrabajo(trabajo())
+    expect(m.avisos).toHaveLength(2)
+  })
+
+  it('el clic en la notificación de una tanda abre el resultado y no una canción', () => {
+    const abrirResultado = vi.fn()
+    const m = montar({ plataforma: 'win32', abrirResultado })
+    m.servicio.avisarTanda({ total: 2, listas: 1, esperanLetra: 1, conError: 0 })
+    m.notificacion()!.alClic()
+    expect(m.ventana.traer).toHaveBeenCalled()
+    expect(abrirResultado).toHaveBeenCalledOnce()
+    expect(m.abrir).toEqual([])
+  })
+
+  it('si todas están listas, el texto lo dice así', () => {
+    const m = montar({ plataforma: 'win32', enfocada: true })
+    m.servicio.avisarTanda({ total: 3, listas: 3, esperanLetra: 0, conError: 0 })
+    expect(m.avisos[0]!.texto).toBe('3 canciones listas para revisar.')
   })
 })
 

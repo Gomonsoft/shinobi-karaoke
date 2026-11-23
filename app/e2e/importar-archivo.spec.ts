@@ -225,9 +225,15 @@ test.describe('importar un archivo local', () => {
     try {
       const v = await anadir(app2)
       await expect(v.getByLabel('Álbum')).toHaveValue('Querido…')
-      await expect(v.getByText('Como en tu biblioteca')).toBeVisible()
+      await expect(v.getByLabel('Artista')).toHaveValue('Grupo Uno')
+      // Artista y álbum se proponen con la grafía de la biblioteca (spec 03, F6 y respuesta a 0232).
+      await expect(v.getByText('Como en tu biblioteca')).toHaveCount(2)
+      // La lista se cierra sola cuando lo escrito coincide exactamente con la única opción (spec 03).
       await v.getByLabel('Álbum').focus()
       await v.keyboard.press('ArrowDown')
+      await expect(v.getByRole('option')).toHaveCount(0)
+      // Al escribir una parte, la lista vuelve a ofrecer el valor.
+      await v.getByLabel('Álbum').fill('Quer')
       await expect(v.getByRole('option', { name: 'Querido…, 1 canción' })).toBeVisible()
       // Esc cierra la lista sin salir de la vista.
       await v.keyboard.press('Escape')

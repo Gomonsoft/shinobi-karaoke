@@ -89,6 +89,38 @@ describe('useAvisosTrabajos', () => {
     expect(screen.getAllByTestId('toast')).toHaveLength(1)
   })
 
+  it('el aviso de una tanda abre el «Resultado de la preparación», no una canción', () => {
+    const ir = vi.fn()
+    render(<Sonda vista={biblioteca} ir={ir} />)
+    act(() =>
+      aviso!({
+        cancionId: '',
+        tipo: 'tanda',
+        texto: '12 canciones listas para revisar.',
+        etiqueta: 'Ver resultado',
+        destino: 'biblioteca'
+      })
+    )
+    act(() => screen.getByRole('button', { name: 'Ver resultado' }).click())
+    expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca', abrirResultado: true })
+  })
+
+  it('el clic en la notificación de una tanda (preparacion:abrirResultado) va a la Biblioteca con el resultado', () => {
+    const ir = vi.fn()
+    let abrirResultado: (() => void) | null = null
+    Object.assign((window as unknown as { shinobi: object }).shinobi, {
+      preparacion: {
+        alAbrirResultado: (cb: () => void) => {
+          abrirResultado = cb
+          return () => undefined
+        }
+      }
+    })
+    render(<Sonda vista={{ tipo: 'cancion', id: 'c1', paso: 'letra' }} ir={ir} />)
+    act(() => abrirResultado!())
+    expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca', abrirResultado: true })
+  })
+
   it('el error no caduca solo', () => {
     vi.useFakeTimers()
     render(<Sonda vista={biblioteca} ir={vi.fn()} />)

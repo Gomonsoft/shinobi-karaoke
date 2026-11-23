@@ -18,6 +18,8 @@ import { AVISO_YOUTUBE } from '../acerca/textos'
 import { detallesDeError } from '../biblioteca/errores'
 import { formatearDuracion } from '../biblioteca/tarjeta'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
+import { AvisoBusqueda } from './AvisoBusqueda'
+import { guardarBorrador, leerBorrador, olvidarBorrador } from './borrador'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { Miniatura } from './Miniatura'
 import { AvisoLarga } from './AvisoLarga'
@@ -63,14 +65,23 @@ interface PanelYoutubeProps {
   iniciales?: DatosInicialesAnadir
   /** Vuelve a la pestaña Archivo. */
   alUsarArchivo: () => void
+  /** Vuelve de Ajustes: se repite la búsqueda del enlace y se recupera lo escrito (F6-N8). */
+  restaurar?: boolean
 }
 
 /** Origen "Enlace de YouTube": aviso legal, enlace, vista previa y formulario "Revisar datos". */
-export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
+export function PanelYoutube({ iniciales, alUsarArchivo, restaurar }: PanelYoutubeProps) {
   const { ir } = useNavegacion()
+  // Lo recuperado de Ajustes (lectura sin consumir: sobrevive a un doble montaje).
+  const [restaurado] = useState(() => {
+    const b = restaurar ? leerBorrador() : null
+    return b?.origen === 'youtube' ? b : null
+  })
+  const valoresRestaurados = useRef(restaurado?.valores ?? null)
+  const [recuperado, setRecuperado] = useState(false)
   // null: leyendo la configuración.
   const [aceptado, setAceptado] = useState<boolean | null>(null)
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(restaurado?.url ?? '')
   const [buscando, setBuscando] = useState(false)
   const [actualizando, setActualizando] = useState(false)
   const [info, setInfo] = useState<InfoYoutubeIpc | null>(null)
@@ -150,14 +161,18 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
         ref.current.pendiente = datos.consultaId
         setBuscando(false)
         setActualizando(false)
+        const recuperados = valoresRestaurados.current
+        valoresRestaurados.current = null
+        setRecuperado(recuperados !== null)
         setValores(
-          iniciales
-            ? {
-                titulo: iniciales.titulo,
-                artista: iniciales.artista,
-                album: iniciales.album ?? ''
-              }
-            : datos.metadatos
+          recuperados ??
+            (iniciales
+              ? {
+                  titulo: iniciales.titulo,
+                  artista: iniciales.artista,
+                  album: iniciales.album ?? ''
+                }
+              : datos.metadatos)
         )
         setErrorTitulo(undefined)
         setInfo(datos)
@@ -197,6 +212,14 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
     window.addEventListener('keydown', alTeclear, true)
     return () => window.removeEventListener('keydown', alTeclear, true)
   }, [cancelarBusqueda, ir])
+
+  // Vuelta de Ajustes: se repite la búsqueda del enlace guardado.
+  const reintentoRestaurado = useRef(restaurado !== null)
+  useEffect(() => {
+    if (aceptado !== true || !reintentoRestaurado.current || !restaurado) return
+    reintentoRestaurado.current = false
+    void buscar(restaurado.url)
+  }, [aceptado, buscar, restaurado])
 
   // Foco: campo de enlace al mostrarse; mensaje al fallar; título seleccionado con la vista previa.
   const campoVisible = aceptado === true
@@ -250,6 +273,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
         iniciales ? { cancionId: iniciales.cancionId } : undefined
       )
       ref.current.pendiente = null
+      olvidarBorrador()
       ir({ tipo: 'cancion', id: resumen.id, paso: 'progreso' })
     } catch (err) {
       setError(comoErrorVista(err))
@@ -377,7 +401,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
             </div>
             <CamposDatos
               key={info.consultaId}
-              propuesta={iniciales ? null : info.datos}
+              propuesta={iniciales || recuperado ? null : info.datos}
               valores={valores}
               onCambio={(v) => {
                 setValores(v)
@@ -387,6 +411,14 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               refTitulo={refTitulo}
               onIntroUltimo={() => void continuar()}
             />
+            {!iniciales && (
+              <AvisoBusqueda
+                alCambiar={() => {
+                  guardarBorrador({ origen: 'youtube', url, valores })
+                  ir({ tipo: 'ajustes', origen: { tipo: 'anadir' }, seccion: 'preparacion' })
+                }}
+              />
+            )}
             {info.duracionS > UMBRAL_LARGA_S && (
               <AvisoLarga duracion={duracion} duracionMs={Math.round(info.duracionS * 1000)} />
             )}

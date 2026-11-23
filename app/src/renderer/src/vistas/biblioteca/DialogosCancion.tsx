@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { Dialogo } from '../../componentes/Dialogo'
-import { CamposDatos, MAX_METADATO } from '../anadir/CamposDatos'
+import { CamposDatos, MAX_METADATO, type DatosLrclib } from '../anadir/CamposDatos'
 import { mensajeDeError } from './errores'
 
 export { MAX_METADATO }
@@ -66,8 +66,13 @@ export interface DatosEditables {
   album: string | null
 }
 
+/** Lo que se muestra al abrir «Editar datos»: los datos y lo que LRCLIB dejó en la canción. */
+export interface InicialEditar extends DatosEditables {
+  lrclib?: DatosLrclib | null
+}
+
 interface EditarProps {
-  inicial: DatosEditables
+  inicial: InicialEditar
   alGuardar: (datos: DatosEditables) => Promise<void>
   alCancelar: () => void
 }
@@ -133,6 +138,7 @@ export function DialogoEditarDatos({ inicial, alGuardar, alCancelar }: EditarPro
           etiquetaTitulo="Título"
           etiquetaAlbum="Álbum (opcional)"
           errorTitulo={errorTitulo}
+          lrclib={inicial.lrclib}
         />
         {errorGeneral && <AvisoEnLinea tipo="error">{errorGeneral}</AvisoEnLinea>}
       </form>

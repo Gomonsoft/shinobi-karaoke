@@ -45,6 +45,8 @@ import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { Reproductor, type PropsReproductor } from '../reproductor/Reproductor'
 import { BannerSincronizar } from './BannerSincronizar'
+import { bloquePreparacion } from './preparacion/modelo'
+import { EP } from './preparacion/textos'
 import { BotonLayout, type NombreBotonLayout } from './BotonLayout'
 import {
   avisarBorradorAlSalir,
@@ -246,6 +248,7 @@ export function Editor({ id }: { id: string }) {
       pestanaInicial={
         vista.tipo === 'cancion' && vista.pestana === 'estilo' ? 'estilo' : 'sincronia'
       }
+      revisarAlEntrar={vista.tipo === 'cancion' && vista.revisar === true}
     />
   )
 }
@@ -259,6 +262,8 @@ interface PropsActiva {
   refrescarResumen(): Promise<void>
   /** Al volver de Ajustes se reabre en la pestaña Estilo (0175, A10). */
   pestanaInicial: Pestana
+  /** «Revisar» de la Biblioteca, el progreso o un toast: empieza el recorrido al entrar (feature 11). */
+  revisarAlEntrar?: boolean
 }
 
 type EscuchaEditor = { pista: Pista; velocidad: Velocidad }
@@ -274,7 +279,8 @@ function EditorActivo({
   obtenerSesion,
   resumenes,
   refrescarResumen,
-  pestanaInicial
+  pestanaInicial,
+  revisarAlEntrar = false
 }: PropsActiva) {
   const { cancion, config } = carga
   const { id, metadatos } = cancion
@@ -338,6 +344,10 @@ function EditorActivo({
     return !antes
   }, [])
   const tituloEstado = useRef<HTMLHeadingElement>(null)
+  // Preparación automática (spec 06 · Feature 5): «Ver qué hicimos» lleva el foco a su título.
+  const tituloPrep = useRef<HTMLHeadingElement>(null)
+  const enfocarTituloPrep = useRef(false)
+  const [cerradoPrep, setCerradoPrep] = useState(false)
   const enfocarTituloEstado = useRef(false)
   const enfocarFunciones = useRef(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
@@ -595,6 +605,19 @@ function EditorActivo({
     escucharTramo: (linea) => escucharTramoLinea(linea),
     bloqueado: edicion.sync.activo || Boolean(audio?.error)
   })
+  // Entrar con la revisión pedida: se espera a leer la voz (o a saber que no la habrá) para que el
+  // primer recorrido ya traiga todos los motivos; con 0 pendientes la tarjeta lo dice (F11-B2).
+  const revisionPedida = useRef(revisarAlEntrar)
+  const hayVozOSinElla =
+    revision.voz !== null || !separacion.disponible || picos.estado.estado === 'error'
+  useEffect(() => {
+    if (!revisionPedida.current || !hayVozOSinElla) return
+    revisionPedida.current = false
+    revision.empezar()
+    if (resumen.preparacion && !resumen.preparacion.revisada) cerrarBannerPreparacion()
+    // Solo reacciona a que la voz esté lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayVozOSinElla])
   // Motivo principal de cada línea pendiente (tooltip, nombre accesible y banderita).
   const marcasRevision = useMemo(
     () => new Map(revision.pendientes.map((d) => [d.id, motivoPrincipal(d)])),
@@ -920,6 +943,24 @@ function EditorActivo({
     setPestana('funciones')
     enfocarFunciones.current = true
   }
+  /** «Ver qué hicimos» del banner: abre «Funciones» con el foco en «Preparación automática». */
+  function verQueHicimos() {
+    if (edicion.sync.activo) return
+    actualizarPaneles(
+      { ...preferencias, panel: { ...preferencias.panel, minimizado: false } },
+      'inmediato'
+    )
+    cancelarMarcador()
+    setPestana('funciones')
+    enfocarTituloPrep.current = true
+  }
+  useLayoutEffect(() => {
+    if (!enfocarTituloPrep.current || panelMinimizado || pestana !== 'funciones') return
+    enfocarTituloPrep.current = false
+    // Sin bloque (ya no queda nada que contar) el foco va al primer botón de la pestaña.
+    if (tituloPrep.current) tituloPrep.current.focus({ preventScroll: false })
+    else enfocarFunciones.current = true
+  })
   useLayoutEffect(() => {
     if (!enfocarFunciones.current || panelMinimizado || pestana !== 'funciones') return
     // El primer botón disponible; si ninguno lo está, el primero (los no disponibles son enfocables).
@@ -1443,6 +1484,28 @@ function EditorActivo({
     revision.terminar()
     setFocoLinea((n) => n + 1)
   }
+  /** «Quitar esos fines» (spec 06 · Feature 5): un paso del historial con su toast y [Deshacer]. */
+  function quitarFinesPreparacion() {
+    const n = letra.lineas.filter(
+      (l) => l.tipo === 'linea' && l.origen_fin === 'preparacion'
+    ).length
+    if (n === 0) return
+    cerrarAplicandoPreciso()
+    despachar({ tipo: 'quitar_fines_preparacion', ahora: performance.now() })
+    const mensaje = EP.toastFines(n)
+    mostrarToast({
+      tipo: 'exito',
+      mensaje,
+      accion: { etiqueta: 'Deshacer', alAccionar: () => despachar({ tipo: 'deshacer' }) }
+    })
+    anunciar(mensaje)
+  }
+  /** [×] del banner de la preparación: la canción cuenta como revisada y no vuelve a salir. */
+  function cerrarBannerPreparacion() {
+    setCerradoPrep(true)
+    void window.shinobi.biblioteca.marcarPreparacionRevisada(id).catch(() => undefined)
+  }
+  const bloquePrep = bloquePreparacion(cancion.preparacion, letra)
   const irALetra = () => ir({ tipo: 'cancion', id, paso: 'letra' })
   /** «Buscar otra letra» de la comprobación: abre la vista Letra en A (spec 06 · F4). */
   const irABuscarOtra = () => ir({ tipo: 'cancion', id, paso: 'letra', buscarOtra: true })
@@ -1505,11 +1568,48 @@ function EditorActivo({
         {KC.banner.noCoincide}
       </AvisoEnLinea>
     )
+  // Preparado por la app y aún sin revisar (feature 5; con la revisión guiada, su variante de la feature 11).
+  const sinRevisar =
+    resumen.estado === 'borrador' &&
+    !!resumen.preparacion &&
+    !resumen.preparacion.revisada &&
+    !cerradoPrep &&
+    !edicion.sync.activo &&
+    !revision.activo &&
+    letra === letraInicial
+  const pendientesRevision = revision.pendientes.length
+  const bannerPreparada = sinRevisar ? (
+    <AvisoEnLinea
+      tipo="info"
+      accionesAbajo
+      accion={
+        <>
+          {revision.calculando ? null : pendientesRevision > 0 ? (
+            <Boton onClick={() => revision.empezar()}>{EP.banner.empezar}</Boton>
+          ) : (
+            <Boton onClick={() => void abrirPrueba()}>{EP.banner.probar}</Boton>
+          )}
+          <Boton variante="fantasma" onClick={verQueHicimos}>
+            {EP.banner.verQueHicimos}
+          </Boton>
+          <BotonIcono icono={X} etiqueta={EP.banner.cerrar} onClick={cerrarBannerPreparacion} />
+        </>
+      }
+    >
+      {revision.calculando
+        ? EP.banner.preparada
+        : pendientesRevision > 0
+          ? EP.banner.revision(pendientesRevision)
+          : EP.banner.nada}
+    </AvisoEnLinea>
+  ) : null
   const banner =
     cuentas.sincronizadas === 0 ? (
       <AvisoEnLinea tipo="info">{E.sinSync}</AvisoEnLinea>
     ) : bannerComprobacion ? (
       bannerComprobacion
+    ) : bannerPreparada ? (
+      bannerPreparada
     ) : todasAlEntrar &&
       resumen.estado === 'borrador' &&
       letra === letraInicial &&
@@ -1753,6 +1853,15 @@ function EditorActivo({
                           activa: exportarVideo.activa,
                           motivo: exportarVideo.motivo,
                           exportar: exportarAplicando
+                        }}
+                        preparacion={{
+                          datos: bloquePrep,
+                          verOtras: () => {
+                            cerrarAplicandoPreciso()
+                            irABuscarOtra()
+                          },
+                          quitarFines: quitarFinesPreparacion,
+                          tituloRef: tituloPrep
                         }}
                         revision={{
                           pendientes: revision.calculando ? null : revision.pendientes.length,

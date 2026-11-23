@@ -12,6 +12,7 @@ import type {
 import type { CambioCancion } from '../biblioteca'
 import { registroNulo, type RegistroApp } from '../registro'
 import { esperarCancelable } from './cancelable'
+import type { PuertoDiario } from './diario'
 import { EstimadorProgreso, UmbralProgreso, type RitmoEsperado } from './progreso'
 import type { OpcionesEjecucion } from './worker'
 
@@ -40,7 +41,21 @@ export interface PuertoMantenimiento {
   alTerminarMantenimiento(cb: () => void): void
 }
 
+/** Lo que el freno de la cola necesita saber de un trabajo en espera. */
+export interface TrabajoRetenible {
+  cancionId: string
+  paso: PasoTrabajo
+  comando: string
+}
+
 export interface OpcionesGestor {
+  /** Diario de lo pendiente (`trabajos/pendientes.json`, ADR 0025 §5). */
+  diario?: PuertoDiario
+  /**
+   * Pausa aleatoria entre dos descargas de YouTube seguidas (ADR 0025 §5, 0153 §14f: de 3 a 8 s) para
+   * reducir bloqueos. Devuelve los ms de espera; no se aplica a la primera descarga.
+   */
+  pausaEntreDescargasMs?: () => number
   /** Si se da, los trabajos `descargar-youtube` esperan `en_cola` (motivo `mantenimiento`). */
   mantenimiento?: PuertoMantenimiento
   /**
@@ -224,10 +239,19 @@ export class GestorTrabajos {
   private readonly mantenimiento: PuertoMantenimiento | undefined
   private readonly actualizarYtDlp: (() => Promise<unknown>) | undefined
   private readonly vigilando = new Set<ColaTrabajo>()
+  private readonly diario: PuertoDiario | undefined
+  private readonly pausaEntreDescargasMs: (() => number) | undefined
+  /** Freno de la cola (pausa o parada de descargas): los trabajos retenidos no empiezan. */
+  private retener: ((t: TrabajoRetenible) => boolean) | null = null
+  /** Las descargas de YouTube no empiezan antes de este instante (pausa entre descargas). */
+  private descargaNoAntesDe = 0
+  private temporizadorDescarga: ReturnType<typeof setTimeout> | null = null
 
   constructor(opciones: OpcionesGestor) {
     this.mantenimiento = opciones.mantenimiento
     this.actualizarYtDlp = opciones.actualizarYtDlp
+    this.diario = opciones.diario
+    this.pausaEntreDescargasMs = opciones.pausaEntreDescargasMs
     this.biblioteca = opciones.biblioteca
     this.ejecutarWorker = opciones.ejecutar
     this.registro = opciones.registro ?? registroNulo
@@ -266,6 +290,7 @@ export class GestorTrabajos {
     }
     this.porId.set(t.id, t)
     this.esperando[t.cola].push(t)
+    this.diario?.alta(t.cancionId, t.paso)
     this.emitirCambio(t)
     this.bombear(t.cola)
     return this.instantanea(t)
@@ -322,7 +347,22 @@ export class GestorTrabajos {
    */
   async cancelarTodos(): Promise<void> {
     this.cerrando = true
+    if (this.temporizadorDescarga) clearTimeout(this.temporizadorDescarga)
     await Promise.all([...this.porId.keys()].map((id) => this.cancelar(id, 'cierre')))
+  }
+
+  /**
+   * Fija el freno de la cola: un trabajo retenido sigue `en_cola` y no empieza, pero los demás de su cola
+   * sí (p. ej. las separaciones mientras las descargas están paradas). Los que ya están en curso terminan.
+   * `null` lo quita. Después hay que llamar a `reanudarCola`.
+   */
+  fijarFreno(freno: ((t: TrabajoRetenible) => boolean) | null): void {
+    this.retener = freno
+  }
+
+  /** Vuelve a mirar las colas (tras quitar o cambiar el freno). */
+  reanudarCola(): void {
+    for (const cola of COLAS) this.bombear(cola)
   }
 
   suscribir(cb: (trabajo: TrabajoIpc) => void): () => void {
@@ -375,7 +415,8 @@ export class GestorTrabajos {
 
   private bombear(cola: ColaTrabajo): void {
     if (this.activo[cola]) return
-    const siguiente = this.esperando[cola][0]
+    const indice = this.esperando[cola].findIndex((x) => !this.retener?.(x))
+    const siguiente = this.esperando[cola][indice]
     if (!siguiente) return
     if (
       this.mantenimiento?.enMantenimiento() &&
@@ -395,10 +436,24 @@ export class GestorTrabajos {
       }
       return
     }
-    this.esperando[cola].shift()
+    if (siguiente.comando === 'descargar-youtube' && this.ahora() < this.descargaNoAntesDe) {
+      // Pausa entre descargas seguidas: se vuelve a mirar al cumplirse.
+      if (!this.temporizadorDescarga) {
+        this.temporizadorDescarga = setTimeout(
+          () => {
+            this.temporizadorDescarga = null
+            this.bombear(cola)
+          },
+          Math.max(0, this.descargaNoAntesDe - this.ahora())
+        )
+      }
+      return
+    }
+    this.esperando[cola].splice(indice, 1)
     siguiente.motivo = null
     this.activo[cola] = siguiente
     siguiente.estado = 'en_curso'
+    this.diario?.enCurso(siguiente.cancionId, siguiente.paso)
     this.emitirCambio(siguiente)
     this.emitirPosiciones(cola)
     void this.correr(siguiente)
@@ -445,6 +500,8 @@ export class GestorTrabajos {
     let error: { codigo: string; mensaje: string; modelo?: ModeloId } | null = null
     try {
       await this.escribirPaso(t, this.pasoCambio(t, 'en_curso', null))
+      // Cancelado (p. ej. cierre de la app) antes de que el worker llegue a lanzarse: no se lanza.
+      if (t.control.signal.aborted) throw { codigo: 'CANCELADO', mensaje: 'Trabajo cancelado' }
       if (t.alEmpezar) {
         const inicio = await t.alEmpezar(
           { id: t.id, cancionId: t.cancionId },
@@ -642,6 +699,14 @@ export class GestorTrabajos {
     t.resultado = resultado
     t.error = error
     this.porId.delete(t.id)
+    // Lo parado por el cierre de la app se conserva en el diario para retomarlo al abrir.
+    const porCierre =
+      t.motivoCancelacion === 'cierre' &&
+      (resultado === 'cancelado' || resultado === 'interrumpido')
+    this.diario?.baja(t.cancionId, t.paso, porCierre)
+    if (t.comando === 'descargar-youtube' && this.pausaEntreDescargasMs) {
+      this.descargaNoAntesDe = this.ahora() + this.pausaEntreDescargasMs()
+    }
     this.emitirCambio(t)
     t.terminar()
   }

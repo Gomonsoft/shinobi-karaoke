@@ -61,6 +61,19 @@ export function useAvisosTrabajos(vista: Vista, ir: (v: Vista) => void): void {
         })
         return
       }
+      if (a.tipo === 'tanda') {
+        // `act.cola.fin`: toast persistente que abre el «Resultado de la preparación».
+        mostrarToast({
+          tipo: 'exito',
+          mensaje: a.texto,
+          persistente: true,
+          accion: {
+            etiqueta: a.etiqueta,
+            alAccionar: () => irRef.current({ tipo: 'biblioteca', abrirResultado: true })
+          }
+        })
+        return
+      }
       if (estaEnSuProgreso(vistaRef.current, a.cancionId)) return
       mostrarToast({
         tipo: a.tipo === 'error' ? 'error' : 'exito',
@@ -82,10 +95,16 @@ export function useAvisosTrabajos(vista: Vista, ir: (v: Vista) => void): void {
     }
     const bajaAviso = window.shinobi.avisos.alAviso(alAviso)
     const bajaAbrir = window.shinobi.avisos.alAbrirCancion(abrirCancion)
+    // Clic en la notificación de una tanda terminada: Biblioteca con el «Resultado de la preparación».
+    const bajaResultado = window.shinobi.preparacion?.alAbrirResultado?.(() => {
+      if (vistaRef.current.tipo === 'primer-arranque') return
+      irRef.current({ tipo: 'biblioteca', abrirResultado: true })
+    })
     window.addEventListener('focus', alFoco)
     return () => {
       bajaAviso()
       bajaAbrir()
+      bajaResultado?.()
       window.removeEventListener('focus', alFoco)
     }
   }, [])

@@ -4,6 +4,7 @@ import {
   CircleX,
   Clock,
   FileX,
+  ListChecks,
   Pencil,
   RefreshCw,
   TriangleAlert
@@ -16,6 +17,7 @@ export type EstadoInsignia =
   | 'lista'
   | 'letra-lista'
   | 'borrador'
+  | 'revisar'
   | 'en-curso'
   | 'en-cola'
   | 'interrumpido'
@@ -29,6 +31,7 @@ const DEFINICION: Record<
   lista: { texto: 'Lista', icono: Check, color: 'exito' },
   'letra-lista': { texto: 'Letra lista', icono: Captions, color: 'exito' },
   borrador: { texto: 'Borrador', icono: Pencil, color: 'aviso' },
+  revisar: { texto: 'Lista para revisar', icono: ListChecks, color: 'info' },
   'en-curso': { texto: 'En curso', icono: RefreshCw, color: 'info' },
   'en-cola': { texto: 'En cola', icono: Clock, color: 'info' },
   interrumpido: { texto: 'Interrumpido', icono: TriangleAlert, color: 'aviso' },

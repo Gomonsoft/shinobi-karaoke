@@ -47,8 +47,9 @@ export const R = {
   finVoz: 'Fin al final de la voz',
   fijarInicio: 'Fijar inicio aquí (I)',
   sinSilencio: 'No encontramos un silencio después de esta línea.',
-  bien: (n: number): string => `Está bien (${n})`,
-  bienCorregida: (n: number): string => `Siguiente (${n})`,
+  /** Nombre accesible de «Está bien» / «Siguiente» (la tecla N va aparte, en `aria-keyshortcuts`). */
+  bienNombre: 'Está bien',
+  bienCorregida: 'Siguiente',
   bienPanel: 'Está bien',
   noSinInicio: 'Fija primero su inicio.',
   anterior: 'Anterior',

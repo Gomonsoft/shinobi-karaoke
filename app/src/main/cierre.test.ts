@@ -36,6 +36,15 @@ describe('solicitud de cierre', () => {
     expect(deps.pausar).not.toHaveBeenCalled()
   })
 
+  it('recuerda la solicitud sin responder para un renderer que llegó tarde (0236)', async () => {
+    const { control } = preparar(true)
+    expect(control.pendiente()).toBeNull()
+    control.alSalir({ preventDefault: vi.fn() })
+    expect(control.pendiente()).toBe('salir')
+    await control.confirmar()
+    expect(control.pendiente()).toBeNull()
+  })
+
   it('al confirmar se pausa y después se cierra la ventana', async () => {
     const { control, orden } = preparar(true)
     control.alCerrarVentana({ preventDefault: vi.fn() })

@@ -23,6 +23,9 @@ export interface ValoresDatos {
   album: string
 }
 
+/** Espera tras la última tecla antes de proponer unificar con un valor de la biblioteca. */
+export const RETRASO_UNIFICAR_MS = 400
+
 /** Máximo de caracteres de título, artista y álbum. */
 export const MAX_METADATO = 200
 
@@ -59,6 +62,14 @@ export function sugerenciaDeUnificar(
   return existentes.find((e) => claveFlexible(e.valor) === k)?.valor ?? null
 }
 
+/** Lo que LRCLIB dejó en la canción (spec 03 · F6-N7), para el resumen del paso 1 y «Editar datos». */
+export interface DatosLrclib {
+  /** El álbum lo rellenó LRCLIB (`metadatos.origen.album === 'lrclib'`): `add.dato.origen.lrclib` con [Quitar]. */
+  albumDeLrclib: boolean
+  /** Título y artista del registro de LRCLIB (`letra.datos_lrclib`), si la canción tiene letra de allí. */
+  registro: { titulo: string; artista: string } | null
+}
+
 interface CamposDatosProps {
   valores: ValoresDatos
   onCambio: (valores: ValoresDatos) => void
@@ -75,6 +86,10 @@ interface CamposDatosProps {
   onIntroUltimo?: () => void
   /** Procedencia de los valores iniciales (solo al añadir la canción; «Editar datos» no la lleva). */
   propuesta?: PropuestaDatos | null
+  /** Datos de LRCLIB de una canción que ya existe: procedencia del álbum y sugerencia de título y artista. */
+  lrclib?: DatosLrclib | null
+  /** Tras [Quitar] o [Usar estos datos]: los valores nuevos (el resumen los guarda en el acto). */
+  onAplicar?: (valores: ValoresDatos) => void
 }
 
 /** Pasa el foco al siguiente campo con Intro (la spec solo envía con Intro en el último). */
@@ -121,7 +136,9 @@ export function CamposDatos({
   etiquetaAlbum,
   onSalir,
   onIntroUltimo,
-  propuesta
+  propuesta,
+  lrclib,
+  onAplicar
 }: CamposDatosProps) {
   const biblioteca = useValoresBiblioteca()
   // Campos que el usuario ya tocó (su procedencia desaparece) y sugerencias de unificar abiertas.
@@ -137,7 +154,10 @@ export function CamposDatos({
     onCambio({ ...valores, [campo]: valor })
     setTocados((t) => new Set(t).add(campo))
     setAnuncio('')
-    if (campo !== 'titulo') setUnificar((u) => ({ ...u, [campo]: undefined }))
+    if (campo !== 'titulo') {
+      setUnificar((u) => ({ ...u, [campo]: undefined }))
+      programar(campo, valor)
+    }
   }
 
   const opcionesArtista: OpcionCombo[] = biblioteca.artistas
@@ -149,43 +169,76 @@ export function CamposDatos({
     return [...suyos, ...biblioteca.albumes.filter((a) => !a.artistas?.includes(k))]
   }, [biblioteca.albumes, valores.artista])
 
-  const alSalir = (campo: 'artista' | 'album'): void => {
+  /**
+   * Calcula la sugerencia de unificar de `campo` para `valor` (spec 03, respuesta a 0230): 400 ms después
+   * de la última tecla, al elegir de la lista o al cerrarla; nunca al salir del campo.
+   */
+  const calcular = (campo: 'artista' | 'album', valor: string): void => {
     const lista = campo === 'artista' ? biblioteca.artistas : biblioteca.albumes
-    const sugerido = sugerenciaDeUnificar(valores[campo], lista)
-    const oculta = descartadas.has(`${campo}\u0000${valores[campo]}`)
+    const sugerido = sugerenciaDeUnificar(valor, lista)
+    const oculta = descartadas.has(`${campo}\u0000${valor}`)
     setUnificar((u) => ({ ...u, [campo]: sugerido !== null && !oculta ? sugerido : undefined }))
-    onSalir?.()
+  }
+  // El temporizador usa siempre el último `calcular` (la biblioteca puede llegar después).
+  const ultimoCalcular = useRef(calcular)
+  useEffect(() => {
+    ultimoCalcular.current = calcular
+  })
+  const temporizadores = useRef<
+    Partial<Record<'artista' | 'album', ReturnType<typeof setTimeout>>>
+  >({})
+  useEffect(() => {
+    const pendientes = temporizadores.current
+    return () => {
+      for (const t of Object.values(pendientes)) clearTimeout(t)
+    }
+  }, [])
+  const programar = (campo: 'artista' | 'album', valor: string): void => {
+    clearTimeout(temporizadores.current[campo])
+    temporizadores.current[campo] = setTimeout(
+      () => ultimoCalcular.current(campo, valor),
+      RETRASO_UNIFICAR_MS
+    )
   }
 
+  /**
+   * La región `role="status"` existe vacía desde el principio y se rellena al aparecer la sugerencia
+   * (así se anuncia). Va bajo el campo y encima de su línea de ayuda: texto y, debajo, los dos botones.
+   */
   const bloqueUnificar = (campo: 'artista' | 'album'): ReactNode => {
     const sugerido = unificar[campo]
-    if (sugerido === undefined) return null
     const ref = campo === 'artista' ? refArtista : refAlbum
     return (
-      <span role="status" className={estilos.unificar}>
-        {TEXTO.unificar(sugerido)}
-        <Boton
-          tamano="normal"
-          variante="secundario"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            cambiar(campo, sugerido)
-            ref.current?.focus()
-          }}
-        >
-          {TEXTO.usar(sugerido)}
-        </Boton>
-        <Boton
-          variante="fantasma"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            setDescartadas((d) => new Set(d).add(`${campo}\u0000${valores[campo]}`))
-            setUnificar((u) => ({ ...u, [campo]: undefined }))
-            ref.current?.focus()
-          }}
-        >
-          {TEXTO.dejarlo}
-        </Boton>
+      <span role="status" className={estilos.regionUnificar}>
+        {sugerido !== undefined && (
+          <span className={estilos.unificar}>
+            <span>{TEXTO.unificar(sugerido)}</span>
+            <span className={estilos.botonesUnificar}>
+              <Boton
+                tamano="normal"
+                variante="secundario"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  cambiar(campo, sugerido)
+                  ref.current?.focus()
+                }}
+              >
+                {TEXTO.usar(sugerido)}
+              </Boton>
+              <Boton
+                variante="fantasma"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setDescartadas((d) => new Set(d).add(`${campo}\u0000${valores[campo]}`))
+                  setUnificar((u) => ({ ...u, [campo]: undefined }))
+                  ref.current?.focus()
+                }}
+              >
+                {TEXTO.dejarlo}
+              </Boton>
+            </span>
+          </span>
+        )}
       </span>
     )
   }
@@ -208,15 +261,59 @@ export function CamposDatos({
   const ayudaArtista = (
     <>
       {bloqueUnificar('artista')}
-      {linea('artista', sinArtista)}
+      <span className={estilos.lineaAyuda}>{linea('artista', sinArtista)}</span>
     </>
   )
+  // F6-N7: álbum tomado de LRCLIB, con [Quitar] (vacía el campo; el valor pasa a ser del usuario).
+  const albumDeLrclib =
+    lrclib?.albumDeLrclib === true && !tocados.has('album') && valores.album.trim() !== ''
   const ayudaAlbum = (
     <>
       {bloqueUnificar('album')}
-      {linea('album', TEXTO.campoAlbumAyuda)}
+      {albumDeLrclib ? (
+        <span className={estilos.procedencia}>
+          {TEXTO.origenLrclib}
+          <Boton
+            variante="fantasma"
+            onClick={() => {
+              const nuevos = { ...valores, album: '' }
+              cambiar('album', '')
+              onAplicar?.(nuevos)
+              refAlbum.current?.focus()
+            }}
+          >
+            {TEXTO.quitar}
+          </Boton>
+        </span>
+      ) : (
+        <span className={estilos.lineaAyuda}>{linea('album', TEXTO.campoAlbumAyuda)}</span>
+      )}
     </>
   )
+  // F6-N7: LRCLIB llama a la canción de otra forma; nada se cambia sin que el usuario lo pida.
+  const registro = lrclib?.registro ?? null
+  const difiere =
+    registro !== null &&
+    (claveFlexible(registro.titulo) !== claveFlexible(valores.titulo) ||
+      claveFlexible(registro.artista) !== claveFlexible(valores.artista))
+  const sugerenciaLrclib = difiere ? (
+    <span role="status" className={estilos.unificar} data-sugerencia-lrclib>
+      {TEXTO.sugerenciaLrclib(registro.titulo, registro.artista)}
+      <Boton
+        tamano="normal"
+        variante="secundario"
+        onClick={() => {
+          const nuevos = { ...valores, titulo: registro.titulo, artista: registro.artista }
+          onCambio(nuevos)
+          setTocados((t) => new Set(t).add('titulo').add('artista'))
+          onAplicar?.(nuevos)
+          refArtista.current?.focus()
+        }}
+      >
+        {TEXTO.usarEstosDatos}
+      </Boton>
+    </span>
+  ) : null
   const puedeIntercambiar = valores.titulo.trim() !== '' && valores.artista.trim() !== ''
 
   return (
@@ -243,9 +340,11 @@ export function CamposDatos({
         maxLength={MAX_METADATO}
         inputRef={refArtista}
         onChange={(v) => cambiar('artista', v)}
-        onBlur={() => alSalir('artista')}
+        onBlur={onSalir}
+        alResolver={(v) => calcular('artista', v)}
         onKeyDown={introSiguiente}
       />
+      {sugerenciaLrclib}
       {puedeIntercambiar && (
         <div className={estilos.accionCampo}>
           <Boton
@@ -254,7 +353,9 @@ export function CamposDatos({
             onClick={() => {
               onCambio({ ...valores, titulo: valores.artista, artista: valores.titulo })
               setTocados((t) => new Set(t).add('titulo').add('artista'))
-              setUnificar({})
+              // Solo se recalcula la sugerencia del Artista (su valor cambió); la del Álbum se conserva.
+              setUnificar((u) => ({ album: u.album }))
+              calcular('artista', valores.titulo)
               setAnuncio(TEXTO.intercambiado)
               refIntercambiar.current?.focus()
             }}
@@ -275,7 +376,8 @@ export function CamposDatos({
         maxLength={MAX_METADATO}
         inputRef={refAlbum}
         onChange={(v) => cambiar('album', v)}
-        onBlur={() => alSalir('album')}
+        onBlur={onSalir}
+        alResolver={(v) => calcular('album', v)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && onIntroUltimo && !e.nativeEvent.isComposing) {
             e.preventDefault()
@@ -295,4 +397,19 @@ export function metadatosParaIpc(v: ValoresDatos): {
 } {
   const album = v.album.trim()
   return { titulo: v.titulo.trim(), artista: v.artista.trim(), album: album === '' ? null : album }
+}
+
+/** Datos de LRCLIB de una canción guardada (`null` si no tiene letra de allí ni álbum de LRCLIB). */
+export function datosLrclibDe(
+  cancion: {
+    metadatos: { origen?: { album?: string } }
+    letra?: { datos_lrclib?: { titulo: string; artista: string } } | null
+  } | null
+): DatosLrclib | null {
+  if (!cancion) return null
+  const registro = cancion.letra?.datos_lrclib
+  return {
+    albumDeLrclib: cancion.metadatos.origen?.album === 'lrclib',
+    registro: registro ? { titulo: registro.titulo, artista: registro.artista } : null
+  }
 }

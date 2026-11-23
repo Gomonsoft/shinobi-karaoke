@@ -18,13 +18,24 @@ export interface DatosDeNombre {
   artista: string
   album: string
   patron: PatronNombre
+  /**
+   * Se descartó un número inicial separado solo por espacio («03 Artista - Título»): podría ser parte del
+   * nombre, así que el campo que sigue al número se marca como dudoso (pregunta 0231).
+   */
+  numeroDudoso: boolean
 }
 
 const SEPARADOR = /\s[-–—]\s/
 const EXTENSION = /\.[A-Za-z0-9]{2,5}$/
-/** `1-01 ` (disco y pista) y `01 `, `01. `, `01 - `, `01) `. Exige texto detrás: `1999` queda intacto. */
+/** `1-01 ` (disco y pista). Exige texto detrás: `1999` queda intacto. */
 const PISTA_CON_DISCO = /^\d-\d{2}\s+(?=\S)/
-const PISTA = /^\d{1,3}(?:\s*[.\-–—)]\s*|\s+)(?=\S)/
+/** Número seguido de puntuación: `03 -`, `3.`, `3)`. */
+const PISTA_PUNTUADA = /^\d{1,3}\s*[.\-–—)]\s*(?=\S)/
+/** `03_Título`: el guion bajo se detecta antes de convertirlo en espacio. */
+const PISTA_GUION_BAJO = /^\d{1,3}_+(?=\S)/
+/** Dos o más cifras con cero a la izquierda y un espacio: `03 Artista - Título`. */
+const PISTA_CON_CERO = /^0\d{1,2}\s+(?=\S)/
+/** Un número sin cero y separado solo por espacio es parte del nombre: «3 Doors Down», «21 Guns». */
 
 const espacios = (t: string): string => t.replace(/\s+/g, ' ').trim()
 
@@ -44,8 +55,20 @@ export function tituloConRestos(titulo: string): boolean {
 
 /** Quita la extensión, el número de pista y los guiones bajos, y reconoce los patrones de la spec. */
 export function metadatosDeNombre(nombreArchivo: string): DatosDeNombre {
-  const base = espacios(nombreArchivo.replace(EXTENSION, '').replace(/_/g, ' '))
-  const sinPista = base.replace(PISTA_CON_DISCO, '').replace(PISTA, '')
+  const sinExtension = nombreArchivo.replace(EXTENSION, '')
+  const base = espacios(sinExtension.replace(/_/g, ' '))
+  let sinPista = base
+  let numeroDudoso = false
+  if (PISTA_GUION_BAJO.test(sinExtension)) {
+    sinPista = base.replace(/^\d{1,3}\s+/, '')
+  } else if (PISTA_CON_DISCO.test(base)) {
+    sinPista = base.replace(PISTA_CON_DISCO, '')
+  } else if (PISTA_PUNTUADA.test(base)) {
+    sinPista = base.replace(PISTA_PUNTUADA, '')
+  } else if (PISTA_CON_CERO.test(base)) {
+    sinPista = base.replace(PISTA_CON_CERO, '')
+    numeroDudoso = true
+  }
   const hayPista = sinPista !== base
   const partes = sinPista.split(SEPARADOR).map((p) => p.trim())
   const [a, b, c, ...resto] = partes
@@ -56,13 +79,20 @@ export function metadatosDeNombre(nombreArchivo: string): DatosDeNombre {
         artista: a,
         album: b,
         titulo: resto.join(' - '),
-        patron: 'artista-album-pista-titulo'
+        patron: 'artista-album-pista-titulo',
+        numeroDudoso: false
       }
     }
     const titulo = partes.slice(1).join(' - ')
-    return { artista: a, album: '', titulo, patron: 'artista-titulo' }
+    return { artista: a, album: '', titulo, patron: 'artista-titulo', numeroDudoso }
   }
-  return { artista: '', album: '', titulo: sinPista, patron: hayPista ? 'pista-titulo' : 'ninguno' }
+  return {
+    artista: '',
+    album: '',
+    titulo: sinPista,
+    patron: hayPista ? 'pista-titulo' : 'ninguno',
+    numeroDudoso
+  }
 }
 
 /** Nombre de la carpeta de un lote: `Artista - Álbum` o solo el álbum. */

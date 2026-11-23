@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sembrar, TEMA_NEON } from '../src/main/biblioteca/semilla'
 import { E } from '../src/renderer/src/vistas/editor/textos'
@@ -27,6 +27,7 @@ import { crearTemporal } from './temporales'
  *   SHINOBI_CAPTURAS_022_1=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
  *   SHINOBI_CAPTURAS_022_2=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
  *   SHINOBI_CAPTURAS_022_4=1 npx playwright test e2e/capturas-022.spec.ts --workers=1
+ *   SHINOBI_CAPTURAS_022_6=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 6, 0305)
  *   SHINOBI_CAPTURAS_022_11=1 npx playwright test e2e/capturas-022.spec.ts --workers=1  (feature 11, 0335)
  *
  * No escribe nada en el CI. Cada estado es independiente: si uno falla se anota y se sigue.
@@ -36,6 +37,7 @@ const F1 = process.env.SHINOBI_CAPTURAS_022_1 === '1'
 const F2 = process.env.SHINOBI_CAPTURAS_022_2 === '1'
 const F4 = process.env.SHINOBI_CAPTURAS_022_4 === '1'
 const F11 = process.env.SHINOBI_CAPTURAS_022_11 === '1'
+const F6 = process.env.SHINOBI_CAPTURAS_022_6 === '1'
 const RAIZ = join(process.cwd(), '..', 'docs', 'ux', 'revisiones')
 const ID = idSemilla(20)
 const TITULO = 'Reproductor: lista'
@@ -963,8 +965,8 @@ suite(
         await intentar(`recorrido-fin-${sufijo}`, () =>
           con('fin', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
             await empezar(v)
-            await v.getByRole('button', { name: /Está bien \(2\)/ }).click()
-            await v.getByRole('button', { name: /Está bien \(1\)/ }).click()
+            await v.getByRole('button', { name: 'Está bien' }).click()
+            await v.getByRole('button', { name: 'Está bien' }).click()
             await expect(v.getByRole('region', { name: 'Revisión terminada' })).toBeVisible()
             await foto(v, nombre('recorrido-fin'))
           })
@@ -985,6 +987,16 @@ suite(
           })
         )
         if (sufijo === '100') {
+          await intentar('recorrido-otra-pestana', () =>
+            con('otra', { preparar: preparar(CON_DUDAS, false) }, async (v) => {
+              await empezar(v)
+              await v.getByRole('radio', { name: 'Funciones' }).click()
+              await expect(
+                v.getByRole('radio', { name: 'Sincronía, hay una revisión en curso' })
+              ).toBeVisible()
+              await foto(v, nombre('recorrido-otra-pestana'))
+            })
+          )
           await intentar('recorrido-panel-300', () =>
             con('p300', { preparar: preparar(CON_DUDAS, false, true) }, async (v) => {
               await empezar(v)
@@ -1004,3 +1016,239 @@ suite(
     })
   }
 )
+
+// ---------------------------------------------------------------------------- feature 6
+/** WAV PCM mono con un tono y etiquetas `LIST/INFO` (INAM título, IART artista, IPRD álbum). */
+function escribirWavEtiquetado(ruta: string, etiquetas: Record<string, string> = {}): void {
+  const tasa = 22050
+  const n = 12 * tasa
+  const info = Buffer.concat(
+    Object.entries(etiquetas).map(([clave, valor]) => {
+      const texto = Buffer.from(`${valor}\0`, 'utf8')
+      const relleno = texto.length % 2 ? Buffer.from([0]) : Buffer.alloc(0)
+      const cab = Buffer.alloc(8)
+      cab.write(clave, 0)
+      cab.writeUInt32LE(texto.length, 4)
+      return Buffer.concat([cab, texto, relleno])
+    })
+  )
+  const lista =
+    info.length === 0
+      ? Buffer.alloc(0)
+      : Buffer.concat([Buffer.from('LIST'), Buffer.alloc(4), Buffer.from('INFO'), info])
+  if (lista.length) lista.writeUInt32LE(lista.length - 8, 4)
+  const b = Buffer.alloc(44 + n * 2)
+  b.write('RIFF', 0)
+  b.writeUInt32LE(36 + n * 2 + lista.length, 4)
+  b.write('WAVEfmt ', 8)
+  b.writeUInt32LE(16, 16)
+  b.writeUInt16LE(1, 20)
+  b.writeUInt16LE(1, 22)
+  b.writeUInt32LE(tasa, 24)
+  b.writeUInt32LE(tasa * 2, 28)
+  b.writeUInt16LE(2, 32)
+  b.writeUInt16LE(16, 34)
+  b.write('data', 36)
+  b.writeUInt32LE(n * 2, 40)
+  for (let i = 0; i < n; i++)
+    b.writeInt16LE(Math.round(8000 * Math.sin((2 * Math.PI * 440 * i) / tasa)), 44 + i * 2)
+  writeFileSync(ruta, Buffer.concat([b.subarray(0, 36), lista, b.subarray(36)]))
+}
+
+suite('capturas de revisión de 0.2.2 · feature 6', F6, '0.2.2-feature-6', ({ intentar, foto }) => {
+  const nombre = (estado: string) => `anadir-1280x800-100-${estado}`
+  const ID_YT = 'Marea_00001'
+
+  /**
+   * Biblioteca inventada para el autocompletado: «Quimera» (3 canciones, álbumes «Querido…» ×2 y
+   * «Cartas al mar»), «Quimera Azul» (1) y «Queen» (3, de la semilla de temas).
+   */
+  function biblioteca(datos: string): void {
+    const poner = (n: number, artista: string, album: string | null): void =>
+      reescribir(datos, n, {
+        metadatos: { ...leerCancion(datos, idSemilla(n)).metadatos, artista, album }
+      })
+    poner(1, 'Quimera', 'Querido…')
+    poner(2, 'Quimera', 'Querido…')
+    poner(3, 'Quimera', 'Cartas al mar')
+    poner(4, 'Quimera Azul', null)
+    poner(5, 'Queso de Luna', null)
+    poner(6, 'Quena Roja', null)
+  }
+
+  async function conAnadir(
+    nombreApp: string,
+    { wav }: { wav?: string },
+    prueba: (v: Page, app: ElectronApplication, datos: string) => Promise<void>
+  ): Promise<void> {
+    const datos = crearTemporal(nombreApp)
+    await sembrar(datos, { temas: true })
+    biblioteca(datos)
+    const falsos = join(datos, '..', `falsos-${nombreApp}-${Date.now()}`)
+    mkdirSync(falsos, { recursive: true })
+    cpSync(join(process.cwd(), 'e2e', 'fixtures', 'youtube'), falsos, { recursive: true })
+    writeFileSync(
+      join(falsos, `${ID_YT}.json`),
+      JSON.stringify({
+        id: ID_YT,
+        _type: 'video',
+        title: 'Marea baja',
+        channel: 'QuimeraVEVO',
+        uploader: 'QuimeraVEVO',
+        duration: 20,
+        live_status: 'not_live',
+        is_live: false,
+        bytes_por_segundo: 200000,
+        ritmo: 3
+      })
+    )
+    cpSync(join(falsos, 'Normal_0001.jpg'), join(falsos, `${ID_YT}.jpg`))
+    const ruta = join(datos, 'config.json')
+    const config = JSON.parse(readFileSync(ruta, 'utf8'))
+    config.aviso_youtube_aceptado = new Date().toISOString()
+    writeFileSync(ruta, JSON.stringify(config))
+    const app = await electron.launch({
+      args: ['.'],
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        SHINOBI_DATOS: datos,
+        SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
+        SHINOBI_SILENCIAR_AUDIO: '1',
+        SHINOBI_LRCLIB_URL: 'http://127.0.0.1:1',
+        SHINOBI_YTDLP_FALSO: falsos,
+        ...(wav ? { SHINOBI_DIALOGO_PRUEBAS: wav } : {})
+      }
+    })
+    try {
+      const v = await app.firstWindow()
+      await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      await ponerTamano(app, 1280, 800, v)
+      await prueba(v, app, datos)
+    } finally {
+      await app.close().catch(() => undefined)
+    }
+  }
+
+  async function revisarArchivo(v: Page): Promise<void> {
+    await v.getByRole('button', { name: 'Añadir canción' }).first().click()
+    await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+    await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
+      timeout: 40_000
+    })
+  }
+
+  function wavEn(carpeta: string, archivo: string, etiquetas?: Record<string, string>): string {
+    const dir = join(carpeta, '..', `entrada-f6-${Date.now()}`)
+    mkdirSync(dir, { recursive: true })
+    const ruta = join(dir, archivo)
+    escribirWavEtiquetado(ruta, etiquetas)
+    return ruta
+  }
+
+  test('datos con procedencia F6-N11', async () => {
+    await intentar('datos-con-procedencia', async () => {
+      const wav = wavEn(crearTemporal('cap022-f6-wav1'), 'Quimera - Marea baja.wav', {
+        INAM: 'Marea baja',
+        IPRD: 'Querido...'
+      })
+      await conAnadir('cap022-f6-procedencia', { wav }, async (v) => {
+        await revisarArchivo(v)
+        await expect(v.getByLabel('Álbum')).toHaveValue('Querido…')
+        await expect(v.getByText('Como en tu biblioteca')).toBeVisible()
+        await expect(v.getByText('De las etiquetas del archivo')).toBeVisible()
+        await expect(v.getByText('Del nombre del archivo')).toBeVisible()
+        await v.getByRole('button', { name: 'Continuar' }).scrollIntoViewIfNeeded()
+        await foto(v, nombre('datos-con-procedencia'))
+      })
+    })
+  })
+
+  test('dato dudoso F6-N11', async () => {
+    await intentar('dato-dudoso', async () => {
+      await conAnadir('cap022-f6-canal', {}, async (v) => {
+        await v.getByRole('button', { name: 'Añadir canción' }).first().click()
+        await v.getByRole('radio', { name: 'Enlace de YouTube' }).click()
+        await v.getByLabel('Enlace del vídeo').fill(`https://www.youtube.com/watch?v=${ID_YT}`)
+        await v.getByRole('button', { name: 'Buscar vídeo' }).click()
+        await expect(
+          v.getByRole('heading', { name: 'Revisa los datos de la canción' })
+        ).toBeVisible({ timeout: 40_000 })
+        await expect(v.getByLabel('Artista')).toHaveValue('Quimera')
+        await expect(v.getByText('Del nombre del canal: compruébalo')).toBeVisible()
+        await v.getByRole('button', { name: 'Descargar y continuar' }).scrollIntoViewIfNeeded()
+        await foto(v, nombre('dato-dudoso'))
+      })
+    })
+    await intentar('dato-dudoso-archivo', async () => {
+      const wav = wavEn(crearTemporal('cap022-f6-wav2'), 'audio_final2.wav')
+      await conAnadir('cap022-f6-nombre', { wav }, async (v) => {
+        await revisarArchivo(v)
+        await expect(v.getByLabel('Título')).toHaveValue('audio final2')
+        await expect(v.getByText('Sin artista es más difícil encontrar la letra.')).toBeVisible()
+        await v.getByRole('button', { name: 'Continuar' }).scrollIntoViewIfNeeded()
+        await foto(v, nombre('dato-dudoso-archivo'))
+      })
+    })
+  })
+
+  test('autocompletado y unificar F6-N11', async () => {
+    const wav = wavEn(crearTemporal('cap022-f6-wav3'), 'Quimera - Marea baja.wav')
+    await intentar('autocompletado', () =>
+      conAnadir('cap022-f6-auto', { wav }, async (v) => {
+        await revisarArchivo(v)
+        const artista = v.getByRole('combobox', { name: 'Artista' })
+        await artista.fill('')
+        await artista.pressSequentially('que')
+        await expect(v.getByRole('option')).toHaveCount(3)
+        await expect(v.getByRole('option', { name: 'Queen, 3 canciones' })).toBeVisible()
+        await foto(v, nombre('autocompletado'))
+      })
+    )
+    await intentar('unificar', () =>
+      conAnadir('cap022-f6-unificar', { wav }, async (v) => {
+        await revisarArchivo(v)
+        await v.getByLabel('Álbum').fill('Querido...')
+        await v.keyboard.press('Tab')
+        await expect(
+          v.getByText('¿Te refieres a «Querido…», que ya está en tu biblioteca?')
+        ).toBeVisible()
+        await foto(v, nombre('unificar'))
+      })
+    )
+  })
+
+  test('Editar datos de la Biblioteca (F6-N9)', async () => {
+    await intentar('editar-datos', () =>
+      conAnadir('cap022-f6-editar', {}, async (v) => {
+        await v.getByRole('searchbox', { name: /^Buscar título/ }).fill('Canción lista')
+        const t = tarjeta(v, 'Canción lista')
+        await t.getByRole('button', { name: 'Más acciones de «Canción lista»' }).click()
+        await v.getByRole('menuitem', { name: 'Editar datos' }).click()
+        const d = v.getByRole('dialog', { name: 'Editar datos' })
+        const artista = d.getByRole('combobox', { name: 'Artista' })
+        await artista.fill('')
+        await artista.pressSequentially('que')
+        await expect(v.getByRole('option', { name: 'Queen, 3 canciones' })).toBeVisible()
+        await expect(artista).toHaveAttribute('role', 'combobox')
+        await foto(v, 'biblioteca-1280x800-100-editar-datos-autocompletado')
+        await v.keyboard.press('Escape')
+        await expect(d).toBeVisible()
+        await d.getByLabel('Álbum (opcional)').fill('Querido...')
+        await v.keyboard.press('Tab')
+        await expect(
+          v.getByText('¿Te refieres a «Querido…», que ya está en tu biblioteca?')
+        ).toBeVisible()
+        await foto(v, 'biblioteca-1280x800-100-editar-datos-unificar')
+        await artista.fill('Quimera')
+        await v.keyboard.press('Escape')
+        await expect(v.getByRole('option')).toHaveCount(0)
+        await expect(d.getByRole('button', { name: 'Intercambiar título y artista' })).toBeVisible()
+        await d.getByRole('button', { name: 'Intercambiar título y artista' }).click()
+        await expect(d.getByLabel('Título')).toHaveValue('Quimera')
+        await expect(artista).toHaveValue('Canción lista')
+        await foto(v, 'biblioteca-1280x800-100-editar-datos-intercambio')
+      })
+    )
+  })
+})

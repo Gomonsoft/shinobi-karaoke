@@ -54,8 +54,34 @@
 .tarjeta .corregida {
   color: var(--exito);
 }
+.filas button,
 .bien {
+  height: 32px;
+  min-height: 32px;
+}
+.bien {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 1px solid var(--acento-texto);
   font-weight: 600;
+}
+.tecla {
+  color: var(--texto-3);
+  font: inherit;
+  font-size: var(--t-pequeno);
+  font-weight: 400;
+}
+.tarjeta .finTexto {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-1);
+}
+.finTexto svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--exito);
 }
 .marcaPanel {
   display: grid;

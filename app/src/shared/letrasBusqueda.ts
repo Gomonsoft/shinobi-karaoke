@@ -23,12 +23,19 @@ export const URL_BASE_LRCLIB = 'https://lrclib.net'
  * URL base efectiva de LRCLIB. Empaquetada se ignora la variable. Sin empaquetar solo se admite
  * `http://127.0.0.1:<puerto>` y `http://lrclib.invalid` (para probar `SIN_CONEXION`); cualquier otro
  * valor se descarta y se usa la URL real. Devuelve la URL sin barra final.
+ * Defensa de los E2E (`SHINOBI_E2E=1`, `e2e`): sin empaquetar y sin una URL admitida, nunca la real:
+ * `http://lrclib.invalid` (sin conexión). Empaquetada, `e2e` se ignora.
  */
-export function urlBaseLrclib(valor: string | undefined, empaquetada: boolean): string {
-  if (empaquetada || !valor) return URL_BASE_LRCLIB
+export function urlBaseLrclib(
+  valor: string | undefined,
+  empaquetada: boolean,
+  e2e = false
+): string {
+  const real = !empaquetada && e2e ? 'http://lrclib.invalid' : URL_BASE_LRCLIB
+  if (empaquetada || !valor) return real
   const t = valor.trim().replace(/\/+$/, '')
   if (/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(t) || t === 'http://lrclib.invalid') return t
-  return URL_BASE_LRCLIB
+  return real
 }
 
 export const SINCRONIAS = ['palabra', 'linea', 'texto'] as const

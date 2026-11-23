@@ -8,7 +8,8 @@ import {
   MODALIDADES,
   NOMBRES_PASO,
   PASOS_PREPARACION,
-  RESULTADOS_BUSQUEDA
+  RESULTADOS_BUSQUEDA,
+  MOTIVOS_NO_ELIGE
 } from './cancion'
 import { CODIGOS_ERROR } from './errores'
 import { compilacionSchema } from './compilacion'
@@ -73,6 +74,7 @@ import {
   quitarColaSchema,
   repetirSesionSchema,
   sesionInicialSchema,
+  solicitudCierreSchema,
   type SolicitudCierreIpc,
   siguienteSesionSchema,
   transporteSesionSchema,
@@ -494,10 +496,19 @@ export const resumenPreparacionSchema = z.object({
   estado: z.enum(ESTADOS_PREPARACION),
   paso: z.enum(PASOS_PREPARACION).nullable(),
   busqueda: z
-    .object({ resultado: z.enum(RESULTADOS_BUSQUEDA), candidatas: z.number().int().nonnegative() })
+    .object({
+      resultado: z.enum(RESULTADOS_BUSQUEDA),
+      candidatas: z.number().int().nonnegative(),
+      /** Código de ADR 0005 de un fallo de búsqueda (`SIN_CONEXION`, `SERVICIO_NO_DISPONIBLE`…). */
+      motivo: z.string().nullable(),
+      /** Por qué no se eligió la letra (`let.prep.motivo.*`). */
+      noElige: z.enum(MOTIVOS_NO_ELIGE).nullable()
+    })
     .nullable(),
   /** Líneas dudosas pendientes (feature 11 las mantiene al día). */
   dudosas: z.number().int().nonnegative(),
+  /** Las «importantes» (F11-E12); si faltan en el archivo, el resumen repite `dudosas`. */
+  dudosasImportantes: z.number().int().nonnegative().optional(),
   revisada: z.boolean(),
   /** La eligió la app y no la ha cambiado el usuario (línea «Letra elegida automáticamente»). */
   eleccionAutomatica: z.boolean(),
@@ -1547,6 +1558,10 @@ export const CONTRATO = {
     res: resumenCancionSchema
   },
   [CANALES.biblioteca.volverABorrador]: { args: unId, res: resumenCancionSchema },
+  [CANALES.biblioteca.marcarPreparacionRevisada]: {
+    args: unId,
+    res: resumenCancionSchema.nullable()
+  },
   [CANALES.biblioteca.eliminar]: { args: unId, res: z.void() },
   [CANALES.biblioteca.mostrarEnCarpeta]: { args: unId, res: z.void() },
   [CANALES.trabajos.listar]: { args: vacio, res: z.array(trabajoSchema) },
@@ -1650,6 +1665,7 @@ export const CONTRATO = {
   [CANALES.app.guardadoPendiente]: { args: z.tuple([z.boolean()]), res: z.void() },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
   [CANALES.app.salir]: { args: vacio, res: z.void() },
+  [CANALES.app.solicitudCierrePendiente]: { args: vacio, res: solicitudCierreSchema.nullable() },
   // --- Fase 4 (ADR 0017 §11) ---
   [CANALES.pantallas.listar]: { args: vacio, res: listaPantallasIpcSchema },
   [CANALES.sesion.estado]: { args: vacio, res: estadoSesionIpcSchema },
@@ -1860,6 +1876,8 @@ export interface ApiShinobi {
     /** Vuelve a comprobar las pistas de la canción, que puede pasar a Dañada. */
     comprobarPistas(id: string): Promise<ResumenCancionIpc | null>
     volverABorrador(id: string): Promise<ResumenCancionIpc>
+    /** Cierra el aviso de la preparación («Elegimos esta letra por ti»): `preparacion.revisada = true`. */
+    marcarPreparacionRevisada(id: string): Promise<ResumenCancionIpc | null>
     eliminar(id: string): Promise<void>
     mostrarEnCarpeta(id: string): Promise<void>
     /** Artistas y álbumes existentes con su clave, del índice en memoria (ADR 0025 §6). */
@@ -1991,6 +2009,8 @@ export interface ApiShinobi {
     alCambiar(cb: (cambio: CambioPreparacionIpc) => void): () => void
     alTanda(cb: (tanda: TandaPreparacionIpc | null) => void): () => void
     alReanudar(cb: (evento: { total: number }) => void): () => void
+    /** El usuario pulsó la notificación del sistema de una tanda terminada. */
+    alAbrirResultado(cb: () => void): () => void
   }
   /** Paquetes de canción, copia de seguridad y restauración (ADR 0027). */
   copias: {
@@ -2155,6 +2175,8 @@ export interface ApiShinobi {
     confirmarCierre(): Promise<void>
     /** Sale de la aplicación (en macOS, `window.close()` deja la app en el Dock). */
     salir(): Promise<void>
+    /** La solicitud de cierre aún sin responder, o `null` (por si llegó antes de suscribirse). */
+    solicitudCierrePendiente(): Promise<SolicitudCierreIpc | null>
     /** Main pide confirmar el cierre mientras hay una instalación en curso. */
     alSolicitudCierre(cb: (motivo: SolicitudCierreIpc) => void): () => void
   }

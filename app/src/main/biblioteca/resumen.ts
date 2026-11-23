@@ -76,9 +76,15 @@ function resumenPreparacion(c: Cancion): ResumenPreparacionIpc | null {
     estado: p.estado,
     paso: p.paso,
     busqueda: p.busqueda
-      ? { resultado: p.busqueda.resultado, candidatas: p.busqueda.candidatas }
+      ? {
+          resultado: p.busqueda.resultado,
+          candidatas: p.busqueda.candidatas,
+          motivo: p.busqueda.motivo,
+          noElige: p.busqueda.no_elige ?? null
+        }
       : null,
     dudosas: p.dudosas,
+    dudosasImportantes: p.dudosas_importantes ?? p.dudosas,
     revisada: p.revisada,
     eleccionAutomatica: p.eleccion?.por === 'app',
     desfaseCorregido: c.letra?.desfase_corregido_ms !== undefined

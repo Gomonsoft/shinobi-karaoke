@@ -34,6 +34,7 @@ import {
   type Comprobacion
 } from './comprobacion'
 import { FilaConIcono } from './FilaConIcono'
+import { LP, type MotivoElige } from './preparacion'
 import { filasDePrevia } from './modelo'
 import type { ConfirmarSustituir } from './sustituir'
 import { TEXTO } from './textos'
@@ -115,12 +116,15 @@ function Opcion({
   candidato,
   comprobacion,
   seleccionado,
+  actual,
   onElegir
 }: {
   id: string
   candidato: CandidatoLetra
   comprobacion: Comprobacion
   seleccionado: boolean
+  /** Es la letra que ya tiene la canción (`let.prep.actual`). */
+  actual?: boolean
   onElegir: () => void
 }) {
   const duracion = formatearDuracion(candidato.duracion_ms)
@@ -139,6 +143,7 @@ function Opcion({
     >
       <span className={estilos.opcionTitulo}>
         {candidato.titulo} — {candidato.artista}
+        {actual && <strong> · {LP.actual}</strong>}
       </span>
       {detalle && <span className={estilos.opcionDetalle}>{detalle}</span>}
       <span className={`${estilos.insignia} ${estilos[`sync_${visible}`]}`}>
@@ -207,6 +212,19 @@ interface Props {
   separada?: boolean
   /** Duración de la canción, para leer los picos y evaluar el encaje. */
   duracionMs?: number
+  /** Lo que la preparación desatendida ya hizo con esta canción (docs/ux/05 · Feature 5). */
+  preparacion?: {
+    /** La búsqueda ya dio este resultado: se muestra su banner sin repetirla. */
+    previo?: 'sin_letra' | 'instrumental'
+    /** La preparación está buscando ahora mismo: se espera a esa búsqueda, no se lanza otra. */
+    esperando?: boolean
+    /** «Elige la letra»: aviso con su motivo. */
+    elige?: boolean
+    /** Por qué main no eligió (`busqueda.noElige`); sin dato, «no está claro». */
+    noElige?: MotivoElige | null
+    /** Letra que ya tiene la canción: se marca con `let.prep.actual` y se selecciona. */
+    letraActualId?: number | null
+  }
 }
 
 /** Wireframe A de docs/ux/05: búsqueda en LRCLIB, resultados y vista previa. */
@@ -220,7 +238,8 @@ export function BusquedaLetra({
   onPegar,
   onImportar,
   separada = false,
-  duracionMs = 0
+  duracionMs = 0,
+  preparacion
 }: Props) {
   const idLista = useId()
   const [titulo, setTitulo] = useState(tituloInicial)
@@ -234,6 +253,7 @@ export function BusquedaLetra({
   const refTitulo = useRef<HTMLInputElement>(null)
   const refLista = useRef<HTMLDivElement>(null)
   const refEditor = useRef<'auto' | 'manual'>('auto')
+  const letraActualId = preparacion?.letraActualId ?? null
 
   const lanzar = useCallback(
     async (t: string, a: string, usarCache: boolean, origen: 'auto' | 'manual') => {
@@ -250,7 +270,9 @@ export function BusquedaLetra({
           usarCache
         })
         if (mia !== secuencia.current) return
-        setIndice(0)
+        // La letra que ya tiene la canción llega seleccionada (spec 05 · Feature 5).
+        const actual = resultado.candidatos.findIndex((c) => c.lrclib_id === letraActualId)
+        setIndice(actual >= 0 ? actual : 0)
         setFase({ tipo: 'listo', resultado })
       } catch (err) {
         if (mia !== secuencia.current) return
@@ -260,12 +282,22 @@ export function BusquedaLetra({
         setFase({ tipo: 'error', codigo, mensaje })
       }
     },
-    [cancionId]
+    [cancionId, letraActualId]
   )
 
-  // Al entrar sin letra, la búsqueda se lanza sola (con caché de la sesión).
+  // Al entrar sin letra, la búsqueda se lanza sola (con caché de la sesión), salvo que la preparación
+  // ya tenga un resultado sin candidatas (se muestra su banner) o esté buscando (se espera a esa).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (preparacion?.previo) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFase({
+        tipo: 'error',
+        codigo: preparacion.previo === 'instrumental' ? 'INSTRUMENTAL' : 'LETRA_NO_ENCONTRADA',
+        mensaje: ''
+      })
+      return
+    }
+    if (preparacion?.esperando) return
     void lanzar(tituloInicial, artistaInicial, !sinCacheInicial, 'auto')
     return () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,6 +306,18 @@ export function BusquedaLetra({
     // Solo al montar: los campos editados se buscan con "Buscar".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancionId])
+
+  // La preparación terminó de buscar mientras mirábamos «Buscando la letra…»: se lee su resultado.
+  const esperaba = useRef(preparacion?.esperando === true)
+  const esperando = preparacion?.esperando === true
+  useEffect(() => {
+    if (esperaba.current && !esperando && !preparacion?.previo) {
+      void lanzar(tituloInicial, artistaInicial, true, 'auto')
+    }
+    esperaba.current = esperando
+    // Solo reacciona al cambio de `esperando`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esperando])
 
   // Encajes llegados por `letras:encaje` (los picos terminaron después de buscar): se muestran en vivo
   // sin reordenar la lista ni mover la selección (spec 05, «La comprobación llega después»).
@@ -479,6 +523,11 @@ export function BusquedaLetra({
           <strong>{TEXTO.errorGenerico}</strong> {fase.mensaje}
         </AvisoEnLinea>
       )}
+      {preparacion?.elige && candidatos.length > 0 && (
+        <AvisoEnLinea tipo="info">
+          <strong>{LP.elige}</strong> {LP.eligeCuerpo(LP.motivo[preparacion?.noElige ?? 'duda'])}
+        </AvisoEnLinea>
+      )}
       {fase.tipo === 'listo' && candidatos.length > 0 && fase.resultado.instrumental && (
         <AvisoEnLinea tipo="aviso">
           <strong>{TEXTO.avisoInstrumentalConCandidatos.titulo}</strong>
@@ -543,6 +592,7 @@ export function BusquedaLetra({
                   candidato={c}
                   comprobacion={comprobaciones[i]!}
                   seleccionado={i === indice}
+                  actual={letraActualId !== null && c.lrclib_id === letraActualId}
                   onElegir={() => setIndice(i)}
                 />
               ))}

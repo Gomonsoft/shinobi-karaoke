@@ -176,7 +176,25 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       lineasSinSincronizar: pendientes,
       incompleta: cancion.estado === 'lista' && pendientes > 0,
       danada: opciones.danada ?? false,
-      motivo: null
+      motivo: null,
+      preparacion: cancion.preparacion
+        ? {
+            estado: cancion.preparacion.estado,
+            paso: cancion.preparacion.paso,
+            busqueda: cancion.preparacion.busqueda
+              ? {
+                  resultado: cancion.preparacion.busqueda.resultado,
+                  candidatas: cancion.preparacion.busqueda.candidatas,
+                  motivo: cancion.preparacion.busqueda.motivo,
+                  noElige: cancion.preparacion.busqueda.no_elige ?? null
+                }
+              : null,
+            dudosas: cancion.preparacion.dudosas,
+            revisada: cancion.preparacion.revisada,
+            eleccionAutomatica: cancion.preparacion.eleccion?.por === 'app',
+            desfaseCorregido: cancion.letra?.desfase_corregido_ms !== undefined
+          }
+        : null
     }
   }
 
@@ -205,6 +223,12 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async comprobarPistas(id) {
         registrar('biblioteca.comprobarPistas', id)
         return id === cancion.id ? resumen() : null
+      },
+      async marcarPreparacionRevisada(id) {
+        registrar('biblioteca.marcarPreparacionRevisada', id)
+        if (id !== cancion.id) return null
+        if (cancion.preparacion) cancion.preparacion.revisada = true
+        return resumen()
       },
       async obtener(id) {
         registrar('biblioteca.obtener', id)

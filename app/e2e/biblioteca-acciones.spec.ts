@@ -61,7 +61,8 @@ test('volver a borrador y eliminar una canción de la semilla', async () => {
     await v.getByRole('menuitem', { name: 'Volver a borrador' }).click()
     await expect(v.getByRole('dialog', { name: '¿Volver a borrador?' })).toBeVisible()
     await v.getByRole('button', { name: 'Volver a borrador' }).click()
-    await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Borrador\./)
+    // Una lista a la que no le falta nada, vuelta a borrador, es «Lista para revisar» (ADR 0025 §1).
+    await expect(tarjeta('Canción lista')).toHaveAccessibleName(/Lista para revisar\./)
     const json = JSON.parse(
       readFileSync(join(datos, 'biblioteca', idLista, 'cancion.json'), 'utf8')
     )

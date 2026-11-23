@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Cancion } from './cancion'
 import {
+  aplicaPreparar,
   estadoPreparacion,
   recuentosBandeja,
   estaIncompleta,
@@ -234,5 +235,25 @@ describe('recuentosBandeja', () => {
       { ...r(null), danada: true, pasos: null }
     ])
     expect(n).toEqual({ listasParaRevisar: 1, esperanLetra: 5, conError: 1 })
+  })
+})
+
+describe('aplicaPreparar', () => {
+  it('borrador sin letra y con fuente: busca, comprueba y ajusta los fines', () => {
+    const c = sinLetra()
+    expect(aplicaPreparar(c)).toEqual({
+      aplica: true,
+      pasos: ['buscando_letra', 'comprobando', 'ajustando_fines']
+    })
+  })
+  it('lista, sin fuente o con letra del usuario: no aplica y dice por qué', () => {
+    const l = lista()
+    expect(aplicaPreparar(l)).toMatchObject({ aplica: false, motivo: 'YA_LISTA' })
+    const sf = sinLetra()
+    sf.pasos.fuente.estado = 'pendiente'
+    expect(aplicaPreparar(sf)).toMatchObject({ aplica: false, motivo: 'SIN_FUENTE' })
+    const b = lista()
+    b.estado = 'borrador'
+    expect(aplicaPreparar(b)).toMatchObject({ aplica: false, motivo: 'NADA_QUE_HACER' })
   })
 })

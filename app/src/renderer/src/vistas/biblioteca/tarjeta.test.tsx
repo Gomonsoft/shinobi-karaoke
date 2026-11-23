@@ -120,7 +120,10 @@ describe('línea de un Borrador', () => {
         }
       })
     )
-    expect(d.linea?.texto).toBe('Lista para revisar')
+    expect(d.insignia).toBe('revisar')
+    expect(d.textoEstado).toBe('Lista para revisar')
+    expect(d.accion).toBe('revisar')
+    expect(d.secundaria).toBe('probar')
   })
 
   it('un trabajo activo tiene prioridad sobre la letra', () => {

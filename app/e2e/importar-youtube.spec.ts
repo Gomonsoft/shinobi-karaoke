@@ -346,7 +346,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
     }
   })
 
-  test('cerrar la app durante la descarga: queda interrumpida y Reintentar la completa', async () => {
+  test('cerrar la app durante la descarga: al reabrir se retoma sola y termina (ADR 0025 §5)', async () => {
     const env = preparar('yt-cierre')
     ajustar(env.falsos, NORMAL, { ritmo: 60 })
     const app = await lanzar(env)
@@ -357,16 +357,15 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
     const cierre = app.close()
     await v.getByRole('dialog').getByRole('button', { name: 'Cerrar de todos modos' }).click()
     await cierre
+    // El diario deja la descarga para el siguiente arranque.
+    const diario = JSON.parse(readFileSync(join(env.datos, 'trabajos', 'pendientes.json'), 'utf8'))
+    expect(diario).toEqual([expect.objectContaining({ tipo: 'fuente', enCurso: true })])
 
     ajustar(env.falsos, NORMAL, { ritmo: 1 })
     const app2 = await lanzar(env)
     try {
-      const v2 = await app2.firstWindow()
-      const tarjeta = v2.getByRole('article', { name: /^Tema interrumpido,/ })
-      await expect(tarjeta).toContainText('Interrumpido')
-      await v2.getByRole('button', { name: 'Reintentar «Tema interrumpido»' }).click()
-      // Desde 0070, Reintentar relanza el paso sin salir de la Biblioteca.
-      await expect(v2.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      await app2.firstWindow()
+      // Sin pulsar nada: la descarga empieza de nuevo (yt-dlp no reanuda) y termina.
       await expect
         .poll(() => leerCancion(env.datos, canciones(env.datos)[0]!).pasos.fuente.estado, {
           timeout: 60_000
@@ -374,8 +373,6 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         .toBe('completado')
       const [id, ...resto] = canciones(env.datos)
       expect(resto).toEqual([])
-      const json = leerCancion(env.datos, id!)
-      expect(json.pasos.fuente.estado).toBe('completado')
       expect(existsSync(join(env.datos, 'biblioteca', id!, 'fuente', 'mezcla.flac'))).toBe(true)
     } finally {
       await cerrar(app2)

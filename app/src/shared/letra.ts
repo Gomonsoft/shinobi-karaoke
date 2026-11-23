@@ -285,6 +285,18 @@ export const letraSchema = z
     desfase_corregido_ms: z.number().int().optional().catch(undefined),
     /** Se quitó una corrección: ni la comprobación diferida ni la preparación la vuelven a corregir sola (ADR 0024, pregunta 0207). */
     desfase_descartado: z.literal(true).optional().catch(undefined),
+    /**
+     * Metadatos del registro de LRCLIB del que viene la letra (ADR 0025, revisión de la pregunta 0220):
+     * título, artista y álbum, **no** el texto. Sirven para la sugerencia «Usar estos datos». Lectura tolerante.
+     */
+    datos_lrclib: z
+      .object({
+        titulo: z.string().max(500),
+        artista: z.string().max(500),
+        album: z.string().max(500).nullable().catch(null)
+      })
+      .optional()
+      .catch(undefined),
     /** Idioma de la letra (ADR 0028 §3.3): `es`, `en`… */
     idioma: z.string().min(2).max(16).optional().catch(undefined),
     /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
