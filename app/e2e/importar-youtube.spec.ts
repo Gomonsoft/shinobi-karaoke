@@ -417,11 +417,14 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       expect(leerCancion(env.datos, id!).pasos.fuente.error.codigo).toBe('YOUTUBE_BLOQUEADO')
       const reintentar = v.getByRole('button', { name: 'Reintentar' })
       await expect(reintentar).toBeVisible()
-      await reintentar.click()
-      // Sigue bloqueado: vuelve a fallar con el mismo mensaje.
-      await expect(v.getByText('YouTube no permite la descarga ahora mismo.')).toBeVisible({
-        timeout: 60_000
-      })
+      // Sigue bloqueado: vuelve a fallar con el mismo mensaje. Con la CPU ocupada el clic puede perderse o el
+      // mensaje cambiar de pantalla entre sondeos: si «Reintentar» sigue ahí sin el mensaje, se pulsa otra vez.
+      await expect(async () => {
+        if (await reintentar.isVisible()) await reintentar.click()
+        await expect(v.getByText('YouTube no permite la descarga ahora mismo.')).toBeVisible({
+          timeout: 15_000
+        })
+      }).toPass({ timeout: 90_000, intervals: [0] })
     } finally {
       await cerrar(app)
     }
