@@ -389,9 +389,27 @@
   width: 180px;
 }
 
+/* Duración (revisión 2026-11-23, L1): 56 px de contenido MÁS el relleno de la celda, para que la cabecera
+   se vea entera, y alineada a la derecha como los tiempos. */
 .tablaLote th:nth-child(5),
 .tablaLote td:nth-child(5) {
-  width: 56px;
+  box-sizing: content-box;
+  /* 56 px de la spec y lo justo para que «Duración» (negrita) quepa entera sin invadir el relleno. */
+  width: 64px;
+}
+
+.tablaLote th.celdaDura {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Cada duración, centrada en el alto de los campos de su fila: misma línea base que ellos. */
+.duraTexto {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: var(--alto-boton);
+  font-variant-numeric: tabular-nums;
 }
 
 .celdaCasilla {

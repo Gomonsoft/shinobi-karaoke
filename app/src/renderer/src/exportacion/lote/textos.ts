@@ -28,12 +28,22 @@ export const EXP_LOTE = {
     if (tamano && tiempo) return `Ocuparán unos ${tamano} · tardarán ${tiempo}`
     return tamano ? `Ocuparán unos ${tamano}` : `Tardarán ${tiempo}`
   },
-  avisoExiste: (k: number, siExiste: 'numerar' | 'sustituir' | 'omitir'): string =>
-    siExiste === 'sustituir'
-      ? `${k} videos de esta carpeta se sustituirán cuando los nuevos estén terminados.`
-      : siExiste === 'omitir'
-        ? `${k} canciones no se exportarán porque ya tienen un video en esta carpeta.`
-        : `${k} de estas canciones ya tienen un video en esta carpeta: se guardarán con « (2)» en el nombre.`,
+  avisoExiste: (k: number, siExiste: 'numerar' | 'sustituir' | 'omitir'): string => {
+    const uno = k === 1
+    if (siExiste === 'sustituir') {
+      return uno
+        ? '1 video de esta carpeta se sustituirá cuando el nuevo esté terminado.'
+        : `${k} videos de esta carpeta se sustituirán cuando los nuevos estén terminados.`
+    }
+    if (siExiste === 'omitir') {
+      return uno
+        ? '1 canción no se exportará porque ya tiene un video en esta carpeta.'
+        : `${k} canciones no se exportarán porque ya tienen un video en esta carpeta.`
+    }
+    return uno
+      ? '1 de estas canciones ya tiene un video en esta carpeta: se guardará con « (2)» en el nombre.'
+      : `${k} de estas canciones ya tienen un video en esta carpeta: se guardarán con « (2)» en el nombre.`
+  },
   avisoEspacio: (tamano: string, libre: string): string =>
     `Puede que no quepan: ocuparán unos ${tamano} y quedan ${libre} libres en ese disco.`,
   muestra: 'Cada video usa el estilo de su canción.',
@@ -67,13 +77,15 @@ export const EXP_LOTE = {
       ? `Se exportaron ${n} videos · ${tamano} · tardó ${tiempo}`
       : `Se exportaron ${a} de ${n} videos · ${tamano} · tardó ${tiempo}`,
   enCarpeta: (carpeta: string): string => `En ${carpeta}`,
+  /** El título del error llega con inicial mayúscula y su punto: aquí va tras los dos puntos, en minúscula y sin él. */
   detenido: (titulo: string, explicacion: string): string =>
-    `El lote se detuvo: ${titulo}. ${explicacion}`,
+    `El lote se detuvo: ${titulo.replace(/\.+$/, '').replace(/^\p{Lu}/u, (c) => c.toLowerCase())}. ${explicacion}`,
   reintentar: 'Reintentar las fallidas',
   cambiarOpciones: 'Cambiar opciones',
   mostrar: 'Mostrar la carpeta',
-  /** Sin texto en la spec (pregunta 0316): toast cuando la carpeta del lote ya no está. */
-  carpetaNoExiste: 'La carpeta ya no está disponible.',
+  /** Toast cuando la carpeta del lote ya no está (spec 10, respuesta a la pregunta 0316). */
+  carpetaNoExiste: (carpeta: string): string =>
+    `La carpeta «${carpeta}» ya no está disponible. Puede que se haya movido o que el disco esté desconectado.`,
   cerrar: 'Cerrar',
   copiarDetalles: 'Copiar detalles',
   toast: (a: number, n: number): string =>

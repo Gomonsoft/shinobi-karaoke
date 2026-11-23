@@ -16,6 +16,7 @@ const tanda = (extra: Partial<TandaPreparacionIpc> = {}): TandaPreparacionIpc =>
   motivoPausa: null,
   estimacionMin: 6,
   descargasParadas: null,
+  separacionesParadas: null,
   canciones: ids.map((id, i) => ({
     id,
     resultado: i < 2 ? ('lista_para_revisar' as const) : null
@@ -187,6 +188,13 @@ describe('IndicadorActividad con cola de preparación', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar las descargas' }))
     expect(preparacion.reanudar).toHaveBeenCalled()
     act(() => emitir(tanda({ pausada: true, motivoPausa: 'RUNTIME_NO_DISPONIBLE' })))
+    fireEvent.click(screen.getByRole('button', { name: 'Reparar el motor de audio' }))
+    expect(ir).toHaveBeenCalledWith({ tipo: 'primer-arranque' })
+  })
+
+  it('sin motor de separación (0390) la cola sigue, con su aviso y «Reparar el motor» (texto de la parada total)', async () => {
+    const b = await pintar(tanda({ separacionesParadas: 'RUNTIME_NO_DISPONIBLE' }))
+    fireEvent.click(b)
     fireEvent.click(screen.getByRole('button', { name: 'Reparar el motor de audio' }))
     expect(ir).toHaveBeenCalledWith({ tipo: 'primer-arranque' })
   })

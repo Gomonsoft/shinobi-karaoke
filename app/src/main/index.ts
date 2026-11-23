@@ -951,6 +951,13 @@ if (instanciaUnica)
           registrar: (nivel, mensaje) => registro.escribir(nivel, 'preparacion', mensaje)
         })
         colaPreparacion.arrancar()
+        // Reparar el motor (la instalación vuelve a `completa`) libera las separaciones paradas (0390).
+        let motorCompleto = config.obtener().instalacion.estado === 'completa'
+        config.suscribir((c) => {
+          const completo = c.instalacion.estado === 'completa'
+          if (completo && !motorCompleto) colaPreparacion?.motorReparado()
+          motorCompleto = completo
+        })
       }
       // `SHINOBI_PANTALLAS_SIMULADAS` sustituye `screen` en E2E; se ignora empaquetada (ADR 0017 §13).
       const pantallasSistema: ScreenLike =

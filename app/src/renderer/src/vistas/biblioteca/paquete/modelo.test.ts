@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { AJCOPIA, PAQ, recortarPorElCentro } from './textos'
 import type { ResultadoImportacionIpc, ResumenPaqueteIpc } from '@shared/ipc'
 import {
   bytesAImportar,
@@ -14,7 +15,6 @@ import {
   porCancionParaEnviar,
   type CancionPaquete
 } from './modelo'
-import { PAQ } from './textos'
 
 const c = (id: string, extra: Partial<CancionPaquete> = {}): CancionPaquete => ({
   id,
@@ -162,5 +162,22 @@ describe('fechas', () => {
   it('el tipo de resumen sigue siendo el del contrato', () => {
     const resumen: ResumenPaqueteIpc = { tipo: 'paquete', conAudio: true, canciones: [], temas: [] }
     expect(resumen.canciones).toEqual([])
+  })
+})
+
+describe('textos del paquete terminado y de la copia', () => {
+  it('recorta la ruta por el centro y deja intactas las cortas', () => {
+    expect(recortarPorElCentro('/Documentos')).toBe('/Documentos')
+    const larga = '/Users/persona/Documentos/Karaoke/Copias de seguridad/2026/noviembre/Videos'
+    const corta = recortarPorElCentro(larga)
+    expect(corta).toContain('…')
+    expect(corta.length).toBeLessThanOrEqual(44)
+    expect(corta.startsWith('/Users')).toBe(true)
+    expect(corta.endsWith('Videos')).toBe(true)
+  })
+  it('cifra y unidad del tamaño no se separan; la copia tiene sus propios textos', () => {
+    expect(PAQ.ok.resumen('a.shinobi', 1, '290 MB')).toBe('a.shinobi · 1 canción · 290\u00a0MB')
+    expect(AJCOPIA.segundoPlano).toBe('Puedes cerrar este cuadro: la copia se sigue creando.')
+    expect(AJCOPIA.toastCancelada).toBe('Copia cancelada. No se ha guardado nada.')
   })
 })

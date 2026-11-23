@@ -201,6 +201,27 @@ describe('editar datos de varias', () => {
     expect(motivos(r)).toEqual({ [a]: ['omitida', 'EDICION_BLOQUEADA'], [c]: ['hecho', undefined] })
   })
 
+  it('una canción que empieza a sonar a mitad del lote no se edita: omitida con EDICION_BLOQUEADA', async () => {
+    const a = await lista('Ana', null, 'Uno')
+    const c = await lista('Ana', null, 'Dos')
+    sesion.bloqueada = true
+    const s = new ServicioLotes({
+      biblioteca: b,
+      eliminar: (id) => b.eliminar(id),
+      sesion,
+      trabajosDe: () => 0,
+      // Tras la primera canción, la segunda pasa a sonar en la otra pantalla.
+      emitirProgreso: (p) => {
+        if (p.hechas === 1) sesion.activa = c
+      }
+    })
+    const prev = s.previsualizarDatos([a, c], { artista: 'Beto' })
+    expect(prev.canciones.every((x) => x.aplica)).toBe(true)
+    const r = await s.ejecutarDatos([a, c], { artista: 'Beto' }, prev.version)
+    expect(motivos(r)).toEqual({ [a]: ['hecho', undefined], [c]: ['omitida', 'EDICION_BLOQUEADA'] })
+    expect(b.obtener(c)?.metadatos.artista).toBe('Ana')
+  })
+
   it('una canción desconocida es omitida y una acción a la vez (EN_CURSO)', async () => {
     const a = await nueva('Ana', null)
     const s = lotes()

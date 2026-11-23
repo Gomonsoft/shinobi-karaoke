@@ -29,8 +29,13 @@ export const ARCHIVOS_AUDIO: readonly ArchivoCancion[] = [
   'pistas/instrumental.flac'
 ]
 
-/** Los ids de canción de la app son UUID, pero se admite cualquier nombre de carpeta seguro. */
-export const ID_CANCION_PAQUETE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+/**
+ * Los ids de canción de la app son UUID, pero se admite cualquier nombre de carpeta seguro. Se rechazan los
+ * nombres de dispositivo de Windows (`CON`, `NUL`, `COM1`…) en cualquier sistema, para que un paquete sea
+ * igual de válido (o inválido) en todos.
+ */
+export const ID_CANCION_PAQUETE =
+  /^(?!(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$)[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/i
 
 export const rutaEnPaquete = (id: string, archivo: ArchivoCancion): string =>
   `canciones/${id}/${archivo}`

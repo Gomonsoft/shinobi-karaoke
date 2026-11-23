@@ -1,3 +1,4 @@
+import { MOTIVO } from './acciones/textos'
 /** Textos de la Biblioteca para la preparación desatendida (docs/ux/02 · 0.2.2 · Feature 5). */
 const plural = (n: number, uno: string, varios: string): string => (n === 1 ? uno : varios)
 
@@ -65,6 +66,18 @@ export const BIB_PREP = {
   reanudar: 'Reanudar',
   noSePuedePreparar: (titulo: string) => `«${titulo}» no se puede preparar ahora.`
 } as const
+
+/** Texto de una canción que «Preparar» no aceptó: los motivos de «Ajustar los fines…» tienen el suyo (0316). */
+export const mensajeDeOmitida = (
+  omitidas: readonly { id: string; motivo?: string }[],
+  id: string,
+  titulo: string
+): string => {
+  const motivo = omitidas.find((o) => o.id === id)?.motivo
+  return motivo === 'SIN_VOZ' || motivo === 'SIN_PICOS'
+    ? MOTIVO[motivo]!
+    : BIB_PREP.noSePuedePreparar(titulo)
+}
 
 /** Clave de cada casilla de la bandeja (una sola activa a la vez). */
 export type CasillaBandeja = 'revisar' | 'letra' | 'error'

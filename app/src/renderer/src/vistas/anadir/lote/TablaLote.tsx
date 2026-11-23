@@ -211,7 +211,9 @@ const FilaLote = memo(function FilaLote({
             />
           )}
         </td>
-        <td className={estilos.celdaDura}>{dura}</td>
+        <td className={estilos.celdaDura}>
+          <span className={estilos.duraTexto}>{dura}</span>
+        </td>
       </tr>
       {(lineas.length > 0 || tituloVacio) && (
         <tr className={estilos.lineaLote}>
@@ -241,11 +243,15 @@ interface ParaTodasProps {
   marcadas: number
   opciones: OpcionCombo[]
   alAplicar(valor: string): void
+  /** Estado de apertura llevado por quien lo contiene (el aviso `add.lote.sinArtista` también lo abre). */
+  controlado?: { abierto: boolean; cambiar(abierto: boolean): void }
 }
 
 /** «Artista para todas…» / «Álbum para todas…»: un campo con autocompletado y [Aplicar a las {n} marcadas]. */
-function ParaTodas({ campo, marcadas, opciones, alAplicar }: ParaTodasProps) {
-  const [abierto, setAbierto] = useState(false)
+function ParaTodas({ campo, marcadas, opciones, alAplicar, controlado }: ParaTodasProps) {
+  const [abiertoPropio, setAbiertoPropio] = useState(false)
+  const abierto = controlado?.abierto ?? abiertoPropio
+  const setAbierto = controlado?.cambiar ?? setAbiertoPropio
   const [valor, setValor] = useState('')
   const ancla = useRef<HTMLButtonElement>(null)
   const etiqueta = campo === 'artista' ? LOTE.todasArtista : LOTE.todasAlbum
@@ -260,7 +266,7 @@ function ParaTodas({ campo, marcadas, opciones, alAplicar }: ParaTodasProps) {
         ref={ancla}
         aria-haspopup="dialog"
         aria-expanded={abierto}
-        onClick={() => setAbierto((a) => !a)}
+        onClick={() => setAbierto(!abierto)}
       >
         {etiqueta}
       </Boton>
@@ -324,6 +330,7 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
   const busquedaAutomatica = useBusquedaAutomatica()
   const [libreBytes, setLibreBytes] = useState(inicial.libreBytes)
   const [soloDudosas, setSoloDudosas] = useState(false)
+  const [artistaAbierto, setArtistaAbierto] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<{ titulo: string; cuerpo: string; detalles?: string } | null>(
     null
@@ -336,6 +343,11 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
   const libre = useRef(false)
 
   const comunes = useMemo(() => comunesDe(t.filas), [t.filas])
+  // Un solo aviso sobre la tabla en vez de marcar cada fila (0323 n.º 3); solo las que se pueden añadir.
+  const sinArtista = useMemo(
+    () => t.filas.filter((f) => f.problema === null && f.artista.trim() === '').length,
+    [t.filas]
+  )
   const resumen = useMemo(
     () => resumirTabla(t.filas, libreBytes, inicial.factorMinutos),
     [t.filas, libreBytes, inicial.factorMinutos]
@@ -502,7 +514,9 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
             : resumen.tiempo === null && t.filas.some((f) => f.marcada && f.duracionMs === null)
         )
   const anunciado = useRetrasado(
-    sinEspacio ? `${LOTE.sinEspacioTitulo} ${LOTE.sinEspacioCuerpo(caben ?? 0)}` : textoResumen,
+    sinEspacio
+      ? `${LOTE.sinEspacioTitulo(caben ?? 0)} ${LOTE.sinEspacioCuerpo(caben ?? 0)}`
+      : textoResumen,
     500
   )
   const demasiadas = textoDemasiadas(inicial)
@@ -525,6 +539,14 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
       </div>
 
       <div className={estilos.avisosLote}>
+        {sinArtista > 0 && (
+          <AvisoEnLinea
+            tipo="info"
+            accion={<Boton onClick={() => setArtistaAbierto(true)}>{LOTE.todasArtista}</Boton>}
+          >
+            {LOTE.sinArtista(sinArtista)}
+          </AvisoEnLinea>
+        )}
         {comunes.album || comunes.artista ? (
           <AvisoEnLinea tipo="info">{LOTE.comunes(comunes.album, comunes.artista)}</AvisoEnLinea>
         ) : null}
@@ -548,6 +570,7 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
           marcadas={resumen.marcadas}
           opciones={opciones.artistas}
           alAplicar={(v) => t.aplicarATodas('artista', v)}
+          controlado={{ abierto: artistaAbierto, cambiar: setArtistaAbierto }}
         />
         <ParaTodas
           campo="album"
@@ -609,7 +632,7 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
       <div className={estilos.pieLote}>
         {sinEspacio ? (
           <AvisoEnLinea tipo="error">
-            <strong>{LOTE.sinEspacioTitulo}</strong> {LOTE.sinEspacioCuerpo(caben ?? 0)}
+            <strong>{LOTE.sinEspacioTitulo(caben ?? 0)}</strong> {LOTE.sinEspacioCuerpo(caben ?? 0)}
           </AvisoEnLinea>
         ) : (
           <p className={estilos.resumenLote} data-resumen-lote>

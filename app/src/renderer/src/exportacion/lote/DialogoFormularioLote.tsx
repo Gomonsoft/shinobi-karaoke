@@ -256,7 +256,7 @@ export function DialogoFormularioLote({
                     </p>
                   )}
                   {((f.error && !errorCarpeta && textoError) || notas.length > 0) && (
-                    <div className={estilos.notas} data-notas>
+                    <div className={estilos.notasEnCuerpo} data-notas>
                       {f.error && !errorCarpeta && textoError && (
                         <AvisoEnLinea tipo="error">
                           <strong>{textoError.titulo}</strong> {textoError.explicacion}

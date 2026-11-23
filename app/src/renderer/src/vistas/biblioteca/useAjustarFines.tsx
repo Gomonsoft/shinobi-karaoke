@@ -9,7 +9,7 @@ import { copiarDetalles } from '../../soporte/detalles'
 import { tituloDeTarjeta } from './tarjeta'
 import { BIB_FINES } from './textosAjustarFines'
 import { tituloDeError } from './textosError'
-import { BIB_PREP } from './textosPreparacion'
+import { mensajeDeOmitida } from './textosPreparacion'
 
 /** ¿Se ofrece «Ajustar los fines…» en esta tarjeta? (`prepararFinesSinMarca` del resumen; main lo decide.) */
 export const puedeAjustarFines = (r: ResumenCancionIpc, hayTrabajo: boolean): boolean =>
@@ -79,7 +79,7 @@ export function useAjustarFines(resumenDe: (id: string) => ResumenCancionIpc | u
     try {
       const r = await window.shinobi.preparacion.preparar([id], { finesSinMarca: true })
       if (r.aceptadas.length === 0) {
-        mostrarToast({ tipo: 'info', mensaje: BIB_PREP.noSePuedePreparar(titulo) })
+        mostrarToast({ tipo: 'info', mensaje: mensajeDeOmitida(r.omitidas, id, titulo) })
         return
       }
       // Una Lista no tiene registro de preparación: main ya terminó y dice cuántos fines puso.

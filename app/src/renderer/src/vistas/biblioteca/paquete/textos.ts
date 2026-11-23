@@ -2,6 +2,13 @@
 
 const plural = (n: number, uno: string, varios: string): string => (n === 1 ? uno : varios)
 
+/** «/Users/…/Documentos/Videos» → «/Users/…/Videos» si pasa de `max` caracteres (la ruta entera va en `title`). */
+export function recortarPorElCentro(ruta: string, max = 44): string {
+  if (ruta.length <= max) return ruta
+  const cola = Math.ceil((max - 1) * 0.55)
+  return `${ruta.slice(0, max - 1 - cola)}…${ruta.slice(ruta.length - cola)}`
+}
+
 export const PAQ = {
   menuExportar: 'Exportar paquete…',
   /** `add.paquete.enlace` en «Añadir canción» (spec 03, F7-N15). */
@@ -56,8 +63,11 @@ export const PAQ = {
   },
   ok: {
     titulo: 'Paquete creado',
-    resumen: (nombre: string, n: number, tamano: string, carpeta: string) =>
-      `${nombre} · ${plural(n, '1 canción', `${n} canciones`)} · ${tamano} · En ${carpeta}`,
+    /** Nombre, canciones y tamaño en un renglón: cifra y unidad no se separan (espacio no separable). */
+    resumen: (nombre: string, n: number, tamano: string) =>
+      `${nombre} · ${plural(n, '1 canción', `${n} canciones`)} · ${tamano.replace(' ', '\u00a0')}`,
+    /** La carpeta, en otro renglón; se recorta por el centro y la ruta entera va en `title`. */
+    carpeta: (carpeta: string) => `En ${recortarPorElCentro(carpeta)}`,
     cerrar: 'Cerrar',
     mostrar: 'Mostrar en la carpeta',
     omitidas: (k: number) =>
@@ -259,6 +269,9 @@ export const AJCOPIA = {
   ligeraTitulo: 'Ligera, sin audio',
   ligeraAyuda:
     'Letras, tiempos, estilos y temas. El audio habría que volver a añadirlo canción a canción.',
+  /** `aj.copia.segundoPlano` y `aj.copia.toast.cancelada`: en lugar de los del paquete. */
+  segundoPlano: 'Puedes cerrar este cuadro: la copia se sigue creando.',
+  toastCancelada: 'Copia cancelada. No se ha guardado nada.',
   ajustes: 'Incluir mis ajustes',
   notaEnCurso: (k: number) =>
     k === 1

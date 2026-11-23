@@ -286,6 +286,14 @@ export class ServicioLote {
     this.refs.clear()
   }
 
+  /** Ruta de una fila de la última lectura (`fuente.importarArchivo({ ref })`); caducada o desconocida, no válida. */
+  rutaDeRef(ref: string): string {
+    this.purgar()
+    const r = this.refs.get(ref)
+    if (!r) throw noValido('La lectura del archivo caducó. Vuelve a elegirlo.')
+    return r.ruta
+  }
+
   // --- Lectura ---
 
   private async leer(rutas: string[]): Promise<LecturaLoteIpc> {
@@ -345,7 +353,6 @@ export class ServicioLote {
         return {
           ref,
           nombre,
-          ruta: c.ruta,
           duracionMs,
           metadatos,
           datos: propuesta.datos,

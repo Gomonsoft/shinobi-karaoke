@@ -35,7 +35,8 @@ export function DialogoEliminar({ canciones, alCerrar }: Props) {
   // La casilla vale para la vista previa (versión) en la que se marcó: una nueva pide marcarla otra vez.
   const [entiendoPara, setEntiendoPara] = useState<string | null>(null)
   const a = useAccionVarias(ops, ids, '')
-  const porId = new Map(canciones.map((c) => [c.id, c]))
+  // Foto de las canciones al abrir: tras eliminar, la biblioteca ya no las tiene y el resultado necesita sus títulos.
+  const [porId] = useState(() => new Map(canciones.map((c) => [c.id, c])))
   const principal = useRef<HTMLButtonElement>(null)
 
   const previa = a.previa

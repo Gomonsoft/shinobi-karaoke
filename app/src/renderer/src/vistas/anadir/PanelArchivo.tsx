@@ -45,6 +45,10 @@ function comoErrorVista(err: unknown): ErrorVista {
 }
 
 const nombreDeRuta = (ruta: string): string => ruta.split(/[\\/]/).pop() ?? ruta
+/** Una ruta (arrastre) o una `ref` de la lectura del lote (main resuelve la ruta; el renderer nunca la ve). */
+type EntradaArchivo = { ruta: string } | { ref: string; nombre: string }
+const nombreDeEntrada = (e: EntradaArchivo): string =>
+  'ruta' in e ? nombreDeRuta(e.ruta) : e.nombre
 
 /** Hay un diálogo modal o un menú abierto: ellos gestionan su propio Esc. */
 const hayCapaAbierta = (): boolean =>
@@ -81,17 +85,23 @@ export function PanelArchivo({
     const b = restaurar ? leerBorrador() : null
     return b?.origen === 'archivo' ? b : null
   })
-  const rutaInicial = archivoInicial ?? restaurado?.ruta
+  const entradaInicial: EntradaArchivo | undefined = archivoInicial
+    ? { ruta: archivoInicial }
+    : restaurado
+      ? 'ref' in restaurado
+        ? { ref: restaurado.ref, nombre: restaurado.nombre }
+        : { ruta: restaurado.ruta }
+      : undefined
   const [estado, setEstado] = useState<Estado>(
     rutasIniciales && rutasIniciales.length > 0
       ? { tipo: 'leyendoLote', n: rutasIniciales.length }
-      : rutaInicial
-        ? { tipo: 'leyendo', nombre: nombreDeRuta(rutaInicial) }
+      : entradaInicial
+        ? { tipo: 'leyendo', nombre: nombreDeEntrada(entradaInicial) }
         : { tipo: 'vacio' }
   )
   // Lo recuperado de Ajustes: sustituye a lo propuesto al volver a leer el archivo.
   const valoresRestaurados = useRef(restaurado?.valores ?? null)
-  const rutaActual = useRef<string | null>(rutaInicial ?? null)
+  const entradaActual = useRef<EntradaArchivo | null>(entradaInicial ?? null)
   const [recuperado, setRecuperado] = useState(false)
   const [sobre, setSobre] = useState<number | false>(false)
   const [valores, setValores] = useState<ValoresDatos>({ titulo: '', artista: '', album: '' })
@@ -107,12 +117,14 @@ export function PanelArchivo({
   const profundidad = useRef(0)
 
   const lanzar = useCallback(
-    async (ruta: string) => {
+    async (entrada: EntradaArchivo) => {
       const gen = ++ref.current.gen
       ref.current.leyendo = true
-      rutaActual.current = ruta
+      entradaActual.current = entrada
       try {
-        const datos = await window.shinobi.fuente.importarArchivo(ruta)
+        const datos = await window.shinobi.fuente.importarArchivo(
+          'ruta' in entrada ? entrada.ruta : { ref: entrada.ref }
+        )
         if (gen !== ref.current.gen) {
           // Cancelada mientras terminaba: no debe quedar nada preparado.
           void window.shinobi.fuente.descartarImportacion(datos.importacionId).catch(() => {})
@@ -152,7 +164,7 @@ export function PanelArchivo({
   const iniciar = (ruta: string) => {
     setErrorConfirmar(null)
     setEstado({ tipo: 'leyendo', nombre: nombreDeRuta(ruta) })
-    void lanzar(ruta)
+    void lanzar({ ruta })
   }
 
   const cancelarLectura = useCallback(() => {
@@ -207,9 +219,9 @@ export function PanelArchivo({
         }
         // Una sola canción añadible: el flujo de siempre (lectura del audio y formulario D).
         const uno = validas.length === 1 ? validas[0] : undefined
-        if (uno?.ruta) {
+        if (uno) {
           setEstado({ tipo: 'leyendo', nombre: uno.nombre })
-          void lanzar(uno.ruta)
+          void lanzar({ ref: uno.ref, nombre: uno.nombre })
           return
         }
         const tabla = tablaDeArchivos(lectura, {
@@ -265,7 +277,7 @@ export function PanelArchivo({
         n: rutasIniciales.length,
         carpeta: false
       })
-    } else if (rutaInicial) void lanzar(rutaInicial)
+    } else if (entradaInicial) void lanzar(entradaInicial)
     return () => {
       op.gen++
       if (op.leyendo) {
@@ -477,9 +489,8 @@ export function PanelArchivo({
         {!iniciales && (
           <AvisoBusqueda
             alCambiar={() => {
-              if (rutaActual.current) {
-                guardarBorrador({ origen: 'archivo', ruta: rutaActual.current, valores })
-              }
+              const entrada = entradaActual.current
+              if (entrada) guardarBorrador({ origen: 'archivo', ...entrada, valores })
               ir({ tipo: 'ajustes', origen: { tipo: 'anadir' }, seccion: 'preparacion' })
             }}
           />

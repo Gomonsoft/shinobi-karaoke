@@ -139,6 +139,10 @@ export class ServicioLotes {
         const c = this.deps.biblioteca.obtener(id)
         const nuevos = c ? this.metadatosNuevos(c, datos) : null
         if (!c || !nuevos) return 'omitida'
+        // Como en `ejecutarEliminar`: una canción que empezó a sonar a mitad del lote no se edita.
+        if (this.deps.sesion?.edicionBloqueada() && this.deps.sesion.cancionActiva(id)) {
+          return { omitida: 'EDICION_BLOQUEADA' }
+        }
         // Lo que el usuario cambia pasa a ser suyo y nada lo sustituye solo (ADR 0025 §6).
         const origen = origenTrasEdicion(c.metadatos, { ...c.metadatos, ...nuevos })
         await this.deps.biblioteca.actualizar(id, {
@@ -294,7 +298,7 @@ export class ServicioLotes {
     ids: readonly string[],
     version: string,
     previsualizar: () => PrevisualizacionVariasIpc,
-    hacer: (id: string) => Promise<'hecho' | 'omitida'>
+    hacer: (id: string) => Promise<'hecho' | 'omitida' | { omitida: string }>
   ): Promise<ResultadoVariasIpc> {
     if (this.enCurso) throw new ErrorLotes('EN_CURSO', 'Ya hay una acción por lotes en marcha.')
     this.enCurso = true
@@ -318,7 +322,12 @@ export class ServicioLotes {
           })
         } else {
           try {
-            resultados.push({ id: plan.id, resultado: await hacer(plan.id) })
+            const r = await hacer(plan.id)
+            resultados.push(
+              typeof r === 'string'
+                ? { id: plan.id, resultado: r }
+                : { id: plan.id, resultado: 'omitida', motivo: r.omitida }
+            )
           } catch (e) {
             const { codigo, mensaje } = codigoDe(e)
             resultados.push({ id: plan.id, resultado: 'error', motivo: codigo })

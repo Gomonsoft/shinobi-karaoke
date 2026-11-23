@@ -39,7 +39,6 @@ const unaFila = (ruta: string) => ({
     {
       ref: '11111111-1111-4111-8111-111111111111',
       nombre: ruta.split('/').pop() ?? ruta,
-      ruta,
       duracionMs: 200_000,
       metadatos: { titulo: 'X', artista: '', album: null },
       duplicado: null,
@@ -126,7 +125,9 @@ describe('AnadirCancion (archivo)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
     expect(await screen.findByText('bohemian.mp3')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'Leyendo el audio…' })).toBeInTheDocument()
-    expect(api.fuente.importarArchivo).toHaveBeenCalledWith('/música/bohemian.mp3')
+    expect(api.fuente.importarArchivo).toHaveBeenCalledWith({
+      ref: '11111111-1111-4111-8111-111111111111'
+    })
     await act(async () => d.resolver(leida()))
     expect(await screen.findByText('Audio leído: bohemian.mp3 · 5:55')).toBeInTheDocument()
     const titulo = screen.getByLabelText(/Título/) as HTMLInputElement

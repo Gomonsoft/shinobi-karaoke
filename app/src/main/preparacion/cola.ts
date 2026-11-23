@@ -14,7 +14,9 @@ export const COMPROBACION_CONEXION_MS = 60_000
 /** Los primeros segundos de una tanda no hay estimación fiable (`prog.eta.calculando`). */
 export const ESPERA_ESTIMACION_MS = 15_000
 
-const PARADA_TOTAL = new Set(['SIN_ESPACIO', 'RUNTIME_NO_DISPONIBLE'])
+/** Siempre paran toda la cola. `RUNTIME_NO_DISPONIBLE` depende del trabajo (ver `registrarFallo`). */
+const PARADA_TOTAL = new Set(['SIN_ESPACIO'])
+const RUNTIME_NO_DISPONIBLE = 'RUNTIME_NO_DISPONIBLE'
 const PARADA_DESCARGAS = new Set(['YOUTUBE_BLOQUEADO', 'SIN_CONEXION'])
 /** Errores que repetir no arregla: «Reintentar las fallidas» los deja en «Con error». */
 const NO_REINTENTABLES = new Set([
@@ -29,6 +31,9 @@ const NO_REINTENTABLES = new Set([
 
 type ResultadoCancion = NonNullable<TandaPreparacionIpc['canciones'][number]['resultado']>
 type DescargasParadas = NonNullable<TandaPreparacionIpc['descargasParadas']>
+type SeparacionesParadas = NonNullable<TandaPreparacionIpc['separacionesParadas']>
+/** De dónde viene un fallo: decide qué se para con `RUNTIME_NO_DISPONIBLE` (ADR 0025 §5, revisión 0317). */
+type OrigenFallo = 'descarga' | 'separacion' | 'otro'
 
 interface Miembro {
   resultado: ResultadoCancion | null
@@ -97,6 +102,8 @@ export class ColaPreparacion {
   private tanda: Tanda | null = null
   private motivoPausa: string | null = null
   private descargasParadas: DescargasParadas | null = null
+  /** Motor de separación ausente: solo se retiene la cola `pesada`; descargas, importaciones y letra siguen. */
+  private separacionesParadas: SeparacionesParadas | null = null
   private racha: { codigo: string; n: number } | null = null
   /** Se está cerrando (la app o la ventana en macOS): lo que se cancele ahora no es un resultado. */
   private cierre = false
@@ -171,6 +178,7 @@ export class ColaPreparacion {
       motivoPausa: this.motivoPausa,
       estimacionMin: this.estimacion(t),
       descargasParadas: this.descargasParadas,
+      separacionesParadas: this.separacionesParadas,
       canciones: miembros.map(([id, m]) => ({
         id,
         resultado: m.resultado,
@@ -202,6 +210,16 @@ export class ColaPreparacion {
     this.motivoPausa = null
     this.racha = null
     this.liberarDescargas(false)
+    this.separacionesParadas = null
+    this.deps.gestor.reanudarCola()
+    this.emitir()
+  }
+
+  /** El motor de audio se reparó (spec 04): las separaciones paradas vuelven a lanzarse. */
+  motorReparado(): void {
+    if (this.separacionesParadas === null) return
+    this.separacionesParadas = null
+    this.racha = null
     this.deps.gestor.reanudarCola()
     this.emitir()
   }
@@ -222,6 +240,7 @@ export class ColaPreparacion {
     this.racha = null
     this.motivoPausa = null
     this.liberarDescargas(false)
+    this.separacionesParadas = null
     for (const id of ids) {
       this.anadir(id)
       await this.relanzar(id, 'manual')
@@ -285,6 +304,7 @@ export class ColaPreparacion {
   private retiene(t: TrabajoRetenible): boolean {
     if (this.pausada()) return true
     if (this.sondeando !== null && t.cancionId === this.sondeando) return false
+    if (this.separacionesParadas !== null && t.cola === 'pesada') return true
     return this.descargasParadas !== null && t.comando === 'descargar-youtube'
   }
 
@@ -301,7 +321,9 @@ export class ColaPreparacion {
       const codigo = t.error?.codigo ?? 'ERROR_INTERNO'
       const esSonda = this.sondeando === id && t.comando === 'descargar-youtube'
       if (esSonda) this.sondeando = null
-      this.registrarFallo(codigo, t.comando === 'descargar-youtube', id)
+      const origen: OrigenFallo =
+        t.comando === 'descargar-youtube' ? 'descarga' : t.cola === 'pesada' ? 'separacion' : 'otro'
+      this.registrarFallo(codigo, origen, id)
       // La sonda falló por otro motivo (y no es una parada): la conexión vuelve y se liberan las demás.
       if (esSonda && codigo !== 'SIN_CONEXION' && this.descargasParadas === 'SIN_CONEXION') {
         this.sinConexion = this.sinConexion.filter((x) => x !== id)
@@ -355,7 +377,10 @@ export class ColaPreparacion {
         this.cerrarCancion(e.id, 'letra_pendiente', p.error?.codigo)
       } else {
         const codigo = p.error?.codigo ?? 'ERROR_INTERNO'
-        this.registrarFallo(codigo, false)
+        // Una separación sin motor ya paró las separaciones al fallar su trabajo: la corrida solo lo refleja.
+        if (codigo !== RUNTIME_NO_DISPONIBLE || this.separacionesParadas === null) {
+          this.registrarFallo(codigo, 'otro')
+        }
         this.cerrarCancion(e.id, 'error', codigo)
       }
     }
@@ -363,8 +388,8 @@ export class ColaPreparacion {
   }
 
   /** Paradas automáticas y racha de fallos (ADR 0025 §5). */
-  private registrarFallo(codigo: string, esDescarga: boolean, id = ''): void {
-    if (esDescarga && PARADA_DESCARGAS.has(codigo)) {
+  private registrarFallo(codigo: string, origen: OrigenFallo, id = ''): void {
+    if (origen === 'descarga' && PARADA_DESCARGAS.has(codigo)) {
       this.descargasParadas = codigo as DescargasParadas
       if (codigo === 'SIN_CONEXION') {
         if (id && !this.sinConexion.includes(id)) this.sinConexion.push(id)
@@ -373,7 +398,15 @@ export class ColaPreparacion {
       this.deps.registrar?.('aviso', `${MODULO}: descargas paradas (${codigo})`)
     }
     this.racha = this.racha?.codigo === codigo ? { codigo, n: this.racha.n + 1 } : { codigo, n: 1 }
-    if (PARADA_TOTAL.has(codigo) || this.racha.n >= FALLOS_SEGUIDOS) {
+    if (codigo === RUNTIME_NO_DISPONIBLE && origen === 'separacion') {
+      // Sin motor de separación solo se paran las separaciones: lo que no lo usa puede seguir.
+      this.separacionesParadas = codigo
+      this.deps.registrar?.('aviso', `${MODULO}: separaciones paradas (${codigo})`)
+    } else if (
+      PARADA_TOTAL.has(codigo) ||
+      codigo === RUNTIME_NO_DISPONIBLE ||
+      this.racha.n >= FALLOS_SEGUIDOS
+    ) {
       this.motivoPausa = codigo
       this.deps.registrar?.('aviso', `${MODULO}: cola parada (${codigo})`)
     }

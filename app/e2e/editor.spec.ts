@@ -419,7 +419,16 @@ async function dragMarcador(v: Page, borde: string, cambioMs: number): Promise<v
   const escala = await rangoTimeline(v).evaluate((r: HTMLInputElement) => {
     return r.getBoundingClientRect().width / (Number(r.max) - Number(r.min))
   })
-  const caja = (await marcador.boundingBox())!
+  // Tras elegir una línea (o cancelar un gesto), la línea de tiempo se reencuadra: se espera a que el marcador
+  // esté quieto (misma caja en dos lecturas seguidas) antes de pulsar; con la CPU ocupada se pulsaba sobre la
+  // posición antigua y el gesto no movía nada.
+  let caja = (await marcador.boundingBox())!
+  await expect(async () => {
+    const nueva = (await marcador.boundingBox())!
+    const quieto = nueva.x === caja.x && nueva.y === caja.y && nueva.width === caja.width
+    caja = nueva
+    expect(quieto).toBe(true)
+  }).toPass({ intervals: [60, 100, 200], timeout: 5_000 })
   const x = caja.x + caja.width / 2
   const y = caja.y + caja.height / 2
   await v.mouse.move(x, y)
@@ -461,8 +470,21 @@ test.describe('línea de tiempo del editor', () => {
         await expect(inicio).toHaveAttribute('aria-valuenow', '2000')
         expect(guardada().inicio_ms).toBe(2000)
 
-        await dragMarcador(v, E.timeline.inicio, 800)
-        await v.mouse.up()
+        // El segundo arrastre empieza justo después de cancelar con Escape + soltar. Bajo carga, a veces la
+        // pulsación llega antes de que el marcador haya vuelto a su estado de reposo y no arranca el gesto (no
+        // se pudo reproducir a voluntad: 40 ejecuciones con carga no fallaron). Se repite SOLO el gesto, hasta
+        // que la vista previa se mueve; lo que se comprueba después (posición exacta y un único paso) no cambia.
+        await expect(async () => {
+          await dragMarcador(v, E.timeline.inicio, 800)
+          try {
+            await expect(inicio).not.toHaveAttribute('aria-valuenow', '2000', { timeout: 2000 })
+          } catch (e) {
+            await v.keyboard.press('Escape')
+            await v.mouse.up()
+            throw e
+          }
+          await v.mouse.up()
+        }).toPass({ timeout: 15_000 })
         const desplazada = Number(await inicio.getAttribute('aria-valuenow'))
         expect(Math.abs(desplazada - 2800)).toBeLessThan(45)
         await expect.poll(() => guardada().inicio_ms).toBe(desplazada)

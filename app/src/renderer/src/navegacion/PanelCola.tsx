@@ -133,6 +133,15 @@ export function CabeceraCola({
           {COLA.espacio}
         </AvisoEnLinea>
       )}
+      {!terminada && tanda.separacionesParadas === 'RUNTIME_NO_DISPONIBLE' && (
+        <AvisoEnLinea
+          tipo="aviso"
+          accionesAbajo
+          accion={<Boton onClick={alReparar}>{COLA.repararMotor}</Boton>}
+        >
+          {COLA.motor}
+        </AvisoEnLinea>
+      )}
       {!terminada && tanda.motivoPausa === 'RUNTIME_NO_DISPONIBLE' && (
         <AvisoEnLinea
           tipo="aviso"

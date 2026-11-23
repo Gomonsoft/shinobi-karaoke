@@ -111,7 +111,6 @@ describe('F6-N8 · volver de Ajustes tras «Elegir archivos…»', () => {
     const fila = {
       ref: '11111111-1111-4111-8111-111111111111',
       nombre: 'eco.mp3',
-      ruta: '/música/eco.mp3',
       duracionMs: 200_000,
       metadatos: { titulo: 'Eco', artista: 'Duo', album: null },
       duplicado: null,
@@ -141,6 +140,8 @@ describe('F6-N8 · volver de Ajustes tras «Elegir archivos…»', () => {
     const vuelta = fuente()
     montar(true, true, vuelta)
     expect(await screen.findByLabelText(/^Título/)).toHaveValue('Eco (en vivo)')
-    expect(vuelta.importarArchivo).toHaveBeenCalledWith('/música/eco.mp3')
+    expect(vuelta.importarArchivo).toHaveBeenCalledWith({
+      ref: '11111111-1111-4111-8111-111111111111'
+    })
   })
 })

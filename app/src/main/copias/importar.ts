@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import { mkdir, rename, rm, stat } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { Transform } from 'node:stream'
 import {
@@ -271,8 +271,24 @@ async function leerCancionJson(paquete: PaqueteAbierto, cm: CancionManifiesto): 
     throw new ErrorPaquete('PAQUETE_NO_VALIDO', 'cancion.json no es una canción válida.')
   }
   if (c.id !== cm.id) throw new ErrorPaquete('PAQUETE_NO_VALIDO', 'La canción no es la declarada.')
+  // Las rutas internas deben quedarse dentro de la carpeta de la canción; si no, esa canción está dañada.
+  for (const r of [c.fuente.mezcla, c.fuente.miniatura, c.pistas?.voz, c.pistas?.instrumental]) {
+    if (r != null && !esRutaInterna(r)) {
+      throw new ErrorPaquete('PAQUETE_INCOMPLETO', 'cancion.json apunta fuera de la canción.')
+    }
+  }
+  // La ruta de un archivo del equipo de otra persona nunca se conserva (ADR 0027, pregunta 0324).
+  delete c.fuente.ruta_pendiente
   return c
 }
+
+/** Ruta relativa que no sale de la carpeta de la canción (ni absoluta, ni con unidad, ni con `..` o `\`). */
+export const esRutaInterna = (r: string): boolean =>
+  !isAbsolute(r) &&
+  !/^[A-Za-z]:/.test(r) &&
+  !r.includes('\\') &&
+  !r.includes('\0') &&
+  !r.split('/').includes('..')
 
 /** Extrae una entrada declarada a `destino`: solo ese archivo, solo esa ruta, con tamaño y SHA-256 comprobados. */
 async function extraer(
@@ -289,6 +305,9 @@ async function extraer(
   if (!entrada || entrada.uncompressedSize !== a.bytes) {
     throw new ErrorPaquete('PAQUETE_INCOMPLETO', `${nombre} no coincide con el manifiesto.`)
   }
+  // La carpeta se crea ANTES de abrir el flujo: entre abrirlo y engancharle el `pipeline` no puede haber
+  // ningún `await`, o un error del flujo (tamaño real mayor que el declarado) saldría sin oyente.
+  await mkdir(dirname(destino), { recursive: true })
   const flujo = await paquete.lector.abrirLectura(a.ruta)
   const hash = createHash('sha256')
   let bytes = 0
@@ -304,7 +323,6 @@ async function extraer(
       listo(null, trozo)
     }
   })
-  await mkdir(dirname(destino), { recursive: true })
   const alAbortar = (): void => {
     flujo.destroy(new ErrorCancelado())
   }

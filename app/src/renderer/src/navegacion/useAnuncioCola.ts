@@ -38,7 +38,7 @@ export function useAnuncioCola(
       return
     }
     const pausa = pausaDelUsuario(tanda)
-    const parada = tanda.motivoPausa ?? tanda.descargasParadas
+    const parada = tanda.motivoPausa ?? tanda.descargasParadas ?? tanda.separacionesParadas
     const fin = tanda.terminadas >= tanda.total
     const previo = antes.current
     antes.current = { pausa, parada, fin }

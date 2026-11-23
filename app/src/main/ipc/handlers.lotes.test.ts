@@ -63,6 +63,18 @@ describe('acciones por lotes de la Biblioteca (0318)', () => {
     expect(lotes.quitarDeCola).toHaveBeenCalledWith([UUID])
   })
 
+  it('los ids repetidos de una petición se quedan en uno, en su orden', async () => {
+    const lotes = {
+      previsualizarEliminar: vi.fn(() => ({ version: 'v', canciones: [] }))
+    }
+    const m = crearManejadores(deps({ lotes } as never))
+    await m[CANALES.biblioteca.eliminarVariasPrevisualizar](
+      [{ ids: ['b', 'a', 'b', 'a'] }],
+      principal
+    )
+    expect(lotes.previsualizarEliminar).toHaveBeenCalledWith(['b', 'a'])
+  })
+
   it('validan los argumentos, exigen la principal y fallan sin servicio', async () => {
     const m = crearManejadores(deps({ lotes: {} as never }))
     expect(

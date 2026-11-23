@@ -62,6 +62,7 @@ describe('toasts del resultado de una canción', () => {
       motivoPausa: null,
       estimacionMin: null,
       descargasParadas: null,
+      separacionesParadas: null,
       canciones: [
         { id: 'c1', resultado: null },
         { id: 'c2', resultado: null }

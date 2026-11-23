@@ -163,6 +163,23 @@ describe('ServicioLote: lectura', () => {
     expect(biblioteca.listar()).toEqual([])
   })
 
+  it('la lectura no entrega rutas y rutaDeRef las resuelve en main (válida, caducada, desconocida)', async () => {
+    const a = await archivo('Tema Uno.mp3')
+    const { servicio } = montar({ ejecutar: lector({ 'Tema Uno.mp3': { duracion_ms: 200_000 } }) })
+    const r = await servicio.leerArchivos([a])
+    expect(JSON.stringify(r)).not.toContain(origen)
+    expect(r?.filas[0]).not.toHaveProperty('ruta')
+    const ref = r!.filas[0]!.ref
+    expect(servicio.rutaDeRef(ref)).toMatch(/Tema Uno\.mp3$/)
+    expect(() => servicio.rutaDeRef('00000000-0000-4000-8000-000000000000')).toThrow(
+      expect.objectContaining({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    )
+    ahora = new Date(ahora.getTime() + VIDA_REF_MS + 1000)
+    expect(() => servicio.rutaDeRef(ref)).toThrow(
+      expect.objectContaining({ codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    )
+  })
+
   it('el álbum de una fila sin etiquetas sale del nombre de la carpeta', async () => {
     await archivo('Querido Disco', '01 Tema.mp3')
     const { servicio } = montar({ ejecutar: lector({ '01 Tema.mp3': { duracion_ms: 100_000 } }) })

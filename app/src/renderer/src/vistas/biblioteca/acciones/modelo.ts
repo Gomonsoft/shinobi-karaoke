@@ -24,14 +24,15 @@ export function motivoNoAplica(
   switch (accion) {
     case 'preparar':
       if (r.danada) return 'danada'
-      if (r.estado === 'lista') return 'yaLista'
-      // Letra anterior a 0.2.2 sin marca: entra solo para ponerle los fines que faltan (con confirmación).
+      // Letra anterior a 0.2.2 sin marca: entra solo para ponerle los fines que faltan (con confirmación),
+      // también si la canción es Lista: es la misma regla que `aplicaPreparar` (la cifra del diálogo).
       if (
         r.prepararFinesSinMarca &&
         !ctx.conTrabajo.has(r.id) &&
         r.estadoPreparacion !== 'preparando'
       )
         return null
+      if (r.estado === 'lista') return 'yaLista'
       if (esListaParaRevisar(r)) return 'yaPreparada'
       if (ctx.conTrabajo.has(r.id) || r.estadoPreparacion === 'preparando') return 'enCurso'
       return puedePrepararResumen(r, false) ? null : 'noLista'

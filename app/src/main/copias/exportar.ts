@@ -109,7 +109,12 @@ export async function planificarCanciones(
       continue
     }
     const enCurso = Object.values(original.pasos).some((paso) => paso.estado === 'en_curso')
-    const cancion = enCurso ? instantaneaConTrabajos(original) : original
+    let cancion = enCurso ? instantaneaConTrabajos(original) : original
+    if (cancion.fuente.ruta_pendiente !== undefined) {
+      // La ruta del archivo original de una canción de lote es del equipo: no viaja (ADR 0027, pregunta 0324).
+      cancion = structuredClone(cancion)
+      delete cancion.fuente.ruta_pendiente
+    }
     const carpeta = join(p.dirBiblioteca, id)
     const fuenteLista = original.pasos.fuente.estado === 'completado'
     const pistasListas = original.pasos.separacion.estado === 'completado'

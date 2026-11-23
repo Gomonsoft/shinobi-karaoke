@@ -38,13 +38,15 @@ interface Entrada {
   nombre: string
   contenido: Buffer
   mode?: number
+  /** Fuerza deflate en una entrada que no es JSON. */
+  comprimir?: boolean
 }
 
 async function escribirZip(ruta: string, entradas: Entrada[]): Promise<void> {
   const zip = new ZipFile()
   for (const e of entradas) {
     zip.addBuffer(e.contenido, e.nombre, {
-      compress: e.nombre.endsWith('.json'),
+      compress: e.comprimir ?? e.nombre.endsWith('.json'),
       ...(e.mode !== undefined ? { mode: e.mode } : {})
     })
   }
@@ -96,6 +98,23 @@ async function paquete(
   // La biblioteca de origen se vacía: el paquete se importa en una limpia.
   for (const id of [ID_A, ID_B]) await e.biblioteca.eliminar(id)
   return destino
+}
+
+/** Reescribe el `cancion.json` de la canción `i` del manifiesto con `cambio`, dejando bien tamaño y SHA. */
+function reescribirCancion(
+  entradas: Entrada[],
+  m: Manifiesto,
+  i: number,
+  cambio: (c: Record<string, any>) => void // eslint-disable-line @typescript-eslint/no-explicit-any
+): void {
+  const id = m.canciones[i]!.id
+  const json = entradas.find((x) => x.nombre === `canciones/${id}/cancion.json`)!
+  const c = JSON.parse(json.contenido.toString()) as Record<string, unknown>
+  cambio(c)
+  json.contenido = Buffer.from(JSON.stringify(c))
+  const a = m.canciones[i]!.archivos.find((x) => x.ruta.endsWith('cancion.json'))!
+  a.bytes = json.contenido.length
+  a.sha256 = createHash('sha256').update(json.contenido).digest('hex')
 }
 
 async function leer(e: Equipo, ruta: string) {
@@ -191,6 +210,87 @@ describe('un paquete que no se puede abrir se rechaza entero, sin tocar nada', (
     await expect((await leer(e, ruta)).leer()).rejects.toMatchObject({
       codigo: 'PAQUETE_NO_VALIDO'
     })
+  })
+})
+
+describe('rutas y nombres que vienen dentro de cancion.json y del manifiesto', () => {
+  it('una ruta interna fuera de la carpeta (pistas.voz): esa canción falla con PAQUETE_INCOMPLETO y no se importa', async () => {
+    const e = await nuevo()
+    const ruta = await paquete(e, true, (entradas, m) => {
+      reescribirCancion(entradas, m, 0, (c) => {
+        c.pistas.voz = '../../fuera/voz.flac'
+      })
+    })
+    const r = await importar(e, ruta)
+    expect(r.resultados[0]).toEqual({ id: ID_A, resultado: 'error', motivo: 'PAQUETE_INCOMPLETO' })
+    expect(r.resultados[1]).toMatchObject({ id: ID_B, resultado: 'importada' })
+    expect(e.biblioteca.obtenerResumen(ID_A)).toBeNull()
+    expect(await readdir(e.biblio)).not.toContain(ID_A)
+  })
+
+  it('rutas absolutas o con barra invertida también se rechazan', async () => {
+    for (const mala of ['/etc/hosts', 'C:\\Windows\\x.flac', 'pistas\\..\\x.flac']) {
+      const e = await nuevo()
+      const ruta = await paquete(e, true, (entradas, m) => {
+        reescribirCancion(entradas, m, 0, (c) => {
+          c.fuente.mezcla = mala
+        })
+      })
+      const r = await importar(e, ruta)
+      expect(r.resultados[0], mala).toMatchObject({ id: ID_A, resultado: 'error' })
+    }
+  })
+
+  it('fuente.ruta_pendiente que trae un paquete se descarta al importar', async () => {
+    const e = await nuevo()
+    const ruta = await paquete(e, false, (entradas, m) => {
+      reescribirCancion(entradas, m, 1, (c) => {
+        c.fuente.ruta_pendiente = '/etc/hosts'
+      })
+    })
+    const r = await importar(e, ruta)
+    expect(r.resultados[1]).toMatchObject({ id: ID_B, resultado: 'importada' })
+    const c = await leerCancionDeDisco(e.biblio, ID_B)
+    expect(c.fuente.ruta_pendiente).toBeUndefined()
+    expect(JSON.stringify(c)).not.toContain('/etc/hosts')
+  })
+
+  it('al exportar, una canción con ruta_pendiente entra sin ella (paquete y copia)', async () => {
+    const e = await nuevo()
+    await sembrarCancion(e.biblio, ID_B, {
+      titulo: 'Río imaginario',
+      conPistas: false,
+      mutar: (c) => {
+        c.fuente.ruta_pendiente = '/Users/persona-inventada/musica/rio.wav'
+      }
+    })
+    await e.biblioteca.escanear()
+    expect(e.biblioteca.obtener(ID_B)?.fuente.ruta_pendiente).toBeDefined()
+    for (const peticion of [
+      { tipo: 'canciones' as const, ids: [ID_B], conAudio: false },
+      { tipo: 'biblioteca' as const, conAudio: false }
+    ]) {
+      const { ruta } = await exportarA(e, peticion)
+      const entradas = await leerEntradas(ruta)
+      const json = entradas.find((x) => x.nombre === `canciones/${ID_B}/cancion.json`)!
+      const texto = json.contenido.toString()
+      expect(texto).not.toContain('ruta_pendiente')
+      expect(texto).not.toContain('persona-inventada')
+    }
+    // La canción local conserva su ruta: solo la copia del paquete la pierde.
+    expect(e.biblioteca.obtener(ID_B)?.fuente.ruta_pendiente).toBeDefined()
+  })
+
+  it('un id de canción con nombre de dispositivo de Windows rechaza el paquete entero', async () => {
+    for (const id of ['CON', 'nul', 'Aux', 'PRN', 'COM1', 'lpt9']) {
+      const e = await nuevo()
+      const ruta = await paquete(e, false, (_, m) => {
+        m.canciones[0]!.id = id
+      })
+      await expect((await leer(e, ruta)).leer(), id).rejects.toMatchObject({
+        codigo: 'PAQUETE_NO_VALIDO'
+      })
+    }
   })
 })
 
@@ -396,6 +496,47 @@ describe('una canción dañada o más nueva falla sola; las demás entran', () =
     expect(r.resultados[0]).toMatchObject({ id: ID_A, resultado: 'importada' })
     const c = await leerCancionDeDisco(e.biblio, ID_A)
     expect(c.metadatos.titulo).toBe('Luna de papel')
+  })
+
+  it('entrada comprimida cuyo tamaño real supera al declarado: esa canción falla y no hay excepción sin capturar', async () => {
+    const e = await nuevo()
+    const sinCapturar: unknown[] = []
+    const alExcepcion = (err: unknown): void => void sinCapturar.push(err)
+    process.on('uncaughtException', alExcepcion)
+    try {
+      const ruta = await paquete(e, true, (entradas, m) => {
+        const voz = entradas.find((x) => x.nombre.endsWith(`${ID_A}/pistas/voz.flac`))!
+        voz.contenido = Buffer.alloc(2 * 1024 * 1024) // ceros: deflate los reduce a casi nada
+        voz.comprimir = true
+        const a = m.canciones[0]!.archivos.find((x) => x.ruta.endsWith('voz.flac'))!
+        a.bytes = 4096
+        a.sha256 = createHash('sha256').update(Buffer.alloc(4096)).digest('hex')
+      })
+      // Se rebaja el tamaño declarado en el directorio central (offset 24 de la entrada).
+      const bytes = await readFile(ruta)
+      const nombre = Buffer.from(`canciones/${ID_A}/pistas/voz.flac`)
+      let parcheadas = 0
+      for (let i = bytes.indexOf(nombre); i !== -1; i = bytes.indexOf(nombre, i + 1)) {
+        if (i >= 46 && bytes.readUInt32LE(i - 46) === 0x02014b50) {
+          bytes.writeUInt32LE(4096, i - 46 + 24)
+          parcheadas++
+        }
+      }
+      expect(parcheadas).toBe(1)
+      await writeFile(ruta, bytes)
+      const r = await importar(e, ruta)
+      expect(r.resultados[0]).toEqual({
+        id: ID_A,
+        resultado: 'error',
+        motivo: 'PAQUETE_INCOMPLETO'
+      })
+      expect(r.resultados[1]).toMatchObject({ id: ID_B, resultado: 'importada' })
+      expect(await readdir(join(e.biblio, '.importando'))).toEqual([])
+      await new Promise((ok) => setTimeout(ok, 50))
+      expect(sinCapturar).toEqual([])
+    } finally {
+      process.off('uncaughtException', alExcepcion)
+    }
   })
 
   it('cancelar la importación: lo restante se omite con CANCELADO y no queda nada a medias', async () => {

@@ -80,6 +80,7 @@ const tandaPrueba: TandaPreparacionIpc = {
   motivoPausa: null,
   estimacionMin: null,
   descargasParadas: null,
+  separacionesParadas: null,
   canciones: [
     { id: 'r1', resultado: 'lista_para_revisar', dudosas: 2 },
     { id: 'e1', resultado: 'elige_letra' },
@@ -476,7 +477,7 @@ describe('reanudación y resultado', () => {
 })
 
 describe('aviso de un lote recién añadido (bib.import.anadidas)', () => {
-  it('dice cuántas canciones se añadieron, abre la actividad y se cierra con [×]', async () => {
+  it('sale como toast de 10 s que dice cuántas canciones se añadieron y abre la actividad', async () => {
     const abrir = vi.fn()
     window.addEventListener('shinobi:abrir-actividad', abrir)
     montar([resumenPrueba({ id: 'a', titulo: 'Tema uno' })], {
@@ -487,8 +488,6 @@ describe('aviso de un lote recién añadido (bib.import.anadidas)', () => {
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ver actividad' }))
     expect(abrir).toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Cerrar el aviso' }))
-    expect(screen.queryByText(/Se añadieron 5 canciones/)).toBeNull()
     window.removeEventListener('shinobi:abrir-actividad', abrir)
   })
 

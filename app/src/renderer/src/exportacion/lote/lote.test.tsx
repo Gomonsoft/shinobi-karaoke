@@ -16,6 +16,7 @@ import { ProveedorExportacion } from '../ProveedorExportacion'
 import type { LoteVista } from './modelo'
 import { esNoIntentada, filasDelLote, minutosRestantes, reintentables, resumirLote } from './modelo'
 import { reiniciarSiExiste } from './useFormularioLote'
+import { EXP_LOTE } from './textos'
 
 const IDS = ['c1', 'c2', 'c3']
 const trabajo = (i: number) => `b0000000-0000-4000-8000-${String(i + 10).padStart(12, '0')}`
@@ -229,7 +230,7 @@ describe('qué existe ya en la carpeta (G, 0388)', () => {
     const d = await screen.findByRole('dialog', { name: 'Exportar 3 videos' })
     expect(
       await within(d).findByText(
-        '1 de estas canciones ya tienen un video en esta carpeta: se guardarán con « (2)» en el nombre.'
+        '1 de estas canciones ya tiene un video en esta carpeta: se guardará con « (2)» en el nombre.'
       )
     ).toBeInTheDocument()
     fireEvent.click(within(d).getByRole('button', { name: 'Ver cuáles' }))
@@ -247,11 +248,11 @@ describe('qué existe ya en la carpeta (G, 0388)', () => {
     })
     await montar(api)
     const d = await screen.findByRole('dialog', { name: 'Exportar 3 videos' })
-    await within(d).findByText(/ya tienen un video en esta carpeta/)
+    await within(d).findByText(/ya tiene un video en esta carpeta/)
     fireEvent.click(within(d).getByRole('radio', { name: 'Omitir esa canción' }))
     expect(await within(d).findByRole('button', { name: 'Exportar 2 videos' })).toBeInTheDocument()
     expect(
-      within(d).getByText('1 canciones no se exportarán porque ya tienen un video en esta carpeta.')
+      within(d).getByText('1 canción no se exportará porque ya tiene un video en esta carpeta.')
     ).toBeInTheDocument()
     expect(
       llamada(api, 'previsualizarLote').map((l) => (l[1] as { siExiste: string }).siExiste)
@@ -331,6 +332,15 @@ describe('seguimiento (H) y resultado (I)', () => {
     expect(
       within(i).getByText('Tu equipo se quedó sin memoria.', { exact: false })
     ).toBeInTheDocument()
+  })
+
+  it('el texto de «lote detenido» pone el error en minúscula y con un solo punto', () => {
+    expect(
+      EXP_LOTE.detenido('No se puede guardar en esa carpeta.', 'Puede que el disco esté lleno.')
+    ).toBe('El lote se detuvo: no se puede guardar en esa carpeta. Puede que el disco esté lleno.')
+    expect(EXP_LOTE.carpetaNoExiste('Videos')).toMatch(
+      /^La carpeta «Videos» ya no está disponible\./
+    )
   })
 
   it('un lote detenido: las no intentadas entran en «Reintentar las fallidas»; la cancelada a mano, no', async () => {

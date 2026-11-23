@@ -1917,7 +1917,7 @@ suite('capturas de revisión de 0.2.2 · feature 5', F5, '0.2.2-feature-5', ({ i
             .getByRole('button', { name: 'Ajustar los fines' })
             .click()
           await expect(
-            v.getByText(/Pusimos fin a \d+ de \d+ líneas de «Reproductor: lista»/)
+            v.getByText(/Pusimos fin a (las )?\d+( de \d+)? líneas de «Reproductor: lista»/)
           ).toBeVisible({
             timeout: 60_000
           })
@@ -2151,13 +2151,8 @@ suite('capturas de revisión de 0.2.2 · feature 9', F9, '0.2.2-feature-9', ({ i
         await expect(imp.getByText(/Se importó|Se importaron/)).toBeVisible({ timeout: 60_000 })
         await foto(v, bib('importar-resultado'))
         await imp.getByRole('button', { name: 'Cerrar' }).click()
-      })
-      await intentar('importadas-resaltadas', async () => {
-        await v
-          .getByRole('button', { name: 'Biblioteca' })
-          .first()
-          .click()
-          .catch(() => undefined)
+        // El resalte (borde `info`) dura 2 s desde que se cierra el diálogo: la foto va justo después y con las
+        // importadas a la vista (revisión 2026-11-23, K5).
         await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
         await foto(v, bib('importadas-resaltadas'))
       })
@@ -2252,6 +2247,11 @@ suite('capturas de revisión de 0.2.2 · feature 9', F9, '0.2.2-feature-9', ({ i
         await v.getByRole('button', { name: 'Restaurar o importar…' }).click()
         const imp = v.getByRole('dialog', { name: 'Restaurar copia de seguridad' })
         await expect(imp).toBeVisible({ timeout: 30_000 })
+        await foto(v, aj('restaurar-revisar-inicio'))
+        // El cuerpo tiene scroll propio: la casilla de ajustes se alcanza desplazándolo y el pie no la tapa (K1).
+        const casilla = imp.getByRole('checkbox', { name: /ajustes/i })
+        await casilla.scrollIntoViewIfNeeded()
+        await expect(casilla).toBeVisible()
         await foto(v, aj('restaurar-revisar'))
         await imp.getByRole('button', { name: 'Cancelar' }).click()
       })
@@ -2335,6 +2335,11 @@ suite('capturas de revisión de 0.2.2 · feature 9', F9, '0.2.2-feature-9', ({ i
         await v.waitForTimeout(800)
         await foto(v, aj('copia-creando'))
         await v.getByRole('button', { name: 'Cancelar' }).click()
+        // La copia tiene sus propios textos al cancelarse (K2).
+        await expect(v.getByText('Copia cancelada. No se ha guardado nada.')).toBeVisible({
+          timeout: 20_000
+        })
+        await foto(v, aj('copia-cancelada'))
       })
     })
   })
@@ -2593,9 +2598,13 @@ suite('capturas de revisión de 0.2.2 · feature 8', F8, '0.2.2-feature-8', ({ i
           const r = v.getByRole('dialog', { name: /Exportando \d+ videos|Videos exportados/ })
           await expect(v.getByText(/No se intentó/).first()).toBeVisible({ timeout: 120_000 })
           await foto(v, exp('lote-detenido'))
-          await expect(v.getByRole('dialog', { name: 'Videos exportados' })).toBeVisible({
-            timeout: 120_000
-          })
+          // Si ningún video llegó a exportarse, el diálogo se titula «No se pudo exportar ningún video».
+          await expect(
+            v.getByRole('dialog', {
+              name: /^(Videos exportados|No se pudo exportar ningún video)$/
+            })
+          ).toBeVisible({ timeout: 120_000 })
+          await foto(v, exp('lote-detenido'))
           void r
         })
         await intentar('lote-resultado-cambiar-opciones', async () => {
@@ -2859,7 +2868,7 @@ suite('capturas de revisión de 0.2.2 · feature 7', F7, '0.2.2-feature-7', ({ i
           await irAAnadir(v)
           await buscarEnlaces(v, L('OLAK5uy_cap7Espacio1'))
           await expect(tabla(v)).toBeVisible({ timeout: 60_000 })
-          await expect(v.getByText('No hay espacio para todas.')).toBeVisible()
+          await expect(v.getByText(/No hay espacio para (todas|ninguna)\./)).toBeVisible()
           await foto(v, anadir('tabla-sin-espacio'))
         }
       )

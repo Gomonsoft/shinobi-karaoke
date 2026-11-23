@@ -175,6 +175,20 @@ test.describe('importación por lotes', () => {
       await expect(v.getByRole('heading', { level: 1, name: 'Biblioteca' })).toBeVisible({
         timeout: 30_000
       })
+      // 0. La lectura del lote no entrega ninguna ruta al renderer (ADR 0008, tarea 0390): solo `ref`.
+      const lectura = await v.evaluate(() =>
+        (
+          globalThis as unknown as {
+            shinobi: { fuente: { leerCarpeta(): Promise<{ filas: unknown[] } | null> } }
+          }
+        ).shinobi.fuente.leerCarpeta()
+      )
+      expect(lectura?.filas).toHaveLength(3)
+      for (const fila of lectura!.filas as Record<string, unknown>[]) {
+        expect(Object.keys(fila)).not.toContain('ruta')
+      }
+      expect(JSON.stringify(lectura)).not.toContain(carpeta)
+
       // 1. Carpeta: «Elegir carpeta…» (el diálogo nativo lo sustituye SHINOBI_DIALOGO_PRUEBAS).
       await v.getByRole('button', { name: 'Añadir canción' }).first().click()
       await v.getByRole('button', { name: 'Elegir carpeta…' }).click()
@@ -273,4 +287,129 @@ test.describe('importación por lotes', () => {
       await lrclib.cerrar()
     }
   })
+
+  /**
+   * El escenario del CI de 80dfa1f (tarea 0390): el motor de separación no está disponible
+   * (`RUNTIME_NO_DISPONIBLE`) y las descargas del lote siguen y terminan; las canciones quedan esperando su
+   * separación. `conSeparadorFalso` fuerza el fallo del separador; sin él, es el motor real del equipo (en el CI
+   * no hay PyTorch: el mismo error; en un equipo con motor, la separación puede avanzar y solo se exige que las
+   * descargas terminen y que la cola no quede parada por completo).
+   */
+  for (const conSeparadorFalso of [true, false]) {
+    test(`sin motor de separación las descargas del lote terminan (${conSeparadorFalso ? 'separador falso que falla' : 'sin separador falso'})`, async () => {
+      test.setTimeout(150_000)
+      const datos = crearTemporal('lote-sin-motor')
+      const falsos = join(datos, '..', `falsos-lote-sm-${Date.now()}`)
+      mkdirSync(falsos, { recursive: true })
+      cpSync(FIXTURES, falsos, { recursive: true })
+      const escenario = join(datos, '..', `separador-sm-${Date.now()}.json`)
+      writeFileSync(
+        escenario,
+        JSON.stringify({
+          segundos: 0,
+          pasos: 1,
+          fallos: [{ cuando: {}, codigo: 'RUNTIME_NO_DISPONIBLE', reintentable: false }]
+        })
+      )
+      const ahora = new Date().toISOString()
+      writeFileSync(
+        join(datos, 'config.json'),
+        JSON.stringify({
+          esquema: 1,
+          instalacion: {
+            estado: 'completa',
+            fases: { motor: 'completada', componentes: 'completada', modelo: 'completada' },
+            perfil_hardware: 'cpu'
+          },
+          separacion: { modelos_descargados: ['calidad'] },
+          aviso_youtube_aceptado: ahora,
+          aviso_youtube_listas_aceptado: ahora,
+          preparacion: { automatica: false }
+        })
+      )
+      const lrclib = await iniciarServidorLrclib()
+      const app = await electron.launch({
+        args: ['.'],
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          SHINOBI_DATOS: datos,
+          SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
+          SHINOBI_YTDLP_FALSO: falsos,
+          ...(conSeparadorFalso ? { SHINOBI_SEPARADOR_FALSO: escenario } : {}),
+          SHINOBI_LRCLIB_URL: lrclib.url
+        }
+      })
+      try {
+        const v: Page = await app.firstWindow()
+        await expect(v.getByRole('heading', { level: 1, name: 'Biblioteca' })).toBeVisible({
+          timeout: 30_000
+        })
+        await v.getByRole('button', { name: 'Añadir canción' }).first().click()
+        await v.getByRole('radio', { name: 'Enlaces de YouTube' }).click()
+        await v
+          .getByLabel('Enlaces de YouTube')
+          .fill(`https://music.youtube.com/playlist?list=${LISTA}`)
+        await v.getByRole('button', { name: 'Buscar' }).click()
+        await expect(v.getByRole('heading', { level: 1, name: 'Añadir 2 canciones' })).toBeVisible({
+          timeout: 30_000
+        })
+        await v.getByRole('button', { name: 'Descargar y añadir 2 canciones' }).click()
+        await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible({
+          timeout: 60_000
+        })
+        try {
+          // Las dos descargas terminan aunque la separación de la primera ya haya fallado sin motor.
+          await expect
+            .poll(
+              () =>
+                ids(datos).filter(
+                  (id) => leerCancion(datos, id).pasos.fuente.estado === 'completado'
+                ).length,
+              { timeout: 120_000 }
+            )
+            .toBe(2)
+        } catch (e) {
+          await volcarDiagnostico(v, datos)
+          throw e
+        }
+        const leerTanda = () =>
+          v.evaluate(() =>
+            (
+              globalThis as unknown as {
+                shinobi: {
+                  preparacion: {
+                    tanda(): Promise<{
+                      motivoPausa: string | null
+                      separacionesParadas: string | null
+                    } | null>
+                  }
+                }
+              }
+            ).shinobi.preparacion.tanda()
+          )
+        // Con el separador falso, el fallo llega cuando termina su (simulada) preparación del modelo.
+        if (conSeparadorFalso) {
+          await expect
+            .poll(async () => (await leerTanda())?.separacionesParadas, { timeout: 90_000 })
+            .toBe('RUNTIME_NO_DISPONIBLE')
+        }
+        const tanda = await leerTanda()
+        // Nunca una parada total por el motor: a lo sumo, solo las separaciones.
+        expect(tanda?.motivoPausa ?? null).toBeNull()
+        if (tanda?.separacionesParadas === 'RUNTIME_NO_DISPONIBLE') {
+          // Las canciones esperan su separación: ninguna la tiene hecha.
+          for (const id of ids(datos)) {
+            const c = leerCancion(datos, id) as unknown as {
+              pasos: { separacion: { estado: string } }
+            }
+            expect(c.pasos.separacion.estado).not.toBe('completado')
+          }
+        }
+      } finally {
+        await cerrar(app)
+        await lrclib.cerrar()
+      }
+    })
+  }
 })

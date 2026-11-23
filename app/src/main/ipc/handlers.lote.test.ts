@@ -7,6 +7,7 @@ function montar(lote?: Partial<FuenteLoteIpc>, youtube?: { reintentar: () => Pro
   const servicio = {
     leerArchivos: vi.fn(() => Promise.resolve({ filas: [], rechazadas: 0 })),
     leerCarpeta: vi.fn(() => Promise.resolve(null)),
+    rutaDeRef: vi.fn((ref: string) => `/musica/${ref}.mp3`),
     infoLista: vi.fn(),
     lote: vi.fn(() => Promise.resolve({ creadas: [{ id: 'abc' }], omitidas: [] })),
     espacioLibre: vi.fn(() => Promise.resolve({ libreBytes: 42 as number | null })),
@@ -14,7 +15,10 @@ function montar(lote?: Partial<FuenteLoteIpc>, youtube?: { reintentar: () => Pro
     cancelarLectura: vi.fn(),
     ...lote
   }
-  const fuente = { cancelar: vi.fn(() => Promise.resolve()) }
+  const fuente = {
+    cancelar: vi.fn(() => Promise.resolve()),
+    importar: vi.fn(() => Promise.resolve({ importacionId: 'x' }))
+  }
   const deps = {
     lote: servicio,
     fuente,
@@ -101,5 +105,30 @@ describe('canales del lote (0314)', () => {
     vi.mocked(servicio.reintentar).mockResolvedValueOnce(true)
     await m[CANALES.fuente.reintentar](['abc'])
     expect(youtube.reintentar).toHaveBeenCalledOnce()
+  })
+
+  it('importarArchivo admite una ruta o { ref }; con ref, main resuelve la ruta (0390)', async () => {
+    const { m, servicio, fuente } = montar()
+    await m[CANALES.fuente.importarArchivo](['/arrastrada/tema.mp3'])
+    expect(fuente.importar).toHaveBeenLastCalledWith('/arrastrada/tema.mp3')
+    const ref = '3f2b8c64-5e0a-4d8e-9a39-7e6a1f0c2b11'
+    await m[CANALES.fuente.importarArchivo]([{ ref }])
+    expect(servicio.rutaDeRef).toHaveBeenCalledWith(ref)
+    expect(fuente.importar).toHaveBeenLastCalledWith(`/musica/${ref}.mp3`)
+    // Una ref desconocida o caducada la rechaza main; una forma que no es ni ruta ni ref, el esquema.
+    vi.mocked(servicio.rutaDeRef).mockImplementationOnce(() => {
+      throw Object.assign(new Error('caducó'), { codigo: 'ARGUMENTOS_NO_VALIDOS' })
+    })
+    expect(await m[CANALES.fuente.importarArchivo]([{ ref }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    expect(await m[CANALES.fuente.importarArchivo]([{ ref: 'no-es-uuid' }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    expect(await m[CANALES.fuente.importarArchivo]([{ ruta: '/x.mp3' }])).toMatchObject({
+      ok: false
+    })
   })
 })

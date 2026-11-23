@@ -216,7 +216,7 @@ const api: ApiShinobi = {
     elegirArchivoAudio: () => invocar(CANALES.sistema.elegirArchivoAudio)
   },
   fuente: {
-    importarArchivo: (ruta) => invocar(CANALES.fuente.importarArchivo, ruta),
+    importarArchivo: (entrada) => invocar(CANALES.fuente.importarArchivo, entrada),
     cancelarImportacion: (id) =>
       id === undefined
         ? invocar(CANALES.fuente.cancelarImportacion)

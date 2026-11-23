@@ -6,6 +6,8 @@ import type { ValoresDatos } from './CamposDatos'
  */
 export type BorradorAnadir =
   | { origen: 'archivo'; ruta: string; valores: ValoresDatos }
+  /** Una sola fila de la lectura del lote: main resuelve la `ref` (el renderer no maneja la ruta). */
+  | { origen: 'archivo'; ref: string; nombre: string; valores: ValoresDatos }
   | { origen: 'youtube'; url: string; valores: ValoresDatos }
 
 let guardado: BorradorAnadir | null = null

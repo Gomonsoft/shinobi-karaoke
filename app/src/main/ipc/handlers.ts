@@ -145,6 +145,8 @@ export interface FuenteIpc {
 export interface FuenteLoteIpc {
   leerArchivos(rutas?: string[]): Promise<LecturaLoteIpc | null>
   leerCarpeta(ruta?: string): Promise<LecturaLoteIpc | null>
+  /** Ruta de una fila de la lectura (`ARGUMENTOS_NO_VALIDOS` si caducó o no existe). */
+  rutaDeRef(ref: string): string
   infoLista(url: string): Promise<ListaYoutubeIpc>
   lote(peticion: LoteIpc): Promise<z.output<typeof resultadoLoteSchema>>
   espacioLibre(): Promise<{ libreBytes: number | null; factorMinutos: number | null }>
@@ -903,8 +905,8 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.sistema.elegirArchivoAudio]: envolver(CANALES.sistema.elegirArchivoAudio, () =>
       deps.elegirArchivoAudio()
     ),
-    [CANALES.fuente.importarArchivo]: envolver(CANALES.fuente.importarArchivo, (ruta) =>
-      fuente.importar(ruta)
+    [CANALES.fuente.importarArchivo]: envolver(CANALES.fuente.importarArchivo, (entrada) =>
+      fuente.importar(typeof entrada === 'string' ? entrada : lote().rutaDeRef(entrada.ref))
     ),
     [CANALES.fuente.cancelarImportacion]: envolver(CANALES.fuente.cancelarImportacion, (...ids) => {
       if (ids[0] === undefined) deps.lote?.cancelarLectura()

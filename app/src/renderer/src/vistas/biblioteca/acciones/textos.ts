@@ -22,6 +22,9 @@ export const MOTIVO: Record<string, string> = {
   SIN_FUENTE:
     'No se prepara: falta el audio. Ábrela con «Continuar» para elegir el archivo o descargarlo.',
   NADA_QUE_HACER: 'Ya tiene esos datos',
+  SIN_VOZ:
+    'No se pueden ajustar los fines: falta la voz separada. Vuelve a separar las pistas («Re-separar pistas») y prueba de nuevo.',
+  SIN_PICOS: 'No se pudo analizar la voz a tiempo. Vuelve a intentarlo en un momento.',
   CANCION_NO_DISPONIBLE: 'Está dañada o ya no está en la biblioteca',
   CANCION_EN_REPRODUCCION: 'No se elimina: se está reproduciendo en la otra pantalla',
   EDICION_BLOQUEADA: 'No se ha cambiado: está sonando en la otra pantalla. Edítala cuando termine.',
@@ -72,6 +75,7 @@ export const ACC = {
     titulo: (n: number): string => `Preparar ${canciones(n)}`,
     explicacion:
       'Shinobi Karaoke hará sola lo que falta en cada una: separar las pistas, buscar la letra, comprobarla con la voz y ajustar los fines. Quedarán como «Lista para revisar».',
+    nada: 'No hay nada que preparar en ella',
     privacidad: 'Para buscar la letra se envían el título y el artista de cada canción a LRCLIB.',
     boton: (n: number): string => `Preparar ${canciones(n)}`,
     toast: (n: number, titulo: string): string =>

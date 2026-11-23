@@ -235,8 +235,10 @@ describe('Exportar paquete: creando y fin', () => {
     )
     const dialogo = await screen.findByRole('dialog', { name: 'Paquete creado' })
     expect(
-      within(dialogo).getByText('Aurora — Ana.shinobi · 2 canciones · 290 MB · En /Documentos')
+      within(dialogo).getByText('Aurora — Ana.shinobi · 2 canciones · 290 MB')
     ).toBeInTheDocument()
+    // La carpeta va en otro renglón, con la ruta entera en `title`.
+    expect(within(dialogo).getByTitle('/Documentos')).toHaveTextContent('En /Documentos')
     expect(within(dialogo).getByText('1 canción no se pudo guardar:')).toBeInTheDocument()
     expect(within(dialogo).getByText('Cometa')).toBeInTheDocument()
     const mostrar = within(dialogo).getByRole('button', { name: 'Mostrar en la carpeta' })

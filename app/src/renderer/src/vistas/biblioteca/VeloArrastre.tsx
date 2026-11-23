@@ -4,7 +4,9 @@ import estilos from './biblioteca.module.css'
 /** `bib.arrastrar.soltarVarios` (docs/ux/02 · 0.2.2 · Feature 7). */
 export const SOLTAR_VARIOS = {
   n: (n: number): string => `Suelta para añadir ${n} canciones`,
-  carpeta: 'Suelta para añadir las canciones de la carpeta'
+  carpeta: 'Suelta para añadir las canciones de la carpeta',
+  /** `paq.arrastrar.soltar` (docs/ux/02 · 0323): un `.shinobi` suelto. */
+  paquete: 'Suelta para importar el paquete'
 } as const
 
 const traeArchivos = (e: DragEvent): boolean =>
@@ -15,7 +17,14 @@ export function textoDelVelo(e: DragEvent): string | null {
   const items = Array.from(e.dataTransfer?.items ?? []).filter((i) => i.kind === 'file')
   const carpeta = items.some((i) => i.webkitGetAsEntry?.()?.isDirectory === true)
   if (carpeta) return SOLTAR_VARIOS.carpeta
-  return items.length > 1 ? SOLTAR_VARIOS.n(items.length) : null
+  if (items.length > 1) return SOLTAR_VARIOS.n(items.length)
+  // Un solo archivo: el sistema no suele dar su nombre al entrar (solo el tipo). Con nombre, `.shinobi`; sin
+  // él, un archivo de tipo desconocido (vacío) es lo que da un `.shinobi`: el audio y el video traen el suyo.
+  const item = items[0]
+  if (!item) return null
+  const nombre = item.getAsFile?.()?.name
+  if (nombre) return /\.shinobi$/i.test(nombre) ? SOLTAR_VARIOS.paquete : null
+  return item.type === '' ? SOLTAR_VARIOS.paquete : null
 }
 
 /**

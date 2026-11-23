@@ -3,7 +3,7 @@ import { Info } from 'lucide-react'
 import type { Config } from '@shared/config'
 import { BarraProgreso } from '../../componentes/BarraProgreso'
 import { Boton } from '../../componentes/Boton'
-import { Icono } from '../../componentes/Icono'
+import { FilaConIcono } from '../letra/FilaConIcono'
 import { formatearTamano } from '../../exportacion/dialogo/textos'
 import {
   abrirExportarPaquete,
@@ -77,7 +77,7 @@ export function CopiaAjustes() {
       </p>
       {recordatorio && (
         <p className={estilos.suave} data-recordatorio>
-          <Icono icono={Info} tamano={16} /> {recordatorio}
+          <FilaConIcono icono={Info}>{recordatorio}</FilaConIcono>
         </p>
       )}
       {enCurso && (

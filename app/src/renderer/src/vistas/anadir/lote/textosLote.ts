@@ -74,9 +74,16 @@ export const LOTE = {
   activarEnAjustes: 'Activar en Ajustes',
   legal: 'Recuerda: descarga solo contenido que tengas derecho a descargar.',
   leerAviso: 'Leer el aviso',
-  sinEspacioTitulo: 'No hay espacio para todas.',
+  sinEspacioTitulo: (k: number): string =>
+    k === 0 ? 'No hay espacio para ninguna.' : 'No hay espacio para todas.',
   sinEspacioCuerpo: (k: number): string =>
-    `Caben unas ${k}. Desmarca algunas o libera espacio en el disco.`,
+    k === 0
+      ? 'Libera espacio en el disco o desmarca canciones.'
+      : `Caben unas ${k}. Desmarca algunas o libera espacio en el disco.`,
+  sinArtista: (k: number): string =>
+    k === 1
+      ? '1 canción no tiene artista: con él es más fácil encontrar su letra.'
+      : `${k} canciones no tienen artista: con él es más fácil encontrar su letra.`,
   nada: 'No hay ninguna canción que añadir.',
   boton: (n: number, youtube: boolean): string => {
     const base = youtube ? 'Descargar y añadir' : 'Añadir'

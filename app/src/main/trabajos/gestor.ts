@@ -45,6 +45,7 @@ export interface PuertoMantenimiento {
 export interface TrabajoRetenible {
   cancionId: string
   paso: PasoTrabajo
+  cola: ColaTrabajo
   comando: string
 }
 

@@ -3,7 +3,7 @@ import { SOLTAR_VARIOS, VeloArrastre } from './VeloArrastre'
 
 function arrastrar(
   tipo: 'dragenter' | 'dragleave' | 'drop',
-  items: { directory?: boolean }[] = []
+  items: { directory?: boolean; tipo?: string; nombre?: string }[] = []
 ) {
   const e = createEvent(tipo, window)
   Object.defineProperty(e, 'dataTransfer', {
@@ -11,6 +11,8 @@ function arrastrar(
       types: ['Files'],
       items: items.map((i) => ({
         kind: 'file',
+        type: i.tipo ?? 'audio/mpeg',
+        getAsFile: () => (i.nombre ? { name: i.nombre } : null),
         webkitGetAsEntry: () => ({ isDirectory: i.directory === true })
       }))
     }
@@ -29,6 +31,18 @@ describe('velo al arrastrar varios archivos (bib.arrastrar.soltarVarios)', () =>
     render(<VeloArrastre />)
     arrastrar('dragenter', [{ directory: true }])
     expect(screen.getByRole('status')).toHaveTextContent(SOLTAR_VARIOS.carpeta)
+  })
+
+  it('un .shinobi suelto: «Suelta para importar el paquete» (por su nombre o por su tipo vacío)', () => {
+    render(<VeloArrastre />)
+    arrastrar('dragenter', [{ nombre: 'canciones.shinobi', tipo: '' }])
+    expect(screen.getByRole('status')).toHaveTextContent(SOLTAR_VARIOS.paquete)
+    arrastrar('drop')
+    arrastrar('dragenter', [{ tipo: '' }])
+    expect(screen.getByRole('status')).toHaveTextContent('Suelta para importar el paquete')
+    arrastrar('drop')
+    arrastrar('dragenter', [{ nombre: 'tema.mp3' }])
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('un solo archivo no lleva velo, y al salir o soltar se quita', () => {

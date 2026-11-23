@@ -1141,7 +1141,12 @@ export const fotogramaExportacionSchema = z.object({
 // Los esquemas de respuesta salen de los ADR 0022–0028; lo que el ADR no fija (marcado «provisional»)
 // está en la pregunta 0166 y lo concretará la tarea que sustituya el manejador «no implementado».
 
-const idsCancionSchema = z.array(idCancionSchema).min(1).max(MAX_IDS_LOTE)
+/** Los ids repetidos de una petición por lotes se quedan en uno (la primera aparición manda). */
+const idsCancionSchema = z
+  .array(idCancionSchema)
+  .min(1)
+  .max(MAX_IDS_LOTE)
+  .transform((ids) => [...new Set(ids)])
 const idsParejaSchema = z.strictObject({ ids: idsCancionSchema })
 
 /** Aviso de versión nueva (ADR 0023 §4). */
@@ -1203,6 +1208,8 @@ export const tandaPreparacionSchema = z.object({
   estimacionMin: z.number().nonnegative().nullable(),
   /** Parada solo de las descargas, distinta de la pausa de toda la cola. */
   descargasParadas: z.enum(['YOUTUBE_BLOQUEADO', 'SIN_CONEXION']).nullable(),
+  /** Motor de separación ausente: solo se paran las separaciones; descargas, importaciones y letra siguen (0390). */
+  separacionesParadas: z.enum(['RUNTIME_NO_DISPONIBLE']).nullable(),
   /** Resultado por canción en el orden de la cola (`null` = aún sin resultado). */
   canciones: z.array(
     z.object({
@@ -1240,8 +1247,6 @@ export const filaLoteSchema = z.object({
   /** Identificador que main asocia a la ruta; válido 30 min. El renderer nunca envía rutas al confirmar. */
   ref: z.uuid(),
   nombre: z.string(),
-  /** Ruta del archivo: con un solo archivo añadible la vista sigue el flujo de una canción (`importarArchivo`). */
-  ruta: z.string().optional(),
   duracionMs: z.number().int().nonnegative().nullable(),
   metadatos: metadatosFilaLoteSchema,
   /** Los mismos datos con su procedencia (dudoso, carpeta…): `add.lote.fila.dudoso.*` y el origen de la tabla. */
@@ -1304,6 +1309,10 @@ export const loteSchema = z
     metadatos: z.array(metadatosEditablesSchema).min(1).max(MAX_LOTE)
   })
   .refine((l) => l.entradas.length === l.metadatos.length, 'Una entrada por cada metadato')
+  .refine((l) => {
+    const refs = l.entradas.flatMap((e) => (e.tipo === 'archivo' ? [e.ref] : []))
+    return new Set(refs).size === refs.length
+  }, 'Una fila no puede entrar dos veces')
 export type LoteIpc = z.infer<typeof loteSchema>
 export const resultadoLoteSchema = z.object({
   creadas: z.array(z.object({ id: idCancionSchema })),
@@ -1714,7 +1723,8 @@ export const CONTRATO = {
   [CANALES.sistema.abrirCarpetaDatos]: { args: vacio, res: z.void() },
   [CANALES.sistema.elegirArchivoAudio]: { args: vacio, res: z.string().nullable() },
   [CANALES.fuente.importarArchivo]: {
-    args: z.tuple([z.string().min(1).max(4096)]),
+    // Una ruta (arrastre) o la `ref` de una fila de la lectura del lote (0390): main resuelve la ruta.
+    args: z.tuple([z.union([z.string().min(1).max(4096), z.object({ ref: z.uuid() }).strict()])]),
     res: importacionLeidaSchema
   },
   // Sin id cancela la lectura en curso (el renderer aún no conoce el id mientras lee).
@@ -2269,7 +2279,7 @@ export interface ApiShinobi {
   }
   fuente: {
     /** Lee el archivo en `.importando/` (cancelable). Una nueva importación cancela la anterior. */
-    importarArchivo(ruta: string): Promise<ImportacionLeidaIpc>
+    importarArchivo(entrada: string | { ref: string }): Promise<ImportacionLeidaIpc>
     /** Sin id, cancela la lectura en curso; con id, descarta esa importación. */
     cancelarImportacion(importacionId?: string): Promise<void>
     /** Crea la canción (`borrador`, fuente completada) con los metadatos revisados. */

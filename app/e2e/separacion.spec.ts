@@ -209,7 +209,9 @@ test.describe('separación con el separador falso', () => {
   })
 
   test('panel de actividad: filas, Ir, cancelar y Terminado', async () => {
-    const env = preparar('sep-panel', { segundos: 6, pasos: 12 })
+    // La primera debe seguir separando mientras se importa la segunda (con la CPU ocupada importar tarda): 6 s se
+    // quedaba corto y la segunda ya iba «en curso» en vez de «En cola». Se espera por el estado, con más margen.
+    const env = preparar('sep-panel', { segundos: 16, pasos: 32 })
     // Solo separación: con la búsqueda automática, la letra (sumidero 503) deja a las canciones en la cola 60 s.
     sinBusquedaAutomatica(env.datos)
     const app = await lanzar(env)

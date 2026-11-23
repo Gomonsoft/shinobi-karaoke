@@ -21,7 +21,6 @@ import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
 import { BotonIcono } from '../../componentes/BotonIcono'
 import { CampoTexto } from '../../componentes/Campos'
-import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { formatearDuracion } from '../biblioteca/tarjeta'
 import {
@@ -60,18 +59,18 @@ function codigoDe(err: unknown): { codigo: string; mensaje: string } {
 
 function Duracion({ diferenciaMs }: { diferenciaMs: number }) {
   const c = compararDuracion(diferenciaMs)
+  // Icono a la izquierda del texto, en la misma línea (sistema visual §5; revisión 2026-11-23, C7).
   if (c.tipo === 'igual') {
     return (
-      <span className={`${estilos.duracion} ${estilos.durIgual}`}>
-        <Icono icono={Check} tamano={14} /> {TEXTO.durIgual}
-      </span>
+      <FilaConIcono icono={Check} className={`${estilos.duracion} ${estilos.durIgual}`}>
+        {TEXTO.durIgual}
+      </FilaConIcono>
     )
   }
   return (
-    <span className={`${estilos.duracion} ${estilos.durAviso}`}>
-      <Icono icono={TriangleAlert} tamano={14} />{' '}
+    <FilaConIcono icono={TriangleAlert} className={`${estilos.duracion} ${estilos.durAviso}`}>
       {c.tipo === 'diferente' ? TEXTO.durDif(c.segundos, c.sentido) : TEXTO.durMuyDif}
-    </span>
+    </FilaConIcono>
   )
 }
 

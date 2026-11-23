@@ -237,18 +237,26 @@ describe('pausa', () => {
     await cola.pausar()
     expect(d.actualizar).toHaveBeenCalledWith({ preparacion: { pausada: true } })
     expect(cola.estado()).toMatchObject({ pausada: true, motivoPausa: null })
-    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion' })).toBe(true)
-    expect(freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente' })).toBe(true)
+    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion', cola: 'pesada' })).toBe(
+      true
+    )
+    expect(
+      freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente', cola: 'ligera' })
+    ).toBe(true)
     await cola.reanudar()
     expect(d.actualizar).toHaveBeenLastCalledWith({ preparacion: { pausada: false } })
-    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion' })).toBe(false)
+    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion', cola: 'pesada' })).toBe(
+      false
+    )
     expect(d.reanudarCola).toHaveBeenCalled()
   })
 
   it('una pausa guardada de otra sesión vale desde el principio', () => {
     pausada = true
     expect(cola.pausada()).toBe(true)
-    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion' })).toBe(true)
+    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion', cola: 'pesada' })).toBe(
+      true
+    )
   })
 })
 
@@ -257,8 +265,12 @@ describe('paradas automáticas', () => {
     gestor(trabajo('a', {}, 'descargar-youtube'))
     gestor(terminado('a', 'error', 'descargar-youtube', 'YOUTUBE_BLOQUEADO'))
     expect(cola.estado()).toMatchObject({ descargasParadas: 'YOUTUBE_BLOQUEADO', pausada: false })
-    expect(freno!({ cancionId: 'b', comando: 'descargar-youtube', paso: 'fuente' })).toBe(true)
-    expect(freno!({ cancionId: 'b', comando: 'separar', paso: 'separacion' })).toBe(false)
+    expect(
+      freno!({ cancionId: 'b', comando: 'descargar-youtube', paso: 'fuente', cola: 'ligera' })
+    ).toBe(true)
+    expect(freno!({ cancionId: 'b', comando: 'separar', paso: 'separacion', cola: 'pesada' })).toBe(
+      false
+    )
   })
 
   it('SIN_CONEXION reintenta cada 60 s solo la primera descarga parada; las demás siguen paradas hasta que termina', async () => {
@@ -277,12 +289,18 @@ describe('paradas automáticas', () => {
     programados.at(-1)!.fn()
     await vi.waitFor(() => expect(d.reintentarDescarga).toHaveBeenCalledTimes(1))
     expect(d.reintentarDescarga).toHaveBeenCalledWith('a')
-    expect(freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente' })).toBe(false)
-    expect(freno!({ cancionId: 'c', comando: 'descargar-youtube', paso: 'fuente' })).toBe(true)
+    expect(
+      freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente', cola: 'ligera' })
+    ).toBe(false)
+    expect(
+      freno!({ cancionId: 'c', comando: 'descargar-youtube', paso: 'fuente', cola: 'ligera' })
+    ).toBe(true)
     // Vuelve a fallar sin red: se reprograma y siguen paradas.
     gestor(terminado('a', 'error', 'descargar-youtube', 'SIN_CONEXION'))
     expect(cola.estado()!.descargasParadas).toBe('SIN_CONEXION')
-    expect(freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente' })).toBe(true)
+    expect(
+      freno!({ cancionId: 'a', comando: 'descargar-youtube', paso: 'fuente', cola: 'ligera' })
+    ).toBe(true)
     const antes = programados.length
     programados.at(-1)!.fn()
     await vi.waitFor(() => expect(d.reintentarDescarga).toHaveBeenCalledTimes(2))
@@ -306,13 +324,110 @@ describe('paradas automáticas', () => {
     expect(cola.estado()!.descargasParadas).toBeNull()
   })
 
-  it('SIN_ESPACIO y RUNTIME_NO_DISPONIBLE paran toda la cola con su motivo', () => {
-    for (const codigo of ['SIN_ESPACIO', 'RUNTIME_NO_DISPONIBLE']) {
-      gestor(trabajo('a'))
-      gestor(terminado('a', 'error', 'separar', codigo))
-      expect(cola.estado()).toMatchObject({ pausada: true, motivoPausa: codigo })
-      expect(freno!({ cancionId: 'b', comando: 'separar', paso: 'separacion' })).toBe(true)
+  it('SIN_ESPACIO para toda la cola con su motivo, venga de donde venga', () => {
+    for (const comando of ['separar', 'descargar-youtube']) {
+      cola.cerrar()
+      cola = montar()
+      cola.arrancar()
+      gestor(trabajo('a', {}, comando))
+      gestor(terminado('a', 'error', comando, 'SIN_ESPACIO'))
+      expect(cola.estado()).toMatchObject({ pausada: true, motivoPausa: 'SIN_ESPACIO' })
+      expect(
+        freno!({ cancionId: 'b', comando: 'separar', paso: 'separacion', cola: 'pesada' })
+      ).toBe(true)
     }
+  })
+
+  describe('RUNTIME_NO_DISPONIBLE según el trabajo (0390)', () => {
+    const descarga = (id: string) => ({
+      cancionId: id,
+      comando: 'descargar-youtube',
+      paso: 'fuente' as const,
+      cola: 'ligera' as const
+    })
+    const importacion = (id: string) => ({
+      cancionId: id,
+      comando: 'importar-archivo-cola',
+      paso: 'fuente' as const,
+      cola: 'ligera' as const
+    })
+    const separacion = (id: string) => ({
+      cancionId: id,
+      comando: 'separar',
+      paso: 'separacion' as const,
+      cola: 'pesada' as const
+    })
+
+    it('(a) en una separación para solo las separaciones: descargas, importaciones y letra siguen y terminan', () => {
+      gestor(trabajo('a'))
+      gestor(trabajo('b', {}, 'descargar-youtube'))
+      gestor(trabajo('c', {}, 'importar-archivo-cola'))
+      gestor(terminado('a', 'error', 'separar', 'RUNTIME_NO_DISPONIBLE'))
+      expect(cola.estado()).toMatchObject({
+        pausada: false,
+        motivoPausa: null,
+        descargasParadas: null,
+        separacionesParadas: 'RUNTIME_NO_DISPONIBLE'
+      })
+      expect(freno!(separacion('d'))).toBe(true)
+      expect(freno!(descarga('b'))).toBe(false)
+      expect(freno!(importacion('c'))).toBe(false)
+      // La corrida de la canción refleja el mismo fallo: no lo convierte en parada total.
+      oyenteCorrida({
+        tipo: 'fin',
+        id: 'a',
+        preparacion: { estado: 'error', error: { codigo: 'RUNTIME_NO_DISPONIBLE', mensaje: '' } }
+      } as unknown as EventoCorrida)
+      expect(cola.estado()).toMatchObject({ pausada: false, motivoPausa: null })
+      // Las que siguen terminan con normalidad.
+      gestor(terminado('b', 'completado', 'descargar-youtube'))
+      gestor(terminado('c', 'completado', 'importar-archivo-cola'))
+      expect(cola.estado()!.canciones.find((x) => x.id === 'a')!.resultado).toBe('error')
+      expect(cola.estado()!.separacionesParadas).toBe('RUNTIME_NO_DISPONIBLE')
+    })
+
+    it('(b) en una descarga o una importación el motor básico falta: se para toda la cola', () => {
+      for (const comando of ['descargar-youtube', 'importar-archivo-cola']) {
+        cola.cerrar()
+        cola = montar()
+        cola.arrancar()
+        gestor(trabajo('a', {}, comando))
+        gestor(terminado('a', 'error', comando, 'RUNTIME_NO_DISPONIBLE'))
+        expect(cola.estado()).toMatchObject({
+          pausada: true,
+          motivoPausa: 'RUNTIME_NO_DISPONIBLE',
+          separacionesParadas: null
+        })
+        expect(freno!(descarga('b'))).toBe(true)
+        expect(freno!(separacion('b'))).toBe(true)
+      }
+    })
+
+    it('(c) SIN_ESPACIO sigue parando toda la cola, también desde una separación', () => {
+      gestor(trabajo('a'))
+      gestor(terminado('a', 'error', 'separar', 'SIN_ESPACIO'))
+      expect(cola.estado()).toMatchObject({ pausada: true, motivoPausa: 'SIN_ESPACIO' })
+      expect(freno!(descarga('b'))).toBe(true)
+    })
+
+    it('(d) «Reanudar» y reparar el motor liberan las separaciones', async () => {
+      gestor(trabajo('a'))
+      gestor(terminado('a', 'error', 'separar', 'RUNTIME_NO_DISPONIBLE'))
+      expect(freno!(separacion('b'))).toBe(true)
+      await cola.reanudar()
+      expect(cola.estado()!.separacionesParadas).toBeNull()
+      expect(freno!(separacion('b'))).toBe(false)
+      expect(d.reanudarCola).toHaveBeenCalled()
+
+      gestor(trabajo('c'))
+      gestor(terminado('c', 'error', 'separar', 'RUNTIME_NO_DISPONIBLE'))
+      expect(freno!(separacion('b'))).toBe(true)
+      d.reanudarCola.mockClear()
+      cola.motorReparado()
+      expect(cola.estado()!.separacionesParadas).toBeNull()
+      expect(freno!(separacion('b'))).toBe(false)
+      expect(d.reanudarCola).toHaveBeenCalled()
+    })
   })
 
   it('tres fallos seguidos con el mismo código paran toda la cola; otro código o un éxito reinician la cuenta', () => {
@@ -440,7 +555,9 @@ describe('reanudar al abrir', () => {
     pausada = true
     expect(await cola.reanudarAlAbrir()).toBe(1)
     expect(cola.estado()).toMatchObject({ pausada: true })
-    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion' })).toBe(true)
+    expect(freno!({ cancionId: 'a', comando: 'separar', paso: 'separacion', cola: 'pesada' })).toBe(
+      true
+    )
   })
 
   it('una preparación detenida por cierre vuelve a iniciarse con su origen', async () => {

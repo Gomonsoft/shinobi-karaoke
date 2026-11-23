@@ -176,7 +176,7 @@ export function SeguimientoLote({
   const mostrarCarpeta = (): void => {
     void window.shinobi.exportacion
       .mostrarCarpetaLote(lote.loteId)
-      .catch(() => mostrarToast({ tipo: 'aviso', mensaje: EXP_LOTE.carpetaNoExiste }))
+      .catch(() => mostrarToast({ tipo: 'aviso', mensaje: EXP_LOTE.carpetaNoExiste(lote.carpeta) }))
   }
 
   const todas = filasDelLote(lote, exportaciones, false)

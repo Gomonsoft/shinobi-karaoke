@@ -43,10 +43,13 @@ export function DialogoExportarPaquete({ peticion }: { peticion: PeticionExporta
   const estadoS = s?.estado
   useEffect(() => {
     if (estadoS === 'cancelada') {
-      mostrarToast({ tipo: 'info', mensaje: PAQ.ok.toastCancelado })
+      mostrarToast({
+        tipo: 'info',
+        mensaje: s?.esCopia ? AJCOPIA.toastCancelada : PAQ.ok.toastCancelado
+      })
       cerrarExportarPaquete()
     }
-  }, [estadoS])
+  }, [estadoS, s?.esCopia])
   if (s && s.estado !== 'cancelada') return <Seguimiento s={s} />
   return <Formulario peticion={peticion} />
 }
@@ -430,7 +433,9 @@ function Seguimiento({ s }: { s: SeguimientoCopia }) {
             valor={pct}
             indeterminada={s.fraccion === 0 && !c}
           />
-          <p className={`t-pequeno ${estilos.segundoPlano}`}>{PAQ.creando.segundoPlano}</p>
+          <p className={`t-pequeno ${estilos.segundoPlano}`}>
+            {s.esCopia ? AJCOPIA.segundoPlano : PAQ.creando.segundoPlano}
+          </p>
           <p role="status" className={estilosComponentes.soloLector}>
             {anuncio}
           </p>
@@ -466,9 +471,12 @@ function Seguimiento({ s }: { s: SeguimientoCopia }) {
         }
       >
         <div className={estilos.cuerpo}>
-          <p role="status">
-            {PAQ.ok.resumen(r.nombre, r.canciones, formatearTamano(r.bytes), s.carpeta ?? '')}
-          </p>
+          <p role="status">{PAQ.ok.resumen(r.nombre, r.canciones, formatearTamano(r.bytes))}</p>
+          {s.carpeta && (
+            <p className={estilos.carpetaLinea} title={s.carpeta}>
+              {PAQ.ok.carpeta(s.carpeta)}
+            </p>
+          )}
           {r.omitidas.length > 0 && (
             <>
               <p>{PAQ.ok.omitidas(r.omitidas.length)}</p>

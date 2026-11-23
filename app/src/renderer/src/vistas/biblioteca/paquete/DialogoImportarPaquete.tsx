@@ -323,6 +323,10 @@ function Revisar({ origenId, resumen }: { origenId: string; resumen: ResumenPaqu
 
         {hayExistentes && (
           <div className={estilos.dispersa}>
+            {/* Etiqueta visible a la izquierda; el grupo ya lleva el mismo nombre accesible. */}
+            <span className={estilos.suave} aria-hidden="true">
+              {PAQ.imp.paraExistentes}
+            </span>
             <ControlSegmentado
               etiqueta={PAQ.imp.paraExistentes}
               opciones={[

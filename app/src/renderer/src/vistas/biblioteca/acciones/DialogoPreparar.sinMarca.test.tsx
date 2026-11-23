@@ -67,4 +67,13 @@ describe('«Preparar» por lotes con letras sin marca (F5-B13)', () => {
       motivoNoAplica('preparar', { ...sinMarca, prepararFinesSinMarca: false }, ctx)
     ).not.toBeNull()
   })
+
+  it('una Lista con letra sin marca y fines por poner cuenta en la barra igual que en el diálogo', () => {
+    const ctx = { conTrabajo: new Set<string>(), exportando: new Set<string>(), activaId: null }
+    const lista = { ...sinMarca, id: 'l', estado: 'lista' as const }
+    expect(motivoNoAplica('preparar', lista, ctx)).toBeNull()
+    expect(motivoNoAplica('preparar', { ...lista, prepararFinesSinMarca: false }, ctx)).toBe(
+      'yaLista'
+    )
+  })
 })

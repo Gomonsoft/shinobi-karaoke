@@ -15,6 +15,8 @@ export const BIB_FINES = {
   toastFin: (titulo: string, k: number, n: number): string =>
     k === 0
       ? `No encontramos pausas claras en «${titulo}»: no hemos cambiado nada.`
-      : `Pusimos fin a ${k} de ${n} líneas de «${titulo}». Las demás no tenían una pausa clara.`,
+      : k === n
+        ? `Pusimos fin a las ${n} líneas de «${titulo}».`
+        : `Pusimos fin a ${k} de ${n} líneas de «${titulo}». Las demás no tenían una pausa clara.`,
   verLaLetra: 'Ver la letra'
 } as const

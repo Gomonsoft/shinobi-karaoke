@@ -137,6 +137,8 @@ describe('Importar: elegir, leer y revisar', () => {
       within(filas[1]!).getByRole('combobox', { name: 'Qué hacer con «A Pesar de Mí»' })
     ).toHaveValue('omitir')
     expect(within(filas[2]!).queryByRole('combobox')).toBeNull()
+    // La etiqueta del control general se ve, a su izquierda (no solo como nombre accesible).
+    expect(within(dialogo).getByText('Para las que ya tienes:')).toBeVisible()
     // Por defecto «Omitir»: entra 1 y el foco está en el primer selector.
     expect(within(dialogo).getByRole('button', { name: 'Importar 1 canción' })).toBeInTheDocument()
     expect(

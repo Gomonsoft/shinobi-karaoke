@@ -43,6 +43,8 @@ export function motivoDePreparar(plan: Plan, r: ResumenCancionIpc | undefined): 
   if (plan.motivo === 'YA_LISTA' && r && r.estado === 'borrador' && esListaParaRevisar(r)) {
     return motivoDe('yaPreparada')
   }
+  // «Ya tiene esos datos» es de «Editar datos…»: aquí, otro texto.
+  if (plan.motivo === 'NADA_QUE_HACER') return ACC.prep.nada
   return motivoDe(plan.motivo)
 }
 

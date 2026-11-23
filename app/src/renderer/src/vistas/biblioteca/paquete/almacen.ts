@@ -251,7 +251,10 @@ function avisarFin(s: SeguimientoCopia): void {
       })
       fijar({ seguimiento: null })
     } else if (s.estado === 'cancelada') {
-      mostrarToast({ tipo: 'info', mensaje: PAQ.ok.toastCancelado })
+      mostrarToast({
+        tipo: 'info',
+        mensaje: s.esCopia ? AJCOPIA.toastCancelada : PAQ.ok.toastCancelado
+      })
       fijar({ seguimiento: null })
     } else {
       const peticion = s.peticion

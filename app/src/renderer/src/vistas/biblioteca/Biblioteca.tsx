@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { ListMusic, Mic, MonitorUp, Search, SquareCheck, X } from 'lucide-react'
+import { ListMusic, Mic, MonitorUp, Search, SquareCheck } from 'lucide-react'
 import { vistaAlContinuar } from '@shared/derivados'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
-import { BotonIcono } from '../../componentes/BotonIcono'
 import { Boton } from '../../componentes/Boton'
 import { ControlSegmentado } from '../../componentes/ControlSegmentado'
 import { Icono } from '../../componentes/Icono'
@@ -56,7 +55,7 @@ import {
   type FiltroBiblioteca
 } from './filtrado'
 import { pasoConProblema, tituloDeTarjeta, type TrabajoVivo } from './tarjeta'
-import { BIB_PREP, type CasillaBandeja } from './textosPreparacion'
+import { BIB_PREP, mensajeDeOmitida, type CasillaBandeja } from './textosPreparacion'
 import { procedenciaCorta } from '../../temas/textos'
 import { lineaDeTema } from './textosTema'
 import { tituloDeError } from './textosError'
@@ -201,15 +200,25 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
   const [casilla, setCasillaEstado] = useState<CasillaBandeja | null>(casillaDeSesion)
   const [resultadoAbierto, setResultadoAbierto] = useState(false)
   const tanda = useTandaPreparacion()
-  // Aviso de un lote recién añadido (spec 02 · feature 7): se cierra solo al terminar la tanda o con [×].
+  // Lote recién añadido (spec 02 · feature 7): `bib.import.anadidas` sale como toast de 10 s, no en línea
+  // (revisión de capturas 2026-11-23, L2: al desplazarse a las tarjetas nuevas el aviso quedaba fuera de la vista).
   const lote = vista.tipo === 'biblioteca' ? vista.lote : undefined
-  const [loteCerrado, setLoteCerrado] = useState(false)
-  const loteVisto = useRef(lote)
-  if (loteVisto.current !== lote) {
-    loteVisto.current = lote
-    if (loteCerrado) setLoteCerrado(false)
-  }
-  const abrirActividad = () => window.dispatchEvent(new CustomEvent('shinobi:abrir-actividad'))
+  const loteAnunciado = useRef<typeof lote>(undefined)
+  useEffect(() => {
+    if (!lote || loteAnunciado.current === lote) return
+    loteAnunciado.current = lote
+    mostrarToast({
+      tipo: 'info',
+      mensaje: lote.conLetra
+        ? `Se añadieron ${lote.n} canciones y se están preparando solas.`
+        : `Se añadieron ${lote.n} canciones. Se están separando; la letra tendrás que buscarla tú.`,
+      duracionMs: 10_000,
+      accion: {
+        etiqueta: 'Ver actividad',
+        alAccionar: () => window.dispatchEvent(new CustomEvent('shinobi:abrir-actividad'))
+      }
+    })
+  }, [lote])
   const reanudacion = useAvisoReanudacion()
   const [busqueda, setBusqueda] = useState('')
   const [dialogo, setDialogo] = useState<DialogoActivo | null>(null)
@@ -729,7 +738,10 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
       try {
         const r = await window.shinobi.preparacion.preparar([id])
         if (r.aceptadas.length === 0) {
-          mostrarToast({ tipo: 'info', mensaje: BIB_PREP.noSePuedePreparar(tituloDe(id)) })
+          mostrarToast({
+            tipo: 'info',
+            mensaje: mensajeDeOmitida(r.omitidas, id, tituloDe(id))
+          })
         } else if (avisar) {
           mostrarToast({ tipo: 'info', mensaje: BIB_PREP.toastPreparando(tituloDe(id)) })
         }
@@ -1177,31 +1189,6 @@ function VistaBiblioteca({ datos }: { datos: BibliotecaDatos }) {
             />
           </div>
         </div>
-        {lote &&
-          !loteCerrado &&
-          !(tanda && tanda.total >= 2 && tanda.terminadas >= tanda.total) && (
-            <div className={estilos.avisosPrep}>
-              <AvisoEnLinea
-                tipo="info"
-                accion={
-                  <>
-                    <Boton variante="secundario" onClick={abrirActividad}>
-                      Ver actividad
-                    </Boton>
-                    <BotonIcono
-                      icono={X}
-                      etiqueta="Cerrar el aviso"
-                      onClick={() => setLoteCerrado(true)}
-                    />
-                  </>
-                }
-              >
-                {lote.conLetra
-                  ? `Se añadieron ${lote.n} canciones y se están preparando solas.`
-                  : `Se añadieron ${lote.n} canciones. Se están separando; la letra tendrás que buscarla tú.`}
-              </AvisoEnLinea>
-            </div>
-          )}
         {reanudacion.aviso && (
           <div className={estilos.avisosPrep}>
             <AvisoEnLinea

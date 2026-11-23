@@ -20,7 +20,6 @@ const lectura = (n: number, extra: Partial<LecturaLoteIpc> = {}): LecturaLoteIpc
   filas: Array.from({ length: n }, (_, i) => ({
     ref: REF(i),
     nombre: `pista-${i}.mp3`,
-    ruta: `/musica/pista-${i}.mp3`,
     duracionMs: 240_000,
     metadatos: { titulo: `Canción ${i + 1}`, artista: 'Grupo Inventado', album: null },
     duplicado: null,
@@ -252,6 +251,37 @@ describe('modo lote · archivos', () => {
     api.fuente.espacioLibre.mockClear()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Añadir «Canción 3»' }))
     await waitFor(() => expect(api.fuente.espacioLibre).toHaveBeenCalled())
+  })
+
+  it('sin espacio ni para una canción (k = 0) dice «No hay espacio para ninguna» sin «Caben unas 0»', async () => {
+    montar({ lectura: lectura(3, { libreBytes: 500 * 1024 * 1024 }), espacio: 500 * 1024 * 1024 })
+    soltar(['a.mp3', 'b.mp3', 'c.mp3'])
+    await tabla()
+    expect(await screen.findAllByText(/No hay espacio para ninguna/)).not.toHaveLength(0)
+    expect(
+      screen.getByText(/Libera espacio en el disco o desmarca canciones\./)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Caben unas/)).toBeNull()
+  })
+
+  it('las filas sin artista dan un solo aviso con «Artista para todas…», no una marca por fila (0323)', async () => {
+    const base = lectura(3)
+    montar({
+      lectura: {
+        ...base,
+        filas: base.filas.map((f, i) =>
+          i < 2 ? { ...f, metadatos: { ...f.metadatos, artista: '' } } : f
+        )
+      }
+    })
+    soltar(['a.mp3', 'b.mp3', 'c.mp3'])
+    await tabla()
+    expect(
+      screen.getAllByText('2 canciones no tienen artista: con él es más fácil encontrar su letra.')
+    ).toHaveLength(1)
+    expect(screen.queryByText('Sin artista es más difícil encontrar la letra.')).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Artista para todas…' })[0]!)
+    expect(await screen.findByRole('dialog', { name: 'Artista para todas…' })).toBeInTheDocument()
   })
 
   it('con libreBytes null no avisa; un SIN_ESPACIO de main al pulsar lo muestra y no navega', async () => {
