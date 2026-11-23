@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
@@ -30,11 +30,13 @@ export function PreparacionAjustes({ enfocarAlAbrir = false }: Props) {
   const idTitulo = useId()
   const idCasilla = useId()
   const idAyuda = useId()
+  // Si el usuario cambia la casilla antes de que llegue la configuración, esa lectura no la pisa.
+  const tocada = useRef(false)
 
   useEffect(() => {
     let activo = true
     window.shinobi.config.obtener().then(
-      (c) => activo && setActiva(c.preparacion?.automatica !== false),
+      (c) => activo && !tocada.current && setActiva(c.preparacion?.automatica !== false),
       () => undefined
     )
     return () => {
@@ -44,6 +46,7 @@ export function PreparacionAjustes({ enfocarAlAbrir = false }: Props) {
 
   const alternar = async (nuevo: boolean) => {
     const anterior = activa
+    tocada.current = true
     setActiva(nuevo)
     setPendientes(null)
     try {

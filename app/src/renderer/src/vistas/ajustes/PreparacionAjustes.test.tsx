@@ -73,7 +73,10 @@ describe('Letras y preparación automática', () => {
 
   it('F5-J5: al marcarla con borradores sin letra avisa y lleva a la casilla «Esperan letra»', async () => {
     const { ir } = montar({ automatica: false, borradoresSinLetra: 5 })
-    fireEvent.click(await casilla())
+    const c = await casilla()
+    // La casilla nace marcada hasta que llega la configuración: se espera a que refleje «apagada».
+    await waitFor(() => expect(c).not.toBeChecked())
+    fireEvent.click(c)
     expect(await screen.findByText(/Tienes 5 borradores sin letra/)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Verlos en la Biblioteca' }))
     expect(ir).toHaveBeenCalledWith({ tipo: 'biblioteca', casilla: 'letra' })
