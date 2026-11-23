@@ -10,7 +10,7 @@ import {
   type Proporcion,
   type Resolucion
 } from '@shared/exportacion'
-import type { CarpetaDestinoIpc } from '@shared/ipc'
+import type { CarpetaDestinoIpc, PrevisualizacionLoteIpc } from '@shared/ipc'
 import { cancionExportable, type CancionExportable } from '../dialogo/cancion'
 import {
   cambiarFormato,
@@ -60,7 +60,11 @@ const errorDe = (e: unknown): ErrorLote => ({
  * recordadas y la carpeta propuesta (`destinoCarpeta()` sin argumento, sin diálogo); suma las estimaciones;
  * cambia de carpeta con el selector del sistema (cancelarlo conserva la anterior) y lanza `iniciarLote`.
  */
-export function useFormularioLote(cancionIds: readonly string[]) {
+export function useFormularioLote(
+  cancionIds: readonly string[],
+  /** «Cambiar opciones» del resultado: vuelve con las opciones anteriores en lugar de las recordadas. */
+  opcionesAnteriores?: OpcionesExportacion
+) {
   const [carga, setCarga] = useState<CargaLote>({ tipo: 'cargando' })
   const [canciones, setCanciones] = useState<CancionExportable[]>([])
   const [perfiles, setPerfiles] = useState<PerfilesIpc | null>(null)
@@ -71,6 +75,7 @@ export function useFormularioLote(cancionIds: readonly string[]) {
     bytes: number | null
     segundos: number | null
   } | null>(null)
+  const [previsualizacion, setPrevisualizacion] = useState<PrevisualizacionLoteIpc | null>(null)
   const [anuncios, setAnuncios] = useState<AnunciosFormulario>({})
   const [error, setError] = useState<ErrorLote | null>(null)
   const [iniciando, setIniciando] = useState(false)
@@ -97,7 +102,7 @@ export function useFormularioLote(cancionIds: readonly string[]) {
         ])
         if (!activo) return
         const r = config?.exportacion
-        const base: OpcionesExportacion = {
+        const base: OpcionesExportacion = opcionesAnteriores ?? {
           audio: r?.audio ?? OPCIONES_INICIALES.audio,
           formato: r?.formato ?? OPCIONES_INICIALES.formato,
           ancho: r?.ancho ?? OPCIONES_INICIALES.ancho,
@@ -116,7 +121,33 @@ export function useFormularioLote(cancionIds: readonly string[]) {
     return () => {
       activo = false
     }
+    // Solo cuenta lo que se pidió al abrir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids])
+
+  // Qué ocurriría con cada canción en esa carpeta (orientativo: `iniciarLote` lo recalcula al confirmar).
+  // Se vuelve a pedir al cambiar la carpeta, el formato, la selección o «si ya existe»; una respuesta
+  // atrasada no pisa a la nueva y un fallo deja el formulario sin aviso (el botón cuenta todas).
+  const carpetaId = carpeta?.carpetaId ?? null
+  const idsCargadas = canciones.map((c) => c.id).join('|')
+  useEffect(() => {
+    if (carga.tipo !== 'listo' || carpetaId === null || idsCargadas === '') return
+    let activo = true
+    window.shinobi.exportacion
+      .previsualizarLote({
+        cancionIds: idsCargadas.split('|'),
+        formato: opciones.formato,
+        carpetaId,
+        siExiste
+      })
+      .then(
+        (r) => activo && setPrevisualizacion(r),
+        () => activo && setPrevisualizacion(null)
+      )
+    return () => {
+      activo = false
+    }
+  }, [carga.tipo, carpetaId, idsCargadas, opciones.formato, siExiste])
 
   // Estimación: la suma de la de cada canción; una respuesta atrasada no pisa a la nueva.
   const { audio, formato, ancho, alto, fps } = opciones
@@ -176,6 +207,7 @@ export function useFormularioLote(cancionIds: readonly string[]) {
     carpeta,
     siExiste,
     estimacion,
+    previsualizacion,
     anuncios,
     error,
     iniciando,

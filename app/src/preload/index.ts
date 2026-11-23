@@ -119,6 +119,8 @@ const api: ApiShinobi = {
         desdeCarpetaId === undefined ? {} : { desdeCarpetaId }
       ),
     iniciarLote: (peticion) => invocar(CANALES.exportacion.iniciarLote, peticion),
+    previsualizarLote: (peticion) => invocar(CANALES.exportacion.previsualizarLote, peticion),
+    mostrarCarpetaLote: (loteId) => invocar(CANALES.exportacion.mostrarCarpetaLote, { loteId }),
     cancelarLote: (loteId) => invocar(CANALES.exportacion.cancelarLote, { loteId }),
     reintentarLote: (loteId) => invocar(CANALES.exportacion.reintentarLote, { loteId })
   },

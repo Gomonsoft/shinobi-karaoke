@@ -6,7 +6,7 @@ import { Dialogo } from '../../componentes/Dialogo'
 import estilosComponentes from '../../componentes/componentes.module.css'
 import { useSesion } from '../../sesion/ProveedorSesion'
 import { motivoDe } from '../../vistas/biblioteca/acciones/textos'
-import { esCostoso, faltaEspacio, sinPerfiles } from '../dialogo/modelo'
+import { esCostoso, faltaEspacio, sinPerfiles, type OpcionesExportacion } from '../dialogo/modelo'
 import { MuestraExportacion } from '../dialogo/MuestraExportacion'
 import { OpcionesVideo } from '../dialogo/OpcionesVideo'
 import {
@@ -29,6 +29,8 @@ interface Props {
   cancionIds: string[]
   /** Seleccionadas que no se pueden exportar: van al final, atenuadas, con su motivo. */
   noAplican: { id: string; titulo: string; artista: string; motivo: string }[]
+  /** «Cambiar opciones» del resultado: las opciones con las que se exportó. */
+  opcionesAnteriores?: OpcionesExportacion
   alIniciado(lote: Omit<LoteVista, 'iniciadoEn'>): void
   alCerrar(): void
 }
@@ -36,8 +38,14 @@ interface Props {
 const ORDEN_SI_EXISTE: SiExiste[] = ['numerar', 'sustituir', 'omitir']
 
 /** Diálogo G «Exportar videos» (docs/ux/10 · 0.2.2 · Feature 8): mismas opciones para todo el lote y una carpeta. */
-export function DialogoFormularioLote({ cancionIds, noAplican, alIniciado, alCerrar }: Props) {
-  const f = useFormularioLote(cancionIds)
+export function DialogoFormularioLote({
+  cancionIds,
+  noAplican,
+  opcionesAnteriores,
+  alIniciado,
+  alCerrar
+}: Props) {
+  const f = useFormularioLote(cancionIds, opcionesAnteriores)
   const { haySesion } = useSesion()
   const idCabecera = useId()
   const [verCuales, setVerCuales] = useState(false)
@@ -58,6 +66,10 @@ export function DialogoFormularioLote({ cancionIds, noAplican, alIniciado, alCer
   }, [listo])
 
   const n = f.canciones.length
+  // El número real de videos: sin las que main omitiría por nombre (F8-V3) ni las que no pueden exportarse.
+  const aExportar = f.previsualizacion?.exportables ?? n
+  const filaDe = new Map(f.previsualizacion?.filas.map((x) => [x.cancionId, x]))
+  const existentes = f.previsualizacion?.filas.filter((x) => x.existe).length ?? 0
   const primera = f.canciones[0]
   const duracion = f.canciones.reduce((s, c) => s + c.duracionMs, 0)
   const bytes = f.estimacion?.bytes ?? null
@@ -79,6 +91,7 @@ export function DialogoFormularioLote({ cancionIds, noAplican, alIniciado, alCer
     if (f.opciones.audio === 'instrumental_voz' && !c.vozDisponible) return EXP_LOTE.nota.sinVoz
     if (c.estado === 'lista' && c.modalidad === 'letra_lista') return EXP_LOTE.nota.letraLista
     if (c.estado === 'lista' && c.sinInicio > 0) return EXP_LOTE.nota.incompleta
+    if (filaDe.get(c.id)?.existe) return EXP_LOTE.nota.existe
     return null
   }
 
@@ -103,7 +116,15 @@ export function DialogoFormularioLote({ cancionIds, noAplican, alIniciado, alCer
     )
   }
 
+  const nombreDe = (id: string): string | null => {
+    const x = filaDe.get(id)
+    return x && x.accion !== 'omitir' && x.archivo ? x.archivo : null
+  }
+
   const notas: { id: string; tipo: 'info' | 'aviso'; texto: string }[] = []
+  if (existentes > 0) {
+    notas.push({ id: 'existe', tipo: 'info', texto: EXP_LOTE.avisoExiste(existentes, f.siExiste) })
+  }
   if (faltaEspacio(bytes, f.carpeta?.libreBytes ?? null)) {
     notas.push({
       id: 'espacio',
@@ -127,12 +148,12 @@ export function DialogoFormularioLote({ cancionIds, noAplican, alIniciado, alCer
           <Boton onClick={alCerrar}>{EXP.botonCancelar}</Boton>
           <Boton
             variante="primario"
-            disabled={!listo || f.carpeta === null}
+            disabled={!listo || f.carpeta === null || aExportar === 0}
             cargando={f.iniciando}
             textoCargando={EXP.botonValidando}
             onClick={() => void exportar()}
           >
-            {EXP_LOTE.boton(n)}
+            {EXP_LOTE.boton(aExportar)}
           </Boton>
         </>
       }
@@ -168,6 +189,7 @@ export function DialogoFormularioLote({ cancionIds, noAplican, alIniciado, alCer
                 return (
                   <li key={c.id} aria-label={`${c.titulo}, ${c.artista}${nota ? `: ${nota}` : ''}`}>
                     {c.titulo} — {c.artista} · {formatearPosicion(c.duracionMs)}
+                    {nombreDe(c.id) && ` → ${nombreDe(c.id)}`}
                     {nota && <span className={`t-pequeno ${estilos.texto2}`}> · {nota}</span>}
                   </li>
                 )

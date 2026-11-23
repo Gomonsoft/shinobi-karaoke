@@ -72,6 +72,42 @@ def test_descarga_completa(falso, tmp_path):
     assert "descargando" in fases
 
 
+def test_el_resultado_trae_los_campos_de_musica_sin_otra_peticion(falso, tmp_path, capsys):
+    fixture(
+        falso,
+        duration=12,
+        title="Tema inventado (Official Video)",
+        track="Tema inventado",
+        artist="Grupo Ficticio",
+        album="Disco Inventado",
+        release_year=2019,
+    )
+
+    class Contando(youtube.FuenteYoutubeFalsa):
+        llamadas_info = 0
+
+        def info(self, url):
+            Contando.llamadas_info += 1
+            return super().info(url)
+
+    salida = tmp_path / "cancion"
+    youtube.descargar_youtube({"url": URL, "salida": str(salida)}, Contando(falso))
+    datos = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["datos"]
+    assert datos["musica"]["track"] == "Tema inventado"
+    assert datos["musica"]["artist"] == "Grupo Ficticio"
+    assert datos["musica"]["album"] == "Disco Inventado"
+    assert datos["musica"]["release_year"] == 2019
+    # El `info` es el de la propia descarga: no hay una consulta aparte a la fuente.
+    assert Contando.llamadas_info == 0
+
+
+def test_sin_campos_de_musica_el_resultado_trae_null(falso, tmp_path):
+    fixture(falso, duration=12, title="Artista - Tema", channel="Canal Inventado")
+    codigo, err, msgs = ejecutar(falso, tmp_path / "cancion")
+    assert codigo == 0, err
+    assert msgs[-1]["datos"]["musica"] is None
+
+
 def test_progreso_creciente_con_detalle(falso, tmp_path):
     fixture(falso, duration=12, bytes_por_segundo=1000, ritmo=1.5)
     inicio = time.monotonic()

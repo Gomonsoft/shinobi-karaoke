@@ -147,7 +147,7 @@ export interface FuenteLoteIpc {
   leerCarpeta(ruta?: string): Promise<LecturaLoteIpc | null>
   infoLista(url: string): Promise<ListaYoutubeIpc>
   lote(peticion: LoteIpc): Promise<z.output<typeof resultadoLoteSchema>>
-  espacioLibre(): Promise<{ libreBytes: number | null }>
+  espacioLibre(): Promise<{ libreBytes: number | null; factorMinutos: number | null }>
   /** `false` si la canción no es de un lote de archivos (el llamador prueba con YouTube). */
   reintentar(cancionId: string): Promise<boolean>
   cancelarLectura(): void
@@ -249,6 +249,8 @@ export type ExportacionServicioIpc = Pick<
   | 'iniciar'
   | 'destinoCarpeta'
   | 'iniciarLote'
+  | 'previsualizarLote'
+  | 'mostrarCarpetaLote'
   | 'cancelarLote'
   | 'reintentarLote'
   | 'cancelar'
@@ -1099,6 +1101,20 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       exigirRol(ctx, 'principal')
       return exportacion().iniciarLote(p)
     }),
+    [CANALES.exportacion.previsualizarLote]: envolverCtx(
+      CANALES.exportacion.previsualizarLote,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().previsualizarLote(p)
+      }
+    ),
+    [CANALES.exportacion.mostrarCarpetaLote]: envolverCtx(
+      CANALES.exportacion.mostrarCarpetaLote,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().mostrarCarpetaLote(p.loteId)
+      }
+    ),
     [CANALES.exportacion.cancelarLote]: envolverCtx(CANALES.exportacion.cancelarLote, (ctx, p) => {
       exigirRol(ctx, 'principal')
       return exportacion().cancelarLote(p.loteId)

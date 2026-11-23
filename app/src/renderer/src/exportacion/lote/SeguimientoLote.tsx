@@ -11,17 +11,19 @@ import { copiarDetalles } from '../../soporte/detalles'
 import { useExportaciones } from '../contexto'
 import { porcentajeDe } from '../estado'
 import { formatearTamano, textoErrorExp } from '../dialogo/textos'
-import { EXP_PROGRESO, EXP_TOAST, formatearDuracionTrabajo } from '../dialogo/textosProgreso'
+import { EXP_PROGRESO, formatearDuracionTrabajo } from '../dialogo/textosProgreso'
 import estilos from '../dialogo/exportacion.module.css'
 import {
   filasDelLote,
   minutosRestantes,
   reintentables,
+  soloSeArreglaCambiando,
   resumirLote,
   type FilaLote,
   type LoteVista
 } from './modelo'
 import { EXP_LOTE } from './textos'
+import type { OpcionesExportacion } from '../dialogo/modelo'
 
 interface Props {
   lote: LoteVista
@@ -30,6 +32,8 @@ interface Props {
   alCerrar(): void
   /** Main aceptó «Reintentar las fallidas»: el lote sigue con solo esas. */
   alReintentado(cambios: Partial<LoteVista>): void
+  /** «Cambiar opciones»: vuelve al formulario con esas canciones y las opciones anteriores. */
+  alCambiarOpciones(cancionIds: string[], opciones: OpcionesExportacion): void
 }
 
 const SIMBOLO: Record<FilaLote['estado'], string> = {
@@ -52,7 +56,8 @@ export function SeguimientoLote({
   lote,
   confirmarInicial = false,
   alCerrar,
-  alReintentado
+  alReintentado,
+  alCambiarOpciones
 }: Props) {
   const { exportaciones, pedirCancelar } = useExportaciones()
   const filasRonda = filasDelLote(lote, exportaciones)
@@ -169,12 +174,9 @@ export function SeguimientoLote({
   }
 
   const mostrarCarpeta = (): void => {
-    const hecha = filasDelLote(lote, exportaciones, false).find((f) => f.estado === 'terminada')
-    const id = hecha?.exportacion?.trabajoId
-    if (!id) return
     void window.shinobi.exportacion
-      .mostrarEnCarpeta({ trabajoId: id })
-      .catch(() => mostrarToast({ tipo: 'aviso', mensaje: EXP_TOAST.noExiste }))
+      .mostrarCarpetaLote(lote.loteId)
+      .catch(() => mostrarToast({ tipo: 'aviso', mensaje: EXP_LOTE.carpetaNoExiste }))
   }
 
   const todas = filasDelLote(lote, exportaciones, false)
@@ -185,6 +187,12 @@ export function SeguimientoLote({
   const textoDetenido = detenido ? textoErrorExp(detenido as never) : null
   const retos = reintentables(todas)
   const ninguno = resumenTodas.completadas === 0
+  const cambiar = soloSeArreglaCambiando(retos)
+  const cambiarOpciones = (): void =>
+    alCambiarOpciones(
+      retos.map((f) => f.cancion.id),
+      lote.opciones
+    )
 
   // ---- H: exportando ----
   if (!fin) {
@@ -275,10 +283,10 @@ export function SeguimientoLote({
             <Boton
               data-principal={ninguno ? '' : undefined}
               cargando={reintentando}
-              textoCargando={EXP_LOTE.reintentar}
-              onClick={() => void reintentar()}
+              textoCargando={cambiar ? EXP_LOTE.cambiarOpciones : EXP_LOTE.reintentar}
+              onClick={cambiar ? cambiarOpciones : () => void reintentar()}
             >
-              {EXP_LOTE.reintentar}
+              {cambiar ? EXP_LOTE.cambiarOpciones : EXP_LOTE.reintentar}
             </Boton>
           )}
           <Boton data-cerrar onClick={alCerrar}>

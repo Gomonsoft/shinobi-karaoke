@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { sembrar } from '../src/main/biblioteca/semilla'
+import { nombrePropuesto } from '../src/shared/exportacion'
 import type { ApiShinobi } from '../src/shared/ipc'
 import { idSemilla } from './fixtures/editor'
 import { leerCancion, leerConfig, carpeta } from './fixtures/separacion'
@@ -235,10 +236,10 @@ test('«Letra lista» a WebM: sin barrido y con los fotogramas esperados', async
   }
 })
 
-test('exportar varias desde la barra de la Biblioteca: 2 videos a 640×480 en una carpeta temporal (0321)', async () => {
-  test.setTimeout(300_000)
-  const datos = crearTemporal('exportacion-lote')
-  const salida = crearTemporal('exportacion-lote-salida')
+/** Datos sembrados con dos «Reproductor» de 3 s y las opciones recordadas apuntando a una carpeta temporal. */
+async function prepararLote(nombre: string) {
+  const datos = crearTemporal(nombre)
+  const salida = crearTemporal(`${nombre}-salida`)
   await sembrar(datos)
   // Las dos «Reproductor» de la semilla, acortadas a 3 s.
   for (const n of [20, 21]) {
@@ -261,6 +262,12 @@ test('exportar varias desde la barra de la Biblioteca: 2 videos a 640×480 en un
     audio: 'instrumental'
   }
   writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  return { datos, salida }
+}
+
+test('exportar varias desde la barra de la Biblioteca: 2 videos a 640×480 en una carpeta temporal (0321)', async () => {
+  test.setTimeout(300_000)
+  const { datos, salida } = await prepararLote('exportacion-lote')
   const app = await electron.launch({
     args: ['.'],
     cwd: process.cwd(),
@@ -286,6 +293,45 @@ test('exportar varias desde la barra de la Biblioteca: 2 videos a 640×480 en un
     for (const a of archivos) expect(statSync(join(salida, a)).size).toBeGreaterThan(1000)
     const s = sondear(join(salida, archivos[0]!))
     expect(s).toMatchObject({ w: 640, h: 480, fps: 24, seg: 3 })
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+})
+
+test('exportar varias con un video ya presente y «omitir»: el botón dice uno menos y se exporta uno menos (0388)', async () => {
+  test.setTimeout(300_000)
+  const { datos, salida } = await prepararLote('exportacion-lote-omitir')
+  const lista = leerCancion(datos, idSemilla(20))
+  const yaExiste = nombrePropuesto(lista.metadatos.titulo, lista.metadatos.artista, 'mkv')
+  writeFileSync(join(salida, yaExiste), 'anterior')
+  const app = await electron.launch({
+    args: ['.'],
+    cwd: process.cwd(),
+    env: { ...process.env, SHINOBI_DATOS: datos, SHINOBI_SILENCIAR_AUDIO: '1' }
+  })
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Seleccionar', exact: true }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista»' }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista incompleta»' }).click()
+    await v.getByRole('button', { name: 'Más acciones', exact: true }).dispatchEvent('click')
+    await v.getByRole('menuitem', { name: 'Exportar video…' }).click()
+    const g = v.getByRole('dialog', { name: 'Exportar 2 videos' })
+    await expect(g.getByLabel(/^Guardar en la carpeta, /)).toHaveValue(salida)
+    await expect(
+      g.getByText(/^1 de estas canciones ya tienen un video en esta carpeta/)
+    ).toBeVisible()
+    await g.getByRole('button', { name: 'Ver cuáles' }).click()
+    await expect(g.getByText(`→ ${yaExiste.replace('.mkv', ' (2).mkv')}`)).toBeVisible()
+    await g.getByRole('radio', { name: 'Omitir esa canción' }).click()
+    await expect(g.getByText(/^1 canciones no se exportarán/)).toBeVisible()
+    await g.getByRole('button', { name: 'Exportar 1 video', exact: true }).click()
+    const i = v.getByRole('dialog', { name: 'Videos exportados' })
+    await expect(i).toBeVisible({ timeout: 240_000 })
+    await expect(i.getByText(/Se exportaron 1 de 2 videos/)).toBeVisible()
+    const archivos = readdirSync(salida).filter((n) => n.endsWith('.mkv'))
+    expect(archivos).toHaveLength(2)
+    expect(readFileSync(join(salida, yaExiste), 'utf8')).toBe('anterior')
   } finally {
     await app.close().catch(() => undefined)
   }

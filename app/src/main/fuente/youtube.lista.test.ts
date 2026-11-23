@@ -57,3 +57,52 @@ describe('álbum de una lista por su id', () => {
     expect(otra.datos.album.valor).toBe('')
   })
 })
+
+describe('origen de lo que la tabla del lote deja igual o cambia (sin consultar el vídeo)', () => {
+  it('lo igual a la lista es «nombre»; lo que escribió el usuario es «usuario»', async () => {
+    const crear = vi.fn().mockResolvedValue({ id: 'c1' })
+    const ejecutar = vi.fn(() =>
+      Promise.resolve({
+        titulo: 'Album - Disco A',
+        tipo: 'album',
+        recortada: false,
+        entradas: [
+          {
+            id: 'aaaaaaaaaaa',
+            titulo: 'Tema de la lista',
+            canal: '',
+            duracion_s: 10,
+            disponible: true
+          }
+        ]
+      })
+    ) as unknown as DependenciasYoutube['ejecutar']
+    const servicio = new ServicioYoutube({
+      biblioteca: { crear, obtener: () => null },
+      gestor: { encolar: vi.fn(), listar: () => [] },
+      ejecutar,
+      config: {
+        obtener: () => ({
+          ...configPredeterminada(),
+          aviso_youtube_aceptado: '2026-01-01T00:00:00Z',
+          aviso_youtube_listas_aceptado: '2026-01-01T00:00:00Z'
+        })
+      },
+      dirDatos: '/nada'
+    } as unknown as DependenciasYoutube)
+    await servicio.leerLista(`https://www.youtube.com/playlist?list=${LISTA_A}`)
+    const metadatos = () => crear.mock.calls.at(-1)![0].metadatos as { origen?: object }
+    await servicio.crearDeLote('aaaaaaaaaaa', {
+      titulo: 'Tema de la lista',
+      artista: '',
+      album: 'Disco A'
+    })
+    expect(metadatos().origen).toEqual({ titulo: 'nombre', album: 'nombre' })
+    await servicio.crearDeLote('aaaaaaaaaaa', {
+      titulo: 'Lo escribí yo',
+      artista: 'Yo',
+      album: 'Disco A'
+    })
+    expect(metadatos().origen).toEqual({ titulo: 'usuario', artista: 'usuario', album: 'nombre' })
+  })
+})

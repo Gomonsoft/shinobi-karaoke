@@ -1,6 +1,6 @@
 import { useCallback, useReducer } from 'react'
-import { MAX_LOTE, type InfoYoutubeIpc } from '@shared/ipc'
-import { completarConInfo, sePuedeMarcar, type CampoFila, type FilaTabla } from './modelo'
+import { MAX_LOTE } from '@shared/ipc'
+import { sePuedeMarcar, type CampoFila, type FilaTabla } from './modelo'
 
 interface Estado {
   filas: FilaTabla[]
@@ -17,7 +17,6 @@ type Accion =
   | { tipo: 'marcar'; clave: string; marcada: boolean }
   | { tipo: 'marcarTodas'; marcada: boolean }
   | { tipo: 'aplicarATodas'; campo: Exclude<CampoFila, 'titulo'>; valor: string }
-  | { tipo: 'completar'; clave: string; info: InfoYoutubeIpc | null }
   | { tipo: 'deshacer' }
 
 const MAX_HISTORIAL = 50
@@ -84,14 +83,6 @@ function reducir(e: Estado, a: Accion): Estado {
       )
       return { ...e, filas, historial: conInstantanea(e), editado: true, tope: null }
     }
-    case 'completar': {
-      const info = a.info
-      const filas = e.filas.map((f) =>
-        f.clave !== a.clave ? f : info ? completarConInfo(f, info) : { ...f, pendienteDatos: false }
-      )
-      // Completar no es una edición del usuario: ni historial ni «editado».
-      return { ...e, filas }
-    }
     case 'deshacer': {
       const anterior = e.historial.at(-1)
       if (!anterior) return e
@@ -126,10 +117,6 @@ export function useTablaLote(inicial: FilaTabla[]) {
       despachar({ tipo: 'aplicarATodas', campo, valor }),
     []
   )
-  const completar = useCallback(
-    (clave: string, info: InfoYoutubeIpc | null) => despachar({ tipo: 'completar', clave, info }),
-    []
-  )
   const deshacer = useCallback(() => despachar({ tipo: 'deshacer' }), [])
   return {
     filas: estado.filas,
@@ -140,7 +127,6 @@ export function useTablaLote(inicial: FilaTabla[]) {
     marcar,
     marcarTodas,
     aplicarATodas,
-    completar,
     deshacer
   }
 }

@@ -30,7 +30,49 @@ export const ESPERA_PICOS_MAXIMA_MS = 5 * 60_000
 
 /** Motivos por los que `preparar` omite una canción (ADR 0025 §7). */
 export type MotivoOmitida =
-  'YA_LISTA' | 'EN_CURSO' | 'SIN_FUENTE' | 'EDICION_BLOQUEADA' | 'NADA_QUE_HACER'
+  | 'YA_LISTA'
+  | 'EN_CURSO'
+  | 'SIN_FUENTE'
+  | 'EDICION_BLOQUEADA'
+  | 'NADA_QUE_HACER'
+  /** «Ajustar los fines…» sin `pistas/voz.flac` (pregunta 0315). */
+  | 'SIN_VOZ'
+  /** «Ajustar los fines…»: los picos de la voz no se pudieron generar o tardaron demasiado (pregunta 0315). */
+  | 'SIN_PICOS'
+
+/** Por qué no se consiguió el nivel de los picos de la voz. */
+export type FalloPicos = 'no_disponible' | 'error' | 'limite'
+
+/**
+ * Pide los picos de la voz y espera a que estén listos, con el sondeo de siempre y el límite
+ * `ESPERA_PICOS_MAXIMA_MS`. La usan la corrida de un borrador y «Ajustar los fines…» de una Lista. Con `vivo`
+ * se comprueba que la corrida sigue en pie en cada vuelta (lanza si no).
+ */
+export async function esperarPicos(
+  deps: {
+    picos: DependenciasPreparacion['picos']
+    ahora: () => Date
+    esperar: (ms: number, señal: AbortSignal) => Promise<void>
+    sondeoMs: number
+  },
+  id: string,
+  señal: AbortSignal,
+  vivo: () => void = () => undefined
+): Promise<{ nivel: NivelBase | null; fallo: FalloPicos | null }> {
+  const limite = deps.ahora().getTime() + ESPERA_PICOS_MAXIMA_MS
+  for (let sinDisponible = 0; ;) {
+    const e = await deps.picos.solicitar(id)
+    vivo()
+    if (e.estado === 'lista') return { nivel: await deps.picos.nivelBase(id), fallo: null }
+    if (e.estado === 'error') return { nivel: null, fallo: 'error' }
+    if (e.estado === 'no_disponible' && ++sinDisponible > 5) {
+      return { nivel: null, fallo: 'no_disponible' }
+    }
+    if (deps.ahora().getTime() > limite) return { nivel: null, fallo: 'limite' }
+    await deps.esperar(deps.sondeoMs, señal)
+    vivo()
+  }
+}
 
 export interface PlanPreparacion {
   id: string
@@ -268,11 +310,11 @@ export class ServicioPreparacion {
       const sinConfirmar = plan.confirmar !== undefined && opciones.finesSinMarca !== true
       if (sinConfirmar) omitidas.push({ id, motivo: 'NADA_QUE_HACER' })
       else if (plan.aplica && this.deps.biblioteca.obtener(id)?.estado === 'lista') {
-        const puestos = await this.soloFinesLista(id)
-        if (puestos === null) omitidas.push({ id, motivo: 'NADA_QUE_HACER' })
+        const r = await this.soloFinesLista(id)
+        if ('motivo' in r) omitidas.push({ id, motivo: r.motivo })
         else {
           aceptadas.push(id)
-          fines[id] = puestos
+          fines[id] = r.puestos
         }
       } else if (
         plan.aplica &&
@@ -288,15 +330,30 @@ export class ServicioPreparacion {
   private readonly listas = new Set<Promise<unknown>>()
 
   /**
-   * «Ajustar los fines…» sobre una Lista o Letra lista (pregunta 0296): solo los fines de la variante
-   * prudente, sin registro `preparacion`, sin cambiar el estado, sin buscar ni separar y sin red. `null` si
-   * no hay picos. Nunca toca inicios, fines fijados, palabras ni `offset_ms`.
+   * «Ajustar los fines…» sobre una Lista o Letra lista (preguntas 0296 y 0315): solo los fines de la variante
+   * prudente, sin registro `preparacion`, sin cambiar el estado, sin buscar ni separar y sin red. Sin la caché
+   * de picos de la voz (las canciones del MVP y de 0.2.1 no la tienen hasta abrir su editor) la genera y
+   * espera: es un dato derivado, `cancion.json` y la letra no cambian por ello. Sin pista de voz, `SIN_VOZ`;
+   * si los picos fallan o tardan más del límite, `SIN_PICOS`. Nunca toca inicios, fines fijados, palabras ni
+   * `offset_ms`.
    */
-  private async soloFinesLista(id: string): Promise<number | null> {
-    const trabajo = (async (): Promise<number | null> => {
-      const nivel = await this.deps.picos.nivelBase(id)
+  private async soloFinesLista(
+    id: string
+  ): Promise<{ puestos: number } | { motivo: MotivoOmitida }> {
+    const trabajo = (async (): Promise<{ puestos: number } | { motivo: MotivoOmitida }> => {
+      let nivel = await this.deps.picos.nivelBase(id)
+      if (!nivel) {
+        const espera = await esperarPicos(
+          this.dependenciasPicos(),
+          id,
+          new AbortController().signal
+        ).catch(() => ({ nivel: null, fallo: 'error' as const }))
+        if (espera.fallo === 'no_disponible') return { motivo: 'SIN_VOZ' }
+        nivel = espera.nivel
+        if (!nivel) return { motivo: 'SIN_PICOS' }
+      }
       const letra = this.deps.biblioteca.obtener(id)?.letra
-      if (!nivel || !letra) return null
+      if (!letra) return { motivo: 'NADA_QUE_HACER' }
       const propuesta = proponerAjusteSilencios(
         letra,
         detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }),
@@ -309,7 +366,7 @@ export class ServicioPreparacion {
         }
       )
       const fines = new Map(propuesta.cambios.map((x) => [x.id, x.finDespues]))
-      return this.deps.letras.aplicarFinesPreparacion(id, fines)
+      return { puestos: await this.deps.letras.aplicarFinesPreparacion(id, fines) }
     })()
     this.listas.add(trabajo)
     try {
@@ -564,16 +621,16 @@ export class ServicioPreparacion {
   }
 
   private async esperarPicos(c: Corrida): Promise<NivelBase | null> {
-    const limite = this.ahora().getTime() + ESPERA_PICOS_MAXIMA_MS
-    for (let sinDisponible = 0; ;) {
-      const e = await this.deps.picos.solicitar(c.id)
-      this.vivo(c)
-      if (e.estado === 'lista') return this.deps.picos.nivelBase(c.id)
-      if (e.estado === 'error') return null
-      if (e.estado === 'no_disponible' && ++sinDisponible > 5) return null
-      if (this.ahora().getTime() > limite) return null
-      await this.esperar(this.sondeoMs, c.ctl.signal)
-      this.vivo(c)
+    const r = await esperarPicos(this.dependenciasPicos(), c.id, c.ctl.signal, () => this.vivo(c))
+    return r.nivel
+  }
+
+  private dependenciasPicos() {
+    return {
+      picos: this.deps.picos,
+      ahora: this.ahora,
+      esperar: this.esperar,
+      sondeoMs: this.sondeoMs
     }
   }
 

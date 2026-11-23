@@ -217,7 +217,12 @@ export function resumirCancion(
     ...(danada === 'pistas' && sinMezcla ? { sinMezcla: true } : {}),
     preparacion: resumenPreparacion(cancion),
     estadoPreparacion: danada ? null : estadoPreparacion(cancion),
-    prepararFinesSinMarca: !danada && aplicaPreparar(cancion).confirmar === 'finesSinMarca',
+    // Sin pista de voz (dañada o sin separar) no se ofrece: «Ajustar los fines…» de una Lista la necesita (0389).
+    prepararFinesSinMarca:
+      !danada &&
+      aplicaPreparar(cancion).confirmar === 'finesSinMarca' &&
+      (cancion.estado !== 'lista' ||
+        (cancion.pasos.separacion.estado === 'completado' && Boolean(cancion.pistas?.voz))),
     lineasSinFin: !danada
       ? (cancion.letra?.lineas.filter(
           (l) => l.tipo === 'linea' && l.inicio_ms !== null && l.fin_ms === null

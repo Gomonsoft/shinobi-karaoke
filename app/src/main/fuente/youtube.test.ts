@@ -330,6 +330,44 @@ describe.skipIf(!hayUv())('servicio de YouTube con el worker real y el doble de 
     })
   }, 90_000)
 
+  it('al terminar la descarga, los datos de YouTube Music sustituyen a los heurísticos y no a los del usuario (0384)', async () => {
+    // Al consultar el vídeo no trae datos de música: título y artista salen del título y del canal.
+    await fixture(ID)
+    const { gestor, servicio } = montar()
+    const info = await servicio.info(URL)
+    const info2 = await servicio.info(URL)
+    // Al descargar sí los trae (el mismo `info` de la descarga, sin otra consulta).
+    await fixture(ID, {
+      track: 'Tema inventado',
+      artists: ['Grupo Inventado'],
+      album: 'Disco inventado'
+    })
+    const sinTocar = await servicio.confirmar(info.consultaId, {
+      titulo: 'Canción de prueba',
+      artista: 'Artista',
+      album: ''
+    })
+    const editado = await servicio.confirmar(info2.consultaId, {
+      titulo: 'Título que escribí yo',
+      artista: 'Artista',
+      album: ''
+    })
+    await esperarFin(gestor)
+    const a = (await leer(sinTocar.id)).metadatos
+    expect(a).toMatchObject({
+      titulo: 'Tema inventado',
+      artista: 'Grupo Inventado',
+      album: 'Disco inventado',
+      origen: { titulo: 'fuente', artista: 'fuente', album: 'fuente' }
+    })
+    const b = (await leer(editado.id)).metadatos
+    expect(b).toMatchObject({
+      titulo: 'Título que escribí yo',
+      artista: 'Grupo Inventado',
+      origen: { titulo: 'usuario', artista: 'fuente' }
+    })
+  }, 90_000)
+
   it('info -> confirmar -> descarga en la cola ligera -> canción completada con mezcla y miniatura', async () => {
     await fixture(ID)
     const { gestor, servicio, biblioteca } = montar()

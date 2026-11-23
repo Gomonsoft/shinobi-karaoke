@@ -147,7 +147,12 @@ export type ResultadoInfoYoutube = z.infer<typeof resultadoInfoYoutubeSchema>
 
 /** `descargar-youtube`: como `importar-archivo` más los bytes descargados. */
 export const resultadoDescargarYoutubeSchema = resultadoImportarArchivoSchema.extend({
-  bytes_descargados: z.number().int().nonnegative()
+  bytes_descargados: z.number().int().nonnegative(),
+  /**
+   * Campos de YouTube Music del mismo `info` de la descarga (sin otra petición); `null` si el vídeo no los
+   * trae. Ausente en workers anteriores a 0.2.2.
+   */
+  musica: musicaYoutubeSchema.nullable().optional().catch(undefined)
 })
 
 export type ResultadoDescargarYoutube = z.infer<typeof resultadoDescargarYoutubeSchema>

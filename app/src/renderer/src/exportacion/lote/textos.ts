@@ -28,6 +28,12 @@ export const EXP_LOTE = {
     if (tamano && tiempo) return `Ocuparán unos ${tamano} · tardarán ${tiempo}`
     return tamano ? `Ocuparán unos ${tamano}` : `Tardarán ${tiempo}`
   },
+  avisoExiste: (k: number, siExiste: 'numerar' | 'sustituir' | 'omitir'): string =>
+    siExiste === 'sustituir'
+      ? `${k} videos de esta carpeta se sustituirán cuando los nuevos estén terminados.`
+      : siExiste === 'omitir'
+        ? `${k} canciones no se exportarán porque ya tienen un video en esta carpeta.`
+        : `${k} de estas canciones ya tienen un video en esta carpeta: se guardarán con « (2)» en el nombre.`,
   avisoEspacio: (tamano: string, libre: string): string =>
     `Puede que no quepan: ocuparán unos ${tamano} y quedan ${libre} libres en ese disco.`,
   muestra: 'Cada video usa el estilo de su canción.',
@@ -64,7 +70,10 @@ export const EXP_LOTE = {
   detenido: (titulo: string, explicacion: string): string =>
     `El lote se detuvo: ${titulo}. ${explicacion}`,
   reintentar: 'Reintentar las fallidas',
+  cambiarOpciones: 'Cambiar opciones',
   mostrar: 'Mostrar la carpeta',
+  /** Sin texto en la spec (pregunta 0316): toast cuando la carpeta del lote ya no está. */
+  carpetaNoExiste: 'La carpeta ya no está disponible.',
   cerrar: 'Cerrar',
   copiarDetalles: 'Copiar detalles',
   toast: (a: number, n: number): string =>

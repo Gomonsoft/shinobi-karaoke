@@ -156,7 +156,10 @@ export class ServicioLote {
   async leerCarpeta(ruta?: string): Promise<LecturaLoteIpc | null> {
     const elegida = ruta ?? (await this.deps.dialogo.elegirCarpeta())
     if (elegida === null) return null
-    return this.leer([elegida])
+    const lectura = await this.leer([elegida])
+    // Solo el nombre de la carpeta, nunca la ruta (el renderer no maneja rutas).
+    const nombre = basename(elegida)
+    return nombre === '' ? lectura : { ...lectura, carpeta: nombre }
   }
 
   /** `fuente.infoLista`: la lista o el álbum en modo plano, con `duplicado` por entrada. */
@@ -180,16 +183,19 @@ export class ServicioLote {
     }
   }
 
-  /** `fuente.espacioLibre`: bytes libres de la unidad de la biblioteca (`null` si no se sabe). */
-  async espacioLibre(): Promise<{ libreBytes: number | null }> {
+  /**
+   * `fuente.espacioLibre`: bytes libres de la unidad de la biblioteca (`null` si no se sabe) y el factor
+   * de separación de este equipo (`null` sin medir), para estimar el tiempo de un lote de enlaces sueltos.
+   */
+  async espacioLibre(): Promise<{ libreBytes: number | null; factorMinutos: number | null }> {
     const libre = await this.deps
       .espacioLibre?.(join(this.deps.dirDatos, 'biblioteca'))
       .catch(() => null)
-    return { libreBytes: libre ?? null }
+    return { libreBytes: libre ?? null, factorMinutos: this.deps.factorMinutos?.() ?? null }
   }
 
-  private async estimacion(): Promise<{ libreBytes: number | null; factorMinutos: number | null }> {
-    return { ...(await this.espacioLibre()), factorMinutos: this.deps.factorMinutos?.() ?? null }
+  private estimacion(): Promise<{ libreBytes: number | null; factorMinutos: number | null }> {
+    return this.espacioLibre()
   }
 
   /** Cancela la lectura de etiquetas en curso (el worker termina; no queda nada que limpiar). */

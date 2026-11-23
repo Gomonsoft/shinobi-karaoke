@@ -19,7 +19,8 @@ export const MOTIVO: Record<string, string> = {
   // Códigos de main
   YA_LISTA: 'Ya está lista: no se prepara',
   EN_CURSO: 'Ya se está preparando',
-  SIN_FUENTE: 'Aún no está lista',
+  SIN_FUENTE:
+    'No se prepara: falta el audio. Ábrela con «Continuar» para elegir el archivo o descargarlo.',
   NADA_QUE_HACER: 'Ya tiene esos datos',
   CANCION_NO_DISPONIBLE: 'Está dañada o ya no está en la biblioteca',
   CANCION_EN_REPRODUCCION: 'No se elimina: se está reproduciendo en la otra pantalla',

@@ -39,6 +39,8 @@ import type {
   CarpetaDestinoIpc,
   IniciarExportacion,
   IniciarLoteExportacion,
+  PrevisualizacionLoteIpc,
+  PrevisualizarLoteExportacion,
   ResultadoLoteExportacionIpc
 } from '../../shared/ipc'
 import type { MensajeWorker } from '../../shared/protocolo'
@@ -46,6 +48,7 @@ import type { ConfigParcial } from '../configuracion'
 import { EstimadorProgreso } from '../trabajos/progreso'
 import type { OpcionesEjecucion } from '../trabajos/worker'
 import { ejecutarBucle } from './bucle'
+import { elegirNombre, type NombreElegido } from './nombresLote'
 import { ErrorDestino, type Destinos } from './destinos'
 import type { DiarioExportacion } from './diario'
 import type { OpcionesExportacion, VentanaExportacion } from './ventana'
@@ -150,6 +153,8 @@ export interface DependenciasServicioExportacion<V = unknown> {
   libreBytes?(carpeta: string): Promise<number | null>
   /** `shell.showItemInFolder`. */
   mostrarEnCarpeta(ruta: string): void
+  /** `shell.openPath`: abre la carpeta; devuelve el mensaje de error o `''` si se abrió. */
+  abrirCarpeta(ruta: string): Promise<string>
   /** Notificación del sistema con la principal sin foco (`ServicioAvisos.avisarSistema`). */
   avisarSistema?(texto: string): void
   bloqueador?: BloqueadorSuspension
@@ -284,6 +289,8 @@ export class ServicioExportacion<V = unknown> {
   private readonly reservasDestino = new Set<string>()
   /** Lotes de esta sesión (para reintentarlos); los más viejos se olvidan. */
   private readonly lotes = new Map<string, Lote>()
+  /** `loteId → carpeta` mientras viva el proceso (no se olvida con los lotes viejos). */
+  private readonly carpetasLote = new Map<string, string>()
   private sondeo: Promise<Capacidades> | null = null
   /** Sondeo de captura de este arranque (una vez); las proporciones ya resueltas y su alto máximo. */
   private sondeoCaptura: Promise<void> | null = null
@@ -648,6 +655,7 @@ export class ServicioExportacion<V = unknown> {
     }
     const r = await this.planificarLote(lote, p.cancionIds, p.carpetaId)
     this.lotes.set(lote.id, lote)
+    this.carpetasLote.set(lote.id, carpeta)
     // Los lotes viejos se olvidan: ya no se pueden reintentar.
     for (const id of this.lotes.keys()) {
       if (this.lotes.size <= MAX_LOTES) break
@@ -797,22 +805,94 @@ export class ServicioExportacion<V = unknown> {
     const base = previo
       ? basename(previo)
       : nombrePropuesto(cancion.titulo, cancion.artista, extension)
-    const punto = base.lastIndexOf('.')
-    const raiz = base.slice(0, punto)
-    const ext = base.slice(punto)
-    for (let n = 1; n < 10_000; n++) {
-      const ruta = join(lote.carpeta, n === 1 ? base : `${raiz} (${n})${ext}`)
+    const r = await this.elegirNombreEn(lote.carpeta, base, lote.siExiste, this.reservasDestino)
+    if (r.nombre === null) return null
+    const ruta = join(lote.carpeta, r.nombre)
+    const clave = this.claveDestino(ruta)
+    this.reservasDestino.add(clave)
+    reservadas.push(clave)
+    return ruta
+  }
+
+  /** La regla de nombres de `nombresLote.ts` con lo que este servicio sabe de la carpeta y de la cola. */
+  private elegirNombreEn(
+    carpeta: string,
+    base: string,
+    siExiste: IniciarLoteExportacion['siExiste'],
+    reservadas: ReadonlySet<string>
+  ): Promise<NombreElegido> {
+    return elegirNombre(base, siExiste, async (nombre) => {
+      const ruta = join(carpeta, nombre)
       const clave = this.claveDestino(ruta)
-      if (this.reservasDestino.has(clave) || this.destinoEnUso(clave)) continue
-      const existe = await this.existe(ruta)
-      if (existe && n === 1 && lote.siExiste === 'omitir') return null
-      // «Sustituir» solo pisa lo que ya había con ese nombre exacto, nunca un « (2)» que no es suyo.
-      if (existe && !(n === 1 && lote.siExiste === 'sustituir')) continue
-      this.reservasDestino.add(clave)
-      reservadas.push(clave)
-      return ruta
+      return {
+        ocupado: reservadas.has(clave) || this.destinoEnUso(clave),
+        existe: await this.existe(ruta)
+      }
+    })
+  }
+
+  /**
+   * Lo que haría `iniciarLote` con estas opciones, sin hacerlo: nombre de archivo (solo el nombre), si ya
+   * existe y qué se haría. No escribe ni encola ni gasta el `carpetaId`; es orientativo, porque
+   * `iniciarLote` lo vuelve a calcular al confirmar.
+   */
+  async previsualizarLote(p: PrevisualizarLoteExportacion): Promise<PrevisualizacionLoteIpc> {
+    const carpeta = this.deps.destinos.rutaDeCarpeta(p.carpetaId)
+    if (carpeta === null) {
+      throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'La carpeta caducó o ya se usó.', undefined, {
+        campo: 'destino'
+      })
     }
-    throw new ErrorExportacion('DESTINO_NO_DISPONIBLE', 'No se encontró un nombre libre.')
+    const extension = FORMATOS[p.formato].extension
+    const delLote = new Set<string>()
+    const filas: PrevisualizacionLoteIpc['filas'] = []
+    for (const cancionId of p.cancionIds) {
+      if (this.activaDe(cancionId) || this.reservasCancion.has(cancionId)) {
+        filas.push({
+          cancionId,
+          archivo: '',
+          existe: false,
+          accion: 'omitir',
+          motivo: 'YA_EN_COLA'
+        })
+        continue
+      }
+      let instantanea: InstantaneaExportacion
+      try {
+        instantanea = (await this.leerCancion(cancionId, 'instrumental')).instantanea
+      } catch (e) {
+        const motivo = codigoDe(e) ?? 'CANCION_NO_DISPONIBLE'
+        filas.push({ cancionId, archivo: '', existe: false, accion: 'omitir', motivo })
+        continue
+      }
+      const base = nombrePropuesto(instantanea.titulo, instantanea.artista, extension)
+      const r = await this.elegirNombreEn(carpeta, base, p.siExiste, delLote)
+      if (r.nombre === null) {
+        filas.push({
+          cancionId,
+          archivo: base,
+          existe: true,
+          accion: 'omitir',
+          motivo: 'YA_EXISTE'
+        })
+        continue
+      }
+      delLote.add(this.claveDestino(join(carpeta, r.nombre)))
+      filas.push({ cancionId, archivo: r.nombre, existe: r.existe, accion: r.accion })
+    }
+    return { filas, exportables: filas.filter((f) => f.accion !== 'omitir').length }
+  }
+
+  /** Abre la carpeta de un lote de esta sesión, sin seleccionar ningún archivo. */
+  async mostrarCarpetaLote(loteId: string): Promise<void> {
+    const carpeta = this.carpetasLote.get(loteId)
+    const noDisponible = (): ErrorDestino =>
+      new ErrorDestino('DESTINO_NO_DISPONIBLE', 'La carpeta del lote ya no existe.', undefined, {
+        campo: 'destino'
+      })
+    if (carpeta === undefined || !(await this.existe(carpeta))) throw noDisponible()
+    const fallo = await this.deps.abrirCarpeta(carpeta)
+    if (fallo) throw noDisponible()
   }
 
   /** Cancela una exportación en curso o en cola (con limpieza) y espera a que termine. */

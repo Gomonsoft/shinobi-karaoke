@@ -37,10 +37,6 @@ export const LOTE = {
   ilegible: 'No podemos leer este archivo',
   corta: 'Dura menos de 10 segundos',
   fueraLimite: 'Fuera del límite de este lote',
-  completando: 'Completando los datos…',
-  /** `add.lote.completando`: línea sobre la tabla mientras se consultan los videos de la lista. */
-  completandoTabla: (i: number, n: number): string =>
-    `Completando los datos de los videos… ${i} de ${n}`,
   // Avisos de la tabla
   repetidas: (n: number): string =>
     n === 1 ? '1 estaba repetida y se ha unido.' : `${n} estaban repetidas y se han unido.`,

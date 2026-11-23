@@ -123,6 +123,19 @@ export function resumirLote(filas: readonly FilaLote[]): ResumenLote {
 export const reintentables = (filas: readonly FilaLote[]): FilaLote[] =>
   filas.filter((f) => f.estado === 'error' || f.estado === 'noIntentada')
 
+/** Códigos que repetir con las mismas opciones no arregla: hay que cambiarlas (spec 10 · I, respuesta a 0300 n.º 10). */
+const NO_SE_ARREGLA_REPITIENDO = new Set([
+  'SIN_ESPACIO',
+  'DESTINO_NO_DISPONIBLE',
+  'PERFIL_NO_SOPORTADO',
+  'SIN_CODIFICADOR'
+])
+
+/** Todas las que se pueden reintentar fallaron por algo que repetir no arregla: el botón es «Cambiar opciones». */
+export const soloSeArreglaCambiando = (reintentables: readonly FilaLote[]): boolean =>
+  reintentables.length > 0 &&
+  reintentables.every((f) => NO_SE_ARREGLA_REPITIENDO.has(f.exportacion?.error?.codigo ?? ''))
+
 /** Tiempo restante en minutos redondeados; `null` los primeros 15 s o sin avance (`prog.eta`). */
 export function minutosRestantes(
   fraccion: number,

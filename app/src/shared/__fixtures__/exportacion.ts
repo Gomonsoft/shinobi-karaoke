@@ -205,6 +205,16 @@ export function crearApiExportacionFalsa(
       })),
       omitidas: []
     }),
+    previsualizarLote: (peticion: { cancionIds: string[] }) => ({
+      filas: peticion.cancionIds.map((cancionId) => ({
+        cancionId,
+        archivo: `${cancionId}.mkv`,
+        existe: false,
+        accion: 'nuevo' as const
+      })),
+      exportables: peticion.cancionIds.length
+    }),
+    mostrarCarpetaLote: undefined,
     cancelarLote: undefined,
     reintentarLote: { loteId: ID_LOTE, encoladas: [], omitidas: [] }
   }
@@ -236,6 +246,8 @@ export function crearApiExportacionFalsa(
     avisosPendientes: metodo('avisosPendientes'),
     destinoCarpeta: metodo('destinoCarpeta'),
     iniciarLote: metodo('iniciarLote'),
+    previsualizarLote: metodo('previsualizarLote'),
+    mostrarCarpetaLote: metodo('mostrarCarpetaLote'),
     cancelarLote: metodo('cancelarLote'),
     reintentarLote: metodo('reintentarLote'),
     alAviso: suscribir(avisos),

@@ -89,6 +89,8 @@ export const CANALES = {
     /** 0.2.2 (ADR 0026 §5): exportar varias canciones a una carpeta. */
     destinoCarpeta: 'exportacion:destinoCarpeta',
     iniciarLote: 'exportacion:iniciarLote',
+    previsualizarLote: 'exportacion:previsualizarLote',
+    mostrarCarpetaLote: 'exportacion:mostrarCarpetaLote',
     cancelarLote: 'exportacion:cancelarLote',
     reintentarLote: 'exportacion:reintentarLote'
   },
@@ -427,6 +429,8 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.cola.quitarVarias]: PRINCIPAL,
   [CANALES.exportacion.destinoCarpeta]: PRINCIPAL,
   [CANALES.exportacion.iniciarLote]: PRINCIPAL,
+  [CANALES.exportacion.previsualizarLote]: PRINCIPAL,
+  [CANALES.exportacion.mostrarCarpetaLote]: PRINCIPAL,
   [CANALES.exportacion.cancelarLote]: PRINCIPAL,
   [CANALES.exportacion.reintentarLote]: PRINCIPAL,
   [CANALES.fuente.leerArchivos]: PRINCIPAL,

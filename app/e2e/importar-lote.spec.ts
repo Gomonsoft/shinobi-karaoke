@@ -57,6 +57,47 @@ const ids = (datos: string): string[] =>
       )
     : []
 
+/** Volcado para el CI: solo se imprime si la prueba falla (estado de cada canción, trabajos y registro de la app). */
+async function volcarDiagnostico(v: Page, datos: string): Promise<void> {
+  const lineas: string[] = ['--- diagnóstico de importar-lote ---']
+  for (const id of ids(datos)) {
+    try {
+      const c = JSON.parse(readFileSync(join(datos, 'biblioteca', id, 'cancion.json'), 'utf8')) as {
+        metadatos: { titulo: string }
+        fuente: unknown
+        pasos: Record<string, unknown>
+      }
+      lineas.push(
+        `canción ${id} «${c.metadatos.titulo}»: fuente=${JSON.stringify(c.fuente)} pasos=${JSON.stringify(c.pasos)}`
+      )
+    } catch (e) {
+      lineas.push(`canción ${id}: ilegible (${String(e)})`)
+    }
+  }
+  try {
+    const trabajos = await v.evaluate(() =>
+      (
+        globalThis as unknown as { shinobi: { trabajos: { listar(): Promise<unknown[]> } } }
+      ).shinobi.trabajos.listar()
+    )
+    lineas.push(`trabajos del gestor: ${JSON.stringify(trabajos)}`)
+  } catch (e) {
+    lineas.push(`trabajos del gestor: no se pudieron leer (${String(e)})`)
+  }
+  for (const nombre of ['registros/app.log', 'registros/worker.log']) {
+    const ruta = join(datos, nombre)
+    lineas.push(
+      existsSync(ruta)
+        ? `${nombre} (últimas líneas):\n${readFileSync(ruta, 'utf8').split('\n').slice(-40).join('\n')}`
+        : `${nombre}: no existe`
+    )
+  }
+  if (existsSync(join(datos, 'registros'))) {
+    lineas.push(`registros/: ${readdirSync(join(datos, 'registros')).join(', ')}`)
+  }
+  console.log(lineas.join('\n'))
+}
+
 async function cerrar(app: ElectronApplication): Promise<void> {
   const ventana = app.windows()[0]
   const cierre = app.close()
@@ -77,6 +118,23 @@ test.describe('importación por lotes', () => {
     mkdirSync(falsos, { recursive: true })
     mkdirSync(carpeta, { recursive: true })
     cpSync(FIXTURES, falsos, { recursive: true })
+    // Separador falso (como en `separacion.spec.ts`): sin él, la separación encadenada falla con
+    // `RUNTIME_NO_DISPONIBLE` (no hay PyTorch en el CI) y, por diseño, esa parada total retiene las descargas
+    // que aún esperan su turno; que llegue antes o después de ellas dependía de la velocidad del equipo.
+    const escenarioSeparador = join(datos, '..', `separador-lote-${Date.now()}.json`)
+    writeFileSync(escenarioSeparador, JSON.stringify({ segundos: 1, pasos: 2 }))
+    // Contador del doble: cada `info-youtube` apunta el id (la descarga no cuenta: reutiliza su `info`).
+    writeFileSync(join(falsos, 'llamadas-info.log'), '')
+    // Al descargar, los dos vídeos traen campos de YouTube Music (en la copia, no en la fixture compartida).
+    for (const [id, pista] of [
+      ['Normal_0001', 'Tema de música uno'],
+      ['Normal_0002', 'Tema de música dos']
+    ] as const) {
+      const ruta = join(falsos, `${id}.json`)
+      const info = JSON.parse(readFileSync(ruta, 'utf8')) as Record<string, unknown>
+      Object.assign(info, { track: pista, artists: ['Grupo Inventado'], album: 'Disco de música' })
+      writeFileSync(ruta, JSON.stringify(info))
+    }
     for (const n of ['01 Tema Uno', '02 Tema Dos', '03 Tema Tres'])
       escribirWav(join(carpeta, `${n}.wav`))
     const ahora = new Date().toISOString()
@@ -107,6 +165,7 @@ test.describe('importación por lotes', () => {
         SHINOBI_DATOS: datos,
         SHINOBI_PAPELERA_PRUEBAS: join(datos, 'papelera'),
         SHINOBI_YTDLP_FALSO: falsos,
+        SHINOBI_SEPARADOR_FALSO: escenarioSeparador,
         SHINOBI_DIALOGO_PRUEBAS: carpeta,
         SHINOBI_LRCLIB_URL: lrclib.url
       }
@@ -146,6 +205,15 @@ test.describe('importación por lotes', () => {
       })
       await expect(v.getByText('De la lista «Disco de prueba» · 3 videos')).toBeVisible()
       await expect(v.getByText('No disponible: no se puede añadir')).toBeVisible()
+      // La tabla se rellena solo con la lista: ni una consulta a YouTube por vídeo.
+      await expect(v.getByText(/Completando los datos/)).toHaveCount(0)
+      expect(readFileSync(join(falsos, 'llamadas-info.log'), 'utf8')).toBe('')
+      // El usuario cambia el título del segundo vídeo en la tabla: la descarga no lo toca.
+      await v
+        .locator('tr[data-clave="yt:Normal_0002"]')
+        .getByRole('textbox')
+        .first()
+        .fill('Título que escribí yo')
       await v.getByRole('button', { name: 'Descargar y añadir 2 canciones' }).click()
       await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible({
         timeout: 60_000
@@ -166,17 +234,22 @@ test.describe('importación por lotes', () => {
         await v.keyboard.press('Escape')
       }
 
-      // La fuente de las 5 termina sola (cola `ligera`, de una en una).
-      await expect
-        .poll(
-          () =>
-            ids(datos).filter((id) => leerCancion(datos, id).pasos.fuente.estado === 'completado')
-              .length,
-          {
-            timeout: 120_000
-          }
-        )
-        .toBe(5)
+      try {
+        // La fuente de las 5 termina sola (cola `ligera`, de una en una).
+        await expect
+          .poll(
+            () =>
+              ids(datos).filter((id) => leerCancion(datos, id).pasos.fuente.estado === 'completado')
+                .length,
+            {
+              timeout: 120_000
+            }
+          )
+          .toBe(5)
+      } catch (e) {
+        await volcarDiagnostico(v, datos)
+        throw e
+      }
       for (const id of ids(datos)) {
         const c = leerCancion(datos, id)
         expect(c.fuente.ruta_pendiente).toBeUndefined()
@@ -187,6 +260,11 @@ test.describe('importación por lotes', () => {
           .map((id) => leerCancion(datos, id).fuente.tipo)
           .sort()
       ).toEqual(['archivo', 'archivo', 'archivo', 'youtube', 'youtube'])
+      // Datos de YouTube Music al descargar: cambia el título que salía de la lista, no el editado en la tabla.
+      const yt = ids(datos).filter((id) => leerCancion(datos, id).fuente.tipo === 'youtube')
+      const titulos = yt.map((id) => leerCancion(datos, id).metadatos.titulo).sort()
+      expect(titulos).toEqual(['Tema de música uno', 'Título que escribí yo'])
+      expect(readFileSync(join(falsos, 'llamadas-info.log'), 'utf8')).toBe('')
       // Privacidad: con la búsqueda automática apagada, el lote no hace ninguna petición a LRCLIB.
       await v.waitForTimeout(3000)
       expect(lrclib.peticiones).toHaveLength(0)

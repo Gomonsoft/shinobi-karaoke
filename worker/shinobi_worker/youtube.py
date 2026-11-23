@@ -188,6 +188,9 @@ class FuenteYoutube(Protocol):
     def obtener_miniatura(self, info: Mapping[str, Any]) -> bytes | None:
         """Bytes de la miniatura elegida (sin convertir) o None."""
 
+    info_descarga: dict[str, Any] | None
+    """`info` de la última descarga (el mismo `extract_info` que la hizo, sin otra petición)."""
+
 
 class _LoggerYtdlp:
     """Reenvía los mensajes de yt-dlp a `log` del protocolo (nada a stdout)."""
@@ -221,6 +224,8 @@ def _ruta_deno() -> str | None:
 
 class FuenteYoutubeReal:
     """Implementación con la API Python de yt-dlp (sin cookies ni postprocesadores)."""
+
+    info_descarga: dict[str, Any] | None = None
 
     def _opciones(self, **extra: Any) -> dict[str, Any]:
         deno = _ruta_deno()
@@ -297,6 +302,7 @@ class FuenteYoutubeReal:
             with YoutubeDL(opciones) as ydl:
                 datos = ydl.extract_info(url, download=True)
                 ruta = Path(ydl.prepare_filename(datos))
+                self.info_descarga = dict(ydl.sanitize_info(datos))
         except (DownloadError, ExtractorError) as e:
             raise _sin_espacio_o(e, _origen(e)) from e
         except OSError as e:
@@ -323,6 +329,8 @@ class FuenteYoutubeReal:
 class FuenteYoutubeFalsa:
     """Doble de prueba: lee `<dir>/<id>.json` (forma de `extract_info`) o `{"error": "..."}`."""
 
+    info_descarga: dict[str, Any] | None = None
+
     def __init__(self, directorio: Path) -> None:
         self.directorio = directorio
 
@@ -334,6 +342,17 @@ class FuenteYoutubeFalsa:
 
     def info(self, url: str) -> dict[str, Any]:
         id_video = self._id(url)
+        self._contar(id_video)
+        return self._leer(id_video)
+
+    def _contar(self, id_video: str) -> None:
+        """Si la prueba creó `llamadas-info.log`, apunta cada consulta de `info` (contador)."""
+        registro = self.directorio / "llamadas-info.log"
+        if registro.is_file():
+            with registro.open("a", encoding="utf-8") as f:
+                f.write(f"{id_video}\n")
+
+    def _leer(self, id_video: str) -> dict[str, Any]:
         ruta = self.directorio / f"{id_video}.json"
         if not ruta.is_file():
             raise clasificar_error("ERROR: [youtube] Video unavailable")
@@ -367,7 +386,8 @@ class FuenteYoutubeFalsa:
         import numpy as np
         import soundfile as sf
 
-        info = self.info(url)
+        info = self._leer(self._id(url))
+        self.info_descarga = info
         if info.get("error_descarga"):
             raise clasificar_error(str(info["error_descarga"]))
         if info.get("error_descarga_una_vez"):
@@ -476,6 +496,20 @@ def _borrar_restos(salida: Path) -> None:
     (fuente / "mezcla.flac.tmp").unlink(missing_ok=True)
 
 
+def _musica_de_la_descarga(fuente: FuenteYoutube) -> dict[str, Any] | None:
+    """Campos de YouTube Music del `info` de la descarga (sin otra petición); `None` si faltan."""
+    try:
+        info = getattr(fuente, "info_descarga", None)
+        if not info:
+            return None
+        musica = metadatos_youtube.campos_musica(info)
+        propios = ("track", "artist", "album", "album_artist", "track_number", "release_year")
+        return musica if any(musica[c] for c in propios) else None
+    except Exception as e:
+        protocolo.log("warning", f"Sin datos de música: {type(e).__name__}: {e}")
+        return None
+
+
 def descargar_youtube(args: dict[str, Any], fuente: FuenteYoutube | None = None) -> None:
     """Descarga el mejor audio y lo normaliza a `fuente/mezcla.flac` en el mismo trabajo."""
     url = args.get("url")
@@ -514,4 +548,11 @@ def descargar_youtube(args: dict[str, Any], fuente: FuenteYoutube | None = None)
         _borrar_restos(salida)
         raise
     _borrar_restos(salida)
-    protocolo.resultado({**datos, "bytes_descargados": bytes_descargados, "id_video": id_video})
+    protocolo.resultado(
+        {
+            **datos,
+            "bytes_descargados": bytes_descargados,
+            "id_video": id_video,
+            "musica": _musica_de_la_descarga(fuente),
+        }
+    )

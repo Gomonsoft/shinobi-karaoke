@@ -378,46 +378,13 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
     return () => window.removeEventListener('focus', refrescarEspacio)
   }, [refrescarEspacio])
 
-  // YouTube: los datos de cada video marcado se completan de uno en uno en segundo plano.
-  const completando = useRef<string | null>(null)
-  const { completar } = t
-  const siguiente = t.filas.find(
-    (f) => f.pendienteDatos && f.marcada && f.urlInfo !== null && !enviando
-  )
-  const claveSiguiente = siguiente?.clave
-  const urlSiguiente = siguiente?.urlInfo
-  // `add.lote.completando`: cuántas consultas de las de esta tabla van hechas (`i` de `n`).
-  const porCompletar = t.filas.filter(
-    (f) => f.pendienteDatos && f.marcada && f.urlInfo !== null
-  ).length
-  const totalCompletar = t.filas.filter((f) => f.marcada && f.urlInfo !== null).length
-  const hechasCompletar = totalCompletar - porCompletar
-  // Última respuesta de YouTube: la siguiente consulta espera la pausa mínima (ADR 0025 §5).
-  const ultimaConsulta = useRef(0)
-  const montada = useRef(true)
-  useEffect(() => {
-    montada.current = true
-    return () => {
-      montada.current = false
+  // Salir de la tabla cancela una consulta de YouTube que siguiera en curso.
+  useEffect(
+    () => () => {
       void Promise.resolve(window.shinobi.fuente.cancelarInfo()).catch(() => undefined)
-    }
-  }, [])
-  useEffect(() => {
-    if (!claveSiguiente || !urlSiguiente || completando.current) return
-    completando.current = claveSiguiente
-    const espera = Math.max(0, PAUSA_ENTRE_PETICIONES_MS - (Date.now() - ultimaConsulta.current))
-    void new Promise<void>((resolver) => setTimeout(resolver, espera))
-      .then(() => (montada.current ? window.shinobi.fuente.infoYoutube(urlSiguiente) : null))
-      .then(
-        (info) => info,
-        () => null
-      )
-      .then((info) => {
-        completando.current = null
-        ultimaConsulta.current = Date.now()
-        if (montada.current) completar(claveSiguiente, info)
-      })
-  }, [claveSiguiente, urlSiguiente, completar])
+    },
+    []
+  )
 
   // Salir (‹ Biblioteca, otra vista): con cambios pide confirmación.
   useEffect(() => {
@@ -600,11 +567,6 @@ export function TablaLote({ inicial, aceptadoYoutube }: TablaLoteProps) {
         )}
       </div>
 
-      {porCompletar > 0 && (
-        <p className={`t-pequeno ${estilos.completandoLote}`} role="status" data-completando-lote>
-          {LOTE.completandoTabla(hechasCompletar, totalCompletar)}
-        </p>
-      )}
       <div className={estilos.envolturaTabla} data-tabla-lote>
         <table className={estilos.tablaLote}>
           <caption className={estilos.soloLector}>{LOTE.titulo(resumen.marcadas)}</caption>

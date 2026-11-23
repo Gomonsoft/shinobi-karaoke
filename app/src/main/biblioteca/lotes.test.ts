@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { estiloPredeterminado, type ProgresoLoteIpc } from '../../shared'
 import type { EstadoSesionIpc } from '../../shared/sesion'
@@ -60,7 +60,7 @@ beforeEach(async () => {
   b = new ServicioBiblioteca(datos, {
     shell: {
       trashItem: (ruta) => {
-        const id = ruta.split('/').pop() as string
+        const id = basename(ruta)
         if (fallaPapelera.has(id)) return Promise.reject(new Error('sin papelera'))
         papelera.push(id)
         return rm(ruta, { recursive: true, force: true })

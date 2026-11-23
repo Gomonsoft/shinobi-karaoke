@@ -1262,9 +1262,11 @@ export const lecturaLoteSchema = z.object({
   rechazadas: z.number().int().nonnegative(),
   /** Se cortó en 500 archivos de audio (o 5 000 entradas de carpeta): `add.lote.demasiadas`. */
   truncada: z.boolean(),
+  /** Solo en `leerCarpeta`: el nombre de la carpeta leída (`path.basename`), nunca la ruta. */
+  carpeta: z.string().min(1).optional(),
   ...estimacionLoteSchema
 })
-export const espacioLibreSchema = z.object({ libreBytes: z.number().nonnegative().nullable() })
+export const espacioLibreSchema = z.object(estimacionLoteSchema)
 export type LecturaLoteIpc = z.infer<typeof lecturaLoteSchema>
 /** Sin rutas, main abre el diálogo del sistema (pregunta 0166). */
 export const leerArchivosSchema = z.strictObject({
@@ -1398,6 +1400,27 @@ export const iniciarLoteExportacionSchema = z
   })
   .refine(perfilValido, perfilNoValido)
 export type IniciarLoteExportacion = z.infer<typeof iniciarLoteExportacionSchema>
+export const previsualizarLoteExportacionSchema = z.strictObject({
+  cancionIds: idsCancionSchema,
+  formato: perfilExportacionForma.formato,
+  carpetaId: z.uuid(),
+  siExiste: z.enum(['numerar', 'sustituir', 'omitir'])
+})
+export type PrevisualizarLoteExportacion = z.infer<typeof previsualizarLoteExportacionSchema>
+/** Orientativa: `iniciarLote` vuelve a calcular al confirmar. `archivo` es solo el nombre, nunca la ruta. */
+export const prevLoteExportacionSchema = z.object({
+  filas: z.array(
+    z.object({
+      cancionId: idCancionSchema,
+      archivo: z.string(),
+      existe: z.boolean(),
+      accion: z.enum(['nuevo', 'numerar', 'sustituir', 'omitir']),
+      motivo: z.string().optional()
+    })
+  ),
+  exportables: z.number().int().nonnegative()
+})
+export type PrevisualizacionLoteIpc = z.infer<typeof prevLoteExportacionSchema>
 const loteIdSchema = z.strictObject({ loteId: z.uuid() })
 export const resultadoLoteExportacionSchema = z.object({
   loteId: z.uuid(),
@@ -1932,6 +1955,11 @@ export const CONTRATO = {
     args: z.tuple([iniciarLoteExportacionSchema]),
     res: resultadoLoteExportacionSchema
   },
+  [CANALES.exportacion.previsualizarLote]: {
+    args: z.tuple([previsualizarLoteExportacionSchema]),
+    res: prevLoteExportacionSchema
+  },
+  [CANALES.exportacion.mostrarCarpetaLote]: { args: z.tuple([loteIdSchema]), res: z.void() },
   [CANALES.exportacion.cancelarLote]: { args: z.tuple([loteIdSchema]), res: z.void() },
   [CANALES.exportacion.reintentarLote]: {
     args: z.tuple([loteIdSchema]),
@@ -2110,6 +2138,9 @@ export interface ApiShinobi {
     /** Diálogo de carpeta del sistema (ADR 0026 §5); `null` si se cancela. */
     destinoCarpeta(desdeCarpetaId?: string): Promise<z.infer<typeof carpetaIpcSchema> | null>
     iniciarLote(peticion: IniciarLoteExportacion): Promise<ResultadoLoteExportacionIpc>
+    previsualizarLote(peticion: PrevisualizarLoteExportacion): Promise<PrevisualizacionLoteIpc>
+    /** Abre la carpeta del lote sin seleccionar ningún archivo (`DESTINO_NO_DISPONIBLE` si ya no está). */
+    mostrarCarpetaLote(loteId: string): Promise<void>
     cancelarLote(loteId: string): Promise<void>
     reintentarLote(loteId: string): Promise<ResultadoLoteExportacionIpc>
   }

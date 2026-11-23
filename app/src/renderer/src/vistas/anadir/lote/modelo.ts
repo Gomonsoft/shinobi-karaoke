@@ -38,10 +38,6 @@ export interface FilaTabla {
   marcada: boolean
   /** Quedó fuera de las 50 primeras al leer. */
   fueraLimite: boolean
-  /** YouTube: faltan los datos de `fuente.infoYoutube` (título limpio, artista, miniatura). */
-  pendienteDatos: boolean
-  /** YouTube: enlace con el que se piden esos datos (`watch?v=…&list=…` trae el álbum de la lista). */
-  urlInfo: string | null
 }
 
 export type FuenteTabla = 'archivos' | 'carpeta' | 'lista' | 'enlaces'
@@ -92,9 +88,7 @@ export function filasDeLectura(lectura: LecturaLoteIpc): FilaTabla[] {
       datos: f.datos ?? null,
       tocados: [],
       marcada: false,
-      fueraLimite: false,
-      pendienteDatos: false,
-      urlInfo: null
+      fueraLimite: false
     }))
   )
 }
@@ -104,12 +98,11 @@ type EntradaLista = ListaYoutubeIpc['entradas'][number]
 /** El título de la lista sin el prefijo «Album - » con el que YouTube Music nombra los álbumes. */
 export const nombreDeLista = (titulo: string): string => titulo.replace(/^Album - /i, '').trim()
 
-/** Fila de una entrada de lista (consulta rápida): se completa después con `fuente.infoYoutube`. */
-export function filaDeEntradaLista(
-  e: EntradaLista,
-  lista: ListaYoutubeIpc,
-  idLista: string
-): FilaTabla {
+/**
+ * Fila de una entrada de lista (consulta rápida, sin consultar vídeo a vídeo). Los datos propios de cada vídeo
+ * llegan al descargarlo en la cola (ADR 0026, revisión de la pregunta 0285).
+ */
+export function filaDeEntradaLista(e: EntradaLista, lista: ListaYoutubeIpc): FilaTabla {
   const noDisponible = e.problema !== null
   const album = lista.tipo === 'album' && !noDisponible ? nombreDeLista(lista.titulo) : ''
   return {
@@ -132,9 +125,7 @@ export function filaDeEntradaLista(
           },
     tocados: [],
     marcada: false,
-    fueraLimite: false,
-    pendienteDatos: !noDisponible,
-    urlInfo: `https://www.youtube.com/watch?v=${e.id}&list=${idLista}`
+    fueraLimite: false
   }
 }
 
@@ -153,9 +144,7 @@ export function filaDeInfo(info: InfoYoutubeIpc): FilaTabla {
     datos: info.datos ?? null,
     tocados: [],
     marcada: false,
-    fueraLimite: false,
-    pendienteDatos: false,
-    urlInfo: null
+    fueraLimite: false
   }
 }
 
@@ -174,9 +163,7 @@ export function filaNoDisponible(id: string, nombre: string): FilaTabla {
     datos: null,
     tocados: [],
     marcada: false,
-    fueraLimite: false,
-    pendienteDatos: false,
-    urlInfo: null
+    fueraLimite: false
   }
 }
 
@@ -190,21 +177,6 @@ export function fusionarRepetidas(filas: FilaTabla[]): { filas: FilaTabla[]; rep
     unicas.push(f)
   }
   return { filas: unicas, repetidas: filas.length - unicas.length }
-}
-
-/** Aplica a una fila los datos de `fuente.infoYoutube` sin pisar lo que el usuario ya cambió. */
-export function completarConInfo(f: FilaTabla, info: InfoYoutubeIpc): FilaTabla {
-  const nuevo = (c: CampoFila): string =>
-    f.tocados.includes(c) ? f[c] : (info.datos?.[c].valor ?? info.metadatos[c])
-  return {
-    ...f,
-    titulo: nuevo('titulo'),
-    artista: nuevo('artista'),
-    album: nuevo('album'),
-    duracionMs: f.duracionMs ?? Math.round(info.duracionS * 1000),
-    datos: info.datos ?? f.datos,
-    pendienteDatos: false
-  }
 }
 
 /** Álbum y artista que se pusieron a todas las filas por la lista, la carpeta o el canal (`add.lote.comunes`). */
@@ -261,7 +233,6 @@ export function lineasDeFila(f: FilaTabla, comunes: { artista: string | null }):
   }
   const dudoso = lineaDudosa(f, comunes)
   if (dudoso) lineas.push({ tipo: 'aviso', texto: dudoso })
-  if (f.pendienteDatos && f.marcada) lineas.push({ tipo: 'info', texto: LOTE.completando })
   return lineas
 }
 
@@ -346,7 +317,7 @@ export function tablaDeArchivos(
   return {
     filas,
     fuente: opciones.carpeta ? 'carpeta' : 'archivos',
-    nombreOrigen: opciones.carpeta ? (opciones.nombreCarpeta ?? deAlbum) : null,
+    nombreOrigen: opciones.carpeta ? (opciones.nombreCarpeta ?? lectura.carpeta ?? deAlbum) : null,
     youtube: false,
     repetidas: 0,
     ignorados: lectura.rechazadas,

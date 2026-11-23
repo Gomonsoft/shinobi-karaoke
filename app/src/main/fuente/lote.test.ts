@@ -170,6 +170,23 @@ describe('ServicioLote: lectura', () => {
     expect(r?.filas[0]?.metadatos.album).toBe('Querido Disco')
   })
 
+  it('leerCarpeta devuelve solo el nombre de la carpeta, con ruta dada o con el diálogo, nunca la ruta (0384)', async () => {
+    await archivo('Querido Disco', '01 Tema.mp3')
+    const ruta = join(origen, 'Querido Disco')
+    const { servicio } = montar({
+      ejecutar: lector({ '01 Tema.mp3': { duracion_ms: 100_000 } }),
+      dialogo: {
+        elegirArchivos: () => Promise.resolve(null),
+        elegirCarpeta: () => Promise.resolve(ruta)
+      }
+    })
+    const conRuta = await servicio.leerCarpeta(ruta)
+    const conDialogo = await servicio.leerCarpeta()
+    expect(conRuta?.carpeta).toBe('Querido Disco')
+    expect(conDialogo?.carpeta).toBe('Querido Disco')
+    expect(conDialogo?.carpeta).not.toContain(origen)
+  })
+
   it('un archivo ilegible es una fila con problema «ilegible» y el resto se lee', async () => {
     const buena = await archivo('buena.mp3')
     const mala = await archivo('mala.mp3')
@@ -298,9 +315,9 @@ describe('ServicioLote: filas con problema, truncada, espacio y tiempo (0375)', 
       libreBytes: 12345,
       factorMinutos: 0.4
     })
-    expect(await servicio.espacioLibre()).toEqual({ libreBytes: 12345 })
+    expect(await servicio.espacioLibre()).toEqual({ libreBytes: 12345, factorMinutos: 0.4 })
     const sin = montar()
-    expect(await sin.servicio.espacioLibre()).toEqual({ libreBytes: null })
+    expect(await sin.servicio.espacioLibre()).toEqual({ libreBytes: null, factorMinutos: null })
   })
 })
 

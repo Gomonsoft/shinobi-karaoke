@@ -888,19 +888,135 @@ describe('Lista o Letra lista: «Ajustar los fines…» sin cambiar su estado (0
     expect(JSON.stringify(cancion().letra)).toBe(antes)
   })
 
-  it('sin picos se omite y no encola separación ni búsqueda', async () => {
+  /** Picos falsos sin caché: `nivelBase` da `null` hasta que se pidió la generación `n` veces. */
+  const picosSinCache = (
+    estados: ('generando' | 'lista' | 'error' | 'no_disponible')[],
+    llamadas: string[] = []
+  ) => {
+    let n = 0
+    let hecha = false
+    return {
+      solicitar: (cid: string) => {
+        llamadas.push(cid)
+        const e = estados[Math.min(n++, estados.length - 1)]!
+        hecha = e === 'lista'
+        return Promise.resolve(
+          e === 'lista' ? { estado: 'lista' as const, generacion: 'a'.repeat(64) } : { estado: e }
+        )
+      },
+      nivelBase: () => Promise.resolve(hecha ? nivel() : null)
+    }
+  }
+
+  it('sin caché de picos pide la generación, espera y pone los fines; no cambia nada más (0389)', async () => {
+    const llamadas: string[] = []
+    servicio = montar({ picos: picosSinCache(['generando', 'generando', 'lista'], llamadas) })
+    await listaSinMarca()
+    const antes = cancion()
+    const resto = (c: Cancion) => ({
+      estado: c.estado,
+      modalidad: c.modalidad,
+      preparacion: c.preparacion,
+      metadatos: c.metadatos,
+      fuente: c.fuente,
+      pistas: c.pistas,
+      estilo: c.estilo
+    })
+    const sinLetra = structuredClone(resto(antes))
+    const r = await servicio.preparar([id], { finesSinMarca: true })
+    await servicio.enReposo()
+    expect(r).toStrictEqual({ aceptadas: [id], omitidas: [], fines: { [id]: 5 } })
+    expect(llamadas).toEqual([id, id, id])
+    // Solo cambian los fines de la letra: ni estado, ni registro, ni metadatos, ni estilo, ni pasos.
+    expect(resto(cancion())).toStrictEqual(sinLetra)
+    expect(cancion().letra!.lineas.some((l) => l.origen_fin === 'preparacion')).toBe(true)
+    expect(buscarParaPreparacion).not.toHaveBeenCalled()
+  })
+
+  it('sin pista de voz (no_disponible) se omite con SIN_VOZ y no escribe nada', async () => {
     const encolar = vi.fn(() => Promise.resolve())
     servicio = montar({
-      picos: { ...picos, nivelBase: () => Promise.resolve(null) },
+      picos: picosSinCache(['no_disponible']),
       separacion: { hayTrabajo: () => false, encolar }
+    })
+    await listaSinMarca()
+    const antes = JSON.stringify(cancion().letra)
+    expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'SIN_VOZ' }]
+    })
+    expect(JSON.stringify(cancion().letra)).toBe(antes)
+    expect(encolar).not.toHaveBeenCalled()
+    expect(buscarParaPreparacion).not.toHaveBeenCalled()
+  })
+
+  it('si la generación falla se omite con SIN_PICOS', async () => {
+    servicio = montar({ picos: picosSinCache(['generando', 'error']) })
+    await listaSinMarca()
+    expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
+      aceptadas: [],
+      omitidas: [{ id, motivo: 'SIN_PICOS' }]
+    })
+    expect(cancion().letra!.lineas.every((l) => l.origen_fin !== 'preparacion')).toBe(true)
+  })
+
+  it('si la generación pasa del límite se omite con SIN_PICOS', async () => {
+    let t = Date.parse('2026-11-23T10:00:00Z')
+    servicio = montar({
+      picos: picosSinCache(['generando']),
+      ahora: () => new Date((t += 60_000))
     })
     await listaSinMarca()
     expect(await servicio.preparar([id], { finesSinMarca: true })).toStrictEqual({
       aceptadas: [],
-      omitidas: [{ id, motivo: 'NADA_QUE_HACER' }]
+      omitidas: [{ id, motivo: 'SIN_PICOS' }]
     })
-    expect(encolar).not.toHaveBeenCalled()
-    expect(buscarParaPreparacion).not.toHaveBeenCalled()
+  })
+
+  it('en lote, una Lista sin voz no detiene a la otra', async () => {
+    await listaSinMarca()
+    const otra = await cancionConFuente(biblioteca, datos)
+    await biblioteca.actualizar(otra, { metadatos: { album: null } })
+    await letras.guardar({
+      cancionId: otra,
+      origen: 'lrclib',
+      lrclib_id: 10,
+      lineas: lineas().map((l, i) => (i === 0 ? { ...l, fin_ms: (l.inicio_ms ?? 0) + 3000 } : l))
+    })
+    await biblioteca.actualizar(otra, {
+      letra: { ...biblioteca.obtener(otra)!.letra!, intacta: undefined },
+      pistas: {
+        voz: 'pistas/voz.flac',
+        instrumental: 'pistas/instrumental.flac',
+        modelo: { perfil: 'calidad', nombre: 'inventado', version: '1' }
+      },
+      pasos: {
+        separacion: { estado: 'completado', actualizado: new Date().toISOString(), error: null }
+      }
+    })
+    await biblioteca.marcarLista(otra, { modalidad: 'letra_lista' })
+    // La primera no tiene voz; la segunda sí (sin caché hasta pedirla).
+    const hecha = new Set<string>()
+    servicio = montar({
+      picos: {
+        solicitar: (cid: string) => {
+          if (cid === id) return Promise.resolve({ estado: 'no_disponible' as const })
+          hecha.add(cid)
+          return Promise.resolve({ estado: 'lista' as const, generacion: 'a'.repeat(64) })
+        },
+        nivelBase: (cid: string) => Promise.resolve(cid === id || !hecha.has(cid) ? null : nivel())
+      }
+    })
+    const r = await servicio.preparar([id, otra], { finesSinMarca: true })
+    await servicio.enReposo()
+    expect(r).toStrictEqual({
+      aceptadas: [otra],
+      omitidas: [{ id, motivo: 'SIN_VOZ' }],
+      fines: { [otra]: 5 }
+    })
+    expect(
+      biblioteca.obtener(otra)!.letra!.lineas.some((l) => l.origen_fin === 'preparacion')
+    ).toBe(true)
     expect(cancion().letra!.lineas.every((l) => l.origen_fin !== 'preparacion')).toBe(true)
   })
 

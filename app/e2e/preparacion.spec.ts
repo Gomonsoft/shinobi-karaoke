@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { _electron as electron, expect, test, type Page } from '@playwright/test'
 import { pulsosFlac } from '../src/main/biblioteca/flac'
@@ -297,25 +297,11 @@ test.describe('letra sin marca `intacta` (pregunta 0278, tarea 0380)', () => {
     })
     try {
       const v = await app.firstWindow()
-      // Sin picos, main omite una Lista (pregunta 0296: no encola nada). Una canción separada con la 0.2.1
-      // o posterior ya los tiene; la semilla solo trae `voz.flac`, así que se generan antes, como al separar.
-      await expect
-        .poll(
-          () =>
-            v.evaluate(
-              async (i) =>
-                (
-                  await (
-                    globalThis as unknown as {
-                      shinobi: { picos: { solicitar(i: string): Promise<{ estado: string }> } }
-                    }
-                  ).shinobi.picos.solicitar(i)
-                ).estado,
-              id
-            ),
-          { timeout: 30_000 }
-        )
-        .toBe('lista')
+      // Sin la caché de picos (como una Lista del MVP o de 0.2.1 recién copiada): main la genera bajo demanda
+      // (pregunta 0315) y no cambia nada más.
+      const caches = () =>
+        readdirSync(join(raiz, 'pistas')).filter((n) => n.startsWith('.picos-voz'))
+      expect(caches()).toEqual([])
       await abrirMenuTarjeta(v, 'Lista de antes', 'Ajustar los fines…')
       await v.getByRole('menuitem', { name: 'Ajustar los fines…' }).click()
       await v.getByRole('dialog').getByRole('button', { name: 'Ajustar los fines' }).click()
@@ -325,6 +311,7 @@ test.describe('letra sin marca `intacta` (pregunta 0278, tarea 0380)', () => {
       const { letra, estado, preparacion } = JSON.parse(readFileSync(ruta, 'utf8'))
       expect(estado).toBe('lista')
       expect(preparacion).toBeUndefined()
+      expect(caches().length).toBeGreaterThan(0)
       letra.lineas.forEach((l: { inicio_ms: number; origen_fin?: string }, i: number) => {
         expect(l.inicio_ms).toBe(2000 + i * 5000)
         expect(l.origen_fin).toBe('preparacion')

@@ -9,13 +9,20 @@ import {
   resultadoInfoYoutubeSchema,
   type Cancion,
   type CodigoError,
+  type OrigenDato,
+  type OrigenMetadatos,
   type MetadatosEditables,
   type PropuestaDatos,
   type ResultadoInfoYoutube,
   type ValoresDatosIpc
 } from '../../shared'
 import type { CambioCancion, DatosNuevaCancion, ResumenCancion } from '../biblioteca'
-import { origenAlConfirmar, proponerDatos, type ResultadoPropuesta } from './propuestaDatos'
+import {
+  cambioPorMusica,
+  origenAlConfirmar,
+  proponerDatos,
+  type ResultadoPropuesta
+} from './propuestaDatos'
 import { analizarUrlLista, resultadoInfoListaSchema, type ResultadoInfoLista } from './lista'
 import {
   esperarCancelable,
@@ -206,6 +213,8 @@ export class ServicioYoutube {
   private readonly videos = new Map<string, Consulta>()
   /** Duración de las entradas de las listas leídas (modo lote). */
   private readonly duracionesLista = new Map<string, number>()
+  /** Título y álbum con los que la tabla del lote mostró cada entrada de una lista (para saber qué editó el usuario). */
+  private readonly propuestasLista = new Map<string, { titulo: string; album: string }>()
   /** Listas leídas en los últimos 30 min por id de lista (el álbum de sus entradas, pregunta 0261). */
   private readonly listas = new Map<
     string,
@@ -392,11 +401,17 @@ export class ServicioYoutube {
       })
       for (const e of r.data.entradas) {
         if (e.duracion_s !== null) this.duracionesLista.set(e.id, e.duracion_s)
+        this.propuestasLista.set(e.id, {
+          titulo: e.titulo.trim(),
+          album: r.data.tipo === 'album' ? r.data.titulo.replace(PREFIJO_ALBUM, '').trim() : ''
+        })
       }
-      while (this.duracionesLista.size > 2 * MAX_VIDEOS_LOTE) {
-        const mas = this.duracionesLista.keys().next().value
-        if (mas === undefined) break
-        this.duracionesLista.delete(mas)
+      for (const mapa of [this.duracionesLista, this.propuestasLista]) {
+        while (mapa.size > 2 * MAX_VIDEOS_LOTE) {
+          const mas = mapa.keys().next().value
+          if (mas === undefined) break
+          mapa.delete(mas)
+        }
       }
       return r.data
     } catch (e) {
@@ -447,7 +462,7 @@ export class ServicioYoutube {
     const album = (m.data.album?.trim() ?? '') === '' ? null : (m.data.album?.trim() ?? null)
     const origen = previa
       ? origenAlConfirmar(previa.propuesta, { titulo, artista, album })
-      : undefined
+      : this.origenSinConsulta(idVideo, { titulo, artista, album })
     const duracionS = previa?.info.duracion_s ?? this.duracionesLista.get(idVideo) ?? 0
     try {
       return await this.crear(
@@ -463,6 +478,30 @@ export class ServicioYoutube {
     } catch (e) {
       throw this.aErrorYoutube(e, 'crear-de-lote')
     }
+  }
+
+  /**
+   * Procedencia de los datos de una entrada de lista que no se consultó vídeo a vídeo: lo que sigue igual que
+   * en la tabla viene de la lista (`nombre`, lo puede completar YouTube Music al descargar) y lo que el usuario
+   * escribió o cambió es suyo (`usuario`, la descarga no lo toca). Sin nada que comparar, queda sin origen.
+   */
+  private origenSinConsulta(
+    idVideo: string,
+    confirmado: { titulo: string; artista: string; album: string | null }
+  ): OrigenMetadatos | undefined {
+    const lista = this.propuestasLista.get(idVideo)
+    if (!lista) return undefined
+    const de = (valor: string | null, deLista: string): OrigenDato | undefined => {
+      const v = (valor ?? '').trim()
+      if (v === '') return undefined
+      return v === deLista ? 'nombre' : 'usuario'
+    }
+    const origen: OrigenMetadatos = {
+      titulo: de(confirmado.titulo, lista.titulo),
+      artista: de(confirmado.artista, ''),
+      album: de(confirmado.album, lista.album)
+    }
+    return Object.values(origen).some((v) => v !== undefined) ? origen : undefined
   }
 
   /**
@@ -685,9 +724,22 @@ export class ServicioYoutube {
         if (!r.success || r.data.mezcla !== MEZCLA || !rutaRelativaSegura(r.data.mezcla)) {
           throw new ErrorYoutube('ERROR_INTERNO', 'El worker devolvió un resultado no válido.')
         }
+        // Los datos de YouTube Music se escriben con la fuente, antes de que la preparación busque la letra.
+        const actual = this.deps.biblioteca.obtener(cancionId)?.metadatos
+        const musica = actual
+          ? cambioPorMusica(
+              actual,
+              r.data.musica,
+              this.deps.valoresDatos?.() ?? { artistas: [], albumes: [] }
+            )
+          : null
+        const metadatos = {
+          ...(r.data.duracion_ms > 0 ? { duracion_ms: r.data.duracion_ms } : {}),
+          ...musica
+        }
         return {
           fuente: { mezcla: r.data.mezcla, ganancia_db: r.data.ganancia_db },
-          ...(r.data.duracion_ms > 0 ? { metadatos: { duracion_ms: r.data.duracion_ms } } : {})
+          ...(Object.keys(metadatos).length > 0 ? { metadatos } : {})
         }
       },
       alDescartar: async () => {

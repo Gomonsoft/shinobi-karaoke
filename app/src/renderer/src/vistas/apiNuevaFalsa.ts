@@ -98,10 +98,17 @@ export const colaNuevaFalsa = (): Pick<ApiShinobi['cola'], 'agregarVarias' | 'qu
 
 export const exportacionNuevaFalsa = (): Pick<
   ApiShinobi['exportacion'],
-  'destinoCarpeta' | 'iniciarLote' | 'cancelarLote' | 'reintentarLote'
+  | 'destinoCarpeta'
+  | 'iniciarLote'
+  | 'previsualizarLote'
+  | 'mostrarCarpetaLote'
+  | 'cancelarLote'
+  | 'reintentarLote'
 > => ({
   destinoCarpeta: () => Promise.resolve(null),
   iniciarLote: noImplementado,
+  previsualizarLote: noImplementado,
+  mostrarCarpetaLote: noImplementado,
   cancelarLote: noImplementado,
   reintentarLote: noImplementado
 })
@@ -114,5 +121,5 @@ export const fuenteNuevaFalsa = (): Pick<
   leerCarpeta: () => Promise.resolve(null),
   infoLista: noImplementado,
   lote: noImplementado,
-  espacioLibre: () => Promise.resolve({ libreBytes: null })
+  espacioLibre: () => Promise.resolve({ libreBytes: null, factorMinutos: null })
 })

@@ -1034,6 +1034,7 @@ if (instanciaUnica)
         crearVentana: crearExportacion,
         ventanaPrincipal: () => ventanas.principal() ?? null,
         mostrarEnCarpeta: (ruta) => shell.showItemInFolder(ruta),
+        abrirCarpeta: (ruta) => shell.openPath(ruta),
         libreBytes: async (carpeta) => {
           try {
             const s = await statfs(carpeta)

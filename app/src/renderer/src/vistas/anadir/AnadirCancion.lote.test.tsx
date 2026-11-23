@@ -56,6 +56,7 @@ interface Opciones {
   config?: Record<string, unknown>
   lote?: () => Promise<unknown>
   espacio?: number | null
+  factor?: number | null
 }
 
 function montar(o: Opciones = {}) {
@@ -91,9 +92,10 @@ function montar(o: Opciones = {}) {
         })
       }),
       cancelarInfo: vi.fn().mockResolvedValue(undefined),
-      espacioLibre: vi
-        .fn()
-        .mockResolvedValue({ libreBytes: o.espacio === undefined ? 100 * GB : o.espacio }),
+      espacioLibre: vi.fn().mockResolvedValue({
+        libreBytes: o.espacio === undefined ? 100 * GB : o.espacio,
+        factorMinutos: o.factor === undefined ? 2 : o.factor
+      }),
       lote: vi.fn(
         o.lote ??
           (() =>
@@ -138,12 +140,22 @@ const botonAnadir = () =>
   screen.getByRole('button', { name: /^(Descargar y )?[Aa]ñadir \d+ canciones?$/ })
 
 describe('modo lote · archivos', () => {
+  it('«Elegir carpeta…» usa el nombre de la carpeta que devuelve main como origen (0384)', async () => {
+    montar({ lectura: lectura(3, { carpeta: 'Disco de Prueba' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir carpeta…' }))
+    await tabla()
+    expect(screen.getByText(/Disco de Prueba/)).toBeInTheDocument()
+  })
+
   it('soltar 3 archivos muestra la tabla con 3 filas marcadas y el resumen', async () => {
     const { api } = montar()
     soltar(['a.mp3', 'b.mp3', 'c.mp3'])
     const t = await tabla()
     expect(within(t).getAllByRole('checkbox', { name: /^Añadir «/ })).toHaveLength(3)
-    expect(screen.getByRole('heading', { level: 1, name: 'Añadir 3 canciones' })).toHaveFocus()
+    // El foco llega en un efecto tras montar la tabla: bajo carga puede tardar un turno.
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { level: 1, name: 'Añadir 3 canciones' })).toHaveFocus()
+    )
     expect(
       screen.getByText(/^3 canciones · unos \d+ MB · unos 24 minutos en tu equipo$/)
     ).toBeInTheDocument()
@@ -321,35 +333,39 @@ describe('modo lote · YouTube', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Descargar y añadir 12 canciones' })).toBeEnabled()
     expect(screen.getByText('Leer el aviso')).toBeInTheDocument()
-    // Los datos de cada video se completan en segundo plano con la lista dentro de la URL.
-    await waitFor(() =>
-      expect(api.fuente.infoYoutube).toHaveBeenCalledWith(
-        'https://www.youtube.com/watch?v=aaaaaaaaa00&list=OLAK5uy_inventadoLista01'
-      )
-    )
+    // Sin consultar vídeo a vídeo: los datos propios de cada uno llegan al descargarlo (0384).
+    await new Promise((r) => setTimeout(r, 1800))
+    expect(api.fuente.infoYoutube).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Completando los datos/)).toBeNull()
   })
 
-  it('las consultas de los videos van de una en una, con la pausa de 1,5 s, y la tabla lo dice (add.lote.completando)', async () => {
-    const { api } = montar({
-      config: { aviso_youtube_listas_aceptado: '2026-11-02T10:00:00.000Z' },
-      lista: lista(12)
-    })
+  it('enlaces sueltos: una sola lectura del espacio da el factor y el resumen trae el tiempo (0384)', async () => {
+    const { api } = montar()
     await elegirYoutube()
-    await buscar(LISTA)
+    await buscar(
+      [
+        'https://www.youtube.com/watch?v=aaaaaaaaa01',
+        'https://www.youtube.com/watch?v=aaaaaaaaa02'
+      ].join('\n')
+    )
     await tabla()
     expect(
-      await screen.findByText(/^Completando los datos de los videos… \d+ de \d+$/)
+      screen.getByText(/^2 canciones · unos \d+ MB · unos \d+ minutos en tu equipo$/)
     ).toBeInTheDocument()
-    await waitFor(() => expect(api.fuente.infoYoutube).toHaveBeenCalledTimes(1))
-    const t0 = Date.now()
-    await waitFor(
-      () => expect(api.fuente.infoYoutube.mock.calls.length).toBeGreaterThanOrEqual(2),
-      {
-        timeout: 4000
-      }
+    expect(api.fuente.infoLista).not.toHaveBeenCalled()
+  })
+
+  it('sin factor medido, los enlaces sueltos no llevan tiempo', async () => {
+    montar({ factor: null })
+    await elegirYoutube()
+    await buscar(
+      [
+        'https://www.youtube.com/watch?v=aaaaaaaaa01',
+        'https://www.youtube.com/watch?v=aaaaaaaaa02'
+      ].join('\n')
     )
-    // La segunda no sale en ráfaga: espera la pausa mínima entre peticiones a YouTube.
-    expect(Date.now() - t0).toBeGreaterThanOrEqual(1400)
+    await tabla()
+    expect(screen.getByText(/^2 canciones · unos \d+ MB$/)).toBeInTheDocument()
   })
 
   it('la primera lista pide el aviso (aunque el de YouTube ya esté aceptado) y «Entendido» guarda la clave', async () => {

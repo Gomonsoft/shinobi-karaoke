@@ -242,7 +242,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo, restaurar, alLote }: Pa
               factorMinutos = lista.factorMinutos
               recortada = recortada || lista.recortada
               titulo = nombreDeLista(lista.titulo)
-              filas.push(...lista.entradas.map((x) => filaDeEntradaLista(x, lista, e.idLista)))
+              filas.push(...lista.entradas.map((x) => filaDeEntradaLista(x, lista)))
             } else {
               const datos = await window.shinobi.fuente.infoYoutube(e.url)
               if (gen !== ref.current.gen) return
@@ -267,8 +267,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo, restaurar, alLote }: Pa
               ? {
                   ...f,
                   ...conservar.valores,
-                  tocados: ['titulo', 'artista', 'album'] as FilaTabla['tocados'],
-                  pendienteDatos: false
+                  tocados: ['titulo', 'artista', 'album'] as FilaTabla['tocados']
                 }
               : f
           )
@@ -281,9 +280,10 @@ export function PanelYoutube({ iniciales, alUsarArchivo, restaurar, alLote }: Pa
           return
         }
         if (libreBytes === null && !hayLista) {
-          libreBytes = await Promise.resolve(window.shinobi.fuente.espacioLibre())
-            .then((r) => r.libreBytes)
-            .catch(() => null)
+          // Enlaces sueltos: una sola lectura da el espacio y el factor para estimar el tiempo.
+          const r = await Promise.resolve(window.shinobi.fuente.espacioLibre()).catch(() => null)
+          libreBytes = r?.libreBytes ?? null
+          factorMinutos = r?.factorMinutos ?? null
         }
         const unaLista = enlaces.length === 1 && enlaces[0]?.tipo === 'lista'
         alLote?.({

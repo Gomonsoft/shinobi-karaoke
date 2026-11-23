@@ -215,3 +215,57 @@ export function origenAlConfirmar(
   }
   return Object.values(origen).some((v) => v !== undefined) ? origen : undefined
 }
+
+const PROPIOS = ['usuario', 'fuente', 'lrclib'] as const
+
+/**
+ * Datos de YouTube Music de un vídeo ya descargado (ADR 0026, revisión de la pregunta 0285): lo que se
+ * escribe en `metadatos` al completar la fuente. Título y artista solo sustituyen a los de origen ausente o
+ * `nombre` (una heurística nunca sustituye a otra), y solo si el vídeo trae ese dato de música; el álbum solo
+ * se rellena si está vacío. Nunca se toca un campo `usuario`, `fuente` o `lrclib`. El origen escrito es
+ * `fuente`. `null` si no hay nada que cambiar.
+ */
+export function cambioPorMusica(
+  actual: {
+    titulo: string
+    artista: string
+    album?: string | null | undefined
+    origen?: OrigenMetadatos | undefined
+  },
+  musica: Partial<MusicaYoutube> | null | undefined,
+  valores: ValoresDatosIpc
+): { titulo?: string; artista?: string; album?: string; origen: OrigenMetadatos } | null {
+  if (!musica) return null
+  const { datos } = proponerDatos(
+    {
+      tipo: 'youtube',
+      musica,
+      tituloLimpio: musica.titulo_limpio ?? '',
+      canalLimpio: musica.canal_limpio ?? ''
+    },
+    valores
+  )
+  const sePuedeTocar = (o: OrigenDato | undefined): boolean => o === undefined || o === 'nombre'
+  const origenActual = actual.origen ?? {}
+  const cambio: { titulo?: string; artista?: string; album?: string } = {}
+  const origen: OrigenMetadatos = {}
+  if (texto(musica.track) !== '' && sePuedeTocar(origenActual.titulo) && datos.titulo.valor) {
+    cambio.titulo = datos.titulo.valor
+    origen.titulo = 'fuente'
+  }
+  if (
+    (texto(musica.artist) !== '' || texto(musica.album_artist) !== '') &&
+    sePuedeTocar(origenActual.artista) &&
+    datos.artista.valor
+  ) {
+    cambio.artista = datos.artista.valor
+    origen.artista = 'fuente'
+  }
+  const albumVacio = texto(actual.album) === ''
+  const albumLibre = !PROPIOS.some((o) => o === origenActual.album)
+  if (texto(musica.album) !== '' && albumVacio && albumLibre && datos.album.valor) {
+    cambio.album = datos.album.valor
+    origen.album = 'fuente'
+  }
+  return Object.keys(cambio).length > 0 ? { ...cambio, origen } : null
+}

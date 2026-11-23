@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -182,6 +182,7 @@ function montar(o: Opciones = {}) {
     o.borrarDiario ? { borrarArchivo: o.borrarDiario } : {}
   )
   const mostrarEnCarpeta = vi.fn()
+  const abrirCarpeta = vi.fn((ruta: string) => Promise.resolve(ruta && ''))
   const avisarSistema = vi.fn()
   const bloqueador = (() => {
     let activo = false
@@ -238,6 +239,7 @@ function montar(o: Opciones = {}) {
     crearVentana,
     ventanaPrincipal: () => null,
     mostrarEnCarpeta,
+    abrirCarpeta,
     avisarSistema,
     ...(o.libreBytes !== undefined ? { libreBytes: async () => o.libreBytes ?? null } : {}),
     bloqueador,
@@ -262,6 +264,7 @@ function montar(o: Opciones = {}) {
     diario,
     destinos,
     mostrarEnCarpeta,
+    abrirCarpeta,
     avisarSistema,
     bloqueador,
     cambios,
@@ -1144,6 +1147,117 @@ describe('exportar varias canciones (lote, ADR 0026 §5)', () => {
       )
     }
   )
+
+  describe('previsualizar y mostrar la carpeta (0388)', () => {
+    const previsualizar = async (
+      m: Montaje,
+      cancionIds: string[],
+      siExiste: 'numerar' | 'sustituir' | 'omitir',
+      carpetaId?: string
+    ) =>
+      m.servicio.previsualizarLote({
+        cancionIds,
+        formato: 'mkv_av1',
+        carpetaId: carpetaId ?? (await m.servicio.destinoCarpeta())!.carpetaId,
+        siExiste
+      })
+    const listado = (ruta: string) => readdir(ruta)
+
+    it('numera los repetidos del lote y los que ya están en la carpeta, y no escribe nada', async () => {
+      const { m } = await montarLote()
+      const propuesta = (await m.servicio.destinoCarpeta())!
+      await writeFile(join(propuesta.ruta, 'Brisa — Yo (karaoke).mkv'), 'x')
+      const antes = await listado(propuesta.ruta)
+      const r = await previsualizar(m, IDS, 'numerar', propuesta.carpetaId)
+      expect(r.filas).toEqual([
+        { cancionId: 'c1', archivo: 'Aurora — Yo (karaoke).mkv', existe: false, accion: 'nuevo' },
+        {
+          cancionId: 'c2',
+          archivo: 'Brisa — Yo (karaoke) (2).mkv',
+          existe: true,
+          accion: 'numerar'
+        },
+        {
+          cancionId: 'c3',
+          archivo: 'Aurora — Yo (karaoke) (2).mkv',
+          existe: false,
+          accion: 'numerar'
+        },
+        { cancionId: 'c4', archivo: 'Cometa — Yo (karaoke).mkv', existe: false, accion: 'nuevo' }
+      ])
+      expect(r.exportables).toBe(4)
+      expect(await listado(propuesta.ruta)).toEqual(antes)
+      expect(m.llamadas).toHaveLength(0)
+    })
+
+    it.each([
+      ['sustituir', 'sustituir', 4],
+      ['omitir', 'omitir', 3]
+    ] as const)('con «%s» la existente es «%s» y exportables = %i', async (siExiste, accion, n) => {
+      const { m } = await montarLote()
+      const propuesta = (await m.servicio.destinoCarpeta())!
+      await writeFile(join(propuesta.ruta, 'Brisa — Yo (karaoke).mkv'), 'x')
+      const r = await previsualizar(m, IDS, siExiste, propuesta.carpetaId)
+      expect(r.filas[1]).toMatchObject({ cancionId: 'c2', existe: true, accion })
+      if (accion === 'omitir') expect(r.filas[1]).toMatchObject({ motivo: 'YA_EXISTE' })
+      expect(r.exportables).toBe(n)
+    })
+
+    it('el carpetaId sigue sirviendo para iniciarLote; uno desconocido da DESTINO_NO_DISPONIBLE', async () => {
+      const { m } = await montarLote()
+      const propuesta = (await m.servicio.destinoCarpeta())!
+      await previsualizar(m, ['c1'], 'numerar', propuesta.carpetaId)
+      await previsualizar(m, ['c1'], 'omitir', propuesta.carpetaId)
+      const r = await m.servicio.iniciarLote({
+        cancionIds: ['c1'],
+        ...PERFIL,
+        audio: 'instrumental',
+        carpetaId: propuesta.carpetaId,
+        siExiste: 'numerar'
+      })
+      expect(r.encoladas).toHaveLength(1)
+      await expect(
+        previsualizar(m, ['c1'], 'numerar', 'a0000000-0000-4000-8000-000000000009')
+      ).rejects.toMatchObject({ codigo: 'DESTINO_NO_DISPONIBLE' })
+    })
+
+    it('una canción que ya se exporta o no existe sale omitida con su motivo', async () => {
+      const p = puerta()
+      const { m } = await montarLote({ puertaCaptura: p.esperar })
+      await pedir(m, ['c1'])
+      const r = await previsualizar(m, ['c1', 'c2', 'nada'], 'numerar')
+      expect(r.filas.map((f) => [f.cancionId, f.accion, f.motivo])).toEqual([
+        ['c1', 'omitir', 'YA_EN_COLA'],
+        ['c2', 'nuevo', undefined],
+        ['nada', 'omitir', 'CANCION_NO_DISPONIBLE']
+      ])
+      expect(r.exportables).toBe(1)
+      p.abrir()
+    })
+
+    it('mostrarCarpetaLote abre la carpeta del lote; un lote desconocido o una carpeta borrada fallan', async () => {
+      const { m } = await montarLote()
+      const propuesta = (await m.servicio.destinoCarpeta())!
+      const r = await m.servicio.iniciarLote({
+        cancionIds: ['c2'],
+        ...PERFIL,
+        audio: 'instrumental',
+        carpetaId: propuesta.carpetaId,
+        siExiste: 'numerar'
+      })
+      await m.servicio.mostrarCarpetaLote(r.loteId)
+      expect(m.abrirCarpeta).toHaveBeenCalledWith(propuesta.ruta)
+      expect(m.mostrarEnCarpeta).not.toHaveBeenCalled()
+      await expect(
+        m.servicio.mostrarCarpetaLote('d0000000-0000-4000-8000-000000000099')
+      ).rejects.toMatchObject({ codigo: 'DESTINO_NO_DISPONIBLE' })
+      for (const e of r.encoladas) await hasta(() => terminado(m, e.trabajoId))
+      await rm(propuesta.ruta, { recursive: true, force: true })
+      await expect(m.servicio.mostrarCarpetaLote(r.loteId)).rejects.toMatchObject({
+        codigo: 'DESTINO_NO_DISPONIBLE'
+      })
+    })
+  })
 
   it('toma la instantánea de cada canción al confirmar, no cuando le toca', async () => {
     const p = puerta()

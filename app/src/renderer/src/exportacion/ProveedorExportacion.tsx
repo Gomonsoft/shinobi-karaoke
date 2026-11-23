@@ -21,6 +21,7 @@ import {
 import { DialogoExportacion } from './dialogo/DialogoExportacion'
 import { DialogoFormularioLote } from './lote/DialogoFormularioLote'
 import { SeguimientoLote } from './lote/SeguimientoLote'
+import type { OpcionesExportacion } from './dialogo/modelo'
 import { filasDelLote, resumirLote, type LoteVista } from './lote/modelo'
 import { EXP_LOTE } from './lote/textos'
 import { EXP_ANUNCIO, EXP_PROGRESO, EXP_TOAST } from './dialogo/textosProgreso'
@@ -79,7 +80,12 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
   const [cancelar, setCancelar] = useState<string | null>(null)
   const [lotes, setLotes] = useState<LoteVista[]>([])
   const [dialogoLote, setDialogoLote] = useState<
-    | { fase: 'formulario'; cancionIds: string[]; noAplican: NoAplicaLote[] }
+    | {
+        fase: 'formulario'
+        cancionIds: string[]
+        noAplican: NoAplicaLote[]
+        opcionesAnteriores?: OpcionesExportacion
+      }
     | { fase: 'seguimiento'; loteId: string; confirmarCancelar: boolean }
     | null
   >(null)
@@ -350,6 +356,9 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
         <DialogoFormularioLote
           cancionIds={dialogoLote.cancionIds}
           noAplican={dialogoLote.noAplican}
+          {...(dialogoLote.opcionesAnteriores
+            ? { opcionesAnteriores: dialogoLote.opcionesAnteriores }
+            : {})}
           alCerrar={() => setDialogoLote(null)}
           alIniciado={(lote) => {
             setLotes((ls) => [...ls, { ...lote, iniciadoEn: Date.now() }])
@@ -371,6 +380,14 @@ export function ProveedorExportacion({ children }: { children: ReactNode }) {
               lote={lote}
               confirmarInicial={dialogoLote.confirmarCancelar}
               alCerrar={() => setDialogoLote(null)}
+              alCambiarOpciones={(cancionIds, opcionesAnteriores) =>
+                setDialogoLote({
+                  fase: 'formulario',
+                  cancionIds,
+                  noAplican: [],
+                  opcionesAnteriores
+                })
+              }
               alReintentado={(cambios) =>
                 setLotes((ls) =>
                   ls.map((l) => (l.loteId === lote.loteId ? { ...l, ...cambios } : l))

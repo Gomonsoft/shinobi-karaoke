@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ValoresDatosIpc } from '../../shared'
-import { origenAlConfirmar, proponerDatos, type EntradaYoutube } from './propuestaDatos'
+import {
+  cambioPorMusica,
+  origenAlConfirmar,
+  proponerDatos,
+  type EntradaYoutube
+} from './propuestaDatos'
 
 const SIN_BIBLIOTECA: ValoresDatosIpc = { artistas: [], albumes: [] }
 const val = (valor: string, canciones = 1): ValoresDatosIpc['artistas'][number] => ({
@@ -174,5 +179,69 @@ describe('origenAlConfirmar', () => {
     expect(
       origenAlConfirmar(archivo('x.mp3', {}), { titulo: '', artista: '', album: '' })
     ).toBeUndefined()
+  })
+})
+
+describe('cambioPorMusica (datos de YouTube Music al descargar, 0384)', () => {
+  const musica = {
+    track: 'Tema Alfa',
+    artist: 'Grupo Uno',
+    album: 'Disco Beta',
+    titulo_limpio: 'Tema Alfa',
+    canal_limpio: 'Canal'
+  }
+  const actual = (extra: object = {}) => ({
+    titulo: 'Título de la lista',
+    artista: 'Canal',
+    album: null,
+    ...extra
+  })
+
+  it.each([
+    ['ausente', undefined, true],
+    ['nombre', 'nombre', true],
+    ['fuente', 'fuente', false],
+    ['usuario', 'usuario', false],
+    ['lrclib', 'lrclib', false]
+  ] as const)('título y artista con origen %s: se sustituyen = %s', (_n, origen, cambia) => {
+    const r = cambioPorMusica(
+      actual({ origen: { titulo: origen, artista: origen } }),
+      musica,
+      SIN_BIBLIOTECA
+    )
+    if (cambia) {
+      expect(r).toMatchObject({ titulo: 'Tema Alfa', artista: 'Grupo Uno' })
+      expect(r?.origen).toMatchObject({ titulo: 'fuente', artista: 'fuente' })
+    } else expect(r?.titulo).toBeUndefined()
+  })
+
+  it('el álbum solo se rellena si está vacío y su origen no es del usuario, de la fuente ni de LRCLIB', () => {
+    expect(cambioPorMusica(actual(), musica, SIN_BIBLIOTECA)).toMatchObject({
+      album: 'Disco Beta',
+      origen: { album: 'fuente' }
+    })
+    // El álbum de la lista es una agrupación que el usuario vio: no se cambia.
+    expect(
+      cambioPorMusica(
+        actual({ album: 'Lista', origen: { album: 'lista' } }),
+        musica,
+        SIN_BIBLIOTECA
+      )
+    ).not.toHaveProperty('album')
+    expect(
+      cambioPorMusica(actual({ origen: { album: 'usuario' } }), musica, SIN_BIBLIOTECA)
+    ).not.toHaveProperty('album')
+  })
+
+  it('sin datos de música, o con solo el título limpio, no cambia nada', () => {
+    expect(cambioPorMusica(actual(), null, SIN_BIBLIOTECA)).toBeNull()
+    expect(
+      cambioPorMusica(actual(), { titulo_limpio: 'Otro', canal_limpio: 'Otro' }, SIN_BIBLIOTECA)
+    ).toBeNull()
+  })
+
+  it('usa la grafía de la biblioteca como la propuesta', () => {
+    const r = cambioPorMusica(actual(), musica, { artistas: [val('GRUPO uno')], albumes: [] })
+    expect(r?.artista).toBe('GRUPO uno')
   })
 })

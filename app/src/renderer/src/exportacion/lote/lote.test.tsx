@@ -199,6 +199,88 @@ describe('diálogo de lote (G)', () => {
   })
 })
 
+describe('qué existe ya en la carpeta (G, 0388)', () => {
+  const fila = (cancionId: string, extra: object = {}) => ({
+    cancionId,
+    archivo: `Tema ${cancionId} (karaoke).mkv`,
+    existe: false,
+    accion: 'nuevo' as const,
+    ...extra
+  })
+  const previa =
+    (existe: string[], omitir = false) =>
+    (p: { cancionIds: string[] }) => ({
+      filas: p.cancionIds.map((id) =>
+        existe.includes(id)
+          ? fila(
+              id,
+              omitir
+                ? { existe: true, accion: 'omitir', motivo: 'YA_EXISTE' }
+                : { existe: true, accion: 'numerar', archivo: `Tema ${id} (karaoke) (2).mkv` }
+            )
+          : fila(id)
+      ),
+      exportables: p.cancionIds.length - (omitir ? existe.length : 0)
+    })
+
+  it('avisa de las que ya tienen un video y «Ver cuáles» muestra el nombre de cada archivo', async () => {
+    const api = crearApiExportacionFalsa({ previsualizarLote: previa(['c2']) })
+    await montar(api)
+    const d = await screen.findByRole('dialog', { name: 'Exportar 3 videos' })
+    expect(
+      await within(d).findByText(
+        '1 de estas canciones ya tienen un video en esta carpeta: se guardarán con « (2)» en el nombre.'
+      )
+    ).toBeInTheDocument()
+    fireEvent.click(within(d).getByRole('button', { name: 'Ver cuáles' }))
+    expect(within(d).getByText(/→ Tema c1 \(karaoke\)\.mkv/)).toBeInTheDocument()
+    expect(within(d).getByText(/→ Tema c2 \(karaoke\) \(2\)\.mkv/)).toBeInTheDocument()
+    expect(within(d).getByText(/Ya hay un video con este nombre/)).toBeInTheDocument()
+    const [, peticion] = llamada(api, 'previsualizarLote')[0]!
+    expect(peticion).toMatchObject({ cancionIds: IDS, carpetaId: ID_CARPETA, siExiste: 'numerar' })
+  })
+
+  it('con «omitir» el botón dice el número real, y vuelve a pedirse al cambiar «si ya existe»', async () => {
+    const api = crearApiExportacionFalsa({
+      previsualizarLote: (p: { cancionIds: string[]; siExiste: string }) =>
+        previa(['c2'], p.siExiste === 'omitir')(p)
+    })
+    await montar(api)
+    const d = await screen.findByRole('dialog', { name: 'Exportar 3 videos' })
+    await within(d).findByText(/ya tienen un video en esta carpeta/)
+    fireEvent.click(within(d).getByRole('radio', { name: 'Omitir esa canción' }))
+    expect(await within(d).findByRole('button', { name: 'Exportar 2 videos' })).toBeInTheDocument()
+    expect(
+      within(d).getByText('1 canciones no se exportarán porque ya tienen un video en esta carpeta.')
+    ).toBeInTheDocument()
+    expect(
+      llamada(api, 'previsualizarLote').map((l) => (l[1] as { siExiste: string }).siExiste)
+    ).toEqual(['numerar', 'omitir'])
+  })
+
+  it('al cambiar de carpeta se vuelve a pedir con el carpetaId nuevo', async () => {
+    const nueva = {
+      carpetaId: 'c0000000-0000-4000-8000-000000000077',
+      ruta: '/x/Otra',
+      libreBytes: null
+    }
+    const api = crearApiExportacionFalsa({
+      destinoCarpeta: (desde?: string) =>
+        desde ? nueva : { carpetaId: ID_CARPETA, ruta: '/home/usuario/Videos', libreBytes: null }
+    })
+    await montar(api)
+    const d = await screen.findByRole('dialog', { name: 'Exportar 3 videos' })
+    await within(d).findByLabelText(/Guardar en la carpeta, \/home/)
+    fireEvent.click(within(d).getByRole('button', { name: 'Cambiar…' }))
+    await within(d).findByLabelText(/Guardar en la carpeta, \/x\/Otra/)
+    await waitFor(() =>
+      expect(
+        llamada(api, 'previsualizarLote').map((l) => (l[1] as { carpetaId: string }).carpetaId)
+      ).toEqual([ID_CARPETA, nueva.carpetaId])
+    )
+  })
+})
+
 async function enH(api: ApiExportacionFalsa = crearApiExportacionFalsa()) {
   await montar(api)
   const d = await screen.findByRole('dialog', { name: 'Exportar 3 videos' })
@@ -259,7 +341,7 @@ describe('seguimiento (H) y resultado (I)', () => {
       hecho(1, {
         resultado: 'error',
         bytes: null,
-        error: { codigo: 'SIN_ESPACIO', mensaje: 'x', posicionMs: null }
+        error: { codigo: 'MEMORIA_INSUFICIENTE', mensaje: 'x', posicionMs: null }
       })
     )
     await emitir(
@@ -286,6 +368,33 @@ describe('seguimiento (H) y resultado (I)', () => {
     fireEvent.click(within(i).getByRole('button', { name: 'Reintentar las fallidas' }))
     const h = await screen.findByRole('dialog', { name: 'Exportando 2 videos' })
     expect(within(h).getAllByText(/En cola/)).toHaveLength(2)
+  })
+
+  it('si todas fallaron por algo que repetir no arregla, el botón es «Cambiar opciones» y vuelve a G con ellas', async () => {
+    const api = await enH()
+    await emitir(api, hecho(0))
+    const sinEspacio = { codigo: 'SIN_ESPACIO', mensaje: 'x', posicionMs: null } as const
+    await emitir(api, hecho(1, { resultado: 'error', bytes: null, error: sinEspacio }))
+    await emitir(api, hecho(2, { resultado: 'cancelada', bytes: null, error: sinEspacio }))
+    const i = await screen.findByRole('dialog', { name: 'Videos exportados' })
+    expect(within(i).queryByRole('button', { name: 'Reintentar las fallidas' })).toBeNull()
+    fireEvent.click(within(i).getByRole('button', { name: 'Cambiar opciones' }))
+    const g = await screen.findByRole('dialog', { name: 'Exportar 2 videos' })
+    await within(g).findByLabelText(/Guardar en la carpeta, /)
+    const [, previa] = llamada(api, 'previsualizarLote').at(-1)!
+    expect(previa).toMatchObject({ cancionIds: ['c2', 'c3'] })
+    expect(llamada(api, 'reintentarLote')).toEqual([])
+  })
+
+  it('«Mostrar la carpeta» abre la carpeta del lote por su loteId', async () => {
+    const api = await enH()
+    for (const k of [0, 1, 2]) await emitir(api, hecho(k))
+    const i = await screen.findByRole('dialog', { name: 'Videos exportados' })
+    fireEvent.click(within(i).getByRole('button', { name: 'Mostrar la carpeta' }))
+    await waitFor(() =>
+      expect(llamada(api, 'mostrarCarpetaLote')).toEqual([['mostrarCarpetaLote', ID_LOTE]])
+    )
+    expect(llamada(api, 'mostrarEnCarpeta')).toEqual([])
   })
 
   it('«Cancelar las que faltan» pide confirmación y llama a cancelarLote; [✕] de una fila en cola no pregunta', async () => {
