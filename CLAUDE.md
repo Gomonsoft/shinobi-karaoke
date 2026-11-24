@@ -2,13 +2,13 @@
 
 Software libre y gratuito para crear karaokes: fuente (archivo/YouTube) → separación voz/instrumental → letra → editor (estilo + sincronía) → borrador/lista → reproductor a pantalla completa.
 
-- Versión en curso: 0.2.3, varios cantantes y coros (`docs/versiones/0.2.3/plan-5.md` y `docs/versiones/0.2.3/backlog.md`). La 0.2.2 está integrada en `develop` y no se publica en `main` por ahora: el usuario probará a mano 0.2.2 y 0.2.3 juntas en `develop`; lo que queda de ella (guías manuales y decisiones del usuario) está en `docs/versiones/0.2.2/traspaso.md` y en la pregunta `docs/preguntas/0280-…`.
+- Versión en curso: 0.2.3.1 (nombre de trabajo; en la app, `0.2.3-alpha.3`), versión de pruebas: lo que falta probar a mano, cambios y arreglos, y preguntas para el usuario (`docs/versiones/0.2.3.1/backlog.md`). Parte de la `0.2.3-alpha.2`, publicada como versión preliminar con las series 0.2.2 y 0.2.3 para recoger feedback de uso real.
 - Alcance por versión: `docs/00-vision-y-alcance.md` (no añadir funcionalidades fuera del alcance autorizado sin preguntar al usuario).
 - Pipeline: `docs/01-pipeline.md`.
 - Toda la documentación generada va en `docs/`. Idioma: español.
 - Ideas fuera del alcance: no se implementan; se registran en `docs/propuestas/` (una por archivo) para que el usuario decida.
-- Rama de trabajo de la versión en curso: `version-0.2.3` (sale de `version-0.2.2`, ya fusionada en `develop`), con `docs/` en la rama `version-0.2.3` de shinobidocs. Una feature = una fase; un único PR por versión hacia `develop`.
-- Siguiente versión: sin definir. La feature 10 de 0.2.2 (sincronía automática con la voz) está en 0.2.3 como condicionada a su prueba técnica.
+- Rama de trabajo de la versión en curso: `version-0.2.3.1` (sale de `develop`), con `docs/` en la rama `version-0.2.3.1` de shinobidocs. Un único PR por versión hacia `develop`.
+- Siguiente versión: sin definir. La feature 10 de 0.2.2 (sincronía automática con la voz) sigue condicionada a su prueba técnica.
 
 ## Agentes (`.claude/agents/`)
 - `arquitecto` — decisiones tecnológicas (ADRs en `docs/adr/`), arquitectura y tareas.
