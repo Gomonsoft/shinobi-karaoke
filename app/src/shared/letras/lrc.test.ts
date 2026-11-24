@@ -99,3 +99,36 @@ describe('exportarLrc', () => {
     expect(dibujadas[2]!.fin_ms).toBeNull()
   })
 })
+
+describe('exportarLrc con reparto (0.2.3)', () => {
+  const con = letra([
+    el('a', 'Cruza el faro', 1000, { fin_ms: 2000 }),
+    el('b', 'Eco de la plaza', 3000, { parte: 'coro', fin_ms: 4000 }),
+    el('c', '(Ah, ah)', 5000, { parte: 'coro', fin_ms: 6000 }),
+    el('d', 'Responde el viento', 7000, { parte: 'c2', fin_ms: 8000 })
+  ])
+
+  it('los coros salen entre paréntesis sin duplicarlos y no se escribe ninguna parte', () => {
+    const texto = exportarLrc(con, datos)
+    expect(texto).toContain('[00:03.00](Eco de la plaza)')
+    expect(texto).toContain('[00:05.00](Ah, ah)\n')
+    expect(texto).not.toContain('((')
+    expect(texto).toContain('[00:07.00]Responde el viento')
+  })
+
+  it('ida y vuelta: al importar, los coros quedan entre paréntesis y el resto igual', () => {
+    const vuelta = lrcALetra(exportarLrc(con, datos)).lineas.filter((l) => l.tipo === 'linea')
+    expect(vuelta.map((l) => l.texto)).toEqual([
+      'Cruza el faro',
+      '(Eco de la plaza)',
+      '(Ah, ah)',
+      'Responde el viento'
+    ])
+    expect(vuelta.every((l) => l.parte === undefined)).toBe(true)
+  })
+
+  it('sin reparto la salida es la de siempre', () => {
+    const sin = letra([el('a', 'Luna roja', 1000, { fin_ms: 2000 })])
+    expect(exportarLrc(sin, datos)).toContain('[00:01.00]Luna roja\n')
+  })
+})

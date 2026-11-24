@@ -1,4 +1,5 @@
 import {
+  chocan,
   DURACION_MINIMA_PALABRA_MS as MIN,
   finEfectivo,
   moverInicioLinea,
@@ -205,7 +206,9 @@ export function cargarBorrador(letra: Letra, id: string, duracionMs: number): Bo
   if (!el || el.tipo !== 'linea') throw new RangeError(`No existe la línea «${id}»`)
   if (el.inicio_ms === null) throw new RangeError('La línea no tiene inicio')
   const i = letra.lineas.indexOf(el)
-  const siguiente = letra.lineas.slice(i + 1).find((e) => e.inicio_ms !== null)
+  const siguiente = letra.lineas
+    .slice(i + 1)
+    .find((e) => e.inicio_ms !== null && chocan(el, e, letra))
   const visibles = palabrasVisibles(el, siguiente?.inicio_ms ?? null)
   const fin = finEfectivo(letra, id, duracionMs) ?? el.inicio_ms + 1
   const base = { texto: el.texto, inicio_ms: el.inicio_ms, fin_ms: fin, quitar: false }
@@ -410,7 +413,12 @@ export function ajustarPalabra(
 /** Límites de la línea para la ventana: `limitesInicio` y fin ≤ inicio de la siguiente (o la duración). */
 export function limitesEditorDe(letra: Letra, id: string, duracionMs: number): LimitesEditor {
   const { min, max } = limitesInicio(letra, id)
-  return { inicioMin: min, inicioMax: max, finMax: max === null ? duracionMs : max + 1 }
+  // El fin llega hasta el inicio de la siguiente línea que choca (ADR 0029 §7); sin reparto, la siguiente.
+  const i = letra.lineas.findIndex((e) => e.id === id)
+  const sigChoca = letra.lineas
+    .slice(i + 1)
+    .find((e) => e.inicio_ms !== null && chocan(letra.lineas[i]!, e, letra))
+  return { inicioMin: min, inicioMax: max, finMax: sigChoca ? sigChoca.inicio_ms! : duracionMs }
 }
 
 export interface ResultadoLimiteLinea {

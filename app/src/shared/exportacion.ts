@@ -410,6 +410,11 @@ export interface ExportacionIpc {
   alto: number
   fps: Fps
   audio: AudioExportacion
+  /**
+   * Nivel (0–1) de la voz en los coros si este video la lleva (ADR 0030 §5); ausente = sin voz de coros.
+   * Solo con `audio: "instrumental"`.
+   */
+  corosNivel?: number
   estado: EstadoExportacion
   /** 1 = la siguiente de la cola; `null` si no está en cola. */
   posicion: number | null

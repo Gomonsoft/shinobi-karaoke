@@ -1,5 +1,7 @@
+import type { PuntoEnvolvente } from '@shared/coros'
 import { gananciaLineal, urlPista, type Pista } from './pistas'
 import { estirarEnWorker } from './estiramientoCliente'
+import { mezclarCorosEnWorker } from './mezclaCorosCliente'
 import { ctxOidoEn, msBucleEn, msCancionEn, type Anclaje, type IntervaloBucle } from './reloj'
 
 export interface OpcionesMotor {
@@ -17,6 +19,18 @@ export interface OpcionesMotor {
     velocidad: 0.5 | 0.75,
     signal: AbortSignal
   ) => Promise<Float32Array[]>
+  /** «Instrumental con coros» (ADR 0030 §4): por defecto, el worker de `mezclaCoros`. Recibe copias y las posee. */
+  mezclarCoros?: (
+    instrumental: Float32Array[],
+    voz: Float32Array[],
+    sampleRate: number,
+    puntos: PuntoEnvolvente[],
+    signal: AbortSignal
+  ) => Promise<Float32Array[]>
+  /** Espera tras el último cambio de los coros antes de recalcular (ADR 0030 §4: 300 ms). */
+  esperaCorosMs?: number
+  /** Si el cálculo pasa de esto, el estado marca `corosPreparando` (ADR 0030 §4: 500 ms). */
+  avisoCorosMs?: number
 }
 
 export type Velocidad = 0.5 | 0.75 | 1
@@ -32,6 +46,12 @@ export interface EstadoMotor {
   volumen: number
   /** `false` solo si el estiramiento del tramo falló: la velocidad baja el tono (nota de la ventana). */
   tonoConservado: boolean
+  /** El cálculo de la pista con coros lleva más de 500 ms (la interfaz dice «Preparando los coros…»). */
+  corosPreparando?: boolean
+  /** La mezcla de los coros falló: suena el instrumental solo. Se mantiene hasta una mezcla correcta. */
+  corosError?: boolean
+  /** Existe la pista «instrumental con coros» para los coros de ahora. */
+  corosListos?: boolean
 }
 
 /** Tramo de la pista estirado, con el tono conservado, para una velocidad. */
@@ -130,6 +150,14 @@ export class MotorAudio {
   private solicitudReproduccion = 0
   private audioLiberado = false
   private destruido = false
+  // Pista derivada «instrumental con coros» (ADR 0030 §4). Va aparte del LRU: con ella el motor tiene a lo
+  // sumo `maxBuffers` pistas más la derivada (el «3» del ADR).
+  private puntosCoros: readonly PuntoEnvolvente[] = []
+  private derivada: AudioBuffer | null = null
+  private puntosDerivada: readonly PuntoEnvolvente[] | null = null
+  private temporizadorCoros: ReturnType<typeof setTimeout> | null = null
+  private calculoCoros: AbortController | null = null
+  private forzarCoros = false
 
   constructor(private readonly opciones: OpcionesMotor) {
     this.maxBuffers = Math.max(1, Math.min(2, Math.trunc(opciones.maxBuffers ?? 2)))
@@ -143,7 +171,10 @@ export class MotorAudio {
       velocidad: 1,
       duracionMs: null,
       volumen: acotar(opciones.volumen, 1),
-      tonoConservado: true
+      tonoConservado: true,
+      corosPreparando: false,
+      corosError: false,
+      corosListos: false
     }
   }
 
@@ -226,7 +257,8 @@ export class MotorAudio {
       this.posicionEnPausa = bucle.inicioMs
     }
     if (reproduccion && this.actual.pista !== pista) {
-      this.arrancar(buffer, this.posicionEnPausa, this.actual.velocidad, reproduccion.hastaMs)
+      const efectivo = pista === 'instrumental' && this.derivada ? this.derivada : buffer
+      this.arrancar(efectivo, this.posicionEnPausa, this.actual.velocidad, reproduccion.hastaMs)
     }
     this.publicar({
       pista,
@@ -237,13 +269,17 @@ export class MotorAudio {
       error: null
     })
     this.prepararEstirado()
+    // Con «Instrumental» y coros que aún no tienen mezcla, se calcula ya (sin la espera de los cambios).
+    if (this.necesitaCoros() && !this.corosVigentes()) this.programarCoros(0)
   }
 
   pistaCargando(): Pista | null {
     return this.actual.cargandoPista
   }
 
-  async reproducir(opciones: { desdeMs?: number; hastaMs?: number } = {}): Promise<void> {
+  async reproducir(
+    opciones: { desdeMs?: number; hastaMs?: number; conCoros?: boolean } = {}
+  ): Promise<void> {
     if (this.destruido) return
     const solicitud = ++this.solicitudReproduccion
     if (this.audioLiberado && !this.carga) {
@@ -259,7 +295,9 @@ export class MotorAudio {
       return
     }
     if (solicitud !== this.solicitudReproduccion) return
-    const buffer = this.buffers.get(this.actual.pista)
+    // `conCoros`: esta escucha usa la pista con coros aunque la elegida sea otra («Escuchar un coro»).
+    this.forzarCoros = opciones.conCoros === true
+    const buffer = this.bufferDe()
     if (!buffer) return
     const duracionMs = buffer.duration * 1000
     const posicion = this.posicionMs()
@@ -363,7 +401,7 @@ export class MotorAudio {
   }
 
   private claveActual(): ClaveEstirado | null {
-    const origen = this.buffers.get(this.actual.pista)
+    const origen = this.bufferDe()
     const tramo = this.tramoTono
     if (!origen || !tramo || this.actual.velocidad === 1 || this.audioLiberado) return null
     const sr = origen.sampleRate
@@ -479,6 +517,152 @@ export class MotorAudio {
     this.alTerminar(fuente, r.finMs)
   }
 
+  // --- Instrumental con coros (ADR 0030 §4) -----------------------------------------------------------
+
+  /** La pista que suena: la derivada con «Instrumental» (o con `conCoros`) si existe; si no, la elegida. */
+  private bufferDe(): AudioBuffer | undefined {
+    if (this.derivada && (this.actual.pista === 'instrumental' || this.forzarCoros)) {
+      return this.derivada
+    }
+    return this.buffers.get(this.actual.pista)
+  }
+
+  private necesitaCoros(): boolean {
+    return this.puntosCoros.length > 0 && this.actual.pista === 'instrumental'
+  }
+
+  private corosVigentes(): boolean {
+    const a = this.puntosDerivada
+    const b = this.puntosCoros
+    return (
+      this.derivada !== null &&
+      a !== null &&
+      a.length === b.length &&
+      a.every((p, i) => p[0] === b[i]![0] && p[1] === b[i]![1])
+    )
+  }
+
+  /**
+   * Puntos `[ms, nivel]` de la voz en los coros (`shared/coros`); `[]` = sin coros o nivel 0, y se vuelve
+   * al instrumental. Una petición nueva cancela la anterior (solo vale la última) y el cálculo empieza tras
+   * `esperaCorosMs` de calma; mientras tanto suena la mezcla anterior.
+   */
+  fijarCoros(puntos: readonly PuntoEnvolvente[]): void {
+    if (this.destruido) return
+    const nuevos = puntos.map(([ms, nivel]): PuntoEnvolvente => [ms, nivel])
+    const iguales =
+      nuevos.length === this.puntosCoros.length &&
+      nuevos.every((p, i) => p[0] === this.puntosCoros[i]![0] && p[1] === this.puntosCoros[i]![1])
+    if (iguales) return
+    this.puntosCoros = nuevos
+    this.cancelarCoros()
+    if (this.puntosCoros.length === 0) {
+      this.soltarDerivada()
+      if (this.actual.corosError) this.publicar({ corosError: false })
+      return
+    }
+    if (this.corosVigentes()) return
+    if (this.necesitaCoros()) this.programarCoros(this.opciones.esperaCorosMs ?? 300)
+  }
+
+  /** Calcula ahora la pista con coros (sin esperar) y dice si quedó lista; para «Escuchar un coro». */
+  async prepararCoros(): Promise<boolean> {
+    if (this.destruido || this.puntosCoros.length === 0) return false
+    if (this.corosVigentes()) return true
+    this.cancelarCoros()
+    return this.calcularCoros()
+  }
+
+  private programarCoros(esperaMs: number): void {
+    if (this.temporizadorCoros) clearTimeout(this.temporizadorCoros)
+    this.temporizadorCoros = setTimeout(() => {
+      this.temporizadorCoros = null
+      void this.calcularCoros()
+    }, esperaMs)
+  }
+
+  private cancelarCoros(): void {
+    if (this.temporizadorCoros) clearTimeout(this.temporizadorCoros)
+    this.temporizadorCoros = null
+    this.calculoCoros?.abort()
+    this.calculoCoros = null
+    if (this.actual.corosPreparando) this.publicar({ corosPreparando: false })
+  }
+
+  /** Lee y decodifica una pista que no está en el LRU (queda en una variable local, no en `buffers`). */
+  private async pistaParaMezcla(pista: Pista, signal: AbortSignal): Promise<AudioBuffer> {
+    const guardada = this.buffers.get(pista)
+    if (guardada) return guardada
+    const cargar = this.opciones.fetch ?? globalThis.fetch.bind(globalThis)
+    const respuesta = await cargar(urlPista(this.opciones.cancionId, pista), { signal })
+    if (!respuesta.ok) throw new Error('No se pudo leer la pista.')
+    const bytes = await respuesta.arrayBuffer()
+    return this.prepararContexto().decodeAudioData(bytes)
+  }
+
+  private async calcularCoros(): Promise<boolean> {
+    const puntos = this.puntosCoros
+    if (puntos.length === 0) return false
+    const carga = new AbortController()
+    this.calculoCoros = carga
+    // El cliente mide el tiempo desde que empieza el cálculo: pasado el plazo, la interfaz lo avisa.
+    const aviso = setTimeout(() => {
+      if (!carga.signal.aborted) this.publicar({ corosPreparando: true })
+    }, this.opciones.avisoCorosMs ?? 500)
+    try {
+      const [instrumental, voz] = await Promise.all([
+        this.pistaParaMezcla('instrumental', carga.signal),
+        this.pistaParaMezcla('voz', carga.signal)
+      ])
+      if (carga.signal.aborted) return false
+      const sr = instrumental.sampleRate
+      const copiar = (b: AudioBuffer): Float32Array[] =>
+        Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c).slice())
+      const mezclar = this.opciones.mezclarCoros ?? mezclarCorosEnWorker
+      const salida = await mezclar(
+        copiar(instrumental),
+        copiar(voz),
+        sr,
+        puntos.map(([ms, nivel]) => [ms, nivel]),
+        carga.signal
+      )
+      if (carga.signal.aborted) return false
+      const buffer = this.prepararContexto().createBuffer(salida.length, salida[0]!.length, sr)
+      salida.forEach((canal, c) => buffer.copyToChannel(canal as Float32Array<ArrayBuffer>, c))
+      this.adoptarDerivada(buffer, puntos)
+      this.publicar({ corosPreparando: false, corosError: false, corosListos: true })
+      return true
+    } catch (e) {
+      if (carga.signal.aborted) return false
+      console.warn('No se pudo preparar la voz de los coros; suena el instrumental solo.', e)
+      this.soltarDerivada()
+      this.publicar({ corosPreparando: false, corosError: true })
+      return false
+    } finally {
+      clearTimeout(aviso)
+      if (this.calculoCoros === carga) this.calculoCoros = null
+    }
+  }
+
+  /** Cambia la pista derivada; si suena la que se sustituye, relevo en el mismo punto. */
+  private adoptarDerivada(buffer: AudioBuffer | null, puntos: readonly PuntoEnvolvente[] | null) {
+    const enUso = this.actual.pista === 'instrumental' || this.forzarCoros
+    this.derivada = buffer
+    this.puntosDerivada = puntos
+    const nuevo = this.bufferDe()
+    if (this.reproduccion && enUso && nuevo) {
+      this.arrancar(nuevo, this.posicionMs(), this.actual.velocidad, this.reproduccion.hastaMs)
+      this.publicar({ sonando: this.reproduccion !== null })
+    }
+    this.prepararEstirado()
+    if (this.actual.corosListos !== (buffer !== null))
+      this.publicar({ corosListos: buffer !== null })
+  }
+
+  private soltarDerivada(): void {
+    if (this.derivada) this.adoptarDerivada(null, null)
+  }
+
   pausar(): void {
     this.solicitudReproduccion++
     if (!this.reproduccion) return
@@ -490,7 +674,7 @@ export class MotorAudio {
   /** Establece límites en tiempo de audio. La escucha con hastaMs conserva su propio final. */
   fijarBucle(intervalo: IntervaloBucle | null): boolean {
     if (this.destruido) return false
-    const buffer = this.buffers.get(this.actual.pista)
+    const buffer = this.bufferDe()
     const bucle = intervalo && buffer ? intervaloAudible(intervalo, buffer.duration * 1000) : null
     if (intervalo && !bucle) return false
     if (!intervalo && this.bucle) this.solicitudReproduccion++
@@ -568,11 +752,7 @@ export class MotorAudio {
       }
     }
     if (this.reproduccion) {
-      this.arrancar(
-        this.buffers.get(this.actual.pista)!,
-        this.posicionEnPausa,
-        this.actual.velocidad
-      )
+      this.arrancar(this.bufferDe()!, this.posicionEnPausa, this.actual.velocidad)
       if (!this.reproduccion) this.publicar({ sonando: false })
     }
   }
@@ -580,12 +760,7 @@ export class MotorAudio {
   fijarVelocidad(velocidad: Velocidad): void {
     if (velocidad === this.actual.velocidad) return
     if (this.reproduccion) {
-      this.arrancar(
-        this.buffers.get(this.actual.pista)!,
-        this.posicionMs(),
-        velocidad,
-        this.reproduccion.hastaMs
-      )
+      this.arrancar(this.bufferDe()!, this.posicionMs(), velocidad, this.reproduccion.hastaMs)
     }
     this.publicar({ velocidad, sonando: this.reproduccion !== null })
     this.prepararEstirado()
@@ -633,6 +808,9 @@ export class MotorAudio {
     this.detenerFuente()
     this.bucle = null
     this.invalidarEstirado()
+    this.cancelarCoros()
+    this.derivada = null
+    this.puntosDerivada = null
     this.carga?.abort()
     this.carga = null
     this.buffers.clear()
@@ -648,6 +826,9 @@ export class MotorAudio {
     this.bucle = null
     this.tramoTono = null
     this.invalidarEstirado()
+    this.cancelarCoros()
+    this.derivada = null
+    this.puntosDerivada = null
     this.carga?.abort()
     this.carga = null
     this.buffers.clear()

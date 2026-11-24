@@ -12,6 +12,8 @@ export interface BloquePreparacion {
   fines: number
   /** El usuario pidió «Ajustar los fines…» sobre una letra sin marca: no hubo búsqueda ni elección. */
   soloFines: boolean
+  /** La app la eligió sin poder comprobarla con la voz (`edi.prep.letra`, variante sin comprobar). */
+  sinComprobar?: boolean
 }
 
 const formato = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -52,6 +54,7 @@ export function bloquePreparacion(
     letra: letraPuesta,
     desfaseMs,
     fines,
-    soloFines: !registro.busqueda && !registro.eleccion
+    soloFines: !registro.busqueda && !registro.eleccion,
+    sinComprobar: letraPuesta === 'app' && eleccion?.sin_comprobar === true
   }
 }

@@ -17,6 +17,8 @@ export interface LineaPasoDatos {
   texto: string
   /** Barra bajo la línea: `null` = indeterminada; ausente = sin barra. Valor 0–100. */
   barra?: number | null
+  /** Icono de ayuda delante del texto (letra elegida sin comprobar) y su frase completa. */
+  ayuda?: string
 }
 
 /** Trabajo activo de una canción con su último progreso en vivo (0014). */
@@ -124,6 +126,13 @@ export function puedePrepararResumen(r: ResumenCancionIpc, hayTrabajo: boolean):
 export function lineaDeOrigen(r: ResumenCancionIpc): LineaPasoDatos | null {
   const p = r.preparacion
   if (!p || !p.eleccionAutomatica || p.revisada) return null
+  if (p.eleccionSinComprobar) {
+    return {
+      tipo: 'texto',
+      texto: BIB_PREP.origen.autoSinComprobar,
+      ayuda: BIB_PREP.origen.autoSinComprobarAyuda
+    }
+  }
   return {
     tipo: 'texto',
     texto: p.desfaseCorregido ? BIB_PREP.origen.autoCorregida : BIB_PREP.origen.auto
@@ -417,7 +426,12 @@ export function textoAriaTarjeta(r: ResumenCancionIpc, d: DatosTarjeta): string 
   const quien = r.artista === '' ? '' : `${r.artista}, `
   const base = `${tituloDeTarjeta(r)}, ${quien}${d.textoEstado}.`
   const tema = temaDeTarjeta(r)
-  const conPaso = d.linea ? `${base} ${d.linea.texto}.` : base
+  // La frase completa de «sin comprobar» va en lugar de la corta; ya termina en punto.
+  const conPaso = d.linea
+    ? d.linea.ayuda
+      ? `${base} ${d.linea.ayuda}`
+      : `${base} ${d.linea.texto}.`
+    : base
   const rev = r.revision
   const conRevision =
     d.accion === 'revisar' && rev

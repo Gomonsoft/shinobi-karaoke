@@ -151,7 +151,9 @@ export const preparacionSchema = z.object({
     .object({
       por: z.enum(['app', 'usuario']),
       fecha: fechaIso.catch(CREADA_POR_DEFECTO),
-      lrclib_id: z.number().int().nullable().catch(null)
+      lrclib_id: z.number().int().nullable().catch(null),
+      /** La app la eligió sin poder comprobarla con la voz (0.2.3; 0.2.2 ignora el campo). */
+      sin_comprobar: z.literal(true).optional().catch(undefined)
     })
     .nullable()
     .optional()

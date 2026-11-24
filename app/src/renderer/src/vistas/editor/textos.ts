@@ -104,6 +104,7 @@ export const E = {
   cargando: 'Cargando audio…',
   botonSync: 'Sincronizar al ritmo',
   botonProbar: 'Probar a pantalla completa',
+  previaLinea: (n: number) => `Línea ${n} (en pausa)`,
   probarTooltip: 'Probar a pantalla completa (F)',
   probarSinLineas: 'Sincroniza al menos una línea para probarla.',
   syncTitulo: 'Sincronizando al ritmo',

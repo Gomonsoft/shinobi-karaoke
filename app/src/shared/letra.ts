@@ -1,5 +1,14 @@
 import { z } from 'zod'
 
+import {
+  MAX_CANTANTES,
+  NOMBRE_MAX,
+  PARTES_ESCRITAS,
+  RANURAS,
+  cantantesDe,
+  parteDe
+} from './reparto'
+
 const tiempoMs = z.number().int().min(0)
 
 export const palabraSchema = z.object({
@@ -10,9 +19,6 @@ export const palabraSchema = z.object({
 
 export const ORIGENES_FIN = ['letra', 'silencios', 'preparacion', 'alineacion'] as const
 export type OrigenFin = (typeof ORIGENES_FIN)[number]
-
-/** Reserva del reparto (ADR 0029 §1): ausente = `c1`, que nunca se escribe. */
-const PARTES = ['c2', 'c3', 'c4', 'todos', 'coro'] as const
 
 export const revisadaSchema = z.object({ inicio_ms: tiempoMs, fin_ms: tiempoMs, texto: z.string() })
 export type Revisada = z.infer<typeof revisadaSchema>
@@ -45,8 +51,12 @@ export const elementoLetraSchema = z.object({
     .object({ confianza: z.number().min(0).max(1) })
     .optional()
     .catch(undefined),
-  /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
-  parte: z.enum(PARTES).optional().catch(undefined)
+  /**
+   * Quién canta la línea (ADR 0029 §1): `c2`…`c4`, `todos` o `coro`; ausente = `c1`, que nunca se escribe.
+   * Lectura tolerante por campo; que el cantante exista o que `todos` tenga 2 o más cantantes lo
+   * resuelve `parteDe(linea, letra)`.
+   */
+  parte: z.enum(PARTES_ESCRITAS).optional().catch(undefined)
 })
 
 export type Palabra = z.infer<typeof palabraSchema>
@@ -78,6 +88,48 @@ function siguienteConInicio(lineas: readonly ElementoLetra[], desde: number): nu
   return -1
 }
 
+/**
+ * Dos elementos «chocan» si no pueden solaparse (ADR 0029 §7): la misma parte; «todos» con cualquier
+ * cantante (no con el coro); coro con coro; una pausa con todo. Se lee con `parteDe(linea, letra)`
+ * (lectura tolerante, `ctx` aporta los cantantes). Sin reparto todas son `c1` y chocan todas: la regla
+ * es la de 0.2.2.
+ */
+export function chocan(a: ElementoLetra, b: ElementoLetra, ctx?: Pick<Letra, 'partes'>): boolean {
+  if (a.tipo === 'pausa' || b.tipo === 'pausa') return true
+  // Sin `parte` en ninguna es el caso de siempre (las dos son `c1`): sin leer los cantantes.
+  if (a.parte === undefined && b.parte === undefined) return true
+  const pa = parteDe(a, ctx)
+  const pb = parteDe(b, ctx)
+  if (pa === pb) return true
+  if (pa === 'todos') return pb !== 'coro'
+  if (pb === 'todos') return pa !== 'coro'
+  return false
+}
+
+/** Índice del siguiente elemento con inicio que choca con el de `desde`, o -1. */
+export function siguienteQueChoca(
+  lineas: readonly ElementoLetra[],
+  desde: number,
+  ctx?: Pick<Letra, 'partes'>
+): number {
+  for (let i = desde + 1; i < lineas.length; i++) {
+    if (lineas[i]!.inicio_ms !== null && chocan(lineas[desde]!, lineas[i]!, ctx)) return i
+  }
+  return -1
+}
+
+/** Índice del anterior elemento con inicio que choca con el de `desde`, o -1. */
+export function anteriorQueChoca(
+  lineas: readonly ElementoLetra[],
+  desde: number,
+  ctx?: Pick<Letra, 'partes'>
+): number {
+  for (let i = desde - 1; i >= 0; i--) {
+    if (lineas[i]!.inicio_ms !== null && chocan(lineas[desde]!, lineas[i]!, ctx)) return i
+  }
+  return -1
+}
+
 /** Índice del elemento anterior (previo a `desde`) que tiene inicio, o -1. */
 function anteriorConInicio(lineas: readonly ElementoLetra[], desde: number): number {
   for (let i = desde - 1; i >= 0; i--) if (lineas[i]?.inicio_ms != null) return i
@@ -88,7 +140,10 @@ function anteriorConInicio(lineas: readonly ElementoLetra[], desde: number): num
  * Comprueba todos los invariantes de la letra (ADR 0006) y devuelve los
  * problemas encontrados como mensajes comprensibles (vacío si es válida).
  */
-export function validarInvariantesLetra(lineas: readonly ElementoLetra[]): string[] {
+export function validarInvariantesLetra(
+  lineas: readonly ElementoLetra[],
+  ctx?: Pick<Letra, 'partes'>
+): string[] {
   const problemas: string[] = []
   const ids = new Set<string>()
   let inicioPrevio: number | null = null
@@ -118,7 +173,8 @@ export function validarInvariantesLetra(lineas: readonly ElementoLetra[]): strin
       nombrePrevio = nombre
     }
 
-    const sig = siguienteConInicio(lineas, i)
+    // El fin fijado y las palabras no pasan de la siguiente línea que choca (misma parte, etc.; ADR 0029 §7).
+    const sig = siguienteQueChoca(lineas, i, ctx)
     const limite = sig === -1 ? null : (lineas[sig]?.inicio_ms ?? null)
 
     if (el.fin_ms !== null) {
@@ -273,6 +329,55 @@ export function tienePalabrasManuales(el: Pick<ElementoLetra, 'palabras' | 'orig
   return el.palabras !== null && el.origen_palabras === 'manual'
 }
 
+/**
+ * `letra.partes`, lectura tolerante por campo (ADR 0029 §1): `cantantes` se repara (ids de `c1`…`c4`
+ * únicos y en orden de ranura, siempre con `c1`), un nombre no válido se lee como `null` y un nivel fuera
+ * de rango, como ausente (0,5). No marca la canción como dañada ni la reescribe al abrir.
+ */
+export const partesSchema = z.object({
+  cantantes: z.preprocess(
+    (v) => cantantesDe({ partes: { cantantes: v as never } }),
+    z.array(z.object({ id: z.enum(RANURAS), nombre: z.string().max(NOMBRE_MAX).nullable() }))
+  ),
+  voz_en_coros: z.number().min(0).max(1).optional().catch(undefined)
+})
+
+/** `partes` al escribir (IPC, estricto): 1–4 cantantes únicos con `c1`, nombre de hasta 40 caracteres y nivel en pasos de 0,05. */
+export const partesEscrituraSchema = z
+  .strictObject({
+    cantantes: z
+      .array(
+        z.strictObject({
+          id: z.enum(RANURAS),
+          nombre: z
+            .string()
+            .max(NOMBRE_MAX)
+            .refine(
+              (n) => n === n.trim() && n !== '',
+              'El nombre no puede estar vacío ni llevar espacios en los extremos'
+            )
+            .nullable()
+        })
+      )
+      .min(1)
+      .max(MAX_CANTANTES),
+    voz_en_coros: z
+      .number()
+      .min(0)
+      .max(1)
+      .refine((n) => Math.abs(n * 20 - Math.round(n * 20)) < 1e-9, 'Debe ir en pasos de 0,05')
+      .optional()
+  })
+  .refine(({ cantantes }) => cantantes.some((c) => c.id === 'c1'), {
+    message: 'El Cantante 1 es obligatorio',
+    path: ['cantantes']
+  })
+  .refine(({ cantantes }) => new Set(cantantes.map((c) => c.id)).size === cantantes.length, {
+    message: 'Hay cantantes repetidos',
+    path: ['cantantes']
+  })
+export type PartesEscritura = z.infer<typeof partesEscrituraSchema>
+
 export const letraSchema = z
   .object({
     origen: z.enum(['lrclib', 'manual', 'archivo']),
@@ -299,25 +404,11 @@ export const letraSchema = z
       .catch(undefined),
     /** Idioma de la letra (ADR 0028 §3.3): `es`, `en`… */
     idioma: z.string().min(2).max(16).optional().catch(undefined),
-    /** Reservado para 0.2.3 (varios cantantes): se lee y se conserva, sin ningún uso en 0.2.2. */
-    partes: z
-      .object({
-        cantantes: z
-          .array(
-            z.object({
-              id: z.enum(['c1', 'c2', 'c3', 'c4']),
-              nombre: z.string().max(40).nullable().catch(null)
-            })
-          )
-          .min(1)
-          .max(4),
-        voz_en_coros: z.number().min(0).max(1).optional().catch(undefined)
-      })
-      .optional()
-      .catch(undefined)
+    /** Reparto entre cantantes y coro (ADR 0029 §1); ausente = un solo cantante, sin coros y nivel por defecto. */
+    partes: partesSchema.optional().catch(undefined)
   })
   .superRefine((letra, ctx) => {
-    for (const mensaje of validarInvariantesLetra(letra.lineas)) {
+    for (const mensaje of validarInvariantesLetra(letra.lineas, letra)) {
       ctx.addIssue({ code: 'custom', message: mensaje, path: ['lineas'] })
     }
   })
@@ -366,7 +457,7 @@ function contarPalabrasTexto(texto: string): number {
  * min(inicio + 5000, duración).
  */
 export function finEfectivo(
-  letra: Pick<Letra, 'lineas'>,
+  letra: Pick<Letra, 'lineas'> & Partial<Pick<Letra, 'partes'>>,
   id: string,
   duracionMs: number
 ): number | null {
@@ -377,7 +468,7 @@ export function finEfectivo(
   const inicio = el.inicio_ms
 
   if (el.fin_ms !== null) return el.fin_ms
-  const idxSigInicio = siguienteConInicio(lineas, i)
+  const idxSigInicio = siguienteQueChoca(lineas, i, letra)
   const visibles = palabrasVisibles(
     el,
     idxSigInicio === -1 ? null : lineas[idxSigInicio]!.inicio_ms
@@ -446,6 +537,9 @@ export function moverInicioLinea(
 
   const ant = anteriorConInicio(letra.lineas, i)
   const sig = siguienteConInicio(letra.lineas, i)
+  const antChoca = anteriorQueChoca(letra.lineas, i, letra)
+  const sigChoca = siguienteQueChoca(letra.lineas, i, letra)
+  const inicioSigChoca = sigChoca === -1 ? null : letra.lineas[sigChoca]!.inicio_ms!
   const inicioAnt = ant === -1 ? null : letra.lineas[ant]!.inicio_ms!
   const inicioSig = sig === -1 ? null : letra.lineas[sig]!.inicio_ms!
   if (inicioAnt !== null && nuevoInicioMs <= inicioAnt) {
@@ -474,18 +568,22 @@ export function moverInicioLinea(
   descartar(i)
   const actual = lineas[i]!
 
-  if (ant !== -1) {
-    const previa = lineas[ant]!
+  // El fin y las palabras de la anterior que choca (si no hay reparto, la anterior de siempre).
+  if (antChoca !== -1) {
+    const previa = lineas[antChoca]!
     const ultima = previa.palabras?.[previa.palabras.length - 1]
     const pierdeFin = previa.fin_ms !== null && previa.fin_ms > nuevoInicioMs
     if (pierdeFin) {
-      lineas[ant] = { ...previa, fin_ms: null }
+      lineas[antChoca] = { ...previa, fin_ms: null }
       finesAutomaticos.push(previa.id)
     }
-    if (pierdeFin || (ultima && ultima.fin_ms > nuevoInicioMs)) descartar(ant)
+    if (pierdeFin || (ultima && ultima.fin_ms > nuevoInicioMs)) descartar(antChoca)
   }
   if (actual.fin_ms !== null) {
-    if (actual.fin_ms <= nuevoInicioMs || (inicioSig !== null && actual.fin_ms > inicioSig)) {
+    if (
+      actual.fin_ms <= nuevoInicioMs ||
+      (inicioSigChoca !== null && actual.fin_ms > inicioSigChoca)
+    ) {
       lineas[i] = { ...actual, fin_ms: null }
       finesAutomaticos.push(actual.id)
     }

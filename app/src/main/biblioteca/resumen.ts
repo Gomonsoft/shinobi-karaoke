@@ -97,6 +97,7 @@ function resumenPreparacion(c: Cancion): ResumenPreparacionIpc | null {
     dudosasImportantes: p.dudosas_importantes ?? p.dudosas,
     revisada: p.revisada,
     eleccionAutomatica: p.eleccion?.por === 'app',
+    eleccionSinComprobar: p.eleccion?.por === 'app' && p.eleccion.sin_comprobar === true,
     desfaseCorregido: c.letra?.desfase_corregido_ms !== undefined
   }
 }

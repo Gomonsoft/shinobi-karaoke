@@ -1,6 +1,6 @@
 import type { Cancion, NombrePaso, PasoPreparacion } from './cancion'
 import { NOMBRES_PASO } from './cancion'
-import { contarLineas, finEfectivo, numerosLineasSinInicio, type Letra } from './letra'
+import { chocan, contarLineas, finEfectivo, numerosLineasSinInicio, type Letra } from './letra'
 
 /** Paso actual derivado (no se guarda): el primero no completado; `lista` si la canción está lista. */
 export type PasoActual = NombrePaso | 'lista'
@@ -86,7 +86,9 @@ function lineasConFinNoValido(cancion: Cancion): number[] {
     if (el.tipo === 'linea') numero++
     if (el.tipo !== 'linea' || el.inicio_ms === null) return
     const fin = finEfectivo(cancion.letra!, el.id, cancion.metadatos.duracion_ms)
-    const siguiente = elementos.slice(i + 1).find((e) => e.inicio_ms !== null)
+    const siguiente = elementos
+      .slice(i + 1)
+      .find((e) => e.inicio_ms !== null && chocan(el, e, cancion.letra!))
     const tope = siguiente?.inicio_ms ?? Infinity
     if (fin === null || fin <= el.inicio_ms || fin > tope) numeros.push(numero)
   })

@@ -63,6 +63,11 @@ export const EXP = {
   titulo: 'Exportar video',
   audio: 'Audio',
   audioSinVoz: 'La voz de esta canción no está disponible.',
+  /** `exp.coros`: casilla de la voz de los coros (0.2.3, ADR 0030 §5). */
+  coros: (n: number): string => `Incluir la voz en los coros (${n} %)`,
+  corosAyuda: 'La voz original suena en las líneas de coro, como en el reproductor.',
+  corosCero: 'Esta canción tiene la voz de los coros al 0 %: el video saldrá sin voz.',
+  audioCoros: (n: number): string => `Solo instrumental + coros al ${n} %`,
   proporcion: 'Proporción',
   proporcionNoDisponible: 'Tu equipo no puede crear videos en esta proporción con este formato.',
   resolucion: 'Resolución',

@@ -1,5 +1,6 @@
 import {
   CircleAlert,
+  CircleHelp,
   CircleX,
   Clock,
   RefreshCw,
@@ -26,8 +27,9 @@ export function LineaPaso({ linea }: { linea: LineaPasoDatos }) {
   const icono = ICONOS[linea.tipo]
   return (
     <div className={estilos.paso}>
-      <p className={`${estilos.linea} ${estilos[`linea_${linea.tipo}`]}`}>
+      <p className={`${estilos.linea} ${estilos[`linea_${linea.tipo}`]}`} title={linea.ayuda}>
         {icono && <Icono icono={icono} tamano={16} />}
+        {linea.ayuda && <Icono icono={CircleHelp} tamano={14} />}
         <span>{linea.texto}</span>
       </p>
       {linea.barra !== undefined && (

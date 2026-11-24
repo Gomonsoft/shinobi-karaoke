@@ -66,7 +66,7 @@ export function Letra({ id }: { id: string }) {
         const n = contarLineas(cancion.letra)
         setElegida(n >= 1 && !abrirEnBusqueda ? n : null)
         setLetraC(cancion.letra && n >= 1 ? { letra: cancion.letra, clave: 0 } : null)
-        setExistente(existenteDe(cancion.letra?.lineas))
+        setExistente(existenteDe(cancion.letra?.lineas, cancion.letra ?? undefined))
         setCarga({ estado: 'listo', resumen, cancion })
       },
       () => activo && setCarga({ estado: 'error', resumen: null, cancion: null })
@@ -93,12 +93,21 @@ export function Letra({ id }: { id: string }) {
     correccion?: Pick<LetraGuardada, 'offset_ms' | 'desfase_corregido_ms'>
   ): void => {
     enfocarEditor.current = true
+    // Sustituir conserva los cantantes, sus nombres y el nivel de coros (main hace lo mismo).
+    const partes = letraC?.letra.partes
     setLetraC((c) => ({
-      letra: { origen, lrclib_id: null, offset_ms: 0, ...correccion, lineas },
+      letra: {
+        origen,
+        lrclib_id: null,
+        offset_ms: 0,
+        ...correccion,
+        ...(partes ? { partes } : {}),
+        lineas
+      },
       clave: (c?.clave ?? 0) + 1
     }))
     setCarga((c) => ({ ...c, resumen: nuevo }))
-    setExistente(existenteDe(lineas))
+    setExistente(existenteDe(lineas, { partes }))
     setTextoPegado('')
     setPegando(false)
     setIgnoradasImportadas(ignoradas)
@@ -124,9 +133,12 @@ export function Letra({ id }: { id: string }) {
   const desfaseMs = cancion?.letra?.desfase_corregido_ms ?? 0
   const textoEleccion =
     prep?.eleccionAutomatica && !prep.revisada && !avisoCerrado
-      ? desfaseMs !== 0
-        ? LP.elegidaCorregida(segundosDe(desfaseMs), desfaseMs > 0)
-        : LP.elegida
+      ? prep.eleccionSinComprobar
+        ? // Nunca se combina con la corrección: manda «sin comprobar» (spec 05, F5-L9).
+          `${LP.elegidaSinComprobar.inicio}${LP.elegidaSinComprobar.negrita}${LP.elegidaSinComprobar.fin}`
+        : desfaseMs !== 0
+          ? LP.elegidaCorregida(segundosDe(desfaseMs), desfaseMs > 0)
+          : LP.elegida
       : null
   const cerrarAviso = () => {
     setAvisoCerrado(true)
@@ -197,6 +209,7 @@ export function Letra({ id }: { id: string }) {
       {carga.estado === 'listo' && elegida !== null && textoEleccion && (
         <AvisoEleccion
           texto={textoEleccion}
+          sinComprobar={prep?.eleccionSinComprobar === true}
           alCerrar={cerrarAviso}
           alVerOtras={() => {
             setLetraActualId(letraC?.letra.lrclib_id ?? null)

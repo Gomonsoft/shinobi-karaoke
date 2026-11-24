@@ -55,12 +55,12 @@ export const fuenteLetraSchema = z.object({
 })
 
 /**
- * Reservado para 0.2.3 (varios cantantes): colores por ranura. Opcional, tolerante al leer (un color
- * inválido se descarta) y conservado al escribir; 0.2.2 no lo usa ni lo muestra.
+ * Colores de las partes (ADR 0029 §4): cinco ranuras opcionales, cada una tolerante (un color inválido
+ * se lee como ausente = su predeterminado). El Cantante 1 es siempre `color_resaltado`, así que una clave
+ * `c1` (la reserva de 0.2.2 la admitía) se ignora. `normalizarEstilo` no rellena los predeterminados.
  */
 const colorParte = colorHex.optional().catch(undefined)
 export const coloresPartesSchema = z.object({
-  c1: colorParte,
   c2: colorParte,
   c3: colorParte,
   c4: colorParte,

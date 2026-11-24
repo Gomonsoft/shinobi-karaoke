@@ -206,8 +206,11 @@ test.describe('flujo principal', { tag: '@critico' }, () => {
         .click()
       const capa = v.getByRole('dialog', { name: `Reproductor de «${TITULOS.conVoz}»` })
       await expect(capa).toBeVisible()
-      await v.keyboard.press('Escape')
-      await expect(capa).toHaveCount(0)
+      // En Linux/CI la primera Esc puede llegar antes de que el reproductor atienda el teclado: se repite.
+      await expect(async () => {
+        await v.keyboard.press('Escape')
+        await expect(capa).toHaveCount(0, { timeout: 2_000 })
+      }).toPass({ timeout: 20_000, intervals: [0] })
 
       expect(errores).toEqual([])
     } finally {

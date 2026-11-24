@@ -9,7 +9,8 @@ export const PARAMETROS_ENCAJE = {
   // Provisionales (calibración de 2026-11-21).
   desfaseMaxMs: 5000,
   pasoMs: 20,
-  ventanaInicioMs: 400,
+  // 800 ms desde la revisión de ADR 0024 del 2026-11-23: las letras de LRCLIB van adelantadas unos cientos de ms.
+  ventanaInicioMs: 800,
   vozMinimaInicio: 0.25,
   coincideF: 0.88,
   coincideI: 0.95,

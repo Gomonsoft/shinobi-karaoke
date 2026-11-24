@@ -206,7 +206,9 @@ const editorSchema = objetoTolerante({
   /** No volver a avisar al activar «Letra lista» (ADR 0018 §5). */
   omitir_aviso_letra_lista: z.boolean().catch(false),
   /** «Escuchar cada línea al llegar» de la revisión guiada (spec 06 · Feature 11). */
-  revision_autoescucha: z.boolean().catch(true)
+  revision_autoescucha: z.boolean().catch(true),
+  /** «Juntar carriles» de la línea de tiempo, para todas las canciones (ADR 0029 §5, 0.2.3). */
+  carriles_juntos: z.boolean().catch(false)
 })
 
 export const AGRUPACIONES_BIBLIOTECA = ['ninguno', 'artista', 'album', 'fecha'] as const
@@ -242,6 +244,8 @@ const exportacionSchema = z.preprocess(
         .catch(FPS_PREDETERMINADO),
       /** Última carpeta usada; `null` = la de vídeos del sistema. */
       carpeta: z.string().min(1).max(4096).nullable().catch(null),
+      /** Casilla «Incluir la voz en los coros» (ADR 0030 §5, 0.2.3): marcada la primera vez; la escribe el renderer. */
+      coros: z.boolean().catch(true),
       factor_corrector: z
         .number()
         .finite()

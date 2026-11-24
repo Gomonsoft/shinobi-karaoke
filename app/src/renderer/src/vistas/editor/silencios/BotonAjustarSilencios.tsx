@@ -1,28 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { AudioWaveform } from 'lucide-react'
 import { Boton } from '../../../componentes/Boton'
 import { Icono } from '../../../componentes/Icono'
 import { Popover } from '../../../componentes/Popover'
 import { Tooltip } from '../../../componentes/Tooltip'
 import { E } from '../textos'
+import { useSoloIcono } from '../useSoloIcono'
 import estilos from './silencios.module.css'
 import { S } from './textos'
 import type { Motivo } from './useAjustarSilencios'
-
-const CONSULTA_COMPACTA = '(max-width: 1279px)'
-
-/** Por debajo de 1280 px de ancho el botón es solo el icono (36 × 36). */
-function useSoloIcono(): boolean {
-  const [solo, setSolo] = useState(() => window.matchMedia?.(CONSULTA_COMPACTA).matches ?? false)
-  useEffect(() => {
-    const lista = window.matchMedia?.(CONSULTA_COMPACTA)
-    if (!lista) return
-    const alCambiar = () => setSolo(lista.matches)
-    lista.addEventListener('change', alCambiar)
-    return () => lista.removeEventListener('change', alCambiar)
-  }, [])
-  return solo
-}
 
 interface Props {
   motivos: Motivo[]

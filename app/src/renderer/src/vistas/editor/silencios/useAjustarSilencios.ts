@@ -3,7 +3,8 @@ import type { Espera } from '@shared/espera'
 import type { ApiShinobi, EstadoPicos } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import { contador } from '@shared/letras/tiempos'
-import { detectarVoz, proponerAjusteSilencios, type PropuestaSilencios } from '@shared/silencios'
+import { detectarVoz, type PropuestaSilencios } from '@shared/silencios'
+import { proponerAjusteSilenciosSinSolapes } from '@shared/solapes'
 import { mostrarToast } from '../../../componentes/gestorToasts'
 import type { AccionEditor } from '../estado'
 import { leerPicosBase } from '../picosBase'
@@ -68,7 +69,8 @@ export async function calcularAjuste(e: EntradaCalculo): Promise<ResultadoAjuste
   const voz = detectarVoz({ pasoMs: picos.pasoMs, pares: picos.pares })
   return {
     ok: true,
-    propuesta: proponerAjusteSilencios(e.letra, voz, {
+    // Las líneas que suenan a la vez que otras no se tocan (la voz separada mezcla a los dos cantantes).
+    propuesta: proponerAjusteSilenciosSinSolapes(e.letra, voz, {
       duracionMs: e.duracionMs,
       espera: e.espera
     })

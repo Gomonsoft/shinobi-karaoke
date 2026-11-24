@@ -10,7 +10,14 @@ import {
 } from '@shared/exportacion'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
-import { carpetaDeRuta, esCostoso, faltaEspacio, type OpcionesExportacion } from './modelo'
+import {
+  carpetaDeRuta,
+  corosAplican,
+  esCostoso,
+  faltaEspacio,
+  porcentajeCoros,
+  type OpcionesExportacion
+} from './modelo'
 import type { CancionExportable } from './cancion'
 import type { AnunciosFormulario, ErrorFormulario } from './useFormulario'
 import { MuestraExportacion } from './MuestraExportacion'
@@ -34,6 +41,8 @@ export interface PropsFormulario {
   /** Pasados 300 ms sin perfiles se explica la espera (`exp.cargando`). */
   mostrarCargando: boolean
   alCambiarAudio(a: OpcionesExportacion['audio']): void
+  /** Casilla «Incluir la voz en los coros» (0.2.3). */
+  alCambiarCoros?(marcada: boolean): void
   alCambiarProporcion(p: Proporcion): void
   alCambiarResolucion(r: Resolucion): void
   alCambiarFps(f: Fps): void
@@ -150,6 +159,20 @@ export function Formulario(p: PropsFormulario) {
           perfiles={perfiles}
           opciones={opciones}
           vozDisponible={cancion.vozDisponible}
+          coros={
+            corosAplican(opciones.audio, cancion)
+              ? {
+                  tipo: 'casilla',
+                  etiqueta: EXP.coros(porcentajeCoros(cancion.nivelCoros!)),
+                  marcada: opciones.coros !== false,
+                  alCambiar: (v) => p.alCambiarCoros?.(v)
+                }
+              : opciones.audio === 'instrumental' &&
+                  cancion.vozDisponible &&
+                  cancion.nivelCoros === 0
+                ? { tipo: 'cero' }
+                : null
+          }
           anuncios={anuncios}
           alCambiarAudio={p.alCambiarAudio}
           alCambiarProporcion={p.alCambiarProporcion}

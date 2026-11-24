@@ -287,3 +287,11 @@
   flex: 1;
   min-width: 0;
 }
+
+/* Casilla «Incluir la voz en los coros» (0.2.3, spec 10): debajo del control de audio. */
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  cursor: pointer;
+}

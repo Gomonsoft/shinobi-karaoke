@@ -6,7 +6,14 @@ import { Dialogo } from '../../componentes/Dialogo'
 import estilosComponentes from '../../componentes/componentes.module.css'
 import { useSesion } from '../../sesion/ProveedorSesion'
 import { motivoDe } from '../../vistas/biblioteca/acciones/textos'
-import { esCostoso, faltaEspacio, sinPerfiles, type OpcionesExportacion } from '../dialogo/modelo'
+import {
+  corosAplican,
+  esCostoso,
+  faltaEspacio,
+  porcentajeCoros,
+  sinPerfiles,
+  type OpcionesExportacion
+} from '../dialogo/modelo'
 import { MuestraExportacion } from '../dialogo/MuestraExportacion'
 import { OpcionesVideo } from '../dialogo/OpcionesVideo'
 import {
@@ -68,6 +75,8 @@ export function DialogoFormularioLote({
   const n = f.canciones.length
   // El número real de videos: sin las que main omitiría por nombre (F8-V3) ni las que no pueden exportarse.
   const aExportar = f.previsualizacion?.exportables ?? n
+  // Canciones del lote con coros, nivel > 0 y voz (la casilla se ofrece si hay alguna; cada una usa su nivel).
+  const corosEnLote = f.canciones.filter((c) => corosAplican('instrumental', c)).length
   const filaDe = new Map(f.previsualizacion?.filas.map((x) => [x.cancionId, x]))
   const existentes = f.previsualizacion?.filas.filter((x) => x.existe).length ?? 0
   const primera = f.canciones[0]
@@ -89,6 +98,9 @@ export function DialogoFormularioLote({
   // Ver cuáles: título, artista, duración y nombre; la nota de cada una.
   const notaDe = (c: (typeof f.canciones)[number]): string | null => {
     if (f.opciones.audio === 'instrumental_voz' && !c.vozDisponible) return EXP_LOTE.nota.sinVoz
+    if (f.opciones.coros !== false && corosAplican(f.opciones.audio, c)) {
+      return EXP_LOTE.nota.coros(porcentajeCoros(c.nivelCoros!))
+    }
     if (c.estado === 'lista' && c.modalidad === 'letra_lista') return EXP_LOTE.nota.letraLista
     if (c.estado === 'lista' && c.sinInicio > 0) return EXP_LOTE.nota.incompleta
     if (filaDe.get(c.id)?.existe) return EXP_LOTE.nota.existe
@@ -209,6 +221,16 @@ export function DialogoFormularioLote({
                     perfiles={f.perfiles}
                     opciones={f.opciones}
                     vozDisponible
+                    coros={
+                      f.opciones.audio === 'instrumental' && corosEnLote > 0
+                        ? {
+                            tipo: 'casilla',
+                            etiqueta: EXP_LOTE.coros(corosEnLote),
+                            marcada: f.opciones.coros !== false,
+                            alCambiar: f.cambiarCoros
+                          }
+                        : null
+                    }
                     anuncios={f.anuncios}
                     alCambiarAudio={f.cambiarAudio}
                     alCambiarProporcion={f.cambiarProporcion}

@@ -1,5 +1,6 @@
 import { normalizarEstilo, type Estilo, type Fondo } from '@shared/estilo'
 import { pasadasEfectivas, type Pantalla } from '@shared/pantalla'
+import { colorDeParte, type Parte } from '@shared/reparto'
 import { aHex, canalesRgb, SUGERIDOS_LETRA } from './colores'
 import { objetivoOpacidad } from './pantalla'
 
@@ -113,8 +114,21 @@ export function confusionDaltonismo(a: string, b: string): boolean {
   return deltaE76(a, b) >= UMBRAL_DALTONISMO && deltaESimulado(a, b) < UMBRAL_DALTONISMO
 }
 
+/**
+ * Aviso de una parte (ADR 0029 §4; sistema visual · 0.2.3). `parte`: color frente al fondo < 3:1;
+ * `parteLetra`: frente a la letra (ΔE < 25); `daltonismoLetra`: se confunde con la letra con daltonismo;
+ * `partesParecidas`: dos partes entre sí (informativo, `otra` es la segunda).
+ */
+export interface AvisoParte {
+  tipo: 'parte' | 'parteLetra' | 'daltonismoLetra' | 'partesParecidas'
+  nivel: 'aviso' | 'info'
+  parte: Parte
+  otra?: Parte
+}
+
 export interface EvaluacionContraste {
-  avisos: ('letra' | 'resaltado' | 'diferencia' | 'daltonismo')[]
+  /** `'parte'` aparece una vez si alguna parte en uso tiene un ⚠ (enciende el punto de la pestaña). */
+  avisos: ('letra' | 'resaltado' | 'diferencia' | 'daltonismo' | 'parte')[]
   /** Con el subrayado en el estilo, `diferencia` baja a informativo (el avance se ve por la forma). */
   informativos: 'diferencia'[]
   nivel: 'ok' | 'justo' | 'aviso'
@@ -123,9 +137,70 @@ export interface EvaluacionContraste {
   deltaE: number
   accionesLetra: ('blanca' | 'negra')[]
   sugerirFondo: boolean
+  /** Avisos de las partes en uso (vacío sin reparto). Ver `evaluarPartes`. */
+  partes: AvisoParte[]
 }
 
-export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
+/**
+ * Las tres comprobaciones de 0.2.3 solo para las partes dadas (las «en uso»). El Cantante 1 es el color
+ * de lo ya cantado: sus avisos son los de siempre, así que solo entra en las comparaciones entre partes.
+ */
+export function evaluarPartes(estilo: Estilo, partes: readonly Parte[]): AvisoParte[] {
+  const muestras = muestrasFondo(normalizarEstilo(estilo).fondo)
+  const subrayado = !!estilo.letra.subrayar_cantado
+  const avisos: AvisoParte[] = []
+  const propias = partes.filter((p) => p !== 'c1')
+  for (const parte of propias) {
+    const color = colorDeParte(estilo, parte)
+    if (peorEnMuestras(color, muestras) < 3) avisos.push({ tipo: 'parte', nivel: 'aviso', parte })
+    if (deltaE76(color, estilo.letra.color) < UMBRAL_DALTONISMO) {
+      avisos.push({ tipo: 'parteLetra', nivel: subrayado ? 'info' : 'aviso', parte })
+    } else if (!subrayado && confusionDaltonismo(color, estilo.letra.color)) {
+      avisos.push({ tipo: 'daltonismoLetra', nivel: 'aviso', parte })
+    }
+  }
+  partes.forEach((a, i) => {
+    for (const b of partes.slice(i + 1)) {
+      const [ca, cb] = [colorDeParte(estilo, a), colorDeParte(estilo, b)]
+      if (Math.min(deltaE76(ca, cb), deltaESimulado(ca, cb)) < UMBRAL_DALTONISMO) {
+        avisos.push({ tipo: 'partesParecidas', nivel: 'info', parte: a, otra: b })
+      }
+    }
+  })
+  return avisos
+}
+
+/**
+ * «Sugerir un color» para una parte: de `SUGERIDOS_LETRA`, el de mayor contraste con el fondo que no
+ * se parezca a la letra ni a otra parte en uso (ΔE ≥ 25; mejor si tampoco se confunde con daltonismo).
+ */
+export function sugerirColorParte(estilo: Estilo, parte: Parte, enUso: readonly Parte[]): string {
+  const muestras = muestrasFondo(normalizarEstilo(estilo).fondo)
+  const otros = [
+    estilo.letra.color,
+    ...enUso.filter((p) => p !== parte).map((p) => colorDeParte(estilo, p))
+  ]
+  const candidatos = SUGERIDOS_LETRA.map((color) => ({
+    color,
+    visible: peorEnMuestras(color, muestras) >= 3,
+    distinto: otros.every((otro) => deltaE76(color, otro) >= UMBRAL_DALTONISMO),
+    claro: otros.every((otro) => deltaESimulado(color, otro) >= UMBRAL_DALTONISMO),
+    ratio: peorEnMuestras(color, muestras)
+  }))
+  candidatos.sort(
+    (a, b) =>
+      Number(b.visible) - Number(a.visible) ||
+      Number(b.distinto) - Number(a.distinto) ||
+      Number(b.distinto && b.claro) - Number(a.distinto && a.claro) ||
+      b.ratio - a.ratio
+  )
+  return candidatos[0]!.color
+}
+
+export function evaluarContraste(
+  estilo: Estilo,
+  partesEnUso: readonly Parte[] = []
+): EvaluacionContraste {
   const muestras = muestrasFondo(normalizarEstilo(estilo).fondo)
   const { color, color_resaltado } = estilo.letra
   const ratioLetra = peorEnMuestras(color, muestras)
@@ -138,6 +213,8 @@ export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
   const subrayado = !!estilo.letra.subrayar_cantado
   if (deltaE < 25) (subrayado ? informativos : avisos).push('diferencia')
   else if (!subrayado && confusionDaltonismo(color, color_resaltado)) avisos.push('daltonismo')
+  const partes = evaluarPartes(estilo, partesEnUso)
+  if (partes.some((a) => a.nivel === 'aviso')) avisos.push('parte')
   const nivel =
     avisos.length > 0
       ? 'aviso'
@@ -163,7 +240,8 @@ export function evaluarContraste(estilo: Estilo): EvaluacionContraste {
     ratioResaltado,
     deltaE,
     accionesLetra,
-    sugerirFondo
+    sugerirFondo,
+    partes
   }
 }
 
@@ -209,6 +287,11 @@ function suelo(color: string, muestras: readonly string[]): number {
       return alfa
   }
   return 1
+}
+
+/** Opacidad mínima que da 3:1 con el fondo del estilo al pintar `color` (el suelo de una zona atenuada). */
+export function sueloDeContraste(estilo: Estilo, color: string = estilo.letra.color): number {
+  return suelo(color, muestrasFondo(normalizarEstilo(estilo).fondo))
 }
 
 /**

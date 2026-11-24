@@ -3,6 +3,8 @@ import type { CancionIpc } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import { numerosLineasSinInicio } from '@shared/letra'
 import type { Modalidad } from '@shared/cancion'
+import { tramosCoro } from '@shared/coros'
+import { vozEnCoros } from '@shared/reparto'
 
 /** Lo que el diálogo necesita saber de la canción: lo guardado, resuelto para mostrar la muestra. */
 export interface CancionExportable {
@@ -19,6 +21,8 @@ export interface CancionExportable {
   vozDisponible: boolean
   /** Líneas de la letra sin inicio (no se ven en el video). */
   sinInicio: number
+  /** Nivel (0–1) de la voz en los coros si la canción tiene líneas de coro con inicio; si no, `null`. */
+  nivelCoros: number | null
 }
 
 export function cancionExportable(c: CancionIpc): CancionExportable {
@@ -32,6 +36,10 @@ export function cancionExportable(c: CancionIpc): CancionExportable {
     letra: c.letra,
     estilo: c.resuelta.estilo,
     vozDisponible: c.pistas !== null && Boolean(c.pistas.voz),
-    sinInicio: numerosLineasSinInicio(c.letra).length
+    sinInicio: numerosLineasSinInicio(c.letra).length,
+    nivelCoros:
+      c.letra && tramosCoro(c.letra, c.metadatos.duracion_ms).length > 0
+        ? vozEnCoros(c.letra)
+        : null
   }
 }

@@ -19,6 +19,7 @@ import {
   type resultadoLoteSchema,
   type InfoYoutubeIpc,
   type EstadoRuntimeIpc,
+  type ErrorRendererIpc,
   type OrigenRapido,
   type EstimacionSeparacion,
   type EstimacionCancion,
@@ -363,6 +364,8 @@ export interface DependenciasIpc {
   sesion?: SesionIpc
   /** El editor tiene un guardado que termina tarde (`app.guardadoPendiente`). */
   guardadoPendiente?(): boolean
+  /** Lleva un error de la interfaz a `app.log` (0396); ausente, se ignora. */
+  registrarErrorRenderer?(error: ErrorRendererIpc): void
   ventana?: VentanaIpc
   letras?: LetrasIpc
   /** Catálogo de temas (ADR 0016); ausente, los canales `temas.*` responden `ERROR_INTERNO`. */
@@ -1161,6 +1164,9 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     ...noImplementados,
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
+    ),
+    [CANALES.app.registrarError]: envolver(CANALES.app.registrarError, (error) =>
+      deps.registrarErrorRenderer?.(error)
     ),
     [CANALES.app.confirmarCierre]: envolver(CANALES.app.confirmarCierre, () =>
       deps.confirmarCierre()

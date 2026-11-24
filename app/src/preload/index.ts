@@ -259,6 +259,7 @@ const api: ApiShinobi = {
   },
   app: {
     guardadoPendiente: (pendiente) => invocar(CANALES.app.guardadoPendiente, pendiente),
+    registrarError: (error) => invocar(CANALES.app.registrarError, error),
     confirmarCierre: () => invocar(CANALES.app.confirmarCierre),
     salir: () => invocar(CANALES.app.salir),
     solicitudCierrePendiente: () => invocar(CANALES.app.solicitudCierrePendiente),

@@ -23,7 +23,9 @@ export const R = {
     silenciado: 'Silenciado',
     principio: 'Al principio',
     voz: (n: number): string => `Voz ${n} %`,
-    vozSilenciada: 'Voz silenciada'
+    vozSilenciada: 'Voz silenciada',
+    /** `rep.ind.vozsilenciada.coros`: V no silencia los coros (ADR 0030 §1). */
+    vozSilenciadaCoros: (n: number): string => `Voz silenciada · coros al ${n} %`
   },
   error: {
     titulo: 'No se puede reproducir esta canción.',

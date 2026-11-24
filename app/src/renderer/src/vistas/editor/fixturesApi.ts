@@ -1,4 +1,5 @@
 import { linea, lista, pausa, separando } from '@shared/__fixtures__'
+import { cancionDosCantantes, cancionUnCantanteConCoros } from '@shared/__fixtures__/reparto'
 import {
   configPredeterminada,
   letraSchema,
@@ -48,6 +49,9 @@ export function cancionLista(): Cancion {
   }
   return cancion
 }
+
+/** Dos cantantes, una línea «Todos» y dos de coro (0.2.3; letra inventada). */
+export { cancionDosCantantes as cancionConReparto, cancionUnCantanteConCoros as cancionConCoros }
 
 export function cancionSinSincronizar(): Cancion {
   const cancion = cancionSincronizadaLrclib()
@@ -192,6 +196,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
             dudosas: cancion.preparacion.dudosas,
             revisada: cancion.preparacion.revisada,
             eleccionAutomatica: cancion.preparacion.eleccion?.por === 'app',
+            eleccionSinComprobar:
+              cancion.preparacion.eleccion?.por === 'app' &&
+              cancion.preparacion.eleccion.sin_comprobar === true,
             desfaseCorregido: cancion.letra?.desfase_corregido_ms !== undefined
           }
         : null
@@ -334,14 +341,18 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           throw error('LETRA_DESACTUALIZADA')
         // Como main: `desfase_corregido_ms` número = se anota, `null` = se borra, ausente = igual; cambiar
         // `offset_ms` retira `revisada` de todas las líneas (pregunta 0172).
-        const { desfase_corregido_ms: previo, ...sinDesfase } = letra
+        const { desfase_corregido_ms: previo, partes: partesPrevias, ...sinDesfase } = letra
         const desfase = desfase_corregido_ms === undefined ? previo : desfase_corregido_ms
+        // Reparto (ADR 0029 §2): `partes` null = quitar, ausente = conservar; `parte` ausente = `c1`.
+        const partes = peticion.partes === undefined ? partesPrevias : peticion.partes
         const resultado = letraSchema.safeParse({
           ...sinDesfase,
+          ...(partes ? { partes } : {}),
           offset_ms,
           ...(desfase != null ? { desfase_corregido_ms: desfase } : {}),
           lineas: letra.lineas.map((linea, i) => {
             const nueva = { ...linea, ...tiempos[i] }
+            if (tiempos[i]?.parte === undefined) delete nueva.parte
             if (offset_ms !== letra.offset_ms) delete nueva.revisada
             return nueva
           })
@@ -380,6 +391,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     app: {
       async guardadoPendiente(pendiente) {
         registrar('app.guardadoPendiente', pendiente)
+      },
+      async registrarError(error) {
+        registrar('app.registrarError', error)
       }
     },
     trabajos: {

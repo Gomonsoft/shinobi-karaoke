@@ -24,6 +24,33 @@ afterEach(async () => {
   await rm(datos, { recursive: true, force: true })
 })
 
+describe('sembrar con reparto (0.2.3, opt-in)', () => {
+  it('añade el dúo y el cantante con coros solo si se pide, y sus cancion.json son válidos', async () => {
+    expect((await sembrar(datos)).creadas).toHaveLength(20)
+    const r = await sembrar(datos, { reparto: true })
+    expect(r.creadas).toEqual([idSemilla(50), idSemilla(51)])
+    const lista = await new ServicioBiblioteca(datos).arrancar()
+    expect(lista.filter((c) => c.danada)).toHaveLength(2)
+    const leida = cancionSchema.parse(
+      JSON.parse(await readFile(join(datos, 'biblioteca', idSemilla(50), 'cancion.json'), 'utf8'))
+    )
+    expect(leida.letra?.partes?.cantantes).toHaveLength(2)
+    expect(leida.letra?.lineas.map((l) => l.parte)).toContain('todos')
+  })
+})
+
+describe('sembrar con voces a la vez (0.2.3, opt-in)', () => {
+  it('añade el dúo con solapes solo si se pide, y su cancion.json es válido', async () => {
+    await sembrar(datos)
+    const r = await sembrar(datos, { voces: true })
+    expect(r.creadas).toEqual([idSemilla(52)])
+    const leida = cancionSchema.parse(
+      JSON.parse(await readFile(join(datos, 'biblioteca', idSemilla(52), 'cancion.json'), 'utf8'))
+    )
+    expect(leida.letra?.lineas.map((l) => l.id)).toContain('v4')
+  })
+})
+
 describe('sembrar', () => {
   it('crea la variedad pedida, es idempotente y recrea con limpiar', async () => {
     const r = await sembrar(datos)

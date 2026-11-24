@@ -1,6 +1,6 @@
 [project]
 name = "shinobi-worker"
-version = "0.2.2a1"
+version = "0.2.3a2"
 description = "Worker de audio de Shinobi Karaoke (protocolo JSON Lines por stdout)"
 readme = "README.md"
 license = "GPL-3.0-or-later"

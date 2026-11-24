@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { ReactNode } from 'react'
 import { ReproductorBiblioteca } from '../vistas/reproductor/ReproductorBiblioteca'
 import { useSesion } from '../sesion/ProveedorSesion'
+import { LimiteErrores } from './LimiteErrores'
 import { useNavegacion } from './estado'
 
 /** Opciones de `abrir`: «Probar» una «Lista para revisar» (docs/ux/02 · Feature 5, ADR 0025 §1). */
@@ -88,6 +89,14 @@ export function CapaReproductor() {
   const { abierto, prueba } = useReproductor()
   const cerrar = useContext(CerrarReproductorContexto)
   return abierto === null ? null : (
-    <ReproductorBiblioteca key={abierto} id={abierto} prueba={prueba} alCerrar={cerrar} />
+    <LimiteErrores
+      variante="reproductor"
+      clave={abierto}
+      vista="reproductor"
+      cancionId={abierto}
+      alSalir={cerrar}
+    >
+      <ReproductorBiblioteca key={abierto} id={abierto} prueba={prueba} alCerrar={cerrar} />
+    </LimiteErrores>
   )
 }

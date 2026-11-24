@@ -16,9 +16,14 @@ import { leerCancion, tarjeta } from './separacion'
 export const idSemilla = (n: number): string =>
   `5eed0000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
-export async function lanzar(datos: string, dpr?: number): Promise<ElectronApplication> {
+export async function lanzar(
+  datos: string,
+  dpr?: number,
+  /** Argumentos de Chromium extra (solo capturas: p. ej. `--force-color-profile=srgb`). */
+  extra: string[] = []
+): Promise<ElectronApplication> {
   return electron.launch({
-    args: dpr ? [`--force-device-scale-factor=${dpr}`, '.'] : ['.'],
+    args: [...extra, ...(dpr ? [`--force-device-scale-factor=${dpr}`] : []), '.'],
     cwd: process.cwd(),
     env: {
       ...process.env,

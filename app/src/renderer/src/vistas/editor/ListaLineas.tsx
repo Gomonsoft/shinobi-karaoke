@@ -1,12 +1,33 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ChevronDown, CircleDashed, Flag, PanelLeftClose, Play, WholeWord } from 'lucide-react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode
+} from 'react'
+import {
+  ChevronDown,
+  CircleDashed,
+  Flag,
+  Layers,
+  PanelLeftClose,
+  Play,
+  WholeWord
+} from 'lucide-react'
+import type { Estilo } from '@shared/estilo'
 import { tienePalabrasManuales, type Letra } from '@shared/letra'
+import { inicial, parteDe, textoEnPantalla, tieneReparto } from '@shared/reparto'
 import { contador, formatearTiempo, primeraSinInicio, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { MenuContextual, type ItemMenu } from '../../componentes/MenuContextual'
 import { Tooltip } from '../../componentes/Tooltip'
 import { BotonLayout } from './BotonLayout'
+import { ChipParte } from './ChipParte'
+import type { AnclaMenu } from './MenuQuienCanta'
+import { etiquetaParte, P } from './partes'
 import { E } from './textos'
 import { R } from './revision/textos'
 import estilos from './editor.module.css'
@@ -15,6 +36,8 @@ interface Props {
   letra: Letra
   seleccion: string | null
   actual: number
+  /** En pausa: las filas que suenan en el instante del cabezal (ninguna en un hueco, varias en un solape). Sustituye a `actual`. */
+  actuales?: ReadonlySet<string>
   foco: number
   revisionSeleccion?: number
   /** Líneas pendientes de revisar (feature 11): id → motivo principal. Llevan ⚑ y su motivo en el tooltip. */
@@ -33,6 +56,21 @@ interface Props {
   /** Menú contextual de la fila: «Escuchar la línea (Mayús + L)» y «Borrar tiempos de esta línea (Supr)». */
   escucharLinea?(id: string): void
   borrarTiempos?(): void
+  /** Líneas seleccionadas (la principal es `seleccion`); sin ellas, solo la principal. */
+  seleccionadas?: readonly string[]
+  /** Colores de las partes para los chips; solo se usa con reparto. */
+  estilo?: Pick<Estilo, 'letra'>
+  /**
+   * Selección múltiple: Ctrl/Cmd + clic (`alternar`), Mayús + clic (`rango`) y clic secundario sobre otra
+   * fila ya seleccionada (`principal`). Sin él (modo al ritmo, sesión bloqueada) la lista es de una en una.
+   */
+  seleccionarVarias?(id: string, modo: 'alternar' | 'rango' | 'principal'): void
+  /** Abre «¿Quién canta?» (chip y menú contextual); sin él no hay chip clicable ni ítem en el menú. */
+  abrirQuienCanta?(ancla: AnclaMenu, origen: HTMLElement | null): void
+  /** `edi.partes.soloPrincipal`, solo con varias seleccionadas: se añade al tooltip del editor preciso. */
+  soloPrincipal?: string
+  /** Líneas que empiezan mientras suena otra (voces a la vez): id → número de la que ya sonaba. */
+  solapa?: ReadonlyMap<string, number>
 }
 
 const FILA_PX = 56
@@ -43,6 +81,7 @@ export function ListaLineas({
   letra,
   seleccion,
   actual,
+  actuales,
   foco,
   revisionSeleccion = 0,
   dudosas,
@@ -55,7 +94,13 @@ export function ListaLineas({
   abrirPreciso,
   motivoPreciso,
   escucharLinea,
-  borrarTiempos
+  borrarTiempos,
+  seleccionadas,
+  estilo,
+  seleccionarVarias,
+  abrirQuienCanta,
+  soloPrincipal,
+  solapa
 }: Props) {
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const lista = useRef<HTMLDivElement>(null)
@@ -74,6 +119,25 @@ export function ListaLineas({
   const indice = useMemo(() => new Map(letra.lineas.map((el, i) => [el.id, i])), [letra.lineas])
   const indiceSeleccion = seleccion === null ? -1 : (indice.get(seleccion) ?? -1)
   const { sincronizadas, total } = contador(letra)
+  const elegidas = useMemo(
+    () => new Set(seleccionadas ?? (seleccion ? [seleccion] : [])),
+    [seleccionadas, seleccion]
+  )
+  const varias = elegidas.size > 1
+  const reparto = useMemo(() => tieneReparto(letra), [letra])
+  // Hueco del chip: el chip más ancho de la canción (≈ 7 px por carácter más borde y relleno) + 8 px a cada lado.
+  const anchoColChip = useMemo(() => {
+    if (!reparto) return 40
+    const partes = new Set(letra.lineas.map((l) => parteDe(l, letra)))
+    const ancho = Math.max(
+      24,
+      ...[...partes].map((p) => {
+        const marca = inicial(letra, p)
+        return marca.tipo === 'texto' ? Array.from(marca.texto).length * 7 + 14 : 30
+      })
+    )
+    return ancho + 16
+  }, [letra, reparto])
 
   /** Alto de lo que hay sobre las filas dentro del scroll (el banner se desplaza con ellas). */
   const base = () => cajaLineas.current?.offsetTop ?? 0
@@ -111,7 +175,7 @@ export function ListaLineas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actual, virtual])
 
-  function itemsMenu(id: string): ItemMenu[] {
+  function itemsMenu(id: string, punto: { x: number; y: number }): ItemMenu[] {
     const items: ItemMenu[] = []
     if (abrirPreciso) {
       items.push({
@@ -120,6 +184,13 @@ export function ListaLineas({
         icono: WholeWord,
         noDisponible: motivoPreciso,
         alSeleccionar: abrirPreciso
+      })
+    }
+    if (abrirQuienCanta) {
+      items.push({
+        id: 'quien-canta',
+        etiqueta: P.menuContextual,
+        alSeleccionar: () => abrirQuienCanta(punto, null)
       })
     }
     if (escucharLinea) {
@@ -179,7 +250,13 @@ export function ListaLineas({
           </Tooltip>
         )}
         {abrirPreciso && (
-          <Tooltip contenido={motivoPreciso ?? E.preciso.abrir}>
+          <Tooltip
+            contenido={
+              soloPrincipal
+                ? `${motivoPreciso ?? E.preciso.abrir}. ${soloPrincipal}`
+                : (motivoPreciso ?? E.preciso.abrir)
+            }
+          >
             <button
               type="button"
               className={estilos.botonLayout}
@@ -218,10 +295,14 @@ export function ListaLineas({
         <div
           id="lineas-editor"
           role="listbox"
+          aria-multiselectable="true"
           aria-label={E.lineas}
           data-foco-editor="lista"
           tabIndex={indiceSeleccion < inicio || indiceSeleccion >= fin ? 0 : -1}
           ref={cajaLineas}
+          style={
+            reparto ? ({ '--ancho-col-chip': `${anchoColChip}px` } as CSSProperties) : undefined
+          }
         >
           {virtual && <div aria-hidden="true" style={{ height: inicio * FILA_PX }} />}
           {numeradas.slice(inicio, fin).map(({ elemento: el, n }, i) => {
@@ -241,8 +322,13 @@ export function ListaLineas({
                 </div>
               )
             }
-            const sonando = inicio + i === actual
+            const sonando = actuales ? actuales.has(el.id) : inicio + i === actual
             const motivo = dudosas?.get(el.id)
+            const parte = parteDe(el, letra)
+            const elegida = elegidas.has(el.id)
+            const principal = el.id === seleccion
+            const suenaCon = solapa?.get(el.id)
+            const textoParte = parte === 'coro' ? textoEnPantalla({ ...el, parte }) : null
             return (
               <button
                 key={el.id}
@@ -252,26 +338,42 @@ export function ListaLineas({
                 }}
                 type="button"
                 role="option"
-                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}`}
+                aria-label={`${E.ariaLinea(n, tiempo, el.texto)}${tienePalabrasManuales(el) ? E.preciso.indicadorAria : ''}${motivo ? R.ariaLinea(motivo) : ''}${reparto ? `, ${P.chip(etiquetaParte(letra, parte))}` : ''}${varias && principal ? P.principal : ''}${suenaCon ? `, ${P.solapa(suenaCon).toLowerCase()}` : ''}`}
                 data-dudosa={motivo ? '' : undefined}
-                aria-selected={el.id === seleccion}
+                data-principal={principal ? '' : undefined}
+                aria-selected={elegida}
                 aria-current={sonando || undefined}
                 aria-posinset={n}
                 aria-setsize={total}
-                tabIndex={el.id === seleccion ? 0 : -1}
-                className={estilos.linea}
-                onClick={() => seleccionar(el.id)}
+                tabIndex={principal ? 0 : -1}
+                className={[
+                  estilos.linea,
+                  reparto && estilos.lineaConParte,
+                  varias && elegida && !principal && estilos.lineaSecundaria,
+                  varias && principal && estilos.lineaPrincipalMulti
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={(e) => {
+                  if (seleccionarVarias && (e.ctrlKey || e.metaKey))
+                    return seleccionarVarias(el.id, 'alternar')
+                  if (seleccionarVarias && e.shiftKey) return seleccionarVarias(el.id, 'rango')
+                  seleccionar(el.id)
+                }}
                 onDoubleClick={() => escuchar(el.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
-                  seleccionar(el.id)
+                  // Sobre una fila ya seleccionada se conserva la selección múltiple.
+                  if (!varias || !elegida) seleccionar(el.id)
+                  else if (!principal) seleccionarVarias?.(el.id, 'principal')
                   setMenu({ id: el.id, x: e.clientX, y: e.clientY })
                 }}
                 onKeyDown={(e) => {
                   // Tecla Menú o Mayús + F10: el menú se abre junto a la fila.
                   if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return
                   e.preventDefault()
-                  seleccionar(el.id)
+                  if (!varias || !elegida) seleccionar(el.id)
+                  else if (!principal) seleccionarVarias?.(el.id, 'principal')
                   const r = e.currentTarget.getBoundingClientRect()
                   setMenu({ id: el.id, x: r.left + 32, y: r.bottom })
                 }}
@@ -290,9 +392,38 @@ export function ListaLineas({
                 <span className={`t-tiempo ${!tiempo ? estilos.sinTiempo : ''}`}>
                   {tiempo ?? '--:--.--'}
                 </span>
-                <span className={estilos.textoLinea} title={el.texto}>
-                  {el.texto}
+                {reparto && estilo && (
+                  <Tooltip contenido={P.chip(etiquetaParte(letra, parte))}>
+                    {/* Decorativo para lectores: la fila ya dice «Canta: …». Con teclado, C y el menú contextual. */}
+                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                    <span
+                      className={abrirQuienCanta ? estilos.chipClicable : undefined}
+                      data-chip-parte=""
+                      onClick={
+                        abrirQuienCanta
+                          ? (e) => {
+                              e.stopPropagation()
+                              if (!elegida) seleccionar(el.id)
+                              abrirQuienCanta(e.currentTarget, null)
+                            }
+                          : undefined
+                      }
+                    >
+                      <ChipParte letra={letra} estilo={estilo} parte={parte} decorativo />
+                    </span>
+                  </Tooltip>
+                )}
+                <span
+                  className={`${estilos.textoLinea} ${parte === 'coro' ? estilos.textoCoro : ''}`}
+                  title={el.texto}
+                >
+                  {textoParte?.parentesis ? `(${el.texto})` : el.texto}
                 </span>
+                {suenaCon !== undefined && (
+                  <Tooltip contenido={P.solapa(suenaCon)}>
+                    <Icono icono={Layers} tamano={14} />
+                  </Tooltip>
+                )}
                 {tienePalabrasManuales(el) && (
                   <Tooltip contenido={E.preciso.indicador}>
                     <Icono icono={WholeWord} tamano={14} />
@@ -320,7 +451,7 @@ export function ListaLineas({
             setMenu(null)
             botones.current.get(id)?.focus({ preventScroll: true })
           }}
-          items={itemsMenu(menu.id)}
+          items={itemsMenu(menu.id, { x: menu.x, y: menu.y })}
         />
       )}
       <button className={estilos.enlace} type="button" onClick={corregir}>

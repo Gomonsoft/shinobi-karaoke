@@ -1,4 +1,11 @@
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject
+} from 'react'
 import { FileMusic, Film, Flag, Info, MoveHorizontal } from 'lucide-react'
 import type { ExportacionVista } from '../../exportacion/estado'
 import { lineaDeExportacion } from '../../exportacion/lineas'
@@ -14,6 +21,8 @@ import { E } from './textos'
 import { R } from './revision/textos'
 import type { BloquePreparacion } from './preparacion/modelo'
 import { EP } from './preparacion/textos'
+import { P } from './partes'
+import { SeccionCantantes } from './SeccionCantantes'
 import estilos from './editor.module.css'
 
 export type EstadoCancion = 'borrador' | 'lista' | 'letra_lista'
@@ -69,7 +78,11 @@ interface Props {
     pedir(): void
     reintentar(): void
     irAPrimera(): void
+    /** Líneas que suenan a la vez que otras: no se tocan (`edi.partes.solapaExcluidas`). */
+    solapaExcluidas?: number
   }
+  /** «Cantantes y coros» (0.2.3 · feature 1): sigue a «Ajustar los silencios». */
+  cantantes?: ComponentProps<typeof SeccionCantantes>
   /** Cambia la modalidad sin salir del editor (la lógica del aviso y el toast es del editor). */
   cambiarModalidad(destino: 'karaoke' | 'letra_lista'): void
   volverABorrador(): void
@@ -122,6 +135,7 @@ export function PanelFunciones({
   revision,
   comprobar,
   silencios,
+  cantantes,
   cambiarModalidad,
   volverABorrador,
   tituloEstado
@@ -163,7 +177,12 @@ export function PanelFunciones({
           {preparacion.datos.letra && (
             <>
               <p data-prep-letra="">
-                · {preparacion.datos.letra === 'app' ? EP.letraApp : EP.letraUsuario}
+                ·{' '}
+                {preparacion.datos.letra !== 'app'
+                  ? EP.letraUsuario
+                  : preparacion.datos.sinComprobar
+                    ? EP.letraSinComprobar
+                    : EP.letraApp}
               </p>
               <div className={estilos.funcionFila}>
                 <Boton variante="fantasma" onClick={preparacion.verOtras}>
@@ -302,7 +321,19 @@ export function PanelFunciones({
           />
         </div>
         {textoSilencios && <MotivoVisible id={`${id}-motivo-silencios`} texto={textoSilencios} />}
+        {(silencios.solapaExcluidas ?? 0) > 0 && (
+          <MotivoVisible
+            id={`${id}-solapa-excluidas`}
+            texto={P.solapaExcluidas(silencios.solapaExcluidas!)}
+          />
+        )}
       </Seccion>
+
+      {cantantes && (
+        <Seccion titulo={P.titulo} idTitulo={`${id}-cantantes`}>
+          <SeccionCantantes {...cantantes} />
+        </Seccion>
+      )}
 
       <Seccion titulo={F.exportar.titulo} idTitulo={`${id}-exportar`}>
         <p>{F.exportar.ayuda}</p>

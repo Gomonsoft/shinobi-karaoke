@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -9,7 +10,9 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { Modalidad } from '@shared/cancion'
+import { envolvente, tramosCoro } from '@shared/coros'
 import type { Letra } from '@shared/letra'
+import { vozEnCoros } from '@shared/reparto'
 import type { Estilo } from '@shared/estilo'
 import type { ApiReproductor } from '@shared/ipc'
 import { fondoCssEn, variablesEstilo } from '../../karaoke/estiloCss'
@@ -158,6 +161,17 @@ export function Reproductor({
   const avisoSinIcono = aviso?.replace(/^⚠ /, '') ?? null
   const mostrarControles = controlesVisibles && (esSesion || !finalizado || controlesFinal)
   const duracionMs = estado?.duracionMs ?? cancion.duracionMs
+  // Voz en los coros (ADR 0030): los puntos salen de la letra de esta canción, así que cada entrada de la
+  // cola de la secundaria usa su nivel. Sin coros con nivel > 0 es `[]` y el motor no cambia nada.
+  const puntosCoros = useMemo(
+    () =>
+      modo === 'karaoke'
+        ? envolvente(tramosCoro(cancion.letra, cancion.duracionMs), vozEnCoros(cancion.letra))
+        : [],
+    [modo, cancion.letra, cancion.duracionMs]
+  )
+  const nivelCoros =
+    puntosCoros.length > 0 && (estado?.vozDisponible ?? true) ? vozEnCoros(cancion.letra) : 0
   const tiempoAudio = useCallback(() => motor.current?.posicionMs() ?? 0, [])
   const opcionesIniciales = useEffectEvent(() => ({
     cancionId: cancion.id,
@@ -168,6 +182,7 @@ export function Reproductor({
     volumenVoz: volumen.volumenVoz,
     vozSilenciada: volumen.vozSilenciada
   }))
+  const corosIniciales = useEffectEvent(() => puntosCoros)
   const inicioInicial = useEffectEvent(() =>
     sesion && !sesion.silencioPrevio ? desdeMs : posicionInicial(origen, desdeMs, cancion.letra)
   )
@@ -280,6 +295,8 @@ export function Reproductor({
     })
     const reproductor = fabricar(opcionesIniciales())
     motor.current = reproductor
+    const coros = corosIniciales()
+    if (coros.length > 0) reproductor.fijarCoros(coros)
     const cuenta = new CuentaFinal()
     cuentaFinal.current = esSesion ? null : cuenta
     const bajaCuenta = cuenta.suscribir(setRestante)
@@ -415,7 +432,9 @@ export function Reproductor({
       const silenciada = cambio.voz_guia_silenciada ?? volumen.vozSilenciada
       setAnuncio(
         silenciada
-          ? R.ind.vozSilenciada
+          ? nivelCoros
+            ? R.ind.vozSilenciadaCoros(Math.round(nivelCoros * 100))
+            : R.ind.vozSilenciada
           : R.ind.voz(Math.round((cambio.voz_guia ?? volumen.volumenVoz) * 100))
       )
     } else {
@@ -524,7 +543,8 @@ export function Reproductor({
         volumen: cambio.volumen ?? volumen.volumen,
         silenciado: cambio.silenciado ?? volumen.silenciado,
         volumenVoz: cambio.voz_guia ?? volumen.volumenVoz,
-        vozSilenciada: cambio.voz_guia_silenciada ?? volumen.vozSilenciada
+        vozSilenciada: cambio.voz_guia_silenciada ?? volumen.vozSilenciada,
+        nivelCoros
       })
     )
   }

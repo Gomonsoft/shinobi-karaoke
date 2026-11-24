@@ -21,6 +21,10 @@ interface OpcionesControl {
   sonando: boolean
   /** El sistema pide reducir el movimiento (nota `edi.pantalla.reducido`). */
   movimientoReducido: boolean
+  /** La canción tiene reparto: «Varias voces» (en D3 se muestra siempre). */
+  reparto?: boolean
+  /** Alguna línea suena a la vez que otra (voces a la vez): `edi.pantalla.bloqueSolapes` con «Todas en un bloque». */
+  solapes?: boolean
 }
 
 const ahora = (): number => Date.now()
@@ -39,6 +43,8 @@ export function useControlPantalla(o: OpcionesControl): ControlPantalla {
     propia,
     d3Propia: vista.estado === 'd3' && reemplazo !== undefined,
     pantalla,
+    varias: !!o.reparto || vista.estado === 'd3',
+    solapes: !!o.solapes,
     procedencia: vista.procedencia,
     temaNombre: vista.temaNombre,
     ejemploActivo: o.ejemploActivo,

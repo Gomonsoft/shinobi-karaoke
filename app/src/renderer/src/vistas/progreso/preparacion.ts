@@ -65,8 +65,9 @@ export function filasPreparacion(p: Preparacion | null | undefined, ctx: Context
     Object.assign(comprobar, { icono: 'curso', texto: PREP.comprobando, barra: 'indeterminada' })
   } else if (p.eleccion || (p.fines && !enCurso)) {
     comprobar.icono = 'completado'
-    comprobar.dato =
-      ctx.desfaseCorregidoMs !== null
+    comprobar.dato = p.eleccion?.sin_comprobar
+      ? PREP.res.duda
+      : ctx.desfaseCorregidoMs !== null
         ? PREP.res.corregida(segundos(ctx.desfaseCorregidoMs))
         : PREP.res.coincide
   } else if (p.estado === 'elige_letra' && busqueda && busqueda.candidatas > 0) {

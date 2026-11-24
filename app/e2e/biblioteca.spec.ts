@@ -154,8 +154,13 @@ test('la preparación se ve: insignia, línea de paso, bandeja y «Probar»', as
     await revisar.getByRole('button', { name: /^Probar/ }).click()
     const reproductor = v.getByRole('dialog', { name: /^Reproductor de/ })
     await expect(reproductor).toBeVisible()
-    await v.keyboard.press('Escape')
-    await expect(reproductor).toHaveCount(0)
+    // Esta prueba no simula la pantalla completa: con la CPU ocupada (pasadas completas, varias ventanas a
+    // la vez) la primera Esc llega mientras la ventana entra en pantalla completa o antes de que el
+    // reproductor atienda el teclado y no cierra nada (fallo de 2026-11-23, 1 de 2 pasadas). Se repite.
+    await expect(async () => {
+      await v.keyboard.press('Escape')
+      await expect(reproductor).toHaveCount(0, { timeout: 2_000 })
+    }).toPass({ timeout: 20_000, intervals: [0] })
     await expect(v.getByText('¿Qué tal «Borrador con letra a medias»?')).toBeVisible()
     expect(JSON.parse(readFileSync(ruta(6), 'utf8')).estado).toBe('borrador')
   } finally {

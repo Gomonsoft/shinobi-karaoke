@@ -205,3 +205,53 @@ describe('reducer: acción «pantalla»', () => {
     expect(e.pasado).toHaveLength(0)
   })
 })
+
+describe('«Varias voces» (0363, C1-E25)', () => {
+  it('sin reparto no aparece ni la nota', () => {
+    montar(control())
+    expect(screen.queryByRole('radiogroup', { name: 'Varias voces' })).toBeNull()
+    expect(screen.queryByText(/cada una se ve en su zona/)).toBeNull()
+  })
+
+  it('con reparto: «Cada una en su zona» por defecto, con sus ayudas y la nota', () => {
+    montar(control({ varias: true }))
+    const grupo = screen.getByRole('radiogroup', { name: 'Varias voces' })
+    expect(within(grupo).getByRole('radio', { name: 'Cada una en su zona' })).toBeChecked()
+    expect(within(grupo).getByRole('radio', { name: 'Todas en un bloque' })).not.toBeChecked()
+    expect(
+      screen.getByText('Cada cantante y el coro tienen su franja en la pantalla.')
+    ).toBeVisible()
+    expect(screen.getByText(T.zonas)).toBeVisible()
+  })
+
+  it('elegir «Todas en un bloque» guarda zonas: "una" y quita la nota', () => {
+    const c = control({ varias: true })
+    const v = montar(c)
+    fireEvent.click(screen.getByRole('radio', { name: 'Todas en un bloque' }))
+    expect(c.cambiar).toHaveBeenCalledWith(
+      { ...PANTALLA_PREDETERMINADA, zonas: 'una' },
+      'zonas.una'
+    )
+    v.unmount()
+    montar(control({ varias: true, pantalla: { ...PANTALLA_PREDETERMINADA, zonas: 'una' } }))
+    expect(screen.getByRole('radio', { name: 'Todas en un bloque' })).toBeChecked()
+    expect(screen.queryByText(T.zonas)).toBeNull()
+  })
+
+  it('el resumen de D1/D4 añade « · en zonas» o « · en un bloque» solo con reparto', () => {
+    const v = montar(control({ resumen: true, varias: true }))
+    expect(screen.getByText(/5 líneas · 1 ya cantada · desplazamiento · en zonas/)).toBeVisible()
+    v.unmount()
+    const w = montar(
+      control({
+        resumen: true,
+        varias: true,
+        pantalla: { ...PANTALLA_PREDETERMINADA, zonas: 'una' }
+      })
+    )
+    expect(screen.getByText(/· en un bloque/)).toBeVisible()
+    w.unmount()
+    montar(control({ resumen: true }))
+    expect(screen.queryByText(/· en (zonas|un bloque)/)).toBeNull()
+  })
+})

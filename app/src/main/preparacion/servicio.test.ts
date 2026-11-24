@@ -272,12 +272,10 @@ describe('elección automática', () => {
     })
   })
 
-  it('guarda el motivo de la no elección: soloTexto, sinExacta y duda', async () => {
+  it('guarda el motivo de la no elección: soloTexto, sinExacta y noCoincide', async () => {
     const casos: [Parameters<typeof candidato>[1], string][] = [
       [{ sincronia: 'texto' }, 'soloTexto'],
       [{ diferencia_ms: 2500 }, 'sinExacta'],
-      // Una letra correcta pero sin fines (LRC): la comprobación no podría notar un desfase.
-      [{ lineas: lineas() }, 'duda'],
       [{ lineas: lineas(0).map((l, i) => ({ ...l, inicio_ms: 1000 + i * 4100 })) }, 'noCoincide']
     ]
     for (const [extra, motivo] of casos) {
@@ -286,6 +284,28 @@ describe('elección automática', () => {
       await preparar()
       expect(registro()!.busqueda?.no_elige).toBe(motivo)
     }
+  })
+
+  it('una letra sin fines (LRC) que la voz no puede juzgar se elige sin comprobar, sin moverla', async () => {
+    const registrar = vi.fn()
+    await servicio.cerrar()
+    servicio = montar({ registrar })
+    respuestas = [encontrados(candidato(1, { lineas: lineas() }))]
+    await separar()
+    await preparar()
+    expect(registro()).toMatchObject({
+      estado: 'lista_para_revisar',
+      busqueda: { resultado: 'elegida' },
+      eleccion: { por: 'app', lrclib_id: 1, sin_comprobar: true },
+      fines: { metodo: 'silencios', lineas: 6 }
+    })
+    expect(registro()!.desfase_ms).toBeUndefined()
+    expect(cancion().letra!.desfase_corregido_ms).toBeUndefined()
+    expect(
+      registrar.mock.calls.some((c) =>
+        /letra elegida sin comprobar \(limitacion=(vozContinua|sinContraste)\)$/.test(String(c[1]))
+      )
+    ).toBe(true)
   })
 
   it('una separación en error guarda sinComprobar', async () => {
@@ -1040,6 +1060,14 @@ describe('Lista o Letra lista: «Ajustar los fines…» sin cambiar su estado (0
     letras.cerrarEdicion(sesion)
     expect(cancion().letra!.lineas.every((l) => l.origen_fin !== 'preparacion')).toBe(true)
   })
+
+  it('con la visita del editor abierta (no la sesión en vivo) omite con EDICION_BLOQUEADA', async () => {
+    await listaSinMarca()
+    const sesion = letras.abrirEdicion(id)!.sesionId
+    const r = await servicio.preparar([id], { finesSinMarca: true })
+    expect(r.omitidas).toStrictEqual([{ id, motivo: 'EDICION_BLOQUEADA' }])
+    letras.cerrarEdicion(sesion)
+  })
 })
 
 describe('recuento de dudosas tras cada escritura de la letra', () => {
@@ -1120,5 +1148,212 @@ describe('separación pendiente que nadie lanzó (pregunta 0223 §4)', () => {
     await servicio.enReposo()
     expect(buscarParaPreparacion).toHaveBeenCalledTimes(1)
     expect(registro()!.estado).toBe('lista_para_revisar')
+  })
+})
+
+describe('reparto de la letra (0.2.3, tarea 0341)', () => {
+  const DUO = {
+    cantantes: [
+      { id: 'c1' as const, nombre: 'Ana' },
+      { id: 'c2' as const, nombre: null }
+    ]
+  }
+
+  it('la preparación desatendida no asigna ninguna parte ni crea `partes`', async () => {
+    await separar()
+    await preparar('automatica')
+    const letra = cancion().letra!
+    expect(letra.lineas.some((l) => 'parte' in l)).toBe(false)
+    expect(letra).not.toHaveProperty('partes')
+  })
+
+  it('ajustar los fines conserva `parte` y `partes`, y quitarlos también', async () => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineas(0, 'Verso inventado', false)
+    })
+    const letra = cancion().letra!
+    await biblioteca.actualizar(id, {
+      letra: {
+        ...letra,
+        intacta: undefined,
+        partes: DUO,
+        lineas: letra.lineas.map((l, i) => (i % 2 === 1 ? { ...l, parte: 'c2' as const } : l))
+      }
+    })
+    await separar()
+    await servicio.preparar([id], { finesSinMarca: true })
+    await servicio.enReposo()
+    const despues = cancion().letra!
+    expect(despues.partes).toEqual(DUO)
+    expect(despues.lineas.map((l) => l.parte)).toEqual([
+      undefined,
+      'c2',
+      undefined,
+      'c2',
+      undefined,
+      'c2'
+    ])
+    expect(despues.lineas.every((l) => l.origen_fin === 'preparacion')).toBe(true)
+    // «Quitar esos fines»: el editor reenvía las líneas con su parte y sin fin.
+    const { cancion: c, sesionId } = letras.abrirEdicion(id)!
+    await letras.guardarTiempos(
+      {
+        cancionId: id,
+        offset_ms: 0,
+        partes: DUO,
+        tiempos: c.letra!.lineas.map((l) => ({
+          id: l.id,
+          inicio_ms: l.inicio_ms,
+          fin_ms: null,
+          palabras: null,
+          ...(l.parte ? { parte: l.parte } : {})
+        }))
+      },
+      sesionId
+    )
+    const sinFines = cancion().letra!
+    expect(sinFines.lineas.map((l) => l.parte)).toEqual(despues.lineas.map((l) => l.parte))
+    expect(sinFines.lineas.some((l) => l.fin_ms !== null || l.origen_fin)).toBe(false)
+    expect(sinFines.partes).toEqual(DUO)
+  })
+
+  it('guardar solo partes no cambia el recuento de dudosas ni retira intacta', async () => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineasBuenas()
+    })
+    await separar()
+    const antes = await contarDudosasGuardadas({ picos }, cancion())
+    expect(cancion().letra!.intacta).toBe(true)
+    await guardarSoloPartes(true)
+    expect(await contarDudosasGuardadas({ picos }, cancion())).toEqual(antes)
+    const l = cancion().letra!
+    expect(l.intacta).toBe(true)
+    expect(l.lineas.map((x) => x.parte)).toContain('coro')
+  })
+
+  /** Reenvía la letra tal cual y, con `asignar`, pone dos líneas de coro y un dúo. */
+  async function guardarSoloPartes(asignar = false): Promise<void> {
+    const { cancion: c, sesionId } = letras.abrirEdicion(id)!
+    await letras.guardarTiempos(
+      {
+        cancionId: id,
+        offset_ms: c.letra!.offset_ms,
+        ...(asignar ? { partes: DUO } : {}),
+        tiempos: c.letra!.lineas.map((l, i) => ({
+          id: l.id,
+          inicio_ms: l.inicio_ms,
+          fin_ms: l.fin_ms,
+          palabras: l.palabras,
+          ...(l.origen_fin ? { origen_fin: l.origen_fin } : {}),
+          ...(asignar && i % 2 === 1 ? { parte: 'coro' as const } : {})
+        }))
+      },
+      sesionId
+    )
+    letras.cerrarEdicion(sesionId)
+  }
+})
+
+describe('fines aplazados con el editor abierto (0394)', () => {
+  let registrar: Mock<NonNullable<DependenciasPreparacion['registrar']>>
+  const mensajes = (): string[] => registrar.mock.calls.map((c) => c[1])
+  const conFines = (): number =>
+    cancion().letra!.lineas.filter((l) => l.origen_fin === 'preparacion').length
+
+  /** Letra guardada (intacta) con un fin por poner; el editor se abre antes de preparar. */
+  const conEditorAbierto = async (): Promise<string> => {
+    await letras.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 9,
+      lineas: lineasBuenas()
+    })
+    await separar()
+    return letras.abrirEdicion(id)!.sesionId
+  }
+
+  beforeEach(async () => {
+    await servicio.cerrar()
+    registrar = vi.fn()
+    servicio = montar({ registrar })
+  })
+
+  it('con el editor abierto la corrida acaba sin `fines` y la preparación sigue ofreciendo el paso', async () => {
+    await conEditorAbierto()
+    await preparar()
+    expect(registro()).toMatchObject({ estado: 'lista_para_revisar' })
+    expect(registro()!.fines).toBeUndefined()
+    expect(conFines()).toBe(0)
+    expect(mensajes().some((m) => m.endsWith('fines aplazados (editor abierto)'))).toBe(true)
+    expect(servicio.previsualizar([id])[0]!.pasos).toContain('ajustando_fines')
+  })
+
+  it('al cerrar el editor sin tocar tiempos se ponen los fines y se recalculan las dudosas', async () => {
+    const sesion = await conEditorAbierto()
+    await preparar()
+    const antes = registro()!
+    letras.cerrarEdicion(sesion)
+    await servicio.enReposo()
+    expect(conFines()).toBe(1)
+    expect(registro()).toMatchObject({
+      estado: 'lista_para_revisar',
+      revisada: antes.revisada,
+      paso: null,
+      fines: { metodo: 'silencios', lineas: 1 }
+    })
+    expect(mensajes().some((m) => m.endsWith('fines aplazados puestos=1'))).toBe(true)
+  })
+
+  it('si se cambió un tiempo con el editor abierto, al cerrar no pone fines y ofrece confirmarlos', async () => {
+    const sesion = await conEditorAbierto()
+    await preparar()
+    const l = cancion().letra!
+    await letras.guardarTiempos(
+      {
+        cancionId: id,
+        offset_ms: 0,
+        tiempos: l.lineas.map((e, i) => ({
+          id: e.id,
+          inicio_ms: e.inicio_ms,
+          fin_ms: i === 0 ? 4000 : e.fin_ms,
+          palabras: null
+        }))
+      },
+      sesion
+    )
+    letras.cerrarEdicion(sesion)
+    await servicio.enReposo()
+    expect(conFines()).toBe(0)
+    expect(registro()!.fines).toBeUndefined()
+    expect(servicio.previsualizar([id])).toStrictEqual([
+      { id, aplica: true, pasos: ['ajustando_fines'], confirmar: 'finesSinMarca' }
+    ])
+  })
+
+  it('si el editor se vuelve a abrir antes de poner los fines, siguen aplazados', async () => {
+    const sesion = await conEditorAbierto()
+    await preparar()
+    letras.cerrarEdicion(sesion)
+    letras.abrirEdicion(id)
+    await servicio.enReposo()
+    expect(conFines()).toBe(0)
+    letras.liberarEdicion()
+    await servicio.enReposo()
+    expect(conFines()).toBe(1)
+  })
+
+  it('sin editor abierto pone los fines en la corrida y lo registra', async () => {
+    await letras.guardar({ cancionId: id, origen: 'lrclib', lrclib_id: 9, lineas: lineasBuenas() })
+    await separar()
+    await preparar()
+    expect(registro()).toMatchObject({ fines: { metodo: 'silencios', lineas: 1 } })
+    expect(mensajes().some((m) => m.endsWith('fines puestos=1'))).toBe(true)
+    expect(mensajes().some((m) => m.includes('aplazados'))).toBe(false)
   })
 })

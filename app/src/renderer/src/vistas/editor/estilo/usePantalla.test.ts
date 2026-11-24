@@ -92,3 +92,27 @@ describe('useControlPantalla', () => {
     expect(lineas.alternarEjemplo).not.toHaveBeenCalled()
   })
 })
+
+describe('«Varias voces» en el control (0363)', () => {
+  it('se muestra con reparto y siempre en D3; no en D2 sin reparto', () => {
+    const con = (estado: VistaTema['estado'], reparto?: boolean) =>
+      renderHook(() =>
+        useControlPantalla({
+          vista: vista(estado),
+          resumen: {} as ResumenCancionIpc,
+          apariencia: ap('propio'),
+          estilo: ESTILO_PREDETERMINADO,
+          despachar: vi.fn(),
+          anunciar: vi.fn(),
+          ejemploActivo: false,
+          alternarEjemplo: vi.fn(),
+          sonando: false,
+          movimientoReducido: false,
+          reparto
+        })
+      ).result.current.varias
+    expect(con('d2')).toBe(false)
+    expect(con('d2', true)).toBe(true)
+    expect(con('d3')).toBe(true)
+  })
+})

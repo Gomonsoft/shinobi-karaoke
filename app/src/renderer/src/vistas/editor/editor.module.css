@@ -236,6 +236,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+  /* Con barras superpuestas (macOS) `scrollbar-gutter` no reserva nada: el relleno lo pone `useRellenoBarra`
+     solo entonces (con barra clásica se sumaría al hueco y estrecharía el panel). */
+  padding-inline-end: var(--relleno-barra, 0px);
 }
 .funciones {
   display: grid;
@@ -530,4 +533,281 @@
 .marcaDudosa {
   display: inline-flex;
   color: var(--aviso);
+}
+
+/* Chip de parte (0.2.3 · feature 1): inicial en texto-1 y borde de 2 px en el color de la parte. */
+.chipParte {
+  display: inline-flex;
+  width: fit-content;
+  align-self: center;
+  justify-self: start;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 24px;
+  max-width: 40px;
+  height: 20px;
+  padding: 0 var(--e-1);
+  overflow: hidden;
+  border: 2px solid var(--color-parte, var(--borde-control));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--texto-1);
+  font-size: var(--t-pequeno);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+/* Área de clic de 24 × 24 sin ensanchar la fila. */
+.chipClicable {
+  position: relative;
+  cursor: pointer;
+}
+.chipClicable::after {
+  position: absolute;
+  inset: -2px;
+  content: '';
+}
+/* El hueco del chip: el chip más ancho de la canción más 8 px a cada lado (`--ancho-col-chip`). */
+.lineaConParte {
+  /* Solo las columnas que hay: los iconos de la derecha añaden las suyas. El hueco del chip ya lleva sus 8 px. */
+  /* El texto conserva 96 px con cualquier tipografía: cede el hueco del chip (hasta 30 px). */
+  grid-template-columns: 14px max-content minmax(30px, var(--ancho-col-chip, 40px)) minmax(
+      96px,
+      1fr
+    );
+  column-gap: var(--e-1);
+}
+.textoCoro {
+  color: var(--texto-2);
+}
+/* Seleccionada sin ser la principal (selección múltiple). */
+.lineaSecundaria[aria-selected='true'] {
+  background: var(--fondo-2);
+  border-inline-start-color: var(--acento-texto);
+}
+.lineaPrincipalMulti {
+  box-shadow: inset 0 0 0 1px var(--acento-texto);
+}
+
+/* Menú «¿Quién canta?». */
+.menuPartes {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  min-width: 15rem;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: var(--e-1);
+  border-radius: var(--r-m);
+  background: var(--fondo-3);
+  box-shadow: var(--elevacion);
+}
+.menuPartesTitulo {
+  padding: var(--e-1) var(--e-2);
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+}
+.menuPartesItem {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 16px;
+  gap: var(--e-2);
+  align-items: center;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-3);
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-1);
+  text-align: start;
+}
+.menuPartesItem:hover,
+.menuPartesItem:focus-visible {
+  background: var(--fondo-3-hover);
+}
+.menuPartesNombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menuPartesItem[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.menuPartesMotivo {
+  /* El motivo se lee entero: pasa a un segundo renglón en vez de cortarse con «…». */
+  display: block;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+  white-space: normal;
+}
+.menuPartesAtajo {
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+.menuPartesSeparador {
+  height: 1px;
+  margin: var(--e-1) 0;
+  background: var(--borde);
+}
+
+/* Fila «Canta» del panel Sincronía y chip del riel (0.2.3 · feature 1). */
+.filaCanta {
+  display: flex;
+  gap: var(--e-2);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+.filaCanta > span:first-child {
+  flex: none;
+  color: var(--texto-2);
+}
+.botonCanta {
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: var(--e-2);
+  align-items: center;
+  min-width: 0;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-1);
+}
+.botonCanta:hover,
+.botonCanta:focus-visible {
+  background: var(--fondo-2);
+}
+.botonCanta[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+.botonCantaTexto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.botonCantaRiel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--objetivo-minimo);
+  min-height: var(--objetivo-minimo);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Funciones › «Cantantes y coros» (0.2.3 · feature 1). */
+.filasCantantes {
+  display: grid;
+  gap: var(--e-2);
+  width: 100%;
+  min-width: 0;
+}
+.filaCantante {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto 24px;
+  gap: var(--e-2);
+  align-items: center;
+  min-width: 0;
+}
+.campoNombre {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.campoNombre input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+}
+.contadorNombre {
+  position: absolute;
+  inset-inline-end: var(--e-2);
+  inset-block-end: 2px;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+.nombreFijo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recuentoParte {
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-2);
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+  text-decoration: underline;
+}
+.recuentoParte[aria-disabled='true'] {
+  text-decoration: none;
+  cursor: default;
+}
+.quitarCantante {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--texto-2);
+}
+.quitarCantante:hover,
+.quitarCantante:focus-visible {
+  background: var(--fondo-2);
+}
+.funcion .textoMaximo {
+  color: var(--texto-3);
+}
+
+/* Funciones › «Voz en los coros» (0.2.3 · feature 2). */
+.vozCoros {
+  display: grid;
+  gap: var(--e-2);
+  width: 100%;
+  min-width: 0;
+  padding-top: var(--e-3);
+  border-top: 1px solid var(--borde);
+  justify-items: start;
+}
+.vozCoros h4 {
+  margin: 0;
+  font-size: var(--t-cuerpo-fuerte);
+}
+.filaVozCoros {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  gap: var(--e-2);
+  align-items: center;
+  width: 100%;
+}
+.filaVozCoros input {
+  width: 100%;
+  min-width: 0;
+}
+.funcion .textoTres {
+  color: var(--texto-3);
+}
+
+/* Los iconos de la fila (solape, palabras, sin sincronizar) añaden columnas, no filas. */
+.linea {
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
 }

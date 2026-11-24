@@ -48,3 +48,29 @@ it('0389: sin pista de voz (pistas dañadas o sin separar) la Lista no ofrece «
   sinSeparar.pasos.separacion.estado = 'pendiente'
   expect(resumirCancion('a', sinSeparar, null, null).prepararFinesSinMarca).toBe(false)
 })
+
+it('0393: `eleccionSinComprobar` solo con elección de la app y la marca; un registro sin el campo se lee', () => {
+  const base = {
+    estado: 'lista_para_revisar' as const,
+    paso: null,
+    origen: 'automatica' as const,
+    actualizado: '2026-11-23T10:00:00.000Z',
+    dudosas: 0,
+    revisada: false
+  }
+  const fecha = '2026-11-23T10:01:00.000Z'
+  const con = (eleccion: NonNullable<ReturnType<typeof lista>['preparacion']>['eleccion']) =>
+    resumirCancion('a', { ...lista(), preparacion: { ...base, eleccion } }, null, null).preparacion
+  expect(con({ por: 'app', fecha, lrclib_id: 1, sin_comprobar: true })).toMatchObject({
+    eleccionAutomatica: true,
+    eleccionSinComprobar: true
+  })
+  expect(con({ por: 'usuario', fecha, lrclib_id: 1, sin_comprobar: true })).toMatchObject({
+    eleccionAutomatica: false,
+    eleccionSinComprobar: false
+  })
+  expect(con({ por: 'app', fecha, lrclib_id: 1 })).toMatchObject({
+    eleccionAutomatica: true,
+    eleccionSinComprobar: false
+  })
+})

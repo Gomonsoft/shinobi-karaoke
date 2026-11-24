@@ -27,6 +27,8 @@ export interface ContextoIndicador {
   silenciado: boolean
   volumenVoz: number
   vozSilenciada: boolean
+  /** Nivel de la voz en los coros (0–1) si la canción los tiene con voz; 0 o ausente = sin coros. */
+  nivelCoros?: number
 }
 
 /** El contexto refleja los valores después de aplicar la acción. */
@@ -41,7 +43,12 @@ export function textoIndicador(accion: AccionReproductor, ctx: ContextoIndicador
       return ctx.silenciado ? R.ind.silenciado : R.ind.volumen(Math.round(ctx.volumen * 100))
     case 'voz':
     case 'nivel_voz':
-      return ctx.vozSilenciada ? R.ind.vozSilenciada : R.ind.voz(Math.round(ctx.volumenVoz * 100))
+      if (ctx.vozSilenciada) {
+        return ctx.nivelCoros
+          ? R.ind.vozSilenciadaCoros(Math.round(ctx.nivelCoros * 100))
+          : R.ind.vozSilenciada
+      }
+      return R.ind.voz(Math.round(ctx.volumenVoz * 100))
     case 'principio':
       return R.ind.principio
     default:

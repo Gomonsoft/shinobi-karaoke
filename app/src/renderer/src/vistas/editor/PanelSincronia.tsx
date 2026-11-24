@@ -9,6 +9,8 @@ import { contarLineas, finEfectivo } from '@shared/letra'
 import { formatearTiempo, numeroDeLinea, tiempoMostrado, type Limite } from '@shared/letras/tiempos'
 import { CampoTiempo } from './CampoTiempo'
 import type { EstadoEditor } from './estado'
+import { BotonCanta } from './BotonCanta'
+import { P } from './partes'
 import { E } from './textos'
 import estilos from './editor.module.css'
 
@@ -36,6 +38,16 @@ interface Props {
   cerrarBluetooth?(): void
   /** Marca de revisión de la línea seleccionada (feature 11), bajo su texto. */
   marca?: ReactNode
+  /**
+   * Fila «Canta» (0.2.3): solo en canciones con reparto. `chip` es el de la parte común de la selección
+   * y `null` con partes distintas; sin `abrir` el botón queda inactivo.
+   */
+  canta?: {
+    chip: ReactNode | null
+    etiqueta: string
+    abierto: boolean
+    abrir?(origen: HTMLElement): void
+  }
 }
 
 let bluetoothVisto = false
@@ -80,6 +92,20 @@ export function limiteDeCampo(
   return mensaje ? { mensaje, clave: aviso.n } : undefined
 }
 
+function FilaCanta({ chip, etiqueta, abierto, abrir }: NonNullable<Props['canta']>) {
+  return (
+    <div className={estilos.filaCanta}>
+      <span>{P.canta}</span>
+      <BotonCanta
+        chip={chip}
+        etiqueta={chip === null ? P.varias : etiqueta}
+        abierto={abierto}
+        abrir={abrir}
+      />
+    </div>
+  )
+}
+
 export function PanelSincronia({
   edicion,
   duracionMs,
@@ -98,10 +124,12 @@ export function PanelSincronia({
   abrirPreciso,
   motivoPreciso,
   ocupada = false,
-  marca
+  marca,
+  canta
 }: Props) {
   const { letra } = edicion.actual
-  const { seleccion } = edicion
+  const { seleccion, seleccionadas } = edicion
+  const varias = seleccionadas.length > 1
   const bloqueado = edicion.sync.activo
   const indice = letra.lineas.findIndex((el) => el.id === seleccion && el.tipo === 'linea')
   const linea = letra.lineas[indice]
@@ -114,8 +142,16 @@ export function PanelSincronia({
     <fieldset className={estilos.panelSincronia} disabled={bloqueado} aria-label="Sincronía">
       {linea ? (
         <div className={estilos.ajustesLinea}>
-          <h3>{E.lineaN(numeroDeLinea(letra, linea.id), contarLineas(letra))}</h3>
+          <h3>
+            {varias
+              ? P.seleccion(seleccionadas.length)
+              : E.lineaN(numeroDeLinea(letra, linea.id), contarLineas(letra))}
+          </h3>
+          {varias && canta && <FilaCanta {...canta} />}
+          {varias && <p>{P.seleccionAyuda(numeroDeLinea(letra, linea.id))}</p>}
+          {varias && <h3>{E.lineaN(numeroDeLinea(letra, linea.id), contarLineas(letra))}</h3>}
           <p className={estilos.lineaDetalle}>«{linea.texto}»</p>
+          {!varias && canta && <FilaCanta {...canta} />}
           {marca}
           {tienePalabrasManuales(linea) && (
             <>

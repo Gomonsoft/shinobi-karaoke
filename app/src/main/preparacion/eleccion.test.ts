@@ -83,6 +83,61 @@ describe('elegirLetra (ADR 0025 §3)', () => {
     expect(d.tipo).toBe('elige')
   })
 
+  describe('elegir sin comprobar (revisión de ADR 0025, 2026-11-23)', () => {
+    const limitada = (limitacion: 'vozContinua' | 'sinContraste'): EncajeCandidato => ({
+      veredicto: 'dudosa',
+      desfaseMs: 0,
+      limitacion
+    })
+
+    it.each(['vozContinua', 'sinContraste'] as const)('elige un único `dudosa` con %s', (l) => {
+      expect(elegirLetra([ev(1, limitada(l))])).toMatchObject({
+        tipo: 'elige',
+        candidato: { lrclib_id: 1 },
+        desfaseMs: null,
+        sinComprobar: true,
+        limitacion: l
+      })
+    })
+
+    it('`dudosa` sin limitación no se elige', () => {
+      expect(elegirLetra([ev(1, { veredicto: 'dudosa', desfaseMs: 0, limitacion: null })])).toEqual(
+        {
+          tipo: 'no_elige',
+          motivo: 'dudosa'
+        }
+      )
+    })
+
+    it('con el mismo texto (mayúsculas y signos aparte) elige el primero; con textos distintos, ambigua', () => {
+      expect(
+        elegirLetra([
+          ev(1, limitada('vozContinua')),
+          ev(2, limitada('sinContraste'), {}, 'VERSO inventado,')
+        ])
+      ).toMatchObject({ tipo: 'elige', candidato: { lrclib_id: 1 }, sinComprobar: true })
+      expect(
+        elegirLetra([
+          ev(1, limitada('vozContinua')),
+          ev(2, limitada('vozContinua'), {}, 'Otra cosa inventada')
+        ])
+      ).toStrictEqual({ tipo: 'no_elige', motivo: 'ambigua' })
+    })
+
+    it('un `coincide` manda sobre un `dudosa` con limitación de otro texto', () => {
+      expect(
+        elegirLetra([ev(1, limitada('vozContinua'), {}, 'Otra cosa inventada'), ev(2, coincide)])
+      ).toMatchObject({ tipo: 'elige', candidato: { lrclib_id: 2 }, sinComprobar: false })
+    })
+
+    it('a 2500 ms de duración no se elige', () => {
+      expect(elegirLetra([ev(1, limitada('sinContraste'), { diferencia_ms: 2500 })])).toEqual({
+        tipo: 'no_elige',
+        motivo: 'duracion'
+      })
+    })
+  })
+
   it('sin candidatos no elige', () => {
     expect(elegirLetra([]).tipo).toBe('no_elige')
   })

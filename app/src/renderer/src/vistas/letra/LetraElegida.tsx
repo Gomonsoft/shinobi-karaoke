@@ -9,14 +9,11 @@ import {
   TriangleAlert,
   X
 } from 'lucide-react'
-import {
-  MIN_LINEAS_ENCAJE,
-  corregirDesfase,
-  evaluarEncajeConPicos,
-  quitarCorreccion
-} from '@shared/encaje'
+import { MIN_LINEAS_ENCAJE, corregirDesfase, quitarCorreccion } from '@shared/encaje'
+import { evaluarEncajeConPicosSinSolapes } from '@shared/solapes'
 import { contarLineas, type Letra } from '@shared/letra'
 import { aplicarTextoEditado, letraATexto } from '@shared/letras'
+import { cantantesDe, recuentoPorParte, tieneReparto } from '@shared/reparto'
 import type { ErrorIpc, ResumenCancionIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
@@ -89,7 +86,7 @@ function useComprobacionGuardada(
     if (picos === null) return { ...ninguna, comprobacion: { tipo: 'comprobando' } }
     if (picos.estado !== 'lista')
       return { ...ninguna, comprobacion: sinPicos(picos.estado, separada) ?? ninguna.comprobacion }
-    const r = evaluarEncajeConPicos(letra, picos, { duracionMs })
+    const r = evaluarEncajeConPicosSinSolapes(letra, picos, { duracionMs })
     return {
       comprobacion: deVeredicto(r.veredicto, r.desfaseMs, r.limitacion),
       motivos:
@@ -278,6 +275,9 @@ export function LetraElegida({
       ) : (
         <div>
           <p>{T.actual(T.origen[letra.origen], T.sync[sincroniaActual(letra.lineas)], n)}</p>
+          {tieneReparto(letra) && (
+            <p>{T.reparto(cantantesDe(letra).length, recuentoPorParte(letra).coro)}</p>
+          )}
           {letra.origen === 'lrclib' && (
             <a
               className={estilos.atribucion}

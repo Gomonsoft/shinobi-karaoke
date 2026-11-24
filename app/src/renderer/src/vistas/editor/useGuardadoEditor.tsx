@@ -8,6 +8,7 @@ import { useNavegacion, type Vista } from '../../navegacion/estado'
 import { registrarVaciadoAlCerrar } from '../../navegacion/salida'
 import { GuardadoEditor, type EstadoGuardado } from './guardado'
 import { copiarDetalles } from '../../soporte/detalles'
+import { esperarSalvamento, hayFalloDeInterfaz, registrarSalvador } from '../../soporte/salvamento'
 
 /** Secuenciador de resúmenes vivos: la respuesta del pedido más reciente manda (ADR 0016 §9). */
 export interface SecuenciaResumen {
@@ -50,6 +51,11 @@ export function useGuardadoEditor({
   const [estado, setEstado] = useState<EstadoGuardado['estado']>('guardado')
   const [dialogo, setDialogo] = useState(false)
   const sesion = useEffectEvent(obtenerSesion)
+  // El salvamento arranca durante el dibujo del límite de errores, donde un `useEffectEvent` no se puede llamar.
+  const obtenerSesionRef = useRef(obtenerSesion)
+  useEffect(() => {
+    obtenerSesionRef.current = obtenerSesion
+  })
   const recargar = useEffectEvent(alDesactualizada)
   const tituloActual = useEffectEvent(() => titulo)
   const salidaGuardada = useEffectEvent((destino: Vista) => alSalirGuardado?.(destino))
@@ -78,6 +84,8 @@ export function useGuardadoEditor({
     let avisado = false
     let pendiente = false
     let enError = false
+    // Tras un fallo de dibujo la sesión de edición ya puede estar cerrándose: la del salvamento es la de entonces.
+    let sesionSalvada: string | null = null
     const avisarMain = () => {
       const valor = (guardado.hayPendiente() || enError || borradorRef.current) ?? false
       if (valor === pendiente) return
@@ -90,13 +98,13 @@ export function useGuardadoEditor({
       letraInicial: letraInicialRef.current,
       api: {
         editarTextoLinea: (peticion) => {
-          const id = sesion()
+          const id = sesionSalvada ?? sesion()
           return id
             ? window.shinobi.letras.editarTextoLinea(peticion, id)
             : Promise.reject({ codigo: 'LETRA_DESACTUALIZADA', mensaje: 'La visita ha terminado.' })
         },
         guardarTiempos: (peticion) => {
-          const id = sesion()
+          const id = sesionSalvada ?? sesion()
           return id
             ? window.shinobi.letras.guardarTiempos(peticion, id)
             : Promise.reject({ codigo: 'LETRA_DESACTUALIZADA', mensaje: 'La visita ha terminado.' })
@@ -136,6 +144,11 @@ export function useGuardadoEditor({
     instancia.current = guardado
     avisarMain()
     const cancelarVaciado = registrarVaciadoAlCerrar(() => guardado.vaciar())
+    // Si la interfaz falla, el lote pendiente se envía en lugar de descartarse (spec «Pantalla de error»).
+    const cancelarSalvador = registrarSalvador(() => {
+      sesionSalvada = obtenerSesionRef.current()
+      return guardado.vaciar()
+    })
     const cancelarGuarda = registrarGuardaSalida?.(async (destino) => {
       if (destino.tipo === 'cancion' && destino.id === cancionId && destino.paso === 'editor')
         return true
@@ -150,7 +163,10 @@ export function useGuardadoEditor({
     return () => {
       cancelarVaciado()
       cancelarGuarda?.()
-      guardado.destruir()
+      cancelarSalvador()
+      // Desmontado por un fallo: el salvamento aún está enviando el lote; se destruye cuando termina.
+      if (hayFalloDeInterfaz()) void esperarSalvamento().finally(() => guardado.destruir())
+      else guardado.destruir()
       instancia.current = null
       sincronizarMain.current = () => undefined
       confirmacion.current?.resolver(false)

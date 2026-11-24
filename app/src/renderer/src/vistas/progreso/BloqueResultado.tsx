@@ -61,8 +61,14 @@ export function BloqueResultado({
     case 'revisar':
       titulo = PREP.r1.titulo
       lineas = [
-        registro?.eleccion?.por === 'usuario' ? PREP.r1.letraUsuario : PREP.r1.letraApp,
-        ...(desfaseCorregidoMs ? [K.desfase.corregido(desfaseCorregidoMs)] : []),
+        registro?.eleccion?.por === 'usuario'
+          ? PREP.r1.letraUsuario
+          : registro?.eleccion?.sin_comprobar
+            ? PREP.r1.letraSinComprobar
+            : PREP.r1.letraApp,
+        ...(desfaseCorregidoMs && !registro?.eleccion?.sin_comprobar
+          ? [K.desfase.corregido(desfaseCorregidoMs)]
+          : []),
         ...(registro?.fines?.lineas ? [PREP.r1.fines(registro.fines.lineas)] : [])
       ]
       pie = PREP.r1.pie

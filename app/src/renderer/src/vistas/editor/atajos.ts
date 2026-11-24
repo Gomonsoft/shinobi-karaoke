@@ -23,13 +23,19 @@ export type AccionAtajo =
         | 'revision_bien'
     }
   | { tipo: 'ajustar_inicio' | 'ajustar_fin' | 'buscar'; deltaMs: number }
-  | { tipo: 'mover_seleccion' | 'dudosa'; sentido: -1 | 1 }
+  | { tipo: 'mover_seleccion'; sentido: -1 | 1; extender: boolean }
+  | { tipo: 'dudosa'; sentido: -1 | 1 }
+  /** Reparto (0.2.3): `C` abre «¿Quién canta?»; `Alt + 1…4` asigna; `Alt + ↑/↓` va a la parte vecina. */
+  | { tipo: 'quien_canta' }
+  | { tipo: 'parte_n'; n: 1 | 2 | 3 | 4 }
+  | { tipo: 'parte_vecina'; sentido: -1 | 1 }
   | { tipo: 'pista'; pista: Pista }
 
-export type FocoEditor = 'lista' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'divisor' | 'otro'
+export type FocoEditor =
+  'lista' | 'region' | 'barra' | 'volumen' | 'dial' | 'segmentado' | 'divisor' | 'otro'
 
 type Tecla = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'> &
-  Partial<Pick<KeyboardEvent, 'repeat' | 'isComposing'>>
+  Partial<Pick<KeyboardEvent, 'repeat' | 'isComposing' | 'code'>>
 
 export function accionDeTecla(
   e: Tecla,
@@ -38,9 +44,11 @@ export function accionDeTecla(
     sync: boolean
     focoEn: FocoEditor
     mac?: boolean
+    /** Canción con reparto: sin él, Alt + ↑/↓ no hace nada (ni se captura). Por defecto, sí. */
+    reparto?: boolean
   }
 ): AccionAtajo | null {
-  const { enCampoTexto, sync, focoEn, mac } = opciones
+  const { enCampoTexto, sync, focoEn, mac, reparto = true } = opciones
   const tecla = e.key.toLowerCase()
   const control = e.ctrlKey || e.metaKey
   if (e.isComposing) return null
@@ -69,13 +77,29 @@ export function accionDeTecla(
     }
     return focoEn === 'barra' && !e.shiftKey ? { tipo: 'buscar', deltaMs: sentido * 5000 } : null
   }
+  // Reparto (0.2.3). Alt + número se lee por la tecla física (`code`): en macOS Opción cambia `key`.
+  // AltGr llega como Ctrl + Alt, así que `control` lo descarta. Ninguno actúa al ritmo.
+  if (e.altKey && !control && !sync) {
+    const digito = /^Digit([1-4])$/.exec(e.code ?? '')
+    if (digito) return { tipo: 'parte_n', n: Number(digito[1]) as 1 | 2 | 3 | 4 }
+    if ((tecla === 'arrowup' || tecla === 'arrowdown') && !e.shiftKey && reparto) {
+      return focoEn === 'lista' || focoEn === 'region'
+        ? { tipo: 'parte_vecina', sentido: tecla === 'arrowup' ? -1 : 1 }
+        : null
+    }
+  }
   if (control || e.altKey) return null
   const enControl = ['barra', 'volumen', 'dial', 'segmentado', 'divisor'].includes(focoEn)
   if (tecla === 'arrowup' || tecla === 'arrowdown') {
     // En un divisor las cuatro flechas son suyas: ↑/↓ no cambian de línea.
     if (focoEn === 'divisor') return null
     return !sync && (!enControl || e.shiftKey)
-      ? { tipo: 'mover_seleccion', sentido: tecla === 'arrowup' ? -1 : 1 }
+      ? {
+          tipo: 'mover_seleccion',
+          sentido: tecla === 'arrowup' ? -1 : 1,
+          // Mayús + ↑/↓ extiende el rango con el foco en la lista (o en una región).
+          extender: e.shiftKey && (focoEn === 'lista' || focoEn === 'region')
+        }
       : null
   }
   if (tecla === 'escape') return { tipo: 'escapar' }
@@ -85,6 +109,7 @@ export function accionDeTecla(
   if (tecla === 'enter' && sync && !e.repeat) return { tipo: 'marcar' }
   if (tecla === 'backspace') return { tipo: sync ? 'deshacer_marca' : 'borrar_tiempos' }
   if (tecla === 'delete' && !sync) return { tipo: 'borrar_tiempos' }
+  if (tecla === 'c' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'quien_canta' }
   if (tecla === 'i' && !sync) return { tipo: 'fijar_inicio' }
   if (tecla === 'o' && !sync) return { tipo: 'fijar_fin' }
   if (tecla === 'p' && !sync && !e.repeat && !e.shiftKey) return { tipo: 'abrir_preciso' }

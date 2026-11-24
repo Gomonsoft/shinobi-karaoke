@@ -5,7 +5,8 @@ import { accionDeTecla, type AccionAtajo, type FocoEditor } from './atajos'
 export function useAtajosEditor(
   sync: boolean,
   alAtajo: (accion: AccionAtajo, evento: KeyboardEvent) => void,
-  alSoltar?: (evento: KeyboardEvent) => void
+  alSoltar?: (evento: KeyboardEvent) => void,
+  reparto = true
 ): void {
   const pulsar = useEffectEvent((e: KeyboardEvent) => {
     if (
@@ -35,7 +36,8 @@ export function useAtajosEditor(
       sync,
       enCampoTexto,
       focoEn,
-      mac: /Mac/i.test(navigator.platform)
+      mac: /Mac/i.test(navigator.platform),
+      reparto
     })
     if (!accion) {
       if (!enCampoTexto && e.altKey && ['ArrowLeft', 'ArrowRight'].includes(e.key))

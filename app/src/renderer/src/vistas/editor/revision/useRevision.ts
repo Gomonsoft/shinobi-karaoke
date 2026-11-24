@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ActionDispatch } from 'react'
-import { contarRevisadas, detectarDudosas, type LineaDudosa } from '@shared/dudosas'
+import { contarRevisadas, type LineaDudosa } from '@shared/dudosas'
 import type { Espera } from '@shared/espera'
 import type { ApiShinobi, EstadoPicos } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import { numeroDeLinea } from '@shared/letras/tiempos'
-import { detectarVoz, proponerAjusteSilencios, type VozDetectada } from '@shared/silencios'
+import { detectarVoz, type VozDetectada } from '@shared/silencios'
+import { detectarDudosasSinSolapes, proponerAjusteSilenciosSinSolapes } from '@shared/solapes'
 import type { AccionEditor } from '../estado'
 import { leerPicosBase } from '../picosBase'
+import { mostrarToast } from '../../../componentes/gestorToasts'
+import { P } from '../partes'
 import { R, motivoPrincipal } from './textos'
 
 /** Espera entre el anuncio de la línea y el audio, para no pisarlo (spec 06 · F11, accesibilidad). */
@@ -114,7 +117,7 @@ export function useRevision(opciones: Opciones) {
   const calculando = opciones.separacionDisponible && vozVigente === null && generacion !== null
 
   const pendientes = useMemo(
-    () => detectarDudosas(letra, vozVigente, { duracionMs }),
+    () => detectarDudosasSinSolapes(letra, vozVigente, { duracionMs }).dudosas,
     [letra, vozVigente, duracionMs]
   )
   const porId = useMemo(() => new Map(pendientes.map((d) => [d.id, d])), [pendientes])
@@ -244,11 +247,17 @@ export function useRevision(opciones: Opciones) {
   function finAlFinalDeLaVoz(): void {
     const o = ultimo.current
     if (seleccion === null || vozVigente === null) return
-    const propuesta = proponerAjusteSilencios(o.letra, vozVigente, {
+    const propuesta = proponerAjusteSilenciosSinSolapes(o.letra, vozVigente, {
       duracionMs: o.duracionMs,
       espera: o.espera,
       soloIds: [seleccion]
     })
+    if (propuesta.lineasCambiadas === 0 && propuesta.solapaExcluidas > 0) {
+      // Suena a la vez que otra: no se toca (la voz separada mezcla a los dos cantantes).
+      anunciar(P.solapaExcluidas(1))
+      mostrarToast({ tipo: 'info', mensaje: P.solapaExcluidas(1) })
+      return
+    }
     if (propuesta.lineasCambiadas === 0) {
       clearTimeout(temporizadores.current.silencio)
       setMensajeSinSilencio(true)

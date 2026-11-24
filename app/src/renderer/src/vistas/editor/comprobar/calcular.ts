@@ -1,4 +1,5 @@
-import { evaluarEncaje, MIN_LINEAS_ENCAJE, type ResultadoEncaje } from '@shared/encaje'
+import { MIN_LINEAS_ENCAJE, type ResultadoEncaje } from '@shared/encaje'
+import { evaluarEncajeSinSolapes } from '@shared/solapes'
 import type { ApiShinobi, EstadoPicos } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
 import { tienePalabrasManuales } from '@shared/letra'
@@ -58,7 +59,7 @@ export async function calcularEncajeEditor(e: {
     }
   }
   const voz = detectarVoz({ pasoMs: picos.pasoMs, pares: picos.pares })
-  return { ok: true, encaje: evaluarEncaje(e.letra, voz, { duracionMs: e.duracionMs }) }
+  return { ok: true, encaje: evaluarEncajeSinSolapes(e.letra, voz, { duracionMs: e.duracionMs }) }
 }
 
 /** Líneas con tiempos por palabra hechos a mano (el diálogo avisa de que se mueven con la letra). */

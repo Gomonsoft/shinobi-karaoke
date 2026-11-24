@@ -30,6 +30,13 @@ export type DecisionEleccion =
       candidato: CandidatoLetra
       /** Corrección que se guarda con la letra; `null` si `coincide` sin más. */
       desfaseMs: number | null
+      /**
+       * Elegida sin poder comprobarla con la voz (`dudosa` con limitación; ADR 0025, revisión del
+       * 2026-11-23): nunca se corrige su desfase. `false` en el camino de siempre.
+       */
+      sinComprobar: boolean
+      /** Limitación del candidato elegido sin comprobar (para el registro de la app). */
+      limitacion?: 'vozContinua' | 'sinContraste'
     }
   | { tipo: 'no_elige'; motivo: MotivoNoElige }
 
@@ -47,7 +54,9 @@ const textoClave = (c: CandidatoLetra): string =>
  * tiempos por línea, (2) difiere ≤ 2 s en duración del audio y (3) su encaje es `coincide` o `desfasada`.
  * (4) Con varios que cumplan 1–3 gana el primero (el orden de ADR 0005: el de `get` primero) salvo que dos
  * tengan textos distintos tras normalizar: dos letras «buenas» distintas son ambiguas y no se elige.
- * Un único sincronizado `dudosa` tampoco se elige. Función pura y determinista.
+ * Si ninguno cumple, se eligen los «elegibles sin comprobar» (revisión de ADR 0025, 2026-11-23): con
+ * tiempos, en duración y `dudosa` con limitación; todos con el mismo texto o `ambigua`. Un `dudosa` sin
+ * limitación no se elige. Función pura y determinista.
  */
 export function elegirLetra(evaluados: readonly CandidatoEvaluado[]): DecisionEleccion {
   const conTiempos = evaluados.filter((e) => e.candidato.sincronia !== 'texto')
@@ -61,6 +70,23 @@ export function elegirLetra(evaluados: readonly CandidatoEvaluado[]): DecisionEl
   )
   const primero = validos[0]
   if (!primero) {
+    const sinComprobar = enDuracion.filter(
+      (e) => e.encaje?.veredicto === 'dudosa' && e.encaje.limitacion != null
+    )
+    const elegible = sinComprobar[0]
+    if (elegible) {
+      const claveSc = textoClave(elegible.candidato)
+      if (sinComprobar.some((e) => textoClave(e.candidato) !== claveSc)) {
+        return { tipo: 'no_elige', motivo: 'ambigua' }
+      }
+      return {
+        tipo: 'elige',
+        candidato: elegible.candidato,
+        desfaseMs: null,
+        sinComprobar: true,
+        ...(elegible.encaje?.limitacion ? { limitacion: elegible.encaje.limitacion } : {})
+      }
+    }
     const conEncaje = enDuracion.filter((e) => e.encaje)
     return {
       tipo: 'no_elige',
@@ -79,6 +105,7 @@ export function elegirLetra(evaluados: readonly CandidatoEvaluado[]): DecisionEl
   return {
     tipo: 'elige',
     candidato: primero.candidato,
-    desfaseMs: primero.encaje?.veredicto === 'desfasada' ? primero.encaje.desfaseMs : null
+    desfaseMs: primero.encaje?.veredicto === 'desfasada' ? primero.encaje.desfaseMs : null,
+    sinComprobar: false
   }
 }

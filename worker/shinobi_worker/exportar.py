@@ -40,13 +40,33 @@ def codificador_disponible(nombre: str) -> bool:
     return True
 
 
-def mezclar(instrumental, voz, ganancia_db: float):
-    """instrumental * g (+ voz * g al 100 %); si el pico supera 0,999 escala sin recortar."""
+MAX_PUNTOS_ENVOLVENTE = 10_000
+
+
+def mezclar(instrumental, voz, ganancia_db: float, envolvente=None):
+    """instrumental * g (+ voz * g al 100 %, o * nivel(t) * g con envolvente); pico <= 0,999.
+
+    `envolvente` son puntos `[[ms, nivel], ...]` (ADR 0030 §5): la voz entra a ese nivel, con
+    interpolación lineal y 0 fuera de los puntos; sin ella, el resultado es el de siempre.
+    """
+    import numpy as np
+
     g = 10 ** (ganancia_db / 20)
     mezcla = instrumental * g
     if voz is not None:
         n = min(mezcla.shape[1], voz.shape[1])
-        mezcla[:, :n] += voz[:, :n] * g
+        if envolvente:
+            ms = np.array([p[0] for p in envolvente], dtype=np.float64)
+            nivel = np.array([p[1] for p in envolvente], dtype=np.float64)
+            # Solo el tramo cubierto por los puntos: fuera la voz vale 0.
+            i0 = max(0, int(np.floor(ms[0] * FRECUENCIA / 1000)))
+            i1 = min(n, int(np.ceil(ms[-1] * FRECUENCIA / 1000)) + 1)
+            if i1 > i0:
+                t = np.arange(i0, i1, dtype=np.float64) * 1000 / FRECUENCIA
+                curva = (np.interp(t, ms, nivel) * g).astype(np.float32)
+                mezcla[:, i0:i1] += voz[:, i0:i1] * curva
+        else:
+            mezcla[:, :n] += voz[:, :n] * g
     pico = float(abs(mezcla).max()) if mezcla.size else 0.0
     if pico > PICO_MAXIMO:
         mezcla *= PICO_MAXIMO / pico
@@ -78,11 +98,38 @@ def _preparar_audio(audio: dict[str, Any], duracion_ms: int):
 
     instrumental = _decodificar(audio["instrumental"])
     voz = _decodificar(audio["voz"]) if audio.get("voz") else None
-    mezcla = mezclar(instrumental, voz, float(audio.get("ganancia_db", 0)))
+    mezcla = mezclar(
+        instrumental, voz, float(audio.get("ganancia_db", 0)), audio.get("voz_envolvente")
+    )
     muestras = round(duracion_ms * FRECUENCIA / 1000)
     if mezcla.shape[1] < muestras:  # una pista algo corta: silencio hasta la duración del video
         mezcla = np.pad(mezcla, ((0, 0), (0, muestras - mezcla.shape[1])))
     return np.ascontiguousarray(mezcla[:, :muestras])
+
+
+def _validar_envolvente(audio: dict[str, Any]) -> None:
+    """`audio.voz_envolvente`: hasta 10 000 puntos `[ms, nivel]`, ms crecientes y nivel de 0 a 1."""
+    puntos = audio.get("voz_envolvente")
+    if puntos is None:
+        return
+    if not isinstance(audio.get("voz"), str) or not audio["voz"]:
+        raise ArgumentosNoValidos("'audio.voz_envolvente' necesita 'audio.voz'")
+    if not isinstance(puntos, list) or not 1 <= len(puntos) <= MAX_PUNTOS_ENVOLVENTE:
+        raise ArgumentosNoValidos("'audio.voz_envolvente' debe tener de 1 a 10000 puntos")
+    anterior = -1.0
+    for p in puntos:
+        if not isinstance(p, list | tuple) or len(p) != 2:
+            raise ArgumentosNoValidos("cada punto de 'voz_envolvente' debe ser [ms, nivel]")
+        ms, nivel = p
+        if any(isinstance(v, bool) or not isinstance(v, int | float) for v in (ms, nivel)):
+            raise ArgumentosNoValidos("los puntos de 'voz_envolvente' deben ser números")
+        if not (ms == ms and nivel == nivel) or ms in (float("inf"), float("-inf")):
+            raise ArgumentosNoValidos("los puntos de 'voz_envolvente' deben ser finitos")
+        if ms < 0 or ms <= anterior:
+            raise ArgumentosNoValidos("los 'ms' de 'voz_envolvente' deben ser crecientes y >= 0")
+        if not 0 <= nivel <= 1:
+            raise ArgumentosNoValidos("el nivel de 'voz_envolvente' debe ir de 0 a 1")
+        anterior = ms
 
 
 def _validar(args: dict[str, Any]) -> dict[str, Any]:
@@ -100,6 +147,7 @@ def _validar(args: dict[str, Any]) -> dict[str, Any]:
     audio = args.get("audio")
     if not isinstance(audio, dict) or not isinstance(audio.get("instrumental"), str):
         raise ArgumentosNoValidos("'audio.instrumental' debe ser una ruta")
+    _validar_envolvente(audio)
     parametros = args.get("parametros")
     clave = "preset" if args["formato"] == "mkv_av1" else "cpu_used"
     if not isinstance(parametros, dict) or "crf" not in parametros or clave not in parametros:

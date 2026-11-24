@@ -26,6 +26,7 @@ const CENTRO_BLOQUE = 0.47
 const LIMITE_SUPERIOR = 0.1
 const LIMITE_INFERIOR = 0.86
 const BARRA_SOBRE_ANCLA = 0.9
+const FILA_SOBRE_RENGLON = 0.9
 
 export interface Region {
   y0Px: number
@@ -80,9 +81,16 @@ function apilar(
   lineas: readonly LineaEnPantalla[],
   cual: Posicion,
   altura: (id: string) => number,
-  ctx: { ancla: number; tamano: number; pasadas: number; futuras: number; region: Region }
+  ctx: {
+    ancla: number
+    tamano: number
+    pasadas: number
+    futuras: number
+    region: Region
+    limites: readonly [number, number]
+  }
 ): Map<string, Colocada> {
-  const { ancla, tamano, pasadas, futuras, region } = ctx
+  const { ancla, tamano, pasadas, futuras, region, limites } = ctx
   const porPuesto = new Map(lineas.map((l) => [l[cual], l]))
   const puestos = [...porPuesto.keys()]
   const activa = porPuesto.get(0)
@@ -99,8 +107,8 @@ function apilar(
     })
   }
   if (activa) colocar(activa, ancla)
-  const limiteBajo = region.y0Px + LIMITE_INFERIOR * region.altoPx
-  const limiteAlto = region.y0Px + LIMITE_SUPERIOR * region.altoPx
+  const limiteBajo = region.y0Px + limites[1] * region.altoPx
+  const limiteAlto = region.y0Px + limites[0] * region.altoPx
   for (const signo of [1, -1]) {
     let borde = ancla + signo * mitadActiva
     let cortado = false
@@ -143,7 +151,7 @@ export interface BloqueDispuesto {
   tamano: number
   lineas: LineaDispuesta[]
   /** Posiciones de los indicadores de espera, relativas al ancla (no dependen de N ni de P). */
-  indicadores: { barraY: number; cuentaY: number; puntosY: number }
+  indicadores: { barraY: number; cuentaY: number; puntosY: number; filaY?: number }
 }
 
 export interface EntradaBloque {
@@ -162,23 +170,36 @@ export interface EntradaBloque {
   aparicion?: number
   /** Opacidad mínima por puesto (`suelosDeOpacidad`). */
   suelos?: Readonly<Record<number, number>>
+  /**
+   * Solo zonas (ADR 0029 §4 bis): `S` ya calculado para la zona, ancla propia, límites de la región
+   * (en fracciones de su alto; 10 %–86 % si faltan) y opacidad de la zona, que multiplica la de los
+   * puestos antes del suelo de contraste.
+   */
+  tamanoPx?: number
+  ancla?: number
+  limites?: readonly [number, number]
+  opacidadZona?: number
 }
 
 const mezclar = (a: number, b: number, t: number) => a + (b - a) * t
 
 export function disponerBloque(entrada: EntradaBloque): BloqueDispuesto {
   const { lineas, alturas, pantalla, region, suelos = {}, aparicion = 1 } = entrada
-  const tamano = tamanoActiva(entrada.altoPantallaPx ?? region.altoPx, entrada.minimoTamanoPx)
+  const tamano =
+    entrada.tamanoPx ??
+    tamanoActiva(entrada.altoPantallaPx ?? region.altoPx, entrada.minimoTamanoPx)
   const pasadas = pasadasEfectivas(pantalla)
   const futuras = pantalla.lineas - 1 - pasadas
-  const ancla = anclaDeBloque(pantalla, region, tamano)
-  const ctx = { ancla, tamano, pasadas, futuras, region }
+  const ancla = entrada.ancla ?? anclaDeBloque(pantalla, region, tamano)
+  const limites = entrada.limites ?? ([LIMITE_SUPERIOR, LIMITE_INFERIOR] as const)
+  const zona = entrada.opacidadZona ?? 1
+  const ctx = { ancla, tamano, pasadas, futuras, region, limites }
   const altura = (id: string) => alturas[id] ?? INTERLINEA * tamano
   const origen = apilar(lineas, 'desde', altura, ctx)
   const destino = apilar(lineas, 'hacia', altura, ctx)
   // El suelo es de un puesto: una línea que se va (objetivo 0) sigue llegando a 0.
   const conSuelo = (c: Colocada, puesto: number) =>
-    c.opacidad > 0 ? Math.max(c.opacidad, suelos[puesto] ?? 0) : 0
+    c.opacidad > 0 ? Math.max(c.opacidad * zona, suelos[puesto] ?? 0) : 0
   const fundido = entrada.cambio?.tipo === 'fundido'
 
   const resultado = lineas.map((linea): LineaDispuesta => {
@@ -230,6 +251,7 @@ export function disponerBloque(entrada: EntradaBloque): BloqueDispuesto {
     }
   })
 
+  const proxima = lineas.find((l) => l.hacia === 0)
   return {
     ancla,
     tamano,
@@ -238,7 +260,15 @@ export function disponerBloque(entrada: EntradaBloque): BloqueDispuesto {
       barraY: ancla - BARRA_SOBRE_ANCLA * tamano,
       cuentaY: ancla,
       // A mitad del hueco entre la caja de la activa y la de la +1 (spec, revisión de capturas).
-      puntosY: ancla + (INTERLINEA / 2 + SEPARACION_JUNTO_ACTIVA / 2) * tamano
+      puntosY: ancla + (INTERLINEA / 2 + SEPARACION_JUNTO_ACTIVA / 2) * tamano,
+      // Zonas: una fila a 0,9 S sobre el centro del primer renglón de la próxima, nunca sobre su texto.
+      ...(entrada.tamanoPx !== undefined && {
+        filaY:
+          ancla -
+          altura(proxima?.id ?? '') / 2 +
+          (INTERLINEA * tamano) / 2 -
+          FILA_SOBRE_RENGLON * tamano
+      })
     }
   }
 }

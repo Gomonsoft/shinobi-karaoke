@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   PANTALLA_PREDETERMINADA,
+  ZONAS_AREA_FIN,
+  ZONAS_AREA_INICIO,
+  ZONAS_SEPARACION_S,
+  ZONA_CORO_ESCALA_MIN,
+  ZONA_CORO_FRACCION_ALTO,
+  ZONA_ESCALA_MIN,
+  ZONA_ESCALA_SIGUIENTE,
+  ZONA_LINEAS_CANTANTE,
+  ZONA_LINEAS_CORO,
+  ZONA_OPACIDAD_INACTIVA,
+  zonasEfectivas,
   pantallaEstrictaSchema,
   pantallaSchema,
   pasadasEfectivas,
@@ -45,5 +56,16 @@ describe('pantalla', () => {
     expect(
       pantallaEstrictaSchema.safeParse({ ...PANTALLA_PREDETERMINADA, zonas: 'x' }).success
     ).toBe(false)
+  })
+})
+
+describe('zonas por parte (ADR 0029 §4 bis)', () => {
+  it('ausente vale por_parte y las constantes son las de la spec', () => {
+    expect(zonasEfectivas(PANTALLA_PREDETERMINADA)).toBe('por_parte')
+    expect(zonasEfectivas({ zonas: 'una' })).toBe('una')
+    expect([ZONAS_AREA_INICIO, ZONAS_AREA_FIN, ZONAS_SEPARACION_S]).toEqual([0.12, 0.86, 0.3])
+    expect([ZONA_CORO_FRACCION_ALTO, ZONA_LINEAS_CANTANTE, ZONA_LINEAS_CORO]).toEqual([0.5, 2, 1])
+    expect([ZONA_ESCALA_SIGUIENTE, ZONA_ESCALA_MIN, ZONA_CORO_ESCALA_MIN]).toEqual([0.7, 0.75, 0.5])
+    expect(ZONA_OPACIDAD_INACTIVA).toBe(0.55)
   })
 })

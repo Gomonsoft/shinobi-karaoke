@@ -877,10 +877,17 @@ test('el divisor enseña su tooltip a los 500 ms de hover sin mover la rejilla',
     await abrirEditor(v, T19)
     const antes = await tamanos(v)
     const caja = (await v.locator('[data-divisor="lista"]').boundingBox())!
-    await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
-    await expect(v.getByRole('tooltip', { name: E.layout.divisor.tooltip })).toBeVisible({
-      timeout: 3000
-    })
+    // El tooltip nace con `mouseenter` y 500 ms de espera. En una pasada completa el sistema entrega a la
+    // ventana `mousemove` de confianza que la prueba no ha enviado (las ventanas de los otros trabajadores
+    // se abren y se cierran bajo el cursor físico): el puntero «sale» del divisor y el temporizador se
+    // cancela (fallo en 2 de 2 pasadas, 2026-11-23). Se entra de nuevo hasta que aparece.
+    await expect(async () => {
+      await v.mouse.move(caja.x + 400, caja.y + 40)
+      await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
+      await expect(v.getByRole('tooltip', { name: E.layout.divisor.tooltip })).toBeVisible({
+        timeout: 1_500
+      })
+    }).toPass({ timeout: 20_000, intervals: [0] })
     expect(await tamanos(v)).toEqual(antes)
     await v.mouse.move(caja.x + 400, caja.y + 40)
     await expect(v.getByRole('tooltip')).toHaveCount(0)
