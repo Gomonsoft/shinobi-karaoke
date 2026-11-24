@@ -48,6 +48,16 @@ test.describe('plan 6 · pausa y doble clic en una palabra', () => {
         // La selección sigue en la línea 1.
         await expect(opcion(v, 1)).toHaveAttribute('aria-selected', 'true')
         // Clic en una fila: modo Línea con su píldora, y el cabezal no se mueve.
+        // El deslizador se refresca con retraso tras pausar: se espera a que el tiempo se asiente.
+        let previo = -1
+        await expect
+          .poll(async () => {
+            const t = await tiempo(v)
+            const quieto = t === previo
+            previo = t
+            return quieto
+          })
+          .toBe(true)
         const antes = await tiempo(v)
         await opcion(v, 2).click()
         await expect(lienzo).toContainText('Línea 2 (en pausa)')

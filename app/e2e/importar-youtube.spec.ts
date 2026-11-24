@@ -403,6 +403,8 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
   })
 
   test('bloqueado siempre: error y Reintentar', async () => {
+    // En el CI de Linux, con la CPU ocupada, la primera descarga y el reintento no caben en 90 s.
+    test.setTimeout(240_000)
     const env = preparar('yt-bloq-siempre')
     const app = await lanzar(env)
     try {
@@ -424,7 +426,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
         await expect(v.getByText('YouTube no permite la descarga ahora mismo.')).toBeVisible({
           timeout: 15_000
         })
-      }).toPass({ timeout: 90_000, intervals: [0] })
+      }).toPass({ timeout: 150_000, intervals: [0] })
     } finally {
       await cerrar(app)
     }
