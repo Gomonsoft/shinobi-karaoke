@@ -56,7 +56,13 @@ import { IDS_ZOOM, plantillaMenu } from './menu'
 import { ESQUEMA_APP, ORIGEN_APP, servirRenderer } from './appProtocolo'
 import { ESQUEMA_MEDIOS, servirMedio } from './medios'
 import { flush } from './persistencia'
-import { instalarErroresGlobales, RegistroArchivo } from './registro'
+import {
+  crearRegistroErroresRenderer,
+  instalarErroresGlobales,
+  RegistroArchivo,
+  vigilarContenidoParaRegistro,
+  type RegistroErroresRenderer
+} from './registro'
 import { COMPILACION } from './compilacion'
 import { ServicioActualizaciones } from './actualizaciones'
 import {
@@ -304,6 +310,9 @@ function iconoVentanas(): string | undefined {
   })
 }
 
+/** Errores de la interfaz hacia `app.log` (0396); existe cuando arranca la app. */
+let erroresRenderer: RegistroErroresRenderer | null = null
+
 function crearVentana(): BrowserWindow {
   const icon = iconoVentanas()
   const ventana = new BrowserWindow({
@@ -351,6 +360,8 @@ function crearVentana(): BrowserWindow {
   // Con una instalación en curso, cerrar pide confirmación al renderer (0036).
   ventana.on('close', (evento) => controlCierre.alCerrarVentana(evento))
   vigilarRenderer(ventana.webContents, controlCierre, (m) => console.warn(m))
+  // I-1: el proceso caído, sin respuesta, el error del preload y los errores de consola llegan a `app.log`.
+  if (erroresRenderer) vigilarContenidoParaRegistro(ventana.webContents, erroresRenderer)
   ventana.on('closed', () => {
     guardadoEditorPendiente = false
   })
@@ -379,6 +390,8 @@ function crearVentanaSecundaria(opciones: OpcionesVentanaSecundaria): VentanaSec
   const ventana = new BrowserWindow(icon ? { ...opciones, icon } : opciones)
   ventanas.registrar(ventana, 'secundaria')
   bloquearNavegacionTotal(ventana.webContents)
+  // Su límite de errores no puede usar el puente de la principal: lo que falle llega por la consola (0396).
+  if (erroresRenderer) vigilarContenidoParaRegistro(ventana.webContents, erroresRenderer)
   const urlDev = process.env.ELECTRON_RENDERER_URL
   void ventana.loadURL(
     !app.isPackaged && urlDev ? `${urlDev}/reproductor.html` : `${ORIGEN_APP}/reproductor.html`
@@ -447,6 +460,7 @@ if (instanciaUnica)
     instalarPermisos(session.defaultSession, origenRenderer())
     const registro = new RegistroArchivo(join(rutaDatos(), 'registros'))
     registrarError = (modulo, mensaje) => registro.escribir('error', modulo, mensaje)
+    erroresRenderer = crearRegistroErroresRenderer(registro)
     registro.escribir(
       'info',
       'arranque',
@@ -1198,6 +1212,7 @@ if (instanciaUnica)
           ventana: modoReproductor,
           sesion: servicioSesion,
           guardadoPendiente: () => guardadoEditorPendiente,
+          registrarErrorRenderer: (e) => erroresRenderer?.registrar(e),
           runtime: runtime.servicio,
           solicitudCierrePendiente: () => {
             const intencion = controlCierre.pendiente()
@@ -1256,6 +1271,9 @@ if (instanciaUnica)
               versionSo: versionSistema(),
               arquitectura: plataformaReal(process.platform, process.arch, emulada).arquitectura,
               emulada,
+              ...(!app.isPackaged && process.env.SHINOBI_E2E === '1'
+                ? { pruebas: true as const }
+                : {}),
               ytdlp: {
                 version,
                 ultimaComprobacion: servicioConfig?.obtener().ultima_comprobacion_ytdlp ?? null

@@ -98,6 +98,7 @@ export class ServicioLetras {
   private readonly debounceMs: number
   private readonly datosLrclib: OpcionesServicioLetras['datosLrclib']
   private visita: { id: string; cancionId: string; referencia: Letra | null } | null = null
+  private readonly alLiberar = new Set<(cancionId: string) => void>()
   private readonly escriturasTiempos = new Map<string, Promise<ResumenCancion>>()
 
   constructor(opciones: OpcionesServicioLetras) {
@@ -237,12 +238,20 @@ export class ServicioLetras {
   }
 
   abrirEdicion(cancionId: string): EdicionLetraIpc | null {
-    this.liberarEdicion()
+    const liberada = this.soltarVisita()
     const cancion = this.biblioteca.obtener(cancionId)
-    if (!cancion) return null
-    const sesionId = randomUUID()
-    this.visita = { id: sesionId, cancionId, referencia: structuredClone(cancion.letra) }
-    return { cancion, sesionId }
+    if (cancion) {
+      this.visita = { id: randomUUID(), cancionId, referencia: structuredClone(cancion.letra) }
+    }
+    // Se avisa con la visita nueva ya puesta: quien escuche no debe escribir bajo ella.
+    if (liberada) this.avisarLiberada(liberada)
+    return cancion && this.visita ? { cancion, sesionId: this.visita.id } : null
+  }
+
+  /** Avisa de que se liberó la visita de una canción (0394). Devuelve la baja. */
+  alLiberarEdicion(cb: (cancionId: string) => void): () => void {
+    this.alLiberar.add(cb)
+    return () => this.alLiberar.delete(cb)
   }
 
   cerrarEdicion(sesionId: string): void {
@@ -250,7 +259,24 @@ export class ServicioLetras {
   }
 
   liberarEdicion(): void {
+    const liberada = this.soltarVisita()
+    if (liberada) this.avisarLiberada(liberada)
+  }
+
+  private soltarVisita(): string | null {
+    const id = this.visita?.cancionId ?? null
     this.visita = null
+    return id
+  }
+
+  private avisarLiberada(cancionId: string): void {
+    for (const cb of [...this.alLiberar]) {
+      try {
+        cb(cancionId)
+      } catch {
+        // un oyente roto no debe tumbar el cierre del editor
+      }
+    }
   }
 
   /**
@@ -347,15 +373,17 @@ export class ServicioLetras {
    * Fines de la preparación desatendida (ADR 0025 §2, variante prudente): pone `fin_ms` con
    * `origen_fin: "preparacion"` solo en las líneas que **ahora** siguen con fin automático, por el mismo
    * camino de escritura que `guardarTiempos` y sin contarse como edición del usuario. Con el editor
-   * abierto sobre la canción no escribe (su copia en memoria lo revertiría). Devuelve cuántos puso.
+   * abierto sobre la canción no escribe (su copia en memoria lo revertiría) y devuelve `null` para que
+   * el llamador aplace los fines (0394). Devuelve cuántos puso (0 si no había nada que poner).
    */
   async aplicarFinesPreparacion(
     cancionId: string,
     fines: ReadonlyMap<string, number>
-  ): Promise<number> {
+  ): Promise<number | null> {
+    if (this.visita?.cancionId === cancionId) return null
     const cancion = this.biblioteca.obtener(cancionId)
     const letra = cancion?.letra
-    if (!cancion || !letra || this.visita?.cancionId === cancionId) return 0
+    if (!cancion || !letra) return 0
     let puestos = 0
     const lineas = letra.lineas.map((e): ElementoLetra => {
       const fin = fines.get(e.id)

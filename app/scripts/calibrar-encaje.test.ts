@@ -195,6 +195,16 @@ describe('calibrar-encaje', () => {
     expect(r.resumen.recuperadas).toBeGreaterThanOrEqual(r.resumen.desplazadas - 3)
   })
 
+  it('imprime la línea «Elección sin comprobar» con las cifras de la fixture', async () => {
+    const r = await calibrarEncaje(raiz)
+    // Letras con fines sobre voz con huecos: coinciden, nada es `dudosa` con limitación.
+    expect(r.sinComprobar.propias).toMatchObject({ elegibles: 0, de: 3 })
+    expect(r.sinComprobar.ajenas).toMatchObject({ de: 6 })
+    expect(r.sinComprobar.desplazadas.de).toBe(3 * 6)
+    expect(formatearEncaje(r)).toContain('Elección sin comprobar')
+    expect(formatearEncaje(r)).toContain('propias elegibles 0/3')
+  })
+
   it('la salida solo lleva títulos, ids y cifras: nunca el texto de la letra', async () => {
     const r = await calibrarEncaje(raiz, { ids: ['cancion-a'] })
     const texto = formatearEncaje(r)

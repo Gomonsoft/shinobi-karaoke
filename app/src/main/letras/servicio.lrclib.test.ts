@@ -113,3 +113,44 @@ describe('aplicarFinesPreparacion', () => {
     expect(l[1]).toMatchObject({ fin_ms: 6000, origen_fin: 'letra' })
   })
 })
+
+describe('aplicarFinesPreparacion con el editor y alLiberarEdicion (0394)', () => {
+  const guardada = async (s: ServicioLetras): Promise<void> => {
+    await s.guardar({ cancionId: id, origen: 'manual', lrclib_id: null, lineas: lineas() })
+  }
+
+  it('devuelve null con la visita abierta y 0 si no hay nada que poner', async () => {
+    const s = servicio()
+    await guardada(s)
+    expect(await s.aplicarFinesPreparacion(id, new Map())).toBe(0)
+    const sesion = s.abrirEdicion(id)!.sesionId
+    expect(await s.aplicarFinesPreparacion(id, new Map())).toBeNull()
+    s.cerrarEdicion(sesion)
+    expect(await s.aplicarFinesPreparacion(id, new Map())).toBe(0)
+  })
+
+  it('avisa una vez por visita liberada en los cuatro caminos y nunca sin visita', async () => {
+    const s = servicio()
+    await guardada(s)
+    const avisos: string[] = []
+    const baja = s.alLiberarEdicion((c) => avisos.push(c))
+    s.liberarEdicion()
+    s.cerrarEdicion('no-existe')
+    expect(avisos).toStrictEqual([])
+    const a = s.abrirEdicion(id)!.sesionId
+    s.cerrarEdicion(a)
+    expect(avisos).toStrictEqual([id])
+    s.abrirEdicion(id)
+    s.liberarEdicion()
+    expect(avisos).toHaveLength(2)
+    s.abrirEdicion(id)
+    await s.editarTexto({ cancionId: id, texto: 'Otra letra inventada' })
+    expect(avisos).toHaveLength(3)
+    s.abrirEdicion(id)
+    s.abrirEdicion('otra-cancion')
+    expect(avisos).toHaveLength(4)
+    baja()
+    s.liberarEdicion()
+    expect(avisos).toHaveLength(4)
+  })
+})

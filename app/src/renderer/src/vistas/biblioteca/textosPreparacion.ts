@@ -8,7 +8,10 @@ export const BIB_PREP = {
     'Ya tiene pistas y letra sincronizada. Escúchala y márcala como lista para poder cantarla.',
   origen: {
     auto: 'Letra elegida automáticamente',
-    autoCorregida: 'Letra elegida automáticamente · desfase corregido'
+    autoCorregida: 'Letra elegida automáticamente · desfase corregido',
+    autoSinComprobar: 'Letra elegida automáticamente · sin comprobar',
+    autoSinComprobarAyuda:
+      'Letra elegida automáticamente, sin comprobar con tu audio. Al revisarla, fíjate en que vaya a tiempo con la voz.'
   },
   accion: {
     revisar: 'Revisar',

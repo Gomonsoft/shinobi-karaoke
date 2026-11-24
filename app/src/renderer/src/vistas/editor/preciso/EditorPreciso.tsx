@@ -144,6 +144,12 @@ export interface EditorPrecisoProps {
   alCambiarBorrador?(borrador: BorradorLinea | null): void
   /** Región `aria-live` del editor. */
   anunciar?(texto: string): void
+  /**
+   * Se llama antes de reproducir por cuenta propia: el contenedor cancela su escucha de comprobación.
+   * `vuelve`: es «▶ Palabra», que al terminar deja todo como estaba (`alTerminarEscuchaPropia`).
+   */
+  alReproducirPropio?(vuelve: boolean): void
+  alTerminarEscuchaPropia?(): void
   ref?: Ref<EditorPrecisoApi>
 }
 
@@ -210,6 +216,8 @@ export function EditorPreciso(props: EditorPrecisoProps) {
     alFijarInicioAqui,
     alCambiarBorrador,
     anunciar,
+    alReproducirPropio,
+    alTerminarEscuchaPropia,
     ref
   } = props
   const offsetMs = letra.offset_ms
@@ -321,20 +329,46 @@ export function EditorPreciso(props: EditorPrecisoProps) {
     if (!motor.estado().sonando) void motor.reproducir()
   }
 
+  /**
+   * «Reproducir desde esta palabra» (doble clic, Mayús + Intro; spec 06, I-3): salta a
+   * `inicio − 250 ms` y suena desde ahí, sin pausa al final y sin volver. Con el bucle armado, el
+   * salto es dentro del bucle (y lo arranca si estaba en pausa).
+   */
+  function reproducirDesdePalabra(k: number) {
+    const p = estadoRef.current.actual.palabras[k]
+    if (!p || em.duracionMs === null) return
+    intento.current++
+    alReproducirPropio?.(false)
+    const desdeMs = Math.max(0, aAudio(p.inicio_ms) - MARGEN_ESCUCHA_PALABRA_MS)
+    if (bucleOnRef.current) {
+      motor.fijarBucle(bucleAudio)
+      motor.buscar(Math.max(desdeMs, bucleAudio.inicioMs))
+      if (!motor.estado().sonando) void motor.reproducir()
+      return
+    }
+    void motor.reproducir({ desdeMs })
+  }
+
+  /**
+   * ▶ Palabra: suena la palabra con 250 ms de margen y todo queda como estaba (la posición previa y,
+   * si sonaba por el transporte o el bucle, sigue sonando desde ahí).
+   */
   function escucharPalabra(k: number) {
     const p = estadoRef.current.actual.palabras[k]
     if (!p || em.duracionMs === null) return
     const mia = ++intento.current
+    alReproducirPropio?.(true)
     const previa = motor.posicionMs()
-    const habiaBucle = bucleOnRef.current && motor.estado().sonando
+    const habiaSonando = motor.estado().sonando
     motor.pausar()
     const volver = () => {
       baja()
       if (intento.current !== mia) return
+      alTerminarEscuchaPropia?.()
       motor.pausar()
       motor.buscar(previa)
       if (bucleOnRef.current) motor.fijarBucle(bucleAudio)
-      if (habiaBucle) void motor.reproducir({ desdeMs: previa })
+      if (habiaSonando) void motor.reproducir({ desdeMs: previa })
     }
     const baja = motor.suscribir((e) => {
       if (!e.sonando) volver()
@@ -611,6 +645,11 @@ export function EditorPreciso(props: EditorPrecisoProps) {
   function alTeclearTira(e: TeclaReact<HTMLElement>) {
     if (e.key !== 'Enter' || e.ctrlKey || e.metaKey || e.altKey) return
     e.preventDefault()
+    if (e.shiftKey) {
+      // Mayús + Intro equivale al doble clic y no marca.
+      if (!e.repeat) reproducirDesdePalabra(estadoRef.current.seleccionada)
+      return
+    }
     if (!e.repeat) marcar(e.timeStamp)
   }
   function alSoltarTecla(e: TeclaReact<HTMLElement>) {
@@ -767,7 +806,7 @@ export function EditorPreciso(props: EditorPrecisoProps) {
                   alSeleccionar={(k) => despachar({ tipo: 'seleccionar', indice: k })}
                   alEscucharPalabra={(k) => {
                     despachar({ tipo: 'seleccionar', indice: k })
-                    escucharPalabra(k)
+                    reproducirDesdePalabra(k)
                   }}
                   alTeclear={alTeclearTira}
                 >

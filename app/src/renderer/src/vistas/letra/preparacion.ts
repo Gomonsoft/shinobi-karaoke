@@ -2,6 +2,12 @@
 export const LP = {
   elegida:
     'Elegimos esta letra por ti: es la coincidencia exacta de LRCLIB y coincide con tu audio.',
+  /** `let.prep.elegida.sinComprobar`: lo que va entre `inicio` y `fin` sale en negrita. */
+  elegidaSinComprobar: {
+    inicio: 'Elegimos esta letra por ti: es la coincidencia exacta de LRCLIB, pero ',
+    negrita: 'no hemos podido comprobarla con tu audio',
+    fin: '. Pasa a menudo y no quiere decir que esté mal: al revisarla, fíjate en que vaya a tiempo con la voz.'
+  },
   elegidaCorregida: (d: string, adelantada: boolean): string =>
     `Elegimos esta letra por ti: es la coincidencia exacta de LRCLIB. Iba ${d} s ${adelantada ? 'adelantada' : 'atrasada'} y la hemos corregido.`,
   verOtras: 'Ver otras candidatas',

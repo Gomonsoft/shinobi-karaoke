@@ -40,6 +40,7 @@ const ATAJOS_PRECISO = [
   ['Espacio', 'Reproducir / pausar el bucle de la línea'],
   ['Mayús + Espacio', 'Escuchar la palabra seleccionada'],
   ['Intro', 'Marcar el inicio de la palabra; mantener, marcar también su fin'],
+  ['Mayús + Intro', 'Reproducir desde esta palabra (como el doble clic)'],
   ['Retroceso', 'Deshacer la última marca de la pasada'],
   ['← / → (en la tira)', 'Palabra anterior / siguiente'],
   ['Alt + ← / →', 'Inicio de la palabra −/+ 10 ms (con Mayús, 100 ms)'],

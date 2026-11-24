@@ -7,6 +7,8 @@ export const EP = {
       ? `El ${fecha} pediste ajustar los fines que faltaban:`
       : 'Pediste ajustar los fines que faltaban:',
   letraApp: 'Letra de LRCLIB, coincidencia exacta.',
+  letraSinComprobar:
+    'Letra de LRCLIB, coincidencia exacta, sin comprobar con tu audio: fíjate en que vaya a tiempo con la voz.',
   letraUsuario: 'Letra de LRCLIB, elegida por ti.',
   verOtras: 'Ver otras candidatas',
   fines: (n: number): string =>

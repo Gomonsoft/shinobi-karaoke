@@ -48,6 +48,8 @@ export const PREP = {
   r1: {
     titulo: 'Lista para revisar',
     letraApp: 'Letra de LRCLIB, coincidencia exacta.',
+    letraSinComprobar:
+      'Letra de LRCLIB, coincidencia exacta. No hemos podido comprobarla con tu audio: al revisarla, fíjate en que vaya a tiempo con la voz.',
     letraUsuario: 'Letra de LRCLIB, elegida por ti.',
     fines: (n: number) => `Fin de ${n} ${plural(n, 'línea', 'líneas')} ajustado con la voz.`,
     pie: 'Escúchala, corrige lo que no coincida y márcala como lista.'

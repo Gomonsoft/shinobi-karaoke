@@ -196,6 +196,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
             dudosas: cancion.preparacion.dudosas,
             revisada: cancion.preparacion.revisada,
             eleccionAutomatica: cancion.preparacion.eleccion?.por === 'app',
+            eleccionSinComprobar:
+              cancion.preparacion.eleccion?.por === 'app' &&
+              cancion.preparacion.eleccion.sin_comprobar === true,
             desfaseCorregido: cancion.letra?.desfase_corregido_ms !== undefined
           }
         : null
@@ -388,6 +391,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     app: {
       async guardadoPendiente(pendiente) {
         registrar('app.guardadoPendiente', pendiente)
+      },
+      async registrarError(error) {
+        registrar('app.registrarError', error)
       }
     },
     trabajos: {

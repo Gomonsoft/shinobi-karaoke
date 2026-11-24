@@ -512,6 +512,8 @@ export const resumenPreparacionSchema = z.object({
   revisada: z.boolean(),
   /** La eligió la app y no la ha cambiado el usuario (línea «Letra elegida automáticamente»). */
   eleccionAutomatica: z.boolean(),
+  /** La app la eligió sin poder comprobarla con tu audio (0.2.3, tarea 0393). */
+  eleccionSinComprobar: z.boolean(),
   /** Se corrigió el desfase al elegirla (`bib.prep.origen.autoCorregida`). */
   desfaseCorregido: z.boolean()
 })
@@ -744,6 +746,8 @@ export const infoSistemaSchema = z.object({
   /** Arquitectura real del equipo: `arm64` aunque la app vaya emulada (0031). */
   arquitectura: z.string().optional(),
   emulada: z.boolean().optional(),
+  /** Solo en E2E (sin empaquetar y con `SHINOBI_E2E=1`): habilita ganchos de prueba de la interfaz (0396). */
+  pruebas: z.literal(true).optional(),
   /** yt-dlp instalado y fecha de su última comprobación; `null` si no existe todavía. */
   ytdlp: z
     .object({ version: z.string().nullable(), ultimaComprobacion: z.string().nullable() })
@@ -1676,6 +1680,22 @@ export type ErrorIpc = z.infer<typeof errorIpcSchema>
 
 export type RespuestaIpc<T> = { ok: true; valor: T } | { ok: false; error: ErrorIpc }
 
+/** Límites de lo que el renderer puede mandar a `app.log` (0396): un error es una línea, no un volcado. */
+export const MAX_MENSAJE_ERROR_RENDERER = 500
+export const MAX_PILA_ERROR_RENDERER = 3000
+export const ORIGENES_ERROR_RENDERER = ['onerror', 'promesa', 'react', 'consola'] as const
+/** Error de la interfaz. Sin texto de letras: solo mensaje y pila del error, vista e id de la canción. */
+export const errorRendererSchema = z.object({
+  origen: z.enum(ORIGENES_ERROR_RENDERER),
+  mensaje: z.string().max(MAX_MENSAJE_ERROR_RENDERER),
+  pila: z.string().max(MAX_PILA_ERROR_RENDERER).optional(),
+  /** Pila de componentes de React (`componentStack`). */
+  componentes: z.string().max(MAX_PILA_ERROR_RENDERER).optional(),
+  vista: z.string().max(40).optional(),
+  cancionId: z.string().max(80).optional()
+})
+export type ErrorRendererIpc = z.infer<typeof errorRendererSchema>
+
 const vacio = z.tuple([])
 const unId = z.tuple([idCancionSchema])
 const unBooleano = z.tuple([z.boolean()])
@@ -1821,6 +1841,7 @@ export const CONTRATO = {
   [CANALES.letras.cerrarEdicion]: { args: z.tuple([idSesionEdicionSchema]), res: z.void() },
   [CANALES.letras.leerArchivo]: { args: vacio, res: archivoLetraLeidoSchema },
   [CANALES.app.guardadoPendiente]: { args: z.tuple([z.boolean()]), res: z.void() },
+  [CANALES.app.registrarError]: { args: z.tuple([errorRendererSchema]), res: z.void() },
   [CANALES.app.confirmarCierre]: { args: vacio, res: z.void() },
   [CANALES.app.salir]: { args: vacio, res: z.void() },
   [CANALES.app.solicitudCierrePendiente]: { args: vacio, res: solicitudCierreSchema.nullable() },
@@ -2353,6 +2374,8 @@ export interface ApiShinobi {
     /** Responde a `alSolicitudCierre`: main pausa la instalación y cierra. No responder = seguir. */
     /** Avisa de cambios del editor sin escribir antes de cerrar. */
     guardadoPendiente(pendiente: boolean): Promise<void>
+    /** Lleva un error de la interfaz a `app.log` (0396). */
+    registrarError(error: ErrorRendererIpc): Promise<void>
     confirmarCierre(): Promise<void>
     /** Sale de la aplicación (en macOS, `window.close()` deja la app en el Dock). */
     salir(): Promise<void>

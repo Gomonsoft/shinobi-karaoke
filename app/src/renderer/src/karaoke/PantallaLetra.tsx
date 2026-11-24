@@ -310,11 +310,18 @@ export function PantallaLetra({
       movimiento: reducido ? 'reducido' : 'completo'
     })
 
-  const [vivo, setVivo] = useState<FotogramaLetra[] | null>(null)
+  // El fotograma en vivo es de las zonas con las que se calculó: si estas cambian (otro «Varias voces», un
+  // cantante o un coro nuevos) sin que haya pasado aún un fotograma, no vale (I-1: leía `fotogramas[i]` de más y
+  // desmontaba el editor entero).
+  const [vivo, setVivo] = useState<{ zonas: ZonaLetra[]; fotogramas: FotogramaLetra[] } | null>(
+    null
+  )
   const fotogramas: FotogramaLetra[] = fijo
     ? calcular(tiempoFijoMs)
     : reproduciendo
-      ? (vivo ?? calcular(0))
+      ? vivo?.zonas === zonas
+        ? vivo.fotogramas
+        : calcular(obtenerTiempoAudio?.() ?? 0)
       : fotogramasEstaticosDeZonas(zonas, letra, idEstatico, pantalla)
   const vivoConReloj = reproduciendo && !!obtenerTiempoAudio && !fijo
   const claveRender = claveDe(fotogramas)
@@ -523,7 +530,7 @@ export function PantallaLetra({
       })
       modelo.current = f
       const clave = claveDe(f)
-      if (clave !== anterior) setVivo(f)
+      if (clave !== anterior) setVivo({ zonas, fotogramas: f })
       else pintarRef.current()
       anterior = clave
       const hueco = f[zonaEsperaDe(f)]?.espera
@@ -720,7 +727,11 @@ export function PantallaLetra({
           )
         })
       )}
-      {etiqueta && <span className={estilos.etiqueta}>{etiqueta}</span>}
+      {etiqueta && (
+        <span className={estilos.etiqueta} aria-hidden="true">
+          {etiqueta}
+        </span>
+      )}
     </div>
   )
 }

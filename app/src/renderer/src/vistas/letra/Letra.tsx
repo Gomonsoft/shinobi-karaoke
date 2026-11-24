@@ -133,9 +133,12 @@ export function Letra({ id }: { id: string }) {
   const desfaseMs = cancion?.letra?.desfase_corregido_ms ?? 0
   const textoEleccion =
     prep?.eleccionAutomatica && !prep.revisada && !avisoCerrado
-      ? desfaseMs !== 0
-        ? LP.elegidaCorregida(segundosDe(desfaseMs), desfaseMs > 0)
-        : LP.elegida
+      ? prep.eleccionSinComprobar
+        ? // Nunca se combina con la corrección: manda «sin comprobar» (spec 05, F5-L9).
+          `${LP.elegidaSinComprobar.inicio}${LP.elegidaSinComprobar.negrita}${LP.elegidaSinComprobar.fin}`
+        : desfaseMs !== 0
+          ? LP.elegidaCorregida(segundosDe(desfaseMs), desfaseMs > 0)
+          : LP.elegida
       : null
   const cerrarAviso = () => {
     setAvisoCerrado(true)
@@ -206,6 +209,7 @@ export function Letra({ id }: { id: string }) {
       {carga.estado === 'listo' && elegida !== null && textoEleccion && (
         <AvisoEleccion
           texto={textoEleccion}
+          sinComprobar={prep?.eleccionSinComprobar === true}
           alCerrar={cerrarAviso}
           alVerOtras={() => {
             setLetraActualId(letraC?.letra.lrclib_id ?? null)

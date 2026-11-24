@@ -175,6 +175,72 @@ it('▶ Palabra escucha la palabra con 250 ms antes y después', () => {
   expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 11750, hastaMs: 12472 })
 })
 
+it('doble clic con la canción sonando reproduce desde la palabra y no vuelve (I3-1)', async () => {
+  montar()
+  motor.emitir({ sonando: true })
+  fireEvent.doubleClick(screen.getAllByRole('option')[0]!)
+  expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 11750 })
+  expect(motor.pausar).not.toHaveBeenCalled()
+  motor.emitir({ sonando: false })
+  await Promise.resolve()
+  expect(motor.buscar).not.toHaveBeenCalled()
+})
+
+it('doble clic en pausa empieza a sonar desde la palabra y no vuelve (I3-2)', async () => {
+  montar()
+  fireEvent.doubleClick(screen.getAllByRole('option')[0]!)
+  expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 11750 })
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(motor.buscar).not.toHaveBeenCalled()
+})
+
+it('doble clic con el bucle activo salta dentro del bucle (I3-3)', () => {
+  montar()
+  fireEvent.click(screen.getByRole('button', { name: /Bucle de la línea/ }))
+  motor.emitir({ sonando: true })
+  vi.mocked(motor.reproducir).mockClear()
+  vi.mocked(motor.fijarBucle).mockClear()
+  fireEvent.doubleClick(screen.getAllByRole('option')[3]!)
+  // «this» (3.ª palabra) está a mitad de la línea: se salta 250 ms antes de su inicio.
+  expect(motor.buscar).toHaveBeenCalledTimes(1)
+  const destino = vi.mocked(motor.buscar).mock.calls[0]![0]
+  expect(destino).toBeGreaterThanOrEqual(11500)
+  expect(motor.fijarBucle).toHaveBeenCalled()
+  expect(motor.fijarBucle).not.toHaveBeenCalledWith(null)
+  // Sonando: el bucle sigue sin reiniciar la reproducción.
+  expect(motor.reproducir).not.toHaveBeenCalled()
+})
+
+it('▶ Palabra con el transporte sonando sigue sonando desde donde estaba (I3-5)', async () => {
+  montar()
+  motor.emitir({ sonando: true })
+  fireEvent.click(screen.getByRole('button', { name: /Escuchar la palabra seleccionada/ }))
+  expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 11750, hastaMs: 12472 })
+  motor.emitir({ sonando: false })
+  expect(motor.buscar).toHaveBeenCalledWith(12300)
+  expect(motor.reproducir).toHaveBeenLastCalledWith({ desdeMs: 12300 })
+})
+
+it('Mayús + Intro reproduce desde la palabra seleccionada y no marca (I3-7)', () => {
+  montar()
+  const o = screen.getAllByRole('option')[0]!
+  fireEvent.keyDown(o, { key: 'Enter', shiftKey: true })
+  expect(motor.reproducir).toHaveBeenCalledWith({ desdeMs: 11750 })
+  recuento(0)
+  tecla(o, 'keyDown', 'Enter', 1)
+  recuento(1)
+})
+
+it('un solo clic en una palabra con la canción sonando solo la selecciona', () => {
+  montar()
+  motor.emitir({ sonando: true })
+  fireEvent.click(screen.getAllByRole('option')[1]!)
+  expect(motor.reproducir).not.toHaveBeenCalled()
+  expect(motor.pausar).not.toHaveBeenCalled()
+  expect(screen.getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+})
+
 it('la nota del tono solo aparece si falla la preparación con velocidad < 1×', () => {
   montar()
   expect(screen.queryByText(/el tono también baja/)).toBeNull()

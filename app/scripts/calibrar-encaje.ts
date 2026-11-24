@@ -89,6 +89,21 @@ export interface FilaAjena {
   veredicto: string
   aceptada: boolean
 }
+/**
+ * «Elección sin comprobar» (tarea 0393, ADR 0025 revisión 2026-11-23): letras tal cual que la preparación
+ * elegiría sin poder comprobarlas (`dudosa` con limitación; la duración y el texto se miran en la elección).
+ */
+export interface EleccionSinComprobar {
+  propias: { elegibles: number; de: number; ids: string[] }
+  /** Pares letra→voz elegibles; `enDuracion` los de pares con duraciones a ≤ 2000 ms. */
+  ajenas: {
+    elegibles: number
+    de: number
+    enDuracion: { elegibles: number; de: number; pares: string[] }
+  }
+  /** Letras propias movidas ±0,8 s o más. */
+  desplazadas: { elegibles: number; de: number }
+}
 export interface ResultadoEncajeCalibracion {
   canciones: string[]
   avisos: string[]
@@ -96,6 +111,7 @@ export interface ResultadoEncajeCalibracion {
   desplazadas: FilaDesplazada[]
   ajenas: FilaAjena[]
   resumen: ResumenVariante
+  sinComprobar: EleccionSinComprobar
   seguridad: CriterioSeguridad
   /** Solo con `--variantes`. */
   variantes?: ResultadoVariantes
@@ -206,6 +222,11 @@ const evaluar = (letra: Letra, nivel: NivelBase, p: ParametrosEncaje): Resultado
       p
     }
   )
+
+const elegibleSinComprobar = (r: ResultadoEncaje): boolean =>
+  r.veredicto === 'dudosa' && r.limitacion != null
+/** Misma tolerancia de duración que `elegirLetra` (ADR 0025 §3). */
+const DURACION_MAXIMA_MS = 2000
 
 const sinFines = (l: Letra): Letra => ({
   ...l,
@@ -362,11 +383,21 @@ export async function calibrarEncaje(
     if (c) canciones.push(c)
   }
 
+  const sc: EleccionSinComprobar = {
+    propias: { elegibles: 0, de: 0, ids: [] },
+    ajenas: { elegibles: 0, de: 0, enDuracion: { elegibles: 0, de: 0, pares: [] } },
+    desplazadas: { elegibles: 0, de: 0 }
+  }
   const propias: FilaPropia[] = []
   const desplazadas: FilaDesplazada[] = []
   const ajenas: FilaAjena[] = []
   for (const c of canciones) {
     const r = evaluar(c.letra, c.nivel, p)
+    sc.propias.de++
+    if (elegibleSinComprobar(r)) {
+      sc.propias.elegibles++
+      sc.propias.ids.push(c.id.slice(0, 8))
+    }
     propias.push({
       id: c.id,
       titulo: c.titulo,
@@ -386,6 +417,10 @@ export async function calibrarEncaje(
     for (const desplazamientoMs of DESPLAZAMIENTOS_MS) {
       const d = evaluar({ ...c.letra, offset_ms: desplazamientoMs }, c.nivel, p)
       const errorMs = Math.abs(d.desfaseMs + desplazamientoMs)
+      if (Math.abs(desplazamientoMs) >= DESFASE_SENSIBLE_MS) {
+        sc.desplazadas.de++
+        if (elegibleSinComprobar(d)) sc.desplazadas.elegibles++
+      }
       desplazadas.push({
         id: c.id,
         desplazamientoMs,
@@ -401,6 +436,16 @@ export async function calibrarEncaje(
     for (const otra of canciones) {
       if (otra.id === c.id) continue
       const a = evaluar(c.letra, otra.nivel, p)
+      const cerca = Math.abs(c.nivel.duracionMs - otra.nivel.duracionMs) <= DURACION_MAXIMA_MS
+      sc.ajenas.de++
+      if (cerca) sc.ajenas.enDuracion.de++
+      if (elegibleSinComprobar(a)) {
+        sc.ajenas.elegibles++
+        if (cerca) {
+          sc.ajenas.enDuracion.elegibles++
+          sc.ajenas.enDuracion.pares.push(`${c.id.slice(0, 8)}→${otra.id.slice(0, 8)}`)
+        }
+      }
       ajenas.push({
         letra: c.id,
         voz: otra.id,
@@ -421,6 +466,7 @@ export async function calibrarEncaje(
     desplazadas,
     ajenas,
     resumen,
+    sinComprobar: sc,
     seguridad: { cumple: comprobadas.every((n) => seguro(resumenDe(n))), en: comprobadas },
     ...(variantesResultado ? { variantes: variantesResultado } : {}),
     ...(inicios ? { inicios: medirIniciosCanciones(canciones, p) } : {})
@@ -485,6 +531,15 @@ export function formatearEncaje(r: ResultadoEncajeCalibracion): string {
         ` ajenas = 0 en las tres: ${si(criterio.ajenasEnCero)})`
     )
   }
+  const sc = r.sinComprobar
+  salida.push(
+    `Elección sin comprobar (ADR 0025, 2026-11-23): propias elegibles ${sc.propias.elegibles}/${sc.propias.de}` +
+      (sc.propias.ids.length > 0 ? ` [${sc.propias.ids.join(', ')}]` : '') +
+      `; ajenas elegibles ${sc.ajenas.elegibles}/${sc.ajenas.de}, con duraciones a ≤ ${DURACION_MAXIMA_MS} ms ` +
+      `${sc.ajenas.enDuracion.elegibles}/${sc.ajenas.enDuracion.de}` +
+      (sc.ajenas.enDuracion.pares.length > 0 ? ` [${sc.ajenas.enDuracion.pares.join(', ')}]` : '') +
+      `; desplazadas ±0,8 s o más elegibles ${sc.desplazadas.elegibles}/${sc.desplazadas.de}`
+  )
   salida.push(
     `Criterio de seguridad (ADR 0024, revisión 2026-11-22): ${r.seguridad.cumple ? 'SÍ' : 'NO'}` +
       ` (${r.seguridad.en.map((n) => (n === 'talCual' ? 'tal cual' : 'sin fines')).join(' y ')}: 0 ajenas aceptadas, 0 falsos coincide, 0 propias desfasada, 0 correcciones malas)`

@@ -115,7 +115,13 @@ export interface DependenciasPreparacion {
         datosLrclib: { titulo: string; artista: string; album: string | null }
       }
     ): Promise<unknown>
-    aplicarFinesPreparacion(cancionId: string, fines: ReadonlyMap<string, number>): Promise<number>
+    /** `null`: el editor tiene abierta la canción y no se escribió (0394: se aplazan los fines). */
+    aplicarFinesPreparacion(
+      cancionId: string,
+      fines: ReadonlyMap<string, number>
+    ): Promise<number | null>
+    /** Aviso de que el editor soltó la canción (0394). Devuelve la baja. */
+    alLiberarEdicion?(cb: (cancionId: string) => void): () => void
     /** El editor tiene abierta la letra de esa canción (no se escribe: su copia en memoria la revertiría). */
     enEdicion?(cancionId: string): boolean
   }
@@ -216,6 +222,9 @@ export class ServicioPreparacion {
   private readonly firmasDudosas = new Map<string, string>()
   private readonly recuentos = new Map<string, Promise<void>>()
   private readonly baja: () => void
+  private readonly bajaEdicion: (() => void) | undefined
+  /** Canciones cuyos fines esperan a que el editor se cierre (0394). Solo en memoria. */
+  private readonly finesAplazados = new Set<string>()
   private readonly ahora: () => Date
   private readonly esperar: (ms: number, señal: AbortSignal) => Promise<void>
   private readonly sondeoMs: number
@@ -227,6 +236,7 @@ export class ServicioPreparacion {
     this.sondeoMs = deps.sondeoMs ?? SONDEO_MS
     this.reintentosMs = deps.reintentosBusquedaMs ?? REINTENTOS_BUSQUEDA_MS
     this.baja = deps.biblioteca.suscribir((e) => this.alCambiarCancion(e))
+    this.bajaEdicion = deps.letras.alLiberarEdicion?.((id) => this.alLiberarEdicion(id))
   }
 
   // --- Consultas ---------------------------------------------------------------------------------
@@ -367,7 +377,8 @@ export class ServicioPreparacion {
         }
       )
       const fines = new Map(propuesta.cambios.map((x) => [x.id, x.finDespues]))
-      return { puestos: await this.deps.letras.aplicarFinesPreparacion(id, fines) }
+      const puestos = await this.deps.letras.aplicarFinesPreparacion(id, fines)
+      return puestos === null ? { motivo: 'EDICION_BLOQUEADA' } : { puestos }
     })()
     this.listas.add(trabajo)
     try {
@@ -453,6 +464,7 @@ export class ServicioPreparacion {
   /** Salida definitiva de la app: se deja de escuchar la biblioteca y se detiene todo. */
   async cerrar(): Promise<void> {
     this.baja()
+    this.bajaEdicion?.()
     await this.detenerPorCierre()
   }
 
@@ -661,7 +673,7 @@ export class ServicioPreparacion {
       }
       // Nunca se sustituye una letra: si el usuario guardó una mientras tanto, solo se comprueba.
       if (contarLineas(this.deps.biblioteca.obtener(id)?.letra) === 0) {
-        const { candidato, desfaseMs } = decision
+        const { candidato, desfaseMs, sinComprobar } = decision
         await this.escribirLetra(c, async () => {
           await this.deps.letras.guardar(
             {
@@ -687,10 +699,17 @@ export class ServicioPreparacion {
           eleccion: {
             por: 'app',
             fecha: this.ahora().toISOString(),
-            lrclib_id: candidato.lrclib_id
+            lrclib_id: candidato.lrclib_id,
+            ...(sinComprobar ? { sin_comprobar: true as const } : {})
           },
           ...(desfaseMs === null ? {} : { desfase_ms: desfaseMs })
         })
+        if (sinComprobar) {
+          this.deps.registrar?.(
+            'info',
+            `${MODULO} ${id}: letra elegida sin comprobar (limitacion=${decision.limitacion ?? 'desconocida'})`
+          )
+        }
         return true
       }
     }
@@ -749,11 +768,77 @@ export class ServicioPreparacion {
       }
     )
     const fines = new Map(propuesta.cambios.map((x) => [x.id, x.finDespues]))
-    let puestos = 0
+    let puestos: number | null = 0
     await this.escribirLetra(c, async () => {
       puestos = await this.deps.letras.aplicarFinesPreparacion(id, fines)
     })
+    if (puestos === null) {
+      // El editor tiene la canción: no se da el paso por hecho; se pone al cerrarlo (0394).
+      this.finesAplazados.add(id)
+      this.deps.registrar?.('info', `${MODULO} ${id}: fines aplazados (editor abierto)`)
+      return
+    }
     await this.fijar(c, { fines: { metodo: 'silencios', lineas: puestos } })
+    this.deps.registrar?.('info', `${MODULO} ${id}: fines puestos=${puestos}`)
+  }
+
+  /** El editor soltó la canción: si sus fines estaban aplazados, se intentan (0394). */
+  private alLiberarEdicion(id: string): void {
+    if (!this.finesAplazados.delete(id)) return
+    const trabajo = this.ponerFinesAplazados(id)
+      .catch((e: unknown) =>
+        this.deps.registrar?.('error', `${MODULO} ${id}: fines aplazados: ${String(e)}`)
+      )
+      .finally(() => this.listas.delete(trabajo))
+    this.listas.add(trabajo)
+  }
+
+  private async ponerFinesAplazados(id: string): Promise<void> {
+    if (this.corridas.has(id)) return
+    const cancion = this.deps.biblioteca.obtener(id)
+    const p = cancion?.preparacion
+    if (
+      !cancion ||
+      !p ||
+      cancion.estado !== 'borrador' ||
+      p.estado !== 'lista_para_revisar' ||
+      p.fines ||
+      cancion.letra?.intacta !== true ||
+      this.deps.edicionBloqueada()
+    ) {
+      return
+    }
+    const nivel = await this.deps.picos.nivelBase(id)
+    if (!nivel) return
+    const propuesta = proponerAjusteSilenciosSinSolapes(
+      cancion.letra,
+      detectarVoz({ pasoMs: nivel.pasoMs, pares: nivel.pares }),
+      {
+        duracionMs: nivel.duracionMs,
+        espera: ESPERA_LEGADA,
+        soloFinesAutomaticos: true,
+        activarComodin: false,
+        origenFin: 'preparacion'
+      }
+    )
+    const fines = new Map(propuesta.cambios.map((x) => [x.id, x.finDespues]))
+    const puestos = await this.deps.letras.aplicarFinesPreparacion(id, fines)
+    if (puestos === null) {
+      this.finesAplazados.add(id)
+      return
+    }
+    const actual = this.deps.biblioteca.obtener(id)
+    if (!actual?.preparacion) return
+    const n = (await this.deps.contarDudosas(actual)) ?? { dudosas: 0, importantes: 0 }
+    const ultimo = this.deps.biblioteca.obtener(id)?.preparacion
+    if (!ultimo) return
+    await this.escribirRegistro(id, {
+      ...ultimo,
+      fines: { metodo: 'silencios', lineas: puestos },
+      dudosas: n.dudosas,
+      dudosas_importantes: n.importantes
+    })
+    this.deps.registrar?.('info', `${MODULO} ${id}: fines aplazados puestos=${puestos}`)
   }
 
   // --- Escritura y espera ------------------------------------------------------------------------

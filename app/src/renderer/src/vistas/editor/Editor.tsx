@@ -145,6 +145,7 @@ import { useGuardadoEditor, type SecuenciaResumen } from './useGuardadoEditor'
 import { useTemaEditor } from './useTemaEditor'
 import { usePreferenciasPaneles } from './usePreferenciasPaneles'
 import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
+import { esperarSalvamento, hayFalloDeInterfaz } from '../../soporte/salvamento'
 import estilos from './editor.module.css'
 
 type Carga = { cancion: Cancion; config: Config; resumen: ResumenCancionIpc }
@@ -251,7 +252,12 @@ export function Editor({ id }: { id: string }) {
       bajaTemas()
       const token = sesion.current
       sesion.current = null
-      if (token) void api.letras.cerrarEdicion(token).catch(() => undefined)
+      if (token) {
+        const cerrar = () => void api.letras.cerrarEdicion(token).catch(() => undefined)
+        // Tras un fallo de dibujo, el lote pendiente aún necesita la sesión: se cierra al terminar de enviarlo.
+        if (hayFalloDeInterfaz()) void esperarSalvamento().finally(cerrar)
+        else cerrar()
+      }
     }
   }, [id, leerVisita, resumenes])
 
@@ -523,7 +529,38 @@ function EditorActivo({
 
   const [escucharAjustes, setEscucharAjustes] = useState(true)
   const [ayudaBluetooth, setAyudaBluetooth] = useState(false)
-  const escucha = useMemo(() => (motor ? new EscuchaComprobacion(motor) : null), [motor])
+  // Modo de la vista previa en pausa (spec 06 · I-2): `cabezal` dibuja el fotograma del reproductor
+  // en la posición del cabezal; `linea`, la línea seleccionada. Las escuchas que vuelven solas
+  // (comprobación, «▶ Palabra») dejan el modo que había antes.
+  const [modoPrevia, setModoPrevia] = useState<'cabezal' | 'linea'>('linea')
+  const modoRef = useRef(modoPrevia)
+  useEffect(() => {
+    modoRef.current = modoPrevia
+  })
+  const modoGuardado = useRef<'cabezal' | 'linea' | null>(null)
+  const [enEscucha, setEnEscucha] = useState<'activa' | 'fin' | null>(null)
+  const eventosEscucha = useMemo(
+    () => ({
+      alIniciar: () => {
+        modoGuardado.current ??= modoRef.current
+        setEnEscucha((e) => e ?? 'activa')
+      },
+      alTerminar: () => {
+        if (modoGuardado.current) setModoPrevia(modoGuardado.current)
+        modoGuardado.current = null
+        setEnEscucha((e) => (e ? 'fin' : e))
+      },
+      alCancelar: () => {
+        modoGuardado.current = null
+        setEnEscucha(null)
+      }
+    }),
+    []
+  )
+  const escucha = useMemo(
+    () => (motor ? new EscuchaComprobacion(motor, undefined, eventosEscucha) : null),
+    [motor, eventosEscucha]
+  )
   useEffect(() => () => escucha?.cancelar(), [escucha])
 
   useEffect(() => {
@@ -577,6 +614,40 @@ function EditorActivo({
   }, [edicion.sync.activo])
 
   const sonando = audio?.sonando ?? false
+  // Al pausar (o al acabar solo un tramo) manda el cabezal; seleccionar o editar la línea en pausa, la línea.
+  const letraEditada = edicion.actual.letra
+  const [vista, setVista] = useState({
+    sonando,
+    sync: edicion.sync.activo,
+    prueba: prueba !== null,
+    seleccion: edicion.seleccion,
+    letra: letraEditada
+  })
+  if (
+    enEscucha === 'fin' ||
+    vista.sonando !== sonando ||
+    vista.sync !== edicion.sync.activo ||
+    vista.prueba !== (prueba !== null) ||
+    vista.seleccion !== edicion.seleccion ||
+    vista.letra !== letraEditada
+  ) {
+    let modo = modoPrevia
+    if (!sonando && (vista.seleccion !== edicion.seleccion || vista.letra !== letraEditada)) {
+      modo = 'linea'
+    }
+    if (vista.sonando && !sonando && enEscucha === null) modo = 'cabezal'
+    if (vista.sync && !edicion.sync.activo) modo = 'cabezal'
+    if (vista.prueba && prueba === null) modo = 'cabezal'
+    if (enEscucha === 'fin') setEnEscucha(null)
+    if (modo !== modoPrevia && enEscucha !== 'fin') setModoPrevia(modo)
+    setVista({
+      sonando,
+      sync: edicion.sync.activo,
+      prueba: prueba !== null,
+      seleccion: edicion.seleccion,
+      letra: letraEditada
+    })
+  }
   const duracionMs = audio?.duracionMs ?? metadatos.duracion_ms
   const obtenerTiempoAudio = useCallback(() => motor?.posicionMs() ?? 0, [motor])
   const sync = useSincronizarAlRitmo({
@@ -754,6 +825,32 @@ function EditorActivo({
   })
   // Con un ejemplo en marcha, la vista previa enseña el suyo (el de pantalla, sin indicadores).
   const ejemploVista = ejemploEspera.ejemplo ? ejemploEspera : ejemploPantalla
+  // En pausa: modo Cabezal (el fotograma del reproductor en el cabezal) o Línea (la seleccionada).
+  const hayTiempos = letra.lineas.some((l) => l.inicio_ms !== null)
+  const modoVista = hayTiempos ? modoPrevia : 'linea'
+  const fotogramaCabezal = !sonando && !ejemploVista.ejemplo && modoVista === 'cabezal'
+  const etiquetaLinea =
+    !sonando && modoVista === 'linea' && edicion.seleccion
+      ? E.previaLinea(numeroDeLinea(letra, edicion.seleccion))
+      : undefined
+  // ▶ de la lista en pausa: las líneas que suenan en el cabezal (ninguna en un hueco, varias en un solape).
+  const filasQueSuenan = useMemo(() => {
+    if (sonando || !motor) return undefined
+    const t = motor.posicionMs() - letra.offset_ms
+    return new Set(
+      letra.lineas
+        .filter(
+          (l) =>
+            l.tipo === 'linea' &&
+            l.inicio_ms !== null &&
+            l.inicio_ms <= t &&
+            t < (finEfectivo(letra, l.id, duracionMs) ?? l.inicio_ms)
+        )
+        .map((l) => l.id)
+    )
+    // La posición exacta se lee al pausar o buscar (`posicion` cambia entonces).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sonando, motor, letra, duracionMs, posicion])
   const estiloVista = ejemploPantalla.ejemplo
     ? { ...estiloPrevia, espera: ejemploPantalla.ejemplo.espera }
     : estiloPrevia
@@ -1218,6 +1315,9 @@ function EditorActivo({
   function buscar(ms: number) {
     if (!motor) return
     escucha?.cancelar()
+    modoGuardado.current = null
+    setEnEscucha(null)
+    if (!motor.estado().sonando) setModoPrevia('cabezal')
     if (bucle.current) {
       const intervalo = intervaloDeSeleccion(gestoActual.current?.resultado?.letra ?? letra)
       if (!intervalo || ms < intervalo.inicioMs || ms >= intervalo.finMs) {
@@ -1234,6 +1334,8 @@ function EditorActivo({
       return
     }
     escucha?.cancelar()
+    modoGuardado.current = null
+    setEnEscucha(null)
     if (bucle.current?.sonaba != null) return
     if (motor?.estado().sonando) motor.pausar()
     else void motor?.reproducir()
@@ -1280,6 +1382,7 @@ function EditorActivo({
     return true
   }
   function seleccionar(id: string, enfocar = false) {
+    if (!motor?.estado().sonando) setModoPrevia('linea')
     if (id !== edicion.seleccion) {
       desarmarBucle()
       cancelarMarcador()
@@ -2122,6 +2225,7 @@ function EditorActivo({
                 letra={letra}
                 seleccion={edicion.seleccion}
                 actual={sonando ? indiceLineaActual(letra, posicion) : -1}
+                actuales={filasQueSuenan}
                 foco={focoLinea}
                 revisionSeleccion={revisionSeleccion}
                 dudosas={marcasRevision}
@@ -2180,7 +2284,8 @@ function EditorActivo({
                     obtenerTiempoAudio={
                       ejemploVista.ejemplo ? ejemploVista.obtenerTiempo : obtenerTiempoAudio
                     }
-                    etiqueta={ejemploVista.ejemplo ? ejemploVista.etiqueta : undefined}
+                    etiqueta={ejemploVista.ejemplo ? ejemploVista.etiqueta : etiquetaLinea}
+                    tiempoFijoMs={fotogramaCabezal ? (motor?.posicionMs() ?? 0) : undefined}
                     fondoEstatico={fondoDetenido}
                   />
                 </div>
@@ -2704,6 +2809,12 @@ function EditorActivo({
           hayAnterior={vecinaConInicio(letra, precisoId, -1) !== null}
           haySiguiente={vecinaConInicio(letra, precisoId, 1) !== null}
           motor={motor}
+          alReproducirPropio={(vuelve) => {
+            escucha?.cancelar()
+            if (vuelve) eventosEscucha.alIniciar()
+            else eventosEscucha.alCancelar()
+          }}
+          alTerminarEscuchaPropia={eventosEscucha.alTerminar}
           margenMs={preferencias.preciso?.margen_ms ?? 500}
           alCambiarMargen={(ms) =>
             actualizarPaneles(

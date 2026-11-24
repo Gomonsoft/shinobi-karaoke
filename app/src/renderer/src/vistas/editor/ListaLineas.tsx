@@ -36,6 +36,8 @@ interface Props {
   letra: Letra
   seleccion: string | null
   actual: number
+  /** En pausa: las filas que suenan en el instante del cabezal (ninguna en un hueco, varias en un solape). Sustituye a `actual`. */
+  actuales?: ReadonlySet<string>
   foco: number
   revisionSeleccion?: number
   /** Líneas pendientes de revisar (feature 11): id → motivo principal. Llevan ⚑ y su motivo en el tooltip. */
@@ -79,6 +81,7 @@ export function ListaLineas({
   letra,
   seleccion,
   actual,
+  actuales,
   foco,
   revisionSeleccion = 0,
   dudosas,
@@ -319,7 +322,7 @@ export function ListaLineas({
                 </div>
               )
             }
-            const sonando = inicio + i === actual
+            const sonando = actuales ? actuales.has(el.id) : inicio + i === actual
             const motivo = dudosas?.get(el.id)
             const parte = parteDe(el, letra)
             const elegida = elegidas.has(el.id)

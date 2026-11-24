@@ -15,6 +15,7 @@ const prep = (extra: Partial<Prep> = {}): Prep => ({
   dudosas: 0,
   revisada: false,
   eleccionAutomatica: false,
+  eleccionSinComprobar: false,
   desfaseCorregido: false,
   ...extra
 })
@@ -84,6 +85,32 @@ describe('Letra con preparación (feature 5)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cerrar aviso' }))
     expect(m.revisada).toHaveBeenCalledWith('c1')
     expect(screen.queryByText(/Elegimos esta letra por ti/)).toBeNull()
+  })
+
+  it('F5-L9: sin comprobar usa su texto y nunca dice «coincide con tu audio»', async () => {
+    montar({
+      resumen: {
+        estadoPreparacion: 'lista_para_revisar',
+        preparacion: prep({
+          estado: 'lista_para_revisar',
+          eleccionAutomatica: true,
+          eleccionSinComprobar: true
+        })
+      },
+      letra: { lrclib_id: 9001 }
+    })
+    const aviso = (await screen.findByText('no hemos podido comprobarla con tu audio')).closest(
+      '[role="status"]'
+    )!
+    expect(aviso).toHaveTextContent(
+      'Elegimos esta letra por ti: es la coincidencia exacta de LRCLIB, pero no hemos podido comprobarla con tu audio. Pasa a menudo y no quiere decir que esté mal: al revisarla, fíjate en que vaya a tiempo con la voz.'
+    )
+    expect(aviso.querySelector('strong')).toHaveTextContent(
+      'no hemos podido comprobarla con tu audio'
+    )
+    expect(screen.queryByText(/coincide con tu audio/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Ver otras candidatas' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Cerrar aviso' })).toBeVisible()
   })
 
   it('con el desfase corregido usa la variante `.corregida`', async () => {

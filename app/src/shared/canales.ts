@@ -150,7 +150,9 @@ export const CANALES = {
      */
     solicitudCierrePendiente: 'app:solicitudCierrePendiente',
     /** Sale de la aplicación (`app.quit()`), también en macOS donde cerrar la ventana no basta. */
-    salir: 'app:salir'
+    salir: 'app:salir',
+    /** El renderer lleva un error de interfaz a `app.log` (0396). Solo envía; main valida, acota y limita. */
+    registrarError: 'app:registrarError'
   },
   trabajos: {
     listar: 'trabajos:listar',
@@ -379,6 +381,7 @@ export const ROLES_POR_CANAL: Record<NombreCanalInvocable, readonly RolVentana[]
   [CANALES.runtime.volverACalidad]: PRINCIPAL,
   [CANALES.runtime.cancelarVolverACalidad]: PRINCIPAL,
   [CANALES.app.guardadoPendiente]: PRINCIPAL,
+  [CANALES.app.registrarError]: PRINCIPAL,
   [CANALES.app.confirmarCierre]: PRINCIPAL,
   [CANALES.app.salir]: PRINCIPAL,
   [CANALES.app.solicitudCierrePendiente]: PRINCIPAL,

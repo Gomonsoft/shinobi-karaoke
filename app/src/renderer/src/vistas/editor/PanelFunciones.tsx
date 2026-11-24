@@ -177,7 +177,12 @@ export function PanelFunciones({
           {preparacion.datos.letra && (
             <>
               <p data-prep-letra="">
-                · {preparacion.datos.letra === 'app' ? EP.letraApp : EP.letraUsuario}
+                ·{' '}
+                {preparacion.datos.letra !== 'app'
+                  ? EP.letraUsuario
+                  : preparacion.datos.sinComprobar
+                    ? EP.letraSinComprobar
+                    : EP.letraApp}
               </p>
               <div className={estilos.funcionFila}>
                 <Boton variante="fantasma" onClick={preparacion.verOtras}>

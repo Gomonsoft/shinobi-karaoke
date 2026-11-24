@@ -376,7 +376,8 @@ describe('guardas de fiabilidad (ADR 0024, revisión 2026-11-22)', () => {
     const r = evaluarEncaje(
       letraSinFines(inicios.map((a): [number, number] => [a, 1])),
       detectarVoz(picos),
-      { duracionMs: dur }
+      // La situación de la prueba (I(d*) < 0,95) se midió con la ventana de 400 ms; se conserva así.
+      { duracionMs: dur, p: { ...PARAMETROS_ENCAJE, ventanaInicioMs: 400 } }
     )
     expect(Math.abs(r.desfaseMs)).toBeGreaterThan(0)
     expect(Math.abs(r.desfaseMs)).toBeLessThan(500)
@@ -425,6 +426,20 @@ describe('guardas de fiabilidad (ADR 0024, revisión 2026-11-22)', () => {
   it('la letra con fines sobre voz con huecos coincide sin limitación', () => {
     const r = evaluar(letraDe(cantos()))
     expect(r).toMatchObject({ veredicto: 'coincide', veredictoBase: 'coincide', limitacion: null })
+  })
+})
+
+describe('ventana de inicio de 800 ms (ADR 0024, revisión 2026-11-23)', () => {
+  it('una letra adelantada 350 ms mantiene i0 = 1; con 400 ms de ventana no', () => {
+    const c = cantos()
+    const l = letraDe(c, 350)
+    const r = evaluar(l, c)
+    expect(r.i0).toBe(1)
+    const vieja = evaluarEncaje(l, vozDe(c), {
+      duracionMs: DUR,
+      p: { ...PARAMETROS_ENCAJE, ventanaInicioMs: 400 }
+    })
+    expect(vieja.i0).toBeLessThan(0.9)
   })
 })
 

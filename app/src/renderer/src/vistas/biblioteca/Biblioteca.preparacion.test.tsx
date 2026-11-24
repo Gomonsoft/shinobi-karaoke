@@ -25,6 +25,7 @@ const prep = (extra: Partial<NonNullable<ResumenCancionIpc['preparacion']>> = {}
   dudosas: 0,
   revisada: false,
   eleccionAutomatica: false,
+  eleccionSinComprobar: false,
   desfaseCorregido: false,
   ...extra
 })
@@ -142,6 +143,26 @@ describe('tarjeta «Lista para revisar»', () => {
       within(t).getByRole('button', { name: 'Probar «Semestre de Otoño» a pantalla completa' })
     ).toBeVisible()
     expect(within(t).queryByRole('button', { name: /A la cola/ })).toBeNull()
+  })
+
+  it('F5-B14/B16: sin comprobar muestra el texto corto, su ayuda en title y en el nombre accesible', async () => {
+    montar([
+      {
+        ...revisar,
+        preparacion: prep({
+          eleccionAutomatica: true,
+          eleccionSinComprobar: true,
+          desfaseCorregido: true
+        })
+      }
+    ])
+    const t = await tarjeta('Semestre de Otoño')
+    const linea = within(t).getByText('Letra elegida automáticamente · sin comprobar')
+    const ayuda =
+      'Letra elegida automáticamente, sin comprobar con tu audio. Al revisarla, fíjate en que vaya a tiempo con la voz.'
+    expect(linea.closest('p')).toHaveAttribute('title', ayuda)
+    expect(t.getAttribute('aria-label')).toContain(ayuda)
+    expect(within(t).queryByText(/desfase corregido/)).toBeNull()
   })
 
   it('sin línea de origen cuando la letra no la eligió la app', async () => {
