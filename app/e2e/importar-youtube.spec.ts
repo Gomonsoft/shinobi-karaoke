@@ -305,7 +305,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
 
   test('sin conexión con el interruptor apagado: la descarga se reintenta a los 60 s y no sale ninguna petición a LRCLIB (ADR 0025 §5)', async () => {
     // Los 3 reintentos de la descarga (5 + 15 + 45 s) y luego la sonda a los 60 s.
-    test.setTimeout(240_000)
+    test.setTimeout(300_000)
     const env = preparar('yt-sin-conexion')
     const config = JSON.parse(readFileSync(join(env.datos, 'config.json'), 'utf8'))
     writeFileSync(
@@ -404,7 +404,7 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
 
   test('bloqueado siempre: error y Reintentar', async () => {
     // En el CI de Linux, con la CPU ocupada, la primera descarga y el reintento no caben en 90 s.
-    test.setTimeout(240_000)
+    test.setTimeout(300_000)
     const env = preparar('yt-bloq-siempre')
     const app = await lanzar(env)
     try {
@@ -423,10 +423,12 @@ test.describe('importar desde YouTube (doble de yt-dlp, sin red)', () => {
       // mensaje cambiar de pantalla entre sondeos: si «Reintentar» sigue ahí sin el mensaje, se pulsa otra vez.
       await expect(async () => {
         if (await reintentar.isVisible()) await reintentar.click()
+        // El plazo interior es el del primer intento (60 s): con menos, en el CI de Linux se volvía a pulsar
+        // «Reintentar» antes de que el reintento fallara y la descarga empezaba otra vez sin acabar nunca.
         await expect(v.getByText('YouTube no permite la descarga ahora mismo.')).toBeVisible({
-          timeout: 15_000
+          timeout: 60_000
         })
-      }).toPass({ timeout: 150_000, intervals: [0] })
+      }).toPass({ timeout: 200_000, intervals: [0] })
     } finally {
       await cerrar(app)
     }
