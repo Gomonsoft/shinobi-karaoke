@@ -1,11 +1,13 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Blocks, PanelRightOpen } from 'lucide-react'
 import { finEfectivo, type Letra } from '@shared/letra'
 import { formatearTiempo, tiempoMostrado } from '@shared/letras/tiempos'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
+import { BotonCanta } from './BotonCanta'
 import { BotonLayout } from './BotonLayout'
+import { P } from './partes'
 import { E } from './textos'
 import estilos from './editor.module.css'
 
@@ -30,6 +32,13 @@ interface Props {
   abrirFunciones(): void
   /** La línea está abierta en el editor preciso (`edi.preciso.ocupado`). */
   ocupada?: boolean
+  /** Chip de la parte bajo «Fin» (0.2.3, solo con reparto); abre «¿Quién canta?». */
+  canta?: {
+    chip: ReactNode | null
+    etiqueta: string
+    abierto: boolean
+    abrir?(origen: HTMLElement): void
+  }
 }
 
 /** Riel de 120 px del panel minimizado (spec 06-editor 2.1, «Panel minimizado»). */
@@ -47,7 +56,8 @@ export function RielPanel({
   editandoTema = false,
   expandir,
   abrirFunciones,
-  ocupada = false
+  ocupada = false,
+  canta
 }: Props) {
   const idMotivo = useId()
   const linea = letra.lineas.find((el) => el.id === seleccion && el.tipo === 'linea')
@@ -106,6 +116,15 @@ export function RielPanel({
           <span className={estilos.rielEtiqueta}>{E.layout.riel.auto}</span>
         )}
       </div>
+      {canta && (
+        <BotonCanta
+          compacto
+          chip={canta.chip}
+          etiqueta={canta.chip === null ? P.varias : canta.etiqueta}
+          abierto={canta.abierto}
+          abrir={canta.abrir}
+        />
+      )}
       <Tooltip
         contenido={limite?.mensaje ?? ''}
         forzar={limite && { clave: limite.clave, ms: 2000 }}

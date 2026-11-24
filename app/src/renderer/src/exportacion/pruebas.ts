@@ -16,7 +16,8 @@ export function cancionIpcDePrueba(sobrescribir: Partial<CancionIpc> = {}): Canc
       temaId: null,
       temaNombre: null,
       alHeredar: DESTINO_HEREDAR_PROVISIONAL,
-      procedenciaEspera: 'incluido'
+      procedenciaEspera: 'incluido',
+      procedenciaPantalla: 'incluido'
     },
     ...sobrescribir
   } as CancionIpc

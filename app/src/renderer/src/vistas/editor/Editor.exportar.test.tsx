@@ -34,6 +34,9 @@ function montar(cancion = cancionSincronizadaLrclib()) {
     exportaciones: [],
     activaDe: () => undefined,
     abrir,
+    lotes: [],
+    abrirLote: vi.fn(),
+    verLote: vi.fn(),
     cerrar: vi.fn(),
     iniciada: vi.fn(),
     pedirCancelar: vi.fn()
@@ -107,4 +110,32 @@ it('el diálogo de atajos incluye Ctrl/Cmd + E (EX7)', async () => {
   await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
   fireEvent.keyDown(window, { key: 'F1' })
   expect(await screen.findByRole('rowheader', { name: 'Ctrl/Cmd + E' })).toBeInTheDocument()
+})
+
+it('«Exportar la letra» vacía el guardado y exporta con la misma función que la Biblioteca (F9-E1)', async () => {
+  const { cancion } = montar()
+  const exportarLrc = vi.fn(() => Promise.resolve(null))
+  Object.assign((window as unknown as { shinobi: { letras: object } }).shinobi.letras, {
+    exportarLrc
+  })
+  await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
+  abrirFunciones()
+  fireEvent.click(screen.getByRole('button', { name: 'Exportar la letra (.lrc)…' }))
+  await waitFor(() => expect(exportarLrc).toHaveBeenCalledWith(cancion.id))
+})
+
+it('sin líneas con inicio «Exportar la letra» está aria-disabled con su motivo visible (F9-E2)', async () => {
+  const c = cancionSincronizadaLrclib()
+  montar({
+    ...c,
+    letra: {
+      ...c.letra!,
+      lineas: c.letra!.lineas.map((l) => ({ ...l, inicio_ms: null, fin_ms: null }))
+    }
+  } as never)
+  await screen.findByRole('button', { name: 'Sincronizar al ritmo' })
+  abrirFunciones()
+  const boton = screen.getByRole('button', { name: 'Exportar la letra (.lrc)…' })
+  expect(boton).toHaveAttribute('aria-disabled', 'true')
+  expect(boton).toHaveAccessibleDescription('Esta canción aún no tiene ninguna línea sincronizada.')
 })

@@ -209,3 +209,94 @@
     animation: none;
   }
 }
+
+/* Punto de versión nueva en el botón de Ajustes (ux/sistema-visual · Feature 3). */
+.envoltorioAjustes {
+  position: relative;
+  display: inline-flex;
+}
+.punto {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  box-sizing: content-box;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--fondo-1);
+  border-radius: 50%;
+  background: var(--info);
+  pointer-events: none;
+}
+
+/* 0.2.2 · Feature 7: cabecera y grupos de la cola de preparación (docs/ux/04). */
+.cola {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  padding-bottom: var(--e-3);
+  border-bottom: 1px solid var(--borde);
+}
+
+.colaTitulo,
+.colaEta {
+  margin: 0;
+}
+
+.colaTitulo {
+  font-size: var(--t-cuerpo, 1rem);
+}
+
+.colaEta {
+  color: var(--texto-2);
+  font-size: var(--t-pequeno, 0.8125rem);
+}
+
+.colaBotones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e-2);
+}
+
+.grupos,
+.grupoColaLista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grupoColaCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e-2);
+}
+
+.grupoColaBoton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+  padding: var(--e-1) 0;
+  border: 0;
+  background: none;
+  color: var(--texto-1);
+  cursor: pointer;
+}
+
+.filaCola {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  padding: var(--e-1) 0;
+}
+
+.filaColaTexto {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soloLector {
+  composes: soloLector from '../componentes/componentes.module.css';
+}

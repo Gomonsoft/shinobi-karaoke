@@ -1,5 +1,6 @@
 import {
   borrarTiemposLinea,
+  chocan,
   contarLineas,
   finEfectivo,
   moverInicioLinea,
@@ -122,7 +123,10 @@ function limitarFin(
   const { indice, linea } = buscarLinea(letra, id)
   if (linea.inicio_ms === null) return resultado(letra)
   const min = linea.inicio_ms + 1
-  const max = vecinoConInicio(letra, indice, 1)?.inicio_ms ?? duracionMs
+  // Un fin fijado puede pasar del inicio de una línea de otra parte, no del de la siguiente que choca.
+  const max =
+    letra.lineas.slice(indice + 1).find((e) => e.inicio_ms !== null && chocan(linea, e, letra))
+      ?.inicio_ms ?? duracionMs
   let limite: Limite | null = null
   if (ms < min) limite = { tipo: 'fin_antes_del_inicio' }
   else if (ms > max) limite = { tipo: 'fin_siguiente' }
@@ -236,13 +240,33 @@ export function aPeticionTiempos(cancionId: string, letra: Letra): GuardarTiempo
   return {
     cancionId,
     offset_ms: letra.offset_ms,
-    tiempos: letra.lineas.map(({ id, inicio_ms, fin_ms, palabras, origen_palabras }) => ({
-      id,
-      inicio_ms,
-      fin_ms,
-      palabras,
-      ...(palabras !== null && origen_palabras === 'manual' ? { origen_palabras } : {})
-    }))
+    // Estado completo: `null` borra la corrección que main tenga anotada (quitar la corrección).
+    desfase_corregido_ms: letra.desfase_corregido_ms ?? null,
+    // Reparto (ADR 0029 §2): `parte` ausente = `c1`; `partes` ausente = conservar el de main (para quitarlo,
+    // quien llama añade `partes: null`). Una letra sin reparto produce la misma petición que en 0.2.2.
+    ...(letra.partes ? { partes: letra.partes } : {}),
+    tiempos: letra.lineas.map(
+      ({
+        id,
+        tipo,
+        inicio_ms,
+        fin_ms,
+        palabras,
+        origen_palabras,
+        origen_fin,
+        revisada,
+        parte
+      }) => ({
+        id,
+        inicio_ms,
+        fin_ms,
+        palabras,
+        ...(palabras !== null && origen_palabras === 'manual' ? { origen_palabras } : {}),
+        ...(fin_ms !== null && origen_fin ? { origen_fin } : {}),
+        ...(revisada ? { revisada } : {}),
+        ...(tipo === 'linea' && parte ? { parte } : {})
+      })
+    )
   }
 }
 

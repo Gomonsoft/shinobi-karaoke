@@ -11,7 +11,7 @@ import { formatearDuracion } from '../biblioteca/tarjeta'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
 import { Miniatura } from './Miniatura'
-import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
+import { CamposDatos, datosLrclibDe, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { TEXTO, TEXTO_YT as YT } from './textos'
 import estilos from './anadir.module.css'
 import { copiarDetalles } from '../../soporte/detalles'
@@ -76,25 +76,28 @@ export function ResumenFuente({ id }: { id: string }) {
     ;(inicial ?? refTitulo.current)?.focus()
   }, [listo])
 
-  const autoguardar = useCallback(async () => {
-    if (valores.titulo.trim() === '') {
-      setErrorTitulo(TEXTO.tituloVacio)
-      setMensaje('')
-      return
-    }
-    setErrorTitulo(undefined)
-    const meta = metadatosParaIpc(valores)
-    if (JSON.stringify(meta) === guardado.current) return
-    try {
-      await window.shinobi.biblioteca.actualizarMetadatos(id, meta)
-      guardado.current = JSON.stringify(meta)
-      setErrorGuardar(null)
-      setMensaje(TEXTO.guardado)
-    } catch (err) {
-      setMensaje('')
-      setErrorGuardar(`No se pudieron guardar los datos. ${mensajeDeError(err)}`.trim())
-    }
-  }, [valores, id])
+  const autoguardar = useCallback(
+    async (actuales: ValoresDatos = valores) => {
+      if (actuales.titulo.trim() === '') {
+        setErrorTitulo(TEXTO.tituloVacio)
+        setMensaje('')
+        return
+      }
+      setErrorTitulo(undefined)
+      const meta = metadatosParaIpc(actuales)
+      if (JSON.stringify(meta) === guardado.current) return
+      try {
+        await window.shinobi.biblioteca.actualizarMetadatos(id, meta)
+        guardado.current = JSON.stringify(meta)
+        setErrorGuardar(null)
+        setMensaje(TEXTO.guardado)
+      } catch (err) {
+        setMensaje('')
+        setErrorGuardar(`No se pudieron guardar los datos. ${mensajeDeError(err)}`.trim())
+      }
+    },
+    [valores, id]
+  )
 
   const { resumen, cancion } = carga
   const fuente = cancion?.fuente
@@ -234,6 +237,8 @@ export function ResumenFuente({ id }: { id: string }) {
               refTitulo={refTitulo}
               onSalir={() => void autoguardar()}
               onIntroUltimo={() => void autoguardar()}
+              lrclib={datosLrclibDe(cancion)}
+              onAplicar={(v) => void autoguardar(v)}
             />
             <p role="status" className={estilos.estadoGuardado}>
               {mensaje}

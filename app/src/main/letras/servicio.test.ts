@@ -76,6 +76,29 @@ describe('guardar', () => {
     expect(eventos.length).toBeGreaterThan(0)
   })
 
+  it('desfase_ms: guarda la letra corregida (offset y desfase_corregido_ms) sin tocar los tiempos', async () => {
+    const id = await cancionConFuente(biblioteca, datos)
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 7,
+      lineas: [el('a', 'Uno', 1000), el('b', 'Dos', 4000)],
+      desfase_ms: 804
+    })
+    const c = await enDisco(id)
+    expect(c.letra).toMatchObject({ offset_ms: 800, desfase_corregido_ms: 800 })
+    expect(c.letra?.lineas.map((l) => l.inicio_ms)).toEqual([1000, 4000])
+    // Sin `desfase_ms`, la letra nueva no trae corrección.
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'manual',
+      lrclib_id: null,
+      lineas: [el('c', 'Tres', 1000)]
+    })
+    expect((await enDisco(id)).letra).toMatchObject({ offset_ms: 0 })
+    expect((await enDisco(id)).letra?.desfase_corregido_ms).toBeUndefined()
+  })
+
   it('sustituye una letra con sincronía y deja la canción lista como lista', async () => {
     const id = await cancionConFuente(biblioteca, datos)
     await servicio.guardar({
@@ -390,7 +413,10 @@ describe('editarTextoLinea', () => {
     await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Otro texto' }, sesionId)
     await servicio.editarTextoLinea({ cancionId: id, id: ia, texto: 'Canta el río' }, sesionId)
     await servicio.guardarTiempos(peticion, sesionId)
-    expect((await enDisco(id)).letra).toEqual(antes.letra)
+    // `intacta` ya se retiró con la primera escritura de tiempos (ADR 0024 §2): deshacer no la devuelve.
+    const { intacta, ...sinIntacta } = antes.letra!
+    expect(intacta).toBe(true)
+    expect((await enDisco(id)).letra).toEqual(sinIntacta)
   })
 
   it('sin cambio de texto no escribe', async () => {
@@ -710,5 +736,265 @@ describe('guardarTiempos en una visita', () => {
     const cancion = await enDisco(id)
     expect(cancion.letra?.offset_ms).toBe(400)
     expect(cancion.pasos.separacion).toMatchObject({ estado: 'en_curso', progreso: 0.6 })
+  })
+})
+
+describe('campos nuevos de 0.2.2 en main', () => {
+  async function abrir() {
+    const id = await cancionConFuente(biblioteca, datos, { mezcla: silencioFlac() })
+    const a = el('a', 'El sol se va con la tarde', 1000)
+    a.fin_ms = 2500
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 5,
+      lineas: [a, el('b', 'y yo me quedo en el mar', 5000), el('c', 'no sé por qué lloro', 8000)]
+    })
+    return id
+  }
+
+  it('guardar pone intacta, idioma y origen_fin "letra" solo en el fin que traía', async () => {
+    const c = await enDisco(await abrir())
+    expect(c.letra).toMatchObject({ intacta: true, idioma: 'es' })
+    expect(c.letra?.lineas.map((l) => l.origen_fin)).toEqual(['letra', undefined, undefined])
+  })
+
+  it('guardarTiempos: mover un tiempo retira intacta; origen_fin y revisada viajan y se retiran', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    const rev = { inicio_ms: 5000, fin_ms: 8000, texto: 'y yo me quedo en el mar' }
+    // Solo se da por buena una línea: no cambia tiempos, intacta sigue.
+    const conRev = {
+      ...p,
+      tiempos: p.tiempos.map((t, i) => (i === 1 ? { ...t, revisada: rev } : t))
+    }
+    await servicio.guardarTiempos(conRev, sesionId)
+    let c = await enDisco(id)
+    expect(c.letra?.intacta).toBe(true)
+    expect(c.letra?.lineas[1]?.revisada).toEqual(rev)
+    // Cambia el inicio de esa línea: revisada y intacta se retiran.
+    const movida = {
+      ...conRev,
+      tiempos: conRev.tiempos.map((t, i) => (i === 1 ? { ...t, inicio_ms: 5200 } : t))
+    }
+    await servicio.guardarTiempos(movida, sesionId)
+    c = await enDisco(id)
+    expect(c.letra?.intacta).toBeUndefined()
+    expect(c.letra?.lineas[1]).not.toHaveProperty('revisada')
+    // Sin fin, origen_fin se retira aunque el cliente lo mande.
+    const sinFin = {
+      ...movida,
+      tiempos: movida.tiempos.map((t, i) =>
+        i === 0 ? { ...t, fin_ms: null, origen_fin: 'silencios' as const } : t
+      )
+    }
+    await servicio.guardarTiempos(sinFin, sesionId)
+    expect((await enDisco(id)).letra?.lineas[0]).not.toHaveProperty('origen_fin')
+  })
+
+  it('guardarTiempos: cambiar offset_ms retira revisada de todas las líneas; repetirlo la conserva', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    const rev = { inicio_ms: 5000, fin_ms: 8000, texto: 'y yo me quedo en el mar' }
+    const conRev = {
+      ...p,
+      tiempos: p.tiempos.map((t, i) => (i === 1 ? { ...t, revisada: rev } : t))
+    }
+    await servicio.guardarTiempos(conRev, sesionId)
+    expect((await enDisco(id)).letra?.lineas[1]?.revisada).toEqual(rev)
+    // Mismo offset: se conserva.
+    await servicio.guardarTiempos({ ...conRev, offset_ms: conRev.offset_ms }, sesionId)
+    expect((await enDisco(id)).letra?.lineas[1]?.revisada).toEqual(rev)
+    // Otro offset: se retira, aunque el cliente la envíe. intacta no cambia.
+    await servicio.guardarTiempos({ ...conRev, offset_ms: conRev.offset_ms + 700 }, sesionId)
+    const c = await enDisco(id)
+    expect(c.letra?.offset_ms).toBe(conRev.offset_ms + 700)
+    expect(c.letra?.lineas.some((l) => l.tipo === 'linea' && l.revisada)).toBe(false)
+    expect(c.letra?.intacta).toBe(true)
+  })
+
+  it('guardarTiempos: desfase_corregido_ms se anota, se borra con null y no cambia si falta', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    await servicio.guardarTiempos({ ...p, offset_ms: 800, desfase_corregido_ms: 800 }, sesionId)
+    expect((await enDisco(id)).letra).toMatchObject({ offset_ms: 800, desfase_corregido_ms: 800 })
+    const sinCampo = { ...p }
+    delete sinCampo.desfase_corregido_ms
+    await servicio.guardarTiempos({ ...sinCampo, offset_ms: 800 }, sesionId)
+    expect((await enDisco(id)).letra?.desfase_corregido_ms).toBe(800)
+    await servicio.guardarTiempos({ ...p, offset_ms: 0, desfase_corregido_ms: null }, sesionId)
+    const c = await enDisco(id)
+    expect(c.letra?.offset_ms).toBe(0)
+    expect(c.letra?.desfase_corregido_ms).toBeUndefined()
+  })
+
+  it('quitar una corrección deja desfase_descartado y la diferida no la repone (pregunta 0207)', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    await servicio.guardarTiempos({ ...p, offset_ms: 800, desfase_corregido_ms: 800 }, sesionId)
+    // (a) quitar: marca puesta, corrección fuera, intacta sin cambios.
+    await servicio.guardarTiempos({ ...p, offset_ms: 0, desfase_corregido_ms: null }, sesionId)
+    let l = (await enDisco(id)).letra!
+    expect(l.desfase_descartado).toBe(true)
+    expect(l.desfase_corregido_ms).toBeUndefined()
+    expect(l.intacta).toBe(true)
+    // (b) la diferida (y la preparación) no corrige.
+    servicio.liberarEdicion()
+    expect(await servicio.corregirDesfaseDiferido(id, 800)).toBeNull()
+    expect((await enDisco(id)).letra!.offset_ms).toBe(0)
+    // La marca se conserva en escrituras posteriores que no tocan el desfase.
+    const otra = servicio.abrirEdicion(id)!
+    await servicio.guardarTiempos(
+      { ...aPeticionTiempos(id, otra.cancion.letra!), desfase_corregido_ms: undefined },
+      otra.sesionId
+    )
+    l = (await enDisco(id)).letra!
+    expect(l.desfase_descartado).toBe(true)
+    // (d) una letra nueva nace sin la marca.
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'manual',
+      lrclib_id: null,
+      lineas: [el('n', 'Nueva', 1000)]
+    })
+    expect((await enDisco(id)).letra!.desfase_descartado).toBeUndefined()
+  })
+
+  it('desfase_corregido_ms: null sin corrección previa no pone la marca (pregunta 0207)', async () => {
+    const id = await abrir()
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    await servicio.guardarTiempos(
+      { ...aPeticionTiempos(id, cancion.letra!), desfase_corregido_ms: null },
+      sesionId
+    )
+    expect((await enDisco(id)).letra!.desfase_descartado).toBeUndefined()
+  })
+
+  it('el reparto reservado sobrevive a guardarTiempos y editarTexto', async () => {
+    const id = await abrir()
+    const letra = (await enDisco(id)).letra!
+    const partes = {
+      cantantes: [
+        { id: 'c1' as const, nombre: 'Ana' },
+        { id: 'c2' as const, nombre: 'Luis' }
+      ]
+    }
+    await biblioteca.actualizar(id, {
+      letra: {
+        ...letra,
+        partes,
+        lineas: letra.lineas.map((l, i) => (i === 1 ? { ...l, parte: 'c2' as const } : l))
+      }
+    })
+    const { cancion, sesionId } = servicio.abrirEdicion(id)!
+    const p = aPeticionTiempos(id, cancion.letra!)
+    await servicio.guardarTiempos(
+      { ...p, tiempos: p.tiempos.map((t, i) => (i === 2 ? { ...t, inicio_ms: 8100 } : t)) },
+      sesionId
+    )
+    await servicio.editarTexto({
+      cancionId: id,
+      texto: 'El sol se va con la tarde\ny yo me quedo en el mar\nno sé por qué canto'
+    })
+    await biblioteca.flushTodo()
+    const c = await enDisco(id)
+    expect(c.letra?.partes).toEqual(partes)
+    expect(c.letra?.lineas[1]?.parte).toBe('c2')
+  })
+})
+
+describe('registro de la preparación (0.2.2)', () => {
+  const registro = (extra = {}) => ({
+    estado: 'lista_para_revisar' as const,
+    paso: null,
+    origen: 'automatica' as const,
+    actualizado: '2026-11-21T10:00:00.000Z',
+    eleccion: { por: 'app' as const, fecha: '2026-11-21T10:01:00.000Z', lrclib_id: 7 },
+    dudosas: 0,
+    revisada: false,
+    ...extra
+  })
+  const conLetra = async () => {
+    const id = await cancionConFuente(biblioteca, datos)
+    await servicio.guardar(
+      {
+        cancionId: id,
+        origen: 'lrclib',
+        lrclib_id: 7,
+        lineas: [el('a', 'Uno', 1000), el('b', 'Dos', 3000)]
+      },
+      { porPreparacion: true }
+    )
+    await biblioteca.actualizar(id, { preparacion: registro() })
+    return id
+  }
+
+  it('guardar por la preparación no la da por revisada', async () => {
+    const id = await conLetra()
+    expect((await enDisco(id)).preparacion?.revisada).toBe(false)
+  })
+
+  it('editar un texto la da por revisada y conserva la elección de la app', async () => {
+    const id = await conLetra()
+    await servicio.editarTexto({ cancionId: id, texto: 'Uno\nDos cambiado' })
+    await biblioteca.flushTodo()
+    const p = (await enDisco(id)).preparacion
+    expect(p?.revisada).toBe(true)
+    expect(p?.eleccion?.por).toBe('app')
+  })
+
+  it('cambiar un tiempo desde el editor la da por revisada', async () => {
+    const id = await conLetra()
+    const edicion = servicio.abrirEdicion(id)!
+    const letra = (await enDisco(id)).letra!
+    const peticion = aPeticionTiempos(id, letra)
+    const primera = peticion.tiempos[0]!
+    await servicio.guardarTiempos(
+      {
+        ...peticion,
+        cancionId: id,
+        tiempos: [
+          { ...primera, inicio_ms: 1200, fin_ms: null, palabras: null },
+          ...peticion.tiempos.slice(1)
+        ]
+      },
+      edicion.sesionId
+    )
+    expect((await enDisco(id)).preparacion?.revisada).toBe(true)
+  })
+
+  it('elegir otra letra pasa eleccion.por a usuario', async () => {
+    const id = await conLetra()
+    await servicio.guardar({
+      cancionId: id,
+      origen: 'lrclib',
+      lrclib_id: 99,
+      lineas: [el('c', 'Otra', 500)]
+    })
+    const p = (await enDisco(id)).preparacion
+    expect(p).toMatchObject({ revisada: true, eleccion: { por: 'usuario', lrclib_id: 7 } })
+  })
+
+  it('la corrección diferida no cuenta como edición del usuario', async () => {
+    const id = await conLetra()
+    const aplicado = await servicio.corregirDesfaseDiferido(id, 800)
+    expect(aplicado).toBe(800)
+    expect((await enDisco(id)).preparacion?.revisada).toBe(false)
+  })
+
+  it('marcarPreparacionRevisada la da por revisada y el resumen expone el registro', async () => {
+    const id = await conLetra()
+    await biblioteca.marcarPreparacionRevisada(id)
+    expect((await enDisco(id)).preparacion?.revisada).toBe(true)
+    await biblioteca.actualizar(id, { preparacion: registro() })
+    const resumen = biblioteca.obtenerResumen(id)
+    expect(resumen?.preparacion).toMatchObject({
+      estado: 'lista_para_revisar',
+      eleccionAutomatica: true
+    })
   })
 })

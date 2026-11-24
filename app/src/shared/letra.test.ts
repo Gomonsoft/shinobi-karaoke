@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+import { normalizarReparto } from './reparto'
 import {
   borrarTiemposLinea,
   contarLineas,
@@ -479,5 +481,165 @@ describe('palabras hechas a mano (ADR 0021)', () => {
       const l1 = letraManual().lineas[0]!
       expect(palabrasVisibles({ ...l1, palabras: l1.palabras!.slice(0, 2) }, 14000)).toBeNull()
     })
+  })
+})
+
+describe('campos nuevos de 0.2.2', () => {
+  const base = {
+    origen: 'manual',
+    lrclib_id: null,
+    offset_ms: 0,
+    lineas: [
+      {
+        id: 'a',
+        tipo: 'linea',
+        texto: 'Hola',
+        inicio_ms: 100,
+        fin_ms: 900,
+        palabras: null,
+        origen_fin: 'letra',
+        revisada: { inicio_ms: 100, fin_ms: 900, texto: 'Hola' },
+        alineacion: { confianza: 0.5 },
+        parte: 'c2'
+      }
+    ],
+    intacta: true,
+    desfase_corregido_ms: -800,
+    idioma: 'es',
+    partes: { cantantes: [{ id: 'c1', nombre: 'Ana' }], voz_en_coros: 0.5 }
+  }
+
+  it('se leen y se conservan', () => {
+    expect(letraSchema.parse(base)).toEqual(base)
+  })
+
+  it('desfase_descartado: true se lee y se conserva; otro valor se lee como ausente', () => {
+    expect(letraSchema.parse({ ...base, desfase_descartado: true }).desfase_descartado).toBe(true)
+    for (const raro of [false, 'si', 1, null])
+      expect(
+        letraSchema.parse({ ...base, desfase_descartado: raro }).desfase_descartado
+      ).toBeUndefined()
+  })
+
+  it('reparto (ADR 0029 §1): nombre nulo se conserva, nombre no válido es null, c1 como parte es ausente', () => {
+    const r = letraSchema.parse({
+      ...base,
+      partes: {
+        cantantes: [
+          { id: 'c1', nombre: null },
+          { id: 'c2', nombre: 5 }
+        ]
+      },
+      lineas: [{ ...base.lineas[0], parte: 'c1' }]
+    })
+    expect(r.partes?.cantantes).toEqual([
+      { id: 'c1', nombre: null },
+      { id: 'c2', nombre: null }
+    ])
+    expect(r.lineas[0]!.parte).toBeUndefined()
+  })
+
+  it('lectura tolerante: valores fuera de catálogo se leen como ausentes', () => {
+    const r = letraSchema.parse({
+      ...base,
+      intacta: 'sí',
+      idioma: 3,
+      partes: 'x',
+      lineas: [{ ...base.lineas[0], origen_fin: 'otro', revisada: 1, alineacion: {}, parte: 'z' }]
+    })
+    expect(r.intacta).toBeUndefined()
+    expect(r.idioma).toBeUndefined()
+    expect(r.partes).toBeUndefined()
+    expect(r.lineas[0]).toEqual({
+      id: 'a',
+      tipo: 'linea',
+      texto: 'Hola',
+      inicio_ms: 100,
+      fin_ms: 900,
+      palabras: null
+    })
+  })
+
+  it('palabrasVisibles incluye auto', () => {
+    const palabras = [{ texto: 'Hola', inicio_ms: 100, fin_ms: 500 }]
+    const el = { texto: 'Hola', inicio_ms: 100, fin_ms: 900, palabras }
+    expect(palabrasVisibles({ ...el, origen_palabras: 'auto' })).toBe(palabras)
+    expect(palabrasVisibles({ ...el, origen_palabras: 'importada' })).toBeNull()
+  })
+})
+
+describe('compatibilidad con la reserva de 0.2.2 (ADR 0029 §6)', () => {
+  // Copia congelada del esquema del reparto que 0.2.2 reservaba (tarea 0296): lo que 0.2.2 lee y
+  // vuelve a escribir tiene que sobrevivir a 0.2.3 y al revés.
+  const parte022 = z.enum(['c2', 'c3', 'c4', 'todos', 'coro']).optional().catch(undefined)
+  const partes022 = z
+    .object({
+      cantantes: z
+        .array(
+          z.object({
+            id: z.enum(['c1', 'c2', 'c3', 'c4']),
+            nombre: z.string().max(40).nullable().catch(null)
+          })
+        )
+        .min(1)
+        .max(4),
+      voz_en_coros: z.number().min(0).max(1).optional().catch(undefined)
+    })
+    .optional()
+    .catch(undefined)
+  const lineas = [
+    { id: 'a', tipo: 'linea', texto: 'Uno', inicio_ms: 100, fin_ms: null, palabras: null },
+    {
+      id: 'b',
+      tipo: 'linea',
+      texto: 'Dos',
+      inicio_ms: 900,
+      fin_ms: null,
+      palabras: null,
+      parte: 'c2'
+    },
+    {
+      id: 'c',
+      tipo: 'linea',
+      texto: '(Tres)',
+      inicio_ms: 1700,
+      fin_ms: null,
+      palabras: null,
+      parte: 'coro'
+    }
+  ]
+  const conReparto = {
+    origen: 'manual',
+    lrclib_id: null,
+    offset_ms: 0,
+    lineas,
+    partes: {
+      cantantes: [
+        { id: 'c1', nombre: 'Ana' },
+        { id: 'c2', nombre: null }
+      ],
+      voz_en_coros: 0.65
+    }
+  }
+
+  it('lo que 0.2.2 reservaba se lee igual y 0.2.3 lo conserva', () => {
+    const nueva = letraSchema.parse(conReparto)
+    expect(nueva.partes).toEqual(conReparto.partes)
+    expect(nueva.lineas.map((l) => l.parte)).toEqual([undefined, 'c2', 'coro'])
+    expect(partes022.parse(nueva.partes)).toEqual(conReparto.partes)
+    expect(lineas.map((l) => parte022.parse(l.parte))).toEqual(nueva.lineas.map((l) => l.parte))
+  })
+
+  it('una letra sin reparto no gana ningún campo nuevo al leerse', () => {
+    const sin = { origen: 'manual', lrclib_id: null, offset_ms: 0, lineas: [lineas[0]] }
+    const leida = letraSchema.parse(sin)
+    expect(leida).toEqual(sin)
+    expect('partes' in leida).toBe(false)
+    expect('parte' in leida.lineas[0]!).toBe(false)
+  })
+
+  it('un reparto bien formado de 0.2.2 sobrevive a normalizarReparto sin cambiar', () => {
+    const l = letraSchema.parse(conReparto)
+    expect(normalizarReparto(l)).toEqual(l)
   })
 })

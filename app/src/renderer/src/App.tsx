@@ -4,20 +4,26 @@ import { ProveedorExportacion } from './exportacion/ProveedorExportacion'
 import { DialogoCierre } from './navegacion/DialogoCierre'
 import { Marco } from './navegacion/Marco'
 import {
+  claveVista,
   esVistaDeEdicion,
   NavegacionContexto,
   vistaInicial,
   type Navegacion,
   type Vista
 } from './navegacion/estado'
+import { ProvocadorDeError } from './soporte/ProvocadorDeError'
+import { fijarContextoError } from './soporte/erroresInterfaz'
+import { LimiteErrores } from './navegacion/LimiteErrores'
 import { crearNavegacionGuardada } from './navegacion/salida'
 import { CapaReproductor, ProveedorReproductor } from './navegacion/reproductor'
 import { useArrastrarArchivo } from './navegacion/useArrastrarArchivo'
 import { useAtajosGlobales } from './navegacion/useAtajosGlobales'
+import { useAvisosPreparacion } from './navegacion/useAvisosPreparacion'
 import { useAvisosTrabajos } from './navegacion/useAvisosTrabajos'
 import { ProveedorSesion, useSesion } from './sesion/ProveedorSesion'
 import { TrabajosContexto, useEstadoTrabajos } from './trabajos/useTrabajos'
 import { Biblioteca } from './vistas/biblioteca/Biblioteca'
+import { ControladorPaquetes } from './vistas/biblioteca/paquete/ControladorPaquetes'
 import { BibliotecaContexto, useBiblioteca } from './vistas/biblioteca/useBiblioteca'
 import { Ajustes } from './vistas/ajustes/Ajustes'
 import { AnadirCancion } from './vistas/anadir/AnadirCancion'
@@ -41,9 +47,11 @@ function Contenido({ vista }: { vista: Vista }) {
     case 'anadir':
       return (
         <AnadirCancion
-          key={vista.iniciales?.cancionId ?? vista.archivo ?? 'nueva'}
+          key={vista.iniciales?.cancionId ?? vista.archivo ?? vista.archivos?.join('|') ?? 'nueva'}
           archivo={vista.archivo}
+          archivos={vista.archivos}
           iniciales={vista.iniciales}
+          restaurar={vista.restaurar}
         />
       )
     case 'cancion':
@@ -77,9 +85,18 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
     () => ({ vista, ...salida, ir: navegar }),
     [vista, salida, navegar]
   )
+  // Contexto barato para app.log si algo falla (I-1): la vista y, en una canción, su id.
+  useEffect(() => {
+    fijarContextoError(
+      vista.tipo === 'cancion'
+        ? { vista: `cancion/${vista.paso}`, cancionId: vista.id }
+        : { vista: vista.tipo }
+    )
+  }, [vista])
   useAtajosGlobales(vista, navegar)
   useArrastrarArchivo(vista, navegar)
   useAvisosTrabajos(vista, navegar)
+  useAvisosPreparacion(vista, navegar)
 
   return (
     <NavegacionContexto.Provider value={navegacion}>
@@ -88,11 +105,24 @@ function Aplicacion({ inicial }: { inicial: Vista }) {
           <ProveedorExportacion>
             <ProveedorReproductor>
               <Marco bibliotecaVacia={vacia}>
-                <Contenido vista={vista} />
+                <LimiteErrores
+                  variante="vista"
+                  clave={claveVista(vista)}
+                  vista={vista.tipo === 'cancion' ? `cancion/${vista.paso}` : vista.tipo}
+                  cancionId={vista.tipo === 'cancion' ? vista.id : undefined}
+                  esEditor={vista.tipo === 'cancion' && vista.paso === 'editor'}
+                  alBiblioteca={
+                    vista.tipo === 'biblioteca' ? undefined : () => navegar({ tipo: 'biblioteca' })
+                  }
+                >
+                  <ProvocadorDeError />
+                  <Contenido vista={vista} />
+                </LimiteErrores>
               </Marco>
               <CapaReproductor />
             </ProveedorReproductor>
             <DialogoCierre vista={vista} />
+            <ControladorPaquetes />
           </ProveedorExportacion>
         </BibliotecaContexto.Provider>
       </TrabajosContexto.Provider>

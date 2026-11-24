@@ -12,6 +12,7 @@ import { cancionSchema } from '../src/shared/cancion'
 import { leerFixtureLetra } from '../src/shared/__fixtures__/letras'
 import { TEXTO } from '../src/renderer/src/vistas/letra/textos'
 import { TEXTO_ELEGIDA } from '../src/renderer/src/vistas/letra/textosElegida'
+import { CC } from '../src/renderer/src/vistas/letra/textosComprobacion'
 import { TEXTO_IMPORTAR, TEXTO_SUSTITUIR } from '../src/renderer/src/vistas/letra/textosPegar'
 import {
   cerrar,
@@ -21,7 +22,14 @@ import {
   preparar,
   tarjeta
 } from './fixtures/separacion'
-import { iniciarServidorLrclib, TITULOS, type ServidorLrclib } from './fixtures/lrclib/servidor'
+import {
+  DESFASE_CON_VOZ_MS,
+  iniciarServidorLrclib,
+  TITULOS,
+  VOZ_SINTETICA,
+  type ServidorLrclib
+} from './fixtures/lrclib/servidor'
+import { pulsosFlac } from '../src/main/biblioteca/flac'
 import { crearTemporal } from './temporales'
 
 /**
@@ -61,6 +69,21 @@ async function sembrarCon(
   return { datos, id, archivo: join(crearTemporal(`${nombre}-archivo`), 'letra.txt') }
 }
 
+/** Canción separada de 30 s cuya voz canta donde dice `VOZ_SINTETICA` (feature 4). */
+async function sembrarConVoz(
+  nombre: string,
+  titulo: string,
+  voz: Parameters<typeof pulsosFlac>[0] = VOZ_SINTETICA
+): Promise<Datos & { id: string }> {
+  const d = await sembrarCon(nombre, SIN_LETRA, titulo)
+  const raiz = join(d.datos, 'biblioteca', d.id)
+  const c = JSON.parse(readFileSync(join(raiz, 'cancion.json'), 'utf8'))
+  c.metadatos.duracion_ms = 30_000
+  writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(c, null, 2))
+  writeFileSync(join(raiz, 'pistas', 'voz.flac'), pulsosFlac(voz))
+  return d
+}
+
 function lanzar(
   d: Datos,
   url: string,
@@ -91,7 +114,17 @@ async function conApp(
   try {
     await prueba(await app.firstWindow(), srv, app)
   } finally {
-    await app.close().catch(() => undefined)
+    // Si al cerrar queda trabajo en segundo plano (la preparación o una búsqueda automática de la
+    // canción sembrada, según la carga), la app pregunta antes de salir y `app.close()` esperaría el
+    // tiempo de la prueba entero: se confirma el cierre.
+    const ventana = app.windows()[0]
+    const cierre = app.close().catch(() => undefined)
+    await ventana
+      ?.getByRole('dialog')
+      .getByRole('button', { name: 'Cerrar de todos modos' })
+      .click({ timeout: 3000 })
+      .catch(() => undefined)
+    await cierre
     await srv.cerrar()
   }
 }
@@ -137,7 +170,7 @@ test.describe('letras con el doble local de LRCLIB', () => {
       const v = await app.firstWindow()
       // Importar con título y artista para que la búsqueda use `get` (y la duración del WAV).
       await v.getByRole('button', { name: 'Añadir canción' }).first().click()
-      await v.getByRole('button', { name: 'Elegir archivo…' }).click()
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
       await expect(v.getByRole('heading', { name: 'Revisa los datos de la canción' })).toBeVisible({
         timeout: 30_000
       })
@@ -145,10 +178,10 @@ test.describe('letras con el doble local de LRCLIB', () => {
       await v.getByLabel('Artista').fill('Artista inventado')
       await v.getByRole('button', { name: 'Continuar' }).click()
 
-      await v.getByRole('button', { name: 'Buscar la letra mientras tanto' }).click({
-        timeout: 30_000
-      })
-      // La búsqueda se lanza sola: tres resultados; el de sincronía por palabra va primero pero
+      // Con la preparación automática (feature 5, spec 04) la búsqueda ya se lanzó al añadir la
+      // canción: «Buscar la letra mientras tanto» es ahora «Ver la letra».
+      await v.getByRole('button', { name: 'Ver la letra' }).click({ timeout: 30_000 })
+      // La búsqueda ya se hizo sola: tres resultados; el de sincronía por palabra va primero pero
       // se muestra «por línea» (ya no se importan palabras, 0149).
       const opciones = v.getByRole('option')
       await expect(opciones).toHaveCount(3)
@@ -158,6 +191,11 @@ test.describe('letras con el doble local de LRCLIB', () => {
       await expect(opciones.nth(0)).toContainText('5 s más larga que tu audio')
       await expect(opciones.nth(1)).toContainText(TEXTO.durIgual)
       await expect(opciones.nth(2)).toContainText(TEXTO.durMuyDif)
+      // Feature 4: con la separación en curso, los candidatos con tiempos esperan a la voz; el de
+      // solo texto no se comprueba.
+      await expect(opciones.nth(0)).toContainText(CC.pendiente)
+      await expect(opciones.nth(1)).toContainText(CC.pendiente)
+      await expect(opciones.nth(2)).not.toContainText(CC.pendiente)
 
       const previa = v.getByRole('region', { name: TEXTO.vistaPrevia })
       await expect(previa).toContainText('Barcos de papel navegan')
@@ -503,4 +541,133 @@ test.describe('letras con el doble local de LRCLIB', () => {
 /** Escribe el archivo que "elige" el diálogo de pruebas (siempre la misma ruta). */
 function conArchivo(d: Datos, contenido: string | Buffer): void {
   writeFileSync(d.archivo, contenido)
+}
+
+test.describe('comprobar la letra con la voz (feature 4)', () => {
+  test.describe.configure({ timeout: 90_000 })
+  const inicios = (d: Datos & { id: string }) =>
+    (json(d, d.id).letra.lineas as { tipo: string; inicio_ms: number | null }[])
+      .filter((l) => l.tipo === 'linea')
+      .map((l) => l.inicio_ms)
+
+  test('candidatos comprobados: el desfasado se guarda corregido y el que no encaja explica por qué', async () => {
+    const d = await sembrarConVoz('letras-voz', TITULOS.conVoz)
+    await conApp(d, async (v) => {
+      await abrirLetra(v, TITULOS.conVoz)
+      const opciones = v.getByRole('option')
+      await expect(opciones).toHaveCount(3)
+      const coincide = opciones.filter({ hasText: 'Tema con voz — Artista' }).filter({
+        hasNotText: /\(/
+      })
+      const desfasada = opciones.filter({ hasText: '(adelantada)' })
+      const otra = opciones.filter({ hasText: '(otra versión)' })
+      await expect(coincide).toContainText(CC.coincide, { timeout: 40_000 })
+      await expect(desfasada).toContainText(CC.adelantada('0,8'))
+      await expect(otra).toContainText(CC.noCoincide)
+
+      // La que no encaja lista sus motivos con tramos en m:ss.
+      await otra.click()
+      const bloque = v.getByRole('region', { name: CC.titulo })
+      await expect(bloque).toContainText(/líneas? caen? donde no hay voz/)
+      await expect(bloque).toContainText(CC.noCoincideAyuda)
+
+      // La desfasada se guarda con la corrección: tiempos intactos, offset y desfase anotados.
+      await desfasada.click()
+      await expect(bloque).toContainText('Toda la letra sale 0,8 s antes que la voz')
+      await usar(v).click()
+      await expect(v.getByText(/Movimos toda la letra 0,8 s más tarde/)).toBeVisible()
+      await expect.poll(() => json(d, d.id).letra.offset_ms).toBeGreaterThanOrEqual(750)
+      const letra = json(d, d.id).letra
+      expect(Math.abs(letra.offset_ms - DESFASE_CON_VOZ_MS)).toBeLessThanOrEqual(50)
+      expect(letra.desfase_corregido_ms).toBe(letra.offset_ms)
+      expect(inicios(d)).toEqual([1200, 6200, 11_200, 16_200, 21_200, 26_200])
+
+      await v.getByRole('button', { name: CC.boton.quitar }).click()
+      await expect.poll(() => json(d, d.id).letra.offset_ms).toBe(0)
+      expect(json(d, d.id).letra.desfase_corregido_ms).toBeUndefined()
+      await expect(v.getByRole('button', { name: CC.boton.corregir })).toBeVisible()
+      expect(inicios(d)).toEqual([1200, 6200, 11_200, 16_200, 21_200, 26_200])
+    })
+  })
+
+  // F4-L2 (revisión 2026-11-22): con una limitación, el candidato dice «No podemos comprobarla…», la vista
+  // previa da el motivo, no se ofrece corregir y usarla no mueve nada. Candidato sin fines (escenario `limitada`).
+  for (const [limitacion, duracionPulsoMs] of [
+    ['sinContraste', 4000],
+    ['vozContinua', 4500]
+  ] as const) {
+    test(`limitación «${limitacion}»: «No podemos comprobarla», sin corrección y sin cambiar los tiempos`, async () => {
+      const d = await sembrarConVoz(`letras-limitada-${limitacion}`, TITULOS.limitada, {
+        ...VOZ_SINTETICA,
+        duracionPulsoMs
+      })
+      await conApp(d, async (v) => {
+        await abrirLetra(v, TITULOS.limitada)
+        const opciones = v.getByRole('option')
+        await expect(opciones).toHaveCount(1)
+        await expect(opciones.first()).toContainText(CC.dudosaLimitada, { timeout: 40_000 })
+        await expect(opciones.first()).not.toContainText(CC.coincide)
+        await opciones.first().click()
+        const bloque = v.getByRole('region', { name: CC.titulo })
+        await expect(bloque).toContainText(CC.limitacion[limitacion])
+        await expect(v.getByRole('button', { name: CC.boton.corregir })).toHaveCount(0)
+
+        await usar(v).click()
+        await expect(v.getByText(CC.actual.limitada(limitacion))).toBeVisible({ timeout: 30_000 })
+        expect(lineasDe(d, d.id)).toHaveLength(6)
+        const letra = json(d, d.id).letra
+        expect(letra.offset_ms).toBe(0)
+        expect(letra.desfase_corregido_ms).toBeUndefined()
+        expect(inicios(d)).toEqual([2000, 7000, 12_000, 17_000, 22_000, 27_000])
+        await expect(v.getByRole('button', { name: CC.boton.corregir })).toHaveCount(0)
+      })
+    })
+  }
+
+  test('comprobación diferida: la letra intacta se corrige sola al quedar listos los picos y el toast la deshace', async () => {
+    const d = await sembrarConVoz('letras-diferida', 'Tema diferido')
+    const ruta = join(d.datos, 'biblioteca', d.id, 'cancion.json')
+    const c = JSON.parse(readFileSync(ruta, 'utf8'))
+    c.letra = {
+      origen: 'lrclib',
+      lrclib_id: 1,
+      offset_ms: 0,
+      intacta: true,
+      lineas: Array.from({ length: 6 }, (_, i) => ({
+        id: `d${i}`,
+        tipo: 'linea',
+        texto: `Verso inventado ${i + 1}`,
+        inicio_ms: 1200 + i * 5000,
+        fin_ms: 3200 + i * 5000,
+        palabras: null
+      }))
+    }
+    c.pasos.letra = { estado: 'completado', actualizado: '2026-11-22T10:00:00Z', error: null }
+    writeFileSync(ruta, JSON.stringify(c, null, 2))
+    await conApp(d, async (v) => {
+      // Los picos aún no existen: pedirlos los genera y, al quedar listos, main comprueba la letra.
+      await v.evaluate(async (id) => {
+        const api = (globalThis as unknown as { shinobi: ApiShinobiLetras }).shinobi
+        for (let i = 0; i < 80; i++) {
+          if ((await api.picos.solicitar(id)).estado === 'lista') return
+          await new Promise((r) => setTimeout(r, 500))
+        }
+      }, d.id)
+      await expect(
+        v.getByText(/Movimos la letra de «Tema diferido» 0,8 s más tarde para que coincida/)
+      ).toBeVisible({ timeout: 30_000 })
+      await expect.poll(() => json(d, d.id).letra.offset_ms).toBeGreaterThanOrEqual(750)
+      expect(json(d, d.id).letra.desfase_corregido_ms).toBe(json(d, d.id).letra.offset_ms)
+      expect(json(d, d.id).letra.intacta).toBe(true)
+      expect(inicios(d)).toEqual([1200, 6200, 11_200, 16_200, 21_200, 26_200])
+
+      await v.getByRole('button', { name: 'Deshacer' }).click()
+      await expect.poll(() => json(d, d.id).letra.offset_ms).toBe(0)
+      expect(json(d, d.id).letra.desfase_corregido_ms).toBeUndefined()
+    })
+  })
+})
+
+interface ApiShinobiLetras {
+  picos: { solicitar(id: string): Promise<{ estado: string }> }
 }

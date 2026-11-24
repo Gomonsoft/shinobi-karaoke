@@ -6,7 +6,8 @@ import type {
   Modalidad,
   EstadoPaso,
   NombrePaso,
-  ResueltaIpc
+  ResueltaIpc,
+  RevisionResumenIpc
 } from '../../shared'
 import {
   CREADA_POR_DEFECTO,
@@ -19,7 +20,11 @@ import {
   esAparienciaNeutra,
   estaIncompleta,
   modalidadEfectiva,
-  numerosLineasSinInicio
+  estadoPreparacion,
+  aplicaPreparar,
+  numerosLineasSinInicio,
+  type EstadoPreparacionDerivado,
+  type ResumenPreparacionIpc
 } from '../../shared'
 import type { ResolucionCancion } from '../temas/servicio'
 
@@ -57,10 +62,57 @@ export interface ResumenCancion {
   pasos: Record<NombrePaso, ResumenPaso> | null
   incompleta: boolean
   lineasSinSincronizar: number
+  /** Líneas con inicio: «Exportar la letra (.lrc)» solo vale con al menos una (0.2.2 · feature 9). */
+  lineasConTiempo?: number
+  /** Origen del audio: una Lista sin audio importada de un paquete ligero dice «descargar» o «preparar». */
+  fuenteTipo?: 'archivo' | 'youtube'
   danada: boolean
   motivo: MotivoDanada | null
   /** Solo con `motivo === 'pistas'`: tampoco existe `fuente/mezcla.flac` (no se puede re-separar). */
   sinMezcla?: boolean
+  /** Registro de la preparación (0.2.2) sin ids; `null` sin registro. */
+  preparacion?: ResumenPreparacionIpc | null
+  estadoPreparacion?: EstadoPreparacionDerivado | null
+  /** «Preparar» solo pondría fines y exige confirmar (letra sin `intacta`; ADR 0025, revisión 0278). */
+  prepararFinesSinMarca?: boolean
+  /** Líneas con inicio y sin fin; solo con `prepararFinesSinMarca`. */
+  lineasSinFin?: number
+}
+
+function resumenPreparacion(c: Cancion): ResumenPreparacionIpc | null {
+  const p = c.preparacion
+  if (!p) return null
+  return {
+    estado: p.estado,
+    paso: p.paso,
+    busqueda: p.busqueda
+      ? {
+          resultado: p.busqueda.resultado,
+          candidatas: p.busqueda.candidatas,
+          motivo: p.busqueda.motivo,
+          noElige: p.busqueda.no_elige ?? null
+        }
+      : null,
+    dudosas: p.dudosas,
+    dudosasImportantes: p.dudosas_importantes ?? p.dudosas,
+    revisada: p.revisada,
+    eleccionAutomatica: p.eleccion?.por === 'app',
+    eleccionSinComprobar: p.eleccion?.por === 'app' && p.eleccion.sin_comprobar === true,
+    desfaseCorregido: c.letra?.desfase_corregido_ms !== undefined
+  }
+}
+
+/**
+ * Recuento de líneas por revisar que lleva el resumen: el de memoria (`RecuentoRevision`) si ya está
+ * calculado; si no, el guardado en el registro de la preparación; sin ninguno, `null`.
+ */
+export function revisionDeResumen(
+  r: Pick<ResumenCancion, 'preparacion'>,
+  memoria: RevisionResumenIpc | null | undefined
+): RevisionResumenIpc | null {
+  if (memoria !== undefined) return memoria
+  const p = r.preparacion
+  return p ? { dudosas: p.dudosas, dudosasImportantes: p.dudosasImportantes ?? p.dudosas } : null
 }
 
 /**
@@ -101,7 +153,8 @@ export function aparienciaDeResolucion(
     temaNombre: r.temaNombre,
     neutra: r.neutra,
     alHeredar: { ...r.alHeredar },
-    procedenciaEspera: r.procedenciaEspera
+    procedenciaEspera: r.procedenciaEspera,
+    procedenciaPantalla: r.procedenciaPantalla
   }
 }
 
@@ -113,7 +166,8 @@ export function resueltaDeResolucion(r: ResolucionCancion): ResueltaIpc {
     temaId: r.temaId,
     temaNombre: r.temaNombre,
     alHeredar: { ...r.alHeredar },
-    procedenciaEspera: r.procedenciaEspera
+    procedenciaEspera: r.procedenciaEspera,
+    procedenciaPantalla: r.procedenciaPantalla
   }
 }
 
@@ -156,9 +210,25 @@ export function resumirCancion(
     pasos,
     incompleta: estaIncompleta(cancion),
     lineasSinSincronizar: numerosLineasSinInicio(cancion.letra).length,
+    lineasConTiempo:
+      cancion.letra?.lineas.filter((l) => l.tipo === 'linea' && l.inicio_ms !== null).length ?? 0,
+    fuenteTipo: cancion.fuente.tipo,
     danada: danada !== null,
     motivo: danada,
-    ...(danada === 'pistas' && sinMezcla ? { sinMezcla: true } : {})
+    ...(danada === 'pistas' && sinMezcla ? { sinMezcla: true } : {}),
+    preparacion: resumenPreparacion(cancion),
+    estadoPreparacion: danada ? null : estadoPreparacion(cancion),
+    // Sin pista de voz (dañada o sin separar) no se ofrece: «Ajustar los fines…» de una Lista la necesita (0389).
+    prepararFinesSinMarca:
+      !danada &&
+      aplicaPreparar(cancion).confirmar === 'finesSinMarca' &&
+      (cancion.estado !== 'lista' ||
+        (cancion.pasos.separacion.estado === 'completado' && Boolean(cancion.pistas?.voz))),
+    lineasSinFin: !danada
+      ? (cancion.letra?.lineas.filter(
+          (l) => l.tipo === 'linea' && l.inicio_ms !== null && l.fin_ms === null
+        ).length ?? 0)
+      : 0
   }
 }
 
@@ -183,13 +253,16 @@ export function resumenDanadaPorJson(id: string): ResumenCancion {
       temaNombre: null,
       neutra: false,
       alHeredar: { ...DESTINO_HEREDAR_PROVISIONAL },
-      procedenciaEspera: 'propio'
+      procedenciaEspera: 'propio',
+      procedenciaPantalla: 'propio'
     },
     miniatura: null,
     pasos: null,
     incompleta: false,
     lineasSinSincronizar: 0,
     danada: true,
-    motivo: 'json'
+    motivo: 'json',
+    preparacion: null,
+    estadoPreparacion: null
   }
 }

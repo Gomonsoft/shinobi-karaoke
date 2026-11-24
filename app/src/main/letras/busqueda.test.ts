@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
 import { leerFixtureLetraJson } from '../../shared/__fixtures__/letras'
 import type { Cancion } from '../../shared'
+import type { NivelBase } from '../picos/formato'
 import { BusquedaLetras, convertirRegistro, type OpcionesBusquedaLetras } from './busqueda'
 import {
   crearClienteLrclib,
@@ -259,5 +260,69 @@ describe('BusquedaLetras con servidor HTTP local', () => {
     } finally {
       srv.close()
     }
+  })
+})
+
+describe('encaje de los candidatos (ADR 0024 §2)', () => {
+  // Voz sintética: cinco frases con silencios; la letra «propia» las sigue, la «adelantada» va 1 s antes.
+  const frases: [number, number][] = [
+    [2000, 4500],
+    [6000, 8000],
+    [10_000, 13_000],
+    [15_000, 16_800],
+    [19_000, 22_500],
+    [24_000, 26_000]
+  ]
+  const nivel = (): NivelBase => {
+    const pares = new Int16Array((30_000 / 10) * 2)
+    for (const [a, b] of frases) {
+      for (let k = a / 10; k < b / 10; k++) {
+        pares[2 * k] = -20000
+        pares[2 * k + 1] = 20000
+      }
+    }
+    for (let k = 0; k < 3000; k++) if (!pares[2 * k]) pares[2 * k + 1] = 10
+    return { pasoMs: 10, pares, duracionMs: 30_000 }
+  }
+  const lrc = (d: number): string =>
+    frases
+      .map(([a, b], i) => {
+        const t = (ms: number): string => {
+          const s = (ms - d) / 1000
+          return `${String(Math.floor(s / 60)).padStart(2, '0')}:${(s % 60).toFixed(2).padStart(5, '0')}`
+        }
+        return `[${t(a)}]línea inventada ${i}\n[${t(b)}]`
+      })
+      .join('\n')
+  const registros = [
+    base(1, { syncedLyrics: lrc(0), plainLyrics: null }),
+    base(2, { syncedLyrics: lrc(1000), plainLyrics: null }),
+    base(3, { plainLyrics: 'solo\ntexto' })
+  ]
+
+  it('añade encaje y ordena; sin picos no cambia nada; el evento llega al terminar los picos', async () => {
+    let disponible: NivelBase | null = null
+    const emitirEncaje = vi.fn()
+    const { b } = montar(
+      { get: async () => null, buscar: async () => [registros[2]!, registros[1]!, registros[0]!] },
+      { picos: { nivelBase: async () => disponible }, emitirEncaje }
+    )
+    const sin = await b.buscar(pet())
+    expect(sin.candidatos.every((c) => c.encaje === undefined)).toBe(true)
+
+    disponible = nivel()
+    await b.alPicosListos('c1')
+    expect(emitirEncaje).toHaveBeenCalledTimes(1)
+    const ev = emitirEncaje.mock.calls[0]![0]
+    expect(ev.cancionId).toBe('c1')
+    expect(ev.encajes.find((e: { lrclib_id: number }) => e.lrclib_id === 3).encaje).toBeNull()
+
+    const con = await b.buscar(pet({ usarCache: true }))
+    const porId = Object.fromEntries(con.candidatos.map((c) => [c.lrclib_id, c.encaje]))
+    expect(porId[1]?.veredicto).toBe('coincide')
+    expect(porId[2]?.veredicto).toBe('desfasada')
+    expect(porId[2]?.desfaseMs).toBe(1000)
+    expect(porId[3]).toBeNull()
+    expect(con.candidatos.at(-1)?.lrclib_id).toBe(3)
   })
 })

@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { Check } from 'lucide-react'
-import type { ImportacionLeidaIpc } from '@shared/ipc'
+import type { ImportacionLeidaIpc, LecturaLoteIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { BarraProgreso } from '../../componentes/BarraProgreso'
 import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
-import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion, type DatosInicialesAnadir } from '../../navegacion/estado'
 import { detallesDeError } from '../biblioteca/errores'
 import { formatearDuracion } from '../biblioteca/tarjeta'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
+import { AvisoBusqueda } from './AvisoBusqueda'
+import { guardarBorrador, leerBorrador, olvidarBorrador } from './borrador'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { AvisoLarga } from './AvisoLarga'
+import { tablaDeArchivos, type TablaLote } from './lote/modelo'
+import { LOTE } from './lote/textosLote'
 import { TEXTO, textoLeido } from './textos'
 import estilos from './anadir.module.css'
 import { copiarDetalles } from '../../soporte/detalles'
+import { abrirImportarPaquete } from '../biblioteca/paquete/almacen'
+import { PAQ } from '../biblioteca/paquete/textos'
 
 interface ErrorVista {
   codigo: string
@@ -25,6 +30,8 @@ interface ErrorVista {
 type Estado =
   | { tipo: 'vacio' }
   | { tipo: 'leyendo'; nombre: string }
+  /** L1: lectura de las etiquetas de varios archivos o de una carpeta. */
+  | { tipo: 'leyendoLote'; n: number | null }
   | { tipo: 'leido'; datos: ImportacionLeidaIpc }
   | { tipo: 'error'; error: ErrorVista }
 
@@ -38,6 +45,10 @@ function comoErrorVista(err: unknown): ErrorVista {
 }
 
 const nombreDeRuta = (ruta: string): string => ruta.split(/[\\/]/).pop() ?? ruta
+/** Una ruta (arrastre) o una `ref` de la lectura del lote (main resuelve la ruta; el renderer nunca la ve). */
+type EntradaArchivo = { ruta: string } | { ref: string; nombre: string }
+const nombreDeEntrada = (e: EntradaArchivo): string =>
+  'ruta' in e ? nombreDeRuta(e.ruta) : e.nombre
 
 /** Hay un diálogo modal o un menú abierto: ellos gestionan su propio Esc. */
 const hayCapaAbierta = (): boolean =>
@@ -48,15 +59,51 @@ interface PanelArchivoProps {
   archivoInicial?: string
   /** Canción existente cuya fuente se sustituye ("Usar otro enlace"/"Elegir otro archivo"). */
   iniciales?: DatosInicialesAnadir
+  /** Vuelve de Ajustes: se vuelve a leer el archivo y se recupera lo escrito (F6-N8). */
+  restaurar?: boolean
+  /** Varios archivos o una carpeta arrastrados sobre la Biblioteca: empieza L1 sin más pasos. */
+  rutasIniciales?: string[]
+  /** La lectura dejó varias filas (o una carpeta): pasa a la tabla de revisión. */
+  alLote?: (tabla: TablaLote) => void
 }
 
+const EXTENSION_PAQUETE = /\.shinobi$/i
+const esDirectorio = (item: DataTransferItem): boolean =>
+  item.kind === 'file' && item.webkitGetAsEntry?.()?.isDirectory === true
+
 /** Origen "Archivo de tu equipo": zona de arrastre, lectura y formulario "Revisar datos". */
-export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
+export function PanelArchivo({
+  archivoInicial,
+  iniciales,
+  restaurar,
+  rutasIniciales,
+  alLote
+}: PanelArchivoProps) {
   const { ir } = useNavegacion()
+  // Lo recuperado de Ajustes (lectura sin consumir: sobrevive a un doble montaje).
+  const [restaurado] = useState(() => {
+    const b = restaurar ? leerBorrador() : null
+    return b?.origen === 'archivo' ? b : null
+  })
+  const entradaInicial: EntradaArchivo | undefined = archivoInicial
+    ? { ruta: archivoInicial }
+    : restaurado
+      ? 'ref' in restaurado
+        ? { ref: restaurado.ref, nombre: restaurado.nombre }
+        : { ruta: restaurado.ruta }
+      : undefined
   const [estado, setEstado] = useState<Estado>(
-    archivoInicial ? { tipo: 'leyendo', nombre: nombreDeRuta(archivoInicial) } : { tipo: 'vacio' }
+    rutasIniciales && rutasIniciales.length > 0
+      ? { tipo: 'leyendoLote', n: rutasIniciales.length }
+      : entradaInicial
+        ? { tipo: 'leyendo', nombre: nombreDeEntrada(entradaInicial) }
+        : { tipo: 'vacio' }
   )
-  const [sobre, setSobre] = useState(false)
+  // Lo recuperado de Ajustes: sustituye a lo propuesto al volver a leer el archivo.
+  const valoresRestaurados = useRef(restaurado?.valores ?? null)
+  const entradaActual = useRef<EntradaArchivo | null>(entradaInicial ?? null)
+  const [recuperado, setRecuperado] = useState(false)
+  const [sobre, setSobre] = useState<number | false>(false)
   const [valores, setValores] = useState<ValoresDatos>({ titulo: '', artista: '', album: '' })
   const [errorTitulo, setErrorTitulo] = useState<string | undefined>()
   const [enviando, setEnviando] = useState(false)
@@ -70,11 +117,14 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
   const profundidad = useRef(0)
 
   const lanzar = useCallback(
-    async (ruta: string) => {
+    async (entrada: EntradaArchivo) => {
       const gen = ++ref.current.gen
       ref.current.leyendo = true
+      entradaActual.current = entrada
       try {
-        const datos = await window.shinobi.fuente.importarArchivo(ruta)
+        const datos = await window.shinobi.fuente.importarArchivo(
+          'ruta' in entrada ? entrada.ruta : { ref: entrada.ref }
+        )
         if (gen !== ref.current.gen) {
           // Cancelada mientras terminaba: no debe quedar nada preparado.
           void window.shinobi.fuente.descartarImportacion(datos.importacionId).catch(() => {})
@@ -83,18 +133,22 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         ref.current.leyendo = false
         ref.current.pendiente = datos.importacionId
         // Con `iniciales` (sustituir la fuente de la misma canción) se conservan sus metadatos.
+        const recuperados = valoresRestaurados.current
+        valoresRestaurados.current = null
+        setRecuperado(recuperados !== null)
         setValores(
-          iniciales
-            ? {
-                titulo: iniciales.titulo,
-                artista: iniciales.artista,
-                album: iniciales.album ?? ''
-              }
-            : {
-                titulo: datos.metadatos.titulo,
-                artista: datos.metadatos.artista,
-                album: datos.metadatos.album
-              }
+          recuperados ??
+            (iniciales
+              ? {
+                  titulo: iniciales.titulo,
+                  artista: iniciales.artista,
+                  album: iniciales.album ?? ''
+                }
+              : {
+                  titulo: datos.metadatos.titulo,
+                  artista: datos.metadatos.artista,
+                  album: datos.metadatos.album
+                })
         )
         setErrorTitulo(undefined)
         setEstado({ tipo: 'leido', datos })
@@ -110,7 +164,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
   const iniciar = (ruta: string) => {
     setErrorConfirmar(null)
     setEstado({ tipo: 'leyendo', nombre: nombreDeRuta(ruta) })
-    void lanzar(ruta)
+    void lanzar({ ruta })
   }
 
   const cancelarLectura = useCallback(() => {
@@ -120,13 +174,95 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
     setEstado({ tipo: 'vacio' })
   }, [])
 
+  /**
+   * Lee las etiquetas de varios archivos o de una carpeta (L1). Con una sola fila añadible sigue el flujo de una
+   * canción; si no, pasa a la tabla (L2). Una lectura sin filas o con un solo archivo ilegible es un error.
+   */
+  const leerLote = useCallback(
+    async (
+      leer: () => Promise<LecturaLoteIpc | null>,
+      opciones: {
+        n: number | null
+        carpeta: boolean
+        nombreCarpeta?: string | null
+        paquete?: boolean
+      }
+    ) => {
+      const gen = ++ref.current.gen
+      ref.current.leyendo = true
+      try {
+        const lectura = await leer()
+        if (gen !== ref.current.gen) return
+        ref.current.leyendo = false
+        if (lectura === null) {
+          setEstado({ tipo: 'vacio' })
+          return
+        }
+        const validas = lectura.filas.filter((f) => f.problema === null)
+        if (lectura.filas.length === 0) {
+          setEstado({
+            tipo: 'error',
+            error: {
+              codigo: opciones.carpeta ? 'CARPETA_SIN_AUDIO' : 'FORMATO_NO_SOPORTADO',
+              mensaje: ''
+            }
+          })
+          return
+        }
+        if (lectura.filas.length === 1 && lectura.filas[0]!.problema !== null) {
+          const corta = lectura.filas[0]!.problema === 'corta'
+          setEstado({
+            tipo: 'error',
+            error: { codigo: corta ? 'AUDIO_DEMASIADO_CORTO' : 'FORMATO_NO_SOPORTADO', mensaje: '' }
+          })
+          return
+        }
+        // Una sola canción añadible: el flujo de siempre (lectura del audio y formulario D).
+        const uno = validas.length === 1 ? validas[0] : undefined
+        if (uno) {
+          setEstado({ tipo: 'leyendo', nombre: uno.nombre })
+          void lanzar({ ref: uno.ref, nombre: uno.nombre })
+          return
+        }
+        const tabla = tablaDeArchivos(lectura, {
+          carpeta: opciones.carpeta,
+          nombreCarpeta: opciones.nombreCarpeta ?? null,
+          paqueteIgnorado: opciones.paquete
+        })
+        if (alLote) alLote(tabla)
+      } catch (err) {
+        if (gen !== ref.current.gen) return
+        ref.current.leyendo = false
+        setEstado({ tipo: 'error', error: comoErrorVista(err) })
+      }
+    },
+    [alLote, lanzar]
+  )
+
+  /** Muestra L1 al empezar a leer un lote (con `n` si se conoce). */
+  const iniciarLote = (n: number | null) => {
+    setErrorConfirmar(null)
+    setEstado({ tipo: 'leyendoLote', n })
+  }
+
   const elegir = async () => {
-    try {
-      const ruta = await window.shinobi.sistema.elegirArchivoAudio()
-      if (ruta) iniciar(ruta)
-    } catch (err) {
-      setEstado({ tipo: 'error', error: comoErrorVista(err) })
+    if (iniciales) {
+      // Sustituir la fuente de una canción existente: un solo archivo, como siempre.
+      try {
+        const ruta = await window.shinobi.sistema.elegirArchivoAudio()
+        if (ruta) iniciar(ruta)
+      } catch (err) {
+        setEstado({ tipo: 'error', error: comoErrorVista(err) })
+      }
+      return
     }
+    iniciarLote(null)
+    await leerLote(() => window.shinobi.fuente.leerArchivos(), { n: null, carpeta: false })
+  }
+
+  const elegirCarpeta = () => {
+    iniciarLote(null)
+    return leerLote(() => window.shinobi.fuente.leerCarpeta(), { n: null, carpeta: true })
   }
 
   // Lectura automática del archivo recibido de la Biblioteca y limpieza al salir de la vista
@@ -134,8 +270,14 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
   useEffect(() => {
     const op = ref.current
     // `lanzar` solo cambia el estado tras esperar a main (no hay renders en cascada).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (archivoInicial) void lanzar(archivoInicial)
+    if (rutasIniciales && rutasIniciales.length > 0) {
+      // Como `lanzar`, `leerLote` solo cambia el estado tras esperar a main (L1 ya es el estado inicial).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      void leerLote(() => window.shinobi.fuente.leerArchivos(rutasIniciales), {
+        n: rutasIniciales.length,
+        carpeta: false
+      })
+    } else if (entradaInicial) void lanzar(entradaInicial)
     return () => {
       op.gen++
       if (op.leyendo) {
@@ -160,6 +302,8 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
       // Un campo de texto ajeno a esta vista conserva su Esc (docs/ux/00 §6).
       const campo = e.target instanceof Element ? e.target.closest('input, textarea, select') : null
       if (campo && !campo.closest('[data-panel-anadir]')) return
+      // Con la lista de sugerencias abierta, Esc solo la cierra (la cierra el propio campo).
+      if (campo?.getAttribute('aria-expanded') === 'true') return
       e.preventDefault()
       if (ref.current.leyendo) cancelarLectura()
       else ir({ tipo: 'biblioteca' })
@@ -175,7 +319,8 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
       refTitulo.current?.focus()
       refTitulo.current?.select()
     } else if (tipo === 'error') refError.current?.focus()
-    else if (tipo === 'leyendo') document.getElementById('anadir-cancelar-lectura')?.focus()
+    else if (tipo === 'leyendo' || tipo === 'leyendoLote')
+      document.getElementById('anadir-cancelar-lectura')?.focus()
   }, [tipo])
 
   const continuar = async () => {
@@ -195,6 +340,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         iniciales ? { cancionId: iniciales.cancionId } : undefined
       )
       ref.current.pendiente = null
+      olvidarBorrador()
       ir({ tipo: 'cancion', id: resumen.id, paso: 'progreso' })
     } catch (err) {
       setErrorConfirmar(comoErrorVista(err))
@@ -214,8 +360,26 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
     const archivos = Array.from(e.dataTransfer.files)
     const primero = archivos[0]
     if (!primero) return
-    if (archivos.length > 1) mostrarToast({ tipo: 'aviso', mensaje: TEXTO.varios })
-    iniciar(window.shinobi.rutaDeArchivo(primero))
+    if (iniciales) {
+      iniciar(window.shinobi.rutaDeArchivo(primero))
+      return
+    }
+    const hayCarpeta = Array.from(e.dataTransfer.items ?? []).some(esDirectorio)
+    const todas = archivos.map((f) => window.shinobi.rutaDeArchivo(f))
+    const rutas = todas.filter((r) => !EXTENSION_PAQUETE.test(r))
+    const paquete = rutas.length < todas.length
+    if (rutas.length === 0) return
+    if (rutas.length === 1 && !hayCarpeta && !paquete) {
+      iniciar(rutas[0]!)
+      return
+    }
+    iniciarLote(rutas.length)
+    void leerLote(() => window.shinobi.fuente.leerArchivos(rutas), {
+      n: rutas.length,
+      carpeta: hayCarpeta,
+      nombreCarpeta: hayCarpeta && rutas.length === 1 ? nombreDeRuta(rutas[0]!) : null,
+      paquete
+    })
   }
   const traeArchivos = (e: DragEvent): boolean =>
     Array.from(e.dataTransfer.types ?? []).includes('Files')
@@ -228,7 +392,7 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         if (!traeArchivos(e)) return
         e.preventDefault()
         profundidad.current++
-        setSobre(true)
+        setSobre(e.dataTransfer.items?.length ?? 1)
       }}
       onDragOver={(e) => {
         if (traeArchivos(e)) e.preventDefault()
@@ -239,13 +403,20 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
       }}
       onDrop={alSoltar}
     >
-      <p style={{ margin: 0 }}>{sobre ? TEXTO.soltar : TEXTO.arrastre}</p>
-      {!sobre && (
+      <p style={{ margin: 0 }}>
+        {sobre === false ? TEXTO.arrastre : sobre > 1 ? LOTE.soltarVarios(sobre) : TEXTO.soltar}
+      </p>
+      {sobre === false && (
         <>
           <span aria-hidden="true">{TEXTO.o}</span>
-          <Boton variante="primario" data-foco-inicial onClick={() => void elegir()}>
-            {TEXTO.elegir}
-          </Boton>
+          <div className={estilos.acciones}>
+            <Boton variante="primario" data-foco-inicial onClick={() => void elegir()}>
+              {TEXTO.elegir}
+            </Boton>
+            {!iniciales && (
+              <Boton onClick={() => void elegirCarpeta()}>{TEXTO.elegirCarpeta}</Boton>
+            )}
+          </div>
           <p className={estilos.formatos}>{TEXTO.formatos}</p>
         </>
       )}
@@ -259,6 +430,21 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
         <BarraProgreso etiqueta={TEXTO.leyendo} indeterminada />
         <div className={estilos.acciones} style={{ justifyContent: 'space-between' }}>
           <span role="status">{TEXTO.leyendo}</span>
+          <Boton id="anadir-cancelar-lectura" onClick={cancelarLectura}>
+            {TEXTO.cancelar}
+          </Boton>
+        </div>
+      </div>
+    )
+  }
+
+  if (estado.tipo === 'leyendoLote') {
+    const texto = estado.n === null ? LOTE.leyendo : LOTE.leyendoN(estado.n)
+    return (
+      <div className={estilos.leyendo}>
+        <BarraProgreso etiqueta={texto} indeterminada />
+        <div className={estilos.acciones} style={{ justifyContent: 'space-between' }}>
+          <span role="status">{texto}</span>
           <Boton id="anadir-cancelar-lectura" onClick={cancelarLectura}>
             {TEXTO.cancelar}
           </Boton>
@@ -289,6 +475,8 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
           <p className={estilos.ayuda}>{TEXTO.datosAyuda}</p>
         </div>
         <CamposDatos
+          key={datos.importacionId}
+          propuesta={iniciales || recuperado ? null : datos.datos}
           valores={valores}
           onCambio={(v) => {
             setValores(v)
@@ -298,6 +486,15 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
           refTitulo={refTitulo}
           onIntroUltimo={() => void continuar()}
         />
+        {!iniciales && (
+          <AvisoBusqueda
+            alCambiar={() => {
+              const entrada = entradaActual.current
+              if (entrada) guardarBorrador({ origen: 'archivo', ...entrada, valores })
+              ir({ tipo: 'ajustes', origen: { tipo: 'anadir' }, seccion: 'preparacion' })
+            }}
+          />
+        )}
         {datos.larga && <AvisoLarga duracion={duracion} duracionMs={datos.duracionMs} />}
         {err && (
           <AvisoEnLinea
@@ -333,18 +530,34 @@ export function PanelArchivo({ archivoInicial, iniciales }: PanelArchivoProps) {
           <AvisoEnLinea
             tipo="error"
             accion={
-              esErrorGenerico(e.codigo) ? (
+              esErrorGenerico(e.codigo) && e.codigo !== 'CARPETA_SIN_AUDIO' ? (
                 <Boton variante="fantasma" onClick={() => copiar(e)}>
                   {TEXTO.copiarDetalles}
                 </Boton>
               ) : undefined
             }
           >
-            <strong>{textoDeError(e.codigo).titulo}</strong> {textoDeError(e.codigo).cuerpo}
+            {e.codigo === 'CARPETA_SIN_AUDIO' ? (
+              <>
+                <strong>{LOTE.carpetaVaciaTitulo}</strong> {LOTE.carpetaVaciaCuerpo}
+              </>
+            ) : (
+              <>
+                <strong>{textoDeError(e.codigo).titulo}</strong> {textoDeError(e.codigo).cuerpo}
+              </>
+            )}
           </AvisoEnLinea>
         </div>
       )}
       {zona}
+      {(estado.tipo === 'vacio' || estado.tipo === 'error') && (
+        <p className={estilos.formatos} data-enlace-paquete>
+          {PAQ.anadir.pregunta}{' '}
+          <Boton variante="fantasma" onClick={() => abrirImportarPaquete()}>
+            {PAQ.anadir.enlace}
+          </Boton>
+        </p>
+      )}
     </div>
   )
 }

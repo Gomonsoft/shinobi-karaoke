@@ -77,3 +77,21 @@ it('con el reloj real cancela sin lanzar "Illegal invocation" con los temporizad
   escucha.escuchar(500, 'inicio')
   expect(() => escucha.cancelar()).not.toThrow()
 })
+
+it('avisa de cuándo empieza, cuándo termina volviendo y cuándo la interrumpen (I2-5)', async () => {
+  const { motor, publicar } = montar()
+  const eventos = { alIniciar: vi.fn(), alTerminar: vi.fn(), alCancelar: vi.fn() }
+  const escucha = new EscuchaComprobacion(motor, undefined, eventos)
+  escucha.escuchar(4000, 'inicio')
+  expect(eventos.alIniciar).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(400)
+  expect(eventos.alIniciar).toHaveBeenCalledTimes(1)
+  publicar(false)
+  expect(eventos.alTerminar).toHaveBeenCalledTimes(1)
+  expect(eventos.alCancelar).not.toHaveBeenCalled()
+  escucha.escuchar(4000, 'inicio')
+  await vi.advanceTimersByTimeAsync(400)
+  escucha.cancelar()
+  expect(eventos.alCancelar).toHaveBeenCalledTimes(1)
+  expect(eventos.alTerminar).toHaveBeenCalledTimes(1)
+})

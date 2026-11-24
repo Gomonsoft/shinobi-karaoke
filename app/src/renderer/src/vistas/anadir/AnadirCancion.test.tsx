@@ -5,6 +5,7 @@ import { NavegacionContexto, type DatosInicialesAnadir, type Vista } from '../..
 import { TrabajosContexto } from '../../trabajos/useTrabajos'
 import { resumenPrueba } from '../biblioteca/resumenPrueba'
 import { AnadirCancion } from './AnadirCancion'
+import { estadoPaquetes, reiniciarPaquetes } from '../biblioteca/paquete/almacen'
 
 vi.mock('../../componentes/gestorToasts', () => ({ mostrarToast: vi.fn() }))
 
@@ -33,6 +34,23 @@ function diferido<T>(): Diferido<T> {
   return { promesa, resolver, rechazar }
 }
 
+const unaFila = (ruta: string) => ({
+  filas: [
+    {
+      ref: '11111111-1111-4111-8111-111111111111',
+      nombre: ruta.split('/').pop() ?? ruta,
+      duracionMs: 200_000,
+      metadatos: { titulo: 'X', artista: '', album: null },
+      duplicado: null,
+      problema: null
+    }
+  ],
+  rechazadas: 0,
+  truncada: false,
+  libreBytes: null,
+  factorMinutos: null
+})
+
 function montar(
   o: {
     archivo?: string
@@ -48,6 +66,9 @@ function montar(
       elegirArchivoAudio: vi.fn().mockResolvedValue(o.elegida ?? '/música/bohemian.mp3')
     },
     fuente: {
+      // «Elegir archivos…» lee las etiquetas; con un solo archivo sigue el flujo de una canción.
+      leerArchivos: vi.fn(async () => unaFila(o.elegida ?? '/música/bohemian.mp3')),
+      leerCarpeta: vi.fn().mockResolvedValue(null),
       importarArchivo: vi.fn(o.importar ?? (() => Promise.resolve(leida()))),
       cancelarImportacion: vi.fn().mockResolvedValue(undefined),
       confirmarArchivo: vi.fn().mockResolvedValue(resumenPrueba({ id: 'nueva' })),
@@ -69,18 +90,31 @@ function montar(
 }
 
 const elegir = async () => {
-  fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
   return screen.findByLabelText(/Título/)
 }
 
 beforeEach(() => vi.mocked(mostrarToast).mockClear())
 
+describe('enlace «Importar paquete…» (F7-N15)', () => {
+  it('abre el diálogo de importación de la feature 9', () => {
+    reiniciarPaquetes()
+    montar()
+    expect(screen.getByText(/¿Tienes un paquete de Shinobi Karaoke\?/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Importar paquete…' }))
+    expect(estadoPaquetes().importar).not.toBeNull()
+    reiniciarPaquetes()
+  })
+})
+
 describe('AnadirCancion (archivo)', () => {
-  it('abre con "Elegir archivo…" y la cabecera en modo nueva canción', () => {
+  it('abre con "Elegir archivos…" y la cabecera en modo nueva canción', () => {
     montar()
     expect(screen.getByText('Nueva canción')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Elegir archivo…' })).toBeInTheDocument()
-    expect(screen.getByText('Arrastra aquí un archivo de audio o vídeo')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Elegir archivos…' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Arrastra aquí un archivo, varios o una carpeta entera')
+    ).toBeInTheDocument()
     // Sin YouTube (0051) no hay selector de origen.
     expect(screen.queryByRole('radiogroup')).toBeNull()
   })
@@ -88,10 +122,12 @@ describe('AnadirCancion (archivo)', () => {
   it('elegir: lectura con Cancelar y, al terminar, formulario con foco y texto seleccionado', async () => {
     const d = diferido<ImportacionLeidaIpc>()
     const { api } = montar({ importar: () => d.promesa })
-    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
     expect(await screen.findByText('bohemian.mp3')).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'Leyendo el audio…' })).toBeInTheDocument()
-    expect(api.fuente.importarArchivo).toHaveBeenCalledWith('/música/bohemian.mp3')
+    expect(api.fuente.importarArchivo).toHaveBeenCalledWith({
+      ref: '11111111-1111-4111-8111-111111111111'
+    })
     await act(async () => d.resolver(leida()))
     expect(await screen.findByText('Audio leído: bohemian.mp3 · 5:55')).toBeInTheDocument()
     const titulo = screen.getByLabelText(/Título/) as HTMLInputElement
@@ -106,23 +142,24 @@ describe('AnadirCancion (archivo)', () => {
   it('cancelar la lectura vuelve a la zona sin error', async () => {
     const d = diferido<ImportacionLeidaIpc>()
     const { api } = montar({ importar: () => d.promesa })
-    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
+    await waitFor(() => expect(api.fuente.importarArchivo).toHaveBeenCalled())
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }))
     expect(api.fuente.cancelarImportacion).toHaveBeenCalledWith()
     await act(async () => d.rechazar({ codigo: 'CANCELADO', mensaje: 'cancelado' }))
-    expect(screen.getByRole('button', { name: 'Elegir archivo…' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Elegir archivos…' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('Esc con la lectura en curso la cancela y no sale de la vista', async () => {
     const d = diferido<ImportacionLeidaIpc>()
     const { api, ir } = montar({ importar: () => d.promesa })
-    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
     await screen.findByText('bohemian.mp3')
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(api.fuente.cancelarImportacion).toHaveBeenCalled()
     expect(ir).not.toHaveBeenCalled()
-    expect(await screen.findByRole('button', { name: 'Elegir archivo…' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Elegir archivos…' })).toBeInTheDocument()
   })
 
   it('Esc sin operación vuelve a la Biblioteca; Esc en el formulario descarta al salir', async () => {
@@ -219,11 +256,11 @@ describe('AnadirCancion (archivo)', () => {
     ['SIN_ESPACIO', 'No queda espacio en el disco.']
   ])('error %s: alerta con el foco y la zona disponible', async (codigo, texto) => {
     montar({ importar: () => Promise.reject({ codigo, mensaje: 'x' }) })
-    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
     const alerta = await screen.findByRole('alert')
     expect(alerta).toHaveTextContent(texto)
     await waitFor(() => expect(alerta.parentElement).toHaveFocus())
-    expect(screen.getByRole('button', { name: 'Elegir archivo…' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Elegir archivos…' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Copiar detalles' })).toBeNull()
   })
 
@@ -237,14 +274,15 @@ describe('AnadirCancion (archivo)', () => {
       importar: () =>
         Promise.reject({ codigo: 'ERROR_INTERNO', mensaje: 'fallo', detalles: 'traza' })
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Elegir archivos…' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Algo salió mal.')
     fireEvent.click(screen.getByRole('button', { name: 'Copiar detalles' }))
     await waitFor(() => expect(escribir).toHaveBeenCalledWith('ERROR_INTERNO: fallo\ntraza'))
   })
 
-  it('soltar varios archivos usa el primero y avisa', async () => {
+  it('soltar varios archivos lee sus etiquetas (modo lote), sin el aviso de una en una', async () => {
     const { api } = montar()
+    api.fuente.leerArchivos.mockClear()
     const zona = screen.getByTestId('zona-arrastre')
     const f = (n: string) => new File(['x'], n)
     const ev = createEvent.drop(zona)
@@ -252,11 +290,21 @@ describe('AnadirCancion (archivo)', () => {
       value: { files: [f('a.mp3'), f('b.mp3')], types: ['Files'] }
     })
     fireEvent(zona, ev)
-    await waitFor(() => expect(api.fuente.importarArchivo).toHaveBeenCalledWith('/soltados/a.mp3'))
-    expect(mostrarToast).toHaveBeenCalledWith({
-      tipo: 'aviso',
-      mensaje: 'Añade las canciones de una en una.'
+    await waitFor(() =>
+      expect(api.fuente.leerArchivos).toHaveBeenCalledWith(['/soltados/a.mp3', '/soltados/b.mp3'])
+    )
+    expect(mostrarToast).not.toHaveBeenCalled()
+  })
+
+  it('soltar un solo archivo sigue el flujo de una canción', async () => {
+    const { api } = montar()
+    const zona = screen.getByTestId('zona-arrastre')
+    const ev = createEvent.drop(zona)
+    Object.defineProperty(ev, 'dataTransfer', {
+      value: { files: [new File(['x'], 'a.mp3')], types: ['Files'] }
     })
+    fireEvent(zona, ev)
+    await waitFor(() => expect(api.fuente.importarArchivo).toHaveBeenCalledWith('/soltados/a.mp3'))
   })
 
   it('arrastrar encima muestra "Suelta para añadir"', () => {

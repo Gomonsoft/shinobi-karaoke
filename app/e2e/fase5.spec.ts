@@ -200,7 +200,12 @@ test.describe('fase 5: integración', () => {
       expect(cambio).toContain('EDICION_BLOQUEADA')
       expect(leerCancion(datos, ID).modalidad).toBe('letra_lista')
       await secundaria.waitForTimeout(1500)
-      await expect(secundaria.locator('[data-linea]')).toHaveCount(1)
+      // 0.2.2: el bloque de 5 líneas (como mucho 5 en reposo, 6 en un cambio), siempre sin barrido.
+      // Se espera a que la secundaria haya pintado el bloque antes de contarlo (un `count()` suelto leía 0).
+      await expect(secundaria.locator('[data-linea]').first()).toBeVisible()
+      const lineas = await secundaria.locator('[data-linea]').count()
+      expect(lineas).toBeGreaterThanOrEqual(1)
+      expect(lineas).toBeLessThanOrEqual(6)
       await expect(secundaria.locator('[data-barrido]')).toHaveCount(0)
     } finally {
       await salirSinConfirmar(app)

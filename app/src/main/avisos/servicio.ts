@@ -37,7 +37,14 @@ export interface DepsAvisos {
   /** Envía un evento al renderer. */
   difundirAviso: (aviso: AvisoTrabajoIpc) => void
   difundirAbrir: (evento: AbrirCancionIpc) => void
+  /** Clic en la notificación de una tanda: abrir su resultado (evento sin carga). */
+  difundirAbrirResultado?: () => void
   obtenerCancion: (id: string) => Cancion | null
+  /**
+   * Hay una tanda de 2 o más canciones en marcha (ADR 0025 §5): no se avisa por cada canción; al vaciarse
+   * la cola sale un solo aviso `tanda` (`avisarTanda`).
+   */
+  enTandaDeVarias?: () => boolean
   registrar?: (nivel: 'aviso', mensaje: string) => void
 }
 
@@ -53,6 +60,10 @@ export function avisoDeTrabajo(
   if (t.resultado === 'completado') {
     // La descarga que encadena la separación no avisa: avisa la separación al terminar.
     if (t.paso !== 'separacion') return null
+    // La preparación en marcha avisa por su cuenta («está lista para revisar») y sustituye a «ya se puede
+    // marcar como lista» (spec 04); «voz e instrumental separadas» sigue como siempre.
+    const enPreparacion = cancion.preparacion?.estado === 'en_curso'
+    if (enPreparacion && puedeMarcarseLista(cancion)) return null
     const lista = puedeMarcarseLista(cancion)
     return {
       cancionId: t.cancionId,
@@ -82,18 +93,73 @@ export function avisoDeTrabajo(
  */
 export class ServicioAvisos {
   private pendientes = 0
+  /** Canciones cuyo último estado de preparación visto fue «Preparando». */
+  private readonly preparando = new Set<string>()
 
   constructor(private readonly deps: DepsAvisos) {}
 
   /** Cambio de un trabajo del gestor (suscripción). */
   alCambiarTrabajo(t: TrabajoIpc): void {
     const aviso = avisoDeTrabajo(t, this.deps.obtenerCancion)
-    if (aviso) this.avisar(aviso)
+    if (aviso && !this.deps.enTandaDeVarias?.()) this.avisar(aviso)
+  }
+
+  /**
+   * Fin de la preparación de **una** canción (spec 04 §3): la notificación del sistema de siempre con la
+   * ventana sin foco. El toast lo pone el renderer; dentro de una tanda de varias no hay nada por canción.
+   */
+  alCambiarCancion(e: {
+    id: string
+    eliminada?: boolean
+    resumen?: { titulo: string; estadoPreparacion?: string | null }
+  }): void {
+    if (e.eliminada || !e.resumen) {
+      this.preparando.delete(e.id)
+      return
+    }
+    const antes = this.preparando.has(e.id)
+    const ahora = e.resumen.estadoPreparacion
+    if (ahora === 'preparando') this.preparando.add(e.id)
+    else this.preparando.delete(e.id)
+    if (!antes || ahora === 'preparando') return
+    const tipo =
+      ahora === 'lista_para_revisar'
+        ? 'revisar'
+        : ahora === 'elige_letra'
+          ? 'elige'
+          : ahora === 'sin_letra' || ahora === 'instrumental'
+            ? 'sinLetra'
+            : null
+    if (!tipo || this.deps.enTandaDeVarias?.()) return
+    this.alertarSistema(AVISOS.preparacion[tipo](e.resumen.titulo), () =>
+      this.abrir(e.id, tipo === 'revisar' ? 'editor' : 'progreso')
+    )
+  }
+
+  /** Resumen de una tanda terminada: un solo aviso (toast y notificación del sistema). */
+  avisarTanda(resumen: {
+    total: number
+    listas: number
+    esperanLetra: number
+    conError: number
+  }): void {
+    this.avisar({
+      cancionId: '',
+      tipo: 'tanda',
+      texto: AVISOS.tanda(resumen),
+      etiqueta: AVISOS.etiquetaTanda,
+      destino: 'biblioteca'
+    })
   }
 
   avisar(aviso: AvisoTrabajoIpc): void {
     this.deps.difundirAviso(aviso)
-    this.alertarSistema(aviso.texto, () => this.abrir(aviso.cancionId, aviso.destino))
+    this.alertarSistema(aviso.texto, () => {
+      if (aviso.tipo === 'tanda') {
+        this.deps.ventana()?.traer()
+        this.deps.difundirAbrirResultado?.()
+      } else this.abrir(aviso.cancionId, aviso.destino)
+    })
   }
 
   /**

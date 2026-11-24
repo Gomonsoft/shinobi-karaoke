@@ -51,6 +51,11 @@
   content: '';
 }
 
+/* Las importadas de un paquete se resaltan con `info` (spec 02 · Feature 9). */
+.item[data-resalte='info'] .tarjeta::after {
+  border-color: var(--info);
+}
+
 @keyframes resaltarTarjeta {
   0%,
   100% {
@@ -213,6 +218,12 @@
 }
 .linea_error {
   color: var(--error);
+}
+.linea_atencion {
+  color: var(--texto-1);
+}
+.linea_atencion > svg {
+  color: var(--aviso);
 }
 .linea_curso,
 .linea_cola {
@@ -445,10 +456,17 @@
   color: var(--texto-1);
 }
 
+.accionesLote {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--e-2);
+}
+
 .accionesSeleccion {
   display: flex;
   flex-wrap: wrap;
   gap: var(--e-2);
+  margin-left: auto;
 }
 
 .casillaTarjeta {
@@ -534,4 +552,131 @@
 .principal {
   flex: 1;
   min-width: 0;
+}
+
+/* ---------- Bandeja de pendientes (0.2.2 · feature 5) ---------- */
+.bandeja {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2) var(--e-3);
+  margin-top: var(--e-3);
+}
+.bandejaTitulo {
+  color: var(--texto-2);
+}
+.casillaBandeja {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: var(--objetivo-minimo);
+  padding: 0 var(--e-3);
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-pildora);
+  background: var(--fondo-2);
+  color: var(--texto-1);
+  font-size: var(--t-pequeno);
+  white-space: nowrap;
+}
+.casillaBandeja:hover {
+  background: var(--fondo-3-hover);
+}
+.casillaBandeja[aria-pressed='true'] {
+  border-color: var(--acento);
+  background: var(--info-tenue);
+}
+.avisosPrep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  margin-top: var(--e-3);
+}
+
+/* ---------- Resultado de la preparación ---------- */
+.listaResultado {
+  max-height: 20rem;
+  margin: var(--e-3) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+}
+.filaResultado {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  padding: var(--e-2) var(--e-3);
+}
+.filaResultado + .filaResultado {
+  border-top: 1px solid var(--borde);
+}
+.filaResultadoTexto {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resultado_exito {
+  color: var(--exito);
+}
+.resultado_info {
+  color: var(--info);
+}
+.resultado_neutro {
+  color: var(--texto-3);
+}
+.resultado_error {
+  color: var(--error);
+}
+
+/* Línea ⚑ «n líneas por revisar» de una «Lista para revisar» (feature 11). */
+.lineaRevision {
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+  margin: 0;
+  color: var(--texto-2);
+}
+.lineaRevision svg {
+  flex: none;
+}
+
+/* «Editar datos…» de varias: casilla + campo (spec 02 · Feature 8). */
+.campoDatosLote {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e-2);
+}
+
+.casillaDatosLote {
+  display: flex;
+  align-items: center;
+  height: 36px;
+}
+
+.campoDatosTexto {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Velo de la ventana al arrastrar varios archivos (`bib.arrastrar.soltarVarios`). */
+.veloArrastre {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--info);
+  background: color-mix(in srgb, var(--fondo-0, #000) 80%, transparent);
+  color: var(--texto-1);
+  pointer-events: none;
+}
+
+.veloArrastre p {
+  margin: 0;
+  font-size: var(--t-subtitulo, 1.25rem);
+  font-weight: 600;
 }

@@ -89,3 +89,22 @@ export async function leerVentana(
   }
   return null
 }
+
+export interface NivelBase {
+  pasoMs: number
+  pares: Int16Array
+  duracionMs: number
+}
+
+/** Lee entero el nivel más detallado (10 ms por bloque; unos 100 KB por 4 min) para `evaluarEncaje`. */
+export async function leerNivelBase(ruta: string): Promise<NivelBase | null> {
+  return conPicos(ruta, async (archivo, formato) => {
+    const { offset, bloques, pasoMs } = formato.niveles[0]!
+    const bytes = Buffer.alloc(bloques * BYTES_PAR)
+    const { bytesRead } = await archivo.read(bytes, 0, bytes.length, offset)
+    if (bytesRead !== bytes.length) return null
+    const pares = new Int16Array(bloques * 2)
+    for (let i = 0; i < pares.length; i++) pares[i] = bytes.readInt16LE(i * 2)
+    return { pasoMs, pares, duracionMs: formato.duracionMs }
+  })
+}

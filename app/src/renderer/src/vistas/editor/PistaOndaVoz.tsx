@@ -218,25 +218,37 @@ export const LienzoPicosVoz = memo(function LienzoPicosVoz({
   )
 })
 
+/** El mensaje de la onda mientras no está lista (o `null` con la onda lista). */
+export function textoEstadoOnda(estado: EstadoPicos, separada: boolean): string | null {
+  if (estado.estado === 'lista') return null
+  if (!separada) return 'Disponible cuando termine la separación.'
+  return estado.estado === 'generando'
+    ? 'Preparando forma de onda…'
+    : 'Forma de onda no disponible.'
+}
+
 export function PistaOndaVoz({
   cancionId,
   vista,
   estado,
   separada,
-  reintentar
+  reintentar,
+  mensajeFuera = false
 }: {
   cancionId: string
   vista: VistaLineaTiempo
   estado: EstadoPicos
   separada: boolean
   reintentar: () => void
+  /** Con carriles el mensaje va en la celda sobre las etiquetas (spec 06 · «Mensajes de la onda»). */
+  mensajeFuera?: boolean
 }) {
   return (
     <div className={css.pista}>
       <span className={css.etiqueta}>Forma de onda de la voz</span>
       {estado.estado === 'lista' ? (
         <LienzoPicosVoz cancionId={cancionId} generacion={estado.generacion} {...vista} />
-      ) : (
+      ) : mensajeFuera ? null : (
         <div className={css.estado}>
           <span role="status">
             {!separada

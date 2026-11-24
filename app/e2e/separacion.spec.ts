@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test'
 import {
@@ -52,6 +52,15 @@ async function esperarPaso(
       { timeout }
     )
     .toBe(estado)
+}
+
+/** Sin búsqueda automática de letra: estas pruebas son de la separación y no deben salir a la red. */
+function sinBusquedaAutomatica(datos: string): void {
+  const config = leerConfig(datos)
+  writeFileSync(
+    join(datos, 'config.json'),
+    JSON.stringify({ ...config, preparacion: { automatica: false } })
+  )
 }
 
 test.describe('separación con el separador falso', () => {
@@ -134,9 +143,12 @@ test.describe('separación con el separador falso', () => {
       await expect(filaSeparar(v)).toContainText(/Separando… \d+ %/, { timeout: 30_000 })
       await volverABiblioteca(v)
       await importar(v, 'Segunda')
-      await expect(filaSeparar(v)).toContainText('En cola: se separará cuando termine «Primera».', {
-        timeout: 30_000
-      })
+      await expect(filaSeparar(v)).toContainText(
+        'En cola: 2.ª de 2. Empezará cuando terminen las anteriores.',
+        {
+          timeout: 30_000
+        }
+      )
       await expect(v.getByText(/Tardará/)).toBeVisible()
       expect(estadoPaso(env.datos, 'Primera', 'separacion')).toBe('en_curso')
       // Cuando termina la primera, la segunda empieza sola y acaba.
@@ -197,7 +209,11 @@ test.describe('separación con el separador falso', () => {
   })
 
   test('panel de actividad: filas, Ir, cancelar y Terminado', async () => {
-    const env = preparar('sep-panel', { segundos: 6, pasos: 12 })
+    // La primera debe seguir separando mientras se importa la segunda (con la CPU ocupada importar tarda): 6 s se
+    // quedaba corto y la segunda ya iba «en curso» en vez de «En cola». Se espera por el estado, con más margen.
+    const env = preparar('sep-panel', { segundos: 16, pasos: 32 })
+    // Solo separación: con la búsqueda automática, la letra (sumidero 503) deja a las canciones en la cola 60 s.
+    sinBusquedaAutomatica(env.datos)
     const app = await lanzar(env)
     try {
       const v = await app.firstWindow()
@@ -209,22 +225,31 @@ test.describe('separación con el separador falso', () => {
       await volverABiblioteca(v)
 
       const boton = botonActividad(v)
-      await expect(boton).toHaveText('1 en curso · 1 en cola')
+      await expect(boton).toHaveText('Preparando 1 de 2')
       await boton.click()
       const panel = v.getByRole('region', { name: 'Actividad' })
       await expect(panel.getByRole('listitem')).toHaveCount(2)
       await expect(panel.getByRole('listitem').first()).toContainText('Primera')
-      await expect(panel.getByRole('listitem').nth(1)).toContainText('Segunda')
+      // Cola de la feature 7: «En cola» es un grupo plegado por defecto (spec 04, panel con cola).
+      const grupo = panel.getByRole('button', { name: 'En cola (1)' })
+      await expect(grupo).toHaveAttribute('aria-expanded', 'false')
+      await grupo.click()
+      const segunda = panel.getByRole('listitem').filter({ hasText: 'Segunda' }).last()
 
       // [Ir] navega a la vista de progreso de la canción.
-      await panel.getByRole('listitem').nth(1).getByRole('button', { name: 'Ir' }).click()
-      await expect(filaSeparar(v)).toContainText('En cola: se separará cuando termine «Primera».')
+      await segunda.getByRole('button', { name: 'Ir' }).click()
+      await expect(filaSeparar(v)).toContainText(
+        'En cola: 2.ª de 2. Empezará cuando terminen las anteriores.'
+      )
 
       // [✕] sobre la que está en cola la retira sin diálogo.
       await boton.click()
+      if ((await panel.getByRole('button', { name: 'Cancelar «Segunda»' }).count()) === 0)
+        await panel.getByRole('button', { name: 'En cola (1)' }).click()
       await panel.getByRole('button', { name: 'Cancelar «Segunda»' }).click()
       await expect(v.getByRole('dialog')).toHaveCount(0)
-      await expect(boton).toHaveText('1 en curso')
+      // La cancelada cuenta como terminada en la tanda (spec 04, progreso global): la que sigue es la 2.ª.
+      await expect(boton).toHaveText('Preparando 2 de 2')
 
       // Al terminar todo: "Terminado" y el botón desaparece.
       await expect(estadoActividad(v)).toHaveText('Terminado', { timeout: 40_000 })
@@ -236,8 +261,10 @@ test.describe('separación con el separador falso', () => {
     }
   })
 
-  test('cierre con trabajos: diálogo, Interrumpido y Reintentar sin salir de la Biblioteca', async () => {
+  test('cierre con trabajos: diálogo y, tras dos cierres seguidos, Interrumpido y Reintentar sin salir de la Biblioteca', async () => {
+    test.setTimeout(120_000)
     const env = preparar('sep-cierre', LARGO)
+    sinBusquedaAutomatica(env.datos)
     const app = await lanzar(env)
     const v = await app.firstWindow()
     await importar(v, 'Tema interrumpido')
@@ -260,6 +287,23 @@ test.describe('separación con el separador falso', () => {
     expect(estadoPaso(env.datos, 'Tema interrumpido', 'separacion')).toBe('interrumpido')
     expect(existsSync(join(carpeta(env.datos, id), 'pistas.tmp'))).toBe(false)
 
+    // Primer cierre: al reabrir se retoma sola (0309). Se vuelve a cerrar a mitad: dos arranques seguidos.
+    const retomada = await lanzar(env)
+    const vr = await retomada.firstWindow()
+    await expect
+      .poll(() => estadoPaso(env.datos, 'Tema interrumpido', 'separacion'), { timeout: 30_000 })
+      .toBe('en_curso')
+    // Se cierra en cuanto arranca, sin esperar a ver el progreso: la solicitud de cierre no se pierde
+    // aunque el diálogo aún no esté montado (0236).
+    const cierre2 = retomada.close()
+    await vr
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Cerrar de todos modos' })
+      .click({ timeout: 10_000 })
+    await cierre2
+    expect(estadoPaso(env.datos, 'Tema interrumpido', 'separacion')).toBe('interrumpido')
+
+    // Tercer arranque: ya no se retoma; queda «Interrumpido» con [Reintentar].
     escribirEscenario(env, CORTO)
     const app2 = await lanzar(env)
     try {
@@ -271,6 +315,41 @@ test.describe('separación con el separador falso', () => {
       await expect(t).not.toContainText('Interrumpido')
       await esperarPaso(env.datos, 'Tema interrumpido', 'completado')
       expect(leerCancion(env.datos, id).pistas.voz).toBe('pistas/voz.flac')
+    } finally {
+      await cerrar(app2)
+    }
+    expect(procesosWorker(env.datos)).toEqual([])
+  })
+
+  test('cerrar con una separación en curso y otra en cola y reabrir las retoma solas, en orden', async () => {
+    const env = preparar('sep-reanuda', LARGO)
+    sinBusquedaAutomatica(env.datos)
+    const app = await lanzar(env)
+    const v = await app.firstWindow()
+    await importar(v, 'Tema primero')
+    await volverABiblioteca(v)
+    await importar(v, 'Tema segundo')
+    await volverABiblioteca(v)
+    await esperarPaso(env.datos, 'Tema primero', 'en_curso')
+    const cierre = app.close()
+    await v
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Cerrar de todos modos' })
+      .click({ timeout: 5000 })
+      .catch(() => undefined)
+    await cierre
+    // El diario deja lo pendiente para el siguiente arranque.
+    const diario = JSON.parse(
+      readFileSync(join(env.datos, 'trabajos', 'pendientes.json'), 'utf8')
+    ) as { tipo: string }[]
+    expect(diario.filter((e) => e.tipo === 'separacion')).toHaveLength(2)
+
+    escribirEscenario(env, CORTO)
+    const app2 = await lanzar(env)
+    try {
+      await app2.firstWindow()
+      await esperarPaso(env.datos, 'Tema primero', 'completado', 90_000)
+      await esperarPaso(env.datos, 'Tema segundo', 'completado', 90_000)
     } finally {
       await cerrar(app2)
     }

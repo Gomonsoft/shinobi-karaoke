@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { join, resolve } from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 import { sembrar } from '../src/main/biblioteca/semilla'
+import { nombrePropuesto } from '../src/shared/exportacion'
 import type { ApiShinobi } from '../src/shared/ipc'
 import { idSemilla } from './fixtures/editor'
 import { leerCancion, leerConfig, carpeta } from './fixtures/separacion'
@@ -45,6 +46,8 @@ function sondear(archivo: string): {
   seg: number
   /** Píxeles del color de resaltado en los fotogramas 53 (2,2 s) y 69 (2,9 s). */
   amarillo: [number, number]
+  /** Diferencia media (× 100) entre fotogramas contiguos: a mitad del cambio (52→53) y en reposo (62→63). */
+  movimiento: [number, number]
 } {
   const uv = process.env.SHINOBI_UV ?? 'uv'
   const salida = execFileSync(
@@ -62,14 +65,17 @@ function sondear(archivo: string): {
         'n = sum(1 for p in c.demux(v) if p.pts is not None)',
         'c.seek(0)',
         'm = {}',
+        'g = {}',
         'for i, f in enumerate(c.decode(v)):',
+        '    a = f.to_ndarray(format="rgb24").astype("int16")',
         '    if i in (53, 69):',
-        '        a = f.to_ndarray(format="rgb24").astype("int16")',
         '        m[i] = int(((a[..., 0] > 200) & (a[..., 1] > 170) & (a[..., 2] < 130)).sum())',
+        '    if i in (52, 53, 62, 63): g[i] = a',
         '    if i > 69: break',
         'amarillo = [m.get(53, -1), m.get(69, -1)]',
+        'mov = [int(abs(g[b] - g[a]).mean() * 100) for a, b in ((52, 53), (62, 63))]',
         'print(json.dumps({"n": n, "w": v.width, "h": v.height, "a": len(c.streams.audio),',
-        '  "fps": round(float(v.average_rate), 2), "seg": round(float(c.duration / 1e6), 1), "amarillo": amarillo}))'
+        '  "fps": round(float(v.average_rate), 2), "seg": round(float(c.duration / 1e6), 1), "amarillo": amarillo, "movimiento": mov}))'
       ].join('\n'),
       archivo
     ],
@@ -80,7 +86,7 @@ function sondear(archivo: string): {
 
 const sha = (ruta: string): string => createHash('sha256').update(readFileSync(ruta)).digest('hex')
 
-test('exporta a MKV: 3 s a 640×480, fotogramas y barrido visible', async () => {
+test('exporta a MKV: 3 s a 640×480 con 5 líneas, fotogramas, barrido y cambio de línea', async () => {
   test.setTimeout(240_000)
   const { datos, salida, id, app } = await preparar('exportacion', 3000)
   try {
@@ -127,6 +133,10 @@ test('exporta a MKV: 3 s a 640×480, fotogramas y barrido visible', async () => 
     expect(s).toMatchObject({ n: 72, w: 640, h: 480, a: 1, fps: 24, seg: 3 })
     // V17: el barrido de la primera línea avanza entre 2,2 s y 2,9 s: aparece color de resaltado.
     expect(s.amarillo[1]).toBeGreaterThan(s.amarillo[0] + 200)
+    // F1-R23: con 5 líneas (el predeterminado de la semilla) la entrada de la primera línea (2,0 a
+    // 2,35 s) mueve el bloque, y el fotograma depende solo del instante: entre 52 y 53 la imagen
+    // cambia mucho más que en reposo (medido: 658 frente a 4, en centésimas de nivel) (62 → 63, donde solo avanza el barrido).
+    expect(s.movimiento[0]).toBeGreaterThan(Math.max(100, s.movimiento[1] * 5))
   } finally {
     await app.close().catch(() => undefined)
   }
@@ -221,6 +231,204 @@ test('«Letra lista» a WebM: sin barrido y con los fotogramas esperados', async
     expect(s).toMatchObject({ n: 72, w: 640, h: 480, a: 1, fps: 24, seg: 3 })
     // Sin barrido, la letra nunca toma el color de resaltado.
     expect(Math.max(...s.amarillo)).toBeLessThan(20)
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+})
+
+/** Datos sembrados con dos «Reproductor» de 3 s y las opciones recordadas apuntando a una carpeta temporal. */
+async function prepararLote(nombre: string) {
+  const datos = crearTemporal(nombre)
+  const salida = crearTemporal(`${nombre}-salida`)
+  await sembrar(datos)
+  // Las dos «Reproductor» de la semilla, acortadas a 3 s.
+  for (const n of [20, 21]) {
+    const cancion = leerCancion(datos, idSemilla(n))
+    cancion.metadatos.duracion_ms = 3000
+    writeFileSync(
+      join(carpeta(datos, idSemilla(n)), 'cancion.json'),
+      JSON.stringify(cancion, null, 2)
+    )
+  }
+  const config = leerConfig(datos)
+  config.instalacion.estado = 'completa'
+  // Opciones recordadas: el diálogo de lote las usa, y la carpeta propuesta es la temporal.
+  config.exportacion = {
+    carpeta: salida,
+    formato: 'mkv_av1',
+    ancho: 640,
+    alto: 480,
+    fps: 24,
+    audio: 'instrumental'
+  }
+  writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  return { datos, salida }
+}
+
+test('exportar varias desde la barra de la Biblioteca: 2 videos a 640×480 en una carpeta temporal (0321)', async () => {
+  test.setTimeout(300_000)
+  const { datos, salida } = await prepararLote('exportacion-lote')
+  const app = await electron.launch({
+    args: ['.'],
+    cwd: process.cwd(),
+    env: { ...process.env, SHINOBI_DATOS: datos, SHINOBI_SILENCIAR_AUDIO: '1' }
+  })
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Seleccionar', exact: true }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista»' }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista incompleta»' }).click()
+    // `click()` desplazaría la página para centrar la barra fija y un scroll cierra el menú: se abre sin desplazar.
+    await v.getByRole('button', { name: 'Más acciones', exact: true }).dispatchEvent('click')
+    await v.getByRole('menuitem', { name: 'Exportar video…' }).click()
+    const g = v.getByRole('dialog', { name: 'Exportar 2 videos' })
+    await expect(g.getByLabel(/^Guardar en la carpeta, /)).toHaveValue(salida)
+    await g.getByRole('button', { name: 'Exportar 2 videos' }).click()
+    const i = v.getByRole('dialog', { name: 'Videos exportados' })
+    await expect(i).toBeVisible({ timeout: 240_000 })
+    await expect(i.getByText(/Se exportaron 2 videos/)).toBeVisible()
+    const archivos = readdirSync(salida).filter((n) => n.endsWith('.mkv'))
+    expect(archivos).toHaveLength(2)
+    expect(readdirSync(salida)).toHaveLength(2)
+    for (const a of archivos) expect(statSync(join(salida, a)).size).toBeGreaterThan(1000)
+    const s = sondear(join(salida, archivos[0]!))
+    expect(s).toMatchObject({ w: 640, h: 480, fps: 24, seg: 3 })
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+})
+
+test('exportar varias con un video ya presente y «omitir»: el botón dice uno menos y se exporta uno menos (0388)', async () => {
+  test.setTimeout(300_000)
+  const { datos, salida } = await prepararLote('exportacion-lote-omitir')
+  const lista = leerCancion(datos, idSemilla(20))
+  const yaExiste = nombrePropuesto(lista.metadatos.titulo, lista.metadatos.artista, 'mkv')
+  writeFileSync(join(salida, yaExiste), 'anterior')
+  const app = await electron.launch({
+    args: ['.'],
+    cwd: process.cwd(),
+    env: { ...process.env, SHINOBI_DATOS: datos, SHINOBI_SILENCIAR_AUDIO: '1' }
+  })
+  try {
+    const v = await app.firstWindow()
+    await v.getByRole('button', { name: 'Seleccionar', exact: true }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista»' }).click()
+    await v.getByRole('checkbox', { name: 'Seleccionar «Reproductor: lista incompleta»' }).click()
+    await v.getByRole('button', { name: 'Más acciones', exact: true }).dispatchEvent('click')
+    await v.getByRole('menuitem', { name: 'Exportar video…' }).click()
+    const g = v.getByRole('dialog', { name: 'Exportar 2 videos' })
+    await expect(g.getByLabel(/^Guardar en la carpeta, /)).toHaveValue(salida)
+    await expect(
+      g.getByText(/^1 de estas canciones ya tiene un video en esta carpeta/)
+    ).toBeVisible()
+    await g.getByRole('button', { name: 'Ver cuáles' }).click()
+    await expect(g.getByText(`→ ${yaExiste.replace('.mkv', ' (2).mkv')}`)).toBeVisible()
+    await g.getByRole('radio', { name: 'Omitir esa canción' }).click()
+    await expect(g.getByText(/^1 canción no se exportará/)).toBeVisible()
+    await g.getByRole('button', { name: 'Exportar 1 video', exact: true }).click()
+    const i = v.getByRole('dialog', { name: 'Videos exportados' })
+    await expect(i).toBeVisible({ timeout: 240_000 })
+    await expect(i.getByText(/Se exportaron 1 de 2 videos/)).toBeVisible()
+    const archivos = readdirSync(salida).filter((n) => n.endsWith('.mkv'))
+    expect(archivos).toHaveLength(2)
+    expect(readFileSync(join(salida, yaExiste), 'utf8')).toBe('anterior')
+  } finally {
+    await app.close().catch(() => undefined)
+  }
+})
+
+/** Cuenta píxeles de un color en dos fotogramas del video (0.2.3 · 0364). */
+function sondearColores(
+  archivo: string,
+  fotogramas: [number, number]
+): { amarillo: [number, number]; cian: [number, number] } {
+  const uv = process.env.SHINOBI_UV ?? 'uv'
+  const salida = execFileSync(
+    uv,
+    [
+      'run',
+      '--project',
+      resolve(process.cwd(), '..', 'worker'),
+      'python',
+      '-c',
+      [
+        'import av, json, sys',
+        'c = av.open(sys.argv[1])',
+        'v = c.streams.video[0]',
+        'quiero = [int(sys.argv[2]), int(sys.argv[3])]',
+        'r = {}',
+        'for i, f in enumerate(c.decode(v)):',
+        '    if i in quiero:',
+        '        a = f.to_ndarray(format="rgb24").astype("int16")',
+        '        amarillo = int(((a[..., 0] > 200) & (a[..., 1] > 170) & (a[..., 2] < 130)).sum())',
+        '        cian = int(((a[..., 0] < 110) & (a[..., 1] > 150) & (a[..., 2] > 200)).sum())',
+        '        r[i] = [amarillo, cian]',
+        '    if i > max(quiero): break',
+        'print(json.dumps({"amarillo": [r[q][0] for q in quiero], "cian": [r[q][1] for q in quiero]}))'
+      ].join('\n'),
+      archivo,
+      String(fotogramas[0]),
+      String(fotogramas[1])
+    ],
+    { encoding: 'utf8' }
+  )
+  return JSON.parse(salida.trim().split('\n').at(-1)!)
+}
+
+test('exporta un dúo con coro: cada cantante barre en su color y el tiempo por fotograma es comparable (0364, C1-V1)', async () => {
+  test.setTimeout(300_000)
+  const datos = crearTemporal('exportacion-duo')
+  const salida = crearTemporal('exportacion-duo-salida')
+  await sembrar(datos, { reparto: true })
+  for (const id of [idSemilla(20), idSemilla(50)]) {
+    const cancion = leerCancion(datos, id)
+    cancion.metadatos.duracion_ms = 8000
+    writeFileSync(join(carpeta(datos, id), 'cancion.json'), JSON.stringify(cancion, null, 2))
+  }
+  const config = leerConfig(datos)
+  config.instalacion.estado = 'completa'
+  config.exportacion = { carpeta: salida }
+  writeFileSync(join(datos, 'config.json'), JSON.stringify(config))
+  const app = await electron.launch({
+    args: ['.'],
+    cwd: process.cwd(),
+    env: { ...process.env, SHINOBI_DATOS: datos, SHINOBI_SILENCIAR_AUDIO: '1' }
+  })
+  try {
+    const ventana = await app.firstWindow()
+    const exportar = (cancionId: string) =>
+      ventana.evaluate(async (id) => {
+        const api = (globalThis as unknown as { shinobi: ApiShinobi }).shinobi.exportacion
+        const destino = await api.destinoPropuesto({ cancionId: id, formato: 'mkv_av1' })
+        const inicio = Date.now()
+        const { trabajoId } = await api.iniciar({
+          cancionId: id,
+          formato: 'mkv_av1',
+          ancho: 640,
+          alto: 480,
+          fps: 24,
+          audio: 'instrumental',
+          destinoId: destino.destinoId
+        })
+        for (;;) {
+          const e = (await api.estado()).find((x) => x.trabajoId === trabajoId)
+          if (e?.estado === 'terminada') return { e, ms: Date.now() - inicio }
+          if (Date.now() - inicio > 200_000) throw new Error('la exportación no terminó')
+          await new Promise((res) => setTimeout(res, 250))
+        }
+      }, cancionId)
+    const base = await exportar(idSemilla(20))
+    const duo = await exportar(idSemilla(50))
+    expect(duo.e).toMatchObject({ resultado: 'completada', fotogramas: 192 })
+    // Anotado en las notas de la tarea: tiempo por fotograma del dúo frente al de 0.2.2.
+    console.log(
+      `0364: ${(base.ms / 192).toFixed(1)} ms/fotograma sin reparto; ${(duo.ms / 192).toFixed(1)} ms/fotograma con 3 zonas`
+    )
+    const s = sondearColores(join(salida, duo.e.archivo), [60, 144])
+    // 2,5 s canta Ana (color de lo ya cantado, amarillo); 6 s canta Luis (cian de su ranura).
+    expect(s.amarillo[0]).toBeGreaterThan(100)
+    expect(s.cian[1]).toBeGreaterThan(100)
+    expect(s.cian[1]).toBeGreaterThan(s.cian[0])
   } finally {
     await app.close().catch(() => undefined)
   }

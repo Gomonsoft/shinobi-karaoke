@@ -11,16 +11,30 @@ import { analizarUrlYoutube } from '@shared/youtube'
 import type { ApiShinobi, InfoYoutubeIpc } from '@shared/ipc'
 import { AvisoEnLinea } from '../../componentes/AvisoEnLinea'
 import { Boton } from '../../componentes/Boton'
-import { CampoTexto } from '../../componentes/Campos'
+import { AreaTexto } from '../../componentes/Campos'
 import { Icono } from '../../componentes/Icono'
 import { useNavegacion, type DatosInicialesAnadir } from '../../navegacion/estado'
 import { AVISO_YOUTUBE } from '../acerca/textos'
 import { detallesDeError } from '../biblioteca/errores'
 import { formatearDuracion } from '../biblioteca/tarjeta'
 import { esErrorGenerico, textoDeError } from '../progreso/textos'
+import { AvisoBusqueda } from './AvisoBusqueda'
+import { guardarBorrador, leerBorrador, olvidarBorrador } from './borrador'
 import { CamposDatos, metadatosParaIpc, type ValoresDatos } from './CamposDatos'
 import { Miniatura } from './Miniatura'
 import { AvisoLarga } from './AvisoLarga'
+import { clasificarEnlaces, type Enlace } from './lote/enlaces'
+import {
+  filaDeEntradaLista,
+  filaDeInfo,
+  filaNoDisponible,
+  fusionarRepetidas,
+  marcarIniciales,
+  nombreDeLista,
+  type FilaTabla,
+  type TablaLote
+} from './lote/modelo'
+import { LOTE } from './lote/textosLote'
 import { TEXTO, TEXTO_YT as YT } from './textos'
 import estilos from './anadir.module.css'
 import { copiarDetalles } from '../../soporte/detalles'
@@ -63,14 +77,39 @@ interface PanelYoutubeProps {
   iniciales?: DatosInicialesAnadir
   /** Vuelve a la pestaña Archivo. */
   alUsarArchivo: () => void
+  /** Vuelve de Ajustes: se repite la búsqueda del enlace y se recupera lo escrito (F6-N8). */
+  restaurar?: boolean
+  /** Varios enlaces o una lista: pasa a la tabla de revisión (spec 03 · feature 7). */
+  alLote?: (tabla: TablaLote) => void
 }
 
+/** Errores de la consulta que paran todo el lote (el resto deja una fila con ✕). */
+const PARAN_LOTE = new Set(['YOUTUBE_BLOQUEADO', 'SIN_CONEXION', 'CANCELADO'])
+
 /** Origen "Enlace de YouTube": aviso legal, enlace, vista previa y formulario "Revisar datos". */
-export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
+export function PanelYoutube({ iniciales, alUsarArchivo, restaurar, alLote }: PanelYoutubeProps) {
   const { ir } = useNavegacion()
+  // Lo recuperado de Ajustes (lectura sin consumir: sobrevive a un doble montaje).
+  const [restaurado] = useState(() => {
+    const b = restaurar ? leerBorrador() : null
+    return b?.origen === 'youtube' ? b : null
+  })
+  const valoresRestaurados = useRef(restaurado?.valores ?? null)
+  const [recuperado, setRecuperado] = useState(false)
   // null: leyendo la configuración.
   const [aceptado, setAceptado] = useState<boolean | null>(null)
-  const [url, setUrl] = useState('')
+  const [listasAceptado, setListasAceptado] = useState(false)
+  /** Aviso legal con el punto de las listas, pendiente de aceptar antes de consultar una lista. */
+  const [avisoListas, setAvisoListas] = useState<{
+    texto: string
+    conservar?: { id: string; valores: ValoresDatos }
+  } | null>(null)
+  /** Enlace con lista del video ya consultado: `add.lote.ofertaLista`. */
+  const [ofertaLista, setOfertaLista] = useState<string | null>(null)
+  const [progresoLote, setProgresoLote] = useState<{ i: number; n: number; lista: boolean } | null>(
+    null
+  )
+  const [url, setUrl] = useState(restaurado?.url ?? '')
   const [buscando, setBuscando] = useState(false)
   const [actualizando, setActualizando] = useState(false)
   const [info, setInfo] = useState<InfoYoutubeIpc | null>(null)
@@ -81,14 +120,18 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
   const [enviando, setEnviando] = useState(false)
 
   const ref = useRef({ gen: 0, buscando: false, pendiente: null as string | null })
-  const refUrl = useRef<HTMLInputElement>(null)
+  const refUrl = useRef<HTMLTextAreaElement>(null)
   const refTitulo = useRef<HTMLInputElement>(null)
   const refError = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let activo = true
     window.shinobi.config.obtener().then(
-      (c) => activo && setAceptado(Boolean(c.aviso_youtube_aceptado)),
+      (c) => {
+        if (!activo) return
+        setAceptado(Boolean(c.aviso_youtube_aceptado))
+        setListasAceptado(Boolean(c.aviso_youtube_listas_aceptado))
+      },
       () => activo && setAceptado(false)
     )
     return () => {
@@ -121,16 +164,8 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
     return () => baja?.()
   }, [])
 
-  const buscar = useCallback(
-    async (texto: string) => {
-      if (ref.current.buscando) return
-      // Una vista previa anterior se descarta al buscar otra.
-      if (ref.current.pendiente) {
-        void window.shinobi.fuente.cancelarInfo(ref.current.pendiente).catch(() => {})
-        ref.current.pendiente = null
-      }
-      setInfo(null)
-      setError(null)
+  const buscarUno = useCallback(
+    async (texto: string, listaId: string | null) => {
       const local = analizarUrlYoutube(texto)
       if (!local.ok) {
         setError({ codigo: local.codigo, mensaje: '' })
@@ -150,17 +185,22 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
         ref.current.pendiente = datos.consultaId
         setBuscando(false)
         setActualizando(false)
+        const recuperados = valoresRestaurados.current
+        valoresRestaurados.current = null
+        setRecuperado(recuperados !== null)
         setValores(
-          iniciales
-            ? {
-                titulo: iniciales.titulo,
-                artista: iniciales.artista,
-                album: iniciales.album ?? ''
-              }
-            : datos.metadatos
+          recuperados ??
+            (iniciales
+              ? {
+                  titulo: iniciales.titulo,
+                  artista: iniciales.artista,
+                  album: iniciales.album ?? ''
+                }
+              : datos.metadatos)
         )
         setErrorTitulo(undefined)
         setInfo(datos)
+        setOfertaLista(listaId && !iniciales ? texto.trim() : null)
       } catch (err) {
         if (gen !== ref.current.gen) return
         ref.current.buscando = false
@@ -172,12 +212,166 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
     [iniciales]
   )
 
+  /** Consulta los enlaces (listas y videos) y pasa a la tabla de revisión (L1 → L2). */
+  const consultarLote = useCallback(
+    async (
+      enlaces: Enlace[],
+      extra: { ignorados: number; repetidos: number },
+      conservar?: { id: string; valores: ValoresDatos }
+    ) => {
+      const gen = ++ref.current.gen
+      ref.current.buscando = true
+      setBuscando(true)
+      setActualizando(false)
+      const hayLista = enlaces.some((e) => e.tipo === 'lista')
+      setProgresoLote({ i: 1, n: enlaces.length, lista: hayLista && enlaces.length === 1 })
+      let filas: FilaTabla[] = []
+      let libreBytes: number | null = null
+      let factorMinutos: number | null = null
+      let recortada = false
+      let titulo: string | null = null
+      let errorLista: ErrorVista | null = null
+      try {
+        for (const [i, e] of enlaces.entries()) {
+          setProgresoLote((p) => (p ? { ...p, i: i + 1 } : p))
+          try {
+            if (e.tipo === 'lista') {
+              const lista = await window.shinobi.fuente.infoLista(e.url)
+              if (gen !== ref.current.gen) return
+              libreBytes = lista.libreBytes
+              factorMinutos = lista.factorMinutos
+              recortada = recortada || lista.recortada
+              titulo = nombreDeLista(lista.titulo)
+              filas.push(...lista.entradas.map((x) => filaDeEntradaLista(x, lista)))
+            } else {
+              const datos = await window.shinobi.fuente.infoYoutube(e.url)
+              if (gen !== ref.current.gen) return
+              filas.push(filaDeInfo(datos))
+            }
+          } catch (err) {
+            if (gen !== ref.current.gen) return
+            const ev = comoErrorVista(err)
+            if (PARAN_LOTE.has(ev.codigo) || (e.tipo === 'lista' && enlaces.length === 1)) {
+              throw err
+            }
+            if (e.tipo === 'lista') errorLista = ev
+            else filas.push(filaNoDisponible(e.id, e.url))
+          }
+        }
+        if (gen !== ref.current.gen) return
+        const unidas = fusionarRepetidas(filas)
+        filas = unidas.filas
+        if (conservar) {
+          filas = filas.map((f) =>
+            f.clave === `yt:${conservar.id}`
+              ? {
+                  ...f,
+                  ...conservar.valores,
+                  tocados: ['titulo', 'artista', 'album'] as FilaTabla['tocados']
+                }
+              : f
+          )
+        }
+        ref.current.buscando = false
+        setBuscando(false)
+        setProgresoLote(null)
+        if (filas.length === 0) {
+          setError(errorLista ?? { codigo: 'LISTA_NO_DISPONIBLE', mensaje: '' })
+          return
+        }
+        if (libreBytes === null && !hayLista) {
+          // Enlaces sueltos: una sola lectura da el espacio y el factor para estimar el tiempo.
+          const r = await Promise.resolve(window.shinobi.fuente.espacioLibre()).catch(() => null)
+          libreBytes = r?.libreBytes ?? null
+          factorMinutos = r?.factorMinutos ?? null
+        }
+        const unaLista = enlaces.length === 1 && enlaces[0]?.tipo === 'lista'
+        alLote?.({
+          filas: marcarIniciales(filas),
+          fuente: unaLista ? 'lista' : 'enlaces',
+          nombreOrigen: unaLista ? titulo : null,
+          youtube: true,
+          repetidas: unidas.repetidas + extra.repetidos,
+          ignorados: 0,
+          enlacesIgnorados: extra.ignorados,
+          paqueteIgnorado: false,
+          truncada: false,
+          recortada,
+          libreBytes,
+          factorMinutos
+        })
+      } catch (err) {
+        if (gen !== ref.current.gen) return
+        ref.current.buscando = false
+        setBuscando(false)
+        setActualizando(false)
+        setProgresoLote(null)
+        setError(comoErrorVista(err))
+      }
+    },
+    [alLote]
+  )
+
+  const buscar = useCallback(
+    async (texto: string) => {
+      if (ref.current.buscando) return
+      // Una vista previa anterior se descarta al buscar otra.
+      if (ref.current.pendiente) {
+        void window.shinobi.fuente.cancelarInfo(ref.current.pendiente).catch(() => {})
+        ref.current.pendiente = null
+      }
+      setInfo(null)
+      setError(null)
+      setOfertaLista(null)
+      const c = clasificarEnlaces(texto)
+      const unico = c.enlaces.length === 1 ? c.enlaces[0] : undefined
+      if (c.enlaces.length === 0) {
+        setError({ codigo: c.noSoportadas > 0 ? 'URL_NO_SOPORTADA' : 'URL_NO_VALIDA', mensaje: '' })
+        return
+      }
+      // Un solo video: el flujo de una canción de siempre.
+      if (unico?.tipo === 'video') {
+        await buscarUno(unico.url, unico.listaId)
+        return
+      }
+      if (iniciales) {
+        setError({ codigo: 'URL_NO_SOPORTADA', mensaje: '' })
+        return
+      }
+      if (!listasAceptado && c.enlaces.some((e) => e.tipo === 'lista')) {
+        setAvisoListas({ texto })
+        return
+      }
+      await consultarLote(c.enlaces, { ignorados: c.ignorados, repetidos: c.repetidos })
+    },
+    [buscarUno, consultarLote, iniciales, listasAceptado]
+  )
+
+  /** [Añadir la lista entera] bajo la vista previa de un video que está en una lista. */
+  const anadirLista = () => {
+    if (!ofertaLista || !info) return
+    const v = clasificarEnlaces(ofertaLista).enlaces[0]
+    if (v?.tipo !== 'video' || !v.listaId) return
+    const lista: Enlace = {
+      tipo: 'lista',
+      idLista: v.listaId,
+      url: `https://www.youtube.com/watch?v=${v.id}&list=${v.listaId}`
+    }
+    const conservar = { id: v.id, valores }
+    if (!listasAceptado) {
+      setAvisoListas({ texto: lista.url, conservar })
+      return
+    }
+    void consultarLote([lista], { ignorados: 0, repetidos: 0 }, conservar)
+  }
+
   const cancelarBusqueda = useCallback(() => {
     ref.current.gen++
     ref.current.buscando = false
     void window.shinobi.fuente.cancelarInfo().catch(() => {})
     setBuscando(false)
     setActualizando(false)
+    setProgresoLote(null)
     setError(null)
   }, [])
 
@@ -188,6 +382,8 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
       if (e.defaultPrevented || hayCapaAbierta()) return
       const campo = e.target instanceof Element ? e.target.closest('input, textarea, select') : null
       if (campo && !campo.closest('[data-panel-anadir]')) return
+      // Con la lista de sugerencias abierta, Esc solo la cierra (la cierra el propio campo).
+      if (campo?.getAttribute('aria-expanded') === 'true') return
       e.preventDefault()
       if (ref.current.buscando) cancelarBusqueda()
       else ir({ tipo: 'biblioteca' })
@@ -195,6 +391,14 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
     window.addEventListener('keydown', alTeclear, true)
     return () => window.removeEventListener('keydown', alTeclear, true)
   }, [cancelarBusqueda, ir])
+
+  // Vuelta de Ajustes: se repite la búsqueda del enlace guardado.
+  const reintentoRestaurado = useRef(restaurado !== null)
+  useEffect(() => {
+    if (aceptado !== true || !reintentoRestaurado.current || !restaurado) return
+    reintentoRestaurado.current = false
+    void buscar(restaurado.url)
+  }, [aceptado, buscar, restaurado])
 
   // Foco: campo de enlace al mostrarse; mensaje al fallar; título seleccionado con la vista previa.
   const campoVisible = aceptado === true
@@ -213,17 +417,40 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
     if (hayError) refError.current?.focus()
   }, [hayError, error])
 
+  /** «Entendido»: un solo diálogo acepta el aviso de YouTube y el de las listas (el que falte). */
   const aceptar = async () => {
     setErrorAviso(false)
+    const ahora = new Date().toISOString()
     try {
-      await window.shinobi.config.actualizar({ aviso_youtube_aceptado: new Date().toISOString() })
-      setAceptado(true)
+      await window.shinobi.config.actualizar({
+        ...(aceptado ? {} : { aviso_youtube_aceptado: ahora }),
+        aviso_youtube_listas_aceptado: ahora
+      })
     } catch {
       setErrorAviso(true)
+      return
+    }
+    setAceptado(true)
+    setListasAceptado(true)
+    const pendiente = avisoListas
+    setAvisoListas(null)
+    if (!pendiente) return
+    const l = clasificarEnlaces(pendiente.texto)
+    if (pendiente.conservar) {
+      const e = l.enlaces[0]
+      const lista: Enlace | null =
+        e?.tipo === 'lista'
+          ? e
+          : e?.tipo === 'video' && e.listaId
+            ? { tipo: 'lista', idLista: e.listaId, url: e.url }
+            : null
+      if (lista) await consultarLote([lista], { ignorados: 0, repetidos: 0 }, pendiente.conservar)
+    } else {
+      await consultarLote(l.enlaces, { ignorados: l.ignorados, repetidos: l.repetidos })
     }
   }
 
-  const alPegar = (e: ClipboardEvent<HTMLInputElement>) => {
+  const alPegar = (e: ClipboardEvent<HTMLTextAreaElement>) => {
     const texto = e.clipboardData.getData('text').trim()
     if (texto === '') return
     e.preventDefault()
@@ -248,6 +475,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
         iniciales ? { cancionId: iniciales.cancionId } : undefined
       )
       ref.current.pendiente = null
+      olvidarBorrador()
       ir({ tipo: 'cancion', id: resumen.id, paso: 'progreso' })
     } catch (err) {
       setError(comoErrorVista(err))
@@ -260,7 +488,7 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
 
   if (aceptado === null) return null
 
-  if (!aceptado) {
+  if (!aceptado || avisoListas) {
     return (
       <div className={estilos.legal} data-testid="aviso-legal">
         <h2 className="t-subtitulo">{AVISO_YOUTUBE.titulo}</h2>
@@ -298,15 +526,23 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
         }}
       >
         <div className={estilos.campoEnlace}>
-          <CampoTexto
+          <AreaTexto
             ref={refUrl}
-            type="text"
             etiqueta={YT.urlEtiqueta}
             value={url}
+            rows={Math.min(6, Math.max(1, url.split('\n').length))}
+            className={estilos.areaEnlaces}
             readOnly={buscando}
             aria-describedby="anadir-url-ayuda"
             onChange={(e) => setUrl(e.target.value)}
             onPaste={alPegar}
+            onKeyDown={(e) => {
+              // Intro consulta; Mayús + Intro añade un renglón.
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault()
+                if (!buscando) void buscar(url)
+              }
+            }}
           />
           {buscando ? (
             <Boton onClick={cancelarBusqueda}>{TEXTO.cancelar}</Boton>
@@ -323,7 +559,17 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
           </p>
         ) : (
           <p id="anadir-url-ayuda" className={estilos.ayuda}>
-            {buscando ? <span role="status">{YT.buscando}</span> : YT.urlAyuda}
+            {buscando ? (
+              <span role="status">
+                {progresoLote
+                  ? progresoLote.lista
+                    ? LOTE.consultandoLista
+                    : LOTE.consultandoEnlaces(progresoLote.i, progresoLote.n)
+                  : YT.buscando}
+              </span>
+            ) : (
+              YT.urlAyuda
+            )}
           </p>
         )}
       </form>
@@ -344,7 +590,16 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               ) : undefined
             }
           >
-            <strong>{textoDeError(error.codigo).titulo}</strong> {textoDeError(error.codigo).cuerpo}
+            {error.codigo === 'LISTA_NO_DISPONIBLE' ? (
+              <>
+                <strong>{LOTE.listaNoDisponibleTitulo}</strong> {LOTE.listaNoDisponibleCuerpo}
+              </>
+            ) : (
+              <>
+                <strong>{textoDeError(error.codigo).titulo}</strong>{' '}
+                {textoDeError(error.codigo).cuerpo}
+              </>
+            )}
           </AvisoEnLinea>
         </div>
       )}
@@ -361,6 +616,18 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               </span>
             </div>
           </div>
+          {ofertaLista && (
+            <AvisoEnLinea
+              tipo="info"
+              accion={
+                <Boton onClick={anadirLista} disabled={buscando}>
+                  {LOTE.anadirLista}
+                </Boton>
+              }
+            >
+              {LOTE.ofertaLista}
+            </AvisoEnLinea>
+          )}
           <form
             className={estilos.formulario}
             noValidate
@@ -374,6 +641,8 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               <p className={estilos.ayuda}>{TEXTO.datosAyuda}</p>
             </div>
             <CamposDatos
+              key={info.consultaId}
+              propuesta={iniciales || recuperado ? null : info.datos}
               valores={valores}
               onCambio={(v) => {
                 setValores(v)
@@ -383,6 +652,14 @@ export function PanelYoutube({ iniciales, alUsarArchivo }: PanelYoutubeProps) {
               refTitulo={refTitulo}
               onIntroUltimo={() => void continuar()}
             />
+            {!iniciales && (
+              <AvisoBusqueda
+                alCambiar={() => {
+                  guardarBorrador({ origen: 'youtube', url, valores })
+                  ir({ tipo: 'ajustes', origen: { tipo: 'anadir' }, seccion: 'preparacion' })
+                }}
+              />
+            )}
             {info.duracionS > UMBRAL_LARGA_S && (
               <AvisoLarga duracion={duracion} duracionMs={Math.round(info.duracionS * 1000)} />
             )}

@@ -4,6 +4,12 @@ type Puerto = Pick<
   MotorAudio,
   'estado' | 'posicionMs' | 'reproducir' | 'pausar' | 'buscar' | 'suscribir'
 >
+/** Avisos del ciclo de una escucha: `alTerminar` si acabó sola y volvió; `alCancelar` si se interrumpió. */
+export interface EventosEscucha {
+  alIniciar(): void
+  alTerminar(): void
+  alCancelar(): void
+}
 type Temporizador = { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout }
 
 export class EscuchaComprobacion {
@@ -11,6 +17,7 @@ export class EscuchaComprobacion {
   private previa: number | null = null
   private baja: (() => void) | null = null
   private intento = 0
+  private sonando = false
 
   constructor(
     private readonly motor: Puerto,
@@ -18,7 +25,8 @@ export class EscuchaComprobacion {
     private readonly reloj: Temporizador = {
       setTimeout: ((f: () => void, ms?: number) => setTimeout(f, ms)) as typeof setTimeout,
       clearTimeout: ((t?: ReturnType<typeof setTimeout>) => clearTimeout(t)) as typeof clearTimeout
-    }
+    },
+    private readonly eventos?: EventosEscucha
   ) {}
 
   escuchar(centroMs: number, campo: 'inicio' | 'fin'): void {
@@ -32,6 +40,8 @@ export class EscuchaComprobacion {
       const desdeMs = Math.max(0, centroMs - antes)
       const hastaMs = Math.min(this.motor.estado().duracionMs ?? Infinity, centroMs + despues)
       this.baja?.()
+      this.sonando = true
+      this.eventos?.alIniciar()
       this.baja = this.motor.suscribir((e) => {
         if (!e.sonando && this.intento === intento) this.restaurar()
       })
@@ -48,14 +58,19 @@ export class EscuchaComprobacion {
 
   private restaurar(): void {
     const posicion = this.previa
-    this.cancelar()
+    this.cancelar(true)
     if (posicion !== null) {
       this.motor.pausar()
       this.motor.buscar(posicion)
     }
   }
 
-  cancelar(): void {
+  cancelar(volvio = false): void {
+    if (this.sonando) {
+      this.sonando = false
+      if (volvio) this.eventos?.alTerminar()
+      else this.eventos?.alCancelar()
+    }
     this.intento++
     this.reloj.clearTimeout(this.timer)
     this.timer = undefined

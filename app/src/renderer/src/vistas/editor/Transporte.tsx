@@ -12,6 +12,7 @@ import { Tooltip } from '../../componentes/Tooltip'
 import type { EstadoMotor, Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
 import { tiempoHablado } from '../../karaoke/tiempoHablado'
+import { C } from './partes'
 import { E } from './textos'
 import estilos from './transporte.module.css'
 
@@ -41,6 +42,8 @@ interface Props {
   acciones?: ReactNode
   /** Modo «Sincronizar al ritmo»: la segunda fila conserva solo «Escuchar» (el banner va en el dock). */
   sincronizando?: boolean
+  /** La pista «instrumental con coros» lleva más de 500 ms calculándose (`edi.coros.preparando`). */
+  preparandoCoros?: boolean
 }
 
 const VELOCIDADES = [
@@ -66,7 +69,8 @@ export function Transporte({
   entrarSync,
   refSync,
   acciones,
-  sincronizando = false
+  sincronizando = false,
+  preparandoCoros = false
 }: Props) {
   const cargando = !estado || estado.cargando
   const listo = estado?.duracionMs != null
@@ -185,6 +189,11 @@ export function Transporte({
             opciones={pistas}
             onCambio={usarPista}
           />
+          {preparandoCoros && (
+            <span className={estilos.coroPreparando} role="status">
+              {C.preparando}
+            </span>
+          )}
         </div>
         {!sincronizando && (
           <div className={estilos.acciones}>

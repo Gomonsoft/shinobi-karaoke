@@ -190,7 +190,10 @@ export class ServicioTemas {
         apariencia: {
           modo: 'heredar',
           ...(base ? { base } : {}),
-          ...(cancion.apariencia?.reemplazos ? { reemplazos: cancion.apariencia.reemplazos } : {})
+          ...(cancion.apariencia?.reemplazos ? { reemplazos: cancion.apariencia.reemplazos } : {}),
+          ...(cancion.apariencia?.reemplazo_pantalla
+            ? { reemplazo_pantalla: cancion.apariencia.reemplazo_pantalla }
+            : {})
         }
       },
       indice

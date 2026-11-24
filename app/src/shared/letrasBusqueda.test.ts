@@ -4,6 +4,7 @@ import { CODIGOS_ERROR, CODIGOS_SOLO_MAIN } from './errores'
 import { estadoPasoLetra } from './derivados'
 import {
   compararDuracion,
+  encajeCandidatoSchema,
   sincroniaDe,
   urlBaseLrclib,
   URL_BASE_LRCLIB,
@@ -71,6 +72,15 @@ describe('urlBaseLrclib', () => {
     expect(urlBaseLrclib('http://lrclib.invalid', false)).toBe('http://lrclib.invalid')
     expect(urlBaseLrclib('http://127.0.0.1:4455', true)).toBe(URL_BASE_LRCLIB)
     expect(urlBaseLrclib('https://otro.example', false)).toBe(URL_BASE_LRCLIB)
+  })
+
+  it('en los E2E nunca devuelve la URL real sin empaquetar', () => {
+    expect(urlBaseLrclib(undefined, false, true)).toBe('http://lrclib.invalid')
+    expect(urlBaseLrclib('https://otro.example', false, true)).toBe('http://lrclib.invalid')
+    expect(urlBaseLrclib('http://127.0.0.1:1234', false, true)).toBe('http://127.0.0.1:1234')
+    expect(urlBaseLrclib('http://127.0.0.1:1234', true, true)).toBe(URL_BASE_LRCLIB)
+    expect(urlBaseLrclib(undefined, true, true)).toBe(URL_BASE_LRCLIB)
+    expect(urlBaseLrclib(undefined, false, false)).toBe(URL_BASE_LRCLIB)
   })
 })
 
@@ -187,5 +197,77 @@ describe('origen_palabras en guardarTiempos', () => {
     const [a, b] = aPeticionTiempos('c', letra).tiempos
     expect(a).toHaveProperty('origen_palabras', 'manual')
     expect(b).not.toHaveProperty('origen_palabras')
+  })
+})
+
+describe('encajeCandidatoSchema (0379)', () => {
+  it('lee la limitación, su ausencia y un valor desconocido (como ausente)', () => {
+    const base = { veredicto: 'dudosa', desfaseMs: 0 }
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: 'sinContraste' }).limitacion).toBe(
+      'sinContraste'
+    )
+    expect(encajeCandidatoSchema.parse(base).limitacion).toBeUndefined()
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: null }).limitacion).toBeNull()
+    expect(encajeCandidatoSchema.parse({ ...base, limitacion: 'otra' }).limitacion).toBeUndefined()
+  })
+})
+
+describe('reparto en guardarTiempos y coros en la exportación (0.2.3)', () => {
+  const sesion = '5eed0000-0000-4000-8000-000000000001'
+  const tiempos = (parte?: string): unknown[] => [
+    { id: 'a', inicio_ms: 0, fin_ms: null, palabras: null },
+    { id: 'b', inicio_ms: 500, fin_ms: null, palabras: null, ...(parte ? { parte } : {}) }
+  ]
+  const peticion = (extra: object, parte?: string): unknown[] => [
+    { cancionId: 'c1', offset_ms: 0, tiempos: tiempos(parte), ...extra },
+    sesion
+  ]
+  const duo = {
+    cantantes: [
+      { id: 'c1', nombre: 'Ana' },
+      { id: 'c2', nombre: null }
+    ],
+    voz_en_coros: 0.55
+  }
+  it('parte y partes son opcionales; null quita el reparto', () => {
+    const canal = CANALES.letras.guardarTiempos
+    expect(ok(canal, peticion({}))).toBe(true)
+    expect(ok(canal, peticion({ partes: null }))).toBe(true)
+    expect(ok(canal, peticion({ partes: duo }, 'c2'))).toBe(true)
+    expect(ok(canal, peticion({ partes: duo }, 'todos'))).toBe(true)
+    expect(ok(canal, peticion({ partes: null }, 'coro'))).toBe(true)
+  })
+  it('rechaza lo que main no debe escribir', () => {
+    const canal = CANALES.letras.guardarTiempos
+    expect(ok(canal, peticion({ partes: duo }, 'c1'))).toBe(false)
+    expect(ok(canal, peticion({ partes: duo }, 'c3'))).toBe(false)
+    expect(ok(canal, peticion({ partes: null }, 'c2'))).toBe(false)
+    expect(
+      ok(canal, peticion({ partes: { cantantes: [{ id: 'c1', nombre: null }] } }, 'todos'))
+    ).toBe(false)
+    expect(ok(canal, peticion({ partes: { cantantes: [{ id: 'c2', nombre: null }] } }))).toBe(false)
+    expect(ok(canal, peticion({ partes: { ...duo, voz_en_coros: 0.33 } }))).toBe(false)
+    expect(
+      ok(canal, peticion({ partes: { cantantes: [duo.cantantes[0], duo.cantantes[0]] } }))
+    ).toBe(false)
+    expect(ok(canal, peticion({ partes: { cantantes: [{ id: 'c1', nombre: ' x' }] } }))).toBe(false)
+  })
+  it('coros es un booleano opcional en iniciarExportacion y en iniciarLote', () => {
+    const perfil = { ancho: 1920, alto: 1080, fps: 30, formato: 'mkv_av1', audio: 'instrumental' }
+    const una = { cancionId: 'c1', ...perfil, destinoId: '5eed0000-0000-4000-8000-000000000002' }
+    const lote = {
+      cancionIds: ['c1'],
+      ...perfil,
+      carpetaId: '5eed0000-0000-4000-8000-000000000002',
+      siExiste: 'numerar'
+    }
+    for (const [canal, p] of [
+      [CANALES.exportacion.iniciar, una],
+      [CANALES.exportacion.iniciarLote, lote]
+    ] as const) {
+      expect(ok(canal, [p])).toBe(true)
+      expect(ok(canal, [{ ...p, coros: true }])).toBe(true)
+      expect(ok(canal, [{ ...p, coros: 'si' }])).toBe(false)
+    }
   })
 })

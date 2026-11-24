@@ -108,6 +108,8 @@ describe.skipIf(!hayUv())('importación de archivo con el worker real', () => {
     expect(leida).toMatchObject({ nombre: 'Queen - Bohemian.wav', larga: false })
     expect(leida.duracionMs).toBeGreaterThan(14_000)
     expect(leida.metadatos).toMatchObject({ titulo: 'Bohemian', artista: 'Queen' })
+    expect(leida.datos.titulo).toMatchObject({ origen: 'nombre', dudoso: false })
+    expect(leida.datos.artista).toMatchObject({ valor: 'Queen', origen: 'nombre' })
     expect(await importando()).toEqual([leida.importacionId])
     expect(existsSync(join(datos, 'biblioteca', leida.importacionId))).toBe(false)
 
@@ -123,7 +125,12 @@ describe.skipIf(!hayUv())('importación de archivo con el worker real', () => {
     )
     expect(cancion).toMatchObject({
       estado: 'borrador',
-      metadatos: { titulo: 'Bohemian Rhapsody', album: null },
+      // El título lo cambió el usuario; el artista se quedó como lo propuso el nombre.
+      metadatos: {
+        titulo: 'Bohemian Rhapsody',
+        album: null,
+        origen: { titulo: 'usuario', artista: 'nombre' }
+      },
       fuente: {
         tipo: 'archivo',
         nombre_original: 'Queen - Bohemian.wav',

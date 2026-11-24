@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { InicialExportacionIpc, FotogramaExportacionIpc } from '@shared/exportacion'
 import type { ApiExportacion } from '@shared/ipc'
+import { normalizarEstilo } from '@shared/estilo'
 import { buscarFuente } from '@shared/fuentes'
 import { fijarAnimaciones } from '../karaoke/animacionesPorFotograma'
 import { PantallaLetra } from '../karaoke/PantallaLetra'
-import { fotogramaEn, type FotogramaLetra } from '../karaoke/render'
+import type { FotogramaLetra } from '../karaoke/render'
+import { fotogramasDeZonas, zonasDeLetra } from '../karaoke/zonas'
 import { MarcaDeAgua } from './MarcaDeAgua'
 import estilos from './exportacion.module.css'
 
@@ -17,7 +19,7 @@ export interface PropsAppExportacion {
 declare global {
   interface Window {
     /** Solo en desarrollo: modelo del último fotograma pintado, para las pruebas (0241). */
-    __fotogramaExportacion?: { n: number; fotograma: FotogramaLetra }
+    __fotogramaExportacion?: { n: number; fotograma: FotogramaLetra; fotogramas: FotogramaLetra[] }
   }
 }
 
@@ -58,15 +60,23 @@ export function AppExportacion({ api = window.shinobiExportacion }: PropsAppExpo
         await dosFotogramas()
         if (import.meta.env.DEV) {
           const { instantanea } = d
-          window.__fotogramaExportacion = {
-            n: peticion.n,
-            fotograma: fotogramaEn(instantanea.letra, tAudioMs - instantanea.letra.offset_ms, {
+          const pantalla = normalizarEstilo(instantanea.estilo).pantalla
+          const letra = instantanea.letra
+          const fotogramas = fotogramasDeZonas(
+            zonasDeLetra(letra, { zonas: pantalla.zonas, duracionMs: instantanea.duracionMs }),
+            letra,
+            tAudioMs - letra.offset_ms,
+            {
               duracionMs: instantanea.duracionMs,
               titulo: instantanea.titulo,
               artista: instantanea.artista,
-              espera: instantanea.estilo.espera
-            })
-          }
+              espera: instantanea.estilo.espera,
+              pantalla,
+              movimiento: 'completo'
+            }
+          )
+          // `fotograma` es el de la primera zona (el único sin reparto); `fotogramas`, el de todas.
+          window.__fotogramaExportacion = { n: peticion.n, fotograma: fotogramas[0]!, fotogramas }
         }
         await api.listo(peticion.trabajoId, peticion.n)
       })().catch(() => undefined)

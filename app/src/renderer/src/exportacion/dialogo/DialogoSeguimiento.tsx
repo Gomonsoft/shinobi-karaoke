@@ -22,6 +22,7 @@ import {
   NOMBRES_AUDIO,
   textoErrorExp
 } from './textos'
+import { porcentajeCoros } from './modelo'
 import { EXP_PROGRESO, EXP_TOAST, formatearDuracionTrabajo } from './textosProgreso'
 import estilos from './exportacion.module.css'
 import { copiarDetalles as copiarConVersion } from '../../soporte/detalles'
@@ -70,8 +71,14 @@ function Subpaso({
 
 /** `exp.resumen`: «1920 × 1080 · 30 FPS · Solo instrumental · MKV». */
 export function resumenDe(e: ExportacionVista): string {
-  return `${medidas(e.ancho, e.alto)} · ${e.fps} FPS · ${NOMBRES_AUDIO[e.audio]} · ${FORMATOS[e.formato].nombreCorto}`
+  return `${medidas(e.ancho, e.alto)} · ${e.fps} FPS · ${audioDe(e)} · ${FORMATOS[e.formato].nombreCorto}`
 }
+
+/** `exp.audio.coros` si el video lleva la voz de los coros; si no, el nombre del audio de siempre. */
+const audioDe = (e: Pick<ExportacionVista, 'audio' | 'corosNivel'>): string =>
+  e.audio === 'instrumental' && e.corosNivel !== undefined
+    ? EXP.audioCoros(porcentajeCoros(e.corosNivel))
+    : NOMBRES_AUDIO[e.audio]
 
 function Subpasos({ e, cancelando }: { e: ExportacionVista; cancelando: boolean }) {
   const p = e.progreso
@@ -135,7 +142,7 @@ function detallesDe(e: ExportacionVista): string {
   return [
     `${e.error?.codigo ?? 'ERROR_INTERNO'}: ${e.error?.mensaje ?? ''}`.trim(),
     e.error?.detalles ?? '',
-    `Perfil: ${medidas(e.ancho, e.alto)} · ${e.fps} FPS · ${NOMBRES_AUDIO[e.audio]}`,
+    `Perfil: ${medidas(e.ancho, e.alto)} · ${e.fps} FPS · ${audioDe(e)}`,
     `Formato: ${FORMATOS[e.formato].nombre}`,
     e.error?.posicionMs != null
       ? `Posición: ${formatearPosicion(e.error.posicionMs)} de ${formatearPosicion(e.duracionMs)}`
@@ -411,7 +418,15 @@ export function DialogoSeguimiento({ trabajoId, alCerrar }: Props) {
   const cambiarOpciones = () => {
     ctx.abrir({
       cancionId: e.cancionId,
-      opciones: { audio: e.audio, formato: e.formato, ancho: e.ancho, alto: e.alto, fps: e.fps },
+      opciones: {
+        audio: e.audio,
+        formato: e.formato,
+        ancho: e.ancho,
+        alto: e.alto,
+        fps: e.fps,
+        // Con «Solo instrumental», la casilla vuelve como estaba; con otro audio, la marcada de siempre.
+        ...(e.audio === 'instrumental' ? { coros: e.corosNivel !== undefined } : {})
+      },
       desdeTrabajoId: e.trabajoId
     })
   }

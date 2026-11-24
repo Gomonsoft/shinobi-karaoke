@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ESTILO_PREDETERMINADO } from '@shared/estilo'
 import { letra, linea } from '@shared/__fixtures__'
 import { configPredeterminada } from '@shared/config'
 import type { ApiShinobi } from '@shared/ipc'
 import type { EstadoMotorReproductor } from '../../karaoke/motorReproductor'
+import { envolvente, tramosCoro } from '@shared/coros'
 import { Reproductor, type CancionReproductor } from './Reproductor'
 import { cerrarTodosLosToasts } from '../../componentes/gestorToasts'
 
@@ -49,6 +50,7 @@ function preparar() {
     posicionMs: vi.fn(() => 0),
     fijarVolumen: vi.fn(),
     fijarVoz: vi.fn(),
+    fijarCoros: vi.fn(),
     estado: vi.fn(() => estado),
     suscribir: vi.fn((cb: (e: EstadoMotorReproductor) => void) => {
       oyentes.add(cb)
@@ -147,5 +149,79 @@ describe('Reproductor', () => {
     act(() => fireEvent.keyDown(window, { key: 'Escape' }))
     expect(f.salir).toHaveBeenCalledOnce()
     expect(f.salir).toHaveBeenCalledWith({ posicionMs: 0 })
+  })
+})
+
+describe('Reproductor · voz en los coros (0.2.3)', () => {
+  const conCoros = (nivel?: number): CancionReproductor => ({
+    ...cancion,
+    letra: {
+      ...letra([linea('l1', 'Luz sobre el río', 2_000), linea('c1', 'Eco inventado', 8_000)]),
+      lineas: [
+        linea('l1', 'Luz sobre el río', 2_000),
+        { ...linea('c1', 'Eco inventado', 8_000), fin_ms: 10_000, parte: 'coro' }
+      ],
+      ...(nivel === undefined
+        ? {}
+        : { partes: { cantantes: [{ id: 'c1' as const, nombre: null }], voz_en_coros: nivel } })
+    }
+  })
+  const montar = (c: CancionReproductor, vozSilenciada = false) => {
+    const f = preparar()
+    render(
+      <Reproductor
+        cancion={c}
+        origen="biblioteca"
+        modo="karaoke"
+        desdeMs={0}
+        volumen={{ ...f.volumen, vozSilenciada }}
+        alSalir={f.salir}
+        crearMotor={f.fabricar}
+      />
+    )
+    return f
+  }
+
+  it('C2-R6: cada canción pasa al motor los puntos de su propio nivel (20 % y 70 %)', async () => {
+    for (const nivel of [0.2, 0.7]) {
+      const c = conCoros(nivel)
+      const f = montar(c)
+      await waitFor(() => expect(f.motor.fijarCoros).toHaveBeenCalledOnce())
+      expect(f.motor.fijarCoros).toHaveBeenCalledWith(
+        envolvente(tramosCoro(c.letra, c.duracionMs), nivel)
+      )
+      expect(f.motor.fijarCoros.mock.calls[0]![0][1][1]).toBe(nivel)
+      cleanup()
+    }
+  })
+
+  it('sin coros no se toca la envolvente del motor (como en 0.2.2)', async () => {
+    const f = montar(cancion)
+    await waitFor(() => expect(f.motor.reproducir).toHaveBeenCalled())
+    expect(f.motor.fijarCoros).not.toHaveBeenCalled()
+  })
+
+  it('con nivel 0 tampoco', async () => {
+    const f = montar(conCoros(0))
+    await waitFor(() => expect(f.motor.reproducir).toHaveBeenCalled())
+    expect(f.motor.fijarCoros).not.toHaveBeenCalled()
+  })
+
+  it('C2-R5: V en una canción con coros dice «Voz silenciada · coros al 50 %»', async () => {
+    const f = montar(conCoros())
+    await waitFor(() => expect(f.motor.reproducir).toHaveBeenCalled())
+    fireEvent.keyDown(window, { key: 'v' })
+    expect(await screen.findAllByText('Voz silenciada · coros al 50 %')).not.toHaveLength(0)
+    expect(f.volumen.cambiar).toHaveBeenCalledWith(
+      expect.objectContaining({ voz_guia_silenciada: true })
+    )
+  })
+
+  it('C2-R5: en una canción sin coros, el indicador de siempre', async () => {
+    const f = montar(cancion)
+    await waitFor(() => expect(f.motor.reproducir).toHaveBeenCalled())
+    fireEvent.keyDown(window, { key: 'v' })
+    expect(await screen.findAllByText('Voz silenciada')).not.toHaveLength(0)
+    expect(screen.queryByText(/coros al/)).toBeNull()
   })
 })

@@ -317,7 +317,9 @@ test.describe('Biblioteca: selección múltiple y «Aplicar tema…» (B8–B11)
 
   const abrirSeleccion = async (v: Page) => {
     await v.getByRole('button', { name: SEL.boton, exact: true }).click()
-    await expect(v.getByRole('toolbar', { name: 'Selección' })).toBeVisible()
+    await expect(
+      v.getByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+    ).toBeVisible()
   }
 
   test('seleccionar, aplicar un tema y volver el foco a «Seleccionar» (B8, B9)', async () => {
@@ -355,10 +357,14 @@ test.describe('Biblioteca: selección múltiple y «Aplicar tema…» (B8–B11)
       await v.keyboard.press('Escape')
       await expect(d).toHaveCount(0)
       // El modo selección sigue activo y el foco está en el botón que abrió el diálogo.
-      await expect(v.getByRole('toolbar', { name: 'Selección' })).toBeVisible()
+      await expect(
+        v.getByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+      ).toBeVisible()
       await expect(aplicar).toBeFocused()
       await v.keyboard.press('Escape')
-      await expect(v.getByRole('toolbar', { name: 'Selección' })).toHaveCount(0)
+      await expect(
+        v.getByRole('toolbar', { name: 'Acciones para las canciones seleccionadas' })
+      ).toHaveCount(0)
       await expect(v.getByRole('button', { name: SEL.boton, exact: true })).toBeFocused()
     })
   })

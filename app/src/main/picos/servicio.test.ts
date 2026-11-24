@@ -161,4 +161,22 @@ describe('ServicioPicos', () => {
       expect(await servicio.solicitar(otroId)).toMatchObject({ estado: 'lista' })
     )
   })
+
+  it('al terminar la separación genera los picos sin abrir el editor, avisa y expone el nivel base', async () => {
+    const alListos = vi.fn()
+    await servicio.cerrar()
+    servicio = new ServicioPicos({
+      dirBiblioteca: biblioteca,
+      tieneVoz: () => true,
+      ejecutar,
+      alListos
+    })
+    expect(await servicio.nivelBase(id)).toBeNull()
+    await servicio.generarTrasSeparar(id)
+    expect(ejecutar).toHaveBeenCalledTimes(1)
+    expect(alListos).toHaveBeenCalledWith(id)
+    const nivel = await servicio.nivelBase(id)
+    expect(nivel?.pasoMs).toBe(10)
+    expect(nivel?.pares.length).toBe(6)
+  })
 })

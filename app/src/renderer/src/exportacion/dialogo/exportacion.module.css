@@ -7,6 +7,24 @@
   max-height: calc(90vh - 11rem);
   overflow-x: hidden;
   overflow-y: auto;
+  /* Cuerpo con scroll propio y solo el pie fijo; sombras que indican que hay más contenido arriba o abajo
+     (revisión de capturas 2026-11-23, E1 y K1: lo de abajo se alcanza desplazando y se nota que hay más). */
+  padding-bottom: var(--e-1);
+  background:
+    linear-gradient(var(--fondo-1) 30%, transparent) top / 100% 1.5rem no-repeat local,
+    linear-gradient(transparent, var(--fondo-1) 70%) bottom / 100% 1.5rem no-repeat local,
+    radial-gradient(
+        farthest-side at 50% 0,
+        color-mix(in srgb, var(--texto-1) 22%, transparent),
+        transparent
+      )
+      top / 100% 0.5rem no-repeat scroll,
+    radial-gradient(
+        farthest-side at 50% 100%,
+        color-mix(in srgb, var(--texto-1) 22%, transparent),
+        transparent
+      )
+      bottom / 100% 0.5rem no-repeat scroll;
 }
 .cabecera {
   margin: 0;
@@ -131,6 +149,12 @@
   padding-block: var(--e-2) 0;
   background: var(--fondo-1);
 }
+/* Lote (spec 10 · F8, revisión 2026-11-23, E1): las notas van DENTRO del cuerpo con scroll, debajo de la
+   estimación, sin posición fija: nunca se pintan encima de otro contenido. Solo el pie de botones es fijo. */
+.notasEnCuerpo {
+  display: grid;
+  gap: var(--e-2);
+}
 .estimacion {
   margin: 0;
 }
@@ -229,4 +253,45 @@
 .tiempo {
   font-family: var(--fuente-tiempo);
   font-variant-numeric: tabular-nums;
+}
+
+/* Lista «Ver cuáles» del diálogo de lote (spec 10 · Feature 8). */
+.listaLote {
+  max-height: 12.5rem;
+  margin: 0;
+  padding: var(--e-2) var(--e-3);
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+}
+
+.listaLote li {
+  padding: var(--e-1) 0;
+}
+
+.filaLote {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.simboloLote {
+  flex: none;
+  width: 1.25rem;
+  text-align: center;
+}
+
+.textoFilaLote {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Casilla «Incluir la voz en los coros» (0.2.3, spec 10): debajo del control de audio. */
+.casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  cursor: pointer;
 }

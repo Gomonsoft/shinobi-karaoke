@@ -3,12 +3,15 @@ import { E } from '../../src/renderer/src/vistas/editor/textos'
 import { R } from '../../src/renderer/src/vistas/reproductor/textos'
 import { TEXTO } from '../../src/renderer/src/vistas/letra/textos'
 import { TEXTO_PEGAR } from '../../src/renderer/src/vistas/letra/textosPegar'
+import { iniciarServidorLrclib, TITULOS } from '../fixtures/lrclib/servidor'
+import { escribirWavConVoz } from '../fixtures/lrclib/wavConVoz'
 import {
   cerrar,
   filaPreparar,
   filaSeparar,
   idDe,
   importar,
+  irAAnadir,
   lanzar,
   leerCancion,
   preparar,
@@ -138,6 +141,81 @@ test.describe('flujo principal', { tag: '@critico' }, () => {
       expect(errores).toEqual([])
     } finally {
       await cerrar(app)
+    }
+  })
+
+  /**
+   * El camino por defecto desde 0.2.2 (feature 5): con «Buscar la letra automáticamente» activo (valor por
+   * defecto), añadir un archivo basta para llegar solo a «Lista para revisar»; el usuario pulsa «Revisar»
+   * (revisión guiada, feature 11), «Marcar como lista» y canta. LRCLIB es el doble local y la voz del
+   * separador falso es sintética: sin red real.
+   */
+  test('añadir un archivo con la preparación automática, revisar, marcar como lista y cantar', async () => {
+    test.setTimeout(120_000)
+    const env = preparar('critico-prep', { segundos: 3, pasos: 6 })
+    escribirWavConVoz(env.wav)
+    const lrclib = await iniciarServidorLrclib()
+    const app = await lanzar(env, {
+      SHINOBI_SILENCIAR_AUDIO: '1',
+      SHINOBI_PANTALLA_COMPLETA_SIMULADA: '1',
+      SHINOBI_LRCLIB_URL: lrclib.url
+    })
+    try {
+      const v = await app.firstWindow()
+      const errores: string[] = []
+      v.on('pageerror', (e) => errores.push(e.message))
+      v.on('console', (m: ConsoleMessage) => m.type() === 'error' && errores.push(m.text()))
+
+      await irAAnadir(v)
+      await v.getByRole('button', { name: 'Elegir archivos…' }).click()
+      await expect(v.getByLabel('Título')).toBeVisible({ timeout: 30_000 })
+      await v.getByLabel('Título').fill(TITULOS.conVoz)
+      await v.getByLabel('Artista').fill('Artista inventado')
+      await v.getByRole('button', { name: 'Continuar' }).click()
+      await volverABiblioteca(v)
+
+      // Sola: busca la letra, separa, comprueba y deja la canción «Lista para revisar» (nunca «Lista»).
+      const tarj = tarjeta(v, TITULOS.conVoz)
+      await expect(tarj).toHaveAccessibleName(/Lista para revisar/, { timeout: 90_000 })
+      const id = idDe(env.datos, TITULOS.conVoz)
+      expect(leerCancion(env.datos, id).estado).toBe('borrador')
+      await sinScrollDePagina(v, 'Biblioteca con la bandeja de pendientes')
+
+      // Revisar: el editor abre con la revisión guiada; se recorren las líneas señaladas (si las hay).
+      await tarj.getByRole('button', { name: /^Revisar/ }).click()
+      await expect(v.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()
+      const recorrido = v.getByRole('region', { name: /Revisión · quedan/ })
+      const terminada = v.getByRole('region', { name: 'Revisión terminada' })
+      await expect(recorrido.or(terminada)).toBeVisible({ timeout: 20_000 })
+      for (let i = 0; i < 20 && (await recorrido.isVisible()); i++) {
+        await v
+          .getByRole('button', { name: /^(Está bien|Siguiente)/ })
+          .first()
+          .click()
+        await v.waitForTimeout(300)
+      }
+      await sinScrollDePagina(v, 'Editor con la revisión')
+
+      await v.getByRole('button', { name: E.marcarLista }).click()
+      await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      await expect(v.getByText(`«${TITULOS.conVoz}» está lista para cantar.`)).toBeVisible()
+      await expect.poll(() => leerCancion(env.datos, id).estado).toBe('lista')
+
+      await tarjeta(v, TITULOS.conVoz)
+        .getByRole('button', { name: /^Reproducir/ })
+        .click()
+      const capa = v.getByRole('dialog', { name: `Reproductor de «${TITULOS.conVoz}»` })
+      await expect(capa).toBeVisible()
+      // En Linux/CI la primera Esc puede llegar antes de que el reproductor atienda el teclado: se repite.
+      await expect(async () => {
+        await v.keyboard.press('Escape')
+        await expect(capa).toHaveCount(0, { timeout: 2_000 })
+      }).toPass({ timeout: 20_000, intervals: [0] })
+
+      expect(errores).toEqual([])
+    } finally {
+      await cerrar(app)
+      await lrclib.cerrar()
     }
   })
 })

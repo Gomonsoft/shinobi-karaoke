@@ -84,6 +84,9 @@ interface OpcionesEjemplo {
   sonando: boolean
   pausar(): void
   anunciar(texto: string): void
+  /** Otra fuente de ejemplo (Letra en pantalla): por defecto, el hueco de espera. */
+  crear?: (letra: Letra, seleccion: string | null, espera: Espera) => EjemploEspera
+  anuncios?: { inicio: string; fin: string }
 }
 
 /**
@@ -96,7 +99,9 @@ export function useEjemploEspera({
   espera,
   sonando,
   pausar,
-  anunciar
+  anunciar,
+  crear = crearEjemploEspera,
+  anuncios = { inicio: T.anuncio.ejemploInicio, fin: T.anuncio.ejemploFin }
 }: OpcionesEjemplo) {
   const [ejemplo, setEjemplo] = useState<EjemploEspera | null>(null)
   const origen = useRef(0)
@@ -105,20 +110,34 @@ export function useEjemploEspera({
     anuncio.current = anunciar
   })
 
-  const detener = useCallback((avisar = true) => {
-    setEjemplo((actual) => {
-      if (actual && avisar) anuncio.current(T.anuncio.ejemploFin)
-      return null
-    })
-  }, [])
+  const detener = useCallback(
+    (avisar = true) => {
+      setEjemplo((actual) => {
+        if (actual && avisar) anuncio.current(anuncios.fin)
+        return null
+      })
+    },
+    [anuncios.fin]
+  )
 
   const alternar = useCallback(() => {
     if (ejemplo) return detener()
     if (sonando) pausar()
     origen.current = performance.now()
-    setEjemplo(crearEjemploEspera(letra, seleccion, espera))
-    anunciar(T.anuncio.ejemploInicio)
-  }, [ejemplo, sonando, pausar, letra, seleccion, espera, anunciar, detener])
+    setEjemplo(crear(letra, seleccion, espera))
+    anunciar(anuncios.inicio)
+  }, [
+    ejemplo,
+    sonando,
+    pausar,
+    letra,
+    seleccion,
+    espera,
+    anunciar,
+    detener,
+    crear,
+    anuncios.inicio
+  ])
 
   // Termina solo al recorrer el hueco; Esc, el transporte o cambiar la selección lo detienen.
   useEffect(() => {

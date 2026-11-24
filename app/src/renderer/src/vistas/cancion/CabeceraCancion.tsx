@@ -3,6 +3,7 @@ import {
   Check,
   ChevronLeft,
   Circle,
+  CircleAlert,
   CircleX,
   RefreshCw,
   RotateCcw,
@@ -32,6 +33,7 @@ const ICONOS: Record<IndicadorPaso, LucideIcon> = {
   curso: RefreshCw,
   error: CircleX,
   interrumpido: TriangleAlert,
+  atencion: CircleAlert,
   actual: Circle,
   pendiente: Circle
 }

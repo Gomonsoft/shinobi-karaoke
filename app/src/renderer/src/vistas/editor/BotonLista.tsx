@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Play } from 'lucide-react'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import type { Letra } from '@shared/letra'
@@ -14,6 +14,7 @@ import { DialogoConfirmar } from '../biblioteca/DialogosCancion'
 import { detallesDeError } from '../biblioteca/errores'
 import { mensajeListaMarcada, tituloDeTarjeta } from '../biblioteca/tarjeta'
 import { E } from './textos'
+import { R } from './revision/textos'
 import type { SeparacionEditor } from './Transporte'
 import { copiarDetalles } from '../../soporte/detalles'
 
@@ -29,6 +30,57 @@ interface Props {
    * el botón lleva el suyo.
    */
   primeraPulsacionIncompleta?(): boolean
+  /** Líneas dudosas pendientes (feature 11): en un borrador, la primera pulsación de la visita pregunta. */
+  revision?: AvisoRevision
+  /** Contorno de 2 s al terminar la revisión (la canción no cambia de estado sola). */
+  resaltado?: boolean
+}
+
+export interface AvisoRevision {
+  pendientes: number
+  /** `true` solo la primera vez en la visita (y la consume). */
+  primeraPulsacion(): boolean
+  revisarAhora(): void
+}
+
+/** Cuerpo del popover `edi.revision.pendientes`, compartido por «Marcar como lista» y «…letra lista». */
+export function PopoverPendientes({
+  abierto,
+  ancla,
+  pendientes,
+  alCerrar,
+  revisarAhora,
+  marcarIgualmente
+}: {
+  abierto: boolean
+  ancla: RefObject<HTMLElement | null>
+  pendientes: number
+  alCerrar(): void
+  revisarAhora(): void
+  marcarIgualmente(): void
+}) {
+  // El foco va a «Revisar ahora» al abrirse (spec 06 · F11-E12).
+  const primero = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (abierto) primero.current?.focus()
+  }, [abierto])
+  return (
+    <Popover
+      abierto={abierto}
+      ancla={ancla}
+      alCerrar={alCerrar}
+      etiqueta={R.pendientes(pendientes)}
+      anunciar
+    >
+      <p>{R.pendientes(pendientes)}</p>
+      <Boton ref={primero} variante="primario" onClick={revisarAhora}>
+        {R.revisarAhora}
+      </Boton>
+      <Boton variante="fantasma" onClick={marcarIgualmente}>
+        {R.marcarIgualmente}
+      </Boton>
+    </Popover>
+  )
 }
 
 export function avisarError(mensaje: string, error: unknown) {
@@ -122,13 +174,15 @@ export function BotonLista({
   separacion,
   vaciar,
   alEnfocarPrimera,
-  primeraPulsacionIncompleta
+  primeraPulsacionIncompleta,
+  revision,
+  resaltado
 }: Props) {
   const { ir } = useNavegacion()
   const { abrir } = useReproductor()
   const { haySesion } = useSesion()
   const ancla = useRef<HTMLButtonElement>(null)
-  const [popover, setPopover] = useState<'faltas' | 'incompleta' | null>(null)
+  const [popover, setPopover] = useState<'faltas' | 'incompleta' | 'revision' | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const marcoLista = useRef(false)
   const incompletaVista = useRef(false)
@@ -189,6 +243,8 @@ export function BotonLista({
       } else salir()
     } else if (falta) {
       setPopover('faltas')
+    } else if (revision && revision.pendientes > 0 && revision.primeraPulsacion()) {
+      setPopover('revision')
     } else {
       setPopover(null)
       void marcarLista()
@@ -203,6 +259,7 @@ export function BotonLista({
         className={`${estilosBoton.boton} ${estilosBoton.primario}`}
         aria-disabled={falta || ocupado || undefined}
         aria-busy={ocupado || undefined}
+        data-resaltado-revision={resaltado || undefined}
         aria-haspopup={falta || (lista && pendientes > 0) ? 'dialog' : undefined}
         aria-expanded={
           falta || (lista && pendientes > 0) ? mostrarFaltas || mostrarIncompleta : undefined
@@ -231,6 +288,20 @@ export function BotonLista({
           alEnfocarPrimera={enfocarPrimera}
         />
       </Popover>
+      <PopoverPendientes
+        abierto={popover === 'revision'}
+        ancla={ancla}
+        pendientes={revision?.pendientes ?? 0}
+        alCerrar={() => setPopover(null)}
+        revisarAhora={() => {
+          setPopover(null)
+          revision?.revisarAhora()
+        }}
+        marcarIgualmente={() => {
+          setPopover(null)
+          void marcarLista()
+        }}
+      />
       <Popover
         abierto={mostrarIncompleta}
         ancla={ancla}

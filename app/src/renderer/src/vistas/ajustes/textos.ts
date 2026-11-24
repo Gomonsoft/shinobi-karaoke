@@ -126,9 +126,28 @@ export const AJREP = {
   opcionPredeterminada: (n: number): string => `${String(n)} s (predeterminado)`,
   ayuda:
     'Cuando termina una canción y hay otra en la cola, la pantalla del reproductor cuenta estos segundos antes de empezarla.',
+  subrayado: 'Subrayar siempre lo ya cantado',
+  subrayadoAyuda:
+    'Añade una línea bajo la parte cantada en todas las canciones, aunque su tema no la tenga. Ayuda a quien no distingue bien los colores. No cambia tus temas ni los videos que exportes.',
   errorGuardar: 'No se pudo guardar el ajuste.',
   copiar: 'Copiar detalles'
 } as const
 
 /** Valores del selector, en segundos (el 4 es el predeterminado). */
 export const OPCIONES_CUENTA_S = [2, 3, 4, 5, 8, 10, 15] as const
+
+/** Sección «Letras y preparación automática» (docs/ux/08 · 0.2.2 · Feature 5, claves `aj.prep.*`). */
+export const AJPREP = {
+  titulo: 'Letras y preparación automática',
+  casilla: 'Buscar la letra automáticamente al añadir una canción',
+  privacidad:
+    'Shinobi Karaoke busca la letra en LRCLIB (lrclib.net), la comprueba con la voz y deja la canción lista para revisar. Para buscarla se envían el título, el artista, el álbum y la duración de la canción, y nada más: ningún dato tuyo ni de tu equipo. LRCLIB ve tu dirección IP, como cualquier web que visitas.',
+  desactivado:
+    'Desactivada: la letra solo se busca cuando entras en el paso «Letra» de una canción o usas «Preparar». Las canciones nuevas se separan y se quedan como borradores sin letra.',
+  lrclib: 'Qué es LRCLIB',
+  pendientes: (n: number): string =>
+    n === 1
+      ? 'Tienes 1 borrador sin letra. La casilla vale para las canciones que añadas desde ahora; este se prepara desde la Biblioteca.'
+      : `Tienes ${String(n)} borradores sin letra. La casilla vale para las canciones que añadas desde ahora; estos se preparan desde la Biblioteca.`,
+  verlos: (n: number): string => (n === 1 ? 'Verlo en la Biblioteca' : 'Verlos en la Biblioteca')
+} as const

@@ -91,3 +91,28 @@ describe('opcionesCuenta', () => {
     expect(opcionesCuenta(0)).toEqual([2, 3, 4, 5, 8, 10, 15])
   })
 })
+
+describe('ReproductorAjustes · subrayado (0.2.2)', () => {
+  const casilla = () => screen.findByRole('checkbox', { name: 'Subrayar siempre lo ya cantado' })
+
+  it('F2-A1: casilla desmarcada sin configuración previa, con su ayuda asociada', async () => {
+    montar()
+    const c = await casilla()
+    expect(c).not.toBeChecked()
+    expect(c).toHaveAccessibleDescription(/Añade una línea bajo la parte cantada/)
+  })
+
+  it('F2-A2: marcarla se guarda al instante y la lee al volver', async () => {
+    const { actualizar } = montar()
+    fireEvent.click(await casilla())
+    expect(actualizar).toHaveBeenCalledWith({ reproductor: { subrayar_cantado: true } })
+    expect(await casilla()).toBeChecked()
+  })
+
+  it('F2-A3: con un fallo de escritura vuelve al valor anterior y avisa', async () => {
+    montar(undefined, vi.fn().mockRejectedValue(new Error('disco')))
+    fireEvent.click(await casilla())
+    await waitFor(() => expect(screen.getByRole('checkbox')).not.toBeChecked())
+    expect(await screen.findByText('No se pudo guardar el ajuste.')).toBeVisible()
+  })
+})

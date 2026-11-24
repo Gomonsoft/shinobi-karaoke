@@ -1,5 +1,14 @@
 import { z } from 'zod'
-import { elementoLetraSchema, palabraSchema, type ElementoLetra } from './letra'
+import { VEREDICTOS_ENCAJE } from './encaje'
+import {
+  ORIGENES_FIN,
+  elementoLetraSchema,
+  palabraSchema,
+  partesEscrituraSchema,
+  revisadaSchema,
+  type ElementoLetra
+} from './letra'
+import { PARTES_ESCRITAS } from './reparto'
 
 /**
  * Contratos de la búsqueda e importación de letras (Fase 4, 0077; ADR 0005 Revisión 2026-11-05).
@@ -16,12 +25,19 @@ export const URL_BASE_LRCLIB = 'https://lrclib.net'
  * URL base efectiva de LRCLIB. Empaquetada se ignora la variable. Sin empaquetar solo se admite
  * `http://127.0.0.1:<puerto>` y `http://lrclib.invalid` (para probar `SIN_CONEXION`); cualquier otro
  * valor se descarta y se usa la URL real. Devuelve la URL sin barra final.
+ * Defensa de los E2E (`SHINOBI_E2E=1`, `e2e`): sin empaquetar y sin una URL admitida, nunca la real:
+ * `http://lrclib.invalid` (sin conexión). Empaquetada, `e2e` se ignora.
  */
-export function urlBaseLrclib(valor: string | undefined, empaquetada: boolean): string {
-  if (empaquetada || !valor) return URL_BASE_LRCLIB
+export function urlBaseLrclib(
+  valor: string | undefined,
+  empaquetada: boolean,
+  e2e = false
+): string {
+  const real = !empaquetada && e2e ? 'http://lrclib.invalid' : URL_BASE_LRCLIB
+  if (empaquetada || !valor) return real
   const t = valor.trim().replace(/\/+$/, '')
   if (/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(t) || t === 'http://lrclib.invalid') return t
-  return URL_BASE_LRCLIB
+  return real
 }
 
 export const SINCRONIAS = ['palabra', 'linea', 'texto'] as const
@@ -41,6 +57,23 @@ export const MAX_ELEMENTOS_LETRA = 5000
 /** Máximo del texto de `letras.editarTexto`: 512 KB. */
 export const MAX_BYTES_TEXTO_LETRA = 512 * 1024
 
+export const encajeCandidatoSchema = z.object({
+  veredicto: z.enum(VEREDICTOS_ENCAJE),
+  desfaseMs: z.number().int(),
+  /** `dudosa` por un límite del método, no por coros (ADR 0024, revisión 2026-11-22); lectura tolerante. */
+  limitacion: z.enum(['vozContinua', 'sinContraste']).nullable().optional().catch(undefined)
+})
+export type EncajeCandidato = z.infer<typeof encajeCandidatoSchema>
+
+/** Evento `letras:encaje` (ADR 0024 §2): los encajes de la última búsqueda cuando los picos terminan. */
+export const eventoEncajeLetrasSchema = z.object({
+  cancionId: z.string(),
+  encajes: z.array(
+    z.object({ lrclib_id: z.number().int(), encaje: encajeCandidatoSchema.nullable() })
+  )
+})
+export type EventoEncajeLetras = z.infer<typeof eventoEncajeLetrasSchema>
+
 export const candidatoLetraSchema = z.object({
   lrclib_id: z.number().int(),
   titulo: z.string(),
@@ -50,7 +83,9 @@ export const candidatoLetraSchema = z.object({
   sincronia: sincroniaSchema,
   /** Duración del candidato menos la de la canción, con signo. */
   diferencia_ms: z.number().int(),
-  lineas: z.array(elementoLetraSchema)
+  lineas: z.array(elementoLetraSchema),
+  /** Encaje con la voz (ADR 0024 §2); null o ausente si no hay picos o el candidato es solo texto. */
+  encaje: encajeCandidatoSchema.nullable().optional()
 })
 export type CandidatoLetra = z.infer<typeof candidatoLetraSchema>
 
@@ -65,6 +100,8 @@ export const origenLetraGuardarSchema = z.enum(['lrclib', 'manual', 'archivo'])
 const tieneLinea = (lineas: readonly ElementoLetra[]): boolean =>
   lineas.some((l) => l.tipo === 'linea')
 
+export const OFFSET_MAXIMO_MS = 30_000
+
 export const busquedaLetraSchema = z.strictObject({
   cancionId: z.string().min(1).max(200),
   titulo: z.string().trim().min(1).max(500),
@@ -78,7 +115,12 @@ export const guardarLetraSchema = z
     cancionId: z.string().min(1).max(200),
     origen: origenLetraGuardarSchema,
     lrclib_id: z.number().int().nullable(),
-    lineas: z.array(elementoLetraSchema).max(MAX_ELEMENTOS_LETRA)
+    lineas: z.array(elementoLetraSchema).max(MAX_ELEMENTOS_LETRA),
+    /**
+     * Corrección de desfase que se guarda con la letra nueva (ADR 0024 §1: `offset_ms = d` a 10 ms y
+     * `desfase_corregido_ms = d`; los tiempos de las líneas no cambian). Ausente = sin corrección.
+     */
+    desfase_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS).optional()
   })
   .refine((v) => v.lrclib_id === null || v.origen === 'lrclib', {
     message: 'lrclib_id solo puede ser no nulo con origen lrclib',
@@ -96,15 +138,50 @@ export const tiempoElementoSchema = z.strictObject({
   fin_ms: z.number().int().min(0).nullable(),
   palabras: z.array(palabraSchema).min(1).max(500).nullable(),
   /** `"manual"`: palabras hechas en el editor preciso (ADR 0021 §6); ausente = las de la referencia. */
-  origen_palabras: z.literal('manual').optional()
+  origen_palabras: z.literal('manual').optional(),
+  /** Quién fijó el fin (ADR 0024 §4); ausente = a mano. Main lo retira si `fin_ms` es null. */
+  origen_fin: z.enum(ORIGENES_FIN).optional(),
+  /** Instantánea de «dada por buena»; ausente = sin revisar. Main la retira si deja de coincidir. */
+  revisada: revisadaSchema.extend({ texto: z.string().max(1000) }).optional(),
+  /** Quién canta la línea (ADR 0029 §2): ausente = `c1`, que no se escribe. El editor envía siempre el reparto completo. */
+  parte: z.enum(PARTES_ESCRITAS).optional()
 })
 
-export const OFFSET_MAXIMO_MS = 30_000
-export const guardarTiemposSchema = z.strictObject({
-  cancionId: z.string().min(1).max(200),
-  offset_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS),
-  tiempos: z.array(tiempoElementoSchema).max(MAX_ELEMENTOS_LETRA)
-})
+export const guardarTiemposSchema = z
+  .strictObject({
+    cancionId: z.string().min(1).max(200),
+    offset_ms: z.number().int().min(-OFFSET_MAXIMO_MS).max(OFFSET_MAXIMO_MS),
+    /**
+     * Desfase que se corrigió en la letra (ADR 0024 §1): número = se anota; `null` = se borra (quitar la
+     * corrección); ausente = no cambia. El editor lo envía siempre (estado completo).
+     */
+    desfase_corregido_ms: z
+      .number()
+      .int()
+      .min(-OFFSET_MAXIMO_MS)
+      .max(OFFSET_MAXIMO_MS)
+      .nullable()
+      .optional(),
+    /** Reparto de la letra (ADR 0029 §2): `null` = quitarlo; ausente = conservar el que hay. */
+    partes: partesEscrituraSchema.nullable().optional(),
+    tiempos: z.array(tiempoElementoSchema).max(MAX_ELEMENTOS_LETRA)
+  })
+  .refine(
+    ({ partes, tiempos }) => {
+      if (partes === undefined) return true
+      const ids = new Set((partes?.cantantes ?? []).map((c) => c.id as string))
+      return tiempos.every(
+        ({ parte }) =>
+          parte === undefined ||
+          parte === 'coro' ||
+          (parte === 'todos' ? ids.size >= 2 : ids.has(parte))
+      )
+    },
+    {
+      message: 'Una línea es de un cantante que no existe o de «Todos» sin 2 cantantes',
+      path: ['tiempos']
+    }
+  )
 export type GuardarTiempos = z.infer<typeof guardarTiemposSchema>
 
 export const editarTextoLetraSchema = z.strictObject({

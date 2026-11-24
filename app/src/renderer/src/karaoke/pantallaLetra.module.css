@@ -13,35 +13,78 @@
   /* Sistema visual §10. Con 2160 px de alto, 7.5cqh equivalen a 162 px. */
   --k-tamano: max(32px, 7.5cqh);
 
+  /* Ancho de una línea (ADR 0029 §4 bis): 0.2.3 podrá cambiarlo por zona. Cuenta en la reducción por longitud. */
+  --k-ancho-linea: 88%;
+
   /* Color de los indicadores de espera: el de lo ya cantado, o el de la letra sin barrido. */
   --k-indicador: var(--k-resaltado);
+}
+
+.vistaPrevia {
+  --k-tamano: 7.5cqh;
 }
 
 .sinBarrido {
   --k-indicador: var(--k-color);
 }
 
-.actual,
-.siguiente,
+.linea,
 .titulo,
 .cuenta {
   position: absolute;
-  left: 6%;
-  width: 88%;
+  left: calc((100% - var(--k-ancho-linea)) / 2);
+  width: var(--k-ancho-linea);
   text-align: center;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
 
-.actual {
-  top: 45%;
-  transform: translateY(-50%);
-  font-size: calc(var(--k-tamano) * var(--escala, 1));
+/*
+ * Cada línea mide siempre lo que la activa (tamaño S, reducida por longitud como en 0.2.0) y el
+ * puesto lo dan cuatro variables que escribe `PantallaLetra` por fotograma (ADR 0022 §3):
+ * posición del centro, escala, opacidad y mezcla hacia el gris. Sin `will-change` permanente.
+ */
+.linea {
+  top: 0;
+  font-size: calc(var(--k-tamano) * var(--k-escala-zona, 1) * var(--k-reduccion, 1));
+  opacity: var(--k-opacidad, 0);
+  transform: translateY(calc(var(--k-y, 0px) - 50%)) scale(var(--k-escala, 1));
+  color: color-mix(
+    in srgb,
+    var(--k-color-gris) calc(var(--k-gris, 0) * 100%),
+    var(--k-color-linea, var(--k-color))
+  );
+  pointer-events: none;
 }
 
-.siguiente {
-  top: calc(45% + var(--actual-mitad, var(--k-tamano) * 0.6) + var(--k-tamano) * 0.6);
-  font-size: calc(var(--k-tamano) * 0.7 * var(--escala, 1));
+/*
+ * Insignia del cantante (sistema visual · 0.2.3): píldora sin relleno, fuera del flujo, a la
+ * izquierda de la primera caja de renglón (`--k-insignia-x` la mide el componente). Medidas en
+ * em de la línea: texto 0,4, alto 0,6, relleno 0,2 y separación 0,3, que aquí son 2,5× de su 0,4.
+ */
+.insignia {
+  position: absolute;
+  top: 1.5em;
+  left: var(--k-insignia-x, 0px);
+  display: flex;
+  min-width: 1.5em;
+  height: 1.5em;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5em;
+  border: max(2px, 0.15em) solid
+    color-mix(
+      in srgb,
+      var(--k-color-gris) calc(var(--k-gris, 0) * 100%),
+      var(--k-resaltado-linea, var(--k-resaltado))
+    );
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--k-color-gris) calc(var(--k-gris, 0) * 100%), var(--k-color));
+  font-size: 0.4em;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(calc(-100% - 0.75em), -50%);
 }
 
 .barrido {
@@ -53,7 +96,11 @@
 .resaltado {
   position: absolute;
   inset: 0;
-  color: var(--k-resaltado);
+  color: color-mix(
+    in srgb,
+    var(--k-color-gris) calc(var(--k-gris, 0) * 100%),
+    var(--k-resaltado-linea, var(--k-resaltado))
+  );
   pointer-events: none;
   clip-path: inset(100%);
 }
@@ -91,19 +138,24 @@
   font-size: calc(var(--t-display) * 2);
 }
 
+/* Puntos, barra y cuenta: su `--k-y` (relativo al ancla de su zona) lo escribe el componente. */
 .puntos {
   position: absolute;
-  bottom: 100%;
-  inset-inline: 0;
+  top: var(--k-y, 0px);
+  left: calc((100% - var(--k-ancho-linea)) / 2);
+  width: var(--k-ancho-linea);
+  transform: translateY(-50%);
   color: var(--k-indicador);
-  font-size: 50%;
+  font-size: calc(var(--k-tamano) * 0.35);
+  text-align: center;
   letter-spacing: 0.22em;
+  pointer-events: none;
 }
 
 /* Posiciones reservadas (sistema visual, fase 5): no pertenecen a ninguna caja de línea. */
 .barra {
   position: absolute;
-  top: calc(45% - var(--k-tamano) * 0.9);
+  top: var(--k-y, 0px);
   left: 50%;
   width: 40%;
   height: max(6px, 1cqh);
@@ -120,25 +172,45 @@
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  background: var(--k-resaltado);
+  background: var(--k-indicador);
   transform: scaleX(var(--k-fraccion, 0));
   transform-origin: left center;
 }
 
-/* Letra lista: pista al 35 % y relleno del color de la letra; sin `color_resaltado`. */
-.sinBarrido .barra {
-  background: color-mix(in srgb, var(--k-color) 35%, transparent);
+/*
+ * Subrayado de lo ya cantado (ADR 0022 §5): decoración de la capa de resaltado, que ya se recorta
+ * con el barrido. Continuo, grosor máx(2 px, 0,07 em), a 0,12 em bajo la línea base. Su opacidad
+ * es `1 − --k-gris` (se funde con la salida de la línea).
+ */
+.subrayado .linea[data-activa='true'] .resaltado {
+  text-decoration-line: underline;
+  text-decoration-skip-ink: none;
+  text-decoration-thickness: max(2px, 0.07em);
+  text-underline-offset: 0.12em;
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--k-resaltado-linea, var(--k-resaltado)) calc((1 - var(--k-gris, 0)) * 100%),
+    transparent
+  );
+  /*
+   * Chromium dibuja la sombra heredada aunque la decoración sea transparente: sin esto la línea ya
+   * cantada conservaba una raya oscura (F2-R5). La sombra sigue la misma opacidad `1 − --k-gris`.
+   */
+  text-shadow: 0 0.04em 0.12em
+    color-mix(in srgb, rgb(0 0 0 / 55%) calc((1 - var(--k-gris, 0)) * 100%), transparent);
 }
 
-.sinBarrido .relleno {
-  background: var(--k-color);
+/* Letra lista: pista al 35 % y relleno del color de la letra; sin `color_resaltado`. */
+.sinBarrido .barra,
+.subrayado .barra {
+  background: color-mix(in srgb, var(--k-color) 35%, transparent);
 }
 
 .cuentaEspera {
   position: absolute;
-  top: 45%;
-  left: 6%;
-  width: 88%;
+  top: var(--k-y, 0px);
+  left: calc((100% - var(--k-ancho-linea)) / 2);
+  width: var(--k-ancho-linea);
   transform: translateY(-50%);
   color: var(--k-indicador);
   font-size: var(--k-tamano);
@@ -164,9 +236,8 @@
 
 .etiqueta {
   position: absolute;
-  top: var(--e-3);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 8px;
+  left: 8px;
   padding: var(--e-2) var(--e-4);
   border-radius: var(--r-pildora);
   background: rgb(0 0 0 / 60%);
@@ -174,21 +245,66 @@
   font: var(--t-cuerpo) / var(--t-cuerpo-lh) sans-serif;
 }
 
-.transicion {
-  animation: subir 200ms ease-out both;
+/* El movimiento lo decide el componente (`data-movimiento`): el del sistema o el que fija la exportación. Solo queda la entrada del número de la cuenta. */
+.raiz[data-movimiento='reducido'] .entraNumero {
+  animation: none;
 }
 
-@keyframes subir {
+/*
+ * Zonas por parte: los indicadores van en una fila centrada sobre la próxima línea (puntos · barra ·
+ * cuenta, solo los activos), a la altura que escribe el componente en `--k-y`. Nunca sobre el texto.
+ */
+.filaEspera {
+  position: absolute;
+  top: var(--k-y, 0px);
+  left: 0;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--k-tamano) * var(--k-escala-zona, 1) * 0.5);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.filaEspera .puntos,
+.filaEspera .cuentaEspera,
+.filaEspera .barra {
+  position: static;
+  width: auto;
+  transform: none;
+}
+
+.filaEspera .puntos {
+  font-size: calc(var(--k-tamano) * var(--k-escala-zona, 1) * 0.35);
+}
+
+.filaEspera .cuentaEspera {
+  font-size: calc(var(--k-tamano) * var(--k-escala-zona, 1) * 0.6);
+  line-height: 1;
+}
+
+.filaEspera .barra {
+  width: 40%;
+}
+
+.filaEspera[data-fila-espera='2'] .barra,
+.filaEspera[data-fila-espera='3'] .barra {
+  width: 25%;
+}
+
+.filaEspera .entraNumero {
+  animation-name: entraNumeroFila;
+}
+
+@keyframes entraNumeroFila {
   from {
-    transform: translateY(calc(var(--k-tamano) * 1.2)) scale(0.7);
+    opacity: 0;
+    transform: scale(0.9);
   }
 
   to {
-    transform: translateY(-50%) scale(1);
+    opacity: 1;
+    transform: scale(1);
   }
-}
-
-/* El movimiento lo decide el componente (`data-movimiento`): el del sistema o el que fija la exportación. */
-.raiz[data-movimiento='reducido'] :is(.transicion, .entraNumero) {
-  animation: none;
 }

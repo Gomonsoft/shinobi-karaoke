@@ -51,6 +51,12 @@ export const E = {
       ver: 'Ver exportación',
       atajo: 'Ctrl/Cmd + E'
     },
+    letra: {
+      titulo: 'Exportar la letra',
+      ayuda:
+        'Guarda la letra con sus tiempos en un archivo .lrc, para usarla fuera de Shinobi Karaoke.',
+      boton: 'Exportar la letra (.lrc)…'
+    },
     silencios: {
       titulo: 'Ajustar los silencios',
       ayuda: 'Lleva el fin de cada línea al último momento con voz antes de un silencio.',
@@ -98,6 +104,7 @@ export const E = {
   cargando: 'Cargando audio…',
   botonSync: 'Sincronizar al ritmo',
   botonProbar: 'Probar a pantalla completa',
+  previaLinea: (n: number) => `Línea ${n} (en pausa)`,
   probarTooltip: 'Probar a pantalla completa (F)',
   probarSinLineas: 'Sincroniza al menos una línea para probarla.',
   syncTitulo: 'Sincronizando al ritmo',

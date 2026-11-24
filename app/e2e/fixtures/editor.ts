@@ -16,9 +16,14 @@ import { leerCancion, tarjeta } from './separacion'
 export const idSemilla = (n: number): string =>
   `5eed0000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
-export async function lanzar(datos: string, dpr?: number): Promise<ElectronApplication> {
+export async function lanzar(
+  datos: string,
+  dpr?: number,
+  /** Argumentos de Chromium extra (solo capturas: p. ej. `--force-color-profile=srgb`). */
+  extra: string[] = []
+): Promise<ElectronApplication> {
   return electron.launch({
-    args: dpr ? [`--force-device-scale-factor=${dpr}`, '.'] : ['.'],
+    args: [...extra, ...(dpr ? [`--force-device-scale-factor=${dpr}`] : []), '.'],
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -51,18 +56,23 @@ export async function conEditor(
   }
 }
 
-/** Biblioteca → «Continuar» de la canción → editor con el audio cargado. */
+/** Biblioteca → «Continuar» o «Revisar» de la canción → editor con el audio cargado. */
 export async function abrirEditor(v: Page, titulo: string): Promise<void> {
   // Filtrar sube las tarjetas al principio: un menú abierto en una tarjeta que hay que desplazar se cierra.
   await v.getByRole('searchbox', { name: /^Buscar título/ }).fill(titulo)
   const t = tarjeta(v, titulo)
   await expect(t).toBeVisible()
-  const continuar = t.getByRole('button', { name: /^Continuar/ })
+  // Un borrador al que no le falta nada es «Lista para revisar» (ADR 0025 §1): su botón es «Revisar».
+  const continuar = t.getByRole('button', { name: /^(Continuar|Revisar)/ })
   if (await continuar.count()) {
     await continuar.click()
   } else {
     // Lista o separándose: la acción está en el menú de la tarjeta («Editar» / «Continuar»).
-    await t.getByRole('button', { name: `Más acciones de «${titulo}»` }).click()
+    // La bandeja «Pendientes de ti» baja la rejilla: a 1024 × 576 el ⋯ queda bajo el borde y el menú
+    // se cerraría al desplazar la tarjeta. Se trae a la vista antes de abrirlo.
+    const mas = t.getByRole('button', { name: `Más acciones de «${titulo}»` })
+    await mas.scrollIntoViewIfNeeded()
+    await mas.click()
     await v.getByRole('menuitem', { name: /^(Editar|Continuar)$/ }).dispatchEvent('click')
   }
   await expect(v.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()

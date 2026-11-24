@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { esperaSchema } from './espera'
+import { pantallaSchema, zonasEfectivas, type Pantalla } from './pantalla'
+import { colorDeParte } from './reparto'
 import { ESTILO_PREDETERMINADO, estiloSchema, normalizarEstilo, type Estilo } from './estilo'
 import {
   claveAlbum,
@@ -196,9 +198,20 @@ function canonico(valor: unknown): unknown {
 
 /** Igualdad campo a campo; el orden de las claves de los objetos es irrelevante. */
 export function estilosIguales(a: Estilo, b: Estilo): boolean {
-  return (
-    JSON.stringify(canonico(normalizarEstilo(a))) === JSON.stringify(canonico(normalizarEstilo(b)))
+  return JSON.stringify(comparable(a)) === JSON.stringify(comparable(b))
+}
+
+/** Estilo normalizado con los colores de las partes y `zonas` efectivos: «ausente» y «predeterminado» no difieren. */
+function comparable(estilo: Estilo): unknown {
+  const n = normalizarEstilo(estilo)
+  const colores = Object.fromEntries(
+    (['c2', 'c3', 'c4', 'todos', 'coro'] as const).map((p) => [p, colorDeParte(n, p)])
   )
+  return canonico({
+    ...n,
+    letra: { ...n.letra, colores_partes: colores },
+    pantalla: { ...n.pantalla, zonas: zonasEfectivas(n.pantalla) }
+  })
 }
 
 /**
@@ -241,7 +254,7 @@ export type BaseApariencia = z.infer<typeof baseAparienciaSchema>
  * Con `propio`, el `estilo` de la canción es la autoridad; con `tema`/`heredar`, es la instantánea de
  * respaldo. `tema_id` solo y obligatorio con `modo: "tema"` (`null` se tolera como ausente).
  */
-export const reemplazosSchema = z.strictObject({ espera: esperaSchema.optional() })
+export const reemplazosSchema = z.object({ espera: esperaSchema.optional() })
 export type Reemplazos = z.infer<typeof reemplazosSchema>
 
 export const aparienciaSchema = z
@@ -251,7 +264,12 @@ export const aparienciaSchema = z
     base: baseAparienciaSchema.optional(),
     tema_nombre: nombreTemaSchema.optional(),
     /** Lista blanca (ADR 0018 §3): solo `espera`, y solo con `tema` o `heredar`. */
-    reemplazos: reemplazosSchema.optional()
+    reemplazos: reemplazosSchema.optional(),
+    /**
+     * Reemplazo del bloque `pantalla` (ADR 0022 §1): clave hermana de `reemplazos` porque 0.2.1 la
+     * descarta sin error. Mismas reglas que `reemplazos.espera`: solo con `tema` o `heredar`.
+     */
+    reemplazo_pantalla: pantallaSchema.optional().catch(undefined)
   })
   .superRefine((a, ctx) => {
     if (a.modo === 'propio' && a.reemplazos !== undefined) {
@@ -259,6 +277,13 @@ export const aparienciaSchema = z
         code: 'custom',
         path: ['reemplazos'],
         message: 'reemplazos no es válido con modo "propio"'
+      })
+    }
+    if (a.modo === 'propio' && a.reemplazo_pantalla !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['reemplazo_pantalla'],
+        message: 'reemplazo_pantalla no es válido con modo "propio"'
       })
     }
     const tiene = a.tema_id != null
@@ -319,35 +344,36 @@ export interface ResolucionApariencia {
   procedencia: Procedencia
   /** De dónde sale la espera: `cancion` con reemplazo; si no, la `procedencia` del estilo (ADR 0018 §3). */
   procedenciaEspera: Procedencia
+  /** De dónde sale la pantalla: `cancion` con reemplazo; si no, la `procedencia` del estilo (ADR 0022 §1). */
+  procedenciaPantalla: Procedencia
   temaId: string | null
   temaNombre: string | null
 }
+
+type ResolucionEstilo = Omit<ResolucionApariencia, 'procedenciaEspera' | 'procedenciaPantalla'>
 
 /** Resolución sin la espera de la canción (pasos 2 y 3 de ADR 0016 §3). */
 function resolverEstilo(
   cancion: CancionResoluble,
   indice: IndiceCatalogo | null
-): Omit<ResolucionApariencia, 'procedenciaEspera'> {
+): ResolucionEstilo {
   const ap: Apariencia = cancion.apariencia ?? { modo: 'propio' }
   if (ap.modo === 'propio') {
     return { estilo: cancion.estilo, procedencia: 'propio', temaId: null, temaNombre: null }
   }
-  const respaldo = (temaId: string | null): Omit<ResolucionApariencia, 'procedenciaEspera'> => ({
+  const respaldo = (temaId: string | null): ResolucionEstilo => ({
     estilo: cancion.estilo,
     procedencia: 'respaldo',
     temaId,
     temaNombre: ap.tema_nombre ?? null
   })
-  const deTema = (
-    id: string,
-    procedencia: Procedencia
-  ): Omit<ResolucionApariencia, 'procedenciaEspera'> | null => {
+  const deTema = (id: string, procedencia: Procedencia): ResolucionEstilo | null => {
     const tema = indice?.porId.get(id)
     return tema
       ? { estilo: tema.estilo, procedencia, temaId: tema.id, temaNombre: tema.nombre }
       : null
   }
-  const incluido = (): Omit<ResolucionApariencia, 'procedenciaEspera'> => ({
+  const incluido = (): ResolucionEstilo => ({
     estilo: ESTILO_PREDETERMINADO,
     procedencia: 'incluido',
     temaId: null,
@@ -398,9 +424,19 @@ export function resolverApariencia(
 ): ResolucionApariencia {
   const r = resolverEstilo(cancion, indice)
   const ap = cancion.apariencia
-  const espera = ap && ap.modo !== 'propio' ? ap.reemplazos?.espera : undefined
-  if (!espera) return { ...r, procedenciaEspera: r.procedencia }
-  return { ...r, estilo: { ...r.estilo, espera }, procedenciaEspera: 'cancion' }
+  const conReemplazos = ap && ap.modo !== 'propio'
+  const espera = conReemplazos ? ap.reemplazos?.espera : undefined
+  const pantalla: Pantalla | undefined = conReemplazos ? ap.reemplazo_pantalla : undefined
+  const estilo =
+    espera || pantalla
+      ? { ...r.estilo, ...(espera ? { espera } : {}), ...(pantalla ? { pantalla } : {}) }
+      : r.estilo
+  return {
+    ...r,
+    estilo,
+    procedenciaEspera: espera ? 'cancion' : r.procedencia,
+    procedenciaPantalla: pantalla ? 'cancion' : r.procedencia
+  }
 }
 
 /**

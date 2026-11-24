@@ -22,7 +22,10 @@ export const FUSES_ESPERADOS = Object.freeze({
   WasmTrapHandlers: true
 })
 
-export const ENTRADAS_PROHIBIDAS = Object.freeze([
+export /** Dependencias de ejecución que pueden ir en `app.asar` (`yazl` y `yauzl`, ADR 0027, con sus dos únicas dependencias). */
+const DEPENDENCIAS_PERMITIDAS = new Set(['yaml', 'zod', 'yazl', 'yauzl', 'buffer-crc32', 'pend'])
+
+const ENTRADAS_PROHIBIDAS = Object.freeze([
   'spikes',
   'tests',
   'e2e',
@@ -267,7 +270,7 @@ function verificarAsar(asar, listar, leer) {
         ? `${partes[i + 1]}/${partes[i + 2]}`
         : partes[i + 1]
       exigir(
-        ruta === '/node_modules' || paquete === 'yaml' || paquete === 'zod',
+        ruta === '/node_modules' || DEPENDENCIAS_PERMITIDAS.has(paquete),
         `Dependencia no permitida en app.asar: ${paquete ?? ruta}`
       )
     }

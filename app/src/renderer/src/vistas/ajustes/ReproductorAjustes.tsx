@@ -22,6 +22,9 @@ export function opcionesCuenta(valor: number): number[] {
  */
 export function ReproductorAjustes() {
   const [valor, setValor] = useState<number>(TRANSICION_S.defecto)
+  const [subrayar, setSubrayar] = useState(false)
+  const idSubrayado = useId()
+  const idAyudaSubrayado = useId()
   const idTitulo = useId()
   const idSelector = useId()
   const idAyuda = useId()
@@ -29,13 +32,35 @@ export function ReproductorAjustes() {
   useEffect(() => {
     let activo = true
     window.shinobi.config.obtener().then(
-      (c) => activo && setValor(c.reproductor.transicion_s),
+      (c) => {
+        if (!activo) return
+        setValor(c.reproductor.transicion_s)
+        setSubrayar(c.reproductor.subrayar_cantado)
+      },
       () => undefined
     )
     return () => {
       activo = false
     }
   }, [])
+
+  const alternarSubrayado = async (nuevo: boolean) => {
+    const anterior = subrayar
+    setSubrayar(nuevo)
+    try {
+      await window.shinobi.config.actualizar({ reproductor: { subrayar_cantado: nuevo } })
+    } catch (err) {
+      setSubrayar(anterior)
+      mostrarToast({
+        tipo: 'error',
+        mensaje: AJREP.errorGuardar,
+        accion: {
+          etiqueta: AJREP.copiar,
+          alAccionar: () => void copiarDetalles(detallesDeError(err))
+        }
+      })
+    }
+  }
 
   const elegir = async (nuevo: number) => {
     const anterior = valor
@@ -76,6 +101,19 @@ export function ReproductorAjustes() {
       </select>
       <p id={idAyuda} className={estilos.suave}>
         {AJREP.ayuda}
+      </p>
+      <label htmlFor={idSubrayado} className={estilos.casilla}>
+        <input
+          id={idSubrayado}
+          type="checkbox"
+          aria-describedby={idAyudaSubrayado}
+          checked={subrayar}
+          onChange={(e) => void alternarSubrayado(e.target.checked)}
+        />
+        {AJREP.subrayado}
+      </label>
+      <p id={idAyudaSubrayado} className={estilos.suave}>
+        {AJREP.subrayadoAyuda}
       </p>
     </div>
   )

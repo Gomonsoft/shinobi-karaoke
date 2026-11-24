@@ -1,5 +1,5 @@
 import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { _electron as electron, expect, test, type Locator } from '@playwright/test'
+import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test'
 import { join } from 'node:path'
 import { sembrar } from '../src/main/biblioteca/semilla'
 import { E } from '../src/renderer/src/vistas/editor/textos'
@@ -69,6 +69,24 @@ async function medirPintura(barrido: Locator) {
   })
 }
 
+/**
+ * Los controles del reproductor se ocultan solos a los 3 s sin actividad y entonces salen del árbol de
+ * accesibilidad (`aria-hidden`): con la CPU ocupada (pasadas completas, varias ventanas a la vez) la prueba
+ * llega tarde y `getByRole('slider')` no encuentra nada hasta que se agota el tiempo. Antes de cada intento
+ * se mueve el puntero dentro del reproductor, que los vuelve a mostrar; `accion` debe ser corta.
+ */
+async function conControles<T>(ventana: Page, capa: Locator, accion: () => Promise<T>): Promise<T> {
+  const area = await capa.boundingBox()
+  if (!area) throw new Error('No se pudo medir el reproductor')
+  let resultado!: T
+  await expect(async () => {
+    await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.95)
+    await ventana.mouse.move(area.x + area.width / 2 + 2, area.y + area.height * 0.95)
+    resultado = await accion()
+  }).toPass({ timeout: 25_000, intervals: [100] })
+  return resultado
+}
+
 test.describe('reproductor sin red', () => {
   test.describe.configure({ timeout: 60_000 })
 
@@ -113,7 +131,9 @@ test.describe('reproductor sin red', () => {
       expect(inicial.anchos.length).toBeGreaterThanOrEqual(2)
       const total = inicial.anchos.reduce((suma, ancho) => suma + ancho, 0)
       const buscarAncho = (ancho: number) =>
-        barra.fill(String(Math.round((24_000 * ancho) / total)))
+        conControles(ventana, capa, () =>
+          barra.fill(String(Math.round((24_000 * ancho) / total)), { timeout: 2_000 })
+        )
 
       await buscarAncho(inicial.anchos[0]! / 2)
       await expect
@@ -239,7 +259,9 @@ test.describe('reproductor sin red', () => {
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
       await expect(capa).toBeVisible()
       await expect(capa.getByText('Primera luz sobre el tejado')).toBeVisible({ timeout: 10_000 })
-      await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000')
+      await conControles(ventana, capa, () =>
+        capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000', { timeout: 2_000 })
+      )
       await expect(capa.getByRole('button', { name: R.otravez })).toBeVisible({ timeout: 10_000 })
       await expect(capa.getByRole('button', { name: R.volver.biblioteca })).toBeFocused()
       await ventana.keyboard.press('Escape')
@@ -250,6 +272,7 @@ test.describe('reproductor sin red', () => {
   })
 
   test('Biblioteca: la pantalla final vuelve sola al terminar la cuenta atrás', async () => {
+    test.setTimeout(150_000)
     const { app, ventana } = await iniciar('reproductor-final-auto')
     try {
       await ventana.getByRole('searchbox', { name: /^Buscar título/ }).fill(lista)
@@ -258,14 +281,37 @@ test.describe('reproductor sin red', () => {
         .click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
       await expect(capa.getByText('Primera luz sobre el tejado')).toBeVisible({ timeout: 10_000 })
-      // Apartar el puntero antes de llegar al final evita actividad al cambiar la pantalla.
       const area = await capa.boundingBox()
       if (!area) throw new Error('No se pudo medir el reproductor')
-      await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
-      await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000')
-      await expect(capa.getByRole('button', { name: R.otravez })).toBeVisible({ timeout: 5_000 })
-      await expect(capa.getByText(/^Se cerrará en \d+ s…$/)).toBeVisible()
-      await expect(capa).toHaveCount(0, { timeout: 12_000 })
+      // Cualquier actividad (puntero o teclado) en la pantalla final detiene la cuenta atrás, por diseño. Medido
+      // (2026-11-23, 0.2.3 y 0.2.2 por igual): con varias ventanas de Electron abriéndose y cerrándose a la vez
+      // (otros trabajadores de Playwright) el sistema entrega a la ventana `pointermove` de confianza que la
+      // prueba no ha enviado, a ráfagas de 1 a 2,5 s, y la cuenta se detenía (el diálogo seguía abierto con
+      // «Otra vez»): una de cada cinco veces en una prueba cargada, y casi siempre en una pasada larga. Lo que
+      // se comprueba es «sin actividad, la cuenta atrás cierra sola». Si una actividad ajena la detiene, se
+      // detecta al instante (desaparece «Se cerrará en N s…») y se vuelve a empezar la pantalla final, hasta
+      // agotar los 90 s, en lugar de esperar un cierre que ya no va a llegar.
+      const textoCuenta = capa.getByText(/^Se cerrará en \d+ s…$/)
+      const estadoCuenta = async (): Promise<'cerrada' | 'cuenta' | 'detenida'> => {
+        if ((await capa.count()) === 0) return 'cerrada'
+        if ((await textoCuenta.count()) > 0) return 'cuenta'
+        // Sin texto: puede ser que la cuenta llegó a 0 y el diálogo se está cerrando.
+        await ventana.waitForTimeout(1_500)
+        return (await capa.count()) === 0 ? 'cerrada' : 'detenida'
+      }
+      await expect(async () => {
+        await ventana.mouse.move(area.x + area.width / 2, area.y + area.height * 0.3)
+        await capa.getByRole('slider', { name: 'Barra de tiempo' }).fill('29000')
+        await expect(capa.getByRole('button', { name: R.otravez })).toBeVisible({ timeout: 5_000 })
+        await expect(textoCuenta).toBeVisible()
+        // 10 s de cuenta en temporizadores de 1 s: con la CPU ocupada se retrasa, por eso el margen.
+        await expect.poll(estadoCuenta, { timeout: 25_000, intervals: [250] }).not.toBe('cuenta')
+        if ((await capa.count()) > 0) {
+          // La cuenta se detuvo: se reinicia la reproducción para repetir el final.
+          await capa.getByRole('button', { name: R.otravez }).click()
+          throw new Error('La cuenta atrás se detuvo por una actividad ajena a la prueba')
+        }
+      }).toPass({ timeout: 90_000, intervals: [0] })
     } finally {
       await app.close()
     }
@@ -299,9 +345,12 @@ test.describe('reproductor sin red', () => {
       await cancion.getByRole('button', { name: /^Reproducir/ }).click()
       const capa = ventana.getByRole('dialog', { name: `Reproductor de «${lista}»` })
       await expect(capa.getByText('Primera luz sobre el tejado')).toBeVisible({ timeout: 10_000 })
-      await expect(capa.getByRole('slider', { name: R.aria.vozguia })).toHaveAttribute(
-        'aria-disabled',
-        'true'
+      await conControles(ventana, capa, () =>
+        expect(capa.getByRole('slider', { name: R.aria.vozguia })).toHaveAttribute(
+          'aria-disabled',
+          'true',
+          { timeout: 2_000 }
+        )
       )
       await ventana.keyboard.press('Escape')
       await expect(capa).toHaveCount(0)
@@ -320,8 +369,10 @@ test.describe('reproductor sin red', () => {
       await ventana.getByRole('menuitem', { name: 'Volver a borrador' }).click()
       const confirmar = ventana.getByRole('dialog', { name: /¿Volver a borrador\?/ })
       await confirmar.getByRole('button', { name: 'Volver a borrador' }).click()
-      await expect(cancion.getByRole('button', { name: /^Continuar/ })).toBeVisible()
-      await cancion.getByRole('button', { name: /^Continuar/ }).click()
+      // Una lista a la que no le falta nada, vuelta a borrador, es «Lista para revisar» (ADR 0025 §1):
+      // su botón es «Revisar», que abre el editor.
+      await expect(cancion.getByRole('button', { name: /^Revisar/ })).toBeVisible()
+      await cancion.getByRole('button', { name: /^Revisar/ }).click()
       await expect(ventana.getByRole('heading', { level: 1, name: 'Editor' })).toBeAttached()
       await ventana.getByRole('button', { name: E.marcarLista }).click()
       await expect(ventana.getByText(`«${lista}» está lista para cantar.`)).toBeVisible()

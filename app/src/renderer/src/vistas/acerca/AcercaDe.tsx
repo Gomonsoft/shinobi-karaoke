@@ -6,6 +6,7 @@ import { Boton } from '../../componentes/Boton'
 import { Icono } from '../../componentes/Icono'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import estilos from './acerca.module.css'
+import { BloqueActualizaciones } from './BloqueActualizaciones'
 import { DialogoAvisoYoutube } from './DialogoAvisoYoutube'
 import { DialogoTextoLegal } from './DialogoTextoLegal'
 import { modeloEfectivo } from '../ajustes/modelo'
@@ -96,7 +97,9 @@ export function infoSoporte(info: InfoSistema, config: Config): string {
     `Modelo de separación: ${lineaModelo(config)}`,
     `Dispositivo: ${perfil === 'cuda' || perfil === 'cpu' ? perfil : (perfil ?? SIN_INSTALAR)}`,
     `yt-dlp: ${info.ytdlp?.version ?? SIN_INSTALAR}`,
-    `Última comprobación de yt-dlp: ${comprobacion ?? SIN_INSTALAR}`
+    `Última comprobación de yt-dlp: ${comprobacion ?? SIN_INSTALAR}`,
+    // `aj.soporte.busqueda` (0.2.2 · feature 5): activada salvo que el usuario la apagara.
+    `Búsqueda automática de letra: ${config.preparacion?.automatica === false ? 'desactivada' : 'activada'}`
   ].join('\n')
 }
 
@@ -145,6 +148,9 @@ export function AcercaDe() {
     }
   }
 
+  // Sin API de actualizaciones (pruebas de otras vistas) no se muestra el bloque.
+  const conActualizaciones = typeof window.shinobi.actualizaciones?.estado === 'function'
+
   const abrirCarpeta = () =>
     window.shinobi.sistema
       .abrirCarpetaDatos()
@@ -161,6 +167,7 @@ export function AcercaDe() {
             {T.version(numeroVisible(info.version, info.compilacion))}
           </p>
           <LineaCanal info={info} alCopiar={() => void copiarVersion()} />
+          {conActualizaciones && <BloqueActualizaciones info={info} />}
         </>
       )}
       <div className={estilos.botones}>

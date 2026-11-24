@@ -11,7 +11,7 @@ interface Props {
   /** «Quitar los tiempos por palabra»: toda la tira al 50 %. */
   atenuada?: boolean
   alSeleccionar(indice: number): void
-  /** Doble clic: escucha la palabra. */
+  /** Doble clic: reproduce desde la palabra. */
   alEscucharPalabra(indice: number): void
   /** Teclas del contenedor (Intro, Alt/Ctrl + flechas…): si llama a `preventDefault`, la tira no actúa. */
   alTeclear?(e: KeyboardEvent<HTMLElement>): void

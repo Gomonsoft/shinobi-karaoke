@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Clock, RefreshCw, X } from 'lucide-react'
+import { Check, Clock, Pause, RefreshCw, TriangleAlert, X } from 'lucide-react'
 import type { EventoProgresoIpc, TrabajoIpc } from '@shared/ipc'
 import { BarraProgreso } from '../componentes/BarraProgreso'
 import { Boton } from '../componentes/Boton'
@@ -10,16 +10,32 @@ import { mostrarToast } from '../componentes/gestorToasts'
 import { useExportaciones } from '../exportacion/contexto'
 import type { ExportacionVista } from '../exportacion/estado'
 import { faseDeExportacion } from '../exportacion/lineas'
+import { filasDelLote, resumirLote, type LoteVista } from '../exportacion/lote/modelo'
+import { EXP_LOTE } from '../exportacion/lote/textos'
 import { useCuentaAtras } from '../trabajos/useCuentaAtras'
+import { useTandaPreparacion } from '../trabajos/useTandaPreparacion'
 import { useTrabajosVivos } from '../trabajos/useTrabajos'
+import { useSesion } from '../sesion/ProveedorSesion'
+import { useBusquedaAutomatica } from '../vistas/anadir/AvisoBusqueda'
 import { detallesDeError } from '../vistas/biblioteca/errores'
 import { tituloDeTarjeta } from '../vistas/biblioteca/tarjeta'
 import { useBibliotecaCompartida } from '../vistas/biblioteca/useBiblioteca'
+import {
+  abrirExportarPaquete,
+  abrirImportarPaquete,
+  marcarCancelando,
+  usePaquetes,
+  type SeguimientoCopia
+} from '../vistas/biblioteca/paquete/almacen'
+import { PAQ } from '../vistas/biblioteca/paquete/textos'
 import {
   DialogoCancelarDescarga,
   DialogoCancelarSeparacion
 } from '../vistas/progreso/DialogosCancelar'
 import { faseDeTrabajo } from './actividad'
+import { botonDeCola, esTandaDeVarias, tandaViva } from './cola'
+import { useAnuncioCola } from './useAnuncioCola'
+import { CabeceraCola, GruposCola } from './PanelCola'
 import { useNavegacion } from './estado'
 import estilos from './marco.module.css'
 import { copiarDetalles } from '../soporte/detalles'
@@ -115,6 +131,90 @@ function FilaExportacion({ exportacion, alIr, alCancelar }: FilaExportacionProps
   )
 }
 
+interface FilaLoteProps {
+  lote: LoteVista
+  exportaciones: readonly ExportacionVista[]
+  alIr: () => void
+  alCancelar: () => void
+}
+
+/** Fila única de un lote de exportación (`act.exp.lote`): la barra es la del video en curso. */
+function FilaLoteExportacion({ lote, exportaciones, alIr, alCancelar }: FilaLoteProps) {
+  const filas = filasDelLote(lote, exportaciones)
+  const r = resumirLote(filas)
+  const actual = filas.find((f) => f.estado === 'enCurso')?.exportacion
+  const fase = actual ? faseDeExportacion(actual) : undefined
+  const texto = EXP_LOTE.actividad(r.total, r.terminadas)
+  return (
+    <li className={estilos.fila} data-lote={lote.loteId}>
+      <p className={estilos.filaTexto}>
+        <Icono
+          icono={RefreshCw}
+          tamano={16}
+          className={`${estilos.filaIcono} ${estilos.actividadIcono}`}
+        />
+        <span>{texto}</span>
+      </p>
+      {fase?.barra !== undefined ? (
+        <BarraProgreso
+          etiqueta={texto}
+          valor={fase.barra ?? 0}
+          indeterminada={fase.barra === null}
+        />
+      ) : (
+        <span />
+      )}
+      <div className={estilos.filaAcciones}>
+        <Boton variante="secundario" onClick={alIr}>
+          Ir
+        </Boton>
+        <BotonIcono icono={X} etiqueta={`Cancelar «${texto}»`} onClick={alCancelar} />
+      </div>
+    </li>
+  )
+}
+
+interface FilaPaqueteProps {
+  seguimiento: SeguimientoCopia
+  alIr: () => void
+}
+
+/** Fila de un paquete o una copia en curso (`act.paq`): [Ir] reabre su diálogo y [✕] lo cancela. */
+function FilaPaquete({ seguimiento: s, alIr }: FilaPaqueteProps) {
+  const total = s.cancion?.total ?? s.n
+  const hechas = s.cancion?.hechas ?? 0
+  const texto =
+    s.tipo === 'exportar'
+      ? PAQ.actividad.crear(hechas, total)
+      : PAQ.actividad.importar(hechas, total)
+  return (
+    <li className={estilos.fila} data-paquete={s.trabajoId}>
+      <p className={estilos.filaTexto}>
+        <Icono
+          icono={RefreshCw}
+          tamano={16}
+          className={`${estilos.filaIcono} ${estilos.actividadIcono}`}
+        />
+        <span>{texto}</span>
+      </p>
+      <BarraProgreso etiqueta={texto} valor={Math.round(s.fraccion * 100)} />
+      <div className={estilos.filaAcciones}>
+        <Boton variante="secundario" onClick={alIr}>
+          Ir
+        </Boton>
+        <BotonIcono
+          icono={X}
+          etiqueta={`Cancelar «${texto}»`}
+          onClick={() => {
+            marcarCancelando()
+            void window.shinobi.copias.cancelar(s.trabajoId).catch(() => undefined)
+          }}
+        />
+      </div>
+    </li>
+  )
+}
+
 /**
  * Indicador de actividad de la barra superior (docs/ux/04 §2): botón visible solo con trabajos
  * en curso o en cola que abre un panel con una fila por trabajo ([Ir] y [✕]); al terminar
@@ -125,7 +225,21 @@ export function IndicadorActividad() {
   const biblioteca = useBibliotecaCompartida()
   const { ir } = useNavegacion()
   const exp = useExportaciones()
+  const tanda = useTandaPreparacion()
+  const { haySesion } = useSesion()
+  const busquedaAutomatica = useBusquedaAutomatica()
+  const cola = esTandaDeVarias(tanda) ? tanda : null
+  const colaViva = tandaViva(tanda)
   const exportando = exp.exportaciones.filter((e) => e.estado !== 'terminada')
+  // Las exportaciones de un lote se agrupan en una sola fila (`act.exp.lote`).
+  const lotesVivos = exp.lotes.filter((l) => {
+    const f = filasDelLote(l, exp.exportaciones)
+    return f.length > 0 && !resumirLote(f).acabado
+  })
+  const enLote = (e: ExportacionVista): boolean =>
+    e.loteId !== undefined && lotesVivos.some((l) => l.loteId === e.loteId)
+  const { seguimiento } = usePaquetes()
+  const paquete = seguimiento?.estado === 'en_curso' ? seguimiento : null
   const [abierto, setAbierto] = useState(false)
   const [confirmando, setConfirmando] = useState<string | null>(null)
   const [posicion, setPosicion] = useState<{ top: number; right: number } | null>(null)
@@ -135,12 +249,20 @@ export function IndicadorActividad() {
 
   const enCurso =
     trabajos.filter((t) => t.estado === 'en_curso').length +
-    exportando.filter((e) => e.estado === 'en_curso').length
+    exportando.filter((e) => e.estado === 'en_curso').length +
+    (paquete ? 1 : 0)
   const enCola =
     trabajos.filter((t) => t.estado === 'en_cola').length +
     exportando.filter((e) => e.estado === 'en_cola').length
-  const hayActivos = enCurso + enCola > 0
+  const hayActivos = enCurso + enCola > 0 || colaViva
   const visible = abierto && hayActivos
+
+  // «Ver actividad» del aviso de la Biblioteca (spec 02 · feature 7) abre el panel.
+  useEffect(() => {
+    const abrir = () => setAbierto(true)
+    window.addEventListener('shinobi:abrir-actividad', abrir)
+    return () => window.removeEventListener('shinobi:abrir-actividad', abrir)
+  }, [])
 
   // Con todos los trabajos terminados el panel se cierra (el botón desaparece).
   useEffect(() => {
@@ -203,6 +325,37 @@ export function IndicadorActividad() {
   }
 
   const titulos = new Map(biblioteca?.canciones.map((c) => [c.id, tituloDeTarjeta(c)]))
+  const anuncio = useAnuncioCola(cola, (id) => titulos.get(id) ?? 'Canción', busquedaAutomatica)
+  const enCursoIds = new Set(
+    trabajos.filter((t) => t.estado === 'en_curso').map((t) => t.cancionId)
+  )
+  const avanceEnCurso = trabajos
+    .filter((t) => t.estado === 'en_curso')
+    .reduce((s, t) => s + Math.min(1, Math.max(0, (progreso[t.id] ?? t.progreso)?.valor ?? 0)), 0)
+  const cancelarTodo = () => {
+    if (!cola) return
+    for (const c of cola.canciones) {
+      if (c.resultado !== null) continue
+      for (const t of trabajos.filter((x) => x.cancionId === c.id)) {
+        void window.shinobi.trabajos.cancelar(t.id).catch(() => undefined)
+      }
+      void window.shinobi.preparacion.cancelar(c.id).catch(() => undefined)
+    }
+  }
+  // Lo que sigue en marcha con las separaciones paradas: lo que ya corre o espera en la cola ligera.
+  const algoEnMarcha = trabajos.some(
+    (t) => t.estado === 'en_curso' || (t.estado === 'en_cola' && t.cola !== 'pesada')
+  )
+  const botonCola = cola && colaViva ? botonDeCola(cola, algoEnMarcha) : null
+  const resto = exportando.length + (paquete ? 1 : 0)
+  const textoBoton = botonCola
+    ? resto > 0
+      ? `${botonCola.texto} · ${textoActividad(
+          exportando.filter((e) => e.estado === 'en_curso').length + (paquete ? 1 : 0),
+          exportando.filter((e) => e.estado === 'en_cola').length
+        )}`
+      : botonCola.texto
+    : textoActividad(enCurso, enCola)
   const tituloDe = (t: TrabajoIpc) => titulos.get(t.cancionId) ?? 'Canción'
 
   const cancelar = async (t: TrabajoIpc) => {
@@ -250,9 +403,22 @@ export function IndicadorActividad() {
         aria-controls={idPanel}
         onClick={() => (visible ? cerrar() : setAbierto(true))}
       >
-        <Icono icono={RefreshCw} tamano={16} className={estilos.actividadIcono} />
-        <span>{textoActividad(enCurso, enCola)}</span>
+        <Icono
+          icono={
+            botonCola?.estado === 'pausa'
+              ? Pause
+              : botonCola?.estado === 'parada' || botonCola?.estado === 'aviso'
+                ? TriangleAlert
+                : RefreshCw
+          }
+          tamano={16}
+          className={botonCola && botonCola.estado !== 'curso' ? undefined : estilos.actividadIcono}
+        />
+        <span>{textoBoton}</span>
       </button>
+      <span className={estilos.soloLector} role="status" data-anuncio-cola>
+        {anuncio}
+      </span>
       {visible &&
         createPortal(
           // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
@@ -268,32 +434,96 @@ export function IndicadorActividad() {
             <h2 id={`${idPanel}-t`} className={estilos.panelTitulo}>
               Actividad
             </h2>
+            {cola && (
+              <CabeceraCola
+                tanda={cola}
+                avanceEnCurso={avanceEnCurso}
+                haySesion={haySesion}
+                alAbrirResultado={() => {
+                  cerrar()
+                  ir({ tipo: 'biblioteca', abrirResultado: true })
+                }}
+                alReparar={() => {
+                  cerrar()
+                  ir({ tipo: 'primer-arranque' })
+                }}
+                alVerCancion={(id) => {
+                  cerrar()
+                  ir({ tipo: 'cancion', id, paso: 'progreso' })
+                }}
+                alCancelarTodo={cancelarTodo}
+              />
+            )}
             <ul className={estilos.panelLista}>
-              {trabajos.map((t) => (
-                <FilaActividad
-                  key={t.id}
-                  trabajo={t}
-                  progreso={progreso[t.id]}
-                  titulo={tituloDe(t)}
+              {trabajos
+                .filter((t) => !cola || t.estado === 'en_curso')
+                .map((t) => (
+                  <FilaActividad
+                    key={t.id}
+                    trabajo={t}
+                    progreso={progreso[t.id]}
+                    titulo={tituloDe(t)}
+                    alIr={() => {
+                      cerrar()
+                      ir({ tipo: 'cancion', id: t.cancionId, paso: 'progreso' })
+                    }}
+                    alCancelar={() => pedirCancelar(t)}
+                  />
+                ))}
+              {paquete && (
+                <FilaPaquete
+                  seguimiento={paquete}
                   alIr={() => {
                     cerrar()
-                    ir({ tipo: 'cancion', id: t.cancionId, paso: 'progreso' })
+                    if (paquete.tipo === 'exportar') {
+                      abrirExportarPaquete(paquete.peticion ?? { tipo: 'biblioteca' })
+                    } else abrirImportarPaquete()
                   }}
-                  alCancelar={() => pedirCancelar(t)}
                 />
-              ))}
-              {exportando.map((e) => (
-                <FilaExportacion
-                  key={e.trabajoId}
-                  exportacion={e}
+              )}
+              {lotesVivos.map((l) => (
+                <FilaLoteExportacion
+                  key={l.loteId}
+                  lote={l}
+                  exportaciones={exp.exportaciones}
                   alIr={() => {
                     cerrar()
-                    exp.abrir({ cancionId: e.cancionId, trabajoId: e.trabajoId })
+                    exp.verLote(l.loteId)
                   }}
-                  alCancelar={() => exp.pedirCancelar(e.trabajoId)}
+                  alCancelar={() => {
+                    cerrar()
+                    exp.verLote(l.loteId, { confirmarCancelar: true })
+                  }}
                 />
               ))}
+              {exportando
+                .filter((e) => !enLote(e))
+                .map((e) => (
+                  <FilaExportacion
+                    key={e.trabajoId}
+                    exportacion={e}
+                    alIr={() => {
+                      cerrar()
+                      exp.abrir({ cancionId: e.cancionId, trabajoId: e.trabajoId })
+                    }}
+                    alCancelar={() => exp.pedirCancelar(e.trabajoId)}
+                  />
+                ))}
             </ul>
+            {cola && (
+              <GruposCola
+                tanda={cola}
+                enCurso={enCursoIds}
+                titulos={titulos}
+                trabajos={trabajos}
+                busquedaAutomatica={busquedaAutomatica}
+                alIr={(id) => {
+                  cerrar()
+                  ir({ tipo: 'cancion', id, paso: 'progreso' })
+                }}
+                alCancelarTrabajo={pedirCancelar}
+              />
+            )}
           </div>,
           document.body
         )}

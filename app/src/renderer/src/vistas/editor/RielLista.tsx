@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, PanelLeftOpen, WholeWord } from 'lucide-react'
 import type { Letra } from '@shared/letra'
 import { contador, formatearTiempo, numeroDeLinea, tiempoMostrado } from '@shared/letras/tiempos'
@@ -23,6 +23,10 @@ interface Props {
   motivoPreciso?: string
   /** La línea está abierta en el editor preciso: «I» no está disponible. */
   ocupada?: boolean
+  /** Chip de la parte de la línea (0.2.3), solo con reparto. */
+  chipParte?: ReactNode
+  /** `edi.partes.soloPrincipal`, solo con varias seleccionadas: se añade a los tooltips de tiempos. */
+  soloPrincipal?: string
 }
 
 /** Riel de 72 px de la lista de líneas minimizada (spec 06-editor 2.1, «Lista minimizada»). */
@@ -37,8 +41,11 @@ export function RielLista({
   expandir,
   abrirPreciso,
   motivoPreciso,
-  ocupada = false
+  ocupada = false,
+  chipParte,
+  soloPrincipal
 }: Props) {
+  const conSolo = (texto: string) => (soloPrincipal ? `${texto}. ${soloPrincipal}` : texto)
   const linea = letra.lineas.find((el) => el.id === seleccion && el.tipo === 'linea')
   const { total } = contador(letra)
   const numero = linea ? numeroDeLinea(letra, linea.id) : null
@@ -80,6 +87,7 @@ export function RielLista({
             <span className={`t-tiempo ${estilos.rielValor}`} aria-hidden="true">
               {tiempo ?? '--:--'}
             </span>
+            {chipParte}
           </div>
         </Tooltip>
       ) : (
@@ -110,7 +118,7 @@ export function RielLista({
         </button>
       </Tooltip>
       <Tooltip
-        contenido={limite?.mensaje ?? E.layout.riel.fijarInicio}
+        contenido={limite?.mensaje ?? conSolo(E.layout.riel.fijarInicio)}
         forzar={limite && { clave: limite.clave, ms: 2000 }}
       >
         <button
@@ -126,7 +134,7 @@ export function RielLista({
         </button>
       </Tooltip>
       {abrirPreciso && (
-        <Tooltip contenido={motivoPreciso ?? E.preciso.abrir}>
+        <Tooltip contenido={conSolo(motivoPreciso ?? E.preciso.abrir)}>
           <button
             type="button"
             className={estilos.botonLayout}

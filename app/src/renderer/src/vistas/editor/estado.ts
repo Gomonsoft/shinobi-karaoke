@@ -1,7 +1,8 @@
 import type { Espera } from '@shared/espera'
+import type { Pantalla } from '@shared/pantalla'
 import type { Estilo } from '@shared/estilo'
 import type { SeleccionApariencia } from '@shared/ipc'
-import { finEfectivo, type Letra } from '@shared/letra'
+import { finEfectivo, tienePalabrasManuales, type Letra } from '@shared/letra'
 import {
   ajustarFin,
   ajustarInicio,
@@ -17,6 +18,17 @@ import {
 } from '@shared/letras/tiempos'
 import { aplicarEdicionPrecisa, type BorradorLinea } from '@shared/letras/palabras'
 import type { PropuestaSilencios } from '@shared/silencios'
+import {
+  anadirCantante,
+  asignar,
+  cantantesDe,
+  lineasEntreParentesis,
+  normalizarReparto,
+  quitarCantante,
+  renombrar,
+  type Parte
+} from '@shared/reparto'
+import { solapeAlAsignar } from './partes'
 import { tiempoAudioALetra } from './lineaTiempo'
 
 /** Selección de apariencia de la canción (ADR 0016): estilo propio, tema asignado o herencia. */
@@ -34,7 +46,7 @@ export interface AparienciaEditor {
   reemplazos: ReemplazosEditor | null
 }
 
-export type ReemplazosEditor = { espera?: Espera }
+export type ReemplazosEditor = { espera?: Espera; pantalla?: Pantalla }
 
 /** Borrador de un tema en memoria (D3): nunca se escribe hasta confirmar el impacto. */
 export interface BorradorTema {
@@ -67,9 +79,12 @@ export const aparienciaPropia = (estilo: Estilo): AparienciaEditor => ({
 export function aSeleccionIpc(apariencia: AparienciaEditor): SeleccionApariencia {
   const { seleccion, estilo, reemplazos } = apariencia
   if (seleccion.modo === 'propio') return { modo: 'propio', estilo }
+  // `reemplazo_pantalla` es una clave hermana (ADR 0022 §1): `reemplazos` solo lleva la espera.
+  const espera = reemplazos?.espera ? { espera: reemplazos.espera } : null
+  const aparte = { reemplazos: espera, reemplazo_pantalla: reemplazos?.pantalla ?? null }
   return seleccion.modo === 'tema'
-    ? { modo: 'tema', temaId: seleccion.temaId, reemplazos }
-    : { modo: 'heredar', reemplazos }
+    ? { modo: 'tema', temaId: seleccion.temaId, ...aparte }
+    : { modo: 'heredar', ...aparte }
 }
 
 const mismoJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
@@ -101,7 +116,15 @@ export interface EstadoEditor {
   actual: Instantanea
   pasado: EntradaHistorial[]
   futuro: EntradaFutura[]
+  /** La línea principal: la que siguen la línea de tiempo, el panel, el editor preciso y los atajos de tiempos. */
   seleccion: string | null
+  /**
+   * Líneas seleccionadas (ADR 0029 §5): siempre incluye la principal (y `[]` solo sin selección). Solo
+   * sirven para asignar parte; todo lo demás lee `seleccion`.
+   */
+  seleccionadas: string[]
+  /** Extremo fijo de «Mayús + clic» y «Mayús + ↑/↓»: la última selección sin Mayús. */
+  ancla: string | null
   sync: { activo: boolean; sesion: number; siguiente: string | null }
   aviso: (Aviso & { n: number }) | null
   version: number
@@ -122,7 +145,31 @@ export interface GestoMarcador {
 export type AccionEditor =
   | { tipo: 'cargar'; instantanea: InstantaneaInicial; seleccion: string | null }
   | { tipo: 'seleccionar'; id: string | null }
-  | { tipo: 'mover_seleccion'; sentido: -1 | 1 }
+  /** Con `extender` (Mayús + ↑/↓) la selección crece o encoge desde el ancla, saltando pausas. */
+  | { tipo: 'mover_seleccion'; sentido: -1 | 1; extender?: boolean }
+  /** Ctrl/Cmd + clic: añade o quita una línea; la tocada pasa a ser la principal. */
+  | { tipo: 'alternar_seleccion'; id: string }
+  /** Clic secundario sobre otra fila ya seleccionada: pasa a ser la principal sin tocar la selección. */
+  | { tipo: 'hacer_principal'; id: string }
+  /** Mayús + clic: el rango entre el ancla y la línea (saltando pausas). */
+  | { tipo: 'extender_seleccion'; id: string }
+  /** Esc con varias seleccionadas: deja solo la principal. */
+  | { tipo: 'solo_principal' }
+  /** Selecciona esas líneas (la primera es la principal): el recuento de «Cantantes y coros». */
+  | { tipo: 'seleccionar_ids'; ids: string[] }
+  /**
+   * Reparto (ADR 0029 §3 y §5). Cada acción es un solo paso de deshacer aunque afecte a varias líneas.
+   * `ids` ausente = las seleccionadas; `agrupar` junta las pulsaciones seguidas de menos de 1 s (Alt + ↑/↓).
+   */
+  | { tipo: 'asignar_parte'; parte: Parte; ids?: string[]; agrupar?: boolean; ahora: number }
+  /** Crea el cantante de la primera ranura libre y, con `asignarA`, le pasa esas líneas en el mismo paso. */
+  | { tipo: 'anadir_cantante'; asignarA?: string[]; ahora: number }
+  | { tipo: 'quitar_cantante'; id: Parte; ahora: number }
+  | { tipo: 'renombrar_cantante'; id: Parte; nombre: string | null; ahora: number }
+  /** «Marcarlas como coro»: las líneas `c1` enteras entre paréntesis pasan al coro. */
+  | { tipo: 'marcar_como_coro'; ahora: number }
+  /** Nivel de la voz en los coros (ADR 0030); una ráfaga del deslizador agrupa en un paso. */
+  | { tipo: 'fijar_voz_en_coros'; valor: number; ahora: number; agruparGesto?: boolean }
   | { tipo: 'ajustar_inicio'; deltaMs: number; ahora: number }
   | { tipo: 'ajustar_fin'; deltaMs: number; duracionMs: number; ahora: number }
   | { tipo: 'fijar_inicio'; ms: number; ahora: number }
@@ -150,6 +197,8 @@ export type AccionEditor =
   | { tipo: 'apariencia'; apariencia: AparienciaEditor; clave: string; ahora: number }
   /** Espera de la canción: `estilo.espera` con `propio`, `reemplazos.espera` con `tema` o `heredar`. */
   | { tipo: 'espera'; espera: Espera | null; clave: string; ahora: number }
+  /** Letra en pantalla de la canción: `estilo.pantalla` con `propio`, `reemplazos.pantalla` con `tema` o `heredar`. */
+  | { tipo: 'pantalla'; pantalla: Pantalla | null; clave: string; ahora: number }
   /** Aplica la propuesta de ajuste de silencios como un solo paso (ADR 0018 §6.3). */
   | {
       tipo: 'ajustar_silencios'
@@ -157,6 +206,24 @@ export type AccionEditor =
       versionCalculo: number
       ahora: number
     }
+  /**
+   * Corregir el desfase o quitar la corrección (ADR 0024 §1): cambia `offset_ms` y
+   * `desfase_corregido_ms` de toda la letra en un solo paso. Retira `revisada` de todas las líneas
+   * (ADR 0024, revisión 2026-11-22; pregunta 0172). Ningún tiempo de línea cambia.
+   */
+  | { tipo: 'cambiar_desfase'; offsetMs: number; desfaseCorregidoMs: number | null; ahora: number }
+  /**
+   * «Quitar esos fines» (spec 06 · Feature 5): vuelve a automático el fin de las líneas que fijó la
+   * preparación y siguen con ese valor (`origen_fin: "preparacion"`; una edición manual ya lo retiró).
+   */
+  | { tipo: 'quitar_fines_preparacion'; ahora: number }
+  /**
+   * «Está bien» de la revisión guiada (ADR 0024 §4): anota en la línea lo que había al darla por buena.
+   * Un paso del historial. No vale para una línea sin inicio.
+   */
+  | { tipo: 'marcar_revisada'; id: string; duracionMs: number; ahora: number }
+  /** «Volver a señalarlas»: quita todas las marcas «está bien», en un solo paso. */
+  | { tipo: 'reiniciar_revisadas'; ahora: number }
   /** Entrar en D3 (no es un paso del historial). */
   | { tipo: 'entrar_borrador'; borrador: BorradorTema }
   /** Salir de D3 (guardar, descartar o guardar como nuevo): retira los pasos del borrador. */
@@ -182,6 +249,8 @@ export function estadoInicial(actual: InstantaneaInicial, seleccion: string | nu
   return {
     actual: { ...actual, borrador: actual.borrador ?? null },
     seleccion,
+    seleccionadas: seleccion === null ? [] : [seleccion],
+    ancla: seleccion,
     pasado: [],
     futuro: [],
     sync: { activo: false, sesion: 0, siguiente: null },
@@ -230,6 +299,21 @@ function guardarPaso(
   return { ...aplicar(e, actual), pasado, futuro: [] }
 }
 
+/** Una edición manual que cambia el fin de una línea le quita su `origen_fin` automático (ADR 0024 §4). */
+function sinOrigenFinCambiado(antes: Letra, despues: Letra): Letra {
+  const previo = new Map(antes.lineas.map((l) => [l.id, l.fin_ms]))
+  if (!despues.lineas.some((l) => l.origen_fin && previo.get(l.id) !== l.fin_ms)) return despues
+  return {
+    ...despues,
+    lineas: despues.lineas.map((l) => {
+      if (!l.origen_fin || previo.get(l.id) === l.fin_ms) return l
+      const copia = { ...l }
+      delete copia.origen_fin
+      return copia
+    })
+  }
+}
+
 function conAviso(e: EstadoEditor, r: ResultadoTiempos, id: string | null): EstadoEditor {
   const n = (e.aviso?.n ?? 0) + 1
   if (r.palabrasDescartadas.length || r.finesAutomaticos.length) {
@@ -257,7 +341,13 @@ function cambiarTiempos(
 ) {
   const siguiente = conAviso(e, r, e.seleccion)
   return r.cambiado
-    ? guardarPaso(siguiente, { ...e.actual, letra: r.letra }, clave, ahora, { agruparGesto })
+    ? guardarPaso(
+        siguiente,
+        { ...e.actual, letra: sinOrigenFinCambiado(e.actual.letra, r.letra) },
+        clave,
+        ahora,
+        { agruparGesto }
+      )
     : siguiente
 }
 
@@ -268,7 +358,44 @@ function conEspera(ap: AparienciaEditor, espera: Espera | null): AparienciaEdito
     if (!espera) delete estilo.espera
     return { ...ap, estilo }
   }
-  return { ...ap, reemplazos: espera ? { espera } : null }
+  return { ...ap, reemplazos: conReemplazo(ap.reemplazos, { espera: espera ?? undefined }) }
+}
+
+/** Suma o quita (`undefined`) un reemplazo sin tocar el otro; sin ninguno, `null`. */
+function conReemplazo(
+  actual: ReemplazosEditor | null,
+  cambio: ReemplazosEditor
+): ReemplazosEditor | null {
+  const unido = { ...actual, ...cambio }
+  if (!unido.espera) delete unido.espera
+  if (!unido.pantalla) delete unido.pantalla
+  return unido.espera || unido.pantalla ? unido : null
+}
+
+/** La apariencia con la letra en pantalla cambiada donde corresponde al modo; `null` quita el reemplazo. */
+function conPantalla(ap: AparienciaEditor, pantalla: Pantalla | null): AparienciaEditor {
+  if (ap.seleccion.modo === 'propio') {
+    const estilo = { ...ap.estilo, pantalla: pantalla ?? undefined }
+    if (!pantalla) delete estilo.pantalla
+    return { ...ap, estilo }
+  }
+  return { ...ap, reemplazos: conReemplazo(ap.reemplazos, { pantalla: pantalla ?? undefined }) }
+}
+
+/**
+ * Un cambio del reparto es un solo paso de deshacer; sin cambio real (parte no disponible, nada que
+ * asignar) no hay paso. Asignar una parte nunca toca tiempos, textos ni marcas (ADR 0029 §1).
+ */
+function conReparto(
+  e: EstadoEditor,
+  nueva: Letra,
+  clave: string,
+  ahora: number,
+  agruparGesto?: boolean
+): EstadoEditor {
+  return mismoJson(nueva, e.actual.letra)
+    ? e
+    : guardarPaso(e, { ...e.actual, letra: nueva }, clave, ahora, { agruparGesto })
 }
 
 function esLinea(letra: Letra, id: string | null): id is string {
@@ -377,7 +504,86 @@ function sinBorrador(e: EstadoEditor): EstadoEditor {
 const asignaTema = (i: Instantanea, temaId: string): boolean =>
   i.apariencia.seleccion.modo === 'tema' && i.apariencia.seleccion.temaId === temaId
 
+/** Ids de las líneas (sin pausas) entre dos extremos, inclusive y en el orden de la letra. */
+function rangoDeLineas(letra: Letra, a: string, b: string): string[] {
+  const i = letra.lineas.findIndex((l) => l.id === a)
+  const j = letra.lineas.findIndex((l) => l.id === b)
+  if (i < 0 || j < 0) return [b]
+  const [desde, hasta] = i <= j ? [i, j] : [j, i]
+  return letra.lineas
+    .slice(desde, hasta + 1)
+    .filter((l) => l.tipo === 'linea')
+    .map((l) => l.id)
+}
+
+/** Solo una línea seleccionada (y ancla): lo que deja cualquier selección sin Ctrl ni Mayús. */
+const soloUna = (e: EstadoEditor, id: string | null): EstadoEditor =>
+  e.seleccion === id && e.ancla === id && e.seleccionadas.length === (id === null ? 0 : 1)
+    ? e
+    : { ...e, seleccion: id, seleccionadas: id === null ? [] : [id], ancla: id }
+
+/** Selección múltiple (ADR 0029 §5): inactiva durante «Sincronizar al ritmo». */
+function reducirSeleccion(e: EstadoEditor, a: AccionEditor): EstadoEditor | null {
+  const { letra } = e.actual
+  switch (a.tipo) {
+    case 'alternar_seleccion': {
+      if (e.sync.activo || !esLinea(letra, a.id)) return e
+      if (!e.seleccionadas.includes(a.id)) {
+        return { ...e, seleccion: a.id, seleccionadas: [...e.seleccionadas, a.id], ancla: a.id }
+      }
+      if (e.seleccionadas.length === 1) return e
+      const quedan = e.seleccionadas.filter((id) => id !== a.id)
+      const seleccion = a.id === e.seleccion ? quedan[quedan.length - 1]! : e.seleccion
+      return { ...e, seleccion, seleccionadas: quedan, ancla: a.id }
+    }
+    case 'extender_seleccion':
+    case 'mover_seleccion': {
+      if (a.tipo === 'mover_seleccion' && !a.extender) return null
+      if (e.sync.activo) return e
+      const destino =
+        a.tipo === 'extender_seleccion' ? a.id : lineaVecina(letra, e.seleccion, a.sentido)
+      if (destino === null || !esLinea(letra, destino)) return e
+      const ancla = e.ancla !== null && esLinea(letra, e.ancla) ? e.ancla : (e.seleccion ?? destino)
+      return {
+        ...e,
+        seleccion: destino,
+        seleccionadas: rangoDeLineas(letra, ancla, destino),
+        ancla
+      }
+    }
+    case 'hacer_principal':
+      return e.sync.activo || !e.seleccionadas.includes(a.id) || a.id === e.seleccion
+        ? e
+        : { ...e, seleccion: a.id }
+    case 'solo_principal':
+      return e.seleccionadas.length > 1 ? soloUna(e, e.seleccion) : e
+    case 'seleccionar_ids': {
+      if (e.sync.activo) return e
+      const ids = a.ids.filter((id) => esLinea(letra, id))
+      return ids.length === 0 ? e : { ...e, seleccion: ids[0]!, seleccionadas: ids, ancla: ids[0]! }
+    }
+    default:
+      return null
+  }
+}
+
+/** Acciones que dejan una sola línea seleccionada aunque la principal no cambie. */
+const COLAPSAN = new Set<AccionEditor['tipo']>([
+  'seleccionar',
+  'mover_seleccion',
+  'entrar_sync',
+  'salir_sync'
+])
+
 export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
+  const multiple = reducirSeleccion(e, a)
+  if (multiple) return multiple
+  const r = reducirBase(e, a)
+  // Cualquier otro cambio de la principal (marcar al ritmo, deshacer una marca, cargar…) deja una sola.
+  return r.seleccion !== e.seleccion || COLAPSAN.has(a.tipo) ? soloUna(r, r.seleccion) : r
+}
+
+function reducirBase(e: EstadoEditor, a: AccionEditor): EstadoEditor {
   const { letra, apariencia, borrador } = e.actual
   const estilo = apariencia.estilo
   const id = e.seleccion
@@ -387,6 +593,12 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       return estadoInicial(a.instantanea, a.seleccion)
     case 'seleccionar':
       return a.id === null || esLinea(letra, a.id) ? { ...e, seleccion: a.id } : e
+    case 'alternar_seleccion':
+    case 'extender_seleccion':
+    case 'hacer_principal':
+    case 'solo_principal':
+    case 'seleccionar_ids':
+      return e // los resuelve `reducirSeleccion`
     case 'mover_seleccion': {
       if (e.sync.activo) return e
       const seleccion = lineaVecina(letra, id, a.sentido)
@@ -434,12 +646,64 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       } catch {
         return e
       }
-      return guardarPaso(e, { ...e.actual, letra: nueva }, unica(`preciso:${a.id}`), a.ahora)
+      return guardarPaso(
+        e,
+        { ...e.actual, letra: sinOrigenFinCambiado(letra, nueva) },
+        unica(`preciso:${a.id}`),
+        a.ahora
+      )
     }
     case 'borrar_tiempos':
       return !e.sync.activo && esLinea(letra, id)
         ? cambiarTiempos(e, borrarTiempos(letra, id), unica(`borrar:${id}`), a.ahora)
         : e
+    case 'asignar_parte': {
+      const ids = (a.ids ?? e.seleccionadas).filter((id) => esLinea(letra, id))
+      // Dos líneas que chocan no pueden pisarse (ADR 0029 §7): se rechaza por todas las vías.
+      return ids.length === 0 || e.sync.activo || solapeAlAsignar(letra, ids, a.parte) !== null
+        ? e
+        : conReparto(
+            e,
+            asignar(letra, ids, a.parte),
+            a.agrupar ? 'parte:rafaga' : unica('parte'),
+            a.ahora
+          )
+    }
+    case 'anadir_cantante':
+      return e.sync.activo
+        ? e
+        : conReparto(
+            e,
+            anadirCantante(
+              letra,
+              a.asignarA?.filter((id) => esLinea(letra, id))
+            ),
+            unica('cantante'),
+            a.ahora
+          )
+    case 'quitar_cantante':
+      return e.sync.activo
+        ? e
+        : conReparto(e, quitarCantante(letra, a.id), unica(`quitar:${a.id}`), a.ahora)
+    case 'renombrar_cantante':
+      return e.sync.activo
+        ? e
+        : conReparto(e, renombrar(letra, a.id, a.nombre), unica(`nombre:${a.id}`), a.ahora)
+    case 'marcar_como_coro': {
+      const ids = lineasEntreParentesis(letra)
+      return e.sync.activo || ids.length === 0 || solapeAlAsignar(letra, ids, 'coro') !== null
+        ? e
+        : conReparto(e, asignar(letra, ids, 'coro'), unica('marcar_coro'), a.ahora)
+    }
+    case 'fijar_voz_en_coros': {
+      if (e.sync.activo || !Number.isFinite(a.valor)) return e
+      const valor = Math.min(1, Math.max(0, Math.round(a.valor * 20) / 20))
+      const nueva = normalizarReparto({
+        ...letra,
+        partes: { cantantes: cantantesDe(letra), voz_en_coros: valor }
+      })
+      return conReparto(e, nueva, 'voz_en_coros', a.ahora, a.agruparGesto)
+    }
     case 'estilo':
       return e.sync.activo ||
         borrador !== null ||
@@ -469,6 +733,12 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         ? e
         : guardarPaso(e, { ...e.actual, apariencia: nueva }, `espera:${a.clave}`, a.ahora)
     }
+    case 'pantalla': {
+      const nueva = conPantalla(apariencia, a.pantalla)
+      return e.sync.activo || borrador !== null || mismoJson(apariencia, nueva)
+        ? e
+        : guardarPaso(e, { ...e.actual, apariencia: nueva }, `pantalla:${a.clave}`, a.ahora)
+    }
     case 'ajustar_silencios': {
       if (e.sync.activo || borrador !== null) return e
       if (a.versionCalculo !== e.version) {
@@ -477,10 +747,89 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       const { propuesta } = a
       if (propuesta.lineasCambiadas === 0 && !propuesta.espera) return e
       const nueva = propuesta.espera ? conEspera(apariencia, propuesta.espera) : apariencia
+      // Regla 8.2: las líneas que pierden palabras hechas a mano lo avisan con su toast [Deshacer].
+      const perdidas = propuesta.cambios
+        .filter((c) => letra.lineas.some((l) => l.id === c.id && tienePalabrasManuales(l)))
+        .map((c) => c.id)
+      const conAvisoPalabras: EstadoEditor = perdidas.length
+        ? {
+            ...e,
+            aviso: {
+              tipo: 'consecuencias',
+              palabrasDescartadas: perdidas,
+              finesAutomaticos: [],
+              n: (e.aviso?.n ?? 0) + 1
+            }
+          }
+        : e
       return guardarPaso(
-        e,
+        conAvisoPalabras,
         { ...e.actual, letra: propuesta.letra, apariencia: nueva },
         unica('ajustar_silencios'),
+        a.ahora
+      )
+    }
+    case 'cambiar_desfase': {
+      if (e.sync.activo) return e
+      const mismo =
+        a.offsetMs === letra.offset_ms &&
+        (a.desfaseCorregidoMs ?? undefined) === letra.desfase_corregido_ms
+      if (mismo) return e
+      // Una línea dada por buena antes de mover la letra ya no está comprobada en su sitio nuevo.
+      const quitarRevisada = a.offsetMs !== letra.offset_ms
+      const lineas = letra.lineas.map((l) => {
+        if (!quitarRevisada || !l.revisada) return l
+        const sinMarca = { ...l }
+        delete sinMarca.revisada
+        return sinMarca
+      })
+      const nueva: Letra = { ...letra, offset_ms: a.offsetMs, lineas }
+      if (a.desfaseCorregidoMs === null) delete nueva.desfase_corregido_ms
+      else nueva.desfase_corregido_ms = a.desfaseCorregidoMs
+      return guardarPaso(e, { ...e.actual, letra: nueva }, unica('desfase'), a.ahora)
+    }
+    case 'quitar_fines_preparacion': {
+      if (e.sync.activo || !letra.lineas.some((l) => l.origen_fin === 'preparacion')) return e
+      const lineas = letra.lineas.map((l) => {
+        if (l.origen_fin !== 'preparacion') return l
+        const copia = { ...l, fin_ms: null }
+        delete copia.origen_fin
+        return copia
+      })
+      return guardarPaso(
+        e,
+        { ...e.actual, letra: { ...letra, lineas } },
+        unica('quitar_fines'),
+        a.ahora
+      )
+    }
+    case 'marcar_revisada': {
+      if (e.sync.activo || !esLinea(letra, a.id)) return e
+      const el = letra.lineas.find((l) => l.id === a.id)!
+      const fin = finEfectivo(letra, a.id, a.duracionMs)
+      if (el.inicio_ms === null || fin === null) return e
+      const revisada = { inicio_ms: el.inicio_ms, fin_ms: fin, texto: el.texto }
+      if (mismoJson(el.revisada, revisada)) return e
+      const lineas = letra.lineas.map((l) => (l.id === a.id ? { ...l, revisada } : l))
+      return guardarPaso(
+        e,
+        { ...e.actual, letra: { ...letra, lineas } },
+        unica(`bien:${a.id}`),
+        a.ahora
+      )
+    }
+    case 'reiniciar_revisadas': {
+      if (e.sync.activo || !letra.lineas.some((l) => l.revisada)) return e
+      const lineas = letra.lineas.map((l) => {
+        if (!l.revisada) return l
+        const sinMarca = { ...l }
+        delete sinMarca.revisada
+        return sinMarca
+      })
+      return guardarPaso(
+        e,
+        { ...e.actual, letra: { ...letra, lineas } },
+        unica('reiniciar'),
         a.ahora
       )
     }
@@ -543,7 +892,7 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
       const r = marcarInicioLinea(letra, marcaId, a.ms)
       const base = conAviso(e, r, marcaId)
       if (!r.cambiado) return base
-      const marcada = usarFinAutomatico(r.letra, marcaId).letra
+      const marcada = sinOrigenFinCambiado(letra, usarFinAutomatico(r.letra, marcaId).letra)
       const nueva = guardarPaso(
         base,
         { ...e.actual, letra: marcada },
@@ -561,7 +910,9 @@ export function reducirEditor(e: EstadoEditor, a: AccionEditor): EstadoEditor {
         const base = finEfectivo(letra, a.id, a.duracionMs)
         if (base !== null) r = ajustarFin(letra, a.id, a.ms - base, a.duracionMs)
       }
-      return r.cambiado ? aplicar(e, { ...e.actual, letra: r.letra }) : e
+      return r.cambiado
+        ? aplicar(e, { ...e.actual, letra: sinOrigenFinCambiado(letra, r.letra) })
+        : e
     }
     case 'deshacer_marca': {
       const marca = ultimaMarcaDeSesion(e)

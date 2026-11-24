@@ -221,7 +221,7 @@ describe('AcercaDe', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copiar información para soporte' }))
     await waitFor(() => expect(screen.getByText('Información copiada')).toBeTruthy())
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      'Shinobi Karaoke 0.1.0 (local, sin número, sin commit)\nSistema: Darwin 25\nPerfil de hardware: GPU NVIDIA (CUDA)\nModelo de separación: calidad\nDispositivo: cuda\nyt-dlp: sin instalar\nÚltima comprobación de yt-dlp: sin instalar'
+      'Shinobi Karaoke 0.1.0 (local, sin número, sin commit)\nSistema: Darwin 25\nPerfil de hardware: GPU NVIDIA (CUDA)\nModelo de separación: calidad\nDispositivo: cuda\nyt-dlp: sin instalar\nÚltima comprobación de yt-dlp: sin instalar\nBúsqueda automática de letra: activada'
     )
   })
 
@@ -245,7 +245,8 @@ describe('AcercaDe', () => {
       'Modelo de separación: calidad',
       'Dispositivo: mps',
       'yt-dlp: 2026.10.01',
-      'Última comprobación de yt-dlp: 2026-11-01T09:00:00.000Z'
+      'Última comprobación de yt-dlp: 2026-11-01T09:00:00.000Z',
+      'Búsqueda automática de letra: activada'
     ])
   })
 
@@ -254,7 +255,7 @@ describe('AcercaDe', () => {
       { ...info, ytdlp: { version: null, ultimaComprobacion: null } },
       configPredeterminada()
     )
-    expect(t.split('\n')).toHaveLength(7)
+    expect(t.split('\n')).toHaveLength(8)
     expect(t).toContain('Perfil de hardware: sin instalar')
     expect(t).toContain('Modelo de separación: sin instalar')
     expect(t).toContain('Dispositivo: sin instalar')

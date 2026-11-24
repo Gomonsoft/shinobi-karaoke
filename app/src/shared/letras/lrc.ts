@@ -1,4 +1,12 @@
-import { palabrasVisibles, type ElementoLetra, type Letra, type Palabra } from '../letra'
+import {
+  finEfectivo,
+  palabrasVisibles,
+  type ElementoLetra,
+  type Letra,
+  type Palabra
+} from '../letra'
+import { textoEnPantalla } from '../reparto'
+import { gruposParaLrc } from '../solapes'
 import { comprobarTamanoTexto, limpiarTexto, normalizarLetra, type GeneradorId } from './normalizar'
 
 const MARCA_LINEA = /^\[(\d+):(\d{2})(?:[.:](\d{1,3}))?\]/
@@ -205,4 +213,61 @@ export function letraALrc(letra: Pick<Letra, 'lineas'>): string {
 /** Letra → LRC mejorado (con marcas `<mm:ss.xx>` por palabra cuando las hay). */
 export function letraALrcMejorado(letra: Pick<Letra, 'lineas'>): string {
   return exportar(letra, true)
+}
+
+// ---------------------------------------------------------------------------
+// Exportación a un archivo `.lrc` (ADR 0027 §4, 0.2.2 · Feature 9)
+// ---------------------------------------------------------------------------
+
+/** Hueco mínimo entre el fin de una línea y la siguiente para escribir una marca vacía. */
+export const HUECO_MARCA_VACIA_MS = 2000
+
+export interface OpcionesExportarLrc {
+  titulo: string
+  artista: string
+  album?: string | null
+  duracionMs: number
+}
+
+/** Un valor de etiqueta no puede romper el renglón ni cerrar la etiqueta. */
+const valorEtiqueta = (texto: string): string => texto.replace(/[\r\n\]]+/g, ' ').trim()
+
+/**
+ * Letra → texto LRC simple: UTF-8 sin BOM y `\n`. Cabecera `[ti:] [ar:] [al:] [length:] [re:]`; una marca
+ * por línea con inicio, con el desplazamiento ya aplicado (no se escribe `[offset:]`); una marca vacía en
+ * el fin efectivo de la línea si el hueco hasta la siguiente con tiempo es de 2 s o más y tras la última.
+ * Las pausas no se escriben aparte y las líneas sin inicio se omiten. Sin tiempos por palabra.
+ */
+export function exportarLrc(
+  letra: Pick<Letra, 'lineas' | 'offset_ms'> & Partial<Pick<Letra, 'partes'>>,
+  opciones: OpcionesExportarLrc
+): string {
+  const segundos = Math.max(0, Math.round(opciones.duracionMs / 1000))
+  const p = (n: number): string => String(n).padStart(2, '0')
+  const salida: string[] = [`[ti:${valorEtiqueta(opciones.titulo)}]`]
+  salida.push(`[ar:${valorEtiqueta(opciones.artista)}]`)
+  const album = valorEtiqueta(opciones.album ?? '')
+  if (album !== '') salida.push(`[al:${album}]`)
+  salida.push(
+    `[length:${p(Math.floor(segundos / 60))}:${p(segundos % 60)}]`,
+    '[re:Shinobi Karaoke]'
+  )
+
+  const marca = (ms: number): string => formatear(Math.max(0, ms + letra.offset_ms), '[', ']')
+  const lineas = letra.lineas
+  // Voces a la vez: una sola marca vacía por grupo de líneas solapadas, tras la última del grupo (ADR 0029 §7).
+  const grupos = gruposParaLrc(letra, opciones.duracionMs)
+  lineas.forEach((e, i) => {
+    if (e.tipo !== 'linea' || e.inicio_ms === null) return
+    // Sin partes; el coro va entre paréntesis (sin duplicarlos) para que al importar se reconozca (ADR 0029 §2).
+    const { texto, parentesis } = textoEnPantalla(e)
+    salida.push(`${marca(e.inicio_ms)}${parentesis ? `(${texto})` : texto}`)
+    const grupo = grupos.get(e.id)
+    if (grupo && grupo.finMs < 0) return
+    const fin = grupo ? grupo.finMs : finEfectivo(letra, e.id, opciones.duracionMs)
+    if (fin === null) return
+    const siguiente = lineas.slice(i + 1).find((x) => x.tipo === 'linea' && x.inicio_ms !== null)
+    if (!siguiente || siguiente.inicio_ms! - fin >= HUECO_MARCA_VACIA_MS) salida.push(marca(fin))
+  })
+  return salida.join('\n') + '\n'
 }

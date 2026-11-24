@@ -6,22 +6,31 @@ import {
   type ErrorIpc,
   type EventoCancionIpc,
   type EventoProgresoIpc,
+  type TandaPreparacionIpc,
   type TrabajoIpc,
   type InfoSistema,
   type TextoLegal,
   type RespuestaIpc,
   type ResumenCancionIpc,
   type ImportacionLeidaIpc,
+  type LecturaLoteIpc,
+  type ListaYoutubeIpc,
+  type LoteIpc,
+  type resultadoLoteSchema,
   type InfoYoutubeIpc,
   type EstadoRuntimeIpc,
+  type ErrorRendererIpc,
   type OrigenRapido,
   type EstimacionSeparacion,
   type EstimacionCancion,
   type ProgresoRuntimeIpc,
   type RequisitosRuntimeIpc,
   type MetadatosEditables,
+  type OrigenMetadatos,
+  type ValoresDatosIpc,
   type BusquedaLetra,
   type ResultadoBusquedaLetra,
+  type CandidatoLetra,
   type GuardarLetra,
   type GuardarTiempos,
   type EdicionLetraIpc,
@@ -42,26 +51,44 @@ import {
   type ResultadoOperacionIpc,
   type OpcionesMarcarLista,
   type SeleccionApariencia,
+  type RevisionResumenIpc,
   type TemaIpc
 } from '../../shared'
 import type { InicialExportacionIpc } from '../../shared/exportacion'
 import type { RolVentana } from '../../shared/canales'
 import type { ConfigParcial } from '../configuracion'
-import type { EventoCancion, ResumenCancion } from '../biblioteca'
-import { resueltaDeResolucion } from '../biblioteca/resumen'
+import {
+  origenTrasEdicion,
+  type EventoCancion,
+  type ResumenCancion,
+  type ServicioLotes
+} from '../biblioteca'
+import { resueltaDeResolucion, revisionDeResumen } from '../biblioteca/resumen'
 import type { ResolucionCancion } from '../temas'
 import { ESQUEMA_MEDIOS } from '../medios'
 import type { ServicioPicos } from '../picos/servicio'
 import type { ServicioSesion } from '../sesion/servicio'
 import type { ServicioExportacion } from '../exportacion/servicio'
+import type { ServicioActualizaciones } from '../actualizaciones'
+import type { ExportadorLrc } from '../letras/exportarLrc'
+import type { ServicioCopias } from '../copias'
 
 /** Subconjuntos de los servicios que usa la IPC (se simulan en los tests). */
 export interface BibliotecaIpc {
   listar(): ResumenCancion[]
   obtener(id: string): Cancion | null
+  /** Artistas y álbumes existentes con su número de canciones (índice en memoria). */
+  valoresDatos(): ValoresDatosIpc
   actualizar(
     id: string,
-    cambio: { metadatos: { titulo: string; artista: string; album: string | null } }
+    cambio: {
+      metadatos: {
+        titulo: string
+        artista: string
+        album: string | null
+        origen?: OrigenMetadatos
+      }
+    }
   ): Promise<ResumenCancion>
   guardarApariencia(id: string, seleccion: SeleccionApariencia): Promise<ResumenCancion>
   /** Resolución de la canción con el catálogo vigente (`biblioteca.obtener`). */
@@ -69,6 +96,7 @@ export interface BibliotecaIpc {
   marcarLista(id: string, opciones?: OpcionesMarcarLista): Promise<ResumenCancion>
   comprobarPistas(id: string): Promise<ResumenCancion | null>
   volverABorrador(id: string): Promise<ResumenCancion>
+  marcarPreparacionRevisada(id: string): Promise<ResumenCancion | null>
   eliminar(id: string): Promise<void>
   mostrarEnCarpeta(id: string): Promise<void>
   suscribir(cb: (evento: EventoCancion) => void): () => void
@@ -114,6 +142,20 @@ export interface FuenteIpc {
   descartar(id: string): Promise<void>
 }
 
+/** Importación por lotes (ADR 0026, tarea 0314): lecturas, confirmación y reintento de las fuentes de archivo. */
+export interface FuenteLoteIpc {
+  leerArchivos(rutas?: string[]): Promise<LecturaLoteIpc | null>
+  leerCarpeta(ruta?: string): Promise<LecturaLoteIpc | null>
+  /** Ruta de una fila de la lectura (`ARGUMENTOS_NO_VALIDOS` si caducó o no existe). */
+  rutaDeRef(ref: string): string
+  infoLista(url: string): Promise<ListaYoutubeIpc>
+  lote(peticion: LoteIpc): Promise<z.output<typeof resultadoLoteSchema>>
+  espacioLibre(): Promise<{ libreBytes: number | null; factorMinutos: number | null }>
+  /** `false` si la canción no es de un lote de archivos (el llamador prueba con YouTube). */
+  reintentar(cancionId: string): Promise<boolean>
+  cancelarLectura(): void
+}
+
 /** Subconjunto del servicio de YouTube (0049) que usa la IPC. Ausente con el módulo desactivado. */
 export interface YoutubeIpc {
   info(url: string): Promise<InfoYoutubeIpc>
@@ -150,6 +192,8 @@ export interface SeparacionIpc {
 /** Servicio de letras (0082 y 0083); mientras no exista, los canales responden `ERROR_INTERNO`. */
 export interface LetrasIpc {
   buscar(peticion: BusquedaLetra): Promise<ResultadoBusquedaLetra>
+  /** Texto de un candidato guardado por su id de LRCLIB (ADR 0025 §7). */
+  candidatoPorId(cancionId: string, lrclibId: number): Promise<CandidatoLetra | null>
   guardar(letra: GuardarLetra): Promise<ResumenCancion>
   editarTexto(peticion: EditarTextoLetra): Promise<ResumenCancion>
   editarTextoLinea(peticion: EditarTextoLinea, sesionId: string): Promise<ResumenCancion>
@@ -206,6 +250,12 @@ export type ExportacionServicioIpc = Pick<
   | 'destinoPropuesto'
   | 'elegirDestino'
   | 'iniciar'
+  | 'destinoCarpeta'
+  | 'iniciarLote'
+  | 'previsualizarLote'
+  | 'mostrarCarpetaLote'
+  | 'cancelarLote'
+  | 'reintentarLote'
   | 'cancelar'
   | 'cancelarTodas'
   | 'estado'
@@ -222,7 +272,90 @@ export interface VentanaExportacionIpc {
   confirmarListo(carga: { trabajoId: string; n: number }): void
 }
 
+/** Aviso de versión nueva (ADR 0023). */
+export type ActualizacionesIpc = Pick<
+  ServicioActualizaciones,
+  'estado' | 'comprobar' | 'marcarVista' | 'suscribir'
+>
+
+interface ResultadoPrepararMain {
+  aceptadas: string[]
+  omitidas: { id: string; motivo: string }[]
+  fines?: Record<string, number>
+}
+
+/** Subconjunto de `ServicioPreparacion` (0308) que usa la IPC. La tanda y la pausa son de la 0309. */
+export interface PreparacionIpc {
+  previsualizar(ids: string[]): {
+    id: string
+    aplica: boolean
+    pasos: string[]
+    confirmar?: 'finesSinMarca'
+    motivo?: string
+  }[]
+  preparar(
+    ids: string[],
+    opciones?: { finesSinMarca?: boolean }
+  ): ResultadoPrepararMain | Promise<ResultadoPrepararMain>
+  cancelar(id: string): Promise<void>
+}
+
+/** Subconjunto de `ColaPreparacion` (0309): la tanda, la pausa y «Reintentar las fallidas». */
+export interface ColaPreparacionIpc {
+  pausar(): Promise<void>
+  reanudar(): Promise<void>
+  reintentarFallidas(): Promise<void>
+  estado(): TandaPreparacionIpc | null
+}
+
+/** Exportar la letra a `.lrc` (ADR 0027 §4); ausente, sus canales responden `ERROR_INTERNO`. */
+export type LrcIpc = Pick<ExportadorLrc, 'exportarUna' | 'exportarVarias' | 'mostrarEnCarpeta'>
+
+/** Paquetes y copias de seguridad (ADR 0027); ausente, sus canales responden `ERROR_INTERNO`. */
+export type CopiasIpc = Pick<
+  ServicioCopias,
+  | 'destinoPropuesto'
+  | 'elegirDestino'
+  | 'exportarCanciones'
+  | 'exportarBiblioteca'
+  | 'elegirOrigen'
+  | 'leer'
+  | 'importar'
+  | 'origenDesdeRuta'
+  | 'cancelar'
+>
+
+/** Recuento de líneas por revisar en memoria (`RecuentoRevision`). */
+export interface RecuentoRevisionIpc {
+  valor(id: string, modificada: string): RevisionResumenIpc | null | undefined
+  calcular(id: string): Promise<RevisionResumenIpc | null>
+  suscribir(cb: (id: string) => void): () => void
+}
+
+/** Subconjunto de `ServicioLotes` que usa la IPC. */
+export type LotesIpc = Pick<
+  ServicioLotes,
+  | 'previsualizarDatos'
+  | 'ejecutarDatos'
+  | 'previsualizarEliminar'
+  | 'ejecutarEliminar'
+  | 'agregarACola'
+  | 'quitarDeCola'
+>
+
 export interface DependenciasIpc {
+  recuentoRevision?: RecuentoRevisionIpc
+  lrc?: LrcIpc
+  /** Acciones por lotes de la Biblioteca (0318); ausente, sus canales responden `ERROR_INTERNO`. */
+  lotes?: LotesIpc
+  copias?: CopiasIpc
+  /** Solicitud de cierre sin responder (la pregunta el renderer al montar su diálogo de cierre). */
+  solicitudCierrePendiente?(): import('../../shared/sesion').SolicitudCierreIpc | null
+  preparacion?: PreparacionIpc
+  /** Importación por lotes (0314); ausente, sus canales responden «no implementado». */
+  lote?: FuenteLoteIpc
+  colaPreparacion?: ColaPreparacionIpc
+  actualizaciones?: ActualizacionesIpc
   /** Exportación de video (ADR 0019). */
   exportacion?: ExportacionServicioIpc
   /** Ventana offscreen vigente (0234). */
@@ -231,6 +364,8 @@ export interface DependenciasIpc {
   sesion?: SesionIpc
   /** El editor tiene un guardado que termina tarde (`app.guardadoPendiente`). */
   guardadoPendiente?(): boolean
+  /** Lleva un error de la interfaz a `app.log` (0396); ausente, se ignora. */
+  registrarErrorRenderer?(error: ErrorRendererIpc): void
   ventana?: VentanaIpc
   letras?: LetrasIpc
   /** Catálogo de temas (ADR 0016); ausente, los canales `temas.*` responden `ERROR_INTERNO`. */
@@ -259,18 +394,27 @@ export interface DependenciasIpc {
 const ID_MEDIOS = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 /** La ruta absoluta de la miniatura no sale de main: el renderer recibe una URL de medios. */
-export function resumenParaRenderer(r: ResumenCancion): ResumenCancionIpc {
+export function resumenParaRenderer(
+  r: ResumenCancion,
+  memoria?: RevisionResumenIpc | null
+): ResumenCancionIpc {
   const miniatura =
     r.miniatura !== null && ID_MEDIOS.test(r.id)
       ? `${ESQUEMA_MEDIOS}://${r.id}/fuente/miniatura.jpg`
       : null
-  return { ...r, miniatura }
+  return { ...r, miniatura, revision: revisionDeResumen(r, memoria) }
 }
 
-export function eventoParaRenderer(e: EventoCancion): EventoCancionIpc {
+export function eventoParaRenderer(
+  e: EventoCancion,
+  recuento?: RecuentoRevisionIpc
+): EventoCancionIpc {
   return e.eliminada === true
     ? { id: e.id, eliminada: true }
-    : { id: e.id, resumen: resumenParaRenderer(e.resumen) }
+    : {
+        id: e.id,
+        resumen: resumenParaRenderer(e.resumen, recuento?.valor(e.id, e.resumen.modificada))
+      }
 }
 
 const esCodigo = (c: unknown): c is ErrorIpc['codigo'] =>
@@ -310,9 +454,22 @@ const CONTEXTO_PRINCIPAL: ContextoIpc = { rol: 'principal', sender: null }
 const errorConCodigo = (codigo: ErrorIpc['codigo'], mensaje: string): Error =>
   Object.assign(new Error(mensaje), { codigo })
 
+/** Canales de 0.2.2 aún sin servicio (tarea 0339); cada tarea de feature saca el suyo de esta lista. */
+const CANALES_NO_IMPLEMENTADOS = [
+  CANALES.alineacion.estado,
+  CANALES.alineacion.descargarModelo,
+  CANALES.alineacion.cancelarDescarga,
+  CANALES.alineacion.quitarModelo,
+  CANALES.alineacion.previsualizar,
+  CANALES.alineacion.alinear,
+  CANALES.alineacion.cancelar
+] as const satisfies readonly CanalInvocable[]
+
 /** Un manejador por canal invocable: valida argumentos, ejecuta y envuelve el resultado. */
 export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, ManejadorIpc> {
   const { biblioteca, config, trabajos, fuente, runtime } = deps
+  const aRenderer = (r: ResumenCancion): ResumenCancionIpc =>
+    resumenParaRenderer(r, deps.recuentoRevision?.valor(r.id, r.modificada))
   /** Módulo desactivado: los canales de YouTube responden `ARGUMENTOS_NO_VALIDOS`. */
   const youtube = (): YoutubeIpc => {
     if (!deps.youtube) {
@@ -367,9 +524,44 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return deps.temas
   }
 
+  const lotes = (): LotesIpc => {
+    if (!deps.lotes) throw new Error('Las acciones por lotes no están disponibles.')
+    return deps.lotes
+  }
+
   const sesion = (): SesionIpc => {
     if (!deps.sesion) throw new Error('El servicio de sesión no está disponible.')
     return deps.sesion
+  }
+
+  const actualizaciones = (): ActualizacionesIpc => {
+    if (!deps.actualizaciones) throw new Error('El servicio de actualizaciones no está disponible.')
+    return deps.actualizaciones
+  }
+
+  const lote = (): FuenteLoteIpc => {
+    if (!deps.lote) throw new Error('La importación por lotes no está disponible.')
+    return deps.lote
+  }
+
+  const preparacion = (): PreparacionIpc => {
+    if (!deps.preparacion) throw new Error('El servicio de preparación no está disponible.')
+    return deps.preparacion
+  }
+
+  const colaPreparacion = (): ColaPreparacionIpc => {
+    if (!deps.colaPreparacion) throw new Error('La cola de preparación no está disponible.')
+    return deps.colaPreparacion
+  }
+
+  const lrc = (): LrcIpc => {
+    if (!deps.lrc) throw new Error('La exportación de letras no está disponible.')
+    return deps.lrc
+  }
+
+  const copias = (): CopiasIpc => {
+    if (!deps.copias) throw new Error('El servicio de copias no está disponible.')
+    return deps.copias
   }
 
   const exportacion = (): ExportacionServicioIpc => {
@@ -420,7 +612,63 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     return { ...cancion, resuelta: resueltaDeResolucion(biblioteca.resolver(cancion)) }
   }
 
+  /**
+   * Canales de 0.2.2 declarados en la tarea 0339: validan argumentos y rol como cualquier canal y
+   * responden `ERROR_INTERNO` «no implementado» hasta que la tarea de su feature sustituya el manejador
+   * (cada una solo cambia su entrada de este objeto, no el registro).
+   */
+  const noImplementado =
+    (canal: CanalInvocable): ManejadorIpc =>
+    async (crudos, ctx = CONTEXTO_PRINCIPAL) => {
+      if (!CONTRATO[canal].args.safeParse(crudos).success) {
+        return {
+          ok: false,
+          error: { codigo: 'ARGUMENTOS_NO_VALIDOS', mensaje: 'Los argumentos no son válidos.' }
+        }
+      }
+      try {
+        exigirRol(ctx, 'principal')
+      } catch (e) {
+        return { ok: false, error: aErrorIpc(e) }
+      }
+      return { ok: false, error: { codigo: 'ERROR_INTERNO', mensaje: 'No implementado.' } }
+    }
+  const noImplementados = Object.fromEntries(
+    CANALES_NO_IMPLEMENTADOS.map((canal) => [canal, noImplementado(canal)])
+  ) as Record<(typeof CANALES_NO_IMPLEMENTADOS)[number], ManejadorIpc>
+
   return {
+    [CANALES.actualizaciones.estado]: envolver(CANALES.actualizaciones.estado, () =>
+      actualizaciones().estado()
+    ),
+    [CANALES.actualizaciones.comprobar]: envolver(CANALES.actualizaciones.comprobar, () =>
+      actualizaciones().comprobar()
+    ),
+    [CANALES.actualizaciones.marcarVista]: envolver(
+      CANALES.actualizaciones.marcarVista,
+      ({ version }) => actualizaciones().marcarVista(version)
+    ),
+    [CANALES.preparacion.previsualizar]: envolver(CANALES.preparacion.previsualizar, ({ ids }) =>
+      preparacion().previsualizar(ids)
+    ),
+    [CANALES.preparacion.preparar]: envolver(CANALES.preparacion.preparar, ({ ids }, opciones) =>
+      preparacion().preparar(ids, opciones)
+    ),
+    [CANALES.preparacion.pausar]: envolver(CANALES.preparacion.pausar, () =>
+      colaPreparacion().pausar()
+    ),
+    [CANALES.preparacion.reanudar]: envolver(CANALES.preparacion.reanudar, () =>
+      colaPreparacion().reanudar()
+    ),
+    [CANALES.preparacion.reintentarFallidas]: envolver(CANALES.preparacion.reintentarFallidas, () =>
+      colaPreparacion().reintentarFallidas()
+    ),
+    [CANALES.preparacion.tanda]: envolver(CANALES.preparacion.tanda, () =>
+      colaPreparacion().estado()
+    ),
+    [CANALES.preparacion.cancelar]: envolver(CANALES.preparacion.cancelar, ({ id }) =>
+      preparacion().cancelar(id)
+    ),
     [CANALES.temas.catalogo]: envolver(CANALES.temas.catalogo, () => temas().catalogo()),
     [CANALES.temas.previsualizar]: envolver(CANALES.temas.previsualizar, (op) =>
       temas().previsualizar(op)
@@ -443,26 +691,30 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       temas().descartarAvisoApartado()
     ),
     [CANALES.letras.buscar]: envolver(CANALES.letras.buscar, (p) => letras().buscar(p)),
+    [CANALES.letras.candidatoPorId]: envolver(
+      CANALES.letras.candidatoPorId,
+      ({ cancionId, lrclibId }) => letras().candidatoPorId(cancionId, lrclibId)
+    ),
     [CANALES.letras.guardar]: envolver(CANALES.letras.guardar, async (p) => {
       sinSesion()
-      return resumenParaRenderer(await letras().guardar(p))
+      return aRenderer(await letras().guardar(p))
     }),
     [CANALES.letras.editarTexto]: envolver(CANALES.letras.editarTexto, async (p) => {
       sinSesion()
-      return resumenParaRenderer(await letras().editarTexto(p))
+      return aRenderer(await letras().editarTexto(p))
     }),
     [CANALES.letras.editarTextoLinea]: envolver(
       CANALES.letras.editarTextoLinea,
       async (p, sesionId) => {
         sinSesion()
-        return resumenParaRenderer(await letras().editarTextoLinea(p, sesionId))
+        return aRenderer(await letras().editarTextoLinea(p, sesionId))
       }
     ),
     [CANALES.letras.guardarTiempos]: envolver(
       CANALES.letras.guardarTiempos,
       async (p, sesionId) => {
         sinSesion()
-        return resumenParaRenderer(await letras().guardarTiempos(p, sesionId))
+        return aRenderer(await letras().guardarTiempos(p, sesionId))
       }
     ),
     [CANALES.letras.abrirEdicion]: envolver(CANALES.letras.abrirEdicion, (id) => {
@@ -471,6 +723,39 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     }),
     [CANALES.letras.cerrarEdicion]: envolver(CANALES.letras.cerrarEdicion, (id) =>
       letras().cerrarEdicion(id)
+    ),
+    [CANALES.letras.exportarLrc]: envolver(CANALES.letras.exportarLrc, ({ cancionId }) =>
+      lrc().exportarUna(cancionId)
+    ),
+    [CANALES.letras.exportarLrcVarias]: envolver(CANALES.letras.exportarLrcVarias, ({ ids }) =>
+      lrc().exportarVarias(ids)
+    ),
+    [CANALES.letras.mostrarEnCarpeta]: envolver(
+      CANALES.letras.mostrarEnCarpeta,
+      ({ ubicacionId }) => lrc().mostrarEnCarpeta(ubicacionId)
+    ),
+    [CANALES.copias.destinoPropuesto]: envolver(CANALES.copias.destinoPropuesto, (p) =>
+      copias().destinoPropuesto(p)
+    ),
+    [CANALES.copias.elegirDestino]: envolver(CANALES.copias.elegirDestino, ({ destinoId }) =>
+      copias().elegirDestino(destinoId)
+    ),
+    [CANALES.copias.exportarCanciones]: envolver(CANALES.copias.exportarCanciones, (p) =>
+      copias().exportarCanciones(p)
+    ),
+    [CANALES.copias.exportarBiblioteca]: envolver(CANALES.copias.exportarBiblioteca, (p) =>
+      copias().exportarBiblioteca(p)
+    ),
+    [CANALES.copias.elegirOrigen]: envolver(CANALES.copias.elegirOrigen, () =>
+      copias().elegirOrigen()
+    ),
+    [CANALES.copias.leer]: envolver(CANALES.copias.leer, ({ origenId }) => copias().leer(origenId)),
+    [CANALES.copias.importar]: envolver(CANALES.copias.importar, (p) => copias().importar(p)),
+    [CANALES.copias.origenDesdeRuta]: envolver(CANALES.copias.origenDesdeRuta, ({ ruta }) =>
+      copias().origenDesdeRuta(ruta)
+    ),
+    [CANALES.copias.cancelar]: envolver(CANALES.copias.cancelar, ({ trabajoId }) =>
+      copias().cancelar(trabajoId)
     ),
     [CANALES.letras.leerArchivo]: envolver(CANALES.letras.leerArchivo, () => {
       sinSesion()
@@ -506,31 +791,46 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       CANALES.biblioteca.comprobarPistas,
       async (id) => {
         const resumen = await biblioteca.comprobarPistas(id)
-        return resumen ? resumenParaRenderer(resumen) : null
+        return resumen ? aRenderer(resumen) : null
       }
     ),
+    [CANALES.biblioteca.recuentoRevision]: envolver(
+      CANALES.biblioteca.recuentoRevision,
+      (id) => deps.recuentoRevision?.calcular(id) ?? Promise.resolve(null)
+    ),
     [CANALES.biblioteca.listar]: envolver(CANALES.biblioteca.listar, () =>
-      biblioteca.listar().map(resumenParaRenderer)
+      biblioteca.listar().map(aRenderer)
     ),
     [CANALES.biblioteca.obtener]: envolver(CANALES.biblioteca.obtener, (id) =>
       cancionParaRenderer(id)
     ),
+    [CANALES.biblioteca.valoresDatos]: envolver(CANALES.biblioteca.valoresDatos, () =>
+      biblioteca.valoresDatos()
+    ),
     [CANALES.biblioteca.actualizarMetadatos]: envolver(
       CANALES.biblioteca.actualizarMetadatos,
-      async (id, metadatos) => resumenParaRenderer(await biblioteca.actualizar(id, { metadatos }))
+      async (id, metadatos) => {
+        // «Editar datos»: lo que el usuario cambia pasa a ser suyo y nada lo sustituye solo (ADR 0025 §6).
+        const origen = origenTrasEdicion(biblioteca.obtener(id)?.metadatos, metadatos)
+        return aRenderer(
+          await biblioteca.actualizar(id, {
+            metadatos: { ...metadatos, ...(origen ? { origen } : {}) }
+          })
+        )
+      }
     ),
     [CANALES.biblioteca.guardarApariencia]: envolver(
       CANALES.biblioteca.guardarApariencia,
       async (id, seleccion) => {
         sinSesion()
-        return resumenParaRenderer(await biblioteca.guardarApariencia(id, seleccion))
+        return aRenderer(await biblioteca.guardarApariencia(id, seleccion))
       }
     ),
     [CANALES.biblioteca.marcarLista]: envolver(
       CANALES.biblioteca.marcarLista,
       async (id, opciones) => {
         sinSesion()
-        return resumenParaRenderer(
+        return aRenderer(
           await (opciones ? biblioteca.marcarLista(id, opciones) : biblioteca.marcarLista(id))
         )
       }
@@ -539,8 +839,37 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       CANALES.biblioteca.volverABorrador,
       async (id) => {
         noActiva(id)
-        return resumenParaRenderer(await biblioteca.volverABorrador(id))
+        return aRenderer(await biblioteca.volverABorrador(id))
       }
+    ),
+    [CANALES.biblioteca.marcarPreparacionRevisada]: envolver(
+      CANALES.biblioteca.marcarPreparacionRevisada,
+      async (id) => {
+        const resumen = await biblioteca.marcarPreparacionRevisada(id)
+        return resumen ? aRenderer(resumen) : null
+      }
+    ),
+    [CANALES.biblioteca.editarDatosVariasPrevisualizar]: envolver(
+      CANALES.biblioteca.editarDatosVariasPrevisualizar,
+      ({ ids, artista, album }) => lotes().previsualizarDatos(ids, { artista, album })
+    ),
+    [CANALES.biblioteca.editarDatosVariasEjecutar]: envolver(
+      CANALES.biblioteca.editarDatosVariasEjecutar,
+      ({ ids, artista, album, version }) => lotes().ejecutarDatos(ids, { artista, album }, version)
+    ),
+    [CANALES.biblioteca.eliminarVariasPrevisualizar]: envolver(
+      CANALES.biblioteca.eliminarVariasPrevisualizar,
+      ({ ids }) => lotes().previsualizarEliminar(ids)
+    ),
+    [CANALES.biblioteca.eliminarVariasEjecutar]: envolver(
+      CANALES.biblioteca.eliminarVariasEjecutar,
+      ({ ids, version }) => lotes().ejecutarEliminar(ids, version)
+    ),
+    [CANALES.cola.agregarVarias]: envolver(CANALES.cola.agregarVarias, ({ ids }) =>
+      lotes().agregarACola(ids)
+    ),
+    [CANALES.cola.quitarVarias]: envolver(CANALES.cola.quitarVarias, ({ entradaIds }) =>
+      lotes().quitarDeCola(entradaIds)
     ),
     [CANALES.biblioteca.eliminar]: envolver(CANALES.biblioteca.eliminar, (id) => {
       noActiva(id)
@@ -579,16 +908,30 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.sistema.elegirArchivoAudio]: envolver(CANALES.sistema.elegirArchivoAudio, () =>
       deps.elegirArchivoAudio()
     ),
-    [CANALES.fuente.importarArchivo]: envolver(CANALES.fuente.importarArchivo, (ruta) =>
-      fuente.importar(ruta)
+    [CANALES.fuente.importarArchivo]: envolver(CANALES.fuente.importarArchivo, (entrada) =>
+      fuente.importar(typeof entrada === 'string' ? entrada : lote().rutaDeRef(entrada.ref))
     ),
-    [CANALES.fuente.cancelarImportacion]: envolver(CANALES.fuente.cancelarImportacion, (...ids) =>
-      fuente.cancelar(ids[0])
+    [CANALES.fuente.cancelarImportacion]: envolver(CANALES.fuente.cancelarImportacion, (...ids) => {
+      if (ids[0] === undefined) deps.lote?.cancelarLectura()
+      return fuente.cancelar(ids[0])
+    }),
+    [CANALES.fuente.leerArchivos]: envolver(CANALES.fuente.leerArchivos, ({ rutas }) =>
+      lote().leerArchivos(rutas)
+    ),
+    [CANALES.fuente.leerCarpeta]: envolver(CANALES.fuente.leerCarpeta, ({ ruta }) =>
+      lote().leerCarpeta(ruta)
+    ),
+    [CANALES.fuente.infoLista]: envolver(CANALES.fuente.infoLista, ({ url }) =>
+      lote().infoLista(url)
+    ),
+    [CANALES.fuente.lote]: envolver(CANALES.fuente.lote, (peticion) => lote().lote(peticion)),
+    [CANALES.fuente.espacioLibre]: envolver(CANALES.fuente.espacioLibre, () =>
+      lote().espacioLibre()
     ),
     [CANALES.fuente.confirmarArchivo]: envolver(
       CANALES.fuente.confirmarArchivo,
       async (id, metadatos, opciones?: { cancionId: string }) =>
-        resumenParaRenderer(await fuente.confirmar(id, metadatos, opciones))
+        aRenderer(await fuente.confirmar(id, metadatos, opciones))
     ),
     [CANALES.fuente.descartarImportacion]: envolver(CANALES.fuente.descartarImportacion, (id) =>
       fuente.descartar(id)
@@ -602,11 +945,13 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
     [CANALES.fuente.confirmarYoutube]: envolver(
       CANALES.fuente.confirmarYoutube,
       async (id, metadatos, opciones?: { cancionId: string }) =>
-        resumenParaRenderer(await youtube().confirmar(id, metadatos, opciones))
+        aRenderer(await youtube().confirmar(id, metadatos, opciones))
     ),
-    [CANALES.fuente.reintentar]: envolver(CANALES.fuente.reintentar, (id) =>
-      youtube().reintentar(id)
-    ),
+    [CANALES.fuente.reintentar]: envolver(CANALES.fuente.reintentar, async (id) => {
+      // Una canción de un lote de archivos reintenta su importación; el resto, la descarga.
+      if (deps.lote && (await deps.lote.reintentar(id))) return
+      await youtube().reintentar(id)
+    }),
     [CANALES.runtime.estado]: envolver(CANALES.runtime.estado, () => runtime.estado()),
     [CANALES.runtime.requisitos]: envolver(CANALES.runtime.requisitos, (opciones) =>
       runtime.requisitos(opciones.recalcularEspacio)
@@ -750,6 +1095,42 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       exigirRol(ctx, 'principal')
       return exportacion().iniciar(p)
     }),
+    [CANALES.exportacion.destinoCarpeta]: envolverCtx(
+      CANALES.exportacion.destinoCarpeta,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().destinoCarpeta(p.desdeCarpetaId)
+      }
+    ),
+    [CANALES.exportacion.iniciarLote]: envolverCtx(CANALES.exportacion.iniciarLote, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().iniciarLote(p)
+    }),
+    [CANALES.exportacion.previsualizarLote]: envolverCtx(
+      CANALES.exportacion.previsualizarLote,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().previsualizarLote(p)
+      }
+    ),
+    [CANALES.exportacion.mostrarCarpetaLote]: envolverCtx(
+      CANALES.exportacion.mostrarCarpetaLote,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().mostrarCarpetaLote(p.loteId)
+      }
+    ),
+    [CANALES.exportacion.cancelarLote]: envolverCtx(CANALES.exportacion.cancelarLote, (ctx, p) => {
+      exigirRol(ctx, 'principal')
+      return exportacion().cancelarLote(p.loteId)
+    }),
+    [CANALES.exportacion.reintentarLote]: envolverCtx(
+      CANALES.exportacion.reintentarLote,
+      (ctx, p) => {
+        exigirRol(ctx, 'principal')
+        return exportacion().reintentarLote(p.loteId)
+      }
+    ),
     [CANALES.exportacion.cancelar]: envolverCtx(CANALES.exportacion.cancelar, (ctx, p) => {
       exigirRol(ctx, 'principal')
       return exportacion().cancelar(p.trabajoId)
@@ -780,11 +1161,19 @@ export function crearManejadores(deps: DependenciasIpc): Record<CanalInvocable, 
       exigirRol(ctx, 'exportacion')
       return ventanaExportacion().confirmarListo(carga)
     }),
+    ...noImplementados,
     [CANALES.app.guardadoPendiente]: envolver(CANALES.app.guardadoPendiente, (pendiente) =>
       deps.fijarGuardadoPendiente?.(pendiente)
     ),
+    [CANALES.app.registrarError]: envolver(CANALES.app.registrarError, (error) =>
+      deps.registrarErrorRenderer?.(error)
+    ),
     [CANALES.app.confirmarCierre]: envolver(CANALES.app.confirmarCierre, () =>
       deps.confirmarCierre()
+    ),
+    [CANALES.app.solicitudCierrePendiente]: envolver(
+      CANALES.app.solicitudCierrePendiente,
+      () => deps.solicitudCierrePendiente?.() ?? null
     ),
     [CANALES.app.salir]: envolver(CANALES.app.salir, () => deps.salir())
   }
@@ -835,8 +1224,17 @@ export function registrarIpc(
     aPrincipal(CANALES.eventos.pantallaCompleta, activa)
   )
   const bajaCancion = deps.biblioteca.suscribir((e) =>
-    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e))
+    aPrincipal(CANALES.eventos.cancion, eventoParaRenderer(e, deps.recuentoRevision))
   )
+  // Un recuento calculado en segundo plano que cambia lo que ya se mostraba llega como un resumen nuevo.
+  const bajaRecuento = deps.recuentoRevision?.suscribir((id) => {
+    const r = deps.biblioteca.listar().find((x) => x.id === id)
+    if (r)
+      aPrincipal(
+        CANALES.eventos.cancion,
+        eventoParaRenderer({ id, resumen: r }, deps.recuentoRevision)
+      )
+  })
   // La secundaria solo recibe `config.reproductor`, y solo cuando cambia (ADR 0017 §11).
   let reproductorPrevio = JSON.stringify(deps.config.obtener().reproductor)
   const bajaConfig = deps.config.suscribir((c) => {
@@ -859,12 +1257,17 @@ export function registrarIpc(
     deps.exportacion?.suscribirProgreso((p) => aPrincipal(CANALES.eventos.exportacionProgreso, p)),
     deps.exportacion?.suscribirAviso((a) => aPrincipal(CANALES.eventos.exportacionAviso, a))
   ]
+  const bajaActualizaciones = deps.actualizaciones?.suscribir((e) =>
+    aPrincipal(CANALES.eventos.actualizacionesCambio, e)
+  )
   return () => {
+    bajaActualizaciones?.()
     for (const baja of bajasExportacion) baja?.()
     bajaPantallaCompleta?.()
     bajaRtProgreso()
     bajaRtCambio()
     bajaCancion()
+    bajaRecuento?.()
     bajaConfig()
     bajaTrabajo()
     bajaProgreso()

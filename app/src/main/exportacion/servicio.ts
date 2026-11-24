@@ -5,6 +5,7 @@ import type { Writable } from 'node:stream'
 import { modalidadEfectiva, type Cancion } from '../../shared/cancion'
 import type { Config } from '../../shared/config'
 import { esCodigoError, type CodigoError } from '../../shared/errores'
+import { envolvente, tramosCoro, type PuntoEnvolvente } from '../../shared/coros'
 import type { Estilo } from '../../shared/estilo'
 import {
   FORMATOS,
@@ -17,6 +18,7 @@ import {
   estimarBytes,
   estimarSegundos,
   memoriaMinimaDe,
+  nombrePropuesto,
   parametrosDe,
   perfilCompatibleConSesion,
   totalFotogramas,
@@ -34,12 +36,21 @@ import {
   type ProgresoExportacionIpc,
   type PerfilIpc
 } from '../../shared/exportacion'
-import type { IniciarExportacion } from '../../shared/ipc'
+import type {
+  CarpetaDestinoIpc,
+  IniciarExportacion,
+  IniciarLoteExportacion,
+  PrevisualizacionLoteIpc,
+  PrevisualizarLoteExportacion,
+  ResultadoLoteExportacionIpc
+} from '../../shared/ipc'
 import type { MensajeWorker } from '../../shared/protocolo'
+import { vozEnCoros } from '../../shared/reparto'
 import type { ConfigParcial } from '../configuracion'
 import { EstimadorProgreso } from '../trabajos/progreso'
 import type { OpcionesEjecucion } from '../trabajos/worker'
 import { ejecutarBucle } from './bucle'
+import { elegirNombre, type NombreElegido } from './nombresLote'
 import { ErrorDestino, type Destinos } from './destinos'
 import type { DiarioExportacion } from './diario'
 import type { OpcionesExportacion, VentanaExportacion } from './ventana'
@@ -65,7 +76,14 @@ export class ErrorExportacion extends Error {
 /** Textos de la notificación del sistema (los de `exp.toast.ok` y `exp.toast.error` de la spec 10). */
 export const AVISOS_EXPORTACION = {
   ok: (titulo: string): string => `«${titulo}»: video exportado.`,
-  error: (titulo: string): string => `«${titulo}»: no se pudo exportar el video.`
+  error: (titulo: string): string => `«${titulo}»: no se pudo exportar el video.`,
+  /** Los de `exp.lote.toast`: uno por lote, no uno por video. */
+  lote: (hechos: number, total: number): string =>
+    hechos === 0
+      ? 'No se pudo exportar ningún video.'
+      : hechos === total
+        ? `${total} videos exportados.`
+        : `Se exportaron ${hechos} de ${total} videos.`
 } as const
 
 /** Eventos de progreso: como mucho 4 por segundo y al menos 1 cada 2 s (ADR 0019 §11). */
@@ -76,6 +94,8 @@ export const PLAZO_VENTANA_LISTA_MS = 30_000
 /** Terminadas que se recuerdan para `estado()` y «Reintentar». */
 export const MAX_TERMINADAS = 50
 const MAX_AVISOS = 20
+/** Lotes recordados para `reintentarLote`. */
+const MAX_LOTES = 20
 
 /** Subconjunto de `ServicioBiblioteca` que usa el servicio. */
 export interface BibliotecaExportacion {
@@ -108,6 +128,10 @@ export interface DependenciasServicioExportacion<V = unknown> {
     | 'elegirDestino'
     | 'consumir'
     | 'rutaDe'
+    | 'carpetaPropuesta'
+    | 'elegirCarpeta'
+    | 'rutaDeCarpeta'
+    | 'consumirCarpeta'
     | 'rutaTemporal'
     | 'sustituir'
     | 'limpiar'
@@ -127,8 +151,12 @@ export interface DependenciasServicioExportacion<V = unknown> {
   ventanaPrincipal(): V
   /** `fs.access`; por defecto el real. */
   existe?(ruta: string): Promise<boolean>
+  /** Espacio libre de la carpeta de un lote, en bytes; `null` si no se sabe (por omisión no se comprueba). */
+  libreBytes?(carpeta: string): Promise<number | null>
   /** `shell.showItemInFolder`. */
   mostrarEnCarpeta(ruta: string): void
+  /** `shell.openPath`: abre la carpeta; devuelve el mensaje de error o `''` si se abrió. */
+  abrirCarpeta(ruta: string): Promise<string>
   /** Notificación del sistema con la principal sin foco (`ServicioAvisos.avisarSistema`). */
   avisarSistema?(texto: string): void
   bloqueador?: BloqueadorSuspension
@@ -149,6 +177,27 @@ interface CapacidadFormato {
 }
 type Capacidades = Record<FormatoId, CapacidadFormato>
 
+/** Un lote de exportación (ADR 0026 §5): las opciones y la carpeta, para reintentarlo. */
+interface Lote {
+  id: string
+  perfil: { formato: FormatoId; ancho: number; alto: number; fps: 24 | 30 | 60 }
+  audio: AudioExportacion
+  /** Voz original en los coros (ADR 0030 §5): solo cuenta con `audio: "instrumental"`. */
+  coros: boolean
+  siExiste: IniciarLoteExportacion['siExiste']
+  carpeta: string
+  /** Último destino de cada canción en este lote. */
+  destinos: Map<string, string>
+  /** Fallidas o no intentadas: lo que `reintentarLote` vuelve a encolar. */
+  fallidas: Set<string>
+  cancionIds: string[]
+  /** Aún no se notificó su fin (una sola notificación del sistema por tanda). */
+  abierto: boolean
+  /** Encoladas y completadas de esta tanda (para el aviso del sistema). */
+  total: number
+  completadas: number
+}
+
 interface Trabajo {
   id: string
   cancionId: string
@@ -162,7 +211,11 @@ interface Trabajo {
   destino: string
   temporal: string
   instantanea: InstantaneaExportacion
-  rutas: { instrumental: string; voz: string | null }
+  /**
+   * `voz` solo con «Instrumental y voz» o con coros; `envolvente` (puntos `[ms, nivel]`) solo cuando la voz
+   * entra únicamente en los coros (ADR 0030 §5).
+   */
+  rutas: { instrumental: string; voz: string | null; envolvente: PuntoEnvolvente[] | null }
   total: number
   estado: ExportacionIpc['estado']
   resultado: ExportacionIpc['resultado']
@@ -178,6 +231,8 @@ interface Trabajo {
   /** Temporal que no se pudo borrar (para `mostrarEnCarpeta`). */
   temporalPendiente: string | null
   posicion: number | null
+  /** Solo en las de un lote. */
+  loteId: string | null
   control: AbortController
   fin: Promise<void>
   cerrarFin: () => void
@@ -240,6 +295,10 @@ export class ServicioExportacion<V = unknown> {
   /** Canciones y destinos con un `iniciar` en vuelo (antes de estar en la cola). */
   private readonly reservasCancion = new Map<string, string>()
   private readonly reservasDestino = new Set<string>()
+  /** Lotes de esta sesión (para reintentarlos); los más viejos se olvidan. */
+  private readonly lotes = new Map<string, Lote>()
+  /** `loteId → carpeta` mientras viva el proceso (no se olvida con los lotes viejos). */
+  private readonly carpetasLote = new Map<string, string>()
   private sondeo: Promise<Capacidades> | null = null
   /** Sondeo de captura de este arranque (una vez); las proporciones ya resueltas y su alto máximo. */
   private sondeoCaptura: Promise<void> | null = null
@@ -441,27 +500,8 @@ export class ServicioExportacion<V = unknown> {
   // --- Iniciar y cancelar -------------------------------------------------------------------
 
   async iniciar(p: IniciarExportacion): Promise<{ trabajoId: string }> {
-    const perfil = { formato: p.formato, ancho: p.ancho, alto: p.alto, fps: p.fps }
-    if (!esCombinacionValida(perfil)) {
-      throw new ErrorExportacion('ARGUMENTOS_NO_VALIDOS', 'La combinación no es válida.')
-    }
-    const perfiles = await this.perfiles()
-    const soportado = perfiles.perfiles.find(
-      (x) => x.formato === p.formato && x.ancho === p.ancho && x.alto === p.alto && x.fps === p.fps
-    )
-    if (!soportado?.soportado) {
-      throw new ErrorExportacion(
-        'PERFIL_NO_SOPORTADO',
-        'Este equipo no puede crear el video con ese perfil.'
-      )
-    }
-    if (!perfilCompatibleConSesion(perfil, this.plataforma)) {
-      throw new ErrorExportacion(
-        'PERFIL_NO_SOPORTADO',
-        'Ese perfil no es compatible con la sesión.'
-      )
-    }
-    const exportable = await this.leerCancion(p.cancionId, p.audio)
+    await this.exigirPerfil({ formato: p.formato, ancho: p.ancho, alto: p.alto, fps: p.fps })
+    const exportable = await this.leerCancion(p.cancionId, p.audio, p.coros === true)
     const destinoRuta = this.deps.destinos.rutaDe(p.destinoId)
     if (destinoRuta === null) {
       throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'El destino caducó o ya se usó.')
@@ -486,44 +526,7 @@ export class ServicioExportacion<V = unknown> {
     try {
       // Solo ahora se gasta el `destinoId`: un rechazo anterior lo deja vigente.
       const destino = await this.deps.destinos.consumir(p.destinoId)
-      const temporal = this.deps.destinos.rutaTemporal(destino, id)
-      const destinoExistia = await this.existe(destino)
-      let cerrar: () => void = () => undefined
-      const fin = new Promise<void>((res) => {
-        cerrar = res
-      })
-      const t: Trabajo = {
-        id,
-        cancionId: p.cancionId,
-        titulo: exportable.instantanea.titulo,
-        artista: exportable.instantanea.artista,
-        formato: p.formato,
-        ancho: p.ancho,
-        alto: p.alto,
-        fps: p.fps,
-        audio: p.audio,
-        destino,
-        temporal,
-        instantanea: exportable.instantanea,
-        rutas: exportable.rutas,
-        total: totalFotogramas(exportable.instantanea.duracionMs, p.fps),
-        estado: 'en_cola',
-        resultado: null,
-        error: null,
-        progreso: null,
-        bytes: null,
-        fotogramas: null,
-        destinoExistia,
-        iniciadaEn: null,
-        iniciadaMs: null,
-        terminadaEn: null,
-        limpiezaFallida: false,
-        temporalPendiente: null,
-        posicion: null,
-        control: new AbortController(),
-        fin,
-        cerrarFin: cerrar
-      }
+      const t = await this.crearTrabajo(p, destino, exportable, id, null)
       this.cola.push(t)
       await this.guardarOpciones(p)
       this.avanzar()
@@ -536,6 +539,369 @@ export class ServicioExportacion<V = unknown> {
       this.reservasCancion.delete(p.cancionId)
       this.reservasDestino.delete(clave)
     }
+  }
+
+  /** Construye el trabajo en cola (sin lanzarlo): el temporal, si ya había archivo y la instantánea. */
+  private async crearTrabajo(
+    p: Pick<IniciarExportacion, 'cancionId' | 'formato' | 'ancho' | 'alto' | 'fps' | 'audio'>,
+    destino: string,
+    exportable: { instantanea: InstantaneaExportacion; rutas: Trabajo['rutas'] },
+    id: string,
+    loteId: string | null
+  ): Promise<Trabajo> {
+    const temporal = this.deps.destinos.rutaTemporal(destino, id)
+    const destinoExistia = await this.existe(destino)
+    let cerrar: () => void = () => undefined
+    const fin = new Promise<void>((res) => {
+      cerrar = res
+    })
+    return {
+      id,
+      cancionId: p.cancionId,
+      titulo: exportable.instantanea.titulo,
+      artista: exportable.instantanea.artista,
+      formato: p.formato,
+      ancho: p.ancho,
+      alto: p.alto,
+      fps: p.fps,
+      audio: p.audio,
+      destino,
+      temporal,
+      instantanea: exportable.instantanea,
+      rutas: exportable.rutas,
+      total: totalFotogramas(exportable.instantanea.duracionMs, p.fps),
+      estado: 'en_cola',
+      resultado: null,
+      error: null,
+      progreso: null,
+      bytes: null,
+      fotogramas: null,
+      destinoExistia,
+      iniciadaEn: null,
+      iniciadaMs: null,
+      terminadaEn: null,
+      limpiezaFallida: false,
+      temporalPendiente: null,
+      posicion: null,
+      loteId,
+      control: new AbortController(),
+      fin,
+      cerrarFin: cerrar
+    }
+  }
+
+  /** Perfil soportado por este equipo y compatible con la sesión (lo mismo para una o para un lote). */
+  private async exigirPerfil(perfil: {
+    formato: FormatoId
+    ancho: number
+    alto: number
+    fps: 24 | 30 | 60
+  }): Promise<void> {
+    if (!esCombinacionValida(perfil)) {
+      throw new ErrorExportacion('ARGUMENTOS_NO_VALIDOS', 'La combinación no es válida.')
+    }
+    const perfiles = await this.perfiles()
+    const soportado = perfiles.perfiles.find(
+      (x) =>
+        x.formato === perfil.formato &&
+        x.ancho === perfil.ancho &&
+        x.alto === perfil.alto &&
+        x.fps === perfil.fps
+    )
+    if (!soportado?.soportado) {
+      throw new ErrorExportacion(
+        'PERFIL_NO_SOPORTADO',
+        'Este equipo no puede crear el video con ese perfil.'
+      )
+    }
+    if (!perfilCompatibleConSesion(perfil, this.plataforma)) {
+      throw new ErrorExportacion(
+        'PERFIL_NO_SOPORTADO',
+        'Ese perfil no es compatible con la sesión.'
+      )
+    }
+  }
+
+  // --- Lotes (ADR 0026 §5) -------------------------------------------------------------------
+
+  /**
+   * Sin `desdeCarpetaId`: la carpeta que se propone (la última usada, Vídeos o la personal), sin diálogo.
+   * Con él: el selector de carpetas del sistema, que empieza ahí; `null` si se cancela.
+   */
+  async destinoCarpeta(desdeCarpetaId?: string): Promise<CarpetaDestinoIpc | null> {
+    const recordada = this.deps.config.obtener().exportacion.carpeta
+    if (desdeCarpetaId === undefined) return this.deps.destinos.carpetaPropuesta(recordada)
+    return this.deps.destinos.elegirCarpeta(desdeCarpetaId, recordada, this.deps.ventanaPrincipal())
+  }
+
+  /**
+   * Una exportación por canción en la cola de siempre, con las mismas opciones y una carpeta. Toma la
+   * instantánea de cada una ahora, resuelve los nombres (repetidos dentro del lote y `siExiste`) y
+   * comprueba el espacio total antes de encolar nada.
+   */
+  async iniciarLote(p: IniciarLoteExportacion): Promise<ResultadoLoteExportacionIpc> {
+    const perfil = { formato: p.formato, ancho: p.ancho, alto: p.alto, fps: p.fps }
+    await this.exigirPerfil(perfil)
+    const carpeta = this.deps.destinos.rutaDeCarpeta(p.carpetaId)
+    if (carpeta === null) {
+      throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'La carpeta caducó o ya se usó.', undefined, {
+        campo: 'destino'
+      })
+    }
+    const lote: Lote = {
+      id: this.uuid(),
+      perfil,
+      audio: p.audio,
+      coros: p.coros === true,
+      siExiste: p.siExiste,
+      carpeta,
+      destinos: new Map(),
+      fallidas: new Set(),
+      cancionIds: [...p.cancionIds],
+      abierto: true,
+      total: 0,
+      completadas: 0
+    }
+    const r = await this.planificarLote(lote, p.cancionIds, p.carpetaId)
+    this.lotes.set(lote.id, lote)
+    this.carpetasLote.set(lote.id, carpeta)
+    // Los lotes viejos se olvidan: ya no se pueden reintentar.
+    for (const id of this.lotes.keys()) {
+      if (this.lotes.size <= MAX_LOTES) break
+      this.lotes.delete(id)
+    }
+    await this.guardarOpciones({ ...perfil, audio: p.audio } as IniciarExportacion)
+    return r
+  }
+
+  /** Cancela las que faltan del lote (la que está en curso, con limpieza, y las que esperan). */
+  async cancelarLote(loteId: string): Promise<void> {
+    const ids = this.todasActivas()
+      .filter((t) => t.loteId === loteId)
+      .map((t) => t.id)
+    await this.cancelarVarias(ids)
+  }
+
+  /**
+   * Vuelve a encolar las fallidas y las que no se intentaron, con las mismas opciones, la misma carpeta
+   * y una instantánea nueva. Las canceladas por el usuario y las omitidas no se reintentan.
+   */
+  async reintentarLote(loteId: string): Promise<ResultadoLoteExportacionIpc> {
+    const lote = this.lotes.get(loteId)
+    if (!lote) throw new ErrorExportacion('ARGUMENTOS_NO_VALIDOS', 'El lote ya no existe.')
+    const ids = lote.cancionIds.filter((id) => lote.fallidas.has(id))
+    lote.fallidas.clear()
+    lote.abierto = true
+    lote.total = 0
+    lote.completadas = 0
+    return this.planificarLote(lote, ids, null)
+  }
+
+  /**
+   * Núcleo de `iniciarLote` y `reintentarLote`. Sin esperas entre reservar y encolar que dejen colarse a
+   * otra exportación de las mismas canciones o nombres.
+   */
+  private async planificarLote(
+    lote: Lote,
+    cancionIds: readonly string[],
+    carpetaId: string | null
+  ): Promise<ResultadoLoteExportacionIpc> {
+    const extension = FORMATOS[lote.perfil.formato].extension
+    const reservadasCanciones: string[] = []
+    const reservadasDestinos: string[] = []
+    const encoladas: { cancionId: string; trabajoId: string }[] = []
+    const omitidas: { id: string; motivo: string }[] = []
+    try {
+      type Plan = {
+        cancionId: string
+        destino: string
+        exportable: { instantanea: InstantaneaExportacion; rutas: Trabajo['rutas'] }
+        audio: AudioExportacion
+      }
+      const plan: Plan[] = []
+      for (const cancionId of cancionIds) {
+        if (this.activaDe(cancionId) || this.reservasCancion.has(cancionId)) {
+          omitidas.push({ id: cancionId, motivo: 'YA_EN_COLA' })
+          continue
+        }
+        let audio: AudioExportacion = lote.audio
+        let exportable: Plan['exportable']
+        try {
+          // «Instrumental y voz» sin pista de voz utilizable: esa canción sale solo con instrumental.
+          try {
+            exportable = await this.leerCancion(cancionId, lote.audio, lote.coros)
+          } catch (e) {
+            if (lote.audio === 'instrumental') throw e
+            exportable = await this.leerCancion(cancionId, 'instrumental')
+            audio = 'instrumental'
+          }
+        } catch (e) {
+          omitidas.push({ id: cancionId, motivo: codigoDe(e) ?? 'CANCION_NO_DISPONIBLE' })
+          continue
+        }
+        this.reservasCancion.set(cancionId, lote.id)
+        reservadasCanciones.push(cancionId)
+        const destino = await this.nombreEnLote(
+          lote,
+          cancionId,
+          exportable.instantanea,
+          extension,
+          reservadasDestinos
+        )
+        if (destino === null) {
+          omitidas.push({ id: cancionId, motivo: 'YA_EXISTE' })
+          continue
+        }
+        plan.push({ cancionId, destino, exportable, audio })
+      }
+      if (plan.length === 0) return { loteId: lote.id, encoladas, omitidas }
+
+      // Espacio: la suma de las estimaciones frente al libre de la carpeta, antes de encolar nada.
+      const libre = (await this.deps.libreBytes?.(lote.carpeta)) ?? null
+      if (libre !== null) {
+        const necesarios = plan.reduce(
+          (suma, x) => suma + (this.estimar({ cancionId: x.cancionId, ...lote.perfil }).bytes ?? 0),
+          0
+        )
+        if (necesarios > libre) {
+          throw new ErrorExportacion('SIN_ESPACIO', 'No hay espacio para todo el lote.')
+        }
+      }
+      // La carpeta se valida una sola vez, ya con todo planificado, y se gasta el `carpetaId`.
+      if (carpetaId !== null) await this.deps.destinos.consumirCarpeta(carpetaId)
+
+      const nuevos: Trabajo[] = []
+      for (const x of plan) {
+        const t = await this.crearTrabajo(
+          { cancionId: x.cancionId, ...lote.perfil, audio: x.audio },
+          x.destino,
+          x.exportable,
+          this.uuid(),
+          lote.id
+        )
+        this.cola.push(t)
+        nuevos.push(t)
+        lote.destinos.set(x.cancionId, x.destino)
+        encoladas.push({ cancionId: x.cancionId, trabajoId: t.id })
+      }
+      lote.total = nuevos.length
+      lote.completadas = 0
+      lote.abierto = true
+      this.avanzar()
+      this.renumerar(false)
+      for (const t of nuevos) if (t.estado === 'en_cola') this.emitir(t)
+      return { loteId: lote.id, encoladas, omitidas }
+    } finally {
+      for (const id of reservadasCanciones) this.reservasCancion.delete(id)
+      for (const clave of reservadasDestinos) this.reservasDestino.delete(clave)
+    }
+  }
+
+  /**
+   * Ruta de la canción en la carpeta del lote, o `null` si se omite (`siExiste: "omitir"`). Nunca
+   * coincide con otra del lote ni con un archivo de otra exportación en marcha; un archivo que ya está en
+   * la carpeta cuenta según `siExiste`.
+   */
+  private async nombreEnLote(
+    lote: Lote,
+    cancionId: string,
+    cancion: InstantaneaExportacion,
+    extension: string,
+    reservadas: string[]
+  ): Promise<string | null> {
+    // Un reintento conserva el nombre que ya tenía la canción en este lote.
+    const previo = lote.destinos.get(cancionId)
+    const base = previo
+      ? basename(previo)
+      : nombrePropuesto(cancion.titulo, cancion.artista, extension)
+    const r = await this.elegirNombreEn(lote.carpeta, base, lote.siExiste, this.reservasDestino)
+    if (r.nombre === null) return null
+    const ruta = join(lote.carpeta, r.nombre)
+    const clave = this.claveDestino(ruta)
+    this.reservasDestino.add(clave)
+    reservadas.push(clave)
+    return ruta
+  }
+
+  /** La regla de nombres de `nombresLote.ts` con lo que este servicio sabe de la carpeta y de la cola. */
+  private elegirNombreEn(
+    carpeta: string,
+    base: string,
+    siExiste: IniciarLoteExportacion['siExiste'],
+    reservadas: ReadonlySet<string>
+  ): Promise<NombreElegido> {
+    return elegirNombre(base, siExiste, async (nombre) => {
+      const ruta = join(carpeta, nombre)
+      const clave = this.claveDestino(ruta)
+      return {
+        ocupado: reservadas.has(clave) || this.destinoEnUso(clave),
+        existe: await this.existe(ruta)
+      }
+    })
+  }
+
+  /**
+   * Lo que haría `iniciarLote` con estas opciones, sin hacerlo: nombre de archivo (solo el nombre), si ya
+   * existe y qué se haría. No escribe ni encola ni gasta el `carpetaId`; es orientativo, porque
+   * `iniciarLote` lo vuelve a calcular al confirmar.
+   */
+  async previsualizarLote(p: PrevisualizarLoteExportacion): Promise<PrevisualizacionLoteIpc> {
+    const carpeta = this.deps.destinos.rutaDeCarpeta(p.carpetaId)
+    if (carpeta === null) {
+      throw new ErrorDestino('DESTINO_NO_DISPONIBLE', 'La carpeta caducó o ya se usó.', undefined, {
+        campo: 'destino'
+      })
+    }
+    const extension = FORMATOS[p.formato].extension
+    const delLote = new Set<string>()
+    const filas: PrevisualizacionLoteIpc['filas'] = []
+    for (const cancionId of p.cancionIds) {
+      if (this.activaDe(cancionId) || this.reservasCancion.has(cancionId)) {
+        filas.push({
+          cancionId,
+          archivo: '',
+          existe: false,
+          accion: 'omitir',
+          motivo: 'YA_EN_COLA'
+        })
+        continue
+      }
+      let instantanea: InstantaneaExportacion
+      try {
+        instantanea = (await this.leerCancion(cancionId, 'instrumental')).instantanea
+      } catch (e) {
+        const motivo = codigoDe(e) ?? 'CANCION_NO_DISPONIBLE'
+        filas.push({ cancionId, archivo: '', existe: false, accion: 'omitir', motivo })
+        continue
+      }
+      const base = nombrePropuesto(instantanea.titulo, instantanea.artista, extension)
+      const r = await this.elegirNombreEn(carpeta, base, p.siExiste, delLote)
+      if (r.nombre === null) {
+        filas.push({
+          cancionId,
+          archivo: base,
+          existe: true,
+          accion: 'omitir',
+          motivo: 'YA_EXISTE'
+        })
+        continue
+      }
+      delLote.add(this.claveDestino(join(carpeta, r.nombre)))
+      filas.push({ cancionId, archivo: r.nombre, existe: r.existe, accion: r.accion })
+    }
+    return { filas, exportables: filas.filter((f) => f.accion !== 'omitir').length }
+  }
+
+  /** Abre la carpeta de un lote de esta sesión, sin seleccionar ningún archivo. */
+  async mostrarCarpetaLote(loteId: string): Promise<void> {
+    const carpeta = this.carpetasLote.get(loteId)
+    const noDisponible = (): ErrorDestino =>
+      new ErrorDestino('DESTINO_NO_DISPONIBLE', 'La carpeta del lote ya no existe.', undefined, {
+        campo: 'destino'
+      })
+    if (carpeta === undefined || !(await this.existe(carpeta))) throw noDisponible()
+    const fallo = await this.deps.abrirCarpeta(carpeta)
+    if (fallo) throw noDisponible()
   }
 
   /** Cancela una exportación en curso o en cola (con limpieza) y espera a que termine. */
@@ -706,7 +1072,8 @@ export class ServicioExportacion<V = unknown> {
   /** Valida la canción y toma la instantánea de lo guardado (ADR 0019 §3). */
   private async leerCancion(
     cancionId: string,
-    audio: AudioExportacion
+    audio: AudioExportacion,
+    coros = false
   ): Promise<{ instantanea: InstantaneaExportacion; rutas: Trabajo['rutas'] }> {
     const noDisponible = (mensaje: string): ErrorExportacion =>
       new ErrorExportacion('CANCION_NO_DISPONIBLE', mensaje)
@@ -743,9 +1110,22 @@ export class ServicioExportacion<V = unknown> {
       gananciaDb: Math.min(60, Math.max(-60, cancion.fuente.ganancia_db)),
       vozDisponible
     }
+    // Voz en los coros (ADR 0030 §5): solo «Solo instrumental», con voz separada y nivel de la canción > 0.
+    const puntos =
+      coros && audio === 'instrumental' && vozDisponible
+        ? envolvente(
+            tramosCoro(instantanea.letra, instantanea.duracionMs),
+            vozEnCoros(instantanea.letra)
+          )
+        : []
+    const conCoros = puntos.length > 0
     return {
       instantanea,
-      rutas: { instrumental, voz: audio === 'instrumental_voz' ? voz : null }
+      rutas: {
+        instrumental,
+        voz: audio === 'instrumental_voz' || conCoros ? voz : null,
+        envolvente: conCoros ? puntos : null
+      }
     }
   }
 
@@ -879,6 +1259,7 @@ export class ServicioExportacion<V = unknown> {
         audio: {
           instrumental: t.rutas.instrumental,
           voz: t.rutas.voz,
+          ...(t.rutas.envolvente ? { voz_envolvente: t.rutas.envolvente } : {}),
           ganancia_db: t.instantanea.gananciaDb
         },
         parametros: parametrosDe(t.formato, t.alto),
@@ -1143,9 +1524,50 @@ export class ServicioExportacion<V = unknown> {
       this.terminadas.delete(id)
     }
     this.emitir(t)
-    if (r.resultado === 'completada') this.deps.avisarSistema?.(AVISOS_EXPORTACION.ok(t.titulo))
-    else if (r.resultado === 'error') this.deps.avisarSistema?.(AVISOS_EXPORTACION.error(t.titulo))
+    if (t.loteId) this.terminarDeLote(t, r)
+    else if (r.resultado === 'completada') {
+      this.deps.avisarSistema?.(AVISOS_EXPORTACION.ok(t.titulo))
+    } else if (r.resultado === 'error') {
+      this.deps.avisarSistema?.(AVISOS_EXPORTACION.error(t.titulo))
+    }
     t.cerrarFin()
+  }
+
+  /**
+   * Una exportación de un lote terminó: apunta lo que `reintentarLote` repetirá, detiene el lote si la
+   * causa fallaría igual para las demás (`SIN_ESPACIO`, `DESTINO_NO_DISPONIBLE`) y, al acabar la última,
+   * da **un** aviso del sistema por el lote (no uno por video).
+   */
+  private terminarDeLote(
+    t: Trabajo,
+    r: { resultado: 'completada' | 'error' | 'cancelada'; error?: ExportacionIpc['error'] }
+  ): void {
+    const lote = t.loteId ? this.lotes.get(t.loteId) : undefined
+    if (!lote) return
+    if (r.resultado === 'completada') {
+      lote.completadas++
+      lote.fallidas.delete(t.cancionId)
+    } else if (r.resultado === 'error' || r.error) {
+      lote.fallidas.add(t.cancionId)
+    } else {
+      lote.fallidas.delete(t.cancionId)
+    }
+    const error = r.resultado === 'error' ? r.error : null
+    if (error && (error.codigo === 'SIN_ESPACIO' || error.codigo === 'DESTINO_NO_DISPONIBLE')) {
+      const restantes = this.cola.filter((x) => x.loteId === lote.id)
+      for (const x of restantes) {
+        this.cola.splice(this.cola.indexOf(x), 1)
+        this.terminar(x, {
+          resultado: 'cancelada',
+          error: { codigo: error.codigo, mensaje: error.mensaje, posicionMs: null }
+        })
+      }
+      this.renumerar(true)
+    }
+    if (lote.abierto && !this.todasActivas().some((x) => x !== t && x.loteId === lote.id)) {
+      lote.abierto = false
+      this.deps.avisarSistema?.(AVISOS_EXPORTACION.lote(lote.completadas, lote.total))
+    }
   }
 
   private emitir(t: Trabajo): void {
@@ -1164,6 +1586,7 @@ export class ServicioExportacion<V = unknown> {
       alto: t.alto,
       fps: t.fps,
       audio: t.audio,
+      ...(t.rutas.envolvente ? { corosNivel: vozEnCoros(t.instantanea.letra) } : {}),
       estado: t.estado,
       posicion: t.posicion,
       resultado: t.resultado,
@@ -1177,7 +1600,8 @@ export class ServicioExportacion<V = unknown> {
       destinoExistia: t.destinoExistia,
       iniciadaEn: t.iniciadaEn,
       terminadaEn: t.terminadaEn,
-      limpiezaFallida: t.limpiezaFallida
+      limpiezaFallida: t.limpiezaFallida,
+      ...(t.loteId ? { loteId: t.loteId } : {})
     }
   }
 

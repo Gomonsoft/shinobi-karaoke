@@ -241,6 +241,7 @@ export function DialogoFormulario({
               temaBorrador={temaBorrador === true}
               mostrarCargando={lento}
               alCambiarAudio={f.cambiarAudio}
+              alCambiarCoros={f.cambiarCoros}
               alCambiarProporcion={f.cambiarProporcion}
               alCambiarResolucion={f.cambiarResolucion}
               alCambiarFps={f.cambiarFps}

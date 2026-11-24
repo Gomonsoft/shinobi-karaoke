@@ -1,7 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import { pulsosFlac } from '../src/main/biblioteca/flac'
 import { sembrar } from '../src/main/biblioteca/semilla'
+import { K } from '../src/renderer/src/vistas/editor/comprobar/textos'
+import { EP } from '../src/renderer/src/vistas/editor/preparacion/textos'
 import { E } from '../src/renderer/src/vistas/editor/textos'
 import { abrirEditor, alargarLetra, conEditor, idSemilla, lanzar } from './fixtures/editor'
 import { leerCancion, leerConfig, tarjeta } from './fixtures/separacion'
@@ -858,6 +861,11 @@ test('con la barra vertical de main a 1024 px de ancho no se salta a la disposic
     })
     test.skip(r.ancho !== 1024, `el viewport CSS mide ${r.ancho} de ancho`)
     expect(r.scrollMain).toBeGreaterThan(0)
+    // macOS usa barras superpuestas que no ocupan ancho: sin barra no hay nada que comprobar.
+    test.skip(
+      process.platform === 'darwin' && r.barra === 0,
+      'macOS: barra de desplazamiento superpuesta'
+    )
     expect(r.barra, 'la barra vertical ocupa ancho').toBeGreaterThan(0)
     expect(r.bajo).toBe('alto')
     expect(r.scrollH).toBeLessThanOrEqual(0)
@@ -869,10 +877,17 @@ test('el divisor enseña su tooltip a los 500 ms de hover sin mover la rejilla',
     await abrirEditor(v, T19)
     const antes = await tamanos(v)
     const caja = (await v.locator('[data-divisor="lista"]').boundingBox())!
-    await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
-    await expect(v.getByRole('tooltip', { name: E.layout.divisor.tooltip })).toBeVisible({
-      timeout: 3000
-    })
+    // El tooltip nace con `mouseenter` y 500 ms de espera. En una pasada completa el sistema entrega a la
+    // ventana `mousemove` de confianza que la prueba no ha enviado (las ventanas de los otros trabajadores
+    // se abren y se cierran bajo el cursor físico): el puntero «sale» del divisor y el temporizador se
+    // cancela (fallo en 2 de 2 pasadas, 2026-11-23). Se entra de nuevo hasta que aparece.
+    await expect(async () => {
+      await v.mouse.move(caja.x + 400, caja.y + 40)
+      await v.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2)
+      await expect(v.getByRole('tooltip', { name: E.layout.divisor.tooltip })).toBeVisible({
+        timeout: 1_500
+      })
+    }).toPass({ timeout: 20_000, intervals: [0] })
     expect(await tamanos(v)).toEqual(antes)
     await v.mouse.move(caja.x + 400, caja.y + 40)
     await expect(v.getByRole('tooltip')).toHaveCount(0)
@@ -914,10 +929,15 @@ test.describe('otras vistas a 1024 × 576 (mínimo de ventana de 0155)', () => {
       await sinDesbordeHorizontal(v, 'Biblioteca')
 
       const t = tarjeta(v, 'Canción lista')
-      await t.getByRole('button', { name: 'Más acciones de «Canción lista»' }).click()
+      // La bandeja «Pendientes de ti» baja la rejilla: el ⋯ queda bajo el borde y el menú se cerraría
+      // al desplazar la tarjeta. Se trae a la vista antes de abrirlo.
+      const mas = t.getByRole('button', { name: 'Más acciones de «Canción lista»' })
+      await mas.scrollIntoViewIfNeeded()
+      await mas.click()
       await v.getByRole('menuitem', { name: 'Editar datos' }).click()
       await alcanzable(v, 'Editar datos', 'Cancelar')
-      await t.getByRole('button', { name: 'Más acciones de «Canción lista»' }).click()
+      await mas.scrollIntoViewIfNeeded()
+      await mas.click()
       await v.getByRole('menuitem', { name: /^Eliminar/ }).click()
       await alcanzable(v, /^¿Eliminar/, 'Cancelar')
 
@@ -1059,4 +1079,135 @@ test.describe('capturas de revisión de la subfase 2.1', () => {
       )
     })
   }
+})
+
+// F4-E10 (0300, comprobada aquí en la verificación de la feature 5): con «Preparación automática», «Revisar la
+// sincronía» y «Comprobar la letra con la voz» en Funciones y un banner visible, ningún viewport de la
+// subfase 2.1 produce scroll de página. El viewport se fija con CDP (macOS limita el alto de la ventana a la
+// pantalla, y así los seis se miden de verdad, no se omiten).
+test.describe('F4-E10: Funciones con las tres secciones y un banner, sin scroll de página', () => {
+  test.describe.configure({ timeout: 120_000 })
+  const ID = idSemilla(20)
+  const TITULO = 'Reproductor: lista'
+  const NOMBRES = [
+    'Suben las barcas al puerto',
+    'Nadie sabe la canción',
+    'Una luz sobre el tejado',
+    'Cuenta las olas despacio',
+    'Vuelve el coro a la plaza',
+    'Y la noche se despierta'
+  ]
+  // La voz canta 2 s cada 5 s desde el segundo 2; la letra va 0,8 s adelantada (banner de la feature 4) y la
+  // tercera línea acaba 3 s tarde con el fin fijado (una pendiente importante para la revisión).
+  const INICIOS = [1200, 6200, 11_200, 16_200, 21_200, 26_200]
+  const preparar = (datos: string): void => {
+    const raiz = join(datos, 'biblioteca', ID)
+    writeFileSync(
+      join(raiz, 'pistas', 'voz.flac'),
+      pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs: 2000, desfaseMs: 2000 })
+    )
+    const c = leerCancion(datos, ID)
+    const ahora = new Date().toISOString()
+    writeFileSync(
+      join(raiz, 'cancion.json'),
+      JSON.stringify({
+        ...c,
+        estado: 'borrador',
+        pasos: { ...c.pasos, edicion: { ...c.pasos.edicion, estado: 'pendiente' } },
+        letra: {
+          ...c.letra,
+          offset_ms: 0,
+          lineas: INICIOS.map((inicio, i) => ({
+            id: `v${i}`,
+            tipo: 'linea',
+            texto: NOMBRES[i],
+            inicio_ms: inicio,
+            fin_ms: inicio + (i === 2 ? 5000 : 2000),
+            palabras: null,
+            ...(i < 2 ? { origen_fin: 'preparacion' } : {})
+          }))
+        },
+        preparacion: {
+          estado: 'lista_para_revisar',
+          paso: null,
+          origen: 'automatica',
+          actualizado: ahora,
+          eleccion: { por: 'app', fecha: ahora, lrclib_id: 123 },
+          fines: { metodo: 'silencios', lineas: 2 },
+          dudosas: 2,
+          revisada: false
+        }
+      })
+    )
+  }
+
+  test('seis viewports: la pestaña Funciones y la Sincronía con banner no desbordan la página', async () => {
+    const datos = crearTemporal('layout-f4e10')
+    await sembrar(datos)
+    preparar(datos)
+    const app = await lanzar(datos)
+    try {
+      const v = await app.firstWindow()
+      await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
+      await abrirEditor(v, TITULO)
+      // Que la revisión guiada (la entrada por «Revisar») no ocupe el panel: se sale de ella.
+      await expect(v.getByRole('region', { name: /Revisión · quedan/ })).toBeVisible({
+        timeout: 20_000
+      })
+      await v.keyboard.press('Escape')
+      await expect(v.getByRole('region', { name: /Revisión · quedan/ })).toHaveCount(0)
+      const cdp = await v.context().newCDPSession(v)
+      const sinScroll = async (donde: string): Promise<void> => {
+        const m = await v.evaluate(() => ({
+          alto: document.documentElement.scrollHeight,
+          ventana: window.innerHeight,
+          ancho: document.documentElement.scrollWidth,
+          anchoVentana: window.innerWidth,
+          principal: (() => {
+            const main = document.querySelector('main')!
+            return main.scrollHeight - main.clientHeight
+          })()
+        }))
+        expect(
+          m.alto,
+          `${donde}: scrollHeight ${m.alto} > innerHeight ${m.ventana}`
+        ).toBeLessThanOrEqual(m.ventana)
+        expect(m.ancho, `${donde}: scrollWidth ${m.ancho} > ${m.anchoVentana}`).toBeLessThanOrEqual(
+          m.anchoVentana
+        )
+        expect(m.principal, `${donde}: scroll de main`).toBeLessThanOrEqual(0)
+      }
+      for (const vp of VIEWPORTS) {
+        await cdp.send('Emulation.setDeviceMetricsOverride', {
+          width: vp.ancho,
+          height: vp.alto,
+          deviceScaleFactor: vp.dpr,
+          mobile: false
+        })
+        await v.waitForTimeout(500)
+        await v.getByRole('radio', { name: 'Sincronía' }).click()
+        // El banner de la feature 4 (o el de la revisión) está a la vista sobre la lista.
+        await expect(
+          v
+            .getByText(/Esta letra va 0,8 s adelantada respecto a la voz|Preparamos esta canción/)
+            .first()
+        ).toBeVisible({ timeout: 30_000 })
+        await sinScroll(`${vp.nombre} Sincronía con banner`)
+        await v.getByRole('radio', { name: 'Funciones' }).click()
+        await expect(v.getByRole('heading', { name: EP.titulo })).toBeAttached()
+        await expect(v.getByText('Revisar la sincronía').first()).toBeAttached()
+        await expect(v.getByText(K.funciones.titulo).first()).toBeAttached()
+        await sinScroll(`${vp.nombre} Funciones`)
+        // F11-E15: con el recorrido de revisión activo (tarjeta en el panel) tampoco hay scroll de página.
+        await v.getByRole('button', { name: /^Revisar \(\d+\)…/ }).click()
+        await expect(v.getByRole('region', { name: /Revisión · quedan/ })).toBeVisible()
+        await v.getByRole('radio', { name: /^Sincronía/ }).click()
+        await sinScroll(`${vp.nombre} recorrido de revisión`)
+        await v.keyboard.press('Escape')
+        await expect(v.getByRole('region', { name: /Revisión · quedan/ })).toHaveCount(0)
+      }
+    } finally {
+      await app.close().catch(() => undefined)
+    }
+  })
 })

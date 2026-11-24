@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Check,
   CircleX,
@@ -25,6 +25,7 @@ import { mostrarToast } from '../../componentes/gestorToasts'
 import { useNavegacion } from '../../navegacion/estado'
 import { marcarProgresoVisto } from '../../navegacion/progresoVisto'
 import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
+import { useTandaPreparacion } from '../../trabajos/useTandaPreparacion'
 import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
 import { detallesDeError } from '../biblioteca/errores'
@@ -54,6 +55,11 @@ import {
 } from './textos'
 import estilos from './progreso.module.css'
 import { copiarDetalles } from '../../soporte/detalles'
+import { useMarcarRevision } from '../biblioteca/useMarcarRevision'
+import { useProbar } from '../biblioteca/useProbar'
+import { BloqueResultado } from './BloqueResultado'
+import { filasPreparacion, resultadoDe } from './preparacion'
+import { PREP } from './textosPreparacion'
 
 const ICONOS: Record<IconoFila, LucideIcon> = {
   pendiente: Circle,
@@ -123,6 +129,13 @@ function useDatos(id: string): Datos {
         titulos.set(ev.id, ev.resumen.titulo)
         return { ...d, titulos, resumen: ev.id === id ? ev.resumen : d.resumen }
       })
+      // El registro de la preparación y el desfase salen de `cancion.json`: se vuelve a leer.
+      if (!ev.eliminada && ev.id === id) {
+        void Promise.resolve(window.shinobi.biblioteca.obtener(id)).then(
+          (cancion) => activo && cancion && setDatos((d) => ({ ...d, cancion })),
+          () => undefined
+        )
+      }
     })
     Promise.all([window.shinobi.biblioteca.listar(), window.shinobi.biblioteca.obtener(id)]).then(
       ([lista, cancion]) => {
@@ -245,6 +258,24 @@ export function Progreso({ id }: { id: string }) {
   const piso = useRef<{ trabajo: string; valor: number } | null>(null)
   const bytes = useRef<number | null>(null)
   const enfocada = useRef(false)
+  // El [Marcar como lista] del toast tras «Probar» pasa por el diálogo de pendientes como en la Biblioteca (F11-B3).
+  const resumenVivo = datos.resumen
+  const marcarRevision = useMarcarRevision(
+    useCallback((rid: string) => (resumenVivo?.id === rid ? resumenVivo : undefined), [resumenVivo])
+  )
+  const probar = useProbar(marcarRevision.pedir)
+  // `config.preparacion.automatica`: con ella desactivada y sin «Preparar» la vista es la de 0.2.1.
+  const [automatica, setAutomatica] = useState(false)
+  useEffect(() => {
+    let activo = true
+    void Promise.resolve(window.shinobi.config?.obtener?.()).then(
+      (c) => activo && setAutomatica(c?.preparacion?.automatica === true),
+      () => undefined
+    )
+    return () => {
+      activo = false
+    }
+  }, [])
 
   const trabajo: TrabajoIpc | undefined = useMemo(() => {
     const suyos = vivos.trabajos.filter((t) => t.cancionId === id && t.paso === 'fuente')
@@ -317,6 +348,15 @@ export function Progreso({ id }: { id: string }) {
       activo = false
     }
   }, [id, modoVigente])
+  // Posición en la tanda de la cola de preparación (2 o más canciones).
+  const tanda = useTandaPreparacion()
+  const cola = useMemo(() => {
+    if (!tanda || tanda.total < 2) return null
+    const i = tanda.canciones.findIndex((c) => c.id === id)
+    const c = tanda.canciones[i]
+    if (!c || c.resultado !== null) return null
+    return { k: i + 1, n: tanda.total, pausada: tanda.pausada && tanda.motivoPausa === null }
+  }, [tanda, id])
   const modelo = useMemo(
     () =>
       datos.estado === 'listo' && datos.cancion && fuentePaso
@@ -340,6 +380,7 @@ export function Progreso({ id }: { id: string }) {
             aceptandoRapido: aceptando,
             errorRapido,
             hayLetra: contarLineas(datos.cancion.letra) > 0,
+            cola,
             pisoSep:
               pisoSep.current?.clave === `${trabajoSep?.id}|${pSep?.fase}`
                 ? pisoSep.current.valor
@@ -347,6 +388,7 @@ export function Progreso({ id }: { id: string }) {
           })
         : null,
     [
+      cola,
       datos,
       fuentePaso,
       sepPaso,
@@ -555,14 +597,65 @@ export function Progreso({ id }: { id: string }) {
     </Boton>
   )
 
+  const registro = datos.cancion?.preparacion
+  const hayPrep =
+    datos.cancion !== null &&
+    (!!registro || (automatica && contarLineas(datos.cancion.letra) === 0))
+  const resultado = hayPrep ? resultadoDe(resumen?.estadoPreparacion) : null
+  const filasPrep = hayPrep
+    ? filasPreparacion(registro, {
+        tieneLetra: !!datos.cancion && contarLineas(datos.cancion.letra) > 0,
+        desfaseCorregidoMs: datos.cancion?.letra?.desfase_corregido_ms ?? null,
+        separando: resumen?.pasos?.separacion.estado !== 'completado',
+        sinMarca: datos.cancion?.letra?.intacta !== true
+      })
+    : []
+  const bloquePrep =
+    hayPrep &&
+    (bloque?.tipo === 'mientras' || bloque?.tipo === 'terminado' || bloque?.tipo === 'ninguno')
+  // Se anuncia el inicio de cada subpaso nuevo y el resultado final (docs/ux/04 · Feature 5).
+  const textoResultado = resultado
+    ? {
+        revisar: PREP.r1.titulo,
+        elige: PREP.r2.titulo,
+        sinLetra: PREP.r3.titulo,
+        instrumental: PREP.r3.tituloInstrumental,
+        pendiente: PREP.r4.titulo
+      }[resultado]
+    : null
+  const textoPasoPrep = filasPrep.find((f) => f.icono === 'curso')?.texto ?? null
+  const anuncioPrep = textoResultado ?? textoPasoPrep
+  useEffect(() => {
+    if (anuncioPrep) setAnunciado(anuncioPrep)
+  }, [anuncioPrep])
+  const volverPrimario = (
+    <Boton variante="primario" data-foco-inicial onClick={() => ir({ tipo: 'biblioteca' })}>
+      {TEXTO.botonBiblioteca}
+    </Boton>
+  )
+  // Con resultado (R1–R4) el título es el del resultado, sin subtítulo, y el bloque va bajo el título (F5-P13).
+  const resultadoVisible = bloquePrep && resultado ? resultado : null
+  // Al llegar el resultado el primario del bloque recibe el foco (F5-P13) si no lo tenía otro campo de fuera.
+  useEffect(() => {
+    if (!resultadoVisible) return
+    const activo = document.activeElement
+    if (activo && activo !== document.body && !raiz.current?.contains(activo)) return
+    raiz.current?.querySelector<HTMLElement>('[data-resultado] [data-foco-inicial]')?.focus()
+  }, [resultadoVisible])
   const mostrarModelo = !!trabajoSep || aceptando !== null || fuentePaso?.estado === 'completado'
   return (
     <section ref={raiz} className={estilos.vista} aria-labelledby="titulo-vista">
       <CabeceraCancion resumen={resumen} actual="progreso" />
       <h1 id="titulo-vista" className="t-titulo" tabIndex={-1}>
-        {TEXTO.titulo}
+        {hayPrep
+          ? resultadoVisible
+            ? PREP.tituloFin[resultadoVisible]
+            : PREP.titulo
+          : TEXTO.titulo}
       </h1>
-      <p className={estilos.subtitulo}>{TEXTO.subtitulo}</p>
+      {!resultadoVisible && (
+        <p className={estilos.subtitulo}>{hayPrep ? PREP.subtitulo : TEXTO.subtitulo}</p>
+      )}
 
       {datos.estado === 'error' && (
         <>
@@ -575,8 +668,44 @@ export function Progreso({ id }: { id: string }) {
 
       {modelo && (
         <>
+          {resultadoVisible && resultado && (
+            <BloqueResultado
+              resultado={resultado}
+              registro={registro}
+              artistaVacio={(resumen?.artista ?? '').trim() === ''}
+              desfaseCorregidoMs={datos.cancion?.letra?.desfase_corregido_ms ?? null}
+              atributos={bloqueo.atributos}
+              candado={bloqueo.candado}
+              alRevisar={() =>
+                bloqueo.intentar(() => ir({ tipo: 'cancion', id, paso: 'editor', revisar: true }))
+              }
+              alProbar={() => probar(id, titulo)}
+              alAbrirLetra={() => irAPasoLetra(false)}
+              alReintentar={() =>
+                void window.shinobi.preparacion
+                  .preparar([id])
+                  .catch((err) => avisarFallo('No se pudo repetir la búsqueda.', err))
+              }
+              volver={
+                <Boton variante="secundario" onClick={() => ir({ tipo: 'biblioteca' })}>
+                  {TEXTO.botonBiblioteca}
+                </Boton>
+              }
+            />
+          )}
+
+          {cola?.pausada && (trabajo?.estado === 'en_cola' || trabajoSep?.estado === 'en_cola') && (
+            <div>
+              <Boton
+                variante="secundario"
+                onClick={() => void window.shinobi.preparacion.reanudar().catch(() => undefined)}
+              >
+                Reanudar la cola
+              </Boton>
+            </div>
+          )}
           <ul className={estilos.filas} aria-label="Subpasos">
-            {modelo.filas.map((f) => (
+            {[...modelo.filas, ...filasPrep].map((f) => (
               <FilaSubpaso
                 key={f.id}
                 fila={f}
@@ -593,7 +722,26 @@ export function Progreso({ id }: { id: string }) {
             ))}
           </ul>
 
-          {bloque?.tipo === 'mientras' && (
+          {bloquePrep && (
+            <>
+              {bloque?.tipo === 'terminado' && <Escucha cancionId={id} />}
+              {!resultado && (
+                <div className={estilos.acciones}>
+                  {volverPrimario}
+                  <Boton
+                    variante="secundario"
+                    {...bloqueo.atributos(PREP.botonVerLetra)}
+                    onClick={() => irAPasoLetra(false)}
+                  >
+                    {bloqueo.candado}
+                    {PREP.botonVerLetra}
+                  </Boton>
+                </div>
+              )}
+            </>
+          )}
+
+          {!hayPrep && bloque?.tipo === 'mientras' && (
             <div className={estilos.mientras}>
               <h2 className="t-subtitulo">{TEXTO.mientrasTitulo}</h2>
               <p>{TEXTO.mientrasCuerpo}</p>
@@ -612,7 +760,7 @@ export function Progreso({ id }: { id: string }) {
             </div>
           )}
 
-          {bloque?.tipo === 'terminado' && (
+          {!hayPrep && bloque?.tipo === 'terminado' && (
             <>
               <Escucha cancionId={id} />
               <div className={estilos.acciones}>
@@ -807,6 +955,7 @@ export function Progreso({ id }: { id: string }) {
         {anunciado}
       </div>
 
+      {marcarRevision.dialogos}
       <DialogoCancelarDescarga
         abierto={confirmando}
         titulo={titulo}

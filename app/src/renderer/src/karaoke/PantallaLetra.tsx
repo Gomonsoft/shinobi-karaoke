@@ -1,13 +1,40 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties
+} from 'react'
+import { LoaderCircle, Users } from 'lucide-react'
 import { normalizarEstilo, type Estilo } from '@shared/estilo'
-import type { Letra } from '@shared/letra'
+import { palabrasVisibles, type Letra } from '@shared/letra'
+import {
+  insignia,
+  parteDe,
+  textoEnPantalla,
+  tieneReparto,
+  variosCantantes,
+  type InicialParte,
+  type Parte
+} from '@shared/reparto'
 import { Icono } from '../componentes/Icono'
 import estilosComponentes from '../componentes/componentes.module.css'
 import { recorteBarrido } from './barrido'
-import { fondoCss, fondoCssEn, variablesEstilo } from './estiloCss'
-import { fotogramaEn, fotogramaEstatico, type FotogramaLetra, type LineaRender } from './render'
+import { suelosDeOpacidad, sueloDeContraste } from './contraste'
+import { colorDeLinea, colorDeTextoListo, fondoCss, fondoCssEn, variablesEstilo } from './estiloCss'
+import { disponerBloque } from './pantalla'
+import { type FotogramaLetra, type LineaEnPantalla, type LineaRender } from './render'
 import { useMovimientoReducido } from './useMovimientoReducido'
+import {
+  fotogramasDeZonas,
+  fotogramasEstaticosDeZonas,
+  geometriaDeZonas,
+  pantallaDeZona,
+  zonasDeLetra,
+  type ZonaLetra
+} from './zonas'
 import estilos from './pantallaLetra.module.css'
 
 export interface PantallaLetraProps {
@@ -32,27 +59,45 @@ export interface PantallaLetraProps {
   fondoEstatico?: boolean
   /**
    * Exportación (ADR 0019 §2): pinta el instante de audio indicado, sin `requestAnimationFrame`
-   * ni reloj. Fondo, barrido y entradas dependen solo de este valor y de la letra.
+   * ni reloj. Fondo, barrido y puestos dependen solo de este valor y de la letra.
    */
   tiempoFijoMs?: number
-  /** `reducido` quita las animaciones de entrada y el fondo en movimiento. Por defecto, el del sistema. */
+  /** `reducido` quita los cambios de puesto y el fondo en movimiento. Por defecto, el del sistema. */
   movimiento?: 'completo' | 'reducido'
   /**
    * Se llama una vez al empezar (o al buscar dentro de) un hueco con indicadores de 2 s o más,
    * con los segundos que faltan. El contenedor lo anuncia en su región `aria-live`.
    */
   alAnunciarEspera?: (segundos: number) => void
+  /**
+   * Subrayado de lo ya cantado en la línea activa (ADR 0022 §5). Lo resuelve quien toma la
+   * instantánea; ausente = lo que diga el estilo. Sin barrido (Letra lista) nunca se dibuja.
+   */
+  subrayado?: boolean
+  /**
+   * Vista previa del editor: el fotograma del reproductor reducido, con S = 7,5 % del alto del
+   * lienzo y sin el mínimo de 32 px de las pantallas reales (spec 06 · Feature 1).
+   */
+  vistaPrevia?: boolean
 }
 
-type MedicionBarrido = { capa: HTMLElement; cajas: DOMRectReadOnly[] }
+type MedicionBarrido = { capa: HTMLElement; cajas: DOMRectReadOnly[]; margen: number }
 
-function medirBarridos(nodo: HTMLElement | null): MedicionBarrido[] {
+/** Separación (0,12) y grosor (0,07) del subrayado, en em: lo que el recorte debe dejar por debajo. */
+const MARGEN_SUBRAYADO_EM = 0.19
+type Rol = 'unica' | 'saliente' | 'entrante'
+
+const claveNodo = (zona: string, id: string, rol: Rol): string => `${zona}:${id}:${rol}`
+const claveIndicador = (zona: string, cual: 'barra' | 'cuenta' | 'puntos' | 'fila'): string =>
+  `${zona}#${cual}`
+
+function medirBarridos(nodo: HTMLElement | null, subrayar: boolean): MedicionBarrido[] {
   return Array.from(nodo?.querySelectorAll<HTMLElement>('[data-barrido]') ?? [], (barrido) => {
     const capa = barrido.lastElementChild as HTMLElement
     const rango = document.createRange()
     rango.selectNodeContents(barrido.firstChild!)
     const origen = capa.getBoundingClientRect()
-    // Tanto el rango como la capa incluyen la transformación de entrada de la línea.
+    // Tanto el rango como la capa incluyen la transformación del puesto de la línea.
     const escala = origen.width / parseFloat(getComputedStyle(capa).width)
     const cajas =
       escala > 0 && Number.isFinite(escala) && rango.getClientRects
@@ -69,15 +114,46 @@ function medirBarridos(nodo: HTMLElement | null): MedicionBarrido[] {
                 )
             )
         : []
-    return { capa, cajas }
+    const tamano = parseFloat(getComputedStyle(capa).fontSize)
+    const margen = subrayar && Number.isFinite(tamano) ? MARGEN_SUBRAYADO_EM * tamano : 0
+    return { capa, cajas, margen }
   })
 }
 
+/**
+ * Pone la insignia a la izquierda de la primera caja de renglón del texto (ADR 0029 §4). La posición
+ * va en px sin transformar, relativa al nodo, como las cajas del barrido.
+ */
+function colocarInsignia(nodo: HTMLElement): void {
+  const marca = nodo.querySelector<HTMLElement>('[data-insignia]')
+  const texto = nodo.querySelector<HTMLElement>('[data-texto]')
+  if (!marca || !texto) return
+  const rango = document.createRange()
+  rango.selectNodeContents(texto)
+  // jsdom no mide: sin cajas no hay posición (la insignia se queda en 0).
+  const primera = Array.from(rango.getClientRects ? rango.getClientRects() : [])
+    .filter((caja) => caja.width > 0)
+    .sort((a, b) => a.top - b.top)[0]
+  const origen = nodo.getBoundingClientRect()
+  const escala = origen.width / nodo.offsetWidth
+  if (!primera || !(escala > 0) || !Number.isFinite(escala)) return
+  marca.style.setProperty('--k-insignia-x', `${(primera.left - origen.left) / escala}px`)
+}
+
 function aplicarProgreso(barridos: readonly MedicionBarrido[], linea: LineaRender): void {
-  barridos.forEach(({ capa, cajas }, i) => {
+  barridos.forEach(({ capa, cajas, margen }, i) => {
     const progreso = linea.palabras ? (linea.palabras[i]?.progreso ?? 0) : linea.progreso
-    capa.style.clipPath = recorteBarrido(cajas, progreso)
+    capa.style.clipPath = recorteBarrido(cajas, progreso, { margenInferior: margen })
   })
+}
+
+/** Reduce la línea por longitud (1 → 0,75) hasta que quepa en dos renglones. Siempre a tamaño `S`. */
+function ajustarReduccion(nodo: HTMLElement): void {
+  for (const escala of [1, 0.95, 0.9, 0.85, 0.8, 0.75]) {
+    nodo.style.setProperty('--k-reduccion', String(escala))
+    const altoLinea = parseFloat(getComputedStyle(nodo).lineHeight)
+    if (nodo.scrollHeight <= altoLinea * 2 + 1) break
+  }
 }
 
 function Barrido({ texto, barrido }: { texto: string; barrido: boolean }) {
@@ -92,14 +168,60 @@ function Barrido({ texto, barrido }: { texto: string; barrido: boolean }) {
   )
 }
 
-function TextoActual({ linea, barrido }: { linea: LineaRender; barrido: boolean }) {
-  if (!barrido || !linea.palabras) return <Barrido texto={linea.texto} barrido={barrido} />
-  return linea.palabras.map((palabra, i) => (
+/** La estructura (palabra a palabra o línea entera) depende de la letra, no del instante. */
+function TextoLinea({
+  texto,
+  palabras,
+  barrido,
+  parentesis = false
+}: {
+  texto: string
+  palabras: string[] | null
+  barrido: boolean
+  /** Coro: «(» con la primera palabra y «)» con la última; el texto guardado no los trae. */
+  parentesis?: boolean
+}) {
+  if (!barrido || !palabras) {
+    return <Barrido texto={parentesis ? `(${texto})` : texto} barrido={barrido} />
+  }
+  return palabras.map((palabra, i) => (
     <span key={i} className={estilos.palabra}>
       {i > 0 && ' '}
-      <Barrido texto={palabra.texto} barrido />
+      <Barrido
+        texto={`${parentesis && i === 0 ? '(' : ''}${palabra}${parentesis && i === palabras.length - 1 ? ')' : ''}`}
+        barrido
+      />
     </span>
   ))
+}
+
+function Insignia({ valor }: { valor: InicialParte }) {
+  return (
+    <span className={estilos.insignia} data-insignia="" aria-hidden="true">
+      {valor.tipo === 'texto' ? valor.texto : <Users size="1em" strokeWidth={2} />}
+    </span>
+  )
+}
+
+const copiasDe = (f: FotogramaLetra, l: LineaEnPantalla): Rol[] =>
+  f.cambio?.tipo === 'fundido' && l.desde !== l.hacia ? ['saliente', 'entrante'] : ['unica']
+
+/**
+ * Lo que obliga a React a volver a renderizar: el conjunto de nodos y los indicadores. Todo lo
+ * demás (posición, escala, opacidad, barrido) se escribe por fotograma sin pasar por React.
+ */
+function claveDe(fotogramas: readonly FotogramaLetra[]): string {
+  return fotogramas
+    .map((f) => {
+      if (f.titulo) return 'titulo'
+      const copias = f.lineas
+        .filter((l) => copiasDe(f, l).length > 1)
+        .map((l) => l.id)
+        .join(',')
+      const e = f.espera
+      return `${f.claveLineas}~${copias}|${e ? `${e.clave}:${e.puntos}:${e.cuenta}:${e.barra}` : ''}`
+    })
+    .join('/')
 }
 
 export function PantallaLetra({
@@ -121,49 +243,246 @@ export function PantallaLetra({
   fondoEstatico = false,
   tiempoFijoMs,
   movimiento,
-  alAnunciarEspera
+  alAnunciarEspera,
+  subrayado,
+  vistaPrevia = false
 }: PantallaLetraProps) {
   const raiz = useRef<HTMLDivElement>(null)
-  const nodoActual = useRef<HTMLDivElement>(null)
-  const barridos = useRef<MedicionBarrido[]>([])
-  const ultimaLinea = useRef<LineaRender | null>(null)
-  const nodoSiguiente = useRef<HTMLDivElement>(null)
+  const nodos = useRef(new Map<string, HTMLElement>())
+  const medidos = useRef(new WeakMap<HTMLElement, MedicionBarrido[]>())
+  const alturas = useRef<Record<string, number>>({})
+  const modelo = useRef<FotogramaLetra[] | null>(null)
+  const pintarRef = useRef<() => void>(() => undefined)
+  const medirRef = useRef<(todo: boolean) => void>(() => undefined)
+  const observador = useRef<ResizeObserver | null>(null)
+  const observados = useRef(new WeakSet<HTMLElement>())
   const reducidoSistema = useMovimientoReducido()
   const reducido = movimiento ? movimiento === 'reducido' : reducidoSistema
   const fijo = tiempoFijoMs !== undefined
   const anunciada = useRef<string | null>(null)
   const anunciar = useRef(alAnunciarEspera)
-  const fondo = useMemo(() => normalizarEstilo(estilo).fondo, [estilo])
+  const normalizado = useMemo(() => normalizarEstilo(estilo), [estilo])
+  const { fondo, pantalla } = normalizado
+  // Una vez por estilo resuelto, nunca por fotograma (ADR 0022 §4).
+  const suelos = useMemo(() => suelosDeOpacidad(estilo, pantalla), [estilo, pantalla])
+  const zonas = useMemo<ZonaLetra[]>(
+    () => zonasDeLetra(letra, { zonas: pantalla.zonas, duracionMs }),
+    [letra, pantalla.zonas, duracionMs]
+  )
+  // Una zona atenuada (55 %) no baja de 3:1 con el fondo (ADR 0029 §4 bis): el suelo de sus dos puestos.
+  const suelosZona = useMemo(() => {
+    const suelo = sueloDeContraste(estilo)
+    return { 0: suelo, 1: suelo }
+  }, [estilo])
+  const lineasPorId = useMemo(
+    () => new Map(letra.lineas.map((linea) => [linea.id, linea])),
+    [letra.lineas]
+  )
+  // Reparto (ADR 0029 §4): solo con 2 o más cantantes o coros; sin él, nada de esto existe.
+  const reparto = useMemo(() => {
+    if (!tieneReparto(letra)) return null
+    const partes = new Map<string, Parte>()
+    const insignias = new Map<string, InicialParte>()
+    const parentesis = new Set<string>()
+    for (const linea of letra.lineas) {
+      if (linea.tipo !== 'linea') continue
+      const parte = parteDe(linea, letra)
+      partes.set(linea.id, parte)
+      const marca = insignia(letra, parte)
+      if (marca) insignias.set(linea.id, marca)
+      if (textoEnPantalla(linea).parentesis) parentesis.add(linea.id)
+    }
+    return { partes, insignias, parentesis, varios: variosCantantes(letra) }
+  }, [letra])
+  const variosCant = !!reparto?.varios
   const animarFondo =
     fondo.tipo === 'degradado' && !!fondo.movimiento && !fondoEstatico && !reducido
-  const [vivo, setVivo] = useState<{ fotograma: FotogramaLetra; sube: boolean } | null>(null)
-  const fotogramaVivo = reproduciendo
-    ? (vivo?.fotograma ??
-      fotogramaEn(letra, -letra.offset_ms, {
-        duracionMs,
-        titulo,
-        artista,
-        espera: estilo.espera
-      }))
-    : fotogramaEstatico(letra, idEstatico)
-  // Con tiempo fijo no hay reloj ni estado: el fotograma sale solo del instante (exportación).
-  const fotograma = fijo
-    ? fotogramaEn(letra, tiempoFijoMs - letra.offset_ms, {
-        duracionMs,
-        titulo,
-        artista,
-        espera: estilo.espera
-      })
-    : fotogramaVivo
-  const { actual, siguiente, espera } = fotograma
+  const espera = estilo.espera
+  const subrayar = barrido && (subrayado ?? !!estilo.letra.subrayar_cantado)
+
+  const calcular = (tAudioMs: number): FotogramaLetra[] =>
+    fotogramasDeZonas(zonas, letra, tAudioMs - letra.offset_ms, {
+      duracionMs,
+      titulo,
+      artista,
+      espera,
+      pantalla,
+      movimiento: reducido ? 'reducido' : 'completo'
+    })
+
+  // El fotograma en vivo es de las zonas con las que se calculó: si estas cambian (otro «Varias voces», un
+  // cantante o un coro nuevos) sin que haya pasado aún un fotograma, no vale (I-1: leía `fotogramas[i]` de más y
+  // desmontaba el editor entero).
+  const [vivo, setVivo] = useState<{ zonas: ZonaLetra[]; fotogramas: FotogramaLetra[] } | null>(
+    null
+  )
+  const fotogramas: FotogramaLetra[] = fijo
+    ? calcular(tiempoFijoMs)
+    : reproduciendo
+      ? vivo?.zonas === zonas
+        ? vivo.fotogramas
+        : calcular(obtenerTiempoAudio?.() ?? 0)
+      : fotogramasEstaticosDeZonas(zonas, letra, idEstatico, pantalla)
+  const vivoConReloj = reproduciendo && !!obtenerTiempoAudio && !fijo
+  const claveRender = claveDe(fotogramas)
+  const enTitulo = fotogramas.length > 0 && fotogramas.every((f) => f.titulo)
 
   useLayoutEffect(() => {
     anunciar.current = alAnunciarEspera
   })
 
+  // Geometría: se recalcula el bloque de cada zona con las alturas medidas y se escribe en los nodos.
   useLayoutEffect(() => {
-    ultimaLinea.current = actual
-  }, [actual])
+    pintarRef.current = () => {
+      const contenedor = raiz.current
+      const actual = modelo.current
+      if (!contenedor || !actual) return
+      const alto = contenedor.clientHeight
+      const escribir = (
+        clave: string,
+        valores: Record<string, string>
+      ): HTMLElement | undefined => {
+        const nodo = nodos.current.get(clave)
+        for (const [nombre, valor] of Object.entries(valores))
+          nodo?.style.setProperty(nombre, valor)
+        return nodo
+      }
+      const geometria = geometriaDeZonas(zonas, {
+        altoPx: alto,
+        minimoTamanoPx: vistaPrevia ? 0 : undefined
+      })
+      zonas.forEach((zona, i) => {
+        const f = actual[i]
+        if (!f || f.titulo) return
+        const g = geometria[zona.id]!
+        const bloque = disponerBloque({
+          lineas: f.lineas,
+          alturas: alturas.current,
+          pantalla: pantallaDeZona(pantalla, zona),
+          region: g.region,
+          altoPantallaPx: alto,
+          minimoTamanoPx: vistaPrevia ? 0 : undefined,
+          cambio: f.cambio,
+          aparicion: f.aparicion,
+          suelos: zona.modo === 'bloque' ? suelos : suelosZona,
+          tamanoPx: g.tamanoPx,
+          ancla: g.ancla,
+          limites: g.limites,
+          opacidadZona: f.opacidadZona
+        })
+        const porId = new Map(f.lineas.map((l) => [l.id, l]))
+        for (const disp of bloque.lineas) {
+          for (const copia of disp.copias) {
+            const nodo = escribir(claveNodo(zona.id, disp.id, copia.rol), {
+              '--k-y': `${copia.centroY}px`,
+              '--k-escala': String(copia.escala),
+              '--k-opacidad': String(copia.dibujar ? copia.opacidad : 0),
+              '--k-gris': String(copia.mezclaGris)
+            })
+            const linea = porId.get(disp.id)
+            // El subrayado solo existe en la activa (al empezar o al terminar un cambio).
+            if (nodo && linea) nodo.dataset.activa = String(linea.desde === 0 || linea.hacia === 0)
+            const barridos = nodo && medidos.current.get(nodo)
+            if (linea && barridos) aplicarProgreso(barridos, linea)
+          }
+        }
+        const aparece = String(f.esperaAparicion)
+        const { barraY, cuentaY, puntosY, filaY } = bloque.indicadores
+        const fraccion = String(f.espera?.fraccion ?? 0)
+        escribir(claveIndicador(zona.id, 'barra'), {
+          '--k-y': `${barraY}px`,
+          '--k-fraccion': fraccion,
+          opacity: aparece
+        })
+        if (filaY !== undefined) {
+          escribir(claveIndicador(zona.id, 'fila'), {
+            '--k-y': `${filaY}px`,
+            '--k-escala-zona': String(g.escala)
+          })
+        }
+        escribir(claveIndicador(zona.id, 'cuenta'), { '--k-y': `${cuentaY}px` })
+        escribir(claveIndicador(zona.id, 'puntos'), { '--k-y': `${puntosY}px`, opacity: aparece })
+      })
+      const hueco = actual[zonaEsperaDe(actual)]?.espera
+      if (hueco) contenedor.style.setProperty('--k-fraccion', String(hueco.fraccion))
+      else contenedor.style.removeProperty('--k-fraccion')
+    }
+  })
+
+  // Medición estable: una vez por línea y tamaño (ADR 0022 §3). `todo` la repite en todos los nodos.
+  useLayoutEffect(() => {
+    medirRef.current = (todo) => {
+      // El tamaño de cada zona va antes de medir: la altura de una línea es la suya a `S_zona`.
+      const contenedor = raiz.current
+      if (contenedor && zonas.some((z) => z.modo === 'parte')) {
+        const g = geometriaDeZonas(zonas, {
+          altoPx: contenedor.clientHeight,
+          minimoTamanoPx: vistaPrevia ? 0 : undefined
+        })
+        nodos.current.forEach((nodo) => {
+          const zona = nodo.dataset.zona
+          if (nodo.dataset.linea !== undefined && zona && g[zona])
+            nodo.style.setProperty('--k-escala-zona', String(g[zona].escala))
+        })
+      }
+      nodos.current.forEach((nodo) => {
+        if (nodo.dataset.linea === undefined) return
+        if (!todo && medidos.current.has(nodo)) return
+        ajustarReduccion(nodo)
+        colocarInsignia(nodo)
+        medidos.current.set(nodo, medirBarridos(nodo, subrayar))
+        if (nodo.offsetHeight > 0) alturas.current[nodo.dataset.linea] = nodo.offsetHeight
+      })
+      if (todo) pintarRef.current()
+    }
+  })
+
+  useLayoutEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return
+    const mirador = new ResizeObserver(() => medirRef.current(true))
+    observador.current = mirador
+    observados.current = new WeakSet()
+    mirador.observe(raiz.current!)
+    return () => {
+      mirador.disconnect()
+      observador.current = null
+    }
+  }, [])
+
+  // Letra, fuente o cuenta distintas: se mide de nuevo todo. Si solo cambian los nodos, solo los nuevos.
+  useLayoutEffect(() => {
+    medirRef.current(true)
+    const fuentes = document.fonts
+    const volver = () => medirRef.current(true)
+    fuentes?.addEventListener('loadingdone', volver)
+    fuentes?.addEventListener('loadingerror', volver)
+    return () => {
+      fuentes?.removeEventListener('loadingdone', volver)
+      fuentes?.removeEventListener('loadingerror', volver)
+    }
+  }, [letra.lineas, letra.partes, estilo.letra.fuente.familia, cuentaAtras, subrayar])
+
+  useLayoutEffect(() => {
+    medirRef.current(false)
+    nodos.current.forEach((nodo) => {
+      if (nodo.dataset.linea === undefined || observados.current.has(nodo)) return
+      observados.current.add(nodo)
+      observador.current?.observe(nodo)
+    })
+  }, [claveRender])
+
+  // Con reloj en marcha el bucle manda sobre `modelo`; en el resto, el de este render.
+  useLayoutEffect(() => {
+    if (!vivoConReloj || !modelo.current) modelo.current = fotogramas
+    pintarRef.current()
+    // Tiempo fijo (exportación): en el mismo paso síncrono se escriben también fondo y hueco.
+    if (tiempoFijoMs !== undefined) {
+      raiz.current!.style.setProperty(
+        '--k-fondo',
+        fondoCssEn(fondo, tiempoFijoMs, { estatico: reducido || fondoEstatico })
+      )
+    }
+  })
 
   useEffect(() => {
     if (!obtenerTiempoAudio || fijo) return
@@ -197,25 +516,24 @@ export function PantallaLetra({
       }
     }
     let raf: number
-    let anterior: FotogramaLetra | null = null
+    let anterior: string | null = null
     const avanzar = () => {
       const tAudio = obtenerTiempoAudio()
       pintarFondo(tAudio)
-      const f = fotogramaEn(letra, tAudio - letra.offset_ms, {
+      const f = fotogramasDeZonas(zonas, letra, tAudio - letra.offset_ms, {
         duracionMs,
         titulo,
         artista,
-        espera: estilo.espera
+        espera,
+        pantalla,
+        movimiento: reducido ? 'reducido' : 'completo'
       })
-      if (
-        f.claveTransicion !== anterior?.claveTransicion ||
-        f.espera?.puntos !== anterior.espera?.puntos ||
-        f.espera?.cuenta !== anterior.espera?.cuenta
-      ) {
-        const sube = f.actual !== null && f.actual.id === anterior?.siguiente?.id
-        setVivo({ fotograma: f, sube })
-      }
-      const hueco = f.espera
+      modelo.current = f
+      const clave = claveDe(f)
+      if (clave !== anterior) setVivo({ zonas, fotogramas: f })
+      else pintarRef.current()
+      anterior = clave
+      const hueco = f[zonaEsperaDe(f)]?.espera
       if (!hueco) anunciada.current = null
       else if (hueco.clave !== anunciada.current) {
         anunciada.current = hueco.clave
@@ -223,12 +541,6 @@ export function PantallaLetra({
           anunciar.current?.(Math.round(hueco.restanteMs / 1000))
         }
       }
-      if (hueco) raiz.current?.style.setProperty('--k-fraccion', String(hueco.fraccion))
-      if (f.actual && nodoActual.current?.dataset.linea === f.actual.id) {
-        ultimaLinea.current = f.actual
-        aplicarProgreso(barridos.current, f.actual)
-      }
-      anterior = f
       raf = requestAnimationFrame(avanzar)
     }
     raf = requestAnimationFrame(avanzar)
@@ -240,76 +552,44 @@ export function PantallaLetra({
     reproduciendo,
     obtenerTiempoAudio,
     letra,
+    letra.offset_ms,
+    zonas,
     duracionMs,
     titulo,
     artista,
-    estilo.espera,
+    espera,
+    pantalla,
+    reducido,
     fondo,
     animarFondo,
     fijo
   ])
 
-  useLayoutEffect(() => {
-    const contenedor = raiz.current!
-    const actual = nodoActual.current
-    const siguiente = nodoSiguiente.current
-    function ajustar(nodo: HTMLElement | null): void {
-      if (!nodo) return
-      for (const escala of [1, 0.95, 0.9, 0.85, 0.8, 0.75]) {
-        nodo.style.setProperty('--escala', String(escala))
-        const altoLinea = parseFloat(getComputedStyle(nodo).lineHeight)
-        if (nodo.scrollHeight <= altoLinea * 2 + 1) break
-      }
-    }
-    function medir(): void {
-      ajustar(actual)
-      ajustar(siguiente)
-      barridos.current = medirBarridos(actual)
-      if (ultimaLinea.current) aplicarProgreso(barridos.current, ultimaLinea.current)
-      contenedor.style.setProperty('--actual-mitad', actual ? `${actual.offsetHeight / 2}px` : '')
-    }
-    medir()
-    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
-    observador?.observe(contenedor)
-    if (actual) observador?.observe(actual)
-    const fuentes = document.fonts
-    fuentes?.addEventListener('loadingdone', medir)
-    fuentes?.addEventListener('loadingerror', medir)
-    return () => {
-      observador?.disconnect()
-      fuentes?.removeEventListener('loadingdone', medir)
-      fuentes?.removeEventListener('loadingerror', medir)
-    }
-  }, [actual, siguiente, estilo.letra.fuente.familia, cuentaAtras, fotograma.claveTransicion])
-
-  // Tiempo fijo (exportación): en el mismo paso síncrono se escriben fondo, hueco y barrido.
-  useLayoutEffect(() => {
-    if (tiempoFijoMs === undefined) return
-    const nodo = raiz.current!
-    nodo.style.setProperty(
-      '--k-fondo',
-      fondoCssEn(fondo, tiempoFijoMs, { estatico: reducido || fondoEstatico })
-    )
-    // Sin hueco, la variable se quita: no puede quedar el valor de un fotograma anterior.
-    if (espera) nodo.style.setProperty('--k-fraccion', String(espera.fraccion))
-    else nodo.style.removeProperty('--k-fraccion')
-    if (actual) aplicarProgreso(barridos.current, actual)
-  })
+  const registrar = (clave: string) => (nodo: HTMLElement | null) => {
+    if (nodo) nodos.current.set(clave, nodo)
+    else nodos.current.delete(clave)
+  }
 
   return (
     <div
       ref={raiz}
       aria-hidden="true"
-      className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} foco-doble ${className ?? ''}`}
+      className={`${estilos.raiz} ${barrido ? '' : estilos.sinBarrido} ${subrayar ? estilos.subrayado : ''} ${vistaPrevia ? estilos.vistaPrevia : ''} foco-doble ${className ?? ''}`}
       data-movimiento={reducido ? 'reducido' : 'completo'}
-      style={variablesEstilo(estilo) as CSSProperties}
+      style={
+        {
+          ...variablesEstilo(estilo),
+          // Con varios cantantes la insignia necesita sitio: 80 % en lugar de 88 % (ADR 0029 §4).
+          ...(variosCant && { '--k-ancho-linea': '80%' })
+        } as CSSProperties
+      }
     >
       {cuentaAtras ? (
         <div className={estilos.cuenta}>{cuentaAtras}</div>
-      ) : fotograma.titulo ? (
+      ) : enTitulo ? (
         <div className={estilos.titulo}>
-          <div>{fotograma.titulo.titulo}</div>
-          <div className={estilos.artista}>{fotograma.titulo.artista}</div>
+          <div>{fotogramas[0]!.titulo!.titulo}</div>
+          <div className={estilos.artista}>{fotogramas[0]!.titulo!.artista}</div>
           {avisoTitulo && (
             <div className={estilos.pildoraTitulo}>
               <span className={estilos.iconoAviso}>⚠</span> {avisoTitulo}
@@ -323,55 +603,142 @@ export function PantallaLetra({
           )}
         </div>
       ) : (
-        <>
-          {espera?.barra && (
+        zonas.map((zona, i) => {
+          const f = fotogramas[i]!
+          const hueco = f.espera
+          // Los indicadores toman el color de la línea que viene (en 0.2.2, el de lo ya cantado).
+          const colorListo = barrido
+            ? undefined
+            : colorDeTextoListo(f.siguiente, estilo, reparto?.partes, variosCant)
+          const colorIndicadores = barrido
+            ? ({
+                '--k-indicador': colorDeLinea(f.siguiente, estilo, reparto?.partes)
+              } as CSSProperties)
+            : colorListo
+              ? ({ '--k-indicador': colorListo } as CSSProperties)
+              : undefined
+          const barraEl = hueco?.barra && (
             <div
+              ref={registrar(claveIndicador(zona.id, 'barra'))}
               className={estilos.barra}
               data-indicador="barra"
               aria-hidden="true"
-              style={{ '--k-fraccion': espera.fraccion } as CSSProperties}
+              style={colorIndicadores}
             >
               <div className={estilos.relleno} data-relleno="" />
             </div>
-          )}
-          {espera?.cuenta && (
+          )
+          const cuentaEl = hueco?.cuenta && (
             <div
-              key={espera.cuenta}
+              key={hueco.cuenta}
+              ref={registrar(claveIndicador(zona.id, 'cuenta'))}
               className={`${estilos.cuentaEspera} ${reducido ? '' : estilos.entraNumero}`}
               data-indicador="cuenta"
               {...(fijo && {
-                'data-nace-ms': espera.destinoMs - espera.cuenta * 1000 + letra.offset_ms
+                'data-nace-ms': hueco.destinoMs - hueco.cuenta * 1000 + letra.offset_ms
               })}
               aria-hidden="true"
+              style={colorIndicadores}
             >
-              {espera.cuenta}
+              {hueco.cuenta}
             </div>
-          )}
-          {actual && (
+          )
+          const puntosEl = hueco && hueco.puntos > 0 && (
             <div
-              key={actual.id}
-              ref={nodoActual}
-              data-linea={actual.id}
-              className={`${estilos.actual} ${(fijo || (reproduciendo && vivo?.sube)) && !reducido ? estilos.transicion : ''}`}
-              {...(fijo && {
-                'data-nace-ms':
-                  (letra.lineas.find((l) => l.id === actual.id)?.inicio_ms ?? 0) + letra.offset_ms
-              })}
+              ref={registrar(claveIndicador(zona.id, 'puntos'))}
+              className={estilos.puntos}
+              data-indicador="puntos"
+              style={colorIndicadores}
             >
-              <TextoActual linea={actual} barrido={barrido} />
+              {'●'.repeat(hueco.puntos)}
             </div>
-          )}
-          {siguiente && (
-            <div ref={nodoSiguiente} className={estilos.siguiente}>
-              {(fotograma.espera?.puntos ?? 0) > 0 && (
-                <div className={estilos.puntos}>{'●'.repeat(fotograma.espera?.puntos ?? 0)}</div>
+          )
+          // En una zona los indicadores van en una fila sobre la próxima línea (spec 07): puntos · barra · cuenta.
+          const activos = [hueco && hueco.puntos > 0, hueco?.barra, hueco?.cuenta].filter(Boolean)
+          const indicadores =
+            zona.modo === 'parte' ? (
+              activos.length > 0 && (
+                <div
+                  ref={registrar(claveIndicador(zona.id, 'fila'))}
+                  className={estilos.filaEspera}
+                  data-fila-espera={activos.length}
+                >
+                  {puntosEl}
+                  {barraEl}
+                  {cuentaEl}
+                </div>
+              )
+            ) : (
+              <>
+                {barraEl}
+                {cuentaEl}
+                {puntosEl}
+              </>
+            )
+          return (
+            <Fragment key={zona.id}>
+              {indicadores}
+              {f.lineas.flatMap((linea) =>
+                copiasDe(f, linea).map((rol) => {
+                  const clave = claveNodo(zona.id, linea.id, rol)
+                  const original = lineasPorId.get(linea.id)
+                  const marca = reparto?.insignias.get(linea.id)
+                  const colorTexto = barrido
+                    ? undefined
+                    : colorDeTextoListo(linea, estilo, reparto?.partes, variosCant)
+                  const contenido = (
+                    <TextoLinea
+                      texto={linea.texto}
+                      palabras={
+                        (original && palabrasVisibles(original)?.map((p) => p.texto)) || null
+                      }
+                      barrido={barrido}
+                      parentesis={reparto?.parentesis.has(linea.id)}
+                    />
+                  )
+                  return (
+                    <div
+                      key={clave}
+                      ref={registrar(clave)}
+                      data-linea={linea.id}
+                      data-zona={zona.id}
+                      data-copia={rol}
+                      className={estilos.linea}
+                      style={
+                        {
+                          '--k-resaltado-linea': colorDeLinea(linea, estilo, reparto?.partes),
+                          ...(colorTexto && { '--k-color-linea': colorTexto })
+                        } as CSSProperties
+                      }
+                    >
+                      {marca ? (
+                        <>
+                          <Insignia valor={marca} />
+                          <span data-texto="">{contenido}</span>
+                        </>
+                      ) : (
+                        contenido
+                      )}
+                    </div>
+                  )
+                })
               )}
-              <span>{siguiente.texto}</span>
-            </div>
-          )}
-        </>
+            </Fragment>
+          )
+        })
       )}
-      {etiqueta && <span className={estilos.etiqueta}>{etiqueta}</span>}
+      {etiqueta && (
+        <span className={estilos.etiqueta} aria-hidden="true">
+          {etiqueta}
+        </span>
+      )}
     </div>
+  )
+}
+
+function zonaEsperaDe(fotogramas: readonly FotogramaLetra[]): number {
+  return Math.max(
+    0,
+    fotogramas.findIndex((f) => f.espera)
   )
 }

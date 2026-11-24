@@ -187,3 +187,71 @@
     grid-template-columns: 1fr;
   }
 }
+
+.compTenue {
+  color: var(--texto-3);
+}
+
+.compInfo {
+  color: var(--info);
+}
+
+.bloqueComp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  margin-bottom: var(--e-3);
+  padding-bottom: var(--e-3);
+  border-bottom: 1px solid var(--borde);
+  font-size: 0.875rem;
+}
+
+.bloqueComp p,
+.bloqueComp ul {
+  margin: 0;
+}
+
+.bloqueComp ul {
+  padding-left: var(--e-4);
+}
+
+.bloqueCompTitulo {
+  font-weight: 600;
+}
+
+.lineaComp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+
+.lineaCompFila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.soloLector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.conIcono {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--e-2);
+}
+
+.iconoFila {
+  flex: none;
+  margin-top: 2px;
+}
+
+.compAviso {
+  color: var(--aviso);
+}

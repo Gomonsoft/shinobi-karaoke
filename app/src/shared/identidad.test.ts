@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   claveAlbum,
   claveAlbumTexto,
+  claveFlexible,
   claveArtista,
   claveNombreTema,
   claveTexto,
@@ -83,5 +84,23 @@ describe('nombres de tema', () => {
   it('normaliza y compara por clave', () => {
     expect(normalizarNombreTema('  Noche   ninja ')).toBe('Noche ninja')
     expect(claveNombreTema('Noche Ninja')).toBe(claveNombreTema('noche  ninja'))
+  })
+})
+
+describe('claveFlexible', () => {
+  it('une puntos suspensivos, tildes, puntuación y espacios', () => {
+    expect(claveFlexible('Querido…')).toBe(claveFlexible('Querido...'))
+    expect(claveFlexible('Canción')).toBe(claveFlexible('Cancion'))
+    expect(claveFlexible('“Disco” – Uno')).toBe(claveFlexible('Disco - Uno'))
+    expect(claveFlexible('Jarabe de Palo')).toBe(claveFlexible('JARABE  DE PALO'))
+  })
+  it('no confunde textos distintos ni funde caracteres no latinos', () => {
+    expect(claveFlexible('Queen')).not.toBe(claveFlexible('Queens'))
+    expect(claveFlexible('か')).not.toBe(claveFlexible('が'))
+  })
+  it('vacío o solo puntuación da null', () => {
+    expect(claveFlexible('')).toBeNull()
+    expect(claveFlexible('...')).toBeNull()
+    expect(claveFlexible(null)).toBeNull()
   })
 })

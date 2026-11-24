@@ -32,7 +32,8 @@ const resumen = (id: string, miniatura: string | null = null): ResumenCancion =>
     temaNombre: null,
     neutra: false,
     alHeredar: { procedencia: 'incluido', temaId: null, temaNombre: null },
-    procedenciaEspera: 'propio'
+    procedenciaEspera: 'propio',
+    procedenciaPantalla: 'propio'
   },
   miniatura,
   pasos: null,
@@ -73,6 +74,10 @@ function crearDeps() {
     biblioteca: {
       listar: vi.fn(() => [resumen('abc', '/ruta/absoluta/miniatura.jpg'), resumen('d')]),
       obtener: vi.fn<(id: string) => Cancion | null>(() => null),
+      valoresDatos: vi.fn(() => ({
+        artistas: [{ valor: 'Yo', clave: 'yo', canciones: 2 }],
+        albumes: []
+      })),
       actualizar: vi.fn((id: string) => Promise.resolve(resumen(id))),
       guardarApariencia: vi.fn((id: string) => Promise.resolve(resumen(id))),
       resolver: vi.fn(() => ({
@@ -86,6 +91,7 @@ function crearDeps() {
       marcarLista: vi.fn((id: string) => Promise.resolve(resumen(id))),
       comprobarPistas: vi.fn((id: string) => Promise.resolve(resumen(id))),
       volverABorrador: vi.fn((id: string) => Promise.resolve(resumen(id))),
+      marcarPreparacionRevisada: vi.fn((id: string) => Promise.resolve(resumen(id))),
       eliminar: vi.fn(() => Promise.resolve()),
       mostrarEnCarpeta: vi.fn(() => Promise.resolve()),
       suscribir: vi.fn((cb: (e: EventoCancion) => void) => {
@@ -253,6 +259,84 @@ describe('manejadores IPC', () => {
     expect(JSON.stringify(lista)).not.toContain('/ruta/absoluta')
   })
 
+  it('los canales de 0.2.2 responden «no implementado», validan argumentos y exigen la principal', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    // Alineación: aún sin servicio (feature 10).
+    const canal = CANALES.alineacion.estado
+    expect(await m[canal]([])).toEqual({
+      ok: false,
+      error: { codigo: 'ERROR_INTERNO', mensaje: 'No implementado.' }
+    })
+    expect(await m[canal](['sobra'])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    const r = await m[canal]([], { rol: 'secundaria', sender: null })
+    expect(r).toMatchObject({ ok: false })
+    expect(r.ok === false && r.error.codigo).not.toBe('ERROR_INTERNO')
+    expect(await m[CANALES.alineacion.estado]([])).toMatchObject({
+      error: { codigo: 'ERROR_INTERNO' }
+    })
+  })
+
+  it('la preparación (0308): previsualizar, preparar y cancelar llaman al servicio con ids válidos', async () => {
+    const { deps } = crearDeps()
+    const preparacion = {
+      previsualizar: vi.fn(() => [{ id: 'a', aplica: true, pasos: ['buscando_letra'] }]),
+      preparar: vi.fn(() => ({ aceptadas: ['a'], omitidas: [] })),
+      cancelar: vi.fn(() => Promise.resolve())
+    }
+    const m = crearManejadores({ ...deps, preparacion })
+    expect(await m[CANALES.preparacion.previsualizar]([{ ids: ['a'] }])).toMatchObject({
+      ok: true,
+      valor: [{ id: 'a', aplica: true }]
+    })
+    expect(await m[CANALES.preparacion.preparar]([{ ids: ['a'] }])).toMatchObject({
+      ok: true,
+      valor: { aceptadas: ['a'], omitidas: [] }
+    })
+    expect(await m[CANALES.preparacion.cancelar]([{ id: 'a' }])).toMatchObject({ ok: true })
+    expect(preparacion.preparar).toHaveBeenCalledWith(['a'], undefined)
+    // Segundo argumento opcional: la confirmación de fines sin marca (0380); otras claves no valen.
+    await m[CANALES.preparacion.preparar]([{ ids: ['a'] }, { finesSinMarca: true }])
+    expect(preparacion.preparar).toHaveBeenLastCalledWith(['a'], { finesSinMarca: true })
+    expect(await m[CANALES.preparacion.preparar]([{ ids: ['a'] }, { otra: true }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    expect(preparacion.cancelar).toHaveBeenCalledWith('a')
+    expect(await m[CANALES.preparacion.preparar]([{ ids: [] }])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+    expect(preparacion.preparar).toHaveBeenCalledTimes(2)
+  })
+
+  it('la cola de preparación (0309): pausar, reanudar, reintentarFallidas y tanda', async () => {
+    const { deps } = crearDeps()
+    const cola = {
+      pausar: vi.fn(() => Promise.resolve()),
+      reanudar: vi.fn(() => Promise.resolve()),
+      reintentarFallidas: vi.fn(() => Promise.resolve()),
+      estado: vi.fn(() => null)
+    }
+    const m = crearManejadores({ ...deps, colaPreparacion: cola })
+    for (const [canal, f] of [
+      [CANALES.preparacion.pausar, cola.pausar],
+      [CANALES.preparacion.reanudar, cola.reanudar],
+      [CANALES.preparacion.reintentarFallidas, cola.reintentarFallidas]
+    ] as const) {
+      expect(await m[canal]([])).toMatchObject({ ok: true })
+      expect(f).toHaveBeenCalledOnce()
+    }
+    expect(await m[CANALES.preparacion.tanda]([])).toEqual({ ok: true, valor: null })
+    expect(await m[CANALES.preparacion.pausar](['sobra'])).toMatchObject({
+      ok: false,
+      error: { codigo: 'ARGUMENTOS_NO_VALIDOS' }
+    })
+  })
+
   it('rechaza argumentos inválidos sin llamar al servicio', async () => {
     const { deps } = crearDeps()
     const m = crearManejadores(deps)
@@ -383,15 +467,41 @@ describe('manejadores IPC', () => {
     expect((await m[CANALES.trabajos.cancelar]([])).ok).toBe(false)
   })
 
-  it('actualizarMetadatos solo pasa metadatos al servicio', async () => {
+  it('actualizarMetadatos solo pasa metadatos al servicio y marca como del usuario lo que cambia', async () => {
     const { deps } = crearDeps()
+    deps.biblioteca.obtener.mockReturnValue(lista())
+    const previos = lista().metadatos
     const r = await crearManejadores(deps)[CANALES.biblioteca.actualizarMetadatos]([
       'abc',
-      { titulo: 'Nuevo', artista: 'Yo', album: null }
+      { titulo: 'Nuevo', artista: previos.artista, album: previos.album }
     ])
     expect(r.ok).toBe(true)
     expect(deps.biblioteca.actualizar).toHaveBeenCalledWith('abc', {
-      metadatos: { titulo: 'Nuevo', artista: 'Yo', album: null }
+      metadatos: {
+        titulo: 'Nuevo',
+        artista: previos.artista,
+        album: previos.album,
+        origen: { titulo: 'usuario' }
+      }
+    })
+  })
+
+  it('letras.candidatoPorId pide el texto de un candidato guardado', async () => {
+    const { deps } = crearDeps()
+    const candidatoPorId = vi.fn(() => Promise.resolve(null))
+    deps.letras = { candidatoPorId } as never
+    const m = crearManejadores(deps)[CANALES.letras.candidatoPorId]
+    expect(await m([{ cancionId: 'abc', lrclibId: 9001 }])).toEqual({ ok: true, valor: null })
+    expect(candidatoPorId).toHaveBeenCalledWith('abc', 9001)
+    expect((await m([{ cancionId: 'abc', lrclibId: 0 }])).ok).toBe(false)
+  })
+
+  it('biblioteca.valoresDatos devuelve artistas y álbumes del índice', async () => {
+    const { deps } = crearDeps()
+    const r = await crearManejadores(deps)[CANALES.biblioteca.valoresDatos]([])
+    expect(r).toEqual({
+      ok: true,
+      valor: { artistas: [{ valor: 'Yo', clave: 'yo', canciones: 2 }], albumes: [] }
     })
   })
 
@@ -437,6 +547,14 @@ describe('manejadores IPC', () => {
     const cfg = await m[CANALES.config.actualizar]([{ reproductor: { silenciado: true } }])
     expect(cfg).toMatchObject({ ok: false, error: { codigo: 'ARGUMENTOS_NO_VALIDOS' } })
     expect(JSON.stringify(cfg)).not.toContain('detalle interno')
+  })
+
+  it('marcarPreparacionRevisada cierra el aviso de la preparación y devuelve el resumen', async () => {
+    const { deps } = crearDeps()
+    const m = crearManejadores(deps)
+    const r = await m[CANALES.biblioteca.marcarPreparacionRevisada](['x'])
+    expect(r.ok).toBe(true)
+    expect(deps.biblioteca.marcarPreparacionRevisada).toHaveBeenCalledWith('x')
   })
 
   it('abrirEnlace llama al navegador solo con enlaces de la lista blanca', async () => {
@@ -565,7 +683,12 @@ describe('runtime y cierre (0036)', () => {
     expect(canales.filter((c) => /modelo|rapido|descarg/i.test(c))).toEqual([
       CANALES.runtime.aceptarYUsarRapido
     ])
-    expect(Object.keys(CONTRATO).filter((c) => /modelo|descargar/i.test(c))).toEqual([])
+    // Los modelos de alineación (ADR 0028, 0.2.2) tienen su propio grupo de canales.
+    expect(
+      Object.keys(CONTRATO).filter(
+        (c) => !c.startsWith('alineacion:') && /modelo|descargar/i.test(c)
+      )
+    ).toEqual([])
   })
 
   it('rechaza argumentos inválidos sin llamar al servicio', async () => {

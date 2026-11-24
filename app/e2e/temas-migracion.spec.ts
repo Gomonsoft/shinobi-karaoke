@@ -88,8 +88,11 @@ test.describe('migración de una biblioteca de esquema 1', () => {
             .click()
           const capa = v.getByRole('dialog', { name: 'Reproductor de «Lista con palabras»' })
           await expect(capa).toBeVisible({ timeout: 15_000 })
-          await v.keyboard.press('Escape')
-          await expect(capa).toHaveCount(0)
+          // Con la CPU ocupada la primera Esc llega antes de que el reproductor atienda el teclado: se repite.
+          await expect(async () => {
+            await v.keyboard.press('Escape')
+            await expect(capa).toHaveCount(0, { timeout: 2_000 })
+          }).toPass({ timeout: 20_000, intervals: [0] })
 
           const despues = hashesCanciones(datos)
           const distintos = Object.keys(antes).filter((id) => antes[id] !== despues[id])

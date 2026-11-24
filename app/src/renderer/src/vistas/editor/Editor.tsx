@@ -8,9 +8,10 @@ import {
   useRef,
   useState
 } from 'react'
-import { Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
+import { Flag, Maximize, PanelRightClose, Pause, Play, X } from 'lucide-react'
 import type { Cancion } from '@shared/cancion'
 import type { Config } from '@shared/config'
+import { conSubrayadoDelEquipo } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { preferenciasPanelesPredeterminadas } from '@shared/paneles'
 import { MARGEN_ESCUCHA_LINEA_MS, tramoEscuchaLinea } from '@shared/escucha'
@@ -34,7 +35,6 @@ import { Icono } from '../../componentes/Icono'
 import { Tooltip } from '../../componentes/Tooltip'
 import { mostrarToast } from '../../componentes/gestorToasts'
 import { PantallaLetra } from '../../karaoke/PantallaLetra'
-import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { evaluarContraste } from '../../karaoke/contraste'
 import type { Velocidad } from '../../karaoke/motorAudio'
 import type { Pista } from '../../karaoke/pistas'
@@ -45,6 +45,8 @@ import { useTrabajosVivos } from '../../trabajos/useTrabajos'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { Reproductor, type PropsReproductor } from '../reproductor/Reproductor'
 import { BannerSincronizar } from './BannerSincronizar'
+import { bloquePreparacion } from './preparacion/modelo'
+import { EP } from './preparacion/textos'
 import { BotonLayout, type NombreBotonLayout } from './BotonLayout'
 import {
   avisarBorradorAlSalir,
@@ -56,20 +58,63 @@ import { BotonCambiarModalidad, BotonLetraLista } from './BotonLetraLista'
 import { DialogoLetraLista, guardarOmitirAviso } from './DialogoLetraLista'
 import { LL } from './textosLetraLista'
 import { useExportarDesdeEditor } from './useExportarDesdeEditor'
+import { exportarLetras } from '../biblioteca/paquete/letras'
+import { LRC } from '../biblioteca/paquete/textos'
+import { EXP_GUARDADO, EXP_MENU } from '../../exportacion/dialogo/textosProgreso'
+import {
+  carriles as carrilesDe,
+  cantantesDe,
+  lineasEntreParentesis,
+  parteDe,
+  recuentoPorParte,
+  tieneReparto,
+  vozEnCoros as nivelVozEnCoros,
+  type Parte
+} from '@shared/reparto'
+import { useSesion } from '../../sesion/ProveedorSesion'
+import { ChipParte } from './ChipParte'
 import { DialogoAtajos } from './DialogoAtajos'
 import { ListaLineas } from './ListaLineas'
+import { MenuQuienCanta, type AnclaMenu } from './MenuQuienCanta'
+import {
+  C,
+  etiquetaParte,
+  lineasQueSuenanALaVez,
+  P,
+  parteComun,
+  parteVecina,
+  ranuraDe,
+  solapeAlAsignar
+} from './partes'
+import { VozEnCoros } from './VozEnCoros'
+import { useRellenoBarra } from './useRellenoBarra'
+import { envolvente, tramosCoro } from '@shared/coros'
+import { solapadas } from '@shared/solapes'
 import { seleccionDeDisco } from './aparienciaVista'
 import { PanelEstilo } from './PanelEstilo'
+import { partesEnUso } from './estilo/partesEnUso'
 import { PanelFunciones, type EstadoCancion } from './PanelFunciones'
 import { EditorPreciso, type EditorPrecisoApi, type CambiosPreciso } from './preciso/EditorPreciso'
 import type { Area, Geometria } from '../../componentes/VentanaFlotante'
 import { PanelSincronia, limiteDeCampo, mostrarAyudaBluetooth, textoLimite } from './PanelSincronia'
 import { PistaSincronia } from './PistaSincronia'
 import { useControlEspera, useEjemploEspera, esperaVisible } from './estilo/useEspera'
+import { crearEjemploPantalla } from './estilo/ejemploPantalla'
+import { pantallaVisible, reemplazosDeDisco } from './estilo/pantallaEfectiva'
+import { useControlPantalla } from './estilo/usePantalla'
+import { T_PANTALLA } from './estilo/textosPantalla'
+import { useMovimientoReducido } from '../../karaoke/useMovimientoReducido'
 import { BotonAjustarSilencios } from './silencios/BotonAjustarSilencios'
+import { DialogosComprobar } from './comprobar/Dialogos'
+import { K as KC } from './comprobar/textos'
+import { useComprobarLetra } from './comprobar/useComprobarLetra'
 import { DialogoAjustarSilencios } from './silencios/DialogoAjustarSilencios'
 import { motivosSilencios, useAjustarSilencios } from './silencios/useAjustarSilencios'
-import { LienzoPicosVoz, PistaOndaVoz, usePicosVoz } from './PistaOndaVoz'
+import { LienzoPicosVoz, PistaOndaVoz, textoEstadoOnda, usePicosVoz } from './PistaOndaVoz'
+import { contarImportantes } from '@shared/dudosas'
+import { MarcaPanel, TarjetaRevision } from './revision/TarjetaRevision'
+import { R as RV, motivoPrincipal } from './revision/textos'
+import { useRevision } from './revision/useRevision'
 import { recortarIntervalo, crearVistaLineaTiempo, type IntervaloTiempo } from './lineaTiempo'
 import { RielLista } from './RielLista'
 import { RielPanel } from './RielPanel'
@@ -100,6 +145,7 @@ import { useGuardadoEditor, type SecuenciaResumen } from './useGuardadoEditor'
 import { useTemaEditor } from './useTemaEditor'
 import { usePreferenciasPaneles } from './usePreferenciasPaneles'
 import { useSincronizarAlRitmo } from './useSincronizarAlRitmo'
+import { esperarSalvamento, hayFalloDeInterfaz } from '../../soporte/salvamento'
 import estilos from './editor.module.css'
 
 type Carga = { cancion: Cancion; config: Config; resumen: ResumenCancionIpc }
@@ -119,6 +165,9 @@ function vecinaConInicio(letra: Letra, id: string, sentido: -1 | 1): string | nu
   }
   return null
 }
+
+/** Lo máximo que el banner espera al veredicto de la feature 4 antes de decidirse sin él (spec 06 · F5-E6). */
+export const ESPERA_COMPROBACION_BANNER_MS = 500
 
 export function desdeLinea(letra: Letra, id: string): number {
   const indice = letra.lineas.findIndex((l) => l.id === id)
@@ -203,7 +252,12 @@ export function Editor({ id }: { id: string }) {
       bajaTemas()
       const token = sesion.current
       sesion.current = null
-      if (token) void api.letras.cerrarEdicion(token).catch(() => undefined)
+      if (token) {
+        const cerrar = () => void api.letras.cerrarEdicion(token).catch(() => undefined)
+        // Tras un fallo de dibujo, el lote pendiente aún necesita la sesión: se cierra al terminar de enviarlo.
+        if (hayFalloDeInterfaz()) void esperarSalvamento().finally(cerrar)
+        else cerrar()
+      }
     }
   }, [id, leerVisita, resumenes])
 
@@ -234,6 +288,7 @@ export function Editor({ id }: { id: string }) {
       pestanaInicial={
         vista.tipo === 'cancion' && vista.pestana === 'estilo' ? 'estilo' : 'sincronia'
       }
+      revisarAlEntrar={vista.tipo === 'cancion' && vista.revisar === true}
     />
   )
 }
@@ -247,6 +302,8 @@ interface PropsActiva {
   refrescarResumen(): Promise<void>
   /** Al volver de Ajustes se reabre en la pestaña Estilo (0175, A10). */
   pestanaInicial: Pestana
+  /** «Revisar» de la Biblioteca, el progreso o un toast: empieza el recorrido al entrar (feature 11). */
+  revisarAlEntrar?: boolean
 }
 
 type EscuchaEditor = { pista: Pista; velocidad: Velocidad }
@@ -262,7 +319,8 @@ function EditorActivo({
   obtenerSesion,
   resumenes,
   refrescarResumen,
-  pestanaInicial
+  pestanaInicial,
+  revisarAlEntrar = false
 }: PropsActiva) {
   const { cancion, config } = carga
   const { id, metadatos } = cancion
@@ -276,7 +334,7 @@ function EditorActivo({
         apariencia: {
           seleccion: seleccionDeDisco(cancion.apariencia),
           estilo: cancion.estilo,
-          reemplazos: cancion.apariencia?.reemplazos ?? null
+          reemplazos: reemplazosDeDisco(cancion.apariencia)
         }
       },
       seleccionarInicial(letraInicial)
@@ -300,8 +358,15 @@ function EditorActivo({
   const [fondoDetenido, setFondoDetenido] = useState(false)
   const movimientoReducido = useMovimientoReducido()
   const hayMovimiento = estilo.fondo.tipo === 'degradado' && Boolean(estilo.fondo.movimiento)
-  const contraste = useMemo(() => evaluarContraste(estilo), [estilo])
+  // Con reparto, el contraste también mira los colores de las partes en uso (0.2.3 · 0347).
+  const contraste = useMemo(() => evaluarContraste(estilo, partesEnUso(letra)), [estilo, letra])
   const [dialogoAtajos, setDialogoAtajos] = useState(false)
+  // Reparto (0.2.3): menú «¿Quién canta?» abierto, con su ancla y el elemento al que vuelve el foco.
+  const { edicionBloqueada } = useSesion()
+  const [menuPartes, setMenuPartes] = useState<{
+    ancla: AnclaMenu
+    origen: HTMLElement | null
+  } | null>(null)
   // Editor preciso de línea (fase 9): línea abierta, su borrador vivo y quién lo abrió.
   const [precisoId, setPrecisoId] = useState<string | null>(null)
   const [borradorPreciso, setBorradorPreciso] = useState<BorradorLinea | null>(null)
@@ -326,6 +391,10 @@ function EditorActivo({
     return !antes
   }, [])
   const tituloEstado = useRef<HTMLHeadingElement>(null)
+  // Preparación automática (spec 06 · Feature 5): «Ver qué hicimos» lleva el foco a su título.
+  const tituloPrep = useRef<HTMLHeadingElement>(null)
+  const enfocarTituloPrep = useRef(false)
+  const [cerradoPrep, setCerradoPrep] = useState(false)
   const enfocarTituloEstado = useRef(false)
   const enfocarFunciones = useRef(false)
   const [dialogoBorrador, setDialogoBorrador] = useState(false)
@@ -337,7 +406,7 @@ function EditorActivo({
     resumen.estado === 'borrador' ? 'borrador' : esLetraLista ? 'letra_lista' : 'lista'
   // En Letra lista, «resaltado» y «diferencia» solo afectan al editor: no encienden el punto (LL7).
   const avisosPestana = contraste.avisos.filter(
-    (a) => !(esLetraLista && !tema.editando && a !== 'letra')
+    (a) => !(esLetraLista && !tema.editando && a !== 'letra' && a !== 'parte')
   )
   const [prueba, setPrueba] = useState<Prueba | null>(null)
   const abrirPendiente = useRef<AbortController | null>(null)
@@ -349,6 +418,7 @@ function EditorActivo({
   )
   const refSync = useRef<HTMLButtonElement>(null)
   const refRaiz = useRef<HTMLDivElement>(null)
+  const refPanel = useRellenoBarra()
   const refCabecera = useRef<HTMLElement>(null)
   const refDock = useRef<HTMLDivElement>(null)
   const refTransporte = useRef<HTMLDivElement>(null)
@@ -357,7 +427,15 @@ function EditorActivo({
   const { preferencias, actualizar: actualizarPaneles } = usePreferenciasPaneles(
     config.editor.paneles
   )
+  // «Juntar carriles»: preferencia de todas las canciones (`config.editor.carriles_juntos`).
+  const [carrilesJuntosPref, setCarrilesJuntosPref] = useState(config.editor.carriles_juntos)
+  const carrilesVisibles = useMemo(() => carrilesDe(letra), [letra])
+  const [franjasArrastre, setFranjasArrastre] = useState(0)
+  const cancelarArrastreRegion = useRef<(() => boolean) | null>(null)
   const distribucion = useDistribucion({
+    carriles: carrilesVisibles.length,
+    carrilesJuntos: carrilesJuntosPref,
+    franjasArrastre,
     raiz: refRaiz,
     cabecera: refCabecera,
     dock: refDock,
@@ -380,7 +458,13 @@ function EditorActivo({
   const bucle = useRef<{ previa: number; sonaba: boolean | null } | null>(null)
   const cancelarEntradaBucle = useRef<(() => void) | null>(null)
   const volumen = useVolumenCompartido(config.reproductor)
+  // Voz en los coros (ADR 0030): la envolvente de los coros de la letra; el motor deriva «Instrumental con coros».
+  const coros = useMemo(
+    () => envolvente(tramosCoro(letra, metadatos.duracion_ms), nivelVozEnCoros(letra)),
+    [letra, metadatos.duracion_ms]
+  )
   const { motor, estado: audio } = useMotorAudio({
+    coros,
     cancionId: id,
     gananciaDb: cancion.fuente.ganancia_db ?? 0,
     volumen: volumen.silenciado ? 0 : volumen.volumen
@@ -445,7 +529,38 @@ function EditorActivo({
 
   const [escucharAjustes, setEscucharAjustes] = useState(true)
   const [ayudaBluetooth, setAyudaBluetooth] = useState(false)
-  const escucha = useMemo(() => (motor ? new EscuchaComprobacion(motor) : null), [motor])
+  // Modo de la vista previa en pausa (spec 06 · I-2): `cabezal` dibuja el fotograma del reproductor
+  // en la posición del cabezal; `linea`, la línea seleccionada. Las escuchas que vuelven solas
+  // (comprobación, «▶ Palabra») dejan el modo que había antes.
+  const [modoPrevia, setModoPrevia] = useState<'cabezal' | 'linea'>('linea')
+  const modoRef = useRef(modoPrevia)
+  useEffect(() => {
+    modoRef.current = modoPrevia
+  })
+  const modoGuardado = useRef<'cabezal' | 'linea' | null>(null)
+  const [enEscucha, setEnEscucha] = useState<'activa' | 'fin' | null>(null)
+  const eventosEscucha = useMemo(
+    () => ({
+      alIniciar: () => {
+        modoGuardado.current ??= modoRef.current
+        setEnEscucha((e) => e ?? 'activa')
+      },
+      alTerminar: () => {
+        if (modoGuardado.current) setModoPrevia(modoGuardado.current)
+        modoGuardado.current = null
+        setEnEscucha((e) => (e ? 'fin' : e))
+      },
+      alCancelar: () => {
+        modoGuardado.current = null
+        setEnEscucha(null)
+      }
+    }),
+    []
+  )
+  const escucha = useMemo(
+    () => (motor ? new EscuchaComprobacion(motor, undefined, eventosEscucha) : null),
+    [motor, eventosEscucha]
+  )
   useEffect(() => () => escucha?.cancelar(), [escucha])
 
   useEffect(() => {
@@ -499,6 +614,40 @@ function EditorActivo({
   }, [edicion.sync.activo])
 
   const sonando = audio?.sonando ?? false
+  // Al pausar (o al acabar solo un tramo) manda el cabezal; seleccionar o editar la línea en pausa, la línea.
+  const letraEditada = edicion.actual.letra
+  const [vista, setVista] = useState({
+    sonando,
+    sync: edicion.sync.activo,
+    prueba: prueba !== null,
+    seleccion: edicion.seleccion,
+    letra: letraEditada
+  })
+  if (
+    enEscucha === 'fin' ||
+    vista.sonando !== sonando ||
+    vista.sync !== edicion.sync.activo ||
+    vista.prueba !== (prueba !== null) ||
+    vista.seleccion !== edicion.seleccion ||
+    vista.letra !== letraEditada
+  ) {
+    let modo = modoPrevia
+    if (!sonando && (vista.seleccion !== edicion.seleccion || vista.letra !== letraEditada)) {
+      modo = 'linea'
+    }
+    if (vista.sonando && !sonando && enEscucha === null) modo = 'cabezal'
+    if (vista.sync && !edicion.sync.activo) modo = 'cabezal'
+    if (vista.prueba && prueba === null) modo = 'cabezal'
+    if (enEscucha === 'fin') setEnEscucha(null)
+    if (modo !== modoPrevia && enEscucha !== 'fin') setModoPrevia(modo)
+    setVista({
+      sonando,
+      sync: edicion.sync.activo,
+      prueba: prueba !== null,
+      seleccion: edicion.seleccion,
+      letra: letraEditada
+    })
+  }
   const duracionMs = audio?.duracionMs ?? metadatos.duracion_ms
   const obtenerTiempoAudio = useCallback(() => motor?.posicionMs() ?? 0, [motor])
   const sync = useSincronizarAlRitmo({
@@ -532,10 +681,98 @@ function EditorActivo({
         : null,
     borradorTema: tema.editando
   })
+  // «Comprobar la letra con la voz» (feature 4): sobre la letra en memoria y los picos de voz.
+  const comprobar = useComprobarLetra({
+    cancionId: id,
+    letra,
+    duracionMs,
+    separacionDisponible: separacion.disponible,
+    picos:
+      pestana !== 'estilo' && cuentas.total > 0 && prueba === null && separacion.disponible
+        ? picos.estado.estado
+        : null,
+    calcularAlEntrar: resumen.estado === 'borrador' && !edicion.sync.activo,
+    despachar,
+    anunciar,
+    irATramo: (tramo) => {
+      cerrarAplicandoPreciso()
+      const linea =
+        tramo.lineaId ??
+        letra.lineas.find(
+          (l) =>
+            l.tipo === 'linea' &&
+            l.inicio_ms !== null &&
+            tiempoMostrado(l.inicio_ms, letra.offset_ms) >= tramo.desdeMs &&
+            tiempoMostrado(l.inicio_ms, letra.offset_ms) < tramo.hastaMs
+        )?.id
+      if (linea) seleccionar(linea)
+      buscar(tramo.desdeMs)
+      setRevisionSeleccion((n) => n + 1)
+    }
+  })
+  // Revisión guiada (feature 11): líneas dudosas en vivo, marcas y recorrido.
+  const [zoomRevision, setZoomRevision] = useState(0)
+  const revision = useRevision({
+    cancionId: id,
+    letra,
+    duracionMs,
+    espera: esperaDelPublico,
+    version: edicion.version,
+    seleccion: edicion.seleccion,
+    separacionDisponible: separacion.disponible,
+    picos: picos.estado,
+    autoescucha: config.editor.revision_autoescucha,
+    despachar,
+    anunciar,
+    irALinea: (linea) => {
+      seleccionar(linea)
+      setPestana('sincronia')
+      setZoomRevision((n) => n + 1)
+    },
+    escucharTramo: (linea) => escucharTramoLinea(linea),
+    bloqueado: edicion.sync.activo || Boolean(audio?.error)
+  })
+  // Entrar con la revisión pedida: se espera a leer la voz (o a saber que no la habrá) para que el
+  // primer recorrido ya traiga todos los motivos; con 0 pendientes la tarjeta lo dice (F11-B2).
+  const revisionPedida = useRef(revisarAlEntrar)
+  const hayVozOSinElla =
+    revision.voz !== null || !separacion.disponible || picos.estado.estado === 'error'
+  useEffect(() => {
+    if (!revisionPedida.current || !hayVozOSinElla) return
+    revisionPedida.current = false
+    revision.empezar()
+    if (resumen.preparacion && !resumen.preparacion.revisada) cerrarBannerPreparacion()
+    // Solo reacciona a que la voz esté lista.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayVozOSinElla])
+  // Motivo principal de cada línea pendiente (tooltip, nombre accesible y banderita).
+  const marcasRevision = useMemo(
+    () => new Map(revision.pendientes.map((d) => [d.id, motivoPrincipal(d)])),
+    [revision.pendientes]
+  )
+  // «Marcar como lista» con pendientes: la primera pulsación de la visita pregunta (F11-E12).
+  const avisoRevisionVisto = useRef(false)
+  const primeraPulsacionRevision = useCallback(() => {
+    const antes = avisoRevisionVisto.current
+    avisoRevisionVisto.current = true
+    return !antes
+  }, [])
+  const avisoPendientes = {
+    pendientes: contarImportantes(revision.pendientes),
+    primeraPulsacion: primeraPulsacionRevision,
+    revisarAhora: revision.empezar
+  }
   // Indicadores de espera (0212): la vista previa y la prueba ven la espera efectiva de la canción.
+  // Letra en pantalla (0291) y subrayado de este equipo (0293): lo ve también la prueba a pantalla completa.
+  const pantallaDelPublico = pantallaVisible(tema.control.vista, apariencia, estilo)
+  const subrayadoDelEquipo = config.reproductor.subrayar_cantado
   const estiloPrevia = useMemo(
-    () => ({ ...estilo, espera: esperaDelPublico }),
-    [estilo, esperaDelPublico]
+    () =>
+      conSubrayadoDelEquipo(
+        { ...estilo, espera: esperaDelPublico, pantalla: pantallaDelPublico },
+        subrayadoDelEquipo
+      ),
+    [estilo, esperaDelPublico, pantallaDelPublico, subrayadoDelEquipo]
   )
   const ejemploEspera = useEjemploEspera({
     letra,
@@ -545,6 +782,17 @@ function EditorActivo({
     pausar: () => alternar(),
     anunciar
   })
+  // «Ver un ejemplo» de Letra en pantalla: solo hay un ejemplo a la vez (el de espera se detiene).
+  const ejemploPantalla = useEjemploEspera({
+    letra,
+    seleccion: edicion.seleccion,
+    espera: esperaDelPublico,
+    sonando,
+    pausar: () => alternar(),
+    anunciar,
+    crear: crearEjemploPantalla,
+    anuncios: { inicio: T_PANTALLA.anuncio.ejemploInicio, fin: T_PANTALLA.anuncio.ejemploFin }
+  })
   const controlEspera = useControlEspera({
     vista: tema.control.vista,
     resumen,
@@ -553,8 +801,59 @@ function EditorActivo({
     despachar,
     anunciar,
     ejemploActivo: ejemploEspera.ejemplo !== null,
-    alternarEjemplo: ejemploEspera.alternar
+    alternarEjemplo: () => {
+      if (ejemploPantalla.ejemplo) ejemploPantalla.alternar()
+      ejemploEspera.alternar()
+    }
   })
+  const controlPantalla = useControlPantalla({
+    vista: tema.control.vista,
+    resumen,
+    apariencia,
+    estilo,
+    despachar,
+    anunciar,
+    ejemploActivo: ejemploPantalla.ejemplo !== null,
+    alternarEjemplo: () => {
+      if (ejemploEspera.ejemplo) ejemploEspera.alternar()
+      ejemploPantalla.alternar()
+    },
+    sonando,
+    movimientoReducido,
+    reparto: tieneReparto(letra),
+    solapes: tieneReparto(letra) && solapadas(letra, duracionMs).size > 0
+  })
+  // Con un ejemplo en marcha, la vista previa enseña el suyo (el de pantalla, sin indicadores).
+  const ejemploVista = ejemploEspera.ejemplo ? ejemploEspera : ejemploPantalla
+  // En pausa: modo Cabezal (el fotograma del reproductor en el cabezal) o Línea (la seleccionada).
+  const hayTiempos = letra.lineas.some((l) => l.inicio_ms !== null)
+  const modoVista = hayTiempos ? modoPrevia : 'linea'
+  const fotogramaCabezal = !sonando && !ejemploVista.ejemplo && modoVista === 'cabezal'
+  const etiquetaLinea =
+    !sonando && modoVista === 'linea' && edicion.seleccion
+      ? E.previaLinea(numeroDeLinea(letra, edicion.seleccion))
+      : undefined
+  // ▶ de la lista en pausa: las líneas que suenan en el cabezal (ninguna en un hueco, varias en un solape).
+  const filasQueSuenan = useMemo(() => {
+    if (sonando || !motor) return undefined
+    const t = motor.posicionMs() - letra.offset_ms
+    return new Set(
+      letra.lineas
+        .filter(
+          (l) =>
+            l.tipo === 'linea' &&
+            l.inicio_ms !== null &&
+            l.inicio_ms <= t &&
+            t < (finEfectivo(letra, l.id, duracionMs) ?? l.inicio_ms)
+        )
+        .map((l) => l.id)
+    )
+    // La posición exacta se lee al pausar o buscar (`posicion` cambia entonces).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sonando, motor, letra, duracionMs, posicion])
+  const estiloVista = ejemploPantalla.ejemplo
+    ? { ...estiloPrevia, espera: ejemploPantalla.ejemplo.espera }
+    : estiloPrevia
   function irAPrimeraSinInicio() {
     const primera = primeraSinInicio(letra)
     if (primera) seleccionar(primera, true)
@@ -648,6 +947,7 @@ function EditorActivo({
     desarmarBucle()
     cancelarMarcador()
     escucha?.cancelar()
+    revision.terminar()
     setPestana('sincronia')
     sync.entrar()
   }
@@ -735,6 +1035,29 @@ function EditorActivo({
     if (aplicarPendientePreciso()) setTimeout(() => exportarActual.current(), 0)
     else exportarVideo.exportar()
   }
+  const exportarLetraActual = useRef<() => Promise<void>>(() => Promise.resolve())
+  useLayoutEffect(() => {
+    // Vacía el guardado pendiente y solo entonces exporta lo guardado (F9-E1); un fallo de guardado no exporta.
+    exportarLetraActual.current = async () => {
+      if (probarInactivo || cuentas.sincronizadas === 0) return
+      if (!(await vaciar())) {
+        mostrarToast({ tipo: 'error', mensaje: EXP_GUARDADO.titulo })
+        return
+      }
+      await exportarLetras([{ id, titulo: metadatos.titulo, artista: metadatos.artista }])
+    }
+  })
+  /** «Exportar la letra»: con el editor preciso abierto, primero aplica su borrador. */
+  function exportarLetraAplicando() {
+    if (aplicarPendientePreciso()) setTimeout(() => void exportarLetraActual.current(), 0)
+    else void exportarLetraActual.current()
+  }
+  const motivoLetra =
+    cuentas.sincronizadas === 0
+      ? LRC.sinTiempos
+      : probarInactivo
+        ? EXP_MENU.noDisponible
+        : undefined
   const prepararPruebaActual = useRef<() => Prueba | null>(() => null)
   useLayoutEffect(() => {
     // El vaciado puede esperar una escritura o el diálogo. Usa el editor del último render.
@@ -798,6 +1121,24 @@ function EditorActivo({
     setPestana('funciones')
     enfocarFunciones.current = true
   }
+  /** «Ver qué hicimos» del banner: abre «Funciones» con el foco en «Preparación automática». */
+  function verQueHicimos() {
+    if (edicion.sync.activo) return
+    actualizarPaneles(
+      { ...preferencias, panel: { ...preferencias.panel, minimizado: false } },
+      'inmediato'
+    )
+    cancelarMarcador()
+    setPestana('funciones')
+    enfocarTituloPrep.current = true
+  }
+  useLayoutEffect(() => {
+    if (!enfocarTituloPrep.current || panelMinimizado || pestana !== 'funciones') return
+    enfocarTituloPrep.current = false
+    // Sin bloque (ya no queda nada que contar) el foco va al primer botón de la pestaña.
+    if (tituloPrep.current) tituloPrep.current.focus({ preventScroll: false })
+    else enfocarFunciones.current = true
+  })
   useLayoutEffect(() => {
     if (!enfocarFunciones.current || panelMinimizado || pestana !== 'funciones') return
     // El primer botón disponible; si ninguno lo está, el primero (los no disponibles son enfocables).
@@ -809,6 +1150,15 @@ function EditorActivo({
       botones?.[0]
     enfocarFunciones.current = false
     boton?.focus({ preventScroll: true })
+  })
+  // El foco al nombre de un cantante gana al «primer botón» de arriba: va después.
+  useLayoutEffect(() => {
+    const id = pedirFocoNombre.current
+    if (!id || panelMinimizado || pestana !== 'funciones') return
+    const campo = refRaiz.current?.querySelector<HTMLElement>(`[data-nombre-cantante="${id}"]`)
+    if (!campo) return
+    pedirFocoNombre.current = null
+    campo.focus({ preventScroll: false })
   })
   useLayoutEffect(() => {
     if (!enfocarTituloEstado.current || resumen.estado !== 'borrador') return
@@ -965,6 +1315,9 @@ function EditorActivo({
   function buscar(ms: number) {
     if (!motor) return
     escucha?.cancelar()
+    modoGuardado.current = null
+    setEnEscucha(null)
+    if (!motor.estado().sonando) setModoPrevia('cabezal')
     if (bucle.current) {
       const intervalo = intervaloDeSeleccion(gestoActual.current?.resultado?.letra ?? letra)
       if (!intervalo || ms < intervalo.inicioMs || ms >= intervalo.finMs) {
@@ -981,6 +1334,8 @@ function EditorActivo({
       return
     }
     escucha?.cancelar()
+    modoGuardado.current = null
+    setEnEscucha(null)
     if (bucle.current?.sonaba != null) return
     if (motor?.estado().sonando) motor.pausar()
     else void motor?.reproducir()
@@ -1027,6 +1382,7 @@ function EditorActivo({
     return true
   }
   function seleccionar(id: string, enfocar = false) {
+    if (!motor?.estado().sonando) setModoPrevia('linea')
     if (id !== edicion.seleccion) {
       desarmarBucle()
       cancelarMarcador()
@@ -1161,15 +1517,282 @@ function EditorActivo({
     }
   }
 
-  function moverSeleccion(sentido: -1 | 1, enfocar: boolean) {
+  function moverSeleccion(sentido: -1 | 1, enfocar: boolean, extender = false) {
     const id = lineaVecina(letra, edicion.seleccion, sentido)
     if (id && id !== edicion.seleccion) {
       desarmarBucle()
       cancelarMarcador()
     }
-    despachar({ tipo: 'mover_seleccion', sentido })
+    despachar({ tipo: 'mover_seleccion', sentido, extender })
     setPestana('sincronia')
     if (enfocar) setFocoLinea((n) => n + 1)
+  }
+
+  // --- Reparto (0.2.3 · feature 1) ---
+  // Asignar, añadir y la selección múltiple no actúan al ritmo ni con la sesión en otra pantalla (C1-E21).
+  const repartoEditable = !edicion.sync.activo && !edicionBloqueada
+  const conReparto = tieneReparto(letra)
+  const suenanALaVez = useMemo(
+    () => (conReparto ? lineasQueSuenanALaVez(letra, duracionMs) : undefined),
+    [conReparto, letra, duracionMs]
+  )
+  const lineaPrincipal = letra.lineas.find((l) => l.id === edicion.seleccion && l.tipo === 'linea')
+  const soloPrincipalTexto =
+    edicion.seleccionadas.length > 1 && edicion.seleccion
+      ? P.soloPrincipal(numeroDeLinea(letra, edicion.seleccion))
+      : undefined
+
+  /** Abre «¿Quién canta?» sobre la selección; `ancla` y `origen` por defecto: la fila principal. */
+  function abrirMenuPartes(ancla: AnclaMenu | null, origen: HTMLElement | null) {
+    if (!repartoEditable || edicion.seleccion === null) return
+    const raizEditor = refRaiz.current
+    const destino =
+      ancla ??
+      raizEditor?.querySelector<HTMLElement>('[role="option"][data-principal]') ??
+      raizEditor?.querySelector<HTMLElement>('[data-boton-layout="lista-expandir"]') ??
+      raizEditor
+    if (!destino) return
+    if (menuPartes?.ancla === destino) {
+      cerrarMenuPartes(true)
+      return
+    }
+    // Si lo abrió la lista, el foco vuelve a la fila principal; si no, al elemento que lo abrió.
+    setMenuPartes({
+      ancla: destino,
+      origen: origen?.getAttribute('role') === 'option' ? null : origen
+    })
+  }
+  function cerrarMenuPartes(devolverFoco: boolean) {
+    const origen = menuPartes?.origen ?? null
+    setMenuPartes(null)
+    if (!devolverFoco) return
+    if (origen?.isConnected) origen.focus({ preventScroll: true })
+    else setFocoLinea((n) => n + 1)
+  }
+
+  /** Asigna la selección a `parte` en un paso y lo anuncia; `agrupar` junta las pulsaciones de Alt + ↑/↓. */
+  function asignarParte(parte: Parte, agrupar = false, ids = edicion.seleccionadas): boolean {
+    if (!repartoEditable) return false
+    // Voces a la vez: dos líneas de la misma parte no pueden pisarse (por menú, C, Alt y arrastre).
+    const solape = solapeAlAsignar(letra, ids, parte)
+    if (solape !== null) {
+      const mensaje = P.solapaMisma(etiquetaParte(letra, parte), solape)
+      anunciar(mensaje)
+      mostrarToast({ tipo: 'aviso', mensaje })
+      return false
+    }
+    const accion = { tipo: 'asignar_parte', parte, ids, agrupar, ahora: performance.now() } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return false
+    despachar(accion)
+    anunciar(P.anuncio(ids.length, etiquetaParte(siguiente.actual.letra, parte)))
+    return true
+  }
+  function asignarAlCantante(n: 1 | 2 | 3 | 4) {
+    if (!repartoEditable) return
+    if (!cantantesDe(letra).some((c) => ranuraDe(c.id) === n)) anunciar(P.noExiste(n))
+    else asignarParte(`c${n}` as Parte)
+  }
+  function irAParteVecina(sentido: -1 | 1) {
+    if (!lineaPrincipal) return
+    const destino = parteVecina(letra, parteDe(lineaPrincipal, letra), sentido)
+    if (destino) asignarParte(destino, true)
+  }
+  /** «+ Añadir cantante» del menú: crea el cantante y le asigna la selección, en un solo paso. */
+  function anadirCantanteDesdeMenu() {
+    if (!repartoEditable) return
+    const accion = {
+      tipo: 'anadir_cantante',
+      asignarA: edicion.seleccionadas,
+      ahora: performance.now()
+    } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return
+    const antes = new Set(cantantesDe(letra).map((c) => c.id))
+    const nuevo = cantantesDe(siguiente.actual.letra).find((c) => !antes.has(c.id))
+    despachar(accion)
+    if (nuevo) {
+      anunciar(
+        P.anuncioNuevo(
+          etiquetaParte(siguiente.actual.letra, nuevo.id),
+          edicion.seleccionadas.length
+        )
+      )
+    }
+    cerrarMenuPartes(true)
+  }
+  /** Soltar regiones en un carril (o en «+ Nuevo cantante»): un paso, como asignar con el menú. */
+  function asignarDesdeArrastre(destino: Parte | 'nuevo', ids: string[]) {
+    if (!repartoEditable) return
+    if (destino !== 'nuevo') {
+      asignarParte(destino, false, ids)
+      return
+    }
+    const accion = { tipo: 'anadir_cantante', asignarA: ids, ahora: performance.now() } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return
+    const antes = new Set(cantantesDe(letra).map((c) => c.id))
+    const nuevo = cantantesDe(siguiente.actual.letra).find((c) => !antes.has(c.id))
+    despachar(accion)
+    if (nuevo) {
+      anunciar(P.anuncioNuevo(etiquetaParte(siguiente.actual.letra, nuevo.id), ids.length))
+    }
+  }
+  // --- Funciones › «Cantantes y coros» ---
+  /** Nombre del cantante al que irá el foco cuando la sección esté a la vista (la consume el efecto de abajo). */
+  const pedirFocoNombre = useRef<Parte | null>(null)
+  /** «Repartir entre varios» y «+ Añadir cantante» de Funciones: crean el cantante sin líneas y enfocan su nombre. */
+  function anadirCantanteSinLineas() {
+    if (!repartoEditable) return
+    const accion = { tipo: 'anadir_cantante', ahora: performance.now() } as const
+    const siguiente = reducirEditor(edicion, accion)
+    if (siguiente.version === edicion.version) return
+    const antes = new Set(cantantesDe(letra).map((c) => c.id))
+    const nuevo = cantantesDe(siguiente.actual.letra).find((c) => !antes.has(c.id))
+    despachar(accion)
+    if (nuevo) {
+      pedirFocoNombre.current = nuevo.id
+      anunciar(P.anuncioNuevo(etiquetaParte(siguiente.actual.letra, nuevo.id)))
+    }
+  }
+  function quitarCantanteDeLaCancion(id: Parte) {
+    if (!repartoEditable) return
+    const nombre = etiquetaParte(letra, id)
+    despachar({ tipo: 'quitar_cantante', id, ahora: performance.now() })
+    const mensaje = P.quitado(nombre, etiquetaParte(letra, 'c1'))
+    mostrarToast({
+      tipo: 'info',
+      mensaje,
+      accion: { etiqueta: 'Deshacer', alAccionar: () => despachar({ tipo: 'deshacer' }) }
+    })
+    anunciar(mensaje)
+  }
+  function verLineasDeParte(parte: Parte) {
+    const ids = letra.lineas
+      .filter((l) => l.tipo === 'linea' && parteDe(l, letra) === parte)
+      .map((l) => l.id)
+    if (ids.length === 0) return
+    despachar({ tipo: 'seleccionar_ids', ids })
+    setRevisionSeleccion((n) => n + 1)
+    setFocoLinea((n) => n + 1)
+  }
+  function marcarSugeridasComoCoro() {
+    if (!repartoEditable) return
+    const n = lineasEntreParentesis(letra).length
+    if (n === 0) return
+    despachar({ tipo: 'marcar_como_coro', ahora: performance.now() })
+    anunciar(P.anuncio(n, P.coro))
+  }
+  // --- Voz en los coros (0365) ---
+  const hayCoros = recuentoPorParte(letra).coro > 0
+  const [escuchandoCoro, setEscuchandoCoro] = useState(false)
+  const coroEnCurso = useRef<{ previaMs: number; arrancado: boolean } | null>(null)
+  /** Termina «Escuchar un coro»: pausa y devuelve el cabezal a donde estaba. */
+  function terminarCoro(detener: boolean) {
+    const c = coroEnCurso.current
+    if (!c) return false
+    coroEnCurso.current = null
+    setEscuchandoCoro(false)
+    if (detener) motor?.pausar()
+    motor?.buscar(c.previaMs)
+    return true
+  }
+  useEffect(() => {
+    if (!motor) return
+    return motor.suscribir((e) => {
+      const c = coroEnCurso.current
+      if (!c) return
+      if (e.sonando) c.arrancado = true
+      else if (c.arrancado) {
+        coroEnCurso.current = null
+        setEscuchandoCoro(false)
+        motor.buscar(c.previaMs)
+      }
+    })
+  }, [motor])
+  // El error de la mezcla avisa una sola vez por visita; el instrumental suena sin los coros.
+  const avisoCorosError = useRef(false)
+  const corosError = audio?.corosError === true
+  useEffect(() => {
+    if (!corosError || avisoCorosError.current) return
+    avisoCorosError.current = true
+    mostrarToast({ tipo: 'aviso', mensaje: C.error })
+  }, [corosError])
+  /** «Escuchar un coro»: de 2 s antes de la siguiente línea de coro (o la primera) a 1 s después de su fin. */
+  async function escucharUnCoro() {
+    if (!motor || edicion.sync.activo) return
+    if (terminarCoro(true)) return
+    const delCoro = letra.lineas.filter(
+      (l) => l.tipo === 'linea' && l.inicio_ms !== null && parteDe(l, letra) === 'coro'
+    )
+    const previaMs = obtenerTiempoAudio()
+    const siguiente = delCoro.find((l) => l.inicio_ms! + letra.offset_ms >= previaMs) ?? delCoro[0]
+    if (!siguiente) return
+    const fin = finEfectivo(letra, siguiente.id, duracionMs)
+    if (fin === null) return
+    desarmarBucle()
+    cancelarMarcador()
+    escucha?.cancelar()
+    if (!(await motor.prepararCoros())) return
+    const desdeMs = Math.max(0, siguiente.inicio_ms! + letra.offset_ms - 2000)
+    const hastaMs = Math.min(duracionMs, fin + letra.offset_ms + 1000)
+    coroEnCurso.current = { previaMs, arrancado: false }
+    setEscuchandoCoro(true)
+    const inicioS = Math.floor((siguiente.inicio_ms! + letra.offset_ms) / 1000)
+    anunciar(
+      C.anuncioEscuchando(
+        `${Math.floor(inicioS / 60)}:${String(inicioS % 60).padStart(2, '0')}`,
+        Math.round(nivelVozEnCoros(letra) * 100)
+      )
+    )
+    await motor.reproducir({ desdeMs, hastaMs, conCoros: true })
+  }
+  function alternarCarrilesJuntos() {
+    const juntos = !carrilesJuntosPref
+    setCarrilesJuntosPref(juntos)
+    anunciar(juntos ? P.anuncioJuntar : P.anuncioSeparar)
+    try {
+      window.shinobi.config
+        .actualizar({ editor: { carriles_juntos: juntos } })
+        .catch(() => undefined)
+    } catch {
+      /* preferencia cosmética: el estado en memoria manda */
+    }
+  }
+  function seleccionarVarias(id: string, modo: 'alternar' | 'rango' | 'principal') {
+    if (id !== edicion.seleccion) {
+      desarmarBucle()
+      cancelarMarcador()
+    }
+    despachar(
+      modo === 'alternar'
+        ? { tipo: 'alternar_seleccion', id }
+        : modo === 'rango'
+          ? { tipo: 'extender_seleccion', id }
+          : { tipo: 'hacer_principal', id }
+    )
+  }
+  /** Fila «Canta» del panel y chip del riel: la parte común de la selección o «Varias» (solo con reparto). */
+  const parteComunSeleccion = parteComun(letra, edicion.seleccionadas)
+  const canta =
+    conReparto && lineaPrincipal
+      ? {
+          chip: parteComunSeleccion ? (
+            <ChipParte letra={letra} estilo={estilo} parte={parteComunSeleccion} decorativo />
+          ) : null,
+          etiqueta: parteComunSeleccion ? etiquetaParte(letra, parteComunSeleccion) : P.varias,
+          abierto: menuPartes !== null,
+          abrir: repartoEditable
+            ? (origen: HTMLElement) => abrirMenuPartes(origen, origen)
+            : undefined
+        }
+      : undefined
+  /** Chip de solo lectura de la línea `id` (editor preciso, tarjeta de la revisión, riel de la lista). */
+  const chipDeLinea = (id: string | null) => {
+    const el = letra.lineas.find((l) => l.id === id && l.tipo === 'linea')
+    return conReparto && el ? (
+      <ChipParte letra={letra} estilo={estilo} parte={parteDe(el, letra)} />
+    ) : null
   }
 
   // Foco tras cambiar de modo: el botón equivalente de la zona; nunca queda en `body`.
@@ -1215,7 +1838,7 @@ function EditorActivo({
     const raizEditor = refRaiz.current
     const destino = listaMinimizada
       ? raizEditor?.querySelector<HTMLElement>('[data-boton-layout="lista-expandir"]')
-      : (raizEditor?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]') ??
+      : (raizEditor?.querySelector<HTMLElement>('[role="option"][data-principal]') ??
         raizEditor?.querySelector<HTMLElement>('#lineas-editor'))
     destino?.focus({ preventScroll: true })
     // Solo al entrar.
@@ -1239,7 +1862,24 @@ function EditorActivo({
           usarPista(accion.pista)
           break
         case 'mover_seleccion':
-          moverSeleccion(accion.sentido, !listaMinimizada)
+          moverSeleccion(accion.sentido, !listaMinimizada, accion.extender && repartoEditable)
+          break
+        case 'quien_canta': {
+          const activo = document.activeElement
+          const dentro =
+            activo instanceof HTMLElement &&
+            activo !== refRaiz.current &&
+            refRaiz.current?.contains(activo)
+              ? activo
+              : null
+          abrirMenuPartes(dentro, dentro)
+          break
+        }
+        case 'parte_n':
+          asignarAlCantante(accion.n)
+          break
+        case 'parte_vecina':
+          irAParteVecina(accion.sentido)
           break
         case 'deshacer':
           deshacerEditor()
@@ -1282,10 +1922,36 @@ function EditorActivo({
         case 'deshacer_marca':
           sync.deshacer()
           break
+        case 'revisar':
+          cerrarAplicandoPreciso()
+          if (revision.activo) terminarRevision()
+          else revision.empezar()
+          break
+        case 'revision_bien':
+          if (revision.activo) revision.estaBien()
+          break
+        case 'dudosa':
+          cerrarAplicandoPreciso()
+          if (accion.sentido === 1) revision.siguiente()
+          else revision.anterior()
+          setFocoLinea((n) => n + 1)
+          break
         case 'escapar':
+          // Orden de Esc (ADR 0029 §5): menú o popover (ya cerrado: el menú captura Esc), arrastre en
+          // curso, varias seleccionadas → solo la principal y, si no, lo de siempre.
+          if (cancelarArrastreRegion.current?.()) break
+          if (terminarCoro(true)) break
+          if (edicion.seleccionadas.length > 1) {
+            despachar({ tipo: 'solo_principal' })
+            break
+          }
           if (cancelarMarcador()) break
           if (bucle.current) {
             desarmarBucle()
+            break
+          }
+          if (revision.activo) {
+            terminarRevision()
             break
           }
           if (edicion.sync.activo) sync.terminar()
@@ -1295,10 +1961,40 @@ function EditorActivo({
     },
     (evento) => {
       if (evento.key === 'Enter') sync.soltar(evento.timeStamp, 'teclado')
-    }
+    },
+    conReparto
   )
 
+  /** Termina el recorrido y devuelve el foco a la fila seleccionada. */
+  function terminarRevision() {
+    revision.terminar()
+    setFocoLinea((n) => n + 1)
+  }
+  /** «Quitar esos fines» (spec 06 · Feature 5): un paso del historial con su toast y [Deshacer]. */
+  function quitarFinesPreparacion() {
+    const n = letra.lineas.filter(
+      (l) => l.tipo === 'linea' && l.origen_fin === 'preparacion'
+    ).length
+    if (n === 0) return
+    cerrarAplicandoPreciso()
+    despachar({ tipo: 'quitar_fines_preparacion', ahora: performance.now() })
+    const mensaje = EP.toastFines(n)
+    mostrarToast({
+      tipo: 'exito',
+      mensaje,
+      accion: { etiqueta: 'Deshacer', alAccionar: () => despachar({ tipo: 'deshacer' }) }
+    })
+    anunciar(mensaje)
+  }
+  /** [×] del banner de la preparación: la canción cuenta como revisada y no vuelve a salir. */
+  function cerrarBannerPreparacion() {
+    setCerradoPrep(true)
+    void window.shinobi.biblioteca.marcarPreparacionRevisada(id).catch(() => undefined)
+  }
+  const bloquePrep = bloquePreparacion(cancion.preparacion, letra)
   const irALetra = () => ir({ tipo: 'cancion', id, paso: 'letra' })
+  /** «Buscar otra letra» de la comprobación: abre la vista Letra en A (spec 06 · F4). */
+  const irABuscarOtra = () => ir({ tipo: 'cancion', id, paso: 'letra', buscarOtra: true })
   const botonProbar = (
     <Boton
       ref={refProbar}
@@ -1318,13 +2014,126 @@ function EditorActivo({
       : undefined
   const siguiente = letra.lineas.find((el) => el.id === edicion.sync.siguiente)
   const todasAlEntrar = contador(letraInicial).sincronizadas === contador(letraInicial).total
+  // Con algo que decir, la comprobación sustituye al aviso «ya sincronizada» (spec 06 · F4, «Banner al entrar»).
+  const entrada = comprobar.entrada
+  const bannerComprobacion =
+    resumen.estado !== 'borrador' || edicion.sync.activo || !entrada ? null : entrada.tipo ===
+      'desfasada' ? (
+      <AvisoEnLinea
+        tipo="info"
+        accionesAbajo
+        accion={
+          <>
+            <Boton onClick={() => void comprobar.pedir()}>{KC.desfase.boton}</Boton>
+            <Boton variante="fantasma" onClick={comprobar.descartarEntrada}>
+              {KC.banner.ahoraNo}
+            </Boton>
+          </>
+        }
+      >
+        {KC.banner.desfase(entrada.desfaseMs)}
+      </AvisoEnLinea>
+    ) : (
+      <AvisoEnLinea
+        tipo="aviso"
+        accionesAbajo
+        accion={
+          <>
+            <Boton onClick={() => void comprobar.pedir()}>{KC.banner.verPorQue}</Boton>
+            <Boton variante="fantasma" onClick={irABuscarOtra}>
+              {KC.noCoincide.otra}
+            </Boton>
+            <BotonIcono
+              icono={X}
+              etiqueta={KC.banner.cerrar}
+              onClick={comprobar.descartarEntrada}
+            />
+          </>
+        }
+      >
+        {KC.banner.noCoincide}
+      </AvisoEnLinea>
+    )
+  // El banner de la lista se decide UNA vez al entrar (spec 06 · F5-E6, pregunta 0270): hasta entonces su sitio
+  // queda vacío; después solo lo quitan [×], [Ahora no], editar o marcar como lista, nunca lo cambia otro.
+  const [esperaComprobacionAgotada, setEsperaComprobacionAgotada] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setEsperaComprobacionAgotada(true), ESPERA_COMPROBACION_BANNER_MS)
+    return () => clearTimeout(t)
+  }, [])
+  const entroRevisando = useRef(revisarAlEntrar).current
+  // «Ajustar los fines…» sobre una letra sin marca (sin búsqueda ni elección): lo pidió el usuario, sin banner.
+  const soloFinesPedidos =
+    !resumen.preparacion?.busqueda && !resumen.preparacion?.eleccionAutomatica
+  const preparadaSinRevisar =
+    resumen.estado === 'borrador' &&
+    !!resumen.preparacion &&
+    !resumen.preparacion.revisada &&
+    !soloFinesPedidos
+  const comprobacionResuelta =
+    !(resumen.estado === 'borrador') || comprobar.entradaResuelta || esperaComprobacionAgotada
+  const cuentaListaParaBanner = !preparadaSinRevisar || entroRevisando || !revision.calculando
+  type DecisionBanner =
+    { tipo: 'comprobacion' | 'vacio' | 'yaSync' } | { tipo: 'prep'; pendientes: number }
+  const [decision, setDecision] = useState<DecisionBanner | null>(null)
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (decision || !comprobacionResuelta || !cuentaListaParaBanner) return
+    if (comprobar.entrada && resumen.estado === 'borrador' && !edicion.sync.activo) {
+      setDecision({ tipo: 'comprobacion' })
+    } else if (entroRevisando) setDecision({ tipo: 'vacio' })
+    else if (preparadaSinRevisar) {
+      setDecision({ tipo: 'prep', pendientes: revision.pendientes.length })
+    } else if (resumen.preparacion) setDecision({ tipo: 'vacio' })
+    else setDecision({ tipo: todasAlEntrar ? 'yaSync' : 'vacio' })
+  }, [
+    decision,
+    comprobacionResuelta,
+    cuentaListaParaBanner,
+    comprobar.entrada,
+    resumen.estado,
+    edicion.sync.activo,
+    entroRevisando,
+    preparadaSinRevisar,
+    resumen.preparacion,
+    revision.pendientes.length,
+    todasAlEntrar
+  ])
+  /* eslint-enable react-hooks/set-state-in-effect */
+  const sinEditar = letra === letraInicial && !edicion.sync.activo && resumen.estado === 'borrador'
+  const bannerPreparada =
+    decision?.tipo === 'prep' && !cerradoPrep && sinEditar ? (
+      <AvisoEnLinea
+        tipo="info"
+        accionesAbajo
+        accion={
+          <>
+            {decision.pendientes > 0 ? (
+              <Boton onClick={() => revision.empezar()}>{EP.banner.empezar}</Boton>
+            ) : (
+              <Boton onClick={() => void abrirPrueba()}>{EP.banner.probar}</Boton>
+            )}
+            <Boton variante="fantasma" onClick={verQueHicimos}>
+              {EP.banner.verQueHicimos}
+            </Boton>
+            <BotonIcono icono={X} etiqueta={EP.banner.cerrar} onClick={cerrarBannerPreparacion} />
+          </>
+        }
+      >
+        {decision.pendientes > 0 ? EP.banner.revision(decision.pendientes) : EP.banner.nada}
+      </AvisoEnLinea>
+    ) : null
+  // Un veredicto de la feature 4 que llega tarde solo ocupa el sitio si estaba vacío.
+  const comprobacionVisible =
+    decision?.tipo === 'comprobacion' || (decision?.tipo === 'vacio' && comprobar.entrada)
   const banner =
     cuentas.sincronizadas === 0 ? (
       <AvisoEnLinea tipo="info">{E.sinSync}</AvisoEnLinea>
-    ) : todasAlEntrar &&
-      resumen.estado === 'borrador' &&
-      letra === letraInicial &&
-      !cerradoYaSync ? (
+    ) : decision === null ? undefined : comprobacionVisible ? (
+      bannerComprobacion
+    ) : bannerPreparada ? (
+      bannerPreparada
+    ) : decision.tipo === 'yaSync' && sinEditar && !cerradoYaSync ? (
       <AvisoEnLinea
         tipo="info"
         accion={
@@ -1408,14 +2217,19 @@ function EditorActivo({
                 abrirPreciso={abrirPreciso}
                 motivoPreciso={motivoPreciso}
                 ocupada={ocupada}
+                chipParte={chipDeLinea(edicion.seleccion)}
+                soloPrincipal={soloPrincipalTexto}
               />
             ) : (
               <ListaLineas
                 letra={letra}
                 seleccion={edicion.seleccion}
                 actual={sonando ? indiceLineaActual(letra, posicion) : -1}
+                actuales={filasQueSuenan}
                 foco={focoLinea}
                 revisionSeleccion={revisionSeleccion}
+                dudosas={marcasRevision}
+                siguienteDudosa={revision.siguiente}
                 seleccionar={seleccionar}
                 escuchar={escuchar}
                 corregir={irALetra}
@@ -1424,6 +2238,12 @@ function EditorActivo({
                 motivoPreciso={motivoPreciso}
                 escucharLinea={escucharTramoLinea}
                 borrarTiempos={borrar}
+                seleccionadas={edicion.seleccionadas}
+                estilo={estilo}
+                seleccionarVarias={repartoEditable ? seleccionarVarias : undefined}
+                abrirQuienCanta={repartoEditable ? abrirMenuPartes : undefined}
+                soloPrincipal={soloPrincipalTexto}
+                solapa={suenanALaVez}
                 minimizar={
                   distribucion.bajoMinimo === 'ancho'
                     ? undefined
@@ -1447,19 +2267,25 @@ function EditorActivo({
               <div className={estilos.lienzo}>
                 <div className={estilos.pantalla} data-lienzo="previa">
                   <PantallaLetra
-                    letra={gestoVisible?.resultado?.letra ?? letraConBorrador}
-                    key={ejemploEspera.ejemplo ? 'ejemplo' : 'previa'}
-                    estilo={estiloPrevia}
-                    duracionMs={ejemploEspera.ejemplo?.duracionMs ?? duracionMs}
+                    letra={
+                      ejemploVista.ejemplo?.letra ??
+                      gestoVisible?.resultado?.letra ??
+                      letraConBorrador
+                    }
+                    key={ejemploVista.ejemplo ? 'ejemplo' : 'previa'}
+                    estilo={estiloVista}
+                    vistaPrevia
+                    duracionMs={ejemploVista.ejemplo?.duracionMs ?? duracionMs}
                     titulo={metadatos.titulo}
                     artista={metadatos.artista}
                     idEstatico={edicion.seleccion}
-                    reproduciendo={ejemploEspera.ejemplo !== null || sonando}
-                    cuentaAtras={ejemploEspera.ejemplo ? null : sync.cuentaAtras}
+                    reproduciendo={ejemploVista.ejemplo !== null || sonando}
+                    cuentaAtras={ejemploVista.ejemplo ? null : sync.cuentaAtras}
                     obtenerTiempoAudio={
-                      ejemploEspera.ejemplo ? ejemploEspera.obtenerTiempo : obtenerTiempoAudio
+                      ejemploVista.ejemplo ? ejemploVista.obtenerTiempo : obtenerTiempoAudio
                     }
-                    etiqueta={ejemploEspera.ejemplo ? ejemploEspera.etiqueta : undefined}
+                    etiqueta={ejemploVista.ejemplo ? ejemploVista.etiqueta : etiquetaLinea}
+                    tiempoFijoMs={fotogramaCabezal ? (motor?.posicionMs() ?? 0) : undefined}
                     fondoEstatico={fondoDetenido}
                   />
                 </div>
@@ -1501,6 +2327,7 @@ function EditorActivo({
                 expandir={() => alternarZona('panel', 'boton')}
                 abrirFunciones={expandirEnFunciones}
                 ocupada={ocupada}
+                canta={canta}
               />
             ) : (
               <>
@@ -1510,7 +2337,13 @@ function EditorActivo({
                       etiqueta="Panel del editor"
                       valor={pestana}
                       opciones={[
-                        { valor: 'sincronia', etiqueta: 'Sincronía' },
+                        {
+                          valor: 'sincronia',
+                          etiqueta: 'Sincronía',
+                          icono: revision.activo && pestana !== 'sincronia' ? Flag : undefined,
+                          nombre:
+                            revision.activo && pestana !== 'sincronia' ? RV.pestana : undefined
+                        },
                         {
                           valor: 'estilo',
                           etiqueta: 'Estilo',
@@ -1542,7 +2375,7 @@ function EditorActivo({
                     />
                   )}
                 </div>
-                <div id="zona-panel" className={estilos.panel}>
+                <div id="zona-panel" ref={refPanel} className={estilos.panel}>
                   {pestana === 'funciones' ? (
                     <section aria-label={E.funciones.nombre}>
                       <PanelFunciones
@@ -1552,6 +2385,42 @@ function EditorActivo({
                           motivo: exportarVideo.motivo,
                           exportar: exportarAplicando
                         }}
+                        letra={{ motivo: motivoLetra, exportar: exportarLetraAplicando }}
+                        preparacion={{
+                          datos: bloquePrep,
+                          verOtras: () => {
+                            cerrarAplicandoPreciso()
+                            irABuscarOtra()
+                          },
+                          quitarFines: quitarFinesPreparacion,
+                          tituloRef: tituloPrep
+                        }}
+                        revision={{
+                          pendientes: revision.calculando ? null : revision.pendientes.length,
+                          buenas: revision.buenas,
+                          sinVoz: revision.voz === null && !revision.calculando,
+                          calculando: revision.calculando,
+                          noDisponible: probarInactivo ? E.syncTitulo : undefined,
+                          empezar: () => {
+                            cerrarAplicandoPreciso()
+                            revision.empezar()
+                          },
+                          reiniciar: revision.reiniciar
+                        }}
+                        comprobar={{
+                          motivos: comprobar.motivos,
+                          calculando: comprobar.calculando,
+                          pedir: () => {
+                            cerrarAplicandoPreciso()
+                            void comprobar.pedir()
+                          },
+                          reintentar: picos.reintentar,
+                          desfaseCorregidoMs: letra.desfase_corregido_ms ?? null,
+                          quitar: () => {
+                            cerrarAplicandoPreciso()
+                            comprobar.quitar()
+                          }
+                        }}
                         silencios={{
                           motivos: motivosAjuste,
                           buscando: silencios.buscando,
@@ -1560,7 +2429,40 @@ function EditorActivo({
                             void silencios.pedir()
                           },
                           reintentar: picos.reintentar,
-                          irAPrimera: irAPrimeraSinInicio
+                          irAPrimera: irAPrimeraSinInicio,
+                          solapaExcluidas: conReparto ? solapadas(letra, duracionMs).size : 0
+                        }}
+                        cantantes={{
+                          letra,
+                          estilo,
+                          editable: repartoEditable,
+                          repartir: anadirCantanteSinLineas,
+                          anadir: anadirCantanteSinLineas,
+                          quitar: quitarCantanteDeLaCancion,
+                          renombrar: (parte, nombre) =>
+                            despachar({
+                              tipo: 'renombrar_cantante',
+                              id: parte,
+                              nombre,
+                              ahora: performance.now()
+                            }),
+                          verLineas: verLineasDeParte,
+                          marcarCoro: marcarSugeridasComoCoro,
+                          vozEnCoros: hayCoros ? (
+                            <VozEnCoros
+                              nivel={nivelVozEnCoros(letra)}
+                              cambiar={(valor) =>
+                                despachar({
+                                  tipo: 'fijar_voz_en_coros',
+                                  valor,
+                                  ahora: performance.now()
+                                })
+                              }
+                              escuchando={escuchandoCoro}
+                              escuchar={() => void escucharUnCoro()}
+                              sinVoz={!separacion.disponible}
+                            />
+                          ) : undefined
                         }}
                         cambiarModalidad={cambiarModalidadDesdeFunciones}
                         volverABorrador={() => setDialogoBorrador(true)}
@@ -1569,13 +2471,41 @@ function EditorActivo({
                     </section>
                   ) : pestana === 'sincronia' ? (
                     <section aria-label="Ajuste de sincronía">
+                      {revision.activo && (
+                        <TarjetaRevision
+                          revision={revision}
+                          letra={letra}
+                          seleccion={edicion.seleccion}
+                          estado={estadoCancion}
+                          fijarInicio={() => fijar('inicio')}
+                          escuchar={() => {
+                            if (edicion.seleccion) escucharTramoLinea(edicion.seleccion)
+                          }}
+                          probar={() => void abrirPrueba()}
+                          probarInactivo={probarInactivo || cuentas.sincronizadas === 0}
+                          chipParte={chipDeLinea(edicion.seleccion)}
+                        />
+                      )}
                       <PanelSincronia
+                        marca={
+                          !revision.activo &&
+                          lineaSeleccionada &&
+                          revision.porId.get(lineaSeleccionada.id) ? (
+                            <MarcaPanel
+                              revision={revision}
+                              d={revision.porId.get(lineaSeleccionada.id)!}
+                              fijarInicio={() => fijar('inicio')}
+                              conPalabras={tienePalabrasManuales(lineaSeleccionada)}
+                            />
+                          ) : undefined
+                        }
                         edicion={edicion}
                         duracionMs={duracionMs}
                         ayudaBluetooth={ayudaBluetooth}
                         abrirPreciso={abrirPreciso}
                         motivoPreciso={motivoPreciso}
                         ocupada={ocupada}
+                        canta={canta}
                         cerrarBluetooth={() => setAyudaBluetooth(false)}
                         escucharAjustes={escucharAjustes}
                         fijarEscucharAjustes={setEscucharAjustes}
@@ -1604,6 +2534,9 @@ function EditorActivo({
                         inactivo={edicion.sync.activo}
                         tema={tema.control}
                         espera={controlEspera}
+                        pantalla={controlPantalla}
+                        subrayadoDelEquipo={subrayadoDelEquipo}
+                        letra={letra}
                         alCambiar={(nuevo, clave, agruparGesto) =>
                           despachar({
                             tipo: tema.editando ? 'estilo_borrador' : 'estilo',
@@ -1656,6 +2589,7 @@ function EditorActivo({
                   volumen.cambiar({ volumen: volumen.volumen, silenciado: !volumen.silenciado })
                 }
                 entrarSync={entrarSync}
+                preparandoCoros={audio?.corosPreparando === true}
                 refSync={refSync}
                 acciones={
                   <>
@@ -1669,6 +2603,7 @@ function EditorActivo({
                         alOmitirAviso={() => setOmitirAvisoLL(true)}
                         vaciar={vaciar}
                         alEnfocarPrimera={irAPrimeraSinInicio}
+                        revision={avisoPendientes}
                       />
                     ) : (
                       <BotonCambiarModalidad
@@ -1689,6 +2624,8 @@ function EditorActivo({
                       vaciar={vaciar}
                       alEnfocarPrimera={irAPrimeraSinInicio}
                       primeraPulsacionIncompleta={primeraPulsacionIncompleta}
+                      revision={avisoPendientes}
+                      resaltado={revision.resaltarDock}
                     />
                   </>
                 }
@@ -1733,12 +2670,48 @@ function EditorActivo({
                       alIrAPrimera={irAPrimeraSinInicio}
                     />
                   }
+                  mensajeOnda={(() => {
+                    const texto = textoEstadoOnda(picos.estado, separacion.disponible)
+                    return texto
+                      ? {
+                          texto,
+                          reintentar: picos.estado.estado === 'error' ? picos.reintentar : undefined
+                        }
+                      : undefined
+                  })()}
+                  seleccionadas={edicion.seleccionadas}
+                  cancelarArrastreRef={cancelarArrastreRegion}
+                  reparto={
+                    carrilesVisibles.length > 0
+                      ? {
+                          carriles: carrilesVisibles,
+                          altoCarril: distribucion.lineaTiempo.altoCarril,
+                          juntos: distribucion.lineaTiempo.carrilesJuntos,
+                          juntosPorEspacio: distribucion.lineaTiempo.carrilesJuntosPorEspacio,
+                          alternarJuntos: alternarCarrilesJuntos,
+                          estilo,
+                          cantantes: cantantesDe(letra).length,
+                          asignar: repartoEditable ? asignarDesdeArrastre : undefined,
+                          alArrastrar: setFranjasArrastre,
+                          solapaAl: (ids: string[], parte: Parte) => {
+                            const k = solapeAlAsignar(letra, ids, parte)
+                            return k === null ? null : P.solapaMisma(etiquetaParte(letra, parte), k)
+                          }
+                        }
+                      : undefined
+                  }
                   resaltadas={silencios.resaltadas}
+                  resaltadasDesfase={comprobar.resaltadas}
+                  dudosas={marcasRevision}
+                  zoomRevision={zoomRevision}
                   onda={(vista) => (
                     <PistaOndaVoz
                       cancionId={id}
                       vista={vista}
                       separada={separacion.disponible}
+                      mensajeFuera={
+                        carrilesVisibles.length > 0 && !distribucion.lineaTiempo.carrilesJuntos
+                      }
                       {...picos}
                     />
                   )}
@@ -1830,11 +2803,18 @@ function EditorActivo({
           duracionMs={duracionMs}
           cancionId={id}
           separada={separacion.disponible}
+          chipParte={chipDeLinea(precisoId)}
           numeroLinea={numeroDeLinea(letra, precisoId)}
           totalLineas={cuentas.total}
           hayAnterior={vecinaConInicio(letra, precisoId, -1) !== null}
           haySiguiente={vecinaConInicio(letra, precisoId, 1) !== null}
           motor={motor}
+          alReproducirPropio={(vuelve) => {
+            escucha?.cancelar()
+            if (vuelve) eventosEscucha.alIniciar()
+            else eventosEscucha.alCancelar()
+          }}
+          alTerminarEscuchaPropia={eventosEscucha.alTerminar}
           margenMs={preferencias.preciso?.margen_ms ?? 500}
           alCambiarMargen={(ms) =>
             actualizarPaneles(
@@ -1882,6 +2862,36 @@ function EditorActivo({
         />
       )}
       <DialogoAtajos abierto={dialogoAtajos} cerrar={() => setDialogoAtajos(false)} />
+      {menuPartes && repartoEditable && (
+        <MenuQuienCanta
+          letra={letra}
+          estilo={estilo}
+          ids={edicion.seleccionadas}
+          noDisponibles={Object.fromEntries(
+            (['c1', 'c2', 'c3', 'c4', 'todos', 'coro'] as const).flatMap((parte) => {
+              const k = solapeAlAsignar(letra, edicion.seleccionadas, parte)
+              return k === null ? [] : [[parte, P.solapaMisma(etiquetaParte(letra, parte), k)]]
+            })
+          )}
+          ancla={menuPartes.ancla}
+          elegir={(parte) => {
+            asignarParte(parte)
+            cerrarMenuPartes(true)
+          }}
+          anadir={anadirCantanteDesdeMenu}
+          nombres={() => {
+            // Foco en el nombre del primer cantante de la selección (sin cantante: el Cantante 1).
+            cerrarMenuPartes(false)
+            const primero = edicion.seleccionadas
+              .map((id) => letra.lineas.find((l) => l.id === id))
+              .map((l) => (l ? parteDe(l, letra) : 'c1'))
+              .find((p) => p.startsWith('c') && p !== 'coro')
+            pedirFocoNombre.current = (primero ?? 'c1') as Parte
+            expandirEnFunciones()
+          }}
+          cerrar={cerrarMenuPartes}
+        />
+      )}
       {silencios.abierta && (
         <DialogoAjustarSilencios
           abierta={silencios.abierta}
@@ -1889,6 +2899,19 @@ function EditorActivo({
           mac={silencios.mac}
           alConfirmar={() => void silencios.confirmar()}
           alCancelar={silencios.cancelar}
+        />
+      )}
+      {comprobar.dialogo && (
+        <DialogosComprobar
+          dialogo={comprobar.dialogo}
+          mac={silencios.mac}
+          alConfirmar={() => void comprobar.confirmar()}
+          alCancelar={comprobar.cancelar}
+          alIr={comprobar.ir}
+          alBuscarOtra={() => {
+            comprobar.cancelar()
+            irABuscarOtra()
+          }}
         />
       )}
       {exportarVideo.dialogo}

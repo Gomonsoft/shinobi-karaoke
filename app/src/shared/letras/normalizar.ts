@@ -1,5 +1,11 @@
 import { MAX_ELEMENTOS_LETRA } from '../letrasBusqueda'
-import { validarInvariantesLetra, type ElementoLetra, type Palabra } from '../letra'
+import {
+  chocan,
+  validarInvariantesLetra,
+  type ElementoLetra,
+  type Letra,
+  type Palabra
+} from '../letra'
 
 /** Máximo de texto de entrada (bytes UTF-8) al importar una letra. */
 export const MAX_BYTES_LETRA = 512 * 1024
@@ -40,7 +46,9 @@ export function limpiarTexto(texto: string): string {
  */
 export function normalizarLetra(
   entrada: readonly ElementoLetra[],
-  generarId: GeneradorId = generarIdPorDefecto
+  generarId: GeneradorId = generarIdPorDefecto,
+  /** Los cantantes de la letra, para leer `parte` con tolerancia (ADR 0029 §7). */
+  contexto?: Pick<Letra, 'partes'>
 ): ElementoLetra[] {
   if (entrada.length > MAX_ELEMENTOS_LETRA) throw new ErrorLetraDemasiadoGrande('elementos')
 
@@ -57,7 +65,9 @@ export function normalizarLetra(
         palabras: null
       }
     }
+    // Se conservan los campos que esta función no toca (origen_fin, revisada, parte…).
     return {
+      ...e,
       id: '',
       tipo: 'linea',
       texto,
@@ -95,7 +105,8 @@ export function normalizarLetra(
     let limite: number | null = null
     for (let k = i + 1; k < els.length; k++) {
       const t = els[k]!.inicio_ms
-      if (t !== null) {
+      // Solo cuenta el siguiente inicio que choca (ADR 0029 §7); sin reparto, el siguiente.
+      if (t !== null && chocan(e, els[k]!, contexto)) {
         limite = t
         break
       }
@@ -103,6 +114,7 @@ export function normalizarLetra(
     if (e.inicio_ms === null) {
       e.fin_ms = null
       e.palabras = null
+      limpiarDerivados(e)
       return
     }
     const inicio = e.inicio_ms
@@ -110,6 +122,7 @@ export function normalizarLetra(
       e.fin_ms = null
     }
     if (e.palabras) e.palabras = depurarPalabras(e.palabras, inicio, limite)
+    limpiarDerivados(e)
   })
 
   // 5. Ids nuevos y únicos.
@@ -129,15 +142,22 @@ export function normalizarLetra(
   }
 
   // 6. Red de seguridad: si aun así hay problemas, se quitan todos los tiempos.
-  if (validarInvariantesLetra(els).length > 0) {
+  if (validarInvariantesLetra(els, contexto).length > 0) {
     for (const e of els) {
       e.inicio_ms = null
       e.fin_ms = null
       e.palabras = null
+      limpiarDerivados(e)
     }
     return els.filter((e, i) => !(e.tipo === 'pausa' && els[i - 1]?.tipo === 'pausa'))
   }
   return els
+}
+
+/** Quita los campos que ya no tienen sentido (sin fin no hay origen del fin; sin palabras, tampoco su origen). */
+function limpiarDerivados(e: ElementoLetra): void {
+  if (e.fin_ms === null) delete e.origen_fin
+  if (e.palabras === null) delete e.origen_palabras
 }
 
 function depurarPalabras(

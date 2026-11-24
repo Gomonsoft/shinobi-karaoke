@@ -125,10 +125,11 @@ describe('panel Estilo', () => {
     montar(estiloPredeterminado(), false, true)
     cambiarCampo(E.colorResaltado, '#F2F3F7')
     expect(screen.getByText(E.contrasteDiferencia)).toBeVisible()
-    expect(screen.getByText(LL.contrasteSoloEditor)).toBeVisible()
+    // La nota sale bajo el aviso y bajo la casilla del subrayado (F2-E9).
+    expect(screen.getAllByText(LL.contrasteSoloEditor)).toHaveLength(2)
     cambiarCampo(E.colorLetra, '#5A1E6E')
     expect(screen.getByText(E.contrasteLetra)).toBeVisible()
-    expect(screen.queryByText(LL.contrasteSoloEditor)).not.toBeInTheDocument()
+    expect(screen.getAllByText(LL.contrasteSoloEditor)).toHaveLength(1)
   })
 
   it('aplica los avisos del sistema visual y sus acciones deshacibles', () => {
@@ -243,4 +244,65 @@ it('muestra el punto de aviso con su descripción y conserva el nombre Estilo', 
   const estilo = within(paneles).getByRole('radio', { name: 'Estilo' })
   expect(estilo).toHaveAccessibleDescription('Contraste bajo')
   expect(estilo.querySelector('[data-aviso]')).toHaveAttribute('aria-hidden', 'true')
+})
+
+describe('panel Estilo · feature 2 (subrayado y daltonismo)', () => {
+  const casilla = () => screen.getByRole('checkbox', { name: 'Subrayar lo ya cantado' })
+  const conColores = (color: string, resaltado: string) => {
+    const e = estiloPredeterminado()
+    e.letra.color = color
+    e.letra.color_resaltado = resaltado
+    return e
+  }
+
+  it('F2-E1: casilla desmarcada, se marca con un paso de deshacer y no deja la clave al desmarcar', () => {
+    montar()
+    expect((casilla() as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(casilla())
+    expect(estiloActual().letra.subrayar_cantado).toBe(true)
+    fireEvent.click(casilla())
+    expect(estiloActual().letra).not.toHaveProperty('subrayar_cantado')
+    fireEvent.click(casilla())
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
+    expect(estiloActual().letra).not.toHaveProperty('subrayar_cantado')
+  })
+
+  it('F2-E5/E6: el aviso de daltonismo sale con rojo y verde; su acción marca la casilla y lo quita', () => {
+    montar(conColores('#E53935', '#43A047'))
+    expect(
+      screen.getByText('Con daltonismo, lo ya cantado puede no distinguirse de la letra.')
+    ).toBeVisible()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Subrayar lo ya cantado' })[0]!)
+    expect(estiloActual().letra.subrayar_cantado).toBe(true)
+    expect(casilla()).toHaveFocus()
+    expect(screen.queryByText(/Con daltonismo/)).not.toBeInTheDocument()
+  })
+
+  it('F2-E5: el par predeterminado no avisa de daltonismo', () => {
+    montar()
+    expect(screen.queryByText(/Con daltonismo/)).not.toBeInTheDocument()
+  })
+
+  it('F2-E7: con subrayado, «diferencia» sale como informativo; sin él, como aviso con las dos acciones', () => {
+    const e = conColores('#FFFFFF', '#F2F3F7')
+    const v = montar(e)
+    expect(screen.getByText(E.contrasteDiferencia)).toBeVisible()
+    expect(screen.getAllByRole('button', { name: 'Subrayar lo ya cantado' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: E.sugerirResaltado })).toBeVisible()
+    v.unmount()
+    e.letra.subrayar_cantado = true
+    montar(e)
+    expect(screen.queryByText(E.contrasteDiferencia)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'El color de lo ya cantado apenas se distingue del de la letra; el avance se verá por el subrayado.'
+      )
+    ).toBeVisible()
+  })
+
+  it('F2-E8: «Sugerir un color de resaltado» quita el aviso de daltonismo', () => {
+    montar(conColores('#E53935', '#43A047'))
+    fireEvent.click(screen.getByRole('button', { name: E.sugerirResaltado }))
+    expect(screen.queryByText(/Con daltonismo/)).not.toBeInTheDocument()
+  })
 })

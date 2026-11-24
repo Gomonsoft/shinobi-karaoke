@@ -9,6 +9,7 @@ import {
   type DetalleErrorExportacion,
   type FormatoId
 } from '../../shared/exportacion'
+import type { CarpetaDestinoIpc } from '../../shared/ipc'
 
 /**
  * Destinos de la exportación, archivo temporal y sustitución atómica (ADR 0019 §6). Sin Electron:
@@ -61,6 +62,8 @@ export interface PuertosDestinos<V = unknown> {
   disco?: DiscoDestinos
   /** `dialog.showSaveDialog`; `null` si se cancela. */
   dialogoGuardar(ventana: V, opciones: OpcionesDialogoGuardar): Promise<string | null>
+  /** `dialog.showOpenDialog` de carpetas (`openDirectory`, `createDirectory`); `null` si se cancela. */
+  dialogoCarpeta?(ventana: V, opciones: { defaultPath: string }): Promise<string | null>
   directorioDatos: string
   /** `app.getPath('videos')` y `app.getPath('home')`; pueden lanzar o devolver vacío. */
   carpetaVideos(): string
@@ -139,6 +142,11 @@ export interface CancionDestino {
   artista: string
 }
 
+interface EntradaCarpeta {
+  ruta: string
+  caduca: number
+}
+
 interface EntradaDestino {
   ruta: string
   formato: FormatoId
@@ -153,6 +161,7 @@ function codigoDe(e: unknown): string | undefined {
 
 export class Destinos<V = unknown> {
   private readonly vigentes = new Map<string, EntradaDestino>()
+  private readonly carpetas = new Map<string, EntradaCarpeta>()
   private readonly disco: DiscoDestinos
   private readonly plataforma: NodeJS.Platform
   private readonly ahora: () => number
@@ -237,6 +246,52 @@ export class Destinos<V = unknown> {
     if (!this.vigentes.delete(destinoId)) {
       throw errorDeCampo('El destino caducó o ya se usó.')
     }
+    return e.ruta
+  }
+
+  // --- Carpeta de un lote (ADR 0026 §5) ---------------------------------------------------
+
+  /** La carpeta que se propone al abrir el diálogo de un lote (la recordada, Vídeos o la personal). */
+  async carpetaPropuesta(carpetaRecordada: string | null): Promise<CarpetaDestinoIpc> {
+    const { carpeta } = await this.carpetaInicial(carpetaRecordada)
+    return this.emitirCarpeta(carpeta)
+  }
+
+  /**
+   * «Cambiar…»: el selector de carpetas del sistema, empezando en la carpeta de `desdeCarpetaId` (si sigue
+   * vigente) o en la recordada. `null` si se cancela (el `carpetaId` actual sigue vigente). Rechaza las
+   * carpetas dentro de los datos de la app o sin permiso de escritura.
+   */
+  async elegirCarpeta(
+    desdeCarpetaId: string,
+    carpetaRecordada: string | null,
+    ventana: V
+  ): Promise<CarpetaDestinoIpc | null> {
+    if (!this.p.dialogoCarpeta) {
+      throw new ErrorDestino('ERROR_INTERNO', 'El selector de carpetas no está disponible.')
+    }
+    const actual = this.mirarCarpeta(desdeCarpetaId)
+    const inicio = actual?.ruta ?? (await this.carpetaInicial(carpetaRecordada)).carpeta
+    const elegida = await this.p.dialogoCarpeta(ventana, { defaultPath: inicio })
+    if (elegida === null) return null
+    const ruta = resolve(elegida)
+    await this.validarCarpeta(ruta)
+    this.carpetas.delete(desdeCarpetaId)
+    return this.emitirCarpeta(ruta)
+  }
+
+  /** Ruta de un `carpetaId` vigente sin gastarlo (para comprobar el espacio antes de encolar). */
+  rutaDeCarpeta(carpetaId: string): string | null {
+    return this.mirarCarpeta(carpetaId)?.ruta ?? null
+  }
+
+  /** Para `iniciarLote`: valida la carpeta una vez y gasta el `carpetaId`. */
+  async consumirCarpeta(carpetaId: string): Promise<string> {
+    const e = this.mirarCarpeta(carpetaId)
+    if (!e) throw errorDeCampo('La carpeta caducó o ya se usó.')
+    // Una carpeta que ya no se puede usar no se gasta: el usuario puede cambiarla.
+    await this.validarCarpeta(e.ruta)
+    if (!this.carpetas.delete(carpetaId)) throw errorDeCampo('La carpeta caducó o ya se usó.')
     return e.ruta
   }
 
@@ -350,6 +405,24 @@ export class Destinos<V = unknown> {
       libreBytes: await this.disco.libreBytes(dirname(ruta)),
       carpetaRecordadaNoDisponible
     }
+  }
+
+  private async validarCarpeta(ruta: string): Promise<void> {
+    if (this.dentroDeDatos(ruta) || !(await this.disco.esCarpetaEscribible(ruta))) {
+      throw errorDeCampo(`No se puede guardar en ${ruta}.`)
+    }
+  }
+
+  private async emitirCarpeta(ruta: string): Promise<CarpetaDestinoIpc> {
+    const carpetaId = this.uuid()
+    this.carpetas.set(carpetaId, { ruta, caduca: this.ahora() + CADUCIDAD_DESTINO_MS })
+    return { carpetaId, ruta, libreBytes: await this.disco.libreBytes(ruta) }
+  }
+
+  private mirarCarpeta(id: string): EntradaCarpeta | null {
+    const ahora = this.ahora()
+    for (const [k, v] of this.carpetas) if (v.caduca <= ahora) this.carpetas.delete(k)
+    return this.carpetas.get(id) ?? null
   }
 
   /** Entrada vigente sin gastarla; purga las caducadas. */

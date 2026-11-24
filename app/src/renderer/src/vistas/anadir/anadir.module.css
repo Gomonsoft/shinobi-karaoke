@@ -185,3 +185,326 @@
 .reintento svg {
   color: var(--info);
 }
+
+/* ---------- Datos propuestos, sugerencias y unificar (0.2.2 · Feature 6) ---------- */
+.desplegar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: var(--alto-boton);
+  border: 0;
+  background: transparent;
+  color: var(--texto-2);
+  cursor: pointer;
+}
+
+.lista {
+  /* En un portal de <body>: top, left y width los pone CampoCombo a partir del campo. */
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  padding: var(--e-1) 0;
+  list-style: none;
+  border: 1px solid var(--borde-control);
+  border-radius: var(--r-s);
+  background: var(--fondo-2);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.3);
+}
+
+.opcion {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--e-3);
+  padding: var(--e-2) var(--e-3);
+  color: var(--texto-1);
+  cursor: pointer;
+}
+
+.opcion:hover,
+.activa {
+  background: var(--fondo-3, var(--fondo-1));
+}
+
+.opcionValor {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opcionCantidad {
+  flex: none;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+
+.procedencia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-1);
+}
+
+.procedenciaDudosa {
+  color: var(--aviso);
+}
+
+/* Sugerencia de unificar: texto y, debajo, sus dos botones; 8 px antes de la línea de ayuda. */
+.regionUnificar {
+  display: block;
+}
+.regionUnificar:not(:empty) {
+  margin-bottom: var(--e-2);
+}
+.unificar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--e-2);
+}
+.lineaAyuda {
+  display: block;
+}
+/* Bajo los botones de la sugerencia de unificar: 8 px de separación (V1). */
+.lineaAyudaTrasUnificar {
+  margin-top: var(--e-2);
+}
+.botonesUnificar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-2);
+}
+
+.accionCampo {
+  justify-self: start;
+}
+
+.anuncio {
+  min-height: 0;
+  margin: 0;
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}
+.anuncio:empty {
+  display: none;
+}
+
+.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 0.2.2 · Feature 7: tabla de revisión del lote (docs/ux/03). Columna de hasta 960 px. */
+.vistaLote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.vistaLote h1:focus {
+  outline: none;
+}
+
+.cabeceraLote {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.encabezadoLote h1,
+.encabezadoLote p {
+  margin: 0;
+}
+
+.avisosLote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+}
+
+.barraLote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.soloDudosas {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin-inline-start: auto;
+  color: var(--texto-2);
+}
+
+.envolturaTabla {
+  max-height: calc(12 * 3.75rem);
+  overflow: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--r-m);
+  background: var(--fondo-1);
+}
+
+.tablaLote {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tablaLote th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--e-2);
+  background: var(--fondo-2);
+  color: var(--texto-2);
+  font-weight: 600;
+  text-align: left;
+}
+
+.tablaLote td {
+  padding: var(--e-1) var(--e-2);
+  vertical-align: top;
+}
+
+.tablaLote th:nth-child(1),
+.tablaLote td:nth-child(1) {
+  width: 2.5rem;
+}
+
+.tablaLote th:nth-child(3),
+.tablaLote td:nth-child(3),
+.tablaLote th:nth-child(4),
+.tablaLote td:nth-child(4) {
+  width: 180px;
+}
+
+/* Duración (revisión 2026-11-23, L1): 56 px de contenido MÁS el relleno de la celda, para que la cabecera
+   se vea entera, y alineada a la derecha como los tiempos. */
+.tablaLote th:nth-child(5),
+.tablaLote td:nth-child(5) {
+  box-sizing: content-box;
+  /* 56 px de la spec y lo justo para que «Duración» (negrita) quepa entera sin invadir el relleno. */
+  width: 64px;
+}
+
+.tablaLote th.celdaDura {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Cada duración, centrada en el alto de los campos de su fila: misma línea base que ellos. */
+.duraTexto {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: var(--alto-boton);
+  font-variant-numeric: tabular-nums;
+}
+
+.celdaCasilla {
+  text-align: center;
+}
+
+.celdaDura {
+  color: var(--texto-2);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.soloLectura {
+  display: block;
+  padding-block: var(--e-2);
+  overflow: hidden;
+  color: var(--texto-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineaLote td {
+  padding-top: 0;
+  padding-bottom: var(--e-2);
+}
+
+.lineaTexto {
+  display: flex;
+  align-items: center;
+  gap: var(--e-1);
+  font-size: var(--t-pequeno, 0.8125rem);
+}
+
+.linea_aviso {
+  color: var(--aviso);
+}
+
+.linea_info {
+  color: var(--texto-2);
+}
+
+.linea_error {
+  color: var(--error);
+}
+
+.topeLote {
+  display: block;
+  color: var(--aviso);
+  font-size: var(--t-pequeno, 0.8125rem);
+}
+
+.pieLote {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-2);
+  padding-block: var(--e-3);
+  background: var(--fondo-0);
+}
+
+.pieLote p {
+  margin: 0;
+}
+
+.resumenLote {
+  color: var(--texto-1);
+  font-weight: 600;
+}
+
+.popoverTodas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e-3);
+  min-width: 18rem;
+  padding: var(--e-3);
+}
+
+.areaEnlaces {
+  min-height: 2.75rem;
+  resize: none;
+}
+
+.ofertaLista {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+}
+
+.soloLector {
+  composes: soloLector from '../../componentes/componentes.module.css';
+}
+
+.completandoLote {
+  margin: 0;
+  color: var(--texto-2);
+}

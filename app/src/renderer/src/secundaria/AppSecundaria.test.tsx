@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { estiloPredeterminado } from '@shared/estilo'
 import { fondoCss, fondoCssEn } from '../karaoke/estiloCss'
 import { letra, linea } from '@shared/__fixtures__'
+import { cancionVocesAlaVez } from '@shared/__fixtures__/voces'
 import {
   crearApiReproductorFalsa,
   entrada,
@@ -82,6 +83,7 @@ function motorFalso(posicion = 0) {
     posicionMs: vi.fn(() => posicion),
     fijarVolumen: vi.fn(),
     fijarVoz: vi.fn(),
+    fijarCoros: vi.fn(),
     estado: () => estado,
     suscribir: (cb: (e: EstadoMotorReproductor) => void) => {
       oyentes.add(cb)
@@ -525,6 +527,27 @@ describe('AppSecundaria · reproductor de la sesión', () => {
     )
     expect(screen.getByTestId('cuenta-transicion')).toBeInTheDocument()
     expect(motores[0]!.motor.destruir).toHaveBeenCalled()
+  })
+})
+
+describe('AppSecundaria · voces a la vez (0360)', () => {
+  it('pinta la letra con varias voces en sus zonas, con el mismo componente que el reproductor', async () => {
+    const voces = cancionVocesAlaVez().letra!
+    const { f } = await montar(estadoS1(), 8000)
+    act(() =>
+      f.emitirComando(
+        cargar({ desdeMs: 8000, entrada: entradaCargar({ letra: voces }), pausada: false })
+      )
+    )
+    await act(async () => undefined)
+    await avanzar(100)
+    const region = screen.getByRole('region', { name: R.aria.region('Canción 1') })
+    const zonas = new Set(
+      Array.from(region.querySelectorAll<HTMLElement>('[data-linea]'), (n) => n.dataset.zona)
+    )
+    expect([...zonas].sort()).toEqual(['c1', 'c2', 'coro'])
+    // Las insignias y los paréntesis también viajan en la instantánea.
+    expect(region.querySelector('[data-insignia]')).not.toBeNull()
   })
 })
 

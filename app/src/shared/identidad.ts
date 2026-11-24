@@ -25,6 +25,22 @@ export function claveTexto(t: string | null | undefined): string | null {
   return base.toLowerCase().normalize('NFC')
 }
 
+/**
+ * Clave flexible (ADR 0025 §6): la de identidad más sin diacríticos latinos, sin puntuación ni
+ * símbolos (`…` = `...`, comillas, guiones) y sin espacios. Solo sirve para sugerir «¿Te refieres
+ * a…?» y proponer la grafía de la biblioteca; nunca es identidad. Vacío tras limpiar: `null`.
+ */
+export function claveFlexible(t: string | null | undefined): string | null {
+  const base = claveTexto(t)
+  if (base === null) return null
+  const limpia = base
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\p{P}\p{S}\s]/gu, '')
+    .normalize('NFC')
+  return limpia === '' ? null : limpia
+}
+
 export interface MetadatosIdentidad {
   artista?: string | null
   album?: string | null

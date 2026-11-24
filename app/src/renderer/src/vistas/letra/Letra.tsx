@@ -8,7 +8,10 @@ import { Boton } from '../../componentes/Boton'
 import { useNavegacion } from '../../navegacion/estado'
 import { CabeceraCancion } from '../cancion/CabeceraCancion'
 import { BusquedaLetra } from './BusquedaLetra'
+import { AvisoEleccion } from './AvisoEleccion'
 import { LetraElegida } from './LetraElegida'
+import { LP } from './preparacion'
+import { segundosDe } from './textosComprobacion'
 import { useImportarArchivo } from './importar'
 import { PegarLetra } from './PegarLetra'
 import { existenteDe, useConfirmarSustituir, type LetraExistente } from './sustituir'
@@ -24,7 +27,9 @@ interface Carga {
 
 /** Paso 3 de una canción: buscar la letra (A), y la letra elegida (C, `LetraElegida`). */
 export function Letra({ id }: { id: string }) {
-  const { ir } = useNavegacion()
+  const { vista, ir } = useNavegacion()
+  // «Buscar otra letra» desde el editor: se abre en A, sin caché, aunque ya haya letra.
+  const [abrirEnBusqueda] = useState(() => vista.tipo === 'cancion' && vista.buscarOtra === true)
   const [carga, setCarga] = useState<Carga>({ estado: 'cargando', resumen: null, cancion: null })
   // Número de líneas de la letra elegida; `null` = se muestra la búsqueda (A).
   const [elegida, setElegida] = useState<number | null>(null)
@@ -36,7 +41,10 @@ export function Letra({ id }: { id: string }) {
   const [ignoradasImportadas, setIgnoradasImportadas] = useState(0)
   // Letra que muestra C (la clave la remonta al sustituirla) y si A busca sin caché ("Buscar otra letra").
   const [letraC, setLetraC] = useState<{ letra: LetraGuardada; clave: number } | null>(null)
-  const [sinCache, setSinCache] = useState(false)
+  const [sinCache, setSinCache] = useState(abrirEnBusqueda)
+  // «Ver otras candidatas» del aviso de la preparación: A con la lista ya cargada y la letra actual marcada.
+  const [letraActualId, setLetraActualId] = useState<number | null>(null)
+  const [avisoCerrado, setAvisoCerrado] = useState(false)
   const raiz = useRef<HTMLElement>(null)
   const refEditor = useRef<HTMLButtonElement>(null)
   const enfocarEditor = useRef(false)
@@ -56,9 +64,9 @@ export function Letra({ id }: { id: string }) {
           return
         }
         const n = contarLineas(cancion.letra)
-        setElegida(n >= 1 ? n : null)
+        setElegida(n >= 1 && !abrirEnBusqueda ? n : null)
         setLetraC(cancion.letra && n >= 1 ? { letra: cancion.letra, clave: 0 } : null)
-        setExistente(existenteDe(cancion.letra?.lineas))
+        setExistente(existenteDe(cancion.letra?.lineas, cancion.letra ?? undefined))
         setCarga({ estado: 'listo', resumen, cancion })
       },
       () => activo && setCarga({ estado: 'error', resumen: null, cancion: null })
@@ -67,7 +75,7 @@ export function Letra({ id }: { id: string }) {
       activo = false
       baja()
     }
-  }, [id])
+  }, [id, abrirEnBusqueda])
 
   useEffect(() => {
     if (elegida !== null && enfocarEditor.current) {
@@ -81,15 +89,25 @@ export function Letra({ id }: { id: string }) {
     nuevo: ResumenCancionIpc,
     lineas: ElementoLetra[],
     ignoradas = 0,
-    origen: LetraGuardada['origen'] = 'manual'
+    origen: LetraGuardada['origen'] = 'manual',
+    correccion?: Pick<LetraGuardada, 'offset_ms' | 'desfase_corregido_ms'>
   ): void => {
     enfocarEditor.current = true
+    // Sustituir conserva los cantantes, sus nombres y el nivel de coros (main hace lo mismo).
+    const partes = letraC?.letra.partes
     setLetraC((c) => ({
-      letra: { origen, lrclib_id: null, offset_ms: 0, lineas },
+      letra: {
+        origen,
+        lrclib_id: null,
+        offset_ms: 0,
+        ...correccion,
+        ...(partes ? { partes } : {}),
+        lineas
+      },
       clave: (c?.clave ?? 0) + 1
     }))
     setCarga((c) => ({ ...c, resumen: nuevo }))
-    setExistente(existenteDe(lineas))
+    setExistente(existenteDe(lineas, { partes }))
     setTextoPegado('')
     setPegando(false)
     setIgnoradasImportadas(ignoradas)
@@ -100,6 +118,34 @@ export function Letra({ id }: { id: string }) {
   )
 
   const { resumen, cancion } = carga
+  // Preparación desatendida (docs/ux/05 · Feature 5): qué encuentra el usuario al entrar.
+  const prep = resumen?.preparacion
+  const estadoPrep = resumen?.estadoPreparacion
+  const previo = !abrirEnBusqueda
+    ? estadoPrep === 'sin_letra'
+      ? 'sin_letra'
+      : estadoPrep === 'instrumental'
+        ? 'instrumental'
+        : undefined
+    : undefined
+  const esperando =
+    estadoPrep === 'preparando' && prep?.paso === 'buscando_letra' && !abrirEnBusqueda
+  const desfaseMs = cancion?.letra?.desfase_corregido_ms ?? 0
+  const textoEleccion =
+    prep?.eleccionAutomatica && !prep.revisada && !avisoCerrado
+      ? prep.eleccionSinComprobar
+        ? // Nunca se combina con la corrección: manda «sin comprobar» (spec 05, F5-L9).
+          `${LP.elegidaSinComprobar.inicio}${LP.elegidaSinComprobar.negrita}${LP.elegidaSinComprobar.fin}`
+        : desfaseMs !== 0
+          ? LP.elegidaCorregida(segundosDe(desfaseMs), desfaseMs > 0)
+          : LP.elegida
+      : null
+  const cerrarAviso = () => {
+    setAvisoCerrado(true)
+    void window.shinobi.biblioteca.marcarPreparacionRevisada(id).catch(() => undefined)
+  }
+  const separada = resumen?.pasos?.separacion.estado === 'completado' && !resumen.danada
+  const duracionMs = cancion?.metadatos.duracion_ms ?? 0
   return (
     <section ref={raiz} className={estilos.vista} aria-labelledby="titulo-vista">
       <CabeceraCancion resumen={resumen} actual="letra" />
@@ -137,16 +183,53 @@ export function Letra({ id }: { id: string }) {
           onPegar={() => setPegando(true)}
           onImportar={() => void importar()}
           sinCacheInicial={sinCache}
-          onUsada={(nuevo, _n, lineas) => guardada(nuevo, lineas, 0, 'lrclib')}
+          separada={separada}
+          duracionMs={duracionMs}
+          preparacion={{
+            previo,
+            esperando,
+            elige: estadoPrep === 'elige_letra',
+            noElige: prep?.busqueda?.noElige ?? null,
+            letraActualId:
+              letraActualId ??
+              (abrirEnBusqueda && prep?.eleccionAutomatica
+                ? (cancion.letra?.lrclib_id ?? null)
+                : null)
+          }}
+          onUsada={(nuevo, _n, lineas, correccion) => {
+            guardada(nuevo, lineas, 0, 'lrclib', correccion)
+            // «Elige la letra»: al elegir, la preparación sigue sola con los fines (spec 05 · Feature 5).
+            if (prep && estadoPrep === 'elige_letra') {
+              void window.shinobi.preparacion?.preparar([id]).catch(() => undefined)
+            }
+          }}
         />
       )}
 
+      {carga.estado === 'listo' && elegida !== null && textoEleccion && (
+        <AvisoEleccion
+          texto={textoEleccion}
+          sinComprobar={prep?.eleccionSinComprobar === true}
+          alCerrar={cerrarAviso}
+          alVerOtras={() => {
+            setLetraActualId(letraC?.letra.lrclib_id ?? null)
+            setSinCache(false)
+            setIgnoradasImportadas(0)
+            setElegida(null)
+          }}
+        />
+      )}
+      {carga.estado === 'listo' && elegida !== null && estadoPrep === 'preparando' && (
+        <p role="status">{LP.continuando}</p>
+      )}
       {carga.estado === 'listo' && elegida !== null && letraC && (
         <LetraElegida
           key={letraC.clave}
           cancionId={id}
           letraInicial={letraC.letra}
           estado={resumen?.estado ?? 'borrador'}
+          separada={separada}
+          duracionMs={duracionMs}
           fuenteLista={resumen?.pasos?.fuente.estado === 'completado'}
           esperandoFuente={resumen?.pasos?.fuente.estado === 'en_curso'}
           ignoradas={ignoradasImportadas}

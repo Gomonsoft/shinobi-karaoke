@@ -1,5 +1,18 @@
 import { useRef } from 'react'
-import { Film, ListPlus, Palette, Pencil, Play, TriangleAlert } from 'lucide-react'
+import {
+  Film,
+  Check,
+  FileMusic,
+  Flag,
+  ListChecks,
+  ListPlus,
+  Package,
+  Palette,
+  Pencil,
+  Play,
+  TriangleAlert,
+  WandSparkles
+} from 'lucide-react'
 import { estiloPredeterminado } from '@shared/estilo'
 import type { ResumenCancionIpc } from '@shared/ipc'
 import { useExportaciones } from '../../exportacion/contexto'
@@ -15,13 +28,20 @@ import { useSesion } from '../../sesion/ProveedorSesion'
 import { BIB_COLA, EDI_BLOQUEO, SES } from '../../sesion/textos'
 import { useAccionBloqueable } from '../../sesion/useAccionBloqueable'
 import { useCuentaAtras } from '../../trabajos/useCuentaAtras'
+import { abrirExportarPaquete } from './paquete/almacen'
+import { exportarLetras } from './paquete/letras'
+import { LRC, PAQ } from './paquete/textos'
 import { LineaPaso } from './LineaPaso'
+import { BIB_FINES } from './textosAjustarFines'
+import { puedeAjustarFines } from './useAjustarFines'
+import { BIB_PREP } from './textosPreparacion'
 import { SEL } from './textosSeleccion'
 import {
   continuaHaciaEdicion,
   datosDeTarjeta,
   formatearDuracion,
   lineaDeCola,
+  puedePrepararResumen,
   textoAriaTarjeta,
   temaDeTarjeta,
   tituloDeTarjeta,
@@ -52,13 +72,31 @@ export interface AccionesTarjeta {
   reproducirEnOtraPantalla(id: string): void
   /** «Aplicar tema…» del menú ⋯: la cablea 0173; sin ella, el menú no ofrece la opción. */
   aplicarTema?(id: string): void
+  /** «Revisar» de una «Lista para revisar»: abre el editor (la feature 11 lo abre en su revisión). */
+  revisar(id: string): void
+  /** «Marcar como lista» / «Marcar como letra lista» del ⋯ de una «Lista para revisar» (feature 11). */
+  marcarLista?(id: string, modalidad: 'karaoke' | 'letra_lista'): void
+  /** «▶ Probar»: reproductor local con el borrador tal como está; su estado no cambia. */
+  probar(id: string): void
+  /** «Preparar» del menú ⋯: continúa la cadena de preparación de esa canción. */
+  preparar(id: string): void
+  /** «Ajustar los fines…» del menú ⋯ (letra sin marca): pide confirmación y pone los fines que faltan. */
+  ajustarFines?(id: string): void
+  /** «Elegir la letra» / «Añadir la letra»: abren la vista Letra. */
+  abrirLetra(id: string): void
+  /** «Reintentar» de «Letra pendiente»: repite la búsqueda sin salir de la Biblioteca. */
+  reintentarBusqueda(id: string): void
 }
 
 const ETIQUETA_ACCION = {
   reproducir: 'Reproducir',
   continuar: 'Continuar',
   reintentar: 'Reintentar',
-  ver: 'Ver'
+  ver: 'Ver',
+  revisar: BIB_PREP.accion.revisar,
+  elegirLetra: BIB_PREP.accion.elegirLetra,
+  anadirLetra: BIB_PREP.accion.anadirLetra,
+  reintentarBusqueda: BIB_PREP.accion.reintentar
 } as const
 
 interface TarjetaProps {
@@ -157,6 +195,21 @@ export function TarjetaCancion({
   // La canción de la entrada activa no se puede eliminar ni volver a borrador (spec 02).
   const esActiva = haySesion && estado?.activa?.cancionId === id
   const continuaBloqueado = bloqueo.bloqueada && continuaHaciaEdicion(resumen)
+  const paraRevisar = d.accion === 'revisar'
+  // Revisar, Elegir la letra y Añadir la letra entran en el editor o en Letra: con sesión, candado.
+  const accionBloqueable =
+    d.accion === 'continuar' ||
+    d.accion === 'revisar' ||
+    d.accion === 'elegirLetra' ||
+    d.accion === 'anadirLetra'
+  const principalBloqueada = accionBloqueable && continuaBloqueado
+  // «Preparar» (spec 02): borradores a los que aún les falta algo que la app puede hacer sola.
+  const puedePreparar = puedePrepararResumen(resumen, Boolean(vivo))
+  const buscaraLetra = puedePreparar && resumen.pasos?.letra.estado !== 'completado'
+  const alProbar = () => {
+    if (haySesion) return
+    acciones.probar(id)
+  }
   const textoBloqueo = (nombre: string) => ({
     bloqueado: true,
     ariaEtiqueta: `${nombre}${EDI_BLOQUEO.aria}`
@@ -171,6 +224,7 @@ export function TarjetaCancion({
     if (seleccion) return
     if (resumen.danada) abrirMenu()
     else if (lista) alReproducir()
+    else if (paraRevisar) alPrincipal()
     else alContinuar()
   }
   const alReproducir = () =>
@@ -181,6 +235,10 @@ export function TarjetaCancion({
   const alPrincipal = () => {
     if (d.accion === 'reproducir') alReproducir()
     else if (d.accion === 'reintentar') acciones.reintentar(id)
+    else if (d.accion === 'reintentarBusqueda') acciones.reintentarBusqueda(id)
+    else if (d.accion === 'revisar') bloqueo.intentar(() => acciones.revisar(id))
+    else if (d.accion === 'elegirLetra' || d.accion === 'anadirLetra')
+      bloqueo.intentar(() => acciones.abrirLetra(id))
     else if (d.accion) alContinuar()
   }
   const alEliminar = () => {
@@ -218,12 +276,56 @@ export function TarjetaCancion({
       ...(bloqueo.bloqueada ? textoBloqueo('Editar') : null),
       alSeleccionar: alEditar
     })
+  } else if (paraRevisar) {
+    items.push({
+      id: 'revisar',
+      etiqueta: BIB_PREP.menu.revisar,
+      icono: ListChecks,
+      ...(continuaBloqueado ? textoBloqueo(BIB_PREP.menu.revisar) : null),
+      alSeleccionar: alPrincipal
+    })
+    items.push({
+      id: 'probar',
+      etiqueta: BIB_PREP.menu.probar,
+      icono: Play,
+      noDisponible: haySesion ? BIB_PREP.probarSesion : undefined,
+      alSeleccionar: alProbar
+    })
+    if (acciones.marcarLista) {
+      items.push({
+        id: 'marcarLista',
+        etiqueta: BIB_PREP.revision.menu.lista,
+        alSeleccionar: () => acciones.marcarLista?.(id, 'karaoke')
+      })
+      items.push({
+        id: 'marcarLetraLista',
+        etiqueta: BIB_PREP.revision.menu.letraLista,
+        alSeleccionar: () => acciones.marcarLista?.(id, 'letra_lista')
+      })
+    }
   } else if (!resumen.danada) {
     items.push({
       id: 'continuar',
       etiqueta: 'Continuar',
       ...(continuaBloqueado ? textoBloqueo('Continuar') : null),
       alSeleccionar: alContinuar
+    })
+  }
+  if (puedePreparar) {
+    items.push({
+      id: 'preparar',
+      etiqueta: BIB_PREP.menu.preparar,
+      icono: WandSparkles,
+      ...(buscaraLetra ? { descripcion: BIB_PREP.menu.ayuda } : null),
+      alSeleccionar: () => acciones.preparar(id)
+    })
+  }
+  if (acciones.ajustarFines && puedeAjustarFines(resumen, Boolean(vivo))) {
+    items.push({
+      id: 'ajustarFines',
+      etiqueta: BIB_FINES.menu,
+      icono: WandSparkles,
+      alSeleccionar: () => acciones.ajustarFines?.(id)
     })
   }
   if (!resumen.danada) {
@@ -244,6 +346,23 @@ export function TarjetaCancion({
           cancionId: id,
           ...(exportando ? { trabajoId: exportando.trabajoId } : null)
         })
+    })
+  }
+  // Feature 9: el paquete y la letra a `.lrc` (la dañada por `cancion.json` ilegible no se puede leer).
+  if (!(resumen.danada && resumen.motivo === 'json')) {
+    items.push({
+      id: 'paquete',
+      etiqueta: PAQ.menuExportar,
+      icono: Package,
+      alSeleccionar: () => abrirExportarPaquete({ tipo: 'canciones', ids: [id] })
+    })
+    items.push({
+      id: 'lrc',
+      etiqueta: LRC.menu,
+      icono: FileMusic,
+      noDisponible: resumen.lineasConTiempo === 0 ? LRC.sinTiempos : undefined,
+      alSeleccionar: () =>
+        void exportarLetras([{ id, titulo: resumen.titulo, artista: resumen.artista }])
     })
   }
   if (!resumen.danada && acciones.aplicarTema) {
@@ -406,6 +525,16 @@ export function TarjetaCancion({
           )}
         </div>
         {lineaPaso && <LineaPaso linea={lineaPaso} />}
+        {paraRevisar && resumen.revision && (
+          <p className={`t-pequeno ${estilos.lineaRevision}`} data-linea-revision>
+            <Icono icono={resumen.revision.dudosas > 0 ? Flag : Check} tamano={14} />
+            <span>
+              {resumen.revision.dudosas > 0
+                ? BIB_PREP.revision.linea(resumen.revision.dudosas)
+                : BIB_PREP.revision.sinDudas}
+            </span>
+          </p>
+        )}
         {lineaExportacion && <LineaPaso linea={lineaExportacion} />}
         {d.accion && !seleccion && (
           <div className={estilos.accion}>
@@ -417,19 +546,33 @@ export function TarjetaCancion({
                 principalEsCola && d.accion === 'reproducir'
                   ? BIB_COLA.botonAria(titulo)
                   : `${ETIQUETA_ACCION[d.accion]} «${titulo}»${
-                      d.accion === 'continuar' && continuaBloqueado ? EDI_BLOQUEO.aria : ''
+                      principalBloqueada ? EDI_BLOQUEO.aria : ''
                     }`
               }
-              aria-disabled={d.accion === 'continuar' && continuaBloqueado ? true : undefined}
+              aria-disabled={principalBloqueada ? true : undefined}
             >
               {d.accion === 'reproducir' && (
                 <Icono icono={principalEsCola ? ListPlus : Play} tamano={16} />
               )}
+              {d.accion === 'revisar' && <Icono icono={ListChecks} tamano={16} />}
               {principalEsCola && d.accion === 'reproducir'
                 ? BIB_COLA.boton
                 : ETIQUETA_ACCION[d.accion]}
-              {d.accion === 'continuar' && continuaBloqueado && bloqueo.candado}
+              {principalBloqueada && bloqueo.candado}
             </Boton>
+            {d.secundaria === 'probar' && (
+              <Boton
+                variante="fantasma"
+                tabIndex={-1}
+                onClick={alProbar}
+                aria-label={`${BIB_PREP.accion.probar} «${titulo}» a pantalla completa`}
+                aria-disabled={haySesion ? true : undefined}
+                title={haySesion ? BIB_PREP.probarSesion : undefined}
+              >
+                <Icono icono={Play} tamano={16} />
+                {BIB_PREP.accion.probar}
+              </Boton>
+            )}
             {lista && (
               <Boton
                 variante="fantasma"

@@ -17,7 +17,7 @@ import urllib.error
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import SplitResult, parse_qsl, urlsplit
 
 from . import metadatos_youtube, miniatura, protocolo
 from .errores import ArgumentosNoValidos, ErrorWorker
@@ -37,25 +37,32 @@ AlProgreso = Callable[[int, int | None], None]
 # --- Validación de URL -------------------------------------------------------------
 
 
-def analizar_url(texto: object) -> tuple[str | None, str | None]:
-    """Devuelve `(id_video, None)` o `(None, codigo)` con URL_NO_VALIDA / URL_NO_SOPORTADA."""
+def descomponer_url(texto: object) -> SplitResult | None:
+    """Valida la forma general de un enlace (esquema, puerto, sin credenciales) o devuelve None."""
     t = texto.strip() if isinstance(texto, str) else ""
     if t == "" or len(t) > MAX_LONGITUD_URL or re.search(r"\s", t):
-        return None, "URL_NO_VALIDA"
+        return None
     candidata = t
     if not re.match(r"^https?://", t, re.IGNORECASE):
         if re.match(r"^[a-z][a-z0-9+.-]*:(?!\d+(/|$))", t, re.IGNORECASE) or t.startswith("//"):
-            return None, "URL_NO_VALIDA"
+            return None
         candidata = f"https://{t}"
     try:
         url = urlsplit(candidata)
         url.port  # noqa: B018  (lanza ValueError si el puerto no es válido)
     except ValueError:
-        return None, "URL_NO_VALIDA"
+        return None
     autoridad = re.split(r"[/?#]", re.sub(r"^https?://", "", candidata, flags=re.IGNORECASE))[0]
     if re.search(r"[@:]", autoridad):
-        return None, "URL_NO_VALIDA"
+        return None
+    return url
 
+
+def analizar_url(texto: object) -> tuple[str | None, str | None]:
+    """Devuelve `(id_video, None)` o `(None, codigo)` con URL_NO_VALIDA / URL_NO_SOPORTADA."""
+    url = descomponer_url(texto)
+    if url is None:
+        return None, "URL_NO_VALIDA"
     host = (url.hostname or "").lower()
     partes = [s for s in url.path.split("/") if s != ""]
     if host in _HOSTS_CORTOS:
@@ -172,11 +179,17 @@ class FuenteYoutube(Protocol):
     def info(self, url: str) -> dict[str, Any]:
         """Metadatos del vídeo sin descargar el audio (forma de `extract_info`)."""
 
+    def info_lista(self, url: str, max_entradas: int) -> dict[str, Any]:
+        """Lista en modo plano (sin descargar ni consultar cada vídeo), forma de `extract_info`."""
+
     def descargar(self, url: str, destino: Path, al_progreso: AlProgreso) -> Path:
         """Descarga el mejor audio en la carpeta `destino` y devuelve la ruta del archivo."""
 
     def obtener_miniatura(self, info: Mapping[str, Any]) -> bytes | None:
         """Bytes de la miniatura elegida (sin convertir) o None."""
+
+    info_descarga: dict[str, Any] | None
+    """`info` de la última descarga (el mismo `extract_info` que la hizo, sin otra petición)."""
 
 
 class _LoggerYtdlp:
@@ -212,6 +225,8 @@ def _ruta_deno() -> str | None:
 class FuenteYoutubeReal:
     """Implementación con la API Python de yt-dlp (sin cookies ni postprocesadores)."""
 
+    info_descarga: dict[str, Any] | None = None
+
     def _opciones(self, **extra: Any) -> dict[str, Any]:
         deno = _ruta_deno()
         opciones: dict[str, Any] = {
@@ -242,6 +257,29 @@ class FuenteYoutubeReal:
         except OSError as e:
             raise clasificar_error(str(e), e) from e
 
+    def info_lista(self, url: str, max_entradas: int) -> dict[str, Any]:
+        from yt_dlp import YoutubeDL
+        from yt_dlp.utils import DownloadError, ExtractorError
+
+        from . import listas_youtube
+
+        opciones = self._opciones(
+            skip_download=True,
+            noplaylist=False,
+            extract_flat="in_playlist",
+            playlistend=max_entradas + 1,
+        )
+        try:
+            with YoutubeDL(opciones) as ydl:
+                datos = ydl.extract_info(url, download=False)
+                if datos is None:
+                    return {}
+                return dict(ydl.sanitize_info(datos))
+        except (DownloadError, ExtractorError) as e:
+            raise listas_youtube.clasificar_error_lista(str(e), _origen(e)) from e
+        except OSError as e:
+            raise listas_youtube.clasificar_error_lista(str(e), e) from e
+
     def descargar(self, url: str, destino: Path, al_progreso: AlProgreso) -> Path:
         from yt_dlp import YoutubeDL
         from yt_dlp.utils import DownloadError, ExtractorError
@@ -264,6 +302,7 @@ class FuenteYoutubeReal:
             with YoutubeDL(opciones) as ydl:
                 datos = ydl.extract_info(url, download=True)
                 ruta = Path(ydl.prepare_filename(datos))
+                self.info_descarga = dict(ydl.sanitize_info(datos))
         except (DownloadError, ExtractorError) as e:
             raise _sin_espacio_o(e, _origen(e)) from e
         except OSError as e:
@@ -290,6 +329,8 @@ class FuenteYoutubeReal:
 class FuenteYoutubeFalsa:
     """Doble de prueba: lee `<dir>/<id>.json` (forma de `extract_info`) o `{"error": "..."}`."""
 
+    info_descarga: dict[str, Any] | None = None
+
     def __init__(self, directorio: Path) -> None:
         self.directorio = directorio
 
@@ -301,6 +342,17 @@ class FuenteYoutubeFalsa:
 
     def info(self, url: str) -> dict[str, Any]:
         id_video = self._id(url)
+        self._contar(id_video)
+        return self._leer(id_video)
+
+    def _contar(self, id_video: str) -> None:
+        """Si la prueba creó `llamadas-info.log`, apunta cada consulta de `info` (contador)."""
+        registro = self.directorio / "llamadas-info.log"
+        if registro.is_file():
+            with registro.open("a", encoding="utf-8") as f:
+                f.write(f"{id_video}\n")
+
+    def _leer(self, id_video: str) -> dict[str, Any]:
         ruta = self.directorio / f"{id_video}.json"
         if not ruta.is_file():
             raise clasificar_error("ERROR: [youtube] Video unavailable")
@@ -308,6 +360,21 @@ class FuenteYoutubeFalsa:
         if isinstance(datos, dict) and "error" in datos:
             raise clasificar_error(str(datos["error"]))
         datos.setdefault("id", id_video)
+        return datos
+
+    def info_lista(self, url: str, max_entradas: int) -> dict[str, Any]:
+        """Lee `<dir>/lista-<id de la lista>.json` (forma plana de `extract_info`) o `{"error"}`."""
+        from . import listas_youtube
+
+        id_lista, _ = listas_youtube.analizar_url_lista(url)
+        if id_lista is None:
+            raise ErrorWorker("URL_NO_VALIDA", "No parece un enlace de lista de YouTube")
+        ruta = self.directorio / f"lista-{id_lista}.json"
+        if not ruta.is_file():
+            raise listas_youtube.clasificar_error_lista("ERROR: The playlist does not exist.")
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        if isinstance(datos, dict) and "error" in datos:
+            raise listas_youtube.clasificar_error_lista(str(datos["error"]))
         return datos
 
     def descargar(self, url: str, destino: Path, al_progreso: AlProgreso) -> Path:
@@ -319,7 +386,8 @@ class FuenteYoutubeFalsa:
         import numpy as np
         import soundfile as sf
 
-        info = self.info(url)
+        info = self._leer(self._id(url))
+        self.info_descarga = info
         if info.get("error_descarga"):
             raise clasificar_error(str(info["error_descarga"]))
         if info.get("error_descarga_una_vez"):
@@ -398,6 +466,7 @@ def resumen_info(fuente: FuenteYoutube, id_video: str, info: Mapping[str, Any]) 
         "canal": str(canal),
         "duracion_s": float(duracion) if isinstance(duracion, int | float) else 0.0,
         "metadatos": metadatos_youtube.sugerir(info),
+        "musica": metadatos_youtube.campos_musica(info),
     }
     jpeg = miniatura_jpeg_base64(fuente, info)
     if jpeg:
@@ -425,6 +494,20 @@ def _borrar_restos(salida: Path) -> None:
     for resto in fuente.glob("descarga.*"):
         resto.unlink(missing_ok=True)
     (fuente / "mezcla.flac.tmp").unlink(missing_ok=True)
+
+
+def _musica_de_la_descarga(fuente: FuenteYoutube) -> dict[str, Any] | None:
+    """Campos de YouTube Music del `info` de la descarga (sin otra petición); `None` si faltan."""
+    try:
+        info = getattr(fuente, "info_descarga", None)
+        if not info:
+            return None
+        musica = metadatos_youtube.campos_musica(info)
+        propios = ("track", "artist", "album", "album_artist", "track_number", "release_year")
+        return musica if any(musica[c] for c in propios) else None
+    except Exception as e:
+        protocolo.log("warning", f"Sin datos de música: {type(e).__name__}: {e}")
+        return None
 
 
 def descargar_youtube(args: dict[str, Any], fuente: FuenteYoutube | None = None) -> None:
@@ -465,4 +548,11 @@ def descargar_youtube(args: dict[str, Any], fuente: FuenteYoutube | None = None)
         _borrar_restos(salida)
         raise
     _borrar_restos(salida)
-    protocolo.resultado({**datos, "bytes_descargados": bytes_descargados, "id_video": id_video})
+    protocolo.resultado(
+        {
+            **datos,
+            "bytes_descargados": bytes_descargados,
+            "id_video": id_video,
+            "musica": _musica_de_la_descarga(fuente),
+        }
+    )

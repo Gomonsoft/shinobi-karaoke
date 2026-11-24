@@ -410,6 +410,11 @@ export interface ExportacionIpc {
   alto: number
   fps: Fps
   audio: AudioExportacion
+  /**
+   * Nivel (0–1) de la voz en los coros si este video la lleva (ADR 0030 §5); ausente = sin voz de coros.
+   * Solo con `audio: "instrumental"`.
+   */
+  corosNivel?: number
   estado: EstadoExportacion
   /** 1 = la siguiente de la cola; `null` si no está en cola. */
   posicion: number | null
@@ -432,6 +437,11 @@ export interface ExportacionIpc {
   terminadaEn: string | null
   /** El temporal no se pudo borrar tras cancelar o fallar; `resultado` y `error` siguen siendo los reales. */
   limpiezaFallida: boolean
+  /**
+   * Solo las de un lote (ADR 0026 §5): agrupa sus exportaciones. Una `cancelada` **con** `error`
+   * (`SIN_ESPACIO` o `DESTINO_NO_DISPONIBLE`) es una que no se intentó porque el lote se detuvo.
+   */
+  loteId?: string
 }
 
 export const TIPOS_AVISO_EXPORTACION = ['interrumpida', 'limpieza_fallida'] as const

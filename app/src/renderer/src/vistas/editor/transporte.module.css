@@ -68,3 +68,8 @@
   width: 1px;
   background: var(--texto-3);
 }
+
+.coroPreparando {
+  color: var(--texto-3);
+  font-size: var(--t-pequeno);
+}

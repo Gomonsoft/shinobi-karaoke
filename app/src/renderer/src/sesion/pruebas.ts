@@ -62,6 +62,11 @@ export function instalarApiSesion(
     },
     cola: {
       agregar: registrar('cola.agregar', () => ({ estado: actual, entradaId: 'nueva' })),
+      agregarVarias: registrar('cola.agregarVarias', () => ({
+        entradaIds: ['e1', 'e2'],
+        omitidas: []
+      })),
+      quitarVarias: registrar('cola.quitarVarias', () => ({ estado: actual, antesDe: null })),
       mover: registrar('cola.mover'),
       quitar: registrar('cola.quitar', () => ({ estado: actual, antesDe: null })),
       vaciar: registrar('cola.vaciar')

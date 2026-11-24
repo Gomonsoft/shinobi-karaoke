@@ -27,6 +27,9 @@ function contexto(
     exportaciones,
     activaDe: (id) => exportaciones.find((e) => e.cancionId === id && e.estado !== 'terminada'),
     abrir: vi.fn(),
+    lotes: [],
+    abrirLote: vi.fn(),
+    verLote: vi.fn(),
     cerrar: vi.fn(),
     iniciada: vi.fn(),
     pedirCancelar: vi.fn(),
@@ -57,11 +60,12 @@ describe('tarjeta de la Biblioteca (X1–X3)', () => {
   }
   const opciones = () => screen.getAllByRole('menuitem').map((i) => i.textContent)
 
-  it('una Lista ofrece «Exportar video…» entre «Editar datos» y «Aplicar tema…» y abre el diálogo', () => {
+  it('una Lista ofrece «Exportar video…» tras «Editar datos» y antes de «Exportar paquete…» y abre el diálogo', () => {
     const valor = montar()
     const lista = opciones()
     expect(lista.indexOf('Exportar video…')).toBe(lista.indexOf('Editar datos') + 1)
-    expect(lista.indexOf('Aplicar tema…')).toBe(lista.indexOf('Exportar video…') + 1)
+    expect(lista.indexOf('Exportar paquete…')).toBe(lista.indexOf('Exportar video…') + 1)
+    expect(lista.indexOf('Aplicar tema…')).toBeGreaterThan(lista.indexOf('Exportar video…'))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Exportar video…' }))
     expect(valor.abrir).toHaveBeenCalledWith({ cancionId: resumenPrueba().id })
   })

@@ -1,5 +1,12 @@
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
-import { copyFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { cpus, release, totalmem } from 'node:os'
 import { join } from 'node:path'
 import { sembrar } from '../src/main/biblioteca/semilla'
@@ -9,6 +16,7 @@ import { TEXTO } from '../src/renderer/src/vistas/letra/textos'
 import { TEXTO_ELEGIDA } from '../src/renderer/src/vistas/letra/textosElegida'
 import { TEXTO_PEGAR } from '../src/renderer/src/vistas/letra/textosPegar'
 import { E } from '../src/renderer/src/vistas/editor/textos'
+import { K } from '../src/renderer/src/vistas/editor/comprobar/textos'
 import { R } from '../src/renderer/src/vistas/reproductor/textos'
 import {
   lanzar as lanzarSeparacion,
@@ -17,6 +25,7 @@ import {
   tarjeta
 } from './fixtures/separacion'
 import { abrirEditor, conEditor, idSemilla } from './fixtures/editor'
+import { crearTemporal } from './temporales'
 
 /**
  * Editor sin red: semilla de desarrollo con audio de 30 s, salida silenciada y LRCLIB apuntando
@@ -99,8 +108,14 @@ test.describe('editor sin red', () => {
       })
       expect(lineasDe(datos, T17).find((l) => l.tipo === 'pausa')!.inicio_ms).toBeNull()
 
-      // Marcar como lista: vuelve a la Biblioteca con la tarjeta enfocada y resaltada.
+      // Los clics de la pista suenan cada 2 s y las líneas duran ~1 s: la voz casi no cae en ellas
+      // (`sinVoz`, importante). La primera pulsación de «Marcar como lista» pregunta (F11-E12).
+      await expect(v.getByRole('option', { name: /Línea 1,.*por revisar/ })).toBeVisible()
       await v.getByRole('button', { name: E.marcarLista }).click()
+      const aviso = v.getByRole('dialog', { name: 'Quedan 12 líneas por revisar.' })
+      await expect(aviso.getByRole('button', { name: 'Revisar ahora' })).toBeFocused()
+      await aviso.getByRole('button', { name: 'Marcar igualmente' }).click()
+      // Marcar como lista: vuelve a la Biblioteca con la tarjeta enfocada y resaltada.
       await expect(v.getByRole('heading', { level: 1, name: /Biblioteca/ })).toBeVisible()
       await expect(v.getByText(`«${T17}» está lista para cantar.`)).toBeVisible()
       await expect(tarjeta(v, T17)).toBeFocused()
@@ -126,6 +141,28 @@ test.describe('editor sin red', () => {
       await expect.poll(() => soloLineas(datos, T17)[0]!.fin_ms, { timeout: 5000 }).not.toBeNull()
       expect(soloLineas(datos, T17)[1]!.inicio_ms).toBeNull()
     })
+  })
+
+  test('«Exportar la letra» justo tras mover un inicio: el archivo lleva el inicio nuevo (F9-E1)', async () => {
+    const salida = crearTemporal('editor-lrc-salida')
+    process.env.SHINOBI_LRC_PRUEBAS = salida
+    try {
+      await conEditor('editor-lrc', async (v) => {
+        await abrir(v, T19)
+        await opcionLinea(v, 1).click()
+        for (let i = 0; i < 3; i++) await v.keyboard.press('Alt+ArrowRight')
+        await expect(opcionLinea(v, 1)).toContainText('00:02.03')
+        // Sin esperar al guardado: el botón vacía el guardado pendiente antes de exportar.
+        await v.getByRole('radio', { name: 'Funciones' }).click()
+        await v.getByRole('button', { name: 'Exportar la letra (.lrc)…' }).click()
+        await expect(v.getByText(/Letra exportada/).first()).toBeVisible()
+        const archivos = readdirSync(salida).filter((n) => n.endsWith('.lrc'))
+        expect(archivos).toHaveLength(1)
+        expect(readFileSync(join(salida, archivos[0]!), 'utf8')).toContain('[00:02.03]')
+      })
+    } finally {
+      delete process.env.SHINOBI_LRC_PRUEBAS
+    }
   })
 
   test('ajuste fino, límites y deshacer/rehacer', async () => {
@@ -182,7 +219,8 @@ test.describe('editor sin red', () => {
         await barra.fill('15900')
         await expect(v.locator('[data-linea="i1"]')).toBeVisible()
         await barra.fill('16500')
-        await expect(v.locator('[data-linea]')).toHaveCount(0)
+        // 0.2.2: en el hueco sigue a la vista la ya cantada y la siguiente (2 líneas con este letra).
+        await expect(v.locator('[data-linea]')).toHaveCount(2)
         await barra.fill('17300')
         await expect(v.locator('[data-linea="i2"]')).toBeVisible()
 
@@ -195,7 +233,7 @@ test.describe('editor sin red', () => {
         await tiempo.fill('15900')
         await expect(capa.locator('[data-linea="i1"]')).toBeVisible()
         await tiempo.fill('16500')
-        await expect(capa.locator('[data-linea]')).toHaveCount(0)
+        await expect(capa.locator('[data-linea]')).toHaveCount(2)
         await expect(capa.getByText('El faro nos espera', { exact: true })).toBeVisible()
         await expect(capa.locator('[data-linea="i2"]')).toBeVisible()
       },
@@ -381,7 +419,16 @@ async function dragMarcador(v: Page, borde: string, cambioMs: number): Promise<v
   const escala = await rangoTimeline(v).evaluate((r: HTMLInputElement) => {
     return r.getBoundingClientRect().width / (Number(r.max) - Number(r.min))
   })
-  const caja = (await marcador.boundingBox())!
+  // Tras elegir una línea (o cancelar un gesto), la línea de tiempo se reencuadra: se espera a que el marcador
+  // esté quieto (misma caja en dos lecturas seguidas) antes de pulsar; con la CPU ocupada se pulsaba sobre la
+  // posición antigua y el gesto no movía nada.
+  let caja = (await marcador.boundingBox())!
+  await expect(async () => {
+    const nueva = (await marcador.boundingBox())!
+    const quieto = nueva.x === caja.x && nueva.y === caja.y && nueva.width === caja.width
+    caja = nueva
+    expect(quieto).toBe(true)
+  }).toPass({ intervals: [60, 100, 200], timeout: 5_000 })
   const x = caja.x + caja.width / 2
   const y = caja.y + caja.height / 2
   await v.mouse.move(x, y)
@@ -423,8 +470,21 @@ test.describe('línea de tiempo del editor', () => {
         await expect(inicio).toHaveAttribute('aria-valuenow', '2000')
         expect(guardada().inicio_ms).toBe(2000)
 
-        await dragMarcador(v, E.timeline.inicio, 800)
-        await v.mouse.up()
+        // El segundo arrastre empieza justo después de cancelar con Escape + soltar. Bajo carga, a veces la
+        // pulsación llega antes de que el marcador haya vuelto a su estado de reposo y no arranca el gesto (no
+        // se pudo reproducir a voluntad: 40 ejecuciones con carga no fallaron). Se repite SOLO el gesto, hasta
+        // que la vista previa se mueve; lo que se comprueba después (posición exacta y un único paso) no cambia.
+        await expect(async () => {
+          await dragMarcador(v, E.timeline.inicio, 800)
+          try {
+            await expect(inicio).not.toHaveAttribute('aria-valuenow', '2000', { timeout: 2000 })
+          } catch (e) {
+            await v.keyboard.press('Escape')
+            await v.mouse.up()
+            throw e
+          }
+          await v.mouse.up()
+        }).toPass({ timeout: 15_000 })
         const desplazada = Number(await inicio.getAttribute('aria-valuenow'))
         expect(Math.abs(desplazada - 2800)).toBeLessThan(45)
         await expect.poll(() => guardada().inicio_ms).toBe(desplazada)
@@ -497,11 +557,19 @@ test.describe('línea de tiempo del editor', () => {
           }
         })
         await abrir(v, T17)
-        await opcionLinea(v, 1).click()
-        await tiempoEditor(v).fill('6000')
+        // Entrando por «Revisar» (borrador completo = «Lista para revisar»), la revisión guiada hace
+        // «Zoom a la línea» al llegar a la línea señalada (spec 06, feature 11). La medida del cabezal
+        // asume la canción completa: se espera ese zoom y se vuelve a ver la canción entera.
+        await expect(timeline(v).getByText('00:01.00', { exact: true })).toBeVisible()
+        await v.getByRole('button', { name: 'Ver canción completa' }).click()
+        await expect(timeline(v).getByText('00:30.00', { exact: true })).toBeVisible()
         const bucle = botonBucle(v)
         const pausa = v.getByRole('button', { name: 'Pausar', exact: true })
         const reproduce = v.getByRole('button', { name: 'Reproducir', exact: true })
+        // Al empezar la revisión la primera línea no suena sola (0158 n.º 24): el editor está en reposo.
+        await expect(reproduce).toBeVisible({ timeout: 10_000 })
+        await opcionLinea(v, 1).click()
+        await tiempoEditor(v).fill('6000')
         await bucle.check()
         await expect(pausa).toBeVisible()
         const fase = await cabezalTimeline(v).evaluate(
@@ -1048,4 +1116,235 @@ test('ajustar los silencios: propone, aplica con la cuenta y se deshace en un pa
       writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
     }
   )
+})
+
+test('comprobar la letra con la voz: corrige el desfase sin tocar los tiempos y se deshace en un paso', async () => {
+  test.setTimeout(90_000)
+  await conEditor(
+    'comprobar-letra',
+    async (v, datos) => {
+      const letraDe = () => leerCancion(datos, idDe(T20)).letra
+      const inicios = () => soloLineas(datos, T20).map((l) => l.inicio_ms)
+      const antes = inicios()
+      await abrir(v, T20)
+      await v.getByRole('radio', { name: 'Sincronía' }).click()
+      await esperarOnda(v)
+      await v.getByRole('radio', { name: 'Funciones' }).click()
+      // La sección va justo antes de «Ajustar los silencios».
+      const titulos = await v.getByRole('heading', { level: 3 }).allTextContents()
+      expect(titulos.indexOf('Comprobar la letra con la voz')).toBe(
+        titulos.indexOf('Ajustar los silencios') - 1
+      )
+      await v.getByRole('button', { name: 'Comprobar la letra con la voz…' }).click()
+      const dialogo = v.getByRole('dialog', { name: '¿Corregir el desfase de la letra?' })
+      await expect(dialogo.getByText(/Toda la letra va 0,8 s adelantada/)).toBeVisible()
+      await expect(dialogo.getByText(/Moveremos sus 6 líneas/)).toBeVisible()
+      await dialogo.getByRole('button', { name: 'Corregir el desfase' }).click()
+      await expect(v.getByText(/Desfase corregido: toda la letra 0,8 s más tarde/)).toBeVisible()
+      await expect
+        .poll(() => Math.abs(letraDe().offset_ms - 800), { timeout: 5000 })
+        .toBeLessThanOrEqual(50)
+      expect(letraDe().desfase_corregido_ms).toBe(letraDe().offset_ms)
+      expect(letraDe().offset_ms % 10).toBe(0)
+      expect(inicios()).toEqual(antes)
+
+      await v.keyboard.press('ControlOrMeta+z')
+      await expect.poll(() => letraDe().offset_ms, { timeout: 5000 }).toBe(0)
+      expect(letraDe().desfase_corregido_ms).toBeUndefined()
+      await expect(v.getByText(/Desfase corregido:/)).toHaveCount(0)
+      expect(inicios()).toEqual(antes)
+    },
+    (datos) => {
+      const raiz = join(datos, 'biblioteca', idDe(T20))
+      // Voz de 2 s cada 5 s desde el segundo 2: la letra empieza 0,8 s antes que cada canto.
+      writeFileSync(
+        join(raiz, 'pistas', 'voz.flac'),
+        pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs: 2000, desfaseMs: 2000 })
+      )
+      const cancion = leerCancion(datos, idDe(T20))
+      cancion.letra.offset_ms = 0
+      cancion.letra.lineas = [1200, 6200, 11_200, 16_200, 21_200, 26_200].map((inicio, i) => ({
+        id: `d${i}`,
+        tipo: 'linea',
+        texto: `Línea inventada ${i + 1}`,
+        inicio_ms: inicio,
+        fin_ms: inicio + 2000,
+        palabras: null
+      }))
+      writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
+    }
+  )
+})
+
+// F4-E2 (revisión 2026-11-22): con una limitación, el diálogo solo tiene [Cerrar], dice el motivo y no se
+// toca `cancion.json`. Letra sin fines sobre la voz de cantos de 4 s (`sinContraste`) o de 4,5 s (`vozContinua`).
+for (const [limitacion, duracionPulsoMs] of [
+  ['sinContraste', 4000],
+  ['vozContinua', 4500]
+] as const) {
+  test(`comprobar la letra con la voz: limitación «${limitacion}» solo informa y no cambia nada (F4-E2)`, async () => {
+    test.setTimeout(90_000)
+    await conEditor(
+      `comprobar-limitada-${limitacion}`,
+      async (v, datos) => {
+        const antes = readFileSync(join(datos, 'biblioteca', idDe(T20), 'cancion.json'), 'utf8')
+        await abrir(v, T20)
+        await v.getByRole('radio', { name: 'Sincronía' }).click()
+        await esperarOnda(v)
+        await v.getByRole('radio', { name: 'Funciones' }).click()
+        await v.getByRole('button', { name: 'Comprobar la letra con la voz…' }).click()
+        const dialogo = v.getByRole('dialog', { name: K.limitada.titulo })
+        await expect(dialogo.getByText(K.limitada[limitacion])).toBeVisible()
+        await expect(dialogo.getByRole('button')).toHaveText(['Cerrar'])
+        await expect(v.getByText(K.toastCoincide)).toHaveCount(0)
+        await expect(v.getByText(/Desfase corregido:/)).toHaveCount(0)
+        await dialogo.getByRole('button', { name: 'Cerrar' }).click()
+        await expect(dialogo).toHaveCount(0)
+        expect(readFileSync(join(datos, 'biblioteca', idDe(T20), 'cancion.json'), 'utf8')).toBe(
+          antes
+        )
+      },
+      (datos) => {
+        const raiz = join(datos, 'biblioteca', idDe(T20))
+        writeFileSync(
+          join(raiz, 'pistas', 'voz.flac'),
+          pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs, desfaseMs: 2000 })
+        )
+        const cancion = leerCancion(datos, idDe(T20))
+        cancion.letra.offset_ms = 0
+        cancion.letra.lineas = [2000, 7000, 12_000, 17_000, 22_000, 27_000].map((inicio, i) => ({
+          id: `f${i}`,
+          tipo: 'linea',
+          texto: `Línea inventada ${i + 1}`,
+          inicio_ms: inicio,
+          fin_ms: null,
+          palabras: null
+        }))
+        writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
+      }
+    )
+  })
+}
+
+test('revisión guiada: dos líneas dudosas, «Está bien» se guarda y se deshace, y «Fin al final de la voz» corrige', async () => {
+  test.setTimeout(90_000)
+  await conEditor(
+    'revision-guiada',
+    async (v, datos) => {
+      const lineas = () =>
+        soloLineas(datos, T20) as (Linea & {
+          id: string
+          revisada?: unknown
+          origen_fin?: string
+        })[]
+      await abrir(v, T20)
+      await v.getByRole('radio', { name: 'Sincronía' }).click()
+      await esperarOnda(v)
+      // Las dos líneas señaladas llevan su marca y el motivo en el nombre accesible.
+      await expect(
+        v.getByRole('option', {
+          name: /Línea 2,.*por revisar: el fin llega 3,0 s después de la voz/
+        })
+      ).toBeVisible()
+      await expect(
+        v.getByRole('option', {
+          name: /Línea 4,.*por revisar: la voz empieza 0,8 s después del inicio/
+        })
+      ).toBeVisible()
+
+      await v.getByRole('radio', { name: 'Funciones' }).click()
+      const titulos = await v.getByRole('heading', { level: 3 }).allTextContents()
+      expect(titulos[0]).toBe('Revisar la sincronía')
+      await v.getByRole('button', { name: 'Revisar (2)…' }).click()
+      const tarjeta = v.getByRole('region', { name: /Revisión · quedan/ })
+      await expect(tarjeta).toContainText('Revisión · quedan 2 de 2')
+      await expect(tarjeta).toContainText('El fin llega 3,0 s después de la voz.')
+
+      // «Fin al final de la voz» corrige la primera: un paso, fin al final del canto + 0,1 s, origen «silencios».
+      await tarjeta.getByRole('button', { name: 'Fin al final de la voz' }).click()
+      await expect(v.getByText('✓ Ya no vemos nada raro en esta línea.')).toBeVisible()
+      await expect.poll(() => lineas()[1]!.fin_ms, { timeout: 5000 }).toBe(9100)
+      expect(lineas()[1]!.origen_fin).toBe('silencios')
+      await v.keyboard.press('ControlOrMeta+z')
+      await expect(tarjeta).toContainText('El fin llega 3,0 s después de la voz.')
+      await expect.poll(() => lineas()[1]!.fin_ms, { timeout: 5000 }).toBe(12_000)
+
+      // «Está bien» en las dos: se guardan las marcas y aparece el fin del recorrido.
+      await tarjeta.getByRole('button', { name: 'Está bien' }).click()
+      await expect(tarjeta).toContainText('Revisión · quedan 1 de 2')
+      await v.getByRole('button', { name: 'Está bien' }).click()
+      await expect(v.getByRole('region', { name: 'Revisión terminada' })).toContainText(
+        'Has revisado las 2 líneas señaladas.'
+      )
+      await expect
+        .poll(
+          () =>
+            lineas()
+              .filter((l) => l.revisada)
+              .map((l) => l.texto),
+          { timeout: 5000 }
+        )
+        .toEqual(['Línea inventada 2', 'Línea inventada 4'])
+
+      // Deshacer devuelve la última a pendiente; Esc cierra el recorrido sin salir del editor.
+      await v.keyboard.press('ControlOrMeta+z')
+      await expect(v.getByText('Revisión · quedan 1 de 2')).toBeVisible()
+      await v.keyboard.press('Escape')
+      await expect(v.getByRole('region', { name: /Revisión/ })).toHaveCount(0)
+      await expect(v.getByRole('heading', { name: 'Editor' })).toBeAttached()
+      // La marca de la línea dada por buena sobrevive a reabrir el editor.
+      await expect.poll(() => lineas().filter((l) => l.revisada).length, { timeout: 5000 }).toBe(1)
+    },
+    (datos) => {
+      const raiz = join(datos, 'biblioteca', idDe(T20))
+      // Voz de 2 s cada 5 s desde el segundo 2.
+      writeFileSync(
+        join(raiz, 'pistas', 'voz.flac'),
+        pulsosFlac({ segundos: 30, periodoMs: 5000, duracionPulsoMs: 2000, desfaseMs: 2000 })
+      )
+      const cancion = leerCancion(datos, idDe(T20))
+      cancion.letra.offset_ms = 0
+      // La 2.ª acaba 3 s después de la voz (finTarde) y la 4.ª empieza 0,8 s antes de ella (vozTarde).
+      const tiempos: [number, number][] = [
+        [2000, 4000],
+        [7000, 12_000],
+        [12_500, 14_000],
+        [16_200, 18_200],
+        [22_000, 24_000],
+        [27_000, 29_000]
+      ]
+      cancion.letra.lineas = tiempos.map(([inicio, fin], i) => ({
+        id: `r${i}`,
+        tipo: 'linea',
+        texto: `Línea inventada ${i + 1}`,
+        inicio_ms: inicio,
+        fin_ms: fin,
+        palabras: null
+      }))
+      writeFileSync(join(raiz, 'cancion.json'), JSON.stringify(cancion))
+    }
+  )
+})
+
+// F5-E6 (pregunta 0270). Escrita sin ejecutar: con «Revisar» no sale en ningún momento banner de la
+// preparación ni `yaSync` (fotogramas cada 50 ms el primer segundo). Falta comprobar que T17 tiene
+// registro de preparación (si no, solo cubre `yaSync`); el escenario completo está en `Editor.banner.test.tsx`.
+test('F5-E6: entrando con «Revisar» no hay banner de preparación ni yaSync en el primer segundo', async () => {
+  await conEditor('banner-revisar', async (v) => {
+    await v.evaluate(() => {
+      const w = window as unknown as { __banners: string[] }
+      w.__banners = []
+      const mirar = (): void => {
+        const t = document.body.innerText
+        if (/Shinobi Karaoke preparó esta canción|Esta letra ya viene sincronizada/.test(t))
+          w.__banners.push(t.slice(0, 80))
+      }
+      setInterval(mirar, 50)
+    })
+    await abrir(v, T17)
+    await v.waitForTimeout(1000)
+    expect(
+      await v.evaluate(() => (window as unknown as { __banners: string[] }).__banners)
+    ).toEqual([])
+  })
 })

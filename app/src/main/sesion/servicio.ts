@@ -4,7 +4,7 @@ import { CANALES } from '../../shared/canales'
 import { modalidadEfectiva, type Cancion } from '../../shared/cancion'
 import type { Config } from '../../shared/config'
 import type { CodigoError } from '../../shared/errores'
-import { ESTILO_PREDETERMINADO, type Estilo } from '../../shared/estilo'
+import { ESTILO_PREDETERMINADO, conSubrayadoDelEquipo, type Estilo } from '../../shared/estilo'
 import { numerosLineasSinInicio, type Letra } from '../../shared/letra'
 import type {
   AbrirSesion,
@@ -580,7 +580,15 @@ export class ServicioSesion {
 
   private estiloDe(cancionId: string): Estilo {
     const cancion = this.deps.biblioteca.obtener(cancionId)
-    return cancion ? this.deps.biblioteca.estiloDe(cancion) : structuredClone(ESTILO_PREDETERMINADO)
+    return cancion ? this.estiloVisible(cancion) : structuredClone(ESTILO_PREDETERMINADO)
+  }
+
+  /** El estilo de la entrada con el subrayado que pide este equipo (se resuelve al cargarla). */
+  private estiloVisible(cancion: Cancion): Estilo {
+    return conSubrayadoDelEquipo(
+      this.deps.biblioteca.estiloDe(cancion),
+      this.deps.config.obtener().reproductor.subrayar_cantado
+    )
   }
 
   // --- Revalidación (ADR 0017 §7) ------------------------------------------------------------------
@@ -625,7 +633,7 @@ export class ServicioSesion {
       duracionMs: vigente.metadatos.duracion_ms,
       gananciaDb: Math.min(60, Math.max(-60, vigente.fuente.ganancia_db)),
       letra,
-      estilo: biblioteca.estiloDe(vigente),
+      estilo: this.estiloVisible(vigente),
       modalidad: modalidadEfectiva(vigente),
       lineasSinSincronizar: numerosLineasSinInicio(letra).length
     })

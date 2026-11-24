@@ -5,7 +5,7 @@ import type { TrabajoVivo } from '../biblioteca/tarjeta'
 
 /** Indicador de un paso del stepper (docs/ux/00 §2): ✓ ⟳ % "En cola" ✕ ⚠ ● ○. */
 export type IndicadorPaso =
-  'completado' | 'curso' | 'error' | 'interrumpido' | 'actual' | 'pendiente'
+  'completado' | 'curso' | 'error' | 'interrumpido' | 'atencion' | 'actual' | 'pendiente'
 
 export interface DatosPaso {
   paso: PasoCancion
@@ -46,6 +46,7 @@ const DESCRIPCION: Record<IndicadorPaso, string> = {
   curso: 'en curso',
   error: 'con error',
   interrumpido: 'interrumpido',
+  atencion: 'necesita tu atención',
   actual: 'paso actual',
   pendiente: 'pendiente'
 }
@@ -144,9 +145,28 @@ export function pasosDeCancion(
           esActual
         )
         break
-      case 'letra':
+      case 'letra': {
         datos = datosDePaso(paso, tieneLetra ? 'completado' : 'pendiente', null, null, esActual)
+        // Preparación desatendida (docs/ux/04 · Feature 5): ⟳ mientras busca o comprueba y «!» si
+        // necesita al usuario (elige, no se encontró, instrumental o pendiente).
+        const e = resumen.estadoPreparacion
+        if (
+          !tieneLetra &&
+          (e === 'elige_letra' ||
+            e === 'sin_letra' ||
+            e === 'instrumental' ||
+            e === 'letra_pendiente')
+        ) {
+          datos = { indicador: 'atencion', detalle: null }
+        } else if (
+          e === 'preparando' &&
+          resumen.preparacion?.paso !== 'esperando_separacion' &&
+          resumen.preparacion?.paso
+        ) {
+          datos = { indicador: 'curso', detalle: null }
+        }
         break
+      }
       default:
         datos = datosDePaso(paso, lista ? 'completado' : 'pendiente', null, null, esActual)
     }

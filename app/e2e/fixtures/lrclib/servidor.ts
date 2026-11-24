@@ -27,7 +27,15 @@ export const TITULOS = {
   /** 500 en todo. */
   servicioRoto: 'Tema servicio roto',
   /** Responde a los 12 s (el cliente lo corta a los 10 s). */
-  lenta: 'Tema lenta'
+  lenta: 'Tema lenta',
+  /** `get` da 404; `search` devuelve tres candidatos con tiempos sobre la voz de `VOZ_SINTETICA` (feature 4). */
+  conVoz: 'Tema con voz',
+  /**
+   * `get` da 404; `search` devuelve un único candidato con los inicios sobre la voz de `VOZ_SINTETICA`
+   * pero **sin fines** (solo marcas de inicio). Según la voz sembrada, la comprobación da la limitación
+   * `sinContraste` (cantos de 4 s cada 5 s) o `vozContinua` (cantos de 4,5 s cada 5 s): feature 4, F4-L2.
+   */
+  limitada: 'Tema limitada'
 } as const
 
 type Escenario = keyof typeof TITULOS
@@ -40,7 +48,9 @@ const ORDEN: Escenario[] = [
   'limiteCorto',
   'limiteLargo',
   'servicioRoto',
-  'lenta'
+  'lenta',
+  'conVoz',
+  'limitada'
 ]
 
 export const RETARDO_LENTA_MS = 12_000
@@ -73,6 +83,94 @@ interface RegistroFixture {
   trackName: string
   duration: number
   [campo: string]: unknown
+}
+
+/**
+ * Voz sintética de los E2E de la feature 4 (`pulsosFlac` con estos parámetros): seis cantos de 2 s,
+ * uno cada 5 s desde el segundo 2.
+ */
+export const VOZ_SINTETICA = {
+  segundos: 30,
+  periodoMs: 5000,
+  duracionPulsoMs: 2000,
+  desfaseMs: 2000
+}
+export const IDS_CON_VOZ = { coincide: 9101, desfasada: 9102, noCoincide: 9103 } as const
+/** Id del candidato del escenario `limitada` (LRC sin fines). */
+export const ID_LIMITADA = 9111
+/** Cuánto antes que la voz empieza la letra del candidato `desfasada`. */
+export const DESFASE_CON_VOZ_MS = 800
+
+const marca = (ms: number): string => {
+  const s = Math.floor(ms / 1000)
+  const c = Math.floor((ms % 1000) / 10)
+  const dos = (n: number): string => String(n).padStart(2, '0')
+  return `[${dos(Math.floor(s / 60))}:${dos(s % 60)}.${dos(c)}]`
+}
+
+/** LRC inventado: cada verso es `[inicio, fin)` y una marca vacía cierra su fin. */
+function lrcDeTramos(tramos: [number, number][]): string {
+  return tramos
+    .map(([inicio, fin], i) => `${marca(inicio)}Verso inventado ${i + 1}\n${marca(fin)}`)
+    .join('\n')
+}
+
+/** Seis versos de 2 s, uno cada 5 s desde `primerInicioMs` (el ritmo de la voz sintética). */
+const versosPeriodicos = (primerInicioMs: number): [number, number][] =>
+  Array.from({ length: 6 }, (_, i) => [primerInicioMs + i * 5000, primerInicioMs + i * 5000 + 2000])
+
+/**
+ * Versos de otra versión de la canción: ritmo y duraciones que no se pueden alinear con la voz
+ * periódica moviéndolos (una letra con el mismo ritmo desplazada sí encajaría).
+ */
+const VERSOS_OTRA_VERSION: [number, number][] = [
+  [4300, 5800],
+  [8800, 10_300],
+  [13_700, 15_200],
+  [17_900, 19_400],
+  [23_600, 25_100],
+  [27_100, 28_600]
+]
+
+/** Tres candidatos con tiempos: encaja con la voz, va 0,8 s adelantado y cae en los silencios. */
+function candidatosConVoz(duracionS: number): RegistroFixture[] {
+  const registro = (id: number, titulo: string, versos: [number, number][]): RegistroFixture => ({
+    id,
+    trackName: titulo,
+    artistName: 'Artista inventado',
+    albumName: 'Álbum inventado',
+    duration: duracionS,
+    instrumental: false,
+    plainLyrics: Array.from({ length: 6 }, (_, i) => `Verso inventado ${i + 1}`).join('\n'),
+    syncedLyrics: lrcDeTramos(versos),
+    hasWordSync: false
+  })
+  return [
+    registro(IDS_CON_VOZ.noCoincide, 'Tema con voz (otra versión)', VERSOS_OTRA_VERSION),
+    registro(
+      IDS_CON_VOZ.desfasada,
+      'Tema con voz (adelantada)',
+      versosPeriodicos(2000 - DESFASE_CON_VOZ_MS)
+    ),
+    registro(IDS_CON_VOZ.coincide, 'Tema con voz', versosPeriodicos(2000))
+  ]
+}
+
+/** Candidato con solo marcas de inicio (sin la marca vacía que cierra cada verso). */
+function candidatoSinFines(duracionS: number): RegistroFixture {
+  return {
+    id: ID_LIMITADA,
+    trackName: 'Tema limitada',
+    artistName: 'Artista inventado',
+    albumName: 'Álbum inventado',
+    duration: duracionS,
+    instrumental: false,
+    plainLyrics: Array.from({ length: 6 }, (_, i) => `Verso inventado ${i + 1}`).join('\n'),
+    syncedLyrics: versosPeriodicos(2000)
+      .map(([inicio], i) => `${marca(inicio)}Verso inventado ${i + 1}`)
+      .join('\n'),
+    hasWordSync: false
+  }
 }
 
 const fixtures = (): {
@@ -165,7 +263,14 @@ export async function iniciarServidorLrclib(): Promise<ServidorLrclib> {
     const conLetra = e === 'completa' || e === 'limiteCorto' || e === 'lenta' || e === 'soloSearch'
     const porId = /^\/api\/get\/(\d+)$/.exec(ruta)
     if (porId) {
-      const todos = [c.linea, c.palabra, c.texto, fixtures().instrumental]
+      const todos = [
+        c.linea,
+        c.palabra,
+        c.texto,
+        fixtures().instrumental,
+        ...candidatosConVoz(duracionS),
+        candidatoSinFines(duracionS)
+      ]
       const r = todos.find((x) => x.id === Number(porId[1]))
       return r ? json(res, 200, r) : json(res, 404, { message: 'no existe' })
     }
@@ -176,6 +281,8 @@ export async function iniciarServidorLrclib(): Promise<ServidorLrclib> {
       return json(res, 404, { message: 'no existe' })
     }
     if (ruta === '/api/search') {
+      if (e === 'conVoz') return json(res, 200, candidatosConVoz(duracionS))
+      if (e === 'limitada') return json(res, 200, [candidatoSinFines(duracionS)])
       // Fuera de orden a propósito: la app debe ordenar palabra > línea > texto.
       return json(res, 200, conLetra ? [c.texto, c.linea, c.palabra] : [])
     }

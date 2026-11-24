@@ -26,6 +26,7 @@ export const TEXTO_SUSTITUIR = {
   titulo: '¿Sustituir la letra actual?',
   conSincronia: 'Perderás la sincronía que hayas hecho.',
   sinSincronia: 'Se reemplazará el texto que tienes ahora.',
+  reparto: 'También se perderá quién canta cada línea (se conservan los nombres de los cantantes).',
   cancelar: 'Cancelar',
   sustituir: 'Sustituir'
 } as const

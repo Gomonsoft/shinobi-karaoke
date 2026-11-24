@@ -1,4 +1,5 @@
 import { linea, lista, pausa, separando } from '@shared/__fixtures__'
+import { cancionDosCantantes, cancionUnCantanteConCoros } from '@shared/__fixtures__/reparto'
 import {
   configPredeterminada,
   letraSchema,
@@ -17,6 +18,7 @@ import type {
 } from '@shared/ipc'
 import { modalidadEfectiva } from '@shared/cancion'
 import { claveAlbumTexto, claveAlbum, claveArtista } from '@shared/index'
+import { apiNuevaFalsa, bibliotecaNuevaFalsa, letrasNuevasFalsas } from '../apiNuevaFalsa'
 import { aparienciaResumenPrueba } from '../biblioteca/resumenPrueba'
 import { temasFalsos, type TemasFalsos } from '../biblioteca/temasFalsos'
 import { ventanaFalsa } from '../biblioteca/ventanaFalsa'
@@ -47,6 +49,9 @@ export function cancionLista(): Cancion {
   }
   return cancion
 }
+
+/** Dos cantantes, una línea «Todos» y dos de coro (0.2.3; letra inventada). */
+export { cancionDosCantantes as cancionConReparto, cancionUnCantanteConCoros as cancionConCoros }
 
 export function cancionSinSincronizar(): Cancion {
   const cancion = cancionSincronizadaLrclib()
@@ -88,7 +93,15 @@ type ApiEditor = {
   [K in 'biblioteca' | 'letras' | 'app' | 'trabajos']: Partial<ApiShinobi[K]>
 } & Pick<
   ApiShinobi,
-  'config' | 'temas' | 'alCambiarCancion' | 'alCambiarConfig' | 'alCambiarTemas'
+  | 'config'
+  | 'temas'
+  | 'alCambiarCancion'
+  | 'alCambiarConfig'
+  | 'alCambiarTemas'
+  | 'actualizaciones'
+  | 'preparacion'
+  | 'copias'
+  | 'alineacion'
 > & {
     ventana: ReturnType<typeof ventanaFalsa>
   }
@@ -167,7 +180,28 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       lineasSinSincronizar: pendientes,
       incompleta: cancion.estado === 'lista' && pendientes > 0,
       danada: opciones.danada ?? false,
-      motivo: null
+      motivo: null,
+      preparacion: cancion.preparacion
+        ? {
+            estado: cancion.preparacion.estado,
+            paso: cancion.preparacion.paso,
+            busqueda: cancion.preparacion.busqueda
+              ? {
+                  resultado: cancion.preparacion.busqueda.resultado,
+                  candidatas: cancion.preparacion.busqueda.candidatas,
+                  motivo: cancion.preparacion.busqueda.motivo,
+                  noElige: cancion.preparacion.busqueda.no_elige ?? null
+                }
+              : null,
+            dudosas: cancion.preparacion.dudosas,
+            revisada: cancion.preparacion.revisada,
+            eleccionAutomatica: cancion.preparacion.eleccion?.por === 'app',
+            eleccionSinComprobar:
+              cancion.preparacion.eleccion?.por === 'app' &&
+              cancion.preparacion.eleccion.sin_comprobar === true,
+            desfaseCorregido: cancion.letra?.desfase_corregido_ms !== undefined
+          }
+        : null
     }
   }
 
@@ -188,6 +222,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
   const api: ApiEditor = {
     ventana: ventanaFalsa(),
     biblioteca: {
+      ...bibliotecaNuevaFalsa(),
       async listar() {
         registrar('biblioteca.listar')
         return [resumen()]
@@ -195,6 +230,12 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       async comprobarPistas(id) {
         registrar('biblioteca.comprobarPistas', id)
         return id === cancion.id ? resumen() : null
+      },
+      async marcarPreparacionRevisada(id) {
+        registrar('biblioteca.marcarPreparacionRevisada', id)
+        if (id !== cancion.id) return null
+        if (cancion.preparacion) cancion.preparacion.revisada = true
+        return resumen()
       },
       async obtener(id) {
         registrar('biblioteca.obtener', id)
@@ -205,7 +246,8 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           temaId: apariencia.temaId,
           temaNombre: apariencia.temaNombre,
           alHeredar: structuredClone(apariencia.alHeredar),
-          procedenciaEspera: apariencia.procedenciaEspera
+          procedenciaEspera: apariencia.procedenciaEspera,
+          procedenciaPantalla: apariencia.procedenciaPantalla
         }
         return { ...structuredClone(cancion), resuelta }
       },
@@ -261,6 +303,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       }
     },
     letras: {
+      ...letrasNuevasFalsas(),
       async abrirEdicion(id) {
         registrar('letras.abrirEdicion', id)
         sesionActiva = id === cancion.id ? crypto.randomUUID() : null
@@ -288,7 +331,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         registrar('letras.guardarTiempos', peticion, sesionId)
         exigirId(peticion.cancionId)
         const { letra } = cancion
-        const { tiempos, offset_ms } = peticion
+        const { tiempos, offset_ms, desfase_corregido_ms } = peticion
         if (
           sesionId !== sesionActiva ||
           !letra ||
@@ -296,10 +339,23 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
           letra.lineas.some((linea, i) => linea.id !== tiempos[i]?.id)
         )
           throw error('LETRA_DESACTUALIZADA')
+        // Como main: `desfase_corregido_ms` número = se anota, `null` = se borra, ausente = igual; cambiar
+        // `offset_ms` retira `revisada` de todas las líneas (pregunta 0172).
+        const { desfase_corregido_ms: previo, partes: partesPrevias, ...sinDesfase } = letra
+        const desfase = desfase_corregido_ms === undefined ? previo : desfase_corregido_ms
+        // Reparto (ADR 0029 §2): `partes` null = quitar, ausente = conservar; `parte` ausente = `c1`.
+        const partes = peticion.partes === undefined ? partesPrevias : peticion.partes
         const resultado = letraSchema.safeParse({
-          ...letra,
+          ...sinDesfase,
+          ...(partes ? { partes } : {}),
           offset_ms,
-          lineas: letra.lineas.map((linea, i) => ({ ...linea, ...tiempos[i] }))
+          ...(desfase != null ? { desfase_corregido_ms: desfase } : {}),
+          lineas: letra.lineas.map((linea, i) => {
+            const nueva = { ...linea, ...tiempos[i] }
+            if (tiempos[i]?.parte === undefined) delete nueva.parte
+            if (offset_ms !== letra.offset_ms) delete nueva.revisada
+            return nueva
+          })
         })
         if (!resultado.success) throw error('ARGUMENTOS_NO_VALIDOS')
         cancion.letra = resultado.data
@@ -307,6 +363,7 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
       }
     },
     ...temas.api,
+    ...apiNuevaFalsa(),
     config: {
       async obtener() {
         registrar('config.obtener')
@@ -317,6 +374,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
         if (cambio.reproductor) Object.assign(config.reproductor, cambio.reproductor)
         if (cambio.editor?.omitir_aviso_letra_lista !== undefined) {
           config.editor.omitir_aviso_letra_lista = cambio.editor.omitir_aviso_letra_lista
+        }
+        if (cambio.editor?.revision_autoescucha !== undefined) {
+          config.editor.revision_autoescucha = cambio.editor.revision_autoescucha
         }
         const paneles = cambio.editor?.paneles
         if (paneles) {
@@ -331,6 +391,9 @@ export function apiEditorFalsa(opciones: OpcionesApiEditor = {}): {
     app: {
       async guardadoPendiente(pendiente) {
         registrar('app.guardadoPendiente', pendiente)
+      },
+      async registrarError(error) {
+        registrar('app.registrarError', error)
       }
     },
     trabajos: {

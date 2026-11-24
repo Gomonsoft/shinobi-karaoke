@@ -11,6 +11,8 @@ interface ComunesCampo {
   error?: string
   /** La etiqueta sigue siendo el nombre accesible, pero no se pinta (otro título la encabeza). */
   etiquetaOculta?: boolean
+  /** Contenido pegado al campo (lista desplegable, botón…), posicionado respecto a él. */
+  junto?: ReactNode
 }
 
 function Envoltorio({
@@ -19,6 +21,7 @@ function Envoltorio({
   etiquetaOculta,
   ayuda,
   error,
+  junto,
   children
 }: ComunesCampo & { id: string; children: ReactNode }) {
   return (
@@ -26,7 +29,14 @@ function Envoltorio({
       <label htmlFor={id} className={etiquetaOculta ? estilos.soloLector : estilos.etiqueta}>
         {etiqueta}
       </label>
-      {children}
+      {junto ? (
+        <div className={estilos.junto}>
+          {children}
+          {junto}
+        </div>
+      ) : (
+        children
+      )}
       {ayuda && (
         <span id={`${id}-ayuda`} className={estilos.ayuda}>
           {ayuda}
@@ -56,6 +66,7 @@ export function CampoTexto({
   etiquetaOculta,
   ayuda,
   error,
+  junto,
   id,
   className,
   ...resto
@@ -69,6 +80,7 @@ export function CampoTexto({
       etiquetaOculta={etiquetaOculta}
       ayuda={ayuda}
       error={error}
+      junto={junto}
     >
       <input
         {...resto}

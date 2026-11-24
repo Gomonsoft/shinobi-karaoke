@@ -92,7 +92,7 @@ test.describe('editor: sección Tema', () => {
       const antes = hashesCanciones(datos)
       await abrirEditor(v, BOHEMIAN)
       await enEstilo(v)
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await expect(v.getByRole('heading', { name: 'Editando el tema «Sol»' })).toBeVisible()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
@@ -121,7 +121,7 @@ test.describe('editor: sección Tema', () => {
       const antes = hashesCanciones(datos)
       await abrirEditor(v, BOHEMIAN)
       await enEstilo(v)
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar en el tema…' }).click()
       const dialogo = v.getByRole('dialog', { name: TEMA.guardar.titulo('Sol') })
@@ -162,7 +162,7 @@ test.describe('editor: sección Tema', () => {
       await enEstilo(v)
 
       // Guardar como tema nuevo desde la edición del tema.
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
       await v.getByRole('button', { name: 'Guardar como tema nuevo…' }).click()
       const nombre = v.getByRole('dialog', { name: TEMA.nombre.tituloNuevo })
@@ -372,7 +372,7 @@ test.describe('editor: tema no disponible, salir y cerrar con borrador (T12, T22
     await conTemas('tema-borrador-salir', async (v, datos, app) => {
       await abrirEditor(v, BOHEMIAN)
       await enEstilo(v)
-      await v.getByRole('button', { name: 'Editar tema' }).click()
+      await v.getByRole('button', { name: 'Editar tema' }).first().click()
       await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
 
       // «‹ Biblioteca» pregunta; «Seguir editando» no cambia nada.
@@ -441,7 +441,7 @@ test.describe('editor: los botones de los diálogos de tres acciones caben en el
           await v.waitForTimeout(400)
           await abrirEditor(v, 'Zeta uno')
           await enEstilo(v)
-          await v.getByRole('button', { name: 'Editar tema' }).click()
+          await v.getByRole('button', { name: 'Editar tema' }).first().click()
           await v.getByRole('textbox', { name: 'Color de la letra', exact: true }).fill('#00FF00')
 
           // «Tienes cambios sin guardar…» (tres botones).
@@ -574,41 +574,51 @@ test.describe('editor: la sección Tema no se parte ni se corta (0170, 0171)', (
     })
   }
 
-  test('con el panel a 300, 360 y 480 px a 1280 × 720 (D1 y D3)', async () => {
-    await conTemas('tema-layout-paneles', async (v, _datos, app) => {
-      await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0]!.setContentSize(1280, 720)
-      )
-      await v.waitForTimeout(500)
-      await abrirEditor(v, BOHEMIAN)
-      await enEstilo(v)
-      const divisor = v.getByRole('separator', { name: E.layout.divisor.panel })
-      const anchos: number[] = []
-      for (const tecla of ['Home', null, 'End'] as const) {
-        if (tecla === null) await divisor.dblclick()
-        else {
+  // Con barras de desplazamiento clásicas (15 px, como en Linux y Windows) también en macOS: el hueco del panel
+  // no debe estrechar el contenido (0385).
+  for (const clasicas of [false, true]) {
+    test(`con el panel a 300, 360 y 480 px a 1280 × 720 (D1 y D3)${clasicas ? ' con barras clásicas' : ''}`, async () => {
+      await conTemas('tema-layout-paneles', async (v, _datos, app) => {
+        if (clasicas) {
+          await v.addStyleTag({
+            content:
+              '::-webkit-scrollbar { width: 15px; height: 15px } ::-webkit-scrollbar-thumb { background: #666 }'
+          })
+        }
+        await app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]!.setContentSize(1280, 720)
+        )
+        await v.waitForTimeout(500)
+        await abrirEditor(v, BOHEMIAN)
+        await enEstilo(v)
+        const divisor = v.getByRole('separator', { name: E.layout.divisor.panel })
+        const anchos: number[] = []
+        for (const tecla of ['Home', null, 'End'] as const) {
+          if (tecla === null) await divisor.dblclick()
+          else {
+            await divisor.focus()
+            await v.keyboard.press(tecla)
+          }
+          const valor = Number(await divisor.getAttribute('aria-valuenow'))
+          anchos.push(valor)
+          await v.waitForTimeout(300)
+          await medirAcciones(v, `panel ${valor}px D1`, 'd1')
+        }
+        expect(anchos[0]).toBe(300)
+        expect(anchos[1]).toBe(360)
+        expect(anchos[2]).toBeGreaterThanOrEqual(420)
+        // D3 con los tres anchos.
+        await v.getByRole('button', { name: E.tema.editar, exact: true }).click()
+        for (const tecla of ['Home', 'End'] as const) {
           await divisor.focus()
           await v.keyboard.press(tecla)
+          await v.waitForTimeout(300)
+          await medirAcciones(v, `panel ${tecla} D3`, 'd3')
         }
-        const valor = Number(await divisor.getAttribute('aria-valuenow'))
-        anchos.push(valor)
+        await divisor.dblclick()
         await v.waitForTimeout(300)
-        await medirAcciones(v, `panel ${valor}px D1`, 'd1')
-      }
-      expect(anchos[0]).toBe(300)
-      expect(anchos[1]).toBe(360)
-      expect(anchos[2]).toBeGreaterThanOrEqual(420)
-      // D3 con los tres anchos.
-      await v.getByRole('button', { name: E.tema.editar, exact: true }).click()
-      for (const tecla of ['Home', 'End'] as const) {
-        await divisor.focus()
-        await v.keyboard.press(tecla)
-        await v.waitForTimeout(300)
-        await medirAcciones(v, `panel ${tecla} D3`, 'd3')
-      }
-      await divisor.dblclick()
-      await v.waitForTimeout(300)
-      await medirAcciones(v, 'panel 360px D3', 'd3')
+        await medirAcciones(v, 'panel 360px D3', 'd3')
+      })
     })
-  })
+  }
 })
